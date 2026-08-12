@@ -223,11 +223,17 @@ describe('MCP server application use cases', () => {
     })
 
     expect(result.tools).toBe(tools)
+    /**
+     * A public `refresh` skips the positive cache but must keep the failure
+     * cooldown: `force` would let one API key drive a connection attempt per
+     * request at an endpoint already known to be failing, from Sim's egress
+     * addresses.
+     */
     expect(mocks.discoverServerTools).toHaveBeenCalledWith(
       'user-1',
       server.id,
       workspace.workspaceId,
-      true
+      'skip-cache'
     )
   })
 

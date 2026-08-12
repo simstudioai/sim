@@ -120,6 +120,21 @@ function successHeaders(options: V2SuccessOptions): Record<string, string> {
   return { ...PRIVATE_NO_STORE, ...rateLimitHeaders(options.rateLimit), ...options.headers }
 }
 
+/**
+ * The bodiless 200 a `HEAD` receives from a route whose `GET` is not safe.
+ *
+ * RFC 9110 §9.3.2 lets Next alias `HEAD` onto `GET` only because §9.2.1 defines
+ * `HEAD` as safe — "essentially read-only". A `GET` that opens an outbound
+ * connection or writes a row breaks that assumption, and an uptime monitor or
+ * link checker walking the documented URL list would drive those effects
+ * invisibly on every probe. Such a route answers the authorization and
+ * rate-limit questions and stops there. `HEAD` carries no body in any case, so
+ * nothing the caller can observe is fabricated.
+ */
+export function v2HeadNoEffect(options: V2SuccessOptions = {}): NextResponse {
+  return new NextResponse(null, { status: options.status ?? 200, headers: successHeaders(options) })
+}
+
 /** `{ data }` (+ rate-limit headers). */
 export function v2Data<T>(data: T, options: V2SuccessOptions = {}): NextResponse {
   return NextResponse.json(

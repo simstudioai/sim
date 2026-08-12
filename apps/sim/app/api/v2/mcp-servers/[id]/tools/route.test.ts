@@ -82,9 +82,9 @@ const TOOL = {
   serverName: 'Docs server',
 }
 
-function request(query: string) {
+function request(query: string, method = 'GET') {
   return new NextRequest(`http://localhost:3000/api/v2/mcp-servers/${SERVER_ID}/tools?${query}`, {
-    method: 'GET',
+    method,
     headers: { 'x-api-key': 'key' },
   })
 }
@@ -120,6 +120,23 @@ describe('/api/v2/mcp-servers/[id]/tools', () => {
     expect(mocks.discover).toHaveBeenCalledWith(
       expect.objectContaining({ input: expect.objectContaining({ refresh: true }) })
     )
+  })
+
+  /**
+   * Next aliases a missing `HEAD` export onto `GET`, and RFC 9110 §9.2.1 defines
+   * `HEAD` as safe. Discovery is not: it opens a live connection to a
+   * third-party endpoint and writes the outcome onto the server row. An uptime
+   * monitor or link checker walking the documented URL list would otherwise
+   * drive both on every probe, invisibly.
+   */
+  it('answers HEAD without connecting to the server or writing its status', async () => {
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}&refresh=true`, 'HEAD'), {
+      ...context,
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('')
+    expect(mocks.discover).not.toHaveBeenCalled()
   })
 
   it('rejects a query param it does not implement', async () => {

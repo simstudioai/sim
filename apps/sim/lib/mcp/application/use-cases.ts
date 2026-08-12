@@ -123,7 +123,12 @@ export const discoverMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
     const tools = await mcpService.discoverTools(
       requirePrincipalSubjectUserId(principal),
       context.workspaceId,
-      input.refresh ?? false
+      /**
+       * A public `refresh` skips the positive cache but keeps the failure
+       * cooldown; only an explicit user action on their own server may bypass
+       * both. See {@link McpDiscoveryRefresh}.
+       */
+      input.refresh ? 'skip-cache' : 'cache-aside'
     )
     return { tools }
   },
@@ -158,7 +163,12 @@ export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
       requirePrincipalSubjectUserId(principal),
       context.server.id,
       context.workspaceId,
-      input.refresh ?? false
+      /**
+       * A public `refresh` skips the positive cache but keeps the failure
+       * cooldown; only an explicit user action on their own server may bypass
+       * both. See {@link McpDiscoveryRefresh}.
+       */
+      input.refresh ? 'skip-cache' : 'cache-aside'
     )
     return { tools }
   },

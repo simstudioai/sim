@@ -25,6 +25,7 @@ import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CaughtOrchestrationError,
   v2Error,
+  v2HeadNoEffect,
   v2HttpError,
   v2RateLimitError,
   v2ValidationError,
@@ -225,6 +226,15 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
   auth: typeof v2ApiKeyAuth
   rateLimit: V2RateLimitPolicy
   errorPolicy: V2ErrorPolicy
+  /**
+   * Whether this route's `GET` is safe enough for Next's `HEAD`→`GET` aliasing
+   * to run it. Defaults to `true`, which is correct for a read.
+   *
+   * Set `false` when the `GET` opens an outbound connection or writes a row.
+   * Such a route still authenticates and rate-limits a `HEAD`, then answers a
+   * bodiless 200 without executing the use case — see {@link v2HeadNoEffect}.
+   */
+  headSafe?: boolean
   parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
   beforeParse?(args: {
     request: NextRequest
@@ -267,6 +277,10 @@ export function defineV2JsonRoute<
       )
       if (!admission.success) return admission.response
       const { auth } = admission
+
+      if (request.method === 'HEAD' && options.headSafe === false) {
+        return v2HeadNoEffect()
+      }
 
       if (options.beforeParse) {
         const rawParams = context?.params ? await context.params : {}
