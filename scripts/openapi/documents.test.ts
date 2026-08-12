@@ -162,7 +162,8 @@ describe('generated OpenAPI documents', () => {
           $ref: '#/components/responses/ServiceUnavailable',
         })
       }
-    }    expect(totalOperations).toBe(135)
+    }
+    expect(totalOperations).toBe(135)
   })
 
   it('documents mixed workflow execution and resume responses', () => {

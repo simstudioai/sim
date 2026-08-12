@@ -2,9 +2,9 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { sortSpecSchema, tableViewConfigSchema } from '@/lib/api/contracts/tables'
 import { v2ListAuditLogsContract } from '@/lib/api/contracts/v2/audit-logs'
 import { ERROR_RESPONSES } from '@/lib/api/contracts/v2/openapi/shared'
-import { sortSpecSchema, tableViewConfigSchema } from '@/lib/api/contracts/tables'
 import { v2CreateTableViewContract, v2QueryRowsBodySchema } from '@/lib/api/contracts/v2/tables'
 import { v2GetWorkflowRunContract } from '@/lib/api/contracts/v2/workflows'
 import {
@@ -60,9 +60,7 @@ describe('v2 boolean query params', () => {
 
   it.each(cases)('%s accepts a real boolean and defaults to false', (field, schema) => {
     const withBoolean = schema?.safeParse(
-      field === 'includeDeparted'
-        ? { organizationId: 'org-1', [field]: true }
-        : { [field]: true }
+      field === 'includeDeparted' ? { organizationId: 'org-1', [field]: true } : { [field]: true }
     )
     expect((withBoolean?.data as Record<string, unknown> | undefined)?.[field]).toBe(true)
 
@@ -74,9 +72,7 @@ describe('v2 boolean query params', () => {
 
   it.each(cases)('%s still rejects a non-boolean word', (field, schema) => {
     const parsed = schema?.safeParse(
-      field === 'includeDeparted'
-        ? { organizationId: 'org-1', [field]: 'yes' }
-        : { [field]: 'yes' }
+      field === 'includeDeparted' ? { organizationId: 'org-1', [field]: 'yes' } : { [field]: 'yes' }
     )
     expect(parsed?.success).toBe(false)
   })
@@ -91,9 +87,7 @@ describe('v2 boolean query params', () => {
  */
 describe('tables nested strictness', () => {
   it('rejects an unsupported per-sort option instead of dropping it', () => {
-    const parsed = sortSpecSchema.safeParse([
-      { field: 'name', direction: 'asc', nulls: 'last' },
-    ])
+    const parsed = sortSpecSchema.safeParse([{ field: 'name', direction: 'asc', nulls: 'last' }])
     expect(parsed.success).toBe(false)
   })
 
