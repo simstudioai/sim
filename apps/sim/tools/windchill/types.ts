@@ -293,6 +293,14 @@ export interface WindchillPageInfo {
   nextLink: string | null
 }
 
+export type WindchillAttributeValue =
+  | string
+  | number
+  | boolean
+  | null
+  | WindchillAttributeValue[]
+  | { [key: string]: WindchillAttributeValue }
+
 export interface WindchillCreateDocumentInput {
   name: string
   containerOid: string
@@ -300,12 +308,12 @@ export interface WindchillCreateDocumentInput {
   title?: string
   description?: string
   folderOid?: string
-  attributes?: Record<string, string | number | boolean | null>
+  attributes?: Record<string, WindchillAttributeValue>
 }
 
 export interface WindchillUpdateDocumentInput {
   id: string
-  attributes: Record<string, string | number | boolean | null>
+  attributes: Record<string, WindchillAttributeValue>
 }
 
 export interface WindchillSecurityLabelInput {
@@ -326,7 +334,7 @@ export interface WindchillParams {
   description?: string
   containerOid?: string
   folderOid?: string
-  attributes?: Record<string, string | number | boolean | null>
+  attributes?: Record<string, WindchillAttributeValue>
   documents?: WindchillCreateDocumentInput[] | WindchillUpdateDocumentInput[]
   checkOutNote?: string
   checkInNote?: string

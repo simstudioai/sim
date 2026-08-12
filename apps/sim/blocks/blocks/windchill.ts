@@ -41,9 +41,41 @@ const CHECK_OUT_OPERATIONS = [
 
 const CHECK_IN_OPERATIONS = ['windchill_check_in_document', 'windchill_check_in_documents']
 
-const REVISE_OPERATIONS = ['windchill_revise_document', 'windchill_revise_documents']
-
 const DOWNLOAD_OPERATIONS = ['windchill_download_primary_content', 'windchill_download_attachment']
+
+const SINGLE_MUTATION_OPERATIONS = [
+  'windchill_create_document',
+  'windchill_update_document',
+  'windchill_check_out_document',
+  'windchill_check_in_document',
+  'windchill_undo_check_out_document',
+  'windchill_revise_document',
+  'windchill_set_lifecycle_state',
+]
+
+const BULK_MUTATION_OPERATIONS = [
+  'windchill_create_documents',
+  'windchill_update_documents',
+  'windchill_check_out_documents',
+  'windchill_check_in_documents',
+  'windchill_undo_check_out_documents',
+  'windchill_revise_documents',
+  'windchill_update_document_security_labels',
+]
+
+const DELETE_OPERATIONS = ['windchill_delete_document', 'windchill_delete_documents']
+const UPLOAD_OPERATIONS = ['windchill_upload_primary_content', 'windchill_upload_attachments']
+const PAGINATED_OPERATIONS = [
+  'windchill_list_documents',
+  'windchill_get_document_structure',
+  'windchill_list_attachments',
+]
+const AFFECTED_ID_OPERATIONS = [
+  ...SINGLE_MUTATION_OPERATIONS,
+  ...BULK_MUTATION_OPERATIONS,
+  ...DELETE_OPERATIONS,
+  ...UPLOAD_OPERATIONS,
+]
 
 const PRIMARY_FILE_FIELD = ['primaryFileUpload', 'primaryFileReference'] as const
 const ATTACHMENT_FILES_FIELD = ['attachmentFilesUpload', 'attachmentFilesReference'] as const
@@ -232,12 +264,12 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
         {
           label: 'Update Document',
           id: 'windchill_update_document',
-          description: 'Update installed attributes on one document',
+          description: 'Update PATCH-compatible installed attributes on one document',
         },
         {
           label: 'Update Documents',
           id: 'windchill_update_documents',
-          description: 'Update installed attributes on multiple documents',
+          description: 'Update PATCH-compatible installed attributes on multiple documents',
         },
         {
           label: 'Delete Document',
@@ -431,6 +463,8 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
         value: ['windchill_create_document', 'windchill_update_document'],
       },
       required: { field: 'operation', value: 'windchill_update_document' },
+      description:
+        'Installed JSON attributes supported by PATCH. Name, Number, and Organization require Windchill UpdateCommonProperties and are rejected here.',
     },
     {
       id: 'documents',
@@ -475,7 +509,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
       title: 'Version ID',
       type: 'short-input',
       placeholder: 'Optional target revision',
-      condition: { field: 'operation', value: REVISE_OPERATIONS },
+      condition: { field: 'operation', value: 'windchill_revise_document' },
       mode: 'advanced',
     },
     {
@@ -799,37 +833,70 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
       type: 'json',
       description:
         'Normalized document fields: id, name, number, title, description, state, stateDisplay, versionId, revision, version, latest, checkoutState, folderName, and folderLocation',
+      condition: {
+        field: 'operation',
+        value: ['windchill_get_document', ...SINGLE_MUTATION_OPERATIONS],
+      },
     },
     documents: {
       type: 'json',
       description: 'Array of normalized documents with the same fields as document',
+      condition: {
+        field: 'operation',
+        value: ['windchill_list_documents', ...BULK_MUTATION_OPERATIONS],
+      },
     },
     structure: {
       type: 'json',
       description: 'Array of usage links containing id, parent, child, and recursive children',
+      condition: { field: 'operation', value: 'windchill_get_document_structure' },
     },
     states: {
       type: 'json',
       description: 'Array of valid lifecycle states containing value and display',
+      condition: { field: 'operation', value: 'windchill_get_valid_state_transitions' },
     },
     content: {
       type: 'json',
       description:
         'Primary-content metadata including identifiers, file metadata, OData content type, display name, URL location, and external-storage location',
+      condition: { field: 'operation', value: 'windchill_get_primary_content' },
     },
     attachments: {
       type: 'json',
       description: 'Array of attachment records with the same fields as content',
+      condition: { field: 'operation', value: 'windchill_list_attachments' },
     },
     pageInfo: {
       type: 'json',
       description: 'OData page information containing count, totalCount, and nextLink',
+      condition: { field: 'operation', value: PAGINATED_OPERATIONS },
     },
-    affectedIds: { type: 'array', description: 'Affected document identifiers' },
-    uploadedFileNames: { type: 'array', description: 'Uploaded file names' },
-    file: { type: 'file', description: 'Downloaded file' },
-    fileName: { type: 'string', description: 'Downloaded file name' },
-    mimeType: { type: 'string', description: 'Downloaded content MIME type' },
+    affectedIds: {
+      type: 'array',
+      description: 'Affected document identifiers',
+      condition: { field: 'operation', value: AFFECTED_ID_OPERATIONS },
+    },
+    uploadedFileNames: {
+      type: 'array',
+      description: 'Uploaded file names',
+      condition: { field: 'operation', value: UPLOAD_OPERATIONS },
+    },
+    file: {
+      type: 'file',
+      description: 'Downloaded file',
+      condition: { field: 'operation', value: DOWNLOAD_OPERATIONS },
+    },
+    fileName: {
+      type: 'string',
+      description: 'Downloaded file name',
+      condition: { field: 'operation', value: DOWNLOAD_OPERATIONS },
+    },
+    mimeType: {
+      type: 'string',
+      description: 'Downloaded content MIME type',
+      condition: { field: 'operation', value: DOWNLOAD_OPERATIONS },
+    },
   },
 }
 
@@ -935,7 +1002,7 @@ export const WindchillBlockMeta = {
       description:
         'Check out, update, check in, and revise a Windchill document through a controlled change cycle.',
       content:
-        '# Prepare Document Revision\n\nApply a controlled metadata change and prepare the document for its next Windchill revision.\n\n## Steps\n1. Use Get Document to confirm the document OID, current version, lifecycle state, and checkout state.\n2. Use Check Out Document with a concise note, then use Update Document with only the installed attributes that must change.\n3. Use Check In Document with a change summary and confirm the returned document state.\n4. Use Revise Document only when a new revision is requested, supplying a target version ID only when the Windchill installation requires one.\n\n## Output\nReport the document OID, original version, resulting version or revision, changed attribute names, and final checkout and lifecycle states.',
+        '# Prepare Document Revision\n\nApply a controlled metadata change and prepare the document for its next Windchill revision.\n\n## Steps\n1. Use Get Document to confirm the document OID, current version, lifecycle state, and checkout state.\n2. Use Check Out Document with a concise note. Capture the working-copy OID returned as document.id or the first affectedIds value.\n3. Use that working-copy OID—not the original document OID—for Update Document and Check In Document. Update only the installed PATCH-compatible attributes that must change, then check in with a change summary.\n4. Use Revise Document only when a new revision is requested, supplying a target version ID only when the Windchill installation requires one.\n\n## Output\nReport the original document OID, working-copy OID, original version, resulting version or revision, changed attribute names, and final checkout and lifecycle states.',
     },
   ],
 } as const satisfies BlockMeta

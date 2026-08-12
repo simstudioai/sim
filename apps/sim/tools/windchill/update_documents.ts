@@ -12,7 +12,7 @@ import {
 export const windchillUpdateDocumentsTool: ToolConfig<WindchillParams, WindchillResponse> = {
   id: 'windchill_update_documents',
   name: 'Windchill Update Documents',
-  description: 'Update multiple documents atomically',
+  description: 'Update PATCH-compatible attributes on multiple documents atomically',
   version: '1.0.0',
   params: {
     baseUrl: {
@@ -39,7 +39,7 @@ export const windchillUpdateDocumentsTool: ToolConfig<WindchillParams, Windchill
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Document updates as a JSON array; each item requires id and non-empty attributes',
+        'Document updates as a JSON array; each item requires id and bounded PATCH-compatible attributes. Name, Number, and Organization are not supported.',
     },
   },
   request: {

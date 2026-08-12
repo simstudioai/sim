@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import {
   type WindchillOperationResponse,
   windchillOperationResponseSchema,
@@ -34,8 +34,44 @@ function booleanValue(record: Record<string, unknown>, key: string): boolean | n
   return typeof record[key] === 'boolean' ? record[key] : null
 }
 
+const DOCUMENT_RESPONSE_PROPERTIES = [
+  'ID',
+  'Name',
+  'Number',
+  'Title',
+  'Description',
+  'State',
+  'VersionID',
+  'Revision',
+  'Version',
+  'Latest',
+  'CheckoutState',
+  'FolderName',
+  'FolderLocation',
+] as const
+
+const CONTENT_RESPONSE_PROPERTIES = [
+  'ID',
+  'FileName',
+  'Description',
+  'Format',
+  'MimeType',
+  'FileSize',
+  '@odata.type',
+  'DisplayName',
+  'UrlLocation',
+  'ExternalLocation',
+] as const
+
+function hasResponseProperty(
+  value: Record<string, unknown>,
+  properties: readonly string[]
+): boolean {
+  return properties.some((property) => Object.hasOwn(value, property))
+}
+
 export function normalizeWindchillDocument(value: unknown): WindchillDocument | null {
-  if (!isRecordLike(value)) return null
+  if (!isRecordLike(value) || !hasResponseProperty(value, DOCUMENT_RESPONSE_PROPERTIES)) return null
   const state = value.State
   return {
     id: stringValue(value, 'ID'),
@@ -57,7 +93,7 @@ export function normalizeWindchillDocument(value: unknown): WindchillDocument | 
 }
 
 export function normalizeWindchillContent(value: unknown): WindchillContent | null {
-  if (!isRecordLike(value)) return null
+  if (!isRecordLike(value) || !hasResponseProperty(value, CONTENT_RESPONSE_PROPERTIES)) return null
   return {
     id: stringValue(value, 'ID'),
     fileName: stringValue(value, 'FileName'),
@@ -86,8 +122,31 @@ function collection(value: unknown): unknown[] {
   return []
 }
 
+function requiredCollection(value: unknown, operation: WindchillOperation): unknown[] {
+  if (Array.isArray(value)) return value
+  if (isRecordLike(value) && Array.isArray(value.value)) return value.value
+  throw new Error(`Windchill returned an incompatible response for ${operation}`)
+}
+
+function requireAllNormalized<T>(
+  values: unknown[],
+  normalize: (value: unknown) => T | null,
+  operation: WindchillOperation
+): T[] {
+  const normalized = values.map(normalize)
+  if (normalized.some((value) => value === null)) {
+    throw new Error(`Windchill returned an incompatible response for ${operation}`)
+  }
+  return normalized as T[]
+}
+
 function normalizeState(value: unknown): WindchillStateTransition | null {
-  if (!isRecordLike(value)) return null
+  if (
+    !isRecordLike(value) ||
+    (!Object.hasOwn(value, 'Value') && !Object.hasOwn(value, 'Display'))
+  ) {
+    return null
+  }
   return {
     value: stringValue(value, 'Value'),
     display: stringValue(value, 'Display'),
@@ -98,7 +157,14 @@ function normalizeUsageLink(
   value: unknown,
   parentFallback: WindchillDocument | null = null
 ): WindchillDocumentUsageLink | null {
-  if (!isRecordLike(value)) return null
+  if (
+    !isRecordLike(value) ||
+    (!Object.hasOwn(value, 'ID') &&
+      !Object.hasOwn(value, 'DocUsedBy') &&
+      !Object.hasOwn(value, 'DocUses'))
+  ) {
+    return null
+  }
   const childValue = value.DocUses
   const child = normalizeWindchillDocument(childValue)
   const children = isRecordLike(childValue)
@@ -158,15 +224,36 @@ function documentPath(baseUrl: string, oid: string): string {
   return `${normalizeServiceRoot(baseUrl)}/DocMgmt/Documents('${encodeWindchillOid(oid)}')`
 }
 
-export function resolveWindchillNextLink(baseUrl: string, nextLink: string): string {
+function decodedPathname(pathname: string): string {
+  try {
+    return decodeURIComponent(pathname)
+  } catch {
+    return pathname
+  }
+}
+
+export function resolveWindchillNextLink(
+  baseUrl: string,
+  nextLink: string,
+  expectedCollectionUrl: string
+): string {
   const serviceRoot = new URL(normalizeServiceRoot(baseUrl))
-  const resolved = new URL(nextLink, serviceRoot)
-  const rootPath = `${serviceRoot.pathname}/`
-  if (resolved.protocol !== 'https:' || resolved.origin !== serviceRoot.origin) {
+  const resolved = new URL(nextLink, `${serviceRoot.toString()}/`)
+  const expected = new URL(expectedCollectionUrl)
+  if (
+    resolved.protocol !== 'https:' ||
+    resolved.origin !== serviceRoot.origin ||
+    resolved.username ||
+    resolved.password ||
+    resolved.hash
+  ) {
     throw new Error('Windchill nextLink must remain on the configured HTTPS origin')
   }
-  if (!resolved.pathname.startsWith(rootPath)) {
-    throw new Error('Windchill nextLink must remain under the configured service root')
+  if (
+    expected.origin !== serviceRoot.origin ||
+    decodedPathname(resolved.pathname) !== decodedPathname(expected.pathname)
+  ) {
+    throw new Error('Windchill nextLink must continue the originating collection')
   }
   return resolved.toString()
 }
@@ -225,16 +312,9 @@ export function buildWindchillReadUrl(
   params: WindchillParams
 ): string {
   const root = normalizeServiceRoot(params.baseUrl)
-  if (
-    params.nextLink &&
-    (operation === 'windchill_list_documents' ||
-      operation === 'windchill_get_document_structure' ||
-      operation === 'windchill_list_attachments')
-  ) {
-    return resolveWindchillNextLink(root, params.nextLink)
-  }
   if (operation === 'windchill_list_documents') {
     const url = new URL(`${root}/DocMgmt/Documents`)
+    if (params.nextLink) return resolveWindchillNextLink(root, params.nextLink, url.toString())
     if (params.select) url.searchParams.set('$select', normalizedSelect(params.select))
     if (params.filter) url.searchParams.set('$filter', params.filter.trim())
     if (params.orderBy) url.searchParams.set('$orderby', params.orderBy.trim())
@@ -261,6 +341,7 @@ export function buildWindchillReadUrl(
   if (operation === 'windchill_get_document_structure') {
     const depth = integerInRange(params.structureDepth ?? 1, 'structureDepth', 1, 3)
     const url = new URL(`${path}/DocUsageLinks`)
+    if (params.nextLink) return resolveWindchillNextLink(root, params.nextLink, url.toString())
     url.searchParams.set('$expand', structureExpand(depth))
     return url.toString()
   }
@@ -268,7 +349,10 @@ export function buildWindchillReadUrl(
     return `${path}/PTC.DocMgmt.GetValidStateTransitions()`
   }
   if (operation === 'windchill_get_primary_content') return `${path}/PrimaryContent`
-  if (operation === 'windchill_list_attachments') return `${path}/Attachments`
+  if (operation === 'windchill_list_attachments') {
+    const url = `${path}/Attachments`
+    return params.nextLink ? resolveWindchillNextLink(root, params.nextLink, url) : url
+  }
   throw new Error(`Operation ${operation} is not a direct Windchill read`)
 }
 
@@ -277,46 +361,57 @@ export function normalizeWindchillReadOutput(
   value: unknown
 ): WindchillOutput {
   if (operation === 'windchill_list_documents') {
-    const documents = normalizeWindchillDocuments(value)
+    const documents = requireAllNormalized(
+      requiredCollection(value, operation),
+      normalizeWindchillDocument,
+      operation
+    )
     return { operation, documents, pageInfo: windchillPageInfo(value, documents.length) }
   }
   if (operation === 'windchill_get_document') {
-    return { operation, document: normalizeWindchillDocument(value) }
+    const document = normalizeWindchillDocument(value)
+    if (!document) throw new Error(`Windchill returned an incompatible response for ${operation}`)
+    return { operation, document }
   }
   if (operation === 'windchill_get_document_structure') {
-    const structure = collection(value)
-      .map((link) => normalizeUsageLink(link))
-      .filter((link): link is WindchillDocumentUsageLink => link !== null)
+    const structure = requireAllNormalized(
+      requiredCollection(value, operation),
+      (link) => normalizeUsageLink(link),
+      operation
+    )
     return { operation, structure, pageInfo: windchillPageInfo(value, structure.length) }
   }
   if (operation === 'windchill_get_valid_state_transitions') {
-    const states = collection(value)
-      .map(normalizeState)
-      .filter((state): state is WindchillStateTransition => state !== null)
+    const states = requireAllNormalized(
+      requiredCollection(value, operation),
+      normalizeState,
+      operation
+    )
     return { operation, states }
   }
   if (operation === 'windchill_get_primary_content') {
-    const first = collection(value)[0]
-    return { operation, content: normalizeWindchillContent(first ?? value) }
+    const contentValues =
+      Array.isArray(value) || (isRecordLike(value) && Array.isArray(value.value))
+        ? requiredCollection(value, operation)
+        : null
+    if (contentValues?.length === 0) return { operation, content: null }
+    const content = normalizeWindchillContent(contentValues ? contentValues[0] : value)
+    if (!content) throw new Error(`Windchill returned an incompatible response for ${operation}`)
+    return { operation, content }
   }
   if (operation === 'windchill_list_attachments') {
-    const attachments = collection(value)
-      .map(normalizeWindchillContent)
-      .filter((content): content is WindchillContent => content !== null)
+    const attachments = requireAllNormalized(
+      requiredCollection(value, operation),
+      normalizeWindchillContent,
+      operation
+    )
     return { operation, attachments, pageInfo: windchillPageInfo(value, attachments.length) }
   }
   throw new Error(`Operation ${operation} does not have a direct-read response transform`)
 }
 
 export function buildWindchillInternalBody(operation: WindchillOperation, params: WindchillParams) {
-  const { _context, ...input } = params
-  return {
-    ...input,
-    operation,
-    workspaceId: typeof _context?.workspaceId === 'string' ? _context.workspaceId : undefined,
-    workflowId: typeof _context?.workflowId === 'string' ? _context.workflowId : undefined,
-    executionId: typeof _context?.executionId === 'string' ? _context.executionId : undefined,
-  }
+  return { ...omit(params, ['_context']), operation }
 }
 
 function providerError(value: unknown, fallback: string): string {
@@ -335,6 +430,7 @@ export function windchillReadHeaders(params: WindchillParams) {
   return {
     Authorization: createBasicAuthHeader(params.username, params.password),
     Accept: 'application/json',
+    Prefer: `odata.maxpagesize=${params.top ?? 200}`,
   }
 }
 
@@ -386,6 +482,13 @@ export async function transformWindchillInternalResponse(
       }
     }
     const result: WindchillOperationResponse = parsed.data
+    if (result.output.operation !== operation) {
+      return {
+        success: false,
+        output: { operation },
+        error: 'Windchill route returned a response for a different operation',
+      }
+    }
     return { success: true, output: result.output }
   } catch (error) {
     return {

@@ -321,7 +321,7 @@ Create multiple WT.Document objects atomically
 
 ### Windchill Update Document
 
-Update attributes on one document
+Update PATCH-compatible attributes on one document
 
 #### Input
 
@@ -331,7 +331,7 @@ Update attributes on one document
 | `username` | string | Yes | Windchill service-account username |
 | `password` | string | Yes | Windchill service-account password |
 | `documentOid` | string | Yes | WT.Document OID, for example OR:wt.doc.WTDocument:48796581 |
-| `attributes` | json | Yes | Installed Windchill document attributes to update as a non-empty JSON object |
+| `attributes` | json | Yes | Installed PATCH-compatible attributes as bounded JSON. Name, Number, and Organization require UpdateCommonProperties and are not supported here. |
 
 #### Output
 
@@ -357,7 +357,7 @@ Update attributes on one document
 
 ### Windchill Update Documents
 
-Update multiple documents atomically
+Update PATCH-compatible attributes on multiple documents atomically
 
 #### Input
 
@@ -366,7 +366,7 @@ Update multiple documents atomically
 | `baseUrl` | string | Yes | Complete WRS 2.7 versioned service root using Basic authentication, for example https://host/Windchill/servlet/odata/v6 |
 | `username` | string | Yes | Windchill service-account username |
 | `password` | string | Yes | Windchill service-account password |
-| `documents` | json | Yes | Document updates as a JSON array; each item requires id and non-empty attributes |
+| `documents` | json | Yes | Document updates as a JSON array; each item requires id and bounded PATCH-compatible attributes. Name, Number, and Organization are not supported. |
 
 #### Output
 
@@ -696,7 +696,6 @@ Create new revisions of multiple documents atomically
 | `username` | string | Yes | Windchill service-account username |
 | `password` | string | Yes | Windchill service-account password |
 | `documentOids` | array | Yes | WT.Document OIDs to process atomically |
-| `versionId` | string | No | Optional target revision identifier when override-on-revise is enabled |
 
 #### Output
 

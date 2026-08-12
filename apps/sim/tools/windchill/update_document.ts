@@ -12,7 +12,7 @@ import {
 export const windchillUpdateDocumentTool: ToolConfig<WindchillParams, WindchillResponse> = {
   id: 'windchill_update_document',
   name: 'Windchill Update Document',
-  description: 'Update attributes on one document',
+  description: 'Update PATCH-compatible attributes on one document',
   version: '1.0.0',
   params: {
     baseUrl: {
@@ -44,7 +44,8 @@ export const windchillUpdateDocumentTool: ToolConfig<WindchillParams, WindchillR
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Installed Windchill document attributes to update as a non-empty JSON object',
+      description:
+        'Installed PATCH-compatible attributes as bounded JSON. Name, Number, and Organization require UpdateCommonProperties and are not supported here.',
     },
   },
   request: {
