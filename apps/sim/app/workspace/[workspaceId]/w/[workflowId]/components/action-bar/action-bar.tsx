@@ -67,23 +67,29 @@ const ACTION_BUTTON_STYLES = [
  * out of the squares' rhythm across the row.
  *
  * Each edge ramps over 0.75px rather than switching colour at a single offset,
- * which is why the stops come in pairs 0.375px either side of 23.18 and 25.11.
- * A gradient is sampled once per pixel with no coverage term, so a hard stop on
- * a 15°-off-vertical edge can only ever land wholly on one side or the other —
- * the marks came out visibly stepped, which is the one thing a shape this thin
- * cannot hide. Ramping across roughly a device pixel gives the rasterizer the
- * intermediate values antialiasing would have produced, and measured edge
- * deviation drops from 0.28 device px (pure quantization) to 0.05.
+ * which is why the stops come in pairs 0.375px either side of the mark's two
+ * edges. A gradient is sampled once per pixel with no coverage term, so a hard
+ * stop on a 15°-off-vertical edge can only ever land wholly on one side or the
+ * other — the marks came out visibly stepped, which is the one thing a shape
+ * this thin cannot hide. Ramping across roughly a device pixel gives the
+ * rasterizer the intermediate values antialiasing would have produced, and
+ * measured edge deviation drops from 0.28 device px (pure quantization) to 0.05.
  *
- * The ramps are centred on the old offsets, so the 50%-coverage line — the edge
- * the eye actually locates — has not moved and the 24/2 rhythm is untouched.
+ * The period runs centre-of-mark to centre-of-mark (11.59 → 36.7) rather than
+ * starting at an edge, because a repeating gradient truncates at its own wrap:
+ * anchored at 0, the ramp leaving the mark would have run 24.735 → 25.485 and
+ * been cut at 25.11, so that edge got half the feather and the gap came out
+ * 1.93 → 1.75px. Both ramps have to sit strictly inside the period. The list
+ * still tiles backwards from its first stop, so the marks land exactly where
+ * anchoring at 0 put them — same 26px pitch, same phase against the squares.
+ *
  * Widening the feather further would keep smoothing, but the gap is only 1.93px
  * of stop, so it comes straight out of the mark's dark core.
  *
  * `--surface-2` is the same fill the slots used; only where it is painted moved.
  */
 const RUNNING_FILL =
-  'bg-[repeating-linear-gradient(75deg,var(--surface-2)_0_22.805px,transparent_23.555px_24.735px,var(--surface-2)_25.11px)]'
+  'bg-[repeating-linear-gradient(75deg,var(--surface-2)_11.59px_22.805px,transparent_23.555px_24.735px,var(--surface-2)_25.485px_36.7px)]'
 
 /** Left edge of the fill: clears the run/stop button, which stays live mid-run. */
 const RUNNING_FILL_INSET_SWELL = 'left-[42px]'
@@ -105,8 +111,7 @@ const RUNNING_FILL_INSET_PLAIN = 'left-[26px]'
  * edge continued, which is what puts the hatch's end exactly where a hovered
  * slot's fill ends. Changing the end silhouette means changing them with it.
  */
-const RUNNING_FILL_END_TAPER =
-  '[clip-path:polygon(0_0,calc(100%_-_20px)_0,100%_100%,0_100%)]'
+const RUNNING_FILL_END_TAPER = '[clip-path:polygon(0_0,calc(100%_-_20px)_0,100%_100%,0_100%)]'
 
 const ICON_SIZE = 'size-[14px]'
 
