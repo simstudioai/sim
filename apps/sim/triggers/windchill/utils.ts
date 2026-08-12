@@ -33,7 +33,7 @@ export function resolveWindchillEventId(
 
 export function windchillSetupInstructions(eventLabel: string): string {
   const instructions = [
-    '<strong>Requirement:</strong> This trigger needs a self-managed Windchill deployment with Windchill REST Services 1.4 or later. Windchill+ does not support webhook subscriptions.',
+    '<strong>Requirement:</strong> This trigger targets a self-managed Windchill deployment with Windchill REST Services 2.7. Windchill+ does not support webhook subscriptions.',
     'Ask a Windchill administrator to set <strong>Webhooks &gt; Outgoing Webhook URL</strong> at the site level to the same host as the generated Sim webhook URL. Windchill allows only one configured outgoing webhook host.',
     'Enter the versioned Windchill service root and credentials for an account allowed to manage Event Management subscriptions.',
     `Choose the document scope for <strong>${eventLabel}</strong>. When you save, Sim creates the Windchill subscription automatically.`,
