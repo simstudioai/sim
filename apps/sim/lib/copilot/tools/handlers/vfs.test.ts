@@ -328,6 +328,35 @@ describe('vfs handlers oversize policy', () => {
     expect(result).toEqual({ success: false, error })
   })
 
+  it('does not expose dynamic file read errors when provenance cannot be verified', async () => {
+    const vfs = makeVfs()
+    const error = 'Document compiler not configured (MOTHERSHIP_E2B_DOC_TEMPLATE_ID is unset)'
+    vfs.readFileContentWithProvenance.mockResolvedValue({
+      value: {
+        content: JSON.stringify({ ok: false, error }),
+        totalLines: 1,
+        error,
+      },
+      file: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+    importWorkspaceFileSecretProvenanceForModelView.mockResolvedValueOnce(false)
+
+    const result = await executeVfsRead({ path: 'files/reports/brief.pdf/render' }, GREP_CTX)
+
+    expect(result).toEqual({
+      success: false,
+      error:
+        'This file result cannot be shared safely because its secret provenance is unavailable.',
+    })
+    expect(importWorkspaceFileSecretProvenanceForModelView).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identity: { fileId: 'file-1', key: 'workspace/key-1', context: 'workspace' },
+        view: 'derived',
+      })
+    )
+  })
+
   it('marks a windowed read as a derived provenance view', async () => {
     const vfs = makeVfs()
     vfs.readFileContentWithProvenance.mockResolvedValue({

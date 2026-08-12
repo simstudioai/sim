@@ -405,9 +405,6 @@ export async function executeVfsRead(
       : null
     const fileContent = fileEnvelope?.value
     if (fileContent) {
-      if (fileContent.error !== undefined) {
-        return { success: false, error: fileContent.error }
-      }
       const isAttachment = hasModelAttachment(fileContent)
       if (
         !isAttachment &&
@@ -444,6 +441,9 @@ export async function executeVfsRead(
           error:
             'This file result cannot be shared safely because its secret provenance is unavailable.',
         }
+      }
+      if (fileContent.error !== undefined) {
+        return { success: false, error: fileContent.error }
       }
       logger.debug('vfs_read resolved workspace file', {
         path,
