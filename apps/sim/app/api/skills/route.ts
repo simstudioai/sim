@@ -17,10 +17,9 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
-  createSkillUseCase,
   deleteSkillUseCase,
   listAvailableSkillsUseCase,
-  updateSkillUseCase,
+  upsertSkillsUseCase,
 } from '@/lib/skills/application/use-cases'
 import type { SkillWriteSource } from '@/lib/skills/orchestration'
 import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
@@ -134,40 +133,25 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const { skills, workspaceId, source } = parsed.data.body
 
     /**
-     * The batch is applied item by item rather than in one transaction: this
-     * endpoint's callers submit a single skill, and one shared authority for
-     * the rules is worth more than atomicity across a batch nobody sends.
+     * The whole batch is one semantic operation: the use case authorizes every
+     * item before writing any of them and commits them together, so a rejected
+     * item cannot leave earlier ones persisted. Analytics follows the commit,
+     * one event per skill actually written.
      */
-    for (const item of skills) {
-      if (item.id) {
-        const { skill } = await updateSkillUseCase.execute({
-          principal,
-          input: {
-            workspaceId,
-            skillId: item.id,
-            name: item.name,
-            description: item.description,
-            content: item.content,
-            source,
-          },
-          request: req,
-        })
-        captureSkillEvent('skill_updated', principal.userId, workspaceId, source, skill)
-        continue
-      }
+    const { touched } = await upsertSkillsUseCase.execute({
+      principal,
+      input: { workspaceId, skills, source },
+      request: req,
+    })
 
-      const { skill } = await createSkillUseCase.execute({
-        principal,
-        input: {
-          workspaceId,
-          name: item.name!,
-          description: item.description!,
-          content: item.content!,
-          source,
-        },
-        request: req,
-      })
-      captureSkillEvent('skill_created', principal.userId, workspaceId, source, skill)
+    for (const entry of touched) {
+      captureSkillEvent(
+        entry.operation === 'created' ? 'skill_created' : 'skill_updated',
+        principal.userId,
+        workspaceId,
+        source,
+        entry
+      )
     }
 
     const { skills: resultSkills } = await listAvailableSkillsUseCase.execute({

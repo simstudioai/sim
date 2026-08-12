@@ -93,6 +93,8 @@ const skillRow = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
 }
 
+const otherSkillRow = { ...skillRow, id: 'skill-2', name: 'shipping-policy' }
+
 function upsertRequest(body: unknown) {
   return createMockRequest('POST', body, {}, 'http://localhost:3000/api/skills')
 }
@@ -113,8 +115,12 @@ describe('internal /api/skills route', () => {
     })
     mocks.loadActiveWorkspaceContext.mockResolvedValue(workspaceContext)
     mocks.resolveEffectiveWorkspacePermission.mockResolvedValue('admin')
-    mocks.getSkillById.mockResolvedValue(skillRow)
-    mocks.upsertSkills.mockResolvedValue({ touched: [{ id: skillRow.id, name: skillRow.name }] })
+    mocks.getSkillById.mockImplementation(async ({ skillId }: { skillId: string }) =>
+      skillId === otherSkillRow.id ? otherSkillRow : skillRow
+    )
+    mocks.upsertSkills.mockResolvedValue({
+      touched: [{ id: skillRow.id, name: skillRow.name, operation: 'updated' }],
+    })
     mocks.listSkillsForUser.mockResolvedValue([{ ...skillRow, canEdit: true }])
     mocks.deleteSkill.mockResolvedValue(true)
     mocks.getSkillActorContext.mockResolvedValue({
@@ -135,9 +141,10 @@ describe('internal /api/skills route', () => {
   /**
    * The semantic audit entry is projected by the application use case and is
    * tagged with the operation id. A surface that writes through the manager
-   * directly cannot produce it.
+   * directly cannot produce it. The batch is one operation, `skills.upsert`;
+   * the create/update distinction stays on the audit action.
    */
-  it('records the skills.update semantic audit entry for an update', async () => {
+  it('records the skills.upsert semantic audit entry for an update', async () => {
     const response = await POST(
       upsertRequest({
         workspaceId: WORKSPACE_ID,
@@ -153,12 +160,16 @@ describe('internal /api/skills route', () => {
         actorId: USER_ID,
         action: 'skill.updated',
         resourceId: skillRow.id,
-        metadata: expect.objectContaining({ operation: 'skills.update' }),
+        metadata: expect.objectContaining({ operation: 'skills.upsert' }),
       })
     )
   })
 
-  it('records the skills.create semantic audit entry for a create', async () => {
+  it('records a skill.created audit entry for a create', async () => {
+    mocks.upsertSkills.mockResolvedValue({
+      touched: [{ id: 'skill-2', name: 'new-skill', operation: 'created' }],
+    })
+
     const response = await POST(
       upsertRequest({
         workspaceId: WORKSPACE_ID,
@@ -170,7 +181,8 @@ describe('internal /api/skills route', () => {
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'skill.created',
-        metadata: expect.objectContaining({ operation: 'skills.create' }),
+        resourceId: 'skill-2',
+        metadata: expect.objectContaining({ operation: 'skills.upsert' }),
       })
     )
   })
@@ -207,6 +219,120 @@ describe('internal /api/skills route', () => {
 
     expect(response.status).toBe(403)
     expect(mocks.upsertSkills).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The batch is one operation. A rejected item must leave the items before it
+   * unwritten and unaudited rather than half-committing the request.
+   */
+  it('writes and audits nothing when a later item in the batch is rejected', async () => {
+    mocks.getSkillActorContext.mockImplementation(async (skillId: string) =>
+      skillId === skillRow.id
+        ? { skill: skillRow, hasWorkspaceAccess: true, canEdit: true }
+        : { skill: otherSkillRow, hasWorkspaceAccess: true, canEdit: false }
+    )
+
+    const response = await POST(
+      upsertRequest({
+        workspaceId: WORKSPACE_ID,
+        skills: [
+          { id: skillRow.id, content: '# Updated' },
+          { id: otherSkillRow.id, content: '# Also updated' },
+        ],
+      })
+    )
+
+    expect(response.status).toBe(403)
+    expect(mocks.upsertSkills).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
+  })
+
+  it('commits a valid batch in one write with one audit entry per skill', async () => {
+    mocks.upsertSkills.mockResolvedValue({
+      touched: [
+        { id: skillRow.id, name: skillRow.name, operation: 'updated' },
+        { id: 'skill-3', name: 'new-skill', operation: 'created' },
+      ],
+    })
+
+    const response = await POST(
+      upsertRequest({
+        workspaceId: WORKSPACE_ID,
+        skills: [
+          { id: skillRow.id, content: '# Updated' },
+          { name: 'new-skill', description: 'A skill', content: '# New' },
+        ],
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.upsertSkills).toHaveBeenCalledTimes(1)
+    expect(mocks.upsertSkills).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skills: [
+          { id: skillRow.id, content: '# Updated' },
+          { name: 'new-skill', description: 'A skill', content: '# New' },
+        ],
+      })
+    )
+    expect(mocks.recordAudit).toHaveBeenCalledTimes(2)
+    expect(mocks.recordAudit.mock.calls.map(([entry]) => [entry.action, entry.resourceId])).toEqual(
+      [
+        ['skill.updated', skillRow.id],
+        ['skill.created', 'skill-3'],
+      ]
+    )
+  })
+
+  /**
+   * The batch operation declares only the read floor an update needs, so a
+   * skill editor without workspace write keeps editing. A create in the same
+   * request is still gated on workspace write, before anything is written.
+   */
+  it('lets a read-only skill editor update but refuses a create', async () => {
+    mocks.resolveEffectiveWorkspacePermission.mockResolvedValue('read')
+
+    const updated = await POST(
+      upsertRequest({
+        workspaceId: WORKSPACE_ID,
+        skills: [{ id: skillRow.id, content: '# Updated' }],
+      })
+    )
+    expect(updated.status).toBe(200)
+
+    mocks.upsertSkills.mockClear()
+    const created = await POST(
+      upsertRequest({
+        workspaceId: WORKSPACE_ID,
+        skills: [{ name: 'new-skill', description: 'A skill', content: '# New' }],
+      })
+    )
+
+    expect(created.status).toBe(403)
+    expect(mocks.upsertSkills).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The create escalation runs ahead of the write, so a mixed batch a
+   * read-only editor may not fully perform lands nothing at all.
+   */
+  it('writes nothing when only the create half of a mixed batch is unauthorized', async () => {
+    mocks.resolveEffectiveWorkspacePermission.mockResolvedValue('read')
+
+    const response = await POST(
+      upsertRequest({
+        workspaceId: WORKSPACE_ID,
+        skills: [
+          { id: skillRow.id, content: '# Updated' },
+          { name: 'new-skill', description: 'A skill', content: '# New' },
+        ],
+      })
+    )
+
+    expect(response.status).toBe(403)
+    expect(mocks.upsertSkills).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
   it('records the skills.delete semantic audit entry', async () => {

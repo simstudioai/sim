@@ -10,7 +10,12 @@ import {
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { getSkillActorContext } from '@/lib/skills/access'
 import { getBuiltinSkillByName, isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
-import { deleteSkill, getSkillById, upsertSkills } from '@/lib/workflows/skills/operations'
+import {
+  deleteSkill,
+  getSkillById,
+  type TouchedSkill,
+  upsertSkills,
+} from '@/lib/workflows/skills/operations'
 
 const logger = createLogger('SkillOrchestration')
 
@@ -143,26 +148,126 @@ function throwSkillFailure(result: SkillFailure): never {
   throw new OrchestrationError(result.errorCode, result.error)
 }
 
-export async function createSkill(params: CreateSkillParams): Promise<SkillRow> {
+/** One item of a batch upsert: no `id` creates, an `id` partially updates. */
+export interface SkillUpsertItem {
+  id?: string
+  name?: string
+  description?: string
+  content?: string
+}
+
+export interface UpsertSkillBatchParams {
+  workspaceId: string
+  /**
+   * The acting subject. Gates every update through the per-skill editor check
+   * and is recorded as the owner of every row this batch creates.
+   */
+  userId: string
+  skills: SkillUpsertItem[]
+}
+
+/** Field validation and the built-in name guard for a create item. */
+function validateCreateItem(item: SkillUpsertItem): void {
+  if (item.name === undefined || item.description === undefined || item.content === undefined) {
+    throw new OrchestrationError(
+      'validation',
+      'Skill name, description, and content are required to create a skill'
+    )
+  }
   const invalid =
-    fieldError(skillNameSchema, params.name) ??
-    fieldError(skillDescriptionSchema, params.description) ??
-    fieldError(skillContentSchema, params.content) ??
-    builtinNameCollision(params.name)
+    fieldError(skillNameSchema, item.name) ??
+    fieldError(skillDescriptionSchema, item.description) ??
+    fieldError(skillContentSchema, item.content) ??
+    builtinNameCollision(item.name)
+  if (invalid) throw new OrchestrationError('validation', invalid)
+}
+
+/**
+ * Field validation, the per-skill editor check, and the rename guard for an
+ * update item. Reads only; the caller writes once every item has passed.
+ */
+async function validateUpdateItem(
+  workspaceId: string,
+  userId: string,
+  skillId: string,
+  item: SkillUpsertItem
+): Promise<void> {
+  if (item.name === undefined && item.description === undefined && item.content === undefined) {
+    throw new OrchestrationError(
+      'validation',
+      'At least one of name, description, or content is required'
+    )
+  }
+
+  const invalid =
+    (item.name !== undefined ? fieldError(skillNameSchema, item.name) : null) ??
+    (item.description !== undefined
+      ? fieldError(skillDescriptionSchema, item.description)
+      : null) ??
+    (item.content !== undefined ? fieldError(skillContentSchema, item.content) : null)
   if (invalid) throw new OrchestrationError('validation', invalid)
 
-  let created: { id: string; name: string } | undefined
+  const resolved = await resolveEditableSkill({ workspaceId, userId, skillId })
+  if (!resolved.ok) throwSkillFailure(resolved.result)
+
+  // Only a rename can newly shadow a built-in. Rows predating the guard may already carry a
+  // built-in's name, and the modal always resubmits the full object, so compare against the
+  // canonical name rather than rejecting every write that echoes it back.
+  if (item.name !== undefined && item.name !== resolved.skill.name) {
+    const collision = builtinNameCollision(item.name)
+    if (collision) throw new OrchestrationError('validation', collision)
+  }
+}
+
+/**
+ * Applies a mixed batch of creates and updates as one unit.
+ *
+ * Every item is validated and authorized first — no row is written until the
+ * whole batch has passed — and the writes then run inside the single
+ * `upsertSkills` transaction, so a rejected item leaves the earlier ones
+ * unwritten instead of half-committing the batch.
+ *
+ * Workspace-level authorization is the caller's (the application use case's)
+ * job. What lives here is the per-skill editor check an update needs, which
+ * the workspace role cannot express.
+ */
+export async function upsertSkillBatch(
+  params: UpsertSkillBatchParams
+): Promise<readonly TouchedSkill[]> {
+  if (params.skills.length === 0) return []
+
+  for (const item of params.skills) {
+    if (item.id) {
+      await validateUpdateItem(params.workspaceId, params.userId, item.id, item)
+      continue
+    }
+    validateCreateItem(item)
+  }
+
   try {
     const { touched } = await upsertSkills({
-      skills: [{ name: params.name, description: params.description, content: params.content }],
+      skills: params.skills.map((item) => ({
+        ...(item.id !== undefined ? { id: item.id } : {}),
+        ...(item.name !== undefined ? { name: item.name } : {}),
+        ...(item.description !== undefined ? { description: item.description } : {}),
+        ...(item.content !== undefined ? { content: item.content } : {}),
+      })),
       workspaceId: params.workspaceId,
       userId: params.userId,
       returnSkills: false,
     })
-    created = touched[0]
+    return touched
   } catch (error) {
     throwSkillFailure(classifyUpsertError(error))
   }
+}
+
+export async function createSkill(params: CreateSkillParams): Promise<SkillRow> {
+  const [created] = await upsertSkillBatch({
+    workspaceId: params.workspaceId,
+    userId: params.userId,
+    skills: [{ name: params.name, description: params.description, content: params.content }],
+  })
 
   if (!created) {
     throw new Error(`Skill create returned no touched row for workspace ${params.workspaceId}`)
@@ -174,53 +279,18 @@ export async function createSkill(params: CreateSkillParams): Promise<SkillRow> 
 }
 
 export async function updateSkill(params: UpdateSkillParams): Promise<SkillRow> {
-  if (
-    params.name === undefined &&
-    params.description === undefined &&
-    params.content === undefined
-  ) {
-    throw new OrchestrationError(
-      'validation',
-      'At least one of name, description, or content is required'
-    )
-  }
-
-  const invalid =
-    (params.name !== undefined ? fieldError(skillNameSchema, params.name) : null) ??
-    (params.description !== undefined
-      ? fieldError(skillDescriptionSchema, params.description)
-      : null) ??
-    (params.content !== undefined ? fieldError(skillContentSchema, params.content) : null)
-  if (invalid) throw new OrchestrationError('validation', invalid)
-
-  const resolved = await resolveEditableSkill(params)
-  if (!resolved.ok) throwSkillFailure(resolved.result)
-
-  // Only a rename can newly shadow a built-in. Rows predating the guard may already carry a
-  // built-in's name, and the modal always resubmits the full object, so compare against the
-  // canonical name rather than rejecting every write that echoes it back.
-  if (params.name !== undefined && params.name !== resolved.skill.name) {
-    const collision = builtinNameCollision(params.name)
-    if (collision) throw new OrchestrationError('validation', collision)
-  }
-
-  try {
-    await upsertSkills({
-      skills: [
-        {
-          id: params.skillId,
-          ...(params.name !== undefined ? { name: params.name } : {}),
-          ...(params.description !== undefined ? { description: params.description } : {}),
-          ...(params.content !== undefined ? { content: params.content } : {}),
-        },
-      ],
-      workspaceId: params.workspaceId,
-      userId: params.userId,
-      returnSkills: false,
-    })
-  } catch (error) {
-    throwSkillFailure(classifyUpsertError(error))
-  }
+  await upsertSkillBatch({
+    workspaceId: params.workspaceId,
+    userId: params.userId,
+    skills: [
+      {
+        id: params.skillId,
+        ...(params.name !== undefined ? { name: params.name } : {}),
+        ...(params.description !== undefined ? { description: params.description } : {}),
+        ...(params.content !== undefined ? { content: params.content } : {}),
+      },
+    ],
+  })
 
   const row = await getSkillById({ skillId: params.skillId, workspaceId: params.workspaceId })
   if (!row) throw new OrchestrationError('not_found', 'Skill not found')
