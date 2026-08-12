@@ -105,11 +105,22 @@ describe('timestampKey', () => {
     )
   })
 
-  it('truncates the bound cursor value to match, binding it through the column encoder', () => {
+  it('casts the bound cursor value so date_trunc has a resolvable overload', () => {
     const { sql: text, params } = render(createdKey.bind('2024-01-01T00:00:00.123Z')!)
 
-    expect(text).toBe(`date_trunc('milliseconds', $1)`)
+    expect(text).toBe(`date_trunc('milliseconds', cast($1 as timestamp))`)
     expect(params).toEqual(['2024-01-01T00:00:00.123Z'])
+  })
+
+  it('takes the cast from the column, so a timestamptz column keeps its offset', () => {
+    const zoned = pgTable('zoned', {
+      at: timestamp('at', { withTimezone: true }).notNull(),
+    })
+    const zonedKey = timestampKey<{ at: Date }>(zoned.at, (r) => r.at)
+
+    expect(render(zonedKey.bind('2024-01-01T00:00:00.123Z')!).sql).toBe(
+      `date_trunc('milliseconds', cast($1 as timestamp with time zone))`
+    )
   })
 
   it('rejects a cursor value that is not a parseable timestamp', () => {
@@ -173,11 +184,27 @@ describe('keysetAfter', () => {
     )
 
     expect(text).toBe(
-      `(date_trunc('milliseconds', "thing"."created_at") > date_trunc('milliseconds', $1) or ` +
-        `(date_trunc('milliseconds', "thing"."created_at") = date_trunc('milliseconds', $2) and ` +
+      `(date_trunc('milliseconds', "thing"."created_at") > date_trunc('milliseconds', cast($1 as timestamp)) or ` +
+        `(date_trunc('milliseconds', "thing"."created_at") = date_trunc('milliseconds', cast($2 as timestamp)) and ` +
         `"thing"."id" > $3))`
     )
     expect(params).toEqual(['2024-01-01T00:00:00.123Z', '2024-01-01T00:00:00.123Z', 'file-7'])
+  })
+
+  /**
+   * Pins the class, not the instance: `date_trunc` is today's only wrapping, so
+   * what this catches is a future key that wraps its bound value untyped.
+   */
+  it('leaves no bound value bare inside a function call', () => {
+    const { sql: text } = render(
+      keysetAfter(
+        [numberKey<Row>(thing.size, () => 0), createdKey, idKey],
+        [7, '2024-01-01T00:00:00.123Z', 'file-7'],
+        'asc'
+      )!
+    )
+
+    expect(text).not.toMatch(/[a-z_]+\((?:[^()]*,)?\s*\$\d+\s*\)/i)
   })
 
   /** A caller controls the cursor's contents, so a bad value is a 400, not a 500 from SQL. */
