@@ -26,13 +26,12 @@ import {
   ERROR_RESPONSES,
   type ErrorResponseId,
   RATE_LIMIT_HEADERS,
+  RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
-  STANDARD_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
-  VALIDATED_ERRORS,
   WORKSPACE_API_KEY_DENIED,
   WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND,
   WORKSPACE_ERRORS,
@@ -213,7 +212,7 @@ const routes = [
       operationId: 'abortFileUpload',
       summary: 'Abort File Upload',
       description: 'Abort an active upload session and release provider-side multipart state.',
-      errors: [...VALIDATED_ERRORS, 'NotFound', 'Conflict'],
+      errors: [...RESOURCE_CONFLICT_ERRORS],
       success: { description: 'The aborted upload session.' },
     }),
     {
@@ -249,7 +248,7 @@ const routes = [
       operationId: 'createFileUploadPartUrls',
       summary: 'Create File Upload Part URLs',
       description: 'Create signed URLs for a bounded set of multipart upload part numbers.',
-      errors: [...STANDARD_ERRORS, 'BadRequest', 'NotFound', 'Conflict'],
+      errors: [...RESOURCE_CONFLICT_ERRORS],
       success: { description: 'Signed URLs for the requested upload parts.' },
     }),
     {
@@ -293,7 +292,7 @@ const routes = [
       summary: 'Complete File Upload',
       description:
         'Finalize uploaded bytes, verify provider state, and begin atomic workspace-file registration.',
-      errors: [...STANDARD_ERRORS, 'BadRequest', 'NotFound', 'Conflict'],
+      errors: [...RESOURCE_CONFLICT_ERRORS],
       success: { description: 'The completed or finalizing upload session.' },
     }),
     {
@@ -460,7 +459,7 @@ const routes = [
       operationId: 'listAuditLogs',
       summary: 'List Audit Logs',
       description: `List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...VALIDATED_ERRORS, 'Forbidden', 'NotFound'],
+      errors: [...RESOURCE_ERRORS],
       success: { description: 'A page of audit-log entries.' },
     }),
     {
@@ -485,7 +484,7 @@ const routes = [
       operationId: 'getAuditLog',
       summary: 'Get Audit Log',
       description: `Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...VALIDATED_ERRORS, 'Forbidden', 'NotFound'],
+      errors: [...RESOURCE_ERRORS],
       success: { description: 'The requested audit-log entry.' },
     }),
     {

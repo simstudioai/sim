@@ -90,7 +90,7 @@ const skill = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
 }
 
-function request(method: 'GET' | 'POST', url: string, body?: unknown) {
+function request(method: 'GET' | 'POST' | 'HEAD', url: string, body?: unknown) {
   return new NextRequest(`http://localhost:3000${url}`, {
     method,
     headers: {
@@ -177,6 +177,19 @@ describe('/api/v2/skills', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Next answers a HEAD by invoking this route's own GET export and dropping the
+   * body when it sends. The builder's method guard used to reject that, so every
+   * v2 read replied 500 to a plain HEAD — what health checkers and uptime
+   * monitors send.
+   */
+  it('serves HEAD through the GET handler instead of throwing', async () => {
+    const response = await GET(request('HEAD', `/api/v2/skills?workspaceId=${WORKSPACE_ID}`))
+
+    expect(response.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalled()
   })
 
   it('rejects a malformed cursor rather than silently restarting at page one', async () => {

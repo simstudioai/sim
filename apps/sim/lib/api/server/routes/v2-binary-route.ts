@@ -1,5 +1,8 @@
 import type { NextRequest } from 'next/server'
-import { requireBinaryRouteDefinition } from '@/lib/api/server/routes/definition'
+import {
+  methodMatchesContract,
+  requireBinaryRouteDefinition,
+} from '@/lib/api/server/routes/definition'
 import type {
   BinaryApiRouteContract,
   BinaryRouteDefinition,
@@ -44,7 +47,7 @@ export function defineV2BinaryRoute<
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request: NextRequest, context) => {
-      if (request.method !== options.contract.method) {
+      if (!methodMatchesContract(request.method, options.contract.method)) {
         throw new Error(
           `Route received ${request.method} for ${options.contract.method} contract ${options.contract.path}`
         )

@@ -31,7 +31,6 @@ import {
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
-  VALIDATED_ERRORS,
   WORKSPACE_ERRORS,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
@@ -116,7 +115,7 @@ const routes = [
       operationId: 'getKnowledgeBase',
       summary: 'Get Knowledge Base',
       description: `Retrieve a knowledge base by identifier. Inaccessible knowledge bases are reported as not found. ${FOLDER_TREE_TOO_LARGE}`,
-      errors: [...VALIDATED_ERRORS, 'NotFound', 'PayloadTooLarge'],
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The requested knowledge base.' },
     }),
     {
@@ -241,7 +240,7 @@ const routes = [
       summary: 'List Documents',
       description:
         'List documents in a knowledge base with filename search, state filtering, sorting, and opaque cursor pagination.',
-      errors: [...VALIDATED_ERRORS, 'NotFound'],
+      errors: [...RESOURCE_ERRORS],
       success: { description: 'A page of knowledge documents.' },
     }),
     {
@@ -478,7 +477,7 @@ const routes = [
       operationId: 'getKnowledgeDocument',
       summary: 'Get Document',
       description: 'Retrieve document detail, processing state, and connector provenance.',
-      errors: [...VALIDATED_ERRORS, 'NotFound'],
+      errors: [...RESOURCE_ERRORS],
       success: { description: 'The requested knowledge document.' },
     }),
     {

@@ -61,7 +61,16 @@ Two of these carry real design weight:
 
 **404 is deliberately overloaded.** A workspace the caller cannot reach answers `404 "Workspace not found"`, never 403 — a 403 would confirm the resource exists. `createV2ResourceConcealmentPolicy` does this by mapping a cross-tenant authorization failure to `v2Error('NOT_FOUND', ...)`. The rollout gate answers the same way for the same reason (`gate.ts`: "an ungated caller cannot distinguish 'not in the rollout cohort' from 'no such endpoint'"), and so does the unknown-path catch-all at `app/api/v2/[[...segments]]/route.ts` — its body is byte-identical to the gate's on purpose.
 
-**500 is never caller-reachable.** Any input a caller can send must be rejected at the contract boundary with a 400. If you can construct a query string or body that produces a 500, that is a bug in the contract, not something to wrap in a `try`/`catch`. `v2ErrorForOrchestration` also replaces the message on an unclassified failure with a generic one, so internal detail never leaks.
+**500 is never caller-reachable.** Any input a caller can send must be rejected at the contract boundary with a 400. If you can construct a query string or body that produces a 500, that is a bug in the contract, not something to wrap in a `try`/`catch`. `v2ErrorForOrchestration` also replaces the message on an unclassified failure with a generic one, so internal detail never leaks. A caller-reachable 500 has shipped twice — a fractional `limit` reaching `LIMIT 2.5`, and a plain `HEAD` tripping the builder's method guard — so treat "a well-formed request produced a 500" as the highest-severity class of defect on this surface.
+
+**Which of 403 and 404 an operation documents follows from its authorization, not from whether it is a read.** `requirePermission` throws two different failures: no workspace access at all is `NoWorkspaceAccessError`, which `createV2ResourceConcealmentPolicy` conceals as 404; access below the operation's `minimumRole` is `InsufficientWorkspacePermissionsError`, which stays a 403. So:
+
+- An operation whose `minimumRole` is `write` or `admin` can always 403 — a member with a lower role hits it. Document 403.
+- An operation whose `minimumRole` is `read` cannot 403 *that* way, because `read` is the floor of the `read < write < admin` ordering and anyone without access is concealed as 404 instead. It can still 403 through `PersonalApiKeysDisabledError` (a personal API key against a workspace whose organization disabled them) or `WorkspaceApiKeyAuthorizationError` (`workspaceApiKey: 'deny'`), and every v2 operation is reachable by a personal API key. **So in practice every workspace-scoped v2 operation documents 403**, and the reads that omitted it were wrong, not principled.
+
+Use the shared sets in `contracts/v2/openapi/shared.ts` — `RESOURCE_ERRORS`, `RESOURCE_CONFLICT_ERRORS`, `RESOURCE_MUTATION_ERRORS` — rather than assembling a per-operation list; all three already include `Forbidden`, and hand-assembled lists are how three knowledge reads and three upload operations quietly lost it.
+
+**HEAD is answered by the `GET` handler, not rejected.** Next aliases a missing `HEAD` export onto `GET` and drops the body when sending, so a route's `GET` legitimately runs with `request.method === 'HEAD'`. The builders' method guard accepts that pairing via `methodMatchesContract`; any other mismatch stays a hard error. Never hand-write a `HEAD` export to "fix" this.
 
 ## Rule 3 — a collection that returns `nextCursor` must accept `limit` + `cursor`, and must apply them
 

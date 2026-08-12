@@ -17,6 +17,20 @@ export interface CorsPolicy {
   headers: string
 }
 
+/**
+ * Every method the `/api` surface actually answers, for the default CORS policy.
+ *
+ * Hand-written rather than derived from the contract registry because this
+ * module is edge middleware: importing `lib/api/contracts` would pull Zod and
+ * the whole contract tree into the middleware bundle. It is kept honest by
+ * `proxy.cors-methods.test.ts`, which sweeps the real contracts and fails if any
+ * declares a method missing here — the check that would have caught this list
+ * omitting `PATCH` while 17 v2 operations used it.
+ *
+ * `HEAD` is included because Next answers it from each route's `GET` handler.
+ */
+const DEFAULT_API_ALLOWED_METHODS = 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS'
+
 const DEFAULT_API_ALLOWED_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization'
 
@@ -109,7 +123,7 @@ export function resolveApiCorsPolicy(request: NextRequest): CorsPolicy {
   return {
     origin: getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3001',
     credentials: true,
-    methods: 'GET,POST,OPTIONS,PUT,DELETE',
+    methods: DEFAULT_API_ALLOWED_METHODS,
     headers: DEFAULT_API_ALLOWED_HEADERS,
   }
 }
