@@ -275,6 +275,7 @@ describe('chunked parse — property test over randomized documents', () => {
       }
     }
     expect(failures).toEqual([])
-    // 400 docs each parsed+serialized twice — generous timeout so it can't flake under parallel load.
-  }, 30000)
+    // 400 docs each parsed+serialized twice. Runs ~13s alone, but this is a CPU-bound synchronous
+    // loop competing with every other worker in a full-suite run, where 30s was not enough headroom.
+  }, 90000)
 })

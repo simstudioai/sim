@@ -12,8 +12,10 @@ import {
   ChipModalHeader,
   ChipSelect,
   type ComboboxOption,
+  Tooltip,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useCreateWorkflowMcpServer } from '@/hooks/queries/workflow-mcp-servers'
 
 const logger = createLogger('CreateWorkflowMcpServerModal')
@@ -38,6 +40,13 @@ export function CreateWorkflowMcpServerModal({
   workflowOptions,
 }: CreateWorkflowMcpServerModalProps) {
   const createServerMutation = useCreateWorkflowMcpServer()
+  /**
+   * A public server is callable with no authentication, so publishing one is
+   * admin-only — the same boundary the public workflow API and public chats
+   * enforce. The server rejects it regardless; this keeps a `write` member from
+   * being offered an option that would only 403 on save.
+   */
+  const canSetPublicAccess = useUserPermissionsContext().canAdmin
 
   const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA })
   const [selectedWorkflowIds, setSelectedWorkflowIds] = useState<string[]>([])
@@ -115,13 +124,25 @@ export function CreateWorkflowMcpServerModal({
         )}
         <ChipModalField type='custom' title='Access'>
           <div className='flex items-center gap-3'>
-            <ButtonGroup
-              value={formData.isPublic ? 'public' : 'private'}
-              onValueChange={(value) => setFormData({ ...formData, isPublic: value === 'public' })}
-            >
-              <ButtonGroupItem value='private'>API Key</ButtonGroupItem>
-              <ButtonGroupItem value='public'>Public</ButtonGroupItem>
-            </ButtonGroup>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <span className='inline-flex w-fit'>
+                  <ButtonGroup
+                    value={formData.isPublic ? 'public' : 'private'}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, isPublic: value === 'public' })
+                    }
+                    disabled={!canSetPublicAccess}
+                  >
+                    <ButtonGroupItem value='private'>API Key</ButtonGroupItem>
+                    <ButtonGroupItem value='public'>Public</ButtonGroupItem>
+                  </ButtonGroup>
+                </span>
+              </Tooltip.Trigger>
+              {!canSetPublicAccess && (
+                <Tooltip.Content>Only admins can change public access</Tooltip.Content>
+              )}
+            </Tooltip.Root>
             {formData.isPublic && (
               <span className='text-[var(--text-muted)] text-caption'>
                 No authentication required

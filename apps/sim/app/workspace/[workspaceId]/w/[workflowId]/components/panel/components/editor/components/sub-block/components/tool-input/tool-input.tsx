@@ -231,7 +231,7 @@ function WorkflowToolDeployBadge({
   const needsRedeploy = data?.needsRedeployment ?? false
 
   const deployWorkflow = useCallback(() => {
-    if (isDeploying || !workflowId || !userPermissions.canAdmin) return
+    if (isDeploying || !workflowId || !userPermissions.canEdit) return
 
     mutate(
       { workflowId },
@@ -241,7 +241,7 @@ function WorkflowToolDeployBadge({
         },
       }
     )
-  }, [isDeploying, workflowId, userPermissions.canAdmin, mutate, onDeploySuccess])
+  }, [isDeploying, workflowId, userPermissions.canEdit, mutate, onDeploySuccess])
 
   if (isLoading || (isDeployed && !needsRedeploy)) {
     return null
@@ -256,13 +256,13 @@ function WorkflowToolDeployBadge({
       <Tooltip.Trigger asChild>
         <Badge
           variant={!isDeployed ? 'red' : 'amber'}
-          className={userPermissions.canAdmin ? 'cursor-pointer' : 'cursor-not-allowed'}
+          className={userPermissions.canEdit ? 'cursor-pointer' : 'cursor-not-allowed'}
           size='sm'
           dot
           onClick={(e: React.MouseEvent) => {
             e.stopPropagation()
             e.preventDefault()
-            if (!isDeploying && userPermissions.canAdmin) {
+            if (!isDeploying && userPermissions.canEdit) {
               deployWorkflow()
             }
           }}
@@ -272,8 +272,8 @@ function WorkflowToolDeployBadge({
       </Tooltip.Trigger>
       <Tooltip.Content>
         <span className='text-sm'>
-          {!userPermissions.canAdmin
-            ? 'Admin permission required to deploy'
+          {!userPermissions.canEdit
+            ? 'Write permission required to deploy'
             : !isDeployed
               ? 'Click to deploy'
               : 'Click to redeploy'}

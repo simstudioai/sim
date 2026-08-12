@@ -1234,9 +1234,9 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       childIsDeployed={childIsDeployed}
       childNeedsRedeploy={childNeedsRedeploy}
       isDeploying={isDeploying}
-      canAdmin={userPermissions.canAdmin}
+      canDeploy={userPermissions.canEdit}
       onDeployChild={() => {
-        if (childWorkflowId && !isDeploying && userPermissions.canAdmin) {
+        if (childWorkflowId && !isDeploying && userPermissions.canEdit) {
           deployChildWorkflow({ workflowId: childWorkflowId })
         }
       }}

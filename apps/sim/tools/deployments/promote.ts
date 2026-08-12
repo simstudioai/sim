@@ -11,7 +11,7 @@ export const deploymentsPromoteTool: ToolConfig<
   id: 'deployments_promote',
   name: 'Promote Version to Live',
   description:
-    'Make a specific deployment version the live one without creating a new version — the same operation as Promote to live in the deploy modal. Useful for rolling back to a known-good version. Also works on an undeployed workflow: it re-deploys the workflow live at that version. Requires admin permission on the workflow’s workspace.',
+    'Make a specific deployment version the live one without creating a new version — the same operation as Promote to live in the deploy modal. Useful for rolling back to a known-good version. Also works on an undeployed workflow: it re-deploys the workflow live at that version. Requires write permission on the workflow’s workspace.',
   version: '1.0.0',
 
   params: {

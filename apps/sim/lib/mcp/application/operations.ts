@@ -31,7 +31,7 @@ export const mcpServerOperations = {
   }),
   createWorkflowDeploymentServer: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.create_server',
-    minimumRole: 'admin',
+    minimumRole: 'write',
     workspaceApiKey: 'deny',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
@@ -45,21 +45,21 @@ export const mcpServerOperations = {
   }),
   deleteWorkflowDeploymentServer: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.delete_server',
-    minimumRole: 'admin',
+    minimumRole: 'write',
     workspaceApiKey: 'deny',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
   deployWorkflowTool: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.deploy_tool',
-    minimumRole: 'admin',
+    minimumRole: 'write',
     workspaceApiKey: 'deny',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
   undeployWorkflowTool: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.undeploy_tool',
-    minimumRole: 'admin',
+    minimumRole: 'write',
     workspaceApiKey: 'deny',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],

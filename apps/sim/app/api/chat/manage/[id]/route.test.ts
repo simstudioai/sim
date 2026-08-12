@@ -23,13 +23,17 @@ import {
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckChatAccess, mockCheckNeedsRedeployment, mockValidateChatDeployAuth } = vi.hoisted(
-  () => ({
-    mockCheckChatAccess: vi.fn(),
-    mockCheckNeedsRedeployment: vi.fn(),
-    mockValidateChatDeployAuth: vi.fn(),
-  })
-)
+const {
+  mockCheckChatAccess,
+  mockCanExposePublicly,
+  mockCheckNeedsRedeployment,
+  mockValidateChatDeployAuth,
+} = vi.hoisted(() => ({
+  mockCheckChatAccess: vi.fn(),
+  mockCanExposePublicly: vi.fn(),
+  mockCheckNeedsRedeployment: vi.fn(),
+  mockValidateChatDeployAuth: vi.fn(),
+}))
 
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
@@ -47,6 +51,10 @@ vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/app/api/chat/utils', () => ({
   checkChatAccess: mockCheckChatAccess,
 }))
+vi.mock('@/lib/deployments/public-exposure', () => ({
+  canExposePublicly: mockCanExposePublicly,
+}))
+
 vi.mock('@/ee/access-control/utils/permission-check', () => {
   class ChatDeployAuthNotAllowedError extends Error {
     constructor() {
@@ -78,6 +86,9 @@ afterAll(() => {
 describe('Chat Edit API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Existing chat suites deploy with authType public; default to admin so they
+    // keep testing what they were written to test.
+    mockCanExposePublicly.mockResolvedValue(true)
     resetDbChainMock()
     mockPerformChatUndeploy.mockResolvedValue({ success: true })
 

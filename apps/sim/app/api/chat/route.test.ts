@@ -16,8 +16,13 @@ import {
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckWorkflowAccessForChatCreation, mockValidateChatDeployAuth } = vi.hoisted(() => ({
+const {
+  mockCheckWorkflowAccessForChatCreation,
+  mockCanExposePublicly,
+  mockValidateChatDeployAuth,
+} = vi.hoisted(() => ({
   mockCheckWorkflowAccessForChatCreation: vi.fn(),
+  mockCanExposePublicly: vi.fn(),
   mockValidateChatDeployAuth: vi.fn(),
 }))
 
@@ -29,6 +34,10 @@ vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
 vi.mock('@/app/api/chat/utils', () => ({
   checkWorkflowAccessForChatCreation: mockCheckWorkflowAccessForChatCreation,
+}))
+
+vi.mock('@/lib/deployments/public-exposure', () => ({
+  canExposePublicly: mockCanExposePublicly,
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => {
@@ -53,6 +62,9 @@ describe('Chat API Route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Existing chat suites deploy with authType public; default to admin so they
+    // keep testing what they were written to test.
+    mockCanExposePublicly.mockResolvedValue(true)
     setEnv({ NODE_ENV: 'development', NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
 
     mockCreateSuccessResponse.mockImplementation((data) => {
@@ -249,6 +261,65 @@ describe('Chat API Route', () => {
           identifier: 'test-chat',
         })
       )
+    })
+
+    it('returns 403 when a non-admin deploys a public chat', async () => {
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-id', email: 'user@example.com' },
+      })
+
+      dbChainMockFns.limit.mockResolvedValueOnce([])
+      mockCheckWorkflowAccessForChatCreation.mockResolvedValue({
+        hasAccess: true,
+        workflow: { userId: 'user-id', workspaceId: 'workspace-1', isDeployed: true },
+      })
+      // Write access is enough to deploy a chat, but not to make one public.
+      mockCanExposePublicly.mockResolvedValue(false)
+
+      const response = await POST(
+        new NextRequest('http://localhost:3000/api/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            workflowId: 'workflow-123',
+            identifier: 'test-chat',
+            title: 'Test Chat',
+            authType: 'public',
+            customizations: { primaryColor: '#000000', welcomeMessage: 'Hello' },
+          }),
+        })
+      )
+
+      expect(response.status).toBe(403)
+      expect(mockCanExposePublicly).toHaveBeenCalledWith('user-id', 'workspace-1')
+    })
+
+    it('lets a non-admin deploy a password-protected chat', async () => {
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-id', email: 'user@example.com' },
+      })
+
+      dbChainMockFns.limit.mockResolvedValueOnce([])
+      mockCheckWorkflowAccessForChatCreation.mockResolvedValue({
+        hasAccess: true,
+        workflow: { userId: 'user-id', workspaceId: 'workspace-1', isDeployed: true },
+      })
+      mockCanExposePublicly.mockResolvedValue(false)
+
+      const response = await POST(
+        new NextRequest('http://localhost:3000/api/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            workflowId: 'workflow-123',
+            identifier: 'test-chat',
+            title: 'Test Chat',
+            authType: 'password',
+            password: 'test-password',
+            customizations: { primaryColor: '#000000', welcomeMessage: 'Hello' },
+          }),
+        })
+      )
+
+      expect(response.status).not.toBe(403)
     })
 
     it('returns 403 when the chat auth type is blocked by the permission group', async () => {

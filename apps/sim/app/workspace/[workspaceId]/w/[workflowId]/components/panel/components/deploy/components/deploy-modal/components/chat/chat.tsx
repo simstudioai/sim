@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -23,6 +23,7 @@ import { GeneratedPasswordInput } from '@/components/ui'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { validateAllowlistEntry } from '@/lib/messaging/email/validation'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 import {
   type AuthType,
@@ -119,7 +120,20 @@ export function ChatDeploy({
   const setShowDeleteConfirmation =
     externalSetShowDeleteConfirmation || setInternalShowDeleteConfirmation
 
-  const [formData, setFormData] = useState<ChatFormData>(initialFormData)
+  const { canAdmin } = useUserPermissionsContext()
+  /**
+   * A public chat is admin-only, so seeding a non-admin into the `public`
+   * default would land them on an option they cannot submit. The selector
+   * disables that option and explains why, but the form still has to open on a
+   * mode they can actually deploy — the reset below runs after the selector's
+   * own fallback effect and would otherwise clobber it straight back to public.
+   */
+  const newChatFormData = useMemo<ChatFormData>(
+    () => (canAdmin ? initialFormData : { ...initialFormData, authType: 'password' }),
+    [canAdmin]
+  )
+
+  const [formData, setFormData] = useState<ChatFormData>(newChatFormData)
   const [errors, setErrors] = useState<FormErrors>({})
   const formRef = useRef<HTMLFormElement>(null)
   const [formInitCounter, setFormInitCounter] = useState(0)
@@ -176,10 +190,19 @@ export function ChatDeploy({
     return Object.keys(newErrors).length === 0
   }
 
+  /**
+   * A public chat is admin-only (the server enforces the same rule on both the
+   * REST routes and the copilot use case), so a non-admin selecting it must not
+   * be able to submit into a 403. An already-public chat stays editable.
+   */
+  const publicAuthBlocked =
+    formData.authType === 'public' && !canAdmin && existingChat?.authType !== 'public'
+
   const isFormValid =
     isIdentifierValid &&
     Boolean(formData.title.trim()) &&
     formData.selectedOutputBlocks.length > 0 &&
+    !publicAuthBlocked &&
     !isPasswordRequired(formData.authType, formData.password, existingPassword) &&
     (formData.authType !== 'password' || !isWhitespaceOnlyPassword(formData.password)) &&
     ((formData.authType !== 'email' && formData.authType !== 'sso') || formData.emails.length > 0)
@@ -214,7 +237,7 @@ export function ChatDeploy({
 
       hasInitializedFormRef.current = true
     } else if (!existingChat && !isLoadingChat) {
-      setFormData(initialFormData)
+      setFormData(newChatFormData)
       setImageUrl(null)
       hasInitializedFormRef.current = false
     }
@@ -706,6 +729,14 @@ function AuthSelector({
 
   const { config: permissionConfig } = usePermissionConfig()
   const allowedAuthTypes = permissionConfig.allowedChatDeployAuthTypes
+  /**
+   * A public chat is invocable by anyone holding the URL with no auth, so it is
+   * admin-only — the same boundary the workflow's public API sits behind.
+   * Deploying an authenticated chat stays at `write`. An already-public chat
+   * keeps the option selectable so an editor can still edit its other fields.
+   */
+  const { canAdmin } = useUserPermissionsContext()
+  const canSetPublic = canAdmin || savedAuthType === 'public'
 
   const ssoAvailable =
     isSsoEnabled || savedAuthType === 'sso' || (allowedAuthTypes?.includes('sso') ?? false)
@@ -717,11 +748,28 @@ function AuthSelector({
     (type) => allowedAuthTypes === null || allowedAuthTypes.includes(type) || type === savedAuthType
   )
 
+  /**
+   * A permission group restricted to public-only leaves a non-admin with no
+   * deployable mode: the org allows only public, and public is admin-only. That
+   * combination is intentional, not a bug — deferring to the group here would
+   * let any org grant editors public deploys by narrowing the allow-list — so
+   * the form surfaces the dead end instead of letting a submit 403.
+   */
+  const noDeployableAuthType =
+    authOptions.length > 0 && authOptions.every((type) => type === 'public') && !canSetPublic
+
   useEffect(() => {
     if (authOptions.length > 0 && !authOptions.includes(authType)) {
       onAuthTypeChange(authOptions[0])
+      return
     }
-  }, [authOptions, authType, onAuthTypeChange])
+    // A non-admin defaults to 'public' on a fresh chat, which they cannot use —
+    // move them to the first mode they can actually deploy.
+    if (authType === 'public' && !canSetPublic) {
+      const fallback = authOptions.find((type) => type !== 'public')
+      if (fallback) onAuthTypeChange(fallback)
+    }
+  }, [authOptions, authType, onAuthTypeChange, canSetPublic])
 
   return (
     <div className='space-y-4'>
@@ -734,12 +782,31 @@ function AuthSelector({
           onValueChange={(val) => onAuthTypeChange(val as AuthType)}
           disabled={disabled}
         >
-          {authOptions.map((type) => (
-            <ButtonGroupItem key={type} value={type}>
-              {AUTH_LABELS[type]}
-            </ButtonGroupItem>
-          ))}
+          {authOptions.map((type) =>
+            type === 'public' && !canSetPublic ? (
+              <Tooltip.Root key={type}>
+                <Tooltip.Trigger asChild>
+                  <span className='inline-flex'>
+                    <ButtonGroupItem value={type} disabled>
+                      {AUTH_LABELS[type]}
+                    </ButtonGroupItem>
+                  </span>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Only admins can deploy a public chat</Tooltip.Content>
+              </Tooltip.Root>
+            ) : (
+              <ButtonGroupItem key={type} value={type}>
+                {AUTH_LABELS[type]}
+              </ButtonGroupItem>
+            )
+          )}
         </ButtonGroup>
+        {noDeployableAuthType && (
+          <p className='mt-1 text-[var(--text-error)] text-caption'>
+            This workspace only allows public chats, and only admins can deploy those. Ask an admin
+            to deploy this chat or to allow another access mode.
+          </p>
+        )}
       </div>
 
       {authType === 'password' && (

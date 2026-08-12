@@ -147,6 +147,15 @@ export function DeployModal({
   const isApiKeysLoading = isLoadingKeys || isLoadingSettings
   const createButtonDisabled =
     isApiKeysLoading || (!allowPersonalApiKeys && !canManageWorkspaceKeys)
+  /**
+   * Deploying needs only `write`, but minting a workspace key needs `admin`. When this
+   * workspace also disallows personal keys, an editor has no key type left to create —
+   * say so rather than leaving a dead button.
+   */
+  const createKeyDisabledReason =
+    !isApiKeysLoading && !allowPersonalApiKeys && !canManageWorkspaceKeys
+      ? 'Admin permissions required to create a workspace API key'
+      : null
 
   const {
     data: deploymentInfoData,
@@ -592,7 +601,7 @@ export function DeployModal({
                   onRefetchChat={handleRefetchChat}
                   chatSubmitting={chatSubmitting}
                   setChatSubmitting={setChatSubmitting}
-                  canRevealPassword={userPermissions.canAdmin}
+                  canRevealPassword={userPermissions.canEdit}
                   onValidationChange={setIsChatFormValid}
                   onDeploymentComplete={handleCloseModal}
                   onDeployed={handleChatDeployed}
@@ -641,13 +650,22 @@ export function DeployModal({
               <div />
               <div className='flex items-center gap-2'>
                 <Chip onClick={() => setIsApiInfoModalOpen(true)}>Edit API Info</Chip>
-                <Chip
-                  variant='primary'
-                  onClick={() => setIsCreateKeyModalOpen(true)}
-                  disabled={createButtonDisabled}
-                >
-                  Generate API Key
-                </Chip>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span className='inline-flex'>
+                      <Chip
+                        variant='primary'
+                        onClick={() => setIsCreateKeyModalOpen(true)}
+                        disabled={createButtonDisabled}
+                      >
+                        Generate API Key
+                      </Chip>
+                    </span>
+                  </Tooltip.Trigger>
+                  {createKeyDisabledReason && (
+                    <Tooltip.Content>{createKeyDisabledReason}</Tooltip.Content>
+                  )}
+                </Tooltip.Root>
               </div>
             </ModalFooter>
           )}

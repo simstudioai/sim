@@ -9,6 +9,7 @@ import {
   workflowMcpServerParamsSchema,
 } from '@/lib/api/contracts/workflow-mcp-servers'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { canExposePublicly, increasesPublicExposure } from '@/lib/deployments/public-exposure'
 import {
   mcpBodyReadErrorResponse,
   readMcpJsonBodyWithLimit,
@@ -108,6 +109,43 @@ export const PATCH = withRouteHandler(
         const body = parsedBody.data
 
         logger.info(`[${requestId}] Updating workflow MCP server: ${serverId}`)
+
+        /**
+         * `withMcpAuth('write')` covers managing the server, but a public
+         * server skips authentication on the serve path, so publishing one is
+         * admin-only. Only the transition is gated: the edit form resubmits the
+         * server's current visibility alongside whatever field changed, so a
+         * `write` member must still be able to rename an already-public server.
+         *
+         * This route calls the orchestration layer directly rather than the
+         * application use case, so `updateWorkflowMcpDeploymentServer`'s gate
+         * does not apply here and the rule has to be repeated. Delete this copy
+         * once the route goes through that use case.
+         */
+        if (body.isPublic === true) {
+          const [current] = await db
+            .select({ isPublic: workflowMcpServer.isPublic })
+            .from(workflowMcpServer)
+            .where(
+              and(
+                eq(workflowMcpServer.id, serverId),
+                eq(workflowMcpServer.workspaceId, workspaceId),
+                isNull(workflowMcpServer.deletedAt)
+              )
+            )
+            .limit(1)
+
+          if (
+            increasesPublicExposure(body.isPublic, current?.isPublic) &&
+            !(await canExposePublicly(userId, workspaceId))
+          ) {
+            return createMcpErrorResponse(
+              new Error('Only admins can make an MCP server public'),
+              'Only admins can make an MCP server public',
+              403
+            )
+          }
+        }
 
         const result = await performUpdateWorkflowMcpServer({
           serverId,

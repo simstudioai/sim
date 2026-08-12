@@ -119,7 +119,8 @@ export const POST = withRouteHandler(
         actorEmail: session.user.email,
       })
       if (!result.success || !result.key) {
-        const status = result.errorCode === 'conflict' ? 409 : 500
+        const status =
+          result.errorCode === 'conflict' ? 409 : result.errorCode === 'forbidden' ? 403 : 500
         return NextResponse.json({ error: result.error }, { status })
       }
 

@@ -180,28 +180,34 @@ export const workflowOperations = {
   }),
   deploy: defineWorkspaceOperation({
     id: 'workflows.deploy',
-    minimumRole: 'admin',
+    minimumRole: 'write',
     workspaceApiKey: 'deny',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
   undeploy: defineWorkspaceOperation({
     id: 'workflows.undeploy',
-    minimumRole: 'admin',
+    minimumRole: 'write',
     workspaceApiKey: 'deny',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
   deployChat: defineWorkspaceOperation({
     id: 'workflows.chat.deploy',
-    minimumRole: 'admin',
+    minimumRole: 'write',
     workspaceApiKey: 'deny',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
   undeployChat: defineWorkspaceOperation({
     id: 'workflows.chat.undeploy',
-    minimumRole: 'admin',
+    minimumRole: 'write',
     workspaceApiKey: 'deny',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  /**
+   * Deliberately admin while the rest of the deployment lifecycle is write:
+   * enabling this makes the workflow callable with no authentication at all,
+   * exposing every credential and environment variable it references to
+   * anonymous callers. That is a different risk class from shipping a version.
+   */
   updatePublicApi: defineWorkspaceOperation({
     id: 'workflows.public_api.update',
     minimumRole: 'admin',
@@ -210,13 +216,13 @@ export const workflowOperations = {
   }),
   activateVersion: defineWorkspaceOperation({
     id: 'workflows.versions.activate',
-    minimumRole: 'admin',
+    minimumRole: 'write',
     workspaceApiKey: 'deny',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
   revertVersion: defineWorkspaceOperation({
     id: 'workflows.versions.revert',
-    minimumRole: 'admin',
+    minimumRole: 'write',
     workspaceApiKey: 'deny',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),

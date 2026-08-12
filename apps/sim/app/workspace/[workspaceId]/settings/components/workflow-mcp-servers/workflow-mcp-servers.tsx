@@ -19,6 +19,7 @@ import {
   Code,
   type ComboboxOption,
   Label,
+  Tooltip,
   useCopyToClipboard,
 } from '@sim/emcn'
 import { ArrowLeft, Check, Clipboard, Plus, Server } from '@sim/emcn/icons'
@@ -86,6 +87,7 @@ function ServerDetailView({
   onDelete,
   isDeleting,
 }: ServerDetailViewProps) {
+  const workspacePermissions = useUserPermissionsContext()
   const { data, isLoading, error } = useWorkflowMcpServer(workspaceId, serverId)
   const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
     useDeployedWorkflows(workspaceId)
@@ -99,7 +101,15 @@ function ServerDetailView({
 
   const existingKeyNames = (apiKeysData?.workspaceKeys ?? []).map((key) => key.name)
   const allowPersonalApiKeys = false
-  const canManageWorkspaceKeys = canManage
+  /** Managing this server only needs `write`, but minting a workspace key needs `admin`. */
+  const canManageWorkspaceKeys = workspacePermissions.canAdmin
+  /**
+   * A public server is callable with no authentication, so changing its access
+   * is admin-only — the same boundary the public workflow API and public chats
+   * enforce. The server rejects the change regardless; this keeps a `write`
+   * member from being offered an action that would only 403.
+   */
+  const canSetPublicAccess = workspacePermissions.canAdmin
   const defaultKeyType = 'workspace'
 
   const addToWorkspaceMutation = useCreateMcpServer()
@@ -609,7 +619,7 @@ function ServerDetailView({
                     {!server.isPublic && (
                       <p className='mt-2 text-[var(--text-muted)] text-caption'>
                         Replace $SIM_API_KEY with your API key
-                        {canManage && (
+                        {canManageWorkspaceKeys && (
                           <>
                             , or{' '}
                             <button
@@ -822,13 +832,23 @@ function ServerDetailView({
             />
             <ChipModalField type='custom' title='Access'>
               <div className='flex flex-col gap-1.5'>
-                <ButtonGroup
-                  value={editServerIsPublic ? 'public' : 'private'}
-                  onValueChange={(value) => setEditServerIsPublic(value === 'public')}
-                >
-                  <ButtonGroupItem value='private'>API Key</ButtonGroupItem>
-                  <ButtonGroupItem value='public'>Public</ButtonGroupItem>
-                </ButtonGroup>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span className='inline-flex w-fit'>
+                      <ButtonGroup
+                        value={editServerIsPublic ? 'public' : 'private'}
+                        onValueChange={(value) => setEditServerIsPublic(value === 'public')}
+                        disabled={!canSetPublicAccess}
+                      >
+                        <ButtonGroupItem value='private'>API Key</ButtonGroupItem>
+                        <ButtonGroupItem value='public'>Public</ButtonGroupItem>
+                      </ButtonGroup>
+                    </span>
+                  </Tooltip.Trigger>
+                  {!canSetPublicAccess && (
+                    <Tooltip.Content>Only admins can change public access</Tooltip.Content>
+                  )}
+                </Tooltip.Root>
                 <p className='text-[var(--text-muted)] text-caption'>
                   {editServerIsPublic
                     ? 'Anyone with the URL can call this server without authentication'
@@ -852,7 +872,7 @@ function ServerDetailView({
           />
         </ChipModal>
       )}
-      {canManage && (
+      {canManageWorkspaceKeys && (
         <CreateApiKeyModal
           open={showCreateApiKeyModal}
           onOpenChange={setShowCreateApiKeyModal}

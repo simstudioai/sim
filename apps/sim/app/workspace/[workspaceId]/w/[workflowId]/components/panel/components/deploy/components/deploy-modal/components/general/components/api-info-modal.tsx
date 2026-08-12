@@ -14,6 +14,7 @@ import {
   ChipModalHeader,
   Input,
   Label,
+  Tooltip,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
@@ -21,6 +22,7 @@ import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useDeploymentInfo, useUpdatePublicApi } from '@/hooks/queries/deployments'
 import { useUpdateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -51,6 +53,12 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
   const { data: deploymentData } = useDeploymentInfo(workflowId, { enabled: open })
   const updatePublicApiMutation = useUpdatePublicApi()
   const { isPublicApiDisabled } = usePermissionConfig()
+  /**
+   * Deploying only needs `write`, but exposing a workflow to unauthenticated
+   * callers stays admin-only — `workflowOperations.updatePublicApi` enforces
+   * the same boundary server-side.
+   */
+  const { canAdmin: canSetPublicAccess } = useUserPermissionsContext()
 
   const [description, setDescription] = useState('')
   const [paramDescriptions, setParamDescriptions] = useState<Record<string, string>>({})
@@ -218,13 +226,23 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
           {!isPublicApiDisabled && (
             <ChipModalField type='custom' title='Access'>
-              <ButtonGroup
-                value={accessMode}
-                onValueChange={(val) => setAccessMode(val as 'api_key' | 'public')}
-              >
-                <ButtonGroupItem value='api_key'>API Key</ButtonGroupItem>
-                <ButtonGroupItem value='public'>Public</ButtonGroupItem>
-              </ButtonGroup>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <span className='inline-flex w-fit'>
+                    <ButtonGroup
+                      value={accessMode}
+                      onValueChange={(val) => setAccessMode(val as 'api_key' | 'public')}
+                      disabled={!canSetPublicAccess}
+                    >
+                      <ButtonGroupItem value='api_key'>API Key</ButtonGroupItem>
+                      <ButtonGroupItem value='public'>Public</ButtonGroupItem>
+                    </ButtonGroup>
+                  </span>
+                </Tooltip.Trigger>
+                {!canSetPublicAccess && (
+                  <Tooltip.Content>Only admins can change public API access</Tooltip.Content>
+                )}
+              </Tooltip.Root>
               <p className='mt-1 text-[var(--text-secondary)] text-caption'>
                 {accessMode === 'public'
                   ? 'Anyone can call this API without authentication. You will be billed for all usage.'

@@ -12,6 +12,7 @@ import { isDev } from '@/lib/core/config/env-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { canExposePublicly } from '@/lib/deployments/public-exposure'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import {
   getWorkflowDeploymentSummary,
@@ -127,6 +128,12 @@ export const PATCH = withRouteHandler(
       // mode actually changes, so a grandfathered mode already saved on this chat
       // can still be re-saved (e.g. a title-only edit) without a 403.
       if (authType && authType !== existingChatRecord.authType && chatWorkspaceId) {
+        // Only the transition *to* public is admin-gated. Leaving an already-public
+        // chat as-is, or moving it off public, does not increase exposure.
+        if (authType === 'public' && !(await canExposePublicly(session.user.id, chatWorkspaceId))) {
+          return createErrorResponse('Only admins can make a chat public', 403)
+        }
+
         try {
           await validateChatDeployAuth(session.user.id, chatWorkspaceId, authType)
         } catch (error) {

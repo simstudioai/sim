@@ -215,8 +215,8 @@ describe('workflow deployment application use cases', () => {
     expect(mocks.deploy).not.toHaveBeenCalled()
   })
 
-  it('requires current admin permission before deployment', async () => {
-    mocks.resolvePermission.mockResolvedValueOnce('write')
+  it('requires current write permission before deployment', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce('read')
 
     await expect(
       deployWorkflow.execute({
@@ -226,6 +226,23 @@ describe('workflow deployment application use cases', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.assertMutable).not.toHaveBeenCalled()
     expect(mocks.deploy).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Deploying dropped from admin to write: the people who build workflows hold
+   * write, and routing every deploy through an admin was the friction this
+   * removed. Minting a workspace API key stays admin — see the api-key
+   * orchestration tests.
+   */
+  it('allows a write member to deploy', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce('write')
+
+    await deployWorkflow.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workflowId: 'workflow-1', requestId: 'request-1' },
+    })
+
+    expect(mocks.deploy).toHaveBeenCalled()
   })
 
   it('undeploys without legacy audit and projects one semantic audit entry', async () => {

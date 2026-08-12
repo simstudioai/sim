@@ -17,7 +17,7 @@ const PRIVATE_NO_STORE = { 'Cache-Control': 'private, no-store' } as const
 
 /**
  * GET endpoint that reveals a chat deployment's current password.
- * Restricted to workspace admins (checkChatAccess requires admin permission
+ * Restricted to workspace editors (checkChatAccess requires write permission
  * on the workflow's workspace); each reveal is recorded in the audit log.
  */
 export const GET = withRouteHandler(
