@@ -2020,11 +2020,11 @@ const WorkflowContent = React.memo(
           const name = getUniqueBlockName(baseName, blocks)
 
           if (containerInfo) {
-            // Check if this is a trigger block or has trigger mode enabled
+            // Only reject blocks that will actually be triggers: pure trigger blocks
+            // and explicit trigger-mode drops. A dual-mode block (e.g. Gmail) added
+            // without trigger mode is an ordinary block and is valid in a subflow.
             const isTriggerBlock =
-              blockConfig.category === 'triggers' ||
-              blockConfig.triggers?.enabled ||
-              data.enableTriggerMode === true
+              blockConfig.category === 'triggers' || data.enableTriggerMode === true
 
             if (isTriggerBlock) {
               toast.error('Triggers cannot be placed inside loop or parallel subflows.')
