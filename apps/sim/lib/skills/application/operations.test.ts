@@ -15,11 +15,29 @@ import { skillOperations } from '@/lib/skills/application/operations'
  * These tests exist so the next reader finds the reason instead of "fixing" it.
  */
 describe('skill operation registry', () => {
-  it('gates creation on workspace role, which a workspace key can express', () => {
+  it('gates creation on a human subject, like every other write', () => {
     expect(skillOperations.create).toMatchObject({
       minimumRole: 'write',
-      workspaceApiKey: 'allow',
+      workspaceApiKey: 'deny',
+      principalKinds: ['session', 'personal_api_key', 'delegated'],
     })
+  })
+
+  /**
+   * The invariant the create/delete split violated. A principal kind that can
+   * create a skill must be able to remove it, or its only possible interaction
+   * with the resource is to accumulate rows it can never reach again.
+   */
+  it('admits the same principal kinds to every write in the lifecycle', () => {
+    const writes = [
+      skillOperations.create,
+      skillOperations.update,
+      skillOperations.upsert,
+      skillOperations.delete,
+    ]
+    const policies = writes.map((operation) => operation.workspaceApiKey)
+
+    expect(new Set(policies).size).toBe(1)
   })
 
   it('gates every edit path on a human subject rather than workspace role', () => {

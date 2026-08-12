@@ -306,7 +306,12 @@ export function useCreateMcpServer() {
       return {
         ...safeServerData,
         id: serverId,
-        connectionStatus: authType === 'oauth' ? ('disconnected' as const) : ('connected' as const),
+        /**
+         * Mirrors what registration writes. It used to claim `connected` for a
+         * non-OAuth server — a client-side copy of a server-side assumption that
+         * no connection had verified.
+         */
+        connectionStatus: 'disconnected' as const,
         serverId,
         updated: wasUpdated,
         authType,

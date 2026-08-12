@@ -113,11 +113,18 @@ export const v2McpServerSchema = z
     enabled: mcpServerSchema.shape.enabled.describe(
       'Whether the server tools are available to workflows.'
     ),
+    /**
+     * These three are written only by a real discovery. Registration stores a
+     * configuration without contacting the endpoint, so it leaves all three at
+     * their defaults — it used to stamp `connected` and a `lastConnected` of now
+     * for any non-OAuth server, which made both fields false the moment they
+     * were first read.
+     */
     connectionStatus: mcpServerSchema.shape.connectionStatus.describe(
-      'Result of the most recent connection attempt.'
+      'Result of the most recent connection attempt. Registration and re-registration store a configuration without contacting the endpoint, so a server begins — and returns to — `disconnected` until a tool discovery runs.'
     ),
     lastError: mcpServerSchema.shape.lastError.describe(
-      'Message from the most recent failed connection, or null when absent.'
+      'Message from the most recent failed connection, or null when absent. A re-registration clears it, since the configuration it described no longer applies.'
     ),
     toolCount: mcpServerSchema.shape.toolCount.describe(
       'Number of tools discovered on the server.'
@@ -126,7 +133,7 @@ export const v2McpServerSchema = z
       'ISO 8601 timestamp of the most recent tool-list refresh.'
     ),
     lastConnected: mcpServerSchema.shape.lastConnected.describe(
-      'ISO 8601 timestamp of the most recent successful connection.'
+      'ISO 8601 timestamp of the most recent successful connection. Absent until the server completes one; registering a server does not set it.'
     ),
     createdAt: mcpServerSchema.shape.createdAt.describe(
       'ISO 8601 timestamp when the server was registered.'

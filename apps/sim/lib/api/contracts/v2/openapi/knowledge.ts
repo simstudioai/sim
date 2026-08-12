@@ -211,7 +211,7 @@ const routes = [
       operationId: 'searchKnowledge',
       summary: 'Search Knowledge',
       description:
-        'Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Set `rerankerEnabled` with a `rerankerModel` to re-order the retrieved chunks with a reranking model before truncating to `topK`; reranked results carry a `rerankerScore` and are ordered by it, and reranking is billed as an additional search unit. Every result names the `knowledgeBaseId` it came from. The request body is capped at 2 MiB; a larger body is a 413.',
+        'Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Set `rerankerEnabled` to re-order the retrieved chunks with a reranking model before truncating to `topK`; `rerankerModel` selects the model and defaults when omitted. Reranked results carry a `rerankerScore` and are ordered by it, and reranking is billed as an additional search unit. Reranking is best-effort: a reranker that cannot run — a provider failure, a timeout, or a deployment with no reranking credential — falls back to vector ordering rather than failing the search, so read `rerankerStatus` on the response to tell an ordering the reranker produced from one it never touched. Every result names the `knowledgeBaseId` it came from. The request body is capped at 2 MiB; a larger body is a 413.',
       errors: [...WORKSPACE_ERRORS, 'UsageLimitExceeded', 'NotFound', 'PayloadTooLarge'],
       success: { description: 'Matching document chunks ordered by relevance.' },
     }),

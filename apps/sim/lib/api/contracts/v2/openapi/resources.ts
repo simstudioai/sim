@@ -95,6 +95,16 @@ const MCP_SERVER_EXAMPLE = {
   hasOauthClientSecret: false,
 } as const
 
+/**
+ * What registration actually returns, as distinct from {@link MCP_SERVER_EXAMPLE},
+ * which shows a server a discovery has already reached. Reusing the discovered
+ * example on the create response advertised a connection the call does not make.
+ */
+const MCP_SERVER_REGISTERED_EXAMPLE = (() => {
+  const { lastToolsRefresh: _refresh, lastConnected: _connected, ...rest } = MCP_SERVER_EXAMPLE
+  return { ...rest, connectionStatus: 'disconnected', toolCount: 0 } as const
+})()
+
 const MCP_TOOL_EXAMPLE = {
   name: 'search_docs',
   description: 'Search the internal documentation',
@@ -268,7 +278,7 @@ const routes = [
       operationId: 'listMcpServers',
       summary: 'List MCP Servers',
       description:
-        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. Nothing caps how many servers a workspace registers, so this list is paginated: paginate with `limit` and `cursor`, stopping when `nextCursor` is null. `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh` describe the most recent tool discovery and stay at their registration defaults until one runs — call `GET /api/v2/mcp-servers/{id}/tools` to run it.',
+        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. Nothing caps how many servers a workspace registers, so this list is paginated: paginate with `limit` and `cursor`, stopping when `nextCursor` is null. `connectionStatus`, `lastConnected`, `toolCount`, `lastError`, and `lastToolsRefresh` describe the most recent tool discovery and stay at their registration defaults — `disconnected`, with `lastConnected` absent — until one runs. Call `GET /api/v2/mcp-servers/{id}/tools` to run it.',
       errors: RESOURCE_ERRORS,
       success: { description: 'MCP servers registered in the workspace.' },
     }),
@@ -294,7 +304,7 @@ const routes = [
       operationId: 'createMcpServer',
       summary: 'Create MCP Server',
       description:
-        'Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only. `transport`, `timeout`, `retries`, and `enabled` are applied server-side when omitted; the effective values are in the response.',
+        'Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only. `transport`, `timeout`, `retries`, and `enabled` are applied server-side when omitted; the effective values are in the response. Registration stores the configuration and does not connect to the endpoint, so a 201 is not evidence the server is reachable: the response carries `connectionStatus: "disconnected"` and omits `lastConnected`, and the workspace tool registry treats the server as unavailable until a discovery succeeds. Call `GET /api/v2/mcp-servers/{id}/tools` to attempt one and see the outcome. Re-registering an existing URL rewrites the configuration and returns the server to the same unverified state.',
       errors: RESOURCE_CONFLICT_BODY_ERRORS,
       success: { description: 'The MCP server was registered.' },
     }),
@@ -319,7 +329,7 @@ const routes = [
         'CreateMcpServerResponse',
         'Create MCP server response',
         'The registered MCP server without write-only credentials.',
-        [{ data: MCP_SERVER_EXAMPLE }]
+        [{ data: MCP_SERVER_REGISTERED_EXAMPLE }]
       ),
     }
   ),
@@ -482,8 +492,7 @@ const routes = [
     resourceOperation('Skills', {
       operationId: 'createSkill',
       summary: 'Create Skill',
-      description:
-        'Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. Note that a workspace API key may create a skill but may not later update or delete it.',
+      description: `Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_BODY_ERRORS,
       success: { description: 'The skill was created.' },
     }),

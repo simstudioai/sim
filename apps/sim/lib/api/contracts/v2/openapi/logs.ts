@@ -5,6 +5,7 @@ import {
   type ErrorResponseId,
   RATE_LIMIT_HEADERS,
   RESOURCE_ERRORS,
+  RUN_RETENTION,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
@@ -94,8 +95,7 @@ const routes = [
     logsOperation({
       operationId: 'listLogs',
       summary: 'List Logs',
-      description:
-        'List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. This list predates the shared sort convention: it has no `sortBy` (the sort column is fixed to execution start time) and spells the direction `order` rather than `sortOrder`. Trace spans are stored separately from the log row and are pruned on their own retention schedule: `includeTraceSpans=true` on a run whose stored spans have aged out returns `traceSpans: []` rather than an error, so an empty array does not mean the run recorded no spans.',
+      description: `List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. This list predates the shared sort convention: it has no \`sortBy\` (the sort column is fixed to execution start time) and spells the direction \`order\` rather than \`sortOrder\`. ${RUN_RETENTION} Trace spans are stored separately from the log row and are pruned on their own retention schedule: \`includeTraceSpans=true\` on a run whose stored spans have aged out returns \`traceSpans: []\` rather than an error, so an empty array does not mean the run recorded no spans.`,
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of execution logs matching the filters.' },
     }),
