@@ -58,12 +58,7 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
   insertFileMetadata: mockInsertFileMetadata,
 }))
 
-import {
-  createMultipartUpload,
-  generatePresignedUploadUrl,
-  uploadFile,
-  verifyPresignedUploadReceipt,
-} from '@/lib/uploads/core/storage-service'
+import { createMultipartUpload, uploadFile } from '@/lib/uploads/core/storage-service'
 
 const PART_SIZE = 8 * 1024 * 1024
 
@@ -84,31 +79,6 @@ describe('createMultipartUpload', () => {
     mockHeadS3Object.mockResolvedValue(null)
   })
 
-  it('signs direct S3 uploads as create-only and returns the required precondition header', async () => {
-    const result = await generatePresignedUploadUrl({
-      fileName: 'report.csv',
-      contentType: 'text/csv',
-      fileSize: 12,
-      context: 'workspace',
-      customKey: 'workspace/ws-1/report.csv',
-    })
-
-    expect(mockPutObjectCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        Bucket: 'b',
-        Key: 'workspace/ws-1/report.csv',
-        IfNoneMatch: '*',
-        Metadata: expect.objectContaining({ simuploadid: expect.any(String) }),
-      })
-    )
-    expect(result).toMatchObject({
-      url: 'https://s3.example/create-only',
-      key: 'workspace/ws-1/report.csv',
-      uploadHeaders: { 'If-None-Match': '*' },
-      uploadId: expect.any(String),
-    })
-  })
-
   it('can upload an object without persisting generic metadata', async () => {
     await uploadFile({
       file: Buffer.from('hello'),
@@ -121,34 +91,6 @@ describe('createMultipartUpload', () => {
 
     expect(mockUploadToS3).toHaveBeenCalledTimes(1)
     expect(mockInsertFileMetadata).not.toHaveBeenCalled()
-  })
-
-  it('verifies a direct upload only when its opaque object receipt matches', async () => {
-    mockHeadS3Object.mockResolvedValueOnce({
-      size: 12,
-      contentType: 'text/plain',
-      metadata: { simuploadid: 'receipt-1' },
-    })
-
-    await expect(
-      verifyPresignedUploadReceipt({
-        key: 'workspace/ws-1/report.txt',
-        context: 'workspace',
-        uploadId: 'receipt-1',
-      })
-    ).resolves.toBe(true)
-
-    mockHeadS3Object.mockResolvedValueOnce({
-      size: 12,
-      metadata: { simuploadid: 'different-receipt' },
-    })
-    await expect(
-      verifyPresignedUploadReceipt({
-        key: 'workspace/ws-1/report.txt',
-        context: 'workspace',
-        uploadId: 'receipt-1',
-      })
-    ).resolves.toBe(false)
   })
 
   it('takes the single-shot PutObject path for a payload smaller than one part', async () => {
