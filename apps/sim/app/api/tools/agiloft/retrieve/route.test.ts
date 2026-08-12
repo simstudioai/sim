@@ -140,6 +140,35 @@ describe('POST /api/tools/agiloft/retrieve', () => {
     expect(inputValidationMockFns.mockValidateUrlWithDNS).toHaveBeenCalledTimes(1)
   })
 
+  it('resolves the real type when Agiloft labels an attachment octet-stream', async () => {
+    const fileBytes = Buffer.from('PKdocx-bytes', 'utf-8')
+
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      mockSecureFetchResponse({
+        arrayBuffer: fileBytes.buffer.slice(
+          fileBytes.byteOffset,
+          fileBytes.byteOffset + fileBytes.byteLength
+        ) as ArrayBuffer,
+        headers: new Headers({
+          'content-type': 'application/octet-stream',
+          'content-disposition': 'attachment; filename="Master Agreement.docx"',
+        }),
+      })
+    )
+
+    const response = await POST(createMockRequest('POST', baseBody))
+    const data = (await response.json()) as { output: { file: { mimeType: string } } }
+
+    /**
+     * Agiloft labels most attachments octet-stream whatever they are. The
+     * filename disambiguates what the leading bytes cannot: a ZIP header is
+     * equally a .docx, .xlsx or a plain archive.
+     */
+    expect(data.output.file.mimeType).toBe(
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+  })
+
   it('propagates upstream errors', async () => {
     inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
       mockSecureFetchResponse({ ok: false, status: 404, text: 'Record not found' })
