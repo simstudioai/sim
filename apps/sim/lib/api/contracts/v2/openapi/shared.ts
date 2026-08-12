@@ -5,7 +5,10 @@ import type {
   OpenApiHeader,
   OpenApiSecurityScheme,
 } from '@/lib/api/openapi/types'
-import { FORBIDDEN_DETAIL_CODE_DESCRIPTIONS, FORBIDDEN_DETAIL_CODES } from '@/lib/core/application'
+import {
+  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
+  FORBIDDEN_DETAIL_CODES,
+} from '@/lib/core/application/forbidden'
 
 export const RATE_LIMIT_HEADERS = [
   'X-RateLimit-Limit',
