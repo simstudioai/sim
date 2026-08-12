@@ -974,6 +974,49 @@ describe('MCP Serve Route', () => {
     expect(body.result.isError).toBe(false)
   })
 
+  it('reports a human-in-the-loop pause as a successful tool result', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          id: 'server-1',
+          name: 'Public Server',
+          workspaceId: 'ws-1',
+          isPublic: true,
+          createdBy: 'owner-1',
+        },
+      ])
+      .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
+
+    mockExecuteWorkflowService.mockResolvedValueOnce({
+      ok: true,
+      executionId: 'exec-paused',
+      workflowId: 'wf-1',
+      status: 'paused',
+      aborted: null,
+      output: { approvalRequired: true },
+      error: null,
+      hasResponseBlock: false,
+      resolvedSecretTraceProvenance: createResolvedSecretTraceProvenance('owner-1'),
+    })
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'tool_a', arguments: { q: 'test' } },
+      }),
+    })
+    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.result.isError).toBe(false)
+    expect(body.result.content[0].text).toContain('approvalRequired')
+  })
+
   it('serializes failed runs with the structured error and child executionId', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([

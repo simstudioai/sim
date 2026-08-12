@@ -111,6 +111,8 @@ export function defineInternalBinaryRoute<
       }
     },
     {
+      typedErrorResponse: ({ error, status }) =>
+        NextResponse.json({ error: error.message }, { status }),
       unhandledErrorResponse: () =>
         NextResponse.json({ error: 'Internal server error' }, { status: 500 }),
     }

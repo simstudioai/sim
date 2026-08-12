@@ -143,6 +143,25 @@ describe('POST /api/credentials', () => {
         auditMetadata: { principalKind: 'tenant', principalId: 'acct_123' },
         principal: { kind: 'tenant', id: 'acct_123' },
       })
+      queueTableRows(credential, [])
+      queueTableRows(credential, [])
+      queueTableRows(credential, [
+        {
+          id: 'credential-1',
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          displayName: 'Zoom account acct_123',
+          description: null,
+          providerId: 'zoom-service-account',
+          accountId: null,
+          envKey: null,
+          envOwnerUserId: null,
+          encryptedServiceAccountKey: 'encrypted-blob',
+          createdBy: 'user-1',
+          createdAt: new Date('2026-08-11T00:00:00.000Z'),
+          updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+        },
+      ])
 
       const req = createMockRequest('POST', {
         workspaceId: WORKSPACE_ID,
@@ -154,8 +173,10 @@ describe('POST /api/credentials', () => {
       })
 
       const response = await POST(req)
+      const body = await response.json()
 
       expect(response.status).toBe(201)
+      expect(body.credential).not.toHaveProperty('encryptedServiceAccountKey')
       expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledTimes(1)
       expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
         'zoom-service-account',

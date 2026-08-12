@@ -12,6 +12,11 @@ import {
   internalRateLimits,
 } from '@/lib/api/server/routes/internal-json-route'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { HttpError } from '@/lib/core/utils/http-error'
+
+class TestLockedError extends HttpError {
+  readonly statusCode = 423
+}
 
 const operation = { id: 'test.read' } as const
 const auth = {
@@ -79,6 +84,29 @@ describe('defineInternalJsonRoute', () => {
 
     expect(response.status).toBe(409)
     await expect(response.json()).resolves.toEqual({ error: 'Already exists' })
+  })
+
+  it('preserves HttpError status through the internal envelope', async () => {
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute(): Promise<{ value: string }> {
+          throw new TestLockedError('Table imports are locked')
+        },
+      },
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(response.status).toBe(423)
+    await expect(response.json()).resolves.toEqual({ error: 'Table imports are locked' })
+    expect(response.headers.get('x-request-id')).toBeTruthy()
   })
 
   it('rejects invalid error statuses immediately', () => {

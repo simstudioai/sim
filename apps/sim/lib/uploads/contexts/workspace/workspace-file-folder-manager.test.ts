@@ -4,13 +4,15 @@
 
 import { describe, expect, it } from 'vitest'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 import {
   buildWorkspaceFileFolderPathMap,
+  ensureWorkspaceFileFolderPath,
   normalizeWorkspaceFileItemName,
   WorkspaceFileFolderConflictError,
   WorkspaceFileItemsNotFoundError,
   WorkspaceFileMoveConflictError,
-} from './workspace-file-folder-manager'
+} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 
 describe('workspace file folder paths', () => {
   it('builds nested paths from parent relationships', () => {
@@ -33,6 +35,19 @@ describe('workspace file folder paths', () => {
     expect(() => normalizeWorkspaceFileItemName('..', 'File')).toThrow(
       'File name cannot contain path separators or dot segments'
     )
+  })
+
+  it('rejects oversized ensured paths before persisting any folders', async () => {
+    await expect(
+      ensureWorkspaceFileFolderPath({
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        pathSegments: Array.from({ length: MAX_FOLDER_PATH_SEGMENTS + 1 }, () => 'nested'),
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: `Folder paths cannot exceed ${MAX_FOLDER_PATH_SEGMENTS} segments`,
+    })
   })
 })
 

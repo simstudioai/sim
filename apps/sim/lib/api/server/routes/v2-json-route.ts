@@ -22,6 +22,7 @@ import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CaughtOrchestrationError,
   v2Error,
+  v2HttpError,
   v2RateLimitError,
   v2ValidationError,
 } from '@/app/api/v2/lib/response'
@@ -275,6 +276,7 @@ export function defineV2JsonRoute<
       }
     },
     {
+      typedErrorResponse: ({ error }) => v2HttpError(error),
       unhandledErrorResponse: ({ error }) =>
         error instanceof V2RouteInfrastructureError
           ? v2Error('SERVICE_UNAVAILABLE', 'Service temporarily unavailable')

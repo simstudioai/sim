@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { parseFolderPath } from '@/lib/folders/paths'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   assertWorkspaceFileItemsBelongToWorkspace,
@@ -115,7 +116,7 @@ async function executeListWorkspaceFileFolders(args: {
     scope: args.input.scope,
   })
   if (args.input.parentPath !== undefined) {
-    const parentPath = args.input.parentPath === '/' ? '' : args.input.parentPath.replace(/^\//, '')
+    const parentPath = parseFolderPath(args.input.parentPath).join('/')
     folders = folders.filter((folder) => {
       const parent = folder.path.includes('/')
         ? folder.path.slice(0, folder.path.lastIndexOf('/'))

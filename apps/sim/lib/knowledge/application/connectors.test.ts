@@ -44,6 +44,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
+  resolveActiveKnowledgeResourceContext: mocks.resolveKnowledgeBase,
   resolveActiveKnowledgeConnectorContext: mocks.resolveConnector,
 }))
 

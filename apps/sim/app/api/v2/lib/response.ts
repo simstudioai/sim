@@ -7,6 +7,7 @@ import {
   OrchestrationError,
   type OrchestrationErrorCode,
 } from '@/lib/core/orchestration/types'
+import type { HttpError } from '@/lib/core/utils/http-error'
 import type { RateLimitResult, WorkspaceAccessError } from '@/app/api/v1/middleware'
 
 /**
@@ -47,6 +48,10 @@ const STATUS_BY_CODE: Record<V2ErrorCode, number> = {
   INTERNAL_ERROR: 500,
   SERVICE_UNAVAILABLE: 503,
 }
+
+const V2_CODE_BY_HTTP_STATUS: Partial<Record<number, V2ErrorCode>> = Object.fromEntries(
+  Object.entries(STATUS_BY_CODE).map(([code, status]) => [status, code as V2ErrorCode])
+)
 
 /**
  * Every v2 response is authed, per-caller data (ids/filters appear in query
@@ -116,6 +121,13 @@ export function v2Error(
       headers: { ...PRIVATE_NO_STORE, ...options.headers },
     }
   )
+}
+
+/** Renders a trusted typed HTTP error without changing the v2 envelope. */
+export function v2HttpError(error: HttpError): NextResponse {
+  const code = V2_CODE_BY_HTTP_STATUS[error.statusCode]
+  if (!code) return v2Error('INTERNAL_ERROR', 'Internal server error')
+  return v2Error(code, error.message)
 }
 
 /** Render a contract `ZodError` as the v2 error envelope. */

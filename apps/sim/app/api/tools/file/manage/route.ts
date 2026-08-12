@@ -26,6 +26,7 @@ import {
   requestsPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
+import { buildFolderPath } from '@/lib/folders/paths'
 import { getSharesForResources, ShareValidationError } from '@/lib/public-shares/share-manager'
 import {
   ArchiveError,
@@ -62,7 +63,7 @@ import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/r
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { updateWorkspaceFileShare } from '@/lib/workspace-files/application/share-workspace-file'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
-import { createWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import { ensureWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
@@ -711,16 +712,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
         const { folderSegments, leafName } = splitWorkspaceFilePath(fileName)
         await admitCreateWorkspaceFile(principal, workspaceId)
-        const folderId =
-          folderSegments.length === 0
-            ? null
-            : (
-                await createWorkspaceFileFolderOperation.execute({
-                  principal,
-                  input: { workspaceId, path: folderSegments.join('/') },
-                  request,
-                })
-              ).folder.id
+        const { folderId } = await ensureWorkspaceFileFolderPathOperation.execute({
+          principal,
+          input: { workspaceId, pathSegments: folderSegments },
+          request,
+        })
         const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(leafName))
         const result = await createWorkspaceFile.execute({
           principal,
@@ -766,12 +762,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               .map((s) => s.trim())
               .filter(Boolean)
           : []
+        let targetFolderPath: string
+        try {
+          targetFolderPath = buildFolderPath(pathSegments)
+        } catch (error) {
+          throw new OrchestrationError('validation', getErrorMessage(error))
+        }
         await moveWorkspaceFileItemsOperation.execute({
           principal,
           input: {
             workspaceId,
             fileIds: [fileId],
-            targetFolderPath: pathSegments.join('/'),
+            targetFolderPath,
           },
           request,
         })

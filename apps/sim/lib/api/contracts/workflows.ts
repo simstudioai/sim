@@ -592,7 +592,10 @@ const workflowExecutionStatusEnum = z.enum([
 ])
 
 export const workflowExecutionPausedDetailSchema = z.object({
-  contextId: z.string().describe('Resume context identifier for the earliest active pause point.'),
+  contextId: z
+    .string()
+    .nullable()
+    .describe('Resume context identifier, or null while every pause point is mid-resume.'),
   pausedAt: z
     .string()
     .datetime()

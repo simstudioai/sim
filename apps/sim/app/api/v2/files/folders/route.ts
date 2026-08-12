@@ -5,6 +5,7 @@ import {
   v2RelocateFileFolderContract,
 } from '@/lib/api/contracts/v2/files'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { buildFolderPath, parentFolderPath } from '@/lib/folders/paths'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
@@ -18,12 +19,11 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 function toV2Folder(folder: { name: string; path: string; createdAt: Date; updatedAt: Date }) {
-  const path = folder.path.startsWith('/') ? folder.path : `/${folder.path}`
-  const parentPath = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) || '/' : '/'
+  const path = folder.path.startsWith('/') ? folder.path : buildFolderPath(folder.path.split('/'))
   return {
     name: folder.name,
     path,
-    parentPath,
+    parentPath: parentFolderPath(path),
     createdAt: folder.createdAt.toISOString(),
     updatedAt: folder.updatedAt.toISOString(),
   }

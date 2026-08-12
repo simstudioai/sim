@@ -31,7 +31,7 @@ function resolveContentProvenance(
   request: NextRequest,
   principal: Principal,
   payload: unknown,
-  workspaceId: string,
+  workspaceId: string | undefined,
   includeContent: boolean
 ) {
   const resolved = resolveKnowledgeWriteSecretProvenance({
@@ -39,7 +39,7 @@ function resolveContentProvenance(
     payload,
     authType: internalKnowledgeAuthType(principal),
     userId: internalKnowledgeActorUserId(principal),
-    workspaceId,
+    ...(workspaceId ? { workspaceId } : {}),
     selectionKeys: includeContent ? ['chunk-content'] : [],
   })
   if (!resolved.success) {
@@ -93,7 +93,7 @@ export const PUT = defineInternalJsonRoute({
     chunkId: params.chunkId,
     content: body.content,
     enabled: body.enabled,
-    resolveContentProvenance: ({ workspaceId }: { workspaceId: string }) =>
+    resolveContentProvenance: ({ workspaceId }: { workspaceId?: string }) =>
       resolveContentProvenance(request, principal, body, workspaceId, body.content !== undefined),
   }),
   useCase: updateKnowledgeChunk,

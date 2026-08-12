@@ -84,14 +84,6 @@ async function executeDownloadWorkspaceFileItems({
     listWorkspaceFileFolders(context.workspaceId),
   ])
   const folderPaths = buildWorkspaceFileFolderPathMap(folders)
-  const knownFileIds = new Set(files.map((file) => file.id))
-  const knownFolderIds = new Set(folders.map((folder) => folder.id))
-  if (
-    fileIds.some((fileId) => !knownFileIds.has(fileId)) ||
-    folderIds.some((folderId) => !knownFolderIds.has(folderId))
-  ) {
-    throw new OrchestrationError('not_found', 'File selection not found')
-  }
   const selectedFolderIds = collectDescendantFolderIds(folderIds, folders)
   const requestedFileIds = new Set(fileIds)
   const filesToZip = files.filter(

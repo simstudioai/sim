@@ -29,7 +29,10 @@ vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   },
 }))
 
-import { WorkspaceFileItemsNotFoundError } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import {
+  WorkspaceFileFolderConflictError,
+  WorkspaceFileItemsNotFoundError,
+} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { POST as RESTORE } from '@/app/api/workspaces/[id]/files/folders/[folderId]/restore/route'
 import { DELETE, PATCH } from '@/app/api/workspaces/[id]/files/folders/[folderId]/route'
 
@@ -100,6 +103,19 @@ describe('/api/workspaces/[id]/files/folders/[folderId]', () => {
       { workspace_id: WORKSPACE_ID },
       { groups: { workspace: WORKSPACE_ID } }
     )
+  })
+
+  it('returns conflict when a folder rename collides', async () => {
+    mocks.updateFolder.mockRejectedValueOnce(new WorkspaceFileFolderConflictError('Reports'))
+
+    const response = await PATCH(request('PATCH', { name: 'Reports' }), context)
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'A folder named "Reports" already exists in this location',
+    })
+    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
   })
 
   it('deletes a folder through the shared use case', async () => {
