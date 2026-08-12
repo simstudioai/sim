@@ -405,6 +405,9 @@ export async function executeVfsRead(
       : null
     const fileContent = fileEnvelope?.value
     if (fileContent) {
+      if (fileContent.error !== undefined) {
+        return { success: false, error: fileContent.error }
+      }
       const isAttachment = hasModelAttachment(fileContent)
       if (
         !isAttachment &&

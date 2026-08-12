@@ -1355,18 +1355,20 @@ export class WorkspaceVFS {
         )
         return bindWorkspaceFileResult(record, rendered, 'derived', [...contributingFiles.values()])
       } catch (err) {
+        const error = toError(err).message
         logger.warn('Render read failed via VFS', {
           workspaceId: this._workspaceId,
           path,
           fileId: record?.id,
-          error: toError(err).message,
+          error,
         })
         // Return an explicit error (not null) once the file resolved — a null read
         // looks like a missing path and sends the agent hunting for the "correct"
         // render path instead of surfacing the real compile/render failure.
         const errorResult = {
-          content: JSON.stringify({ ok: false, error: toError(err).message }),
+          content: JSON.stringify({ ok: false, error }),
           totalLines: 1,
+          error,
         }
         return record ? bindWorkspaceFileResult(record, errorResult) : { value: errorResult }
       }

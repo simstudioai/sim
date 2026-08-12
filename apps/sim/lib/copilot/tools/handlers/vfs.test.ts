@@ -313,6 +313,21 @@ describe('vfs handlers oversize policy', () => {
     expect(vfs.read).not.toHaveBeenCalled()
   })
 
+  it('surfaces dynamic file read errors as failed tool calls', async () => {
+    const vfs = makeVfs()
+    const error = 'Document compiler not configured (MOTHERSHIP_E2B_DOC_TEMPLATE_ID is unset)'
+    vfs.readFileContent.mockResolvedValue({
+      content: JSON.stringify({ ok: false, error }),
+      totalLines: 1,
+      error,
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead({ path: 'files/reports/brief.pdf/render' }, GREP_CTX)
+
+    expect(result).toEqual({ success: false, error })
+  })
+
   it('marks a windowed read as a derived provenance view', async () => {
     const vfs = makeVfs()
     vfs.readFileContentWithProvenance.mockResolvedValue({
