@@ -15,7 +15,7 @@ import { tableJobs, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, count, eq, inArray, lte, notInArray, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, lte, notInArray, type SQL, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   assertRowCapacity,
@@ -1794,6 +1794,19 @@ export async function deleteRow(
 
 type BulkUpdateMatch = { id: string; data: RowData }
 
+function bulkUpdateValidationError(
+  table: TableDefinition,
+  row: BulkUpdateMatch,
+  patch: RowData
+): string | null {
+  const mergedData = { ...row.data, ...patch }
+  const sizeValidation = validateRowSize(mergedData)
+  if (!sizeValidation.valid) return sizeValidation.errors.join(', ')
+
+  const schemaValidation = coerceRowToSchema(mergedData, table.schema)
+  return schemaValidation.valid ? null : schemaValidation.errors.join(', ')
+}
+
 /** Validates a bounded page of rows against a bulk merge patch. */
 function validateBulkUpdateMatches(
   table: TableDefinition,
@@ -1801,44 +1814,61 @@ function validateBulkUpdateMatches(
   patch: RowData
 ): void {
   for (const row of rows) {
-    const mergedData = { ...row.data, ...patch }
-    const sizeValidation = validateRowSize(mergedData)
-    if (!sizeValidation.valid) {
-      throw new OrchestrationError(
-        'validation',
-        `Row ${row.id}: ${sizeValidation.errors.join(', ')}`
-      )
-    }
-
-    const schemaValidation = coerceRowToSchema(mergedData, table.schema)
-    if (!schemaValidation.valid) {
-      throw new OrchestrationError(
-        'validation',
-        `Row ${row.id}: ${schemaValidation.errors.join(', ')}`
-      )
-    }
+    const error = bulkUpdateValidationError(table, row, patch)
+    if (error) throw new OrchestrationError('validation', `Row ${row.id}: ${error}`)
   }
 }
 
-/** Persists one bounded bulk-update page and returns the rows actually changed. */
-async function persistBulkUpdateBatch(
-  table: TableDefinition,
-  rows: BulkUpdateMatch[],
-  patchJson: string,
-  now: Date,
+/** Persists one bounded bulk-update page and returns the locked rows actually changed. */
+async function persistBulkUpdateBatch(params: {
+  table: TableDefinition
+  rows: BulkUpdateMatch[]
+  patch: RowData
+  patchJson: string
+  filterClause: SQL
+  now: Date
   secretProvenance: BulkUpdateData['secretProvenance']
-): Promise<string[]> {
+  requestId: string
+}): Promise<{ rows: BulkUpdateMatch[]; affectedRowIds: string[] }> {
+  const { table, rows, patch, patchJson, filterClause, now, secretProvenance, requestId } = params
   const ids = rows.map((row) => row.id)
-  return db.transaction(async (trx) => {
+  const persistedRows: BulkUpdateMatch[] = []
+  const affectedRowIds = await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx, { statementMs: 60_000 })
     return mutateTableRowsWithSecretProvenance(trx, {
       rows: ids.map((rowId) => ({ rowId, provenance: secretProvenance })),
       rowState: 'existing',
       mode: 'merge',
       mutate: async () => {
+        const currentRows = await trx
+          .select({ id: userTableRows.id, data: userTableRows.data })
+          .from(userTableRows)
+          .where(
+            and(
+              eq(userTableRows.tableId, table.id),
+              eq(userTableRows.workspaceId, table.workspaceId),
+              inArray(userTableRows.id, ids),
+              filterClause
+            )
+          )
+          .orderBy(asc(userTableRows.id))
+        const skippedRowIds: string[] = []
+        for (const currentRow of currentRows) {
+          const row = { id: currentRow.id, data: currentRow.data as RowData }
+          if (bulkUpdateValidationError(table, row, patch)) skippedRowIds.push(row.id)
+          else persistedRows.push(row)
+        }
+        if (skippedRowIds.length > 0) {
+          logger.warn(
+            `[${requestId}] Skipping rows concurrently changed to values that cannot accept the bulk patch`,
+            { tableId: table.id, rowIds: skippedRowIds }
+          )
+        }
+
+        const validIds = persistedRows.map((row) => row.id)
         const affectedRowIds: string[] = []
-        for (let index = 0; index < ids.length; index += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
-          const batchIds = ids.slice(index, index + TABLE_LIMITS.UPDATE_BATCH_SIZE)
+        for (let index = 0; index < validIds.length; index += TABLE_LIMITS.UPDATE_BATCH_SIZE) {
+          const batchIds = validIds.slice(index, index + TABLE_LIMITS.UPDATE_BATCH_SIZE)
           const updated = await trx
             .update(userTableRows)
             .set({
@@ -1859,6 +1889,7 @@ async function persistBulkUpdateBatch(
       },
     })
   })
+  return { rows: persistedRows, affectedRowIds }
 }
 
 /** Emits trigger and enrichment side effects for one committed bulk-update page. */
@@ -2010,20 +2041,22 @@ export async function updateRowsByFilter(
       })
       if (batchRows.length === 0) break
 
-      validateBulkUpdateMatches(table, batchRows, data.data)
       const nextAfterId = batchRows[batchRows.length - 1].id
-      const batchAffectedRowIds = await persistBulkUpdateBatch(
+      const persisted = await persistBulkUpdateBatch({
         table,
-        batchRows,
+        rows: batchRows,
+        patch: data.data,
         patchJson,
+        filterClause,
         now,
-        data.secretProvenance
-      )
-      affectedRowIds.push(...batchAffectedRowIds)
+        secretProvenance: data.secretProvenance,
+        requestId,
+      })
+      affectedRowIds.push(...persisted.affectedRowIds)
       dispatchBulkUpdateEffects(
         table,
-        batchRows,
-        batchAffectedRowIds,
+        persisted.rows,
+        persisted.affectedRowIds,
         data.data,
         now,
         requestId,
@@ -2076,18 +2109,22 @@ export async function updateRowsByFilter(
     }
   }
 
-  const affectedRowIds = await persistBulkUpdateBatch(
+  const persisted = await persistBulkUpdateBatch({
     table,
-    matchingRows,
+    rows: matchingRows,
+    patch: data.data,
     patchJson,
+    filterClause,
     now,
-    data.secretProvenance
-  )
+    secretProvenance: data.secretProvenance,
+    requestId,
+  })
+  const { affectedRowIds } = persisted
 
   logger.info(`[${requestId}] Updated ${affectedRowIds.length} rows in table ${table.id}`)
   dispatchBulkUpdateEffects(
     table,
-    matchingRows,
+    persisted.rows,
     affectedRowIds,
     data.data,
     now,
