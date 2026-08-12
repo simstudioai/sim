@@ -1,10 +1,5 @@
 import { z } from 'zod'
-import {
-  nonEmptyIdSchema,
-  userFileSchema,
-  workflowIdSchema,
-  workspaceIdSchema,
-} from '@/lib/api/contracts/primitives'
+import { userFileSchema } from '@/lib/api/contracts/primitives'
 import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { RawFileInputArraySchema, RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
@@ -13,6 +8,8 @@ const MAX_CREDENTIAL_LENGTH = 8192
 const MAX_OID_LENGTH = 512
 const MAX_TEXT_LENGTH = 4096
 const MAX_ATTRIBUTES = 100
+const MAX_ATTRIBUTE_DEPTH = 8
+const MAX_ATTRIBUTE_NODES = 1000
 const MAX_BULK_DOCUMENTS = 100
 const MAX_ATTACHMENT_FILES = 10
 
@@ -56,12 +53,60 @@ const requiredTextSchema = z
   .min(1, 'Value is required')
   .max(MAX_TEXT_LENGTH, 'Value is too long')
 
-const attributeValueSchema = z.union([
-  z.string().max(MAX_TEXT_LENGTH, 'Attribute value is too long'),
-  z.number().finite(),
-  z.boolean(),
-  z.null(),
-])
+type WindchillAttributeValue =
+  | string
+  | number
+  | boolean
+  | null
+  | WindchillAttributeValue[]
+  | { [key: string]: WindchillAttributeValue }
+
+function isBoundedAttributeValue(value: unknown): value is WindchillAttributeValue {
+  const pending: Array<{ value: unknown; depth: number }> = [{ value, depth: 0 }]
+  let nodes = 0
+
+  while (pending.length > 0) {
+    const current = pending.pop()
+    if (!current || current.depth > MAX_ATTRIBUTE_DEPTH || ++nodes > MAX_ATTRIBUTE_NODES) {
+      return false
+    }
+    if (
+      current.value === null ||
+      typeof current.value === 'boolean' ||
+      (typeof current.value === 'number' && Number.isFinite(current.value))
+    ) {
+      continue
+    }
+    if (typeof current.value === 'string') {
+      if (current.value.length > MAX_TEXT_LENGTH) return false
+      continue
+    }
+    if (Array.isArray(current.value)) {
+      if (current.value.length > MAX_ATTRIBUTES) return false
+      for (const item of current.value) pending.push({ value: item, depth: current.depth + 1 })
+      continue
+    }
+    if (typeof current.value !== 'object') return false
+
+    const entries = Object.entries(current.value)
+    if (entries.length > MAX_ATTRIBUTES) return false
+    for (const [key, nested] of entries) {
+      if (
+        key.length === 0 ||
+        key.length > 256 ||
+        ['__proto__', 'constructor', 'prototype'].includes(key)
+      ) {
+        return false
+      }
+      pending.push({ value: nested, depth: current.depth + 1 })
+    }
+  }
+  return true
+}
+
+const attributeValueSchema = z.custom<WindchillAttributeValue>(isBoundedAttributeValue, {
+  message: `Attribute values must be bounded JSON with at most ${MAX_ATTRIBUTE_DEPTH} nested levels`,
+})
 const attributeNameSchema = z
   .string()
   .min(1)
@@ -78,16 +123,20 @@ const attributesSchema = z
     message: `Attributes cannot contain more than ${MAX_ATTRIBUTES} fields`,
   })
 
+const COMMON_DOCUMENT_PROPERTIES = new Set(['Name', 'Number', 'Organization'])
+const patchAttributesSchema = attributesSchema
+  .refine((attributes) => Object.keys(attributes).length > 0, {
+    message: 'At least one document attribute is required',
+  })
+  .refine(
+    (attributes) => !Object.keys(attributes).some((key) => COMMON_DOCUMENT_PROPERTIES.has(key)),
+    'Name, Number, and Organization must be changed with Windchill UpdateCommonProperties and are not supported by this operation'
+  )
+
 const credentialsSchema = z.object({
   baseUrl: baseUrlSchema,
   username: credentialSchema,
   password: credentialSchema,
-})
-
-const executionContextSchema = z.object({
-  workspaceId: workspaceIdSchema.optional(),
-  workflowId: workflowIdSchema.optional(),
-  executionId: nonEmptyIdSchema.optional(),
 })
 
 const createDocumentInputSchema = z.object({
@@ -102,9 +151,7 @@ const createDocumentInputSchema = z.object({
 
 const updateDocumentInputSchema = z.object({
   id: oidSchema,
-  attributes: attributesSchema.refine((attributes) => Object.keys(attributes).length > 0, {
-    message: 'At least one document attribute is required',
-  }),
+  attributes: patchAttributesSchema,
 })
 
 const documentOidsSchema = z
@@ -134,9 +181,7 @@ const commonMutationShapes = {
   updateDocument: credentialsSchema.extend({
     operation: z.literal('windchill_update_document'),
     documentOid: oidSchema,
-    attributes: attributesSchema.refine((attributes) => Object.keys(attributes).length > 0, {
-      message: 'At least one document attribute is required',
-    }),
+    attributes: patchAttributesSchema,
   }),
   updateDocuments: credentialsSchema.extend({
     operation: z.literal('windchill_update_documents'),
@@ -193,7 +238,6 @@ const commonMutationShapes = {
   reviseDocuments: credentialsSchema.extend({
     operation: z.literal('windchill_revise_documents'),
     documentOids: documentOidsSchema,
-    versionId: optionalTextSchema,
   }),
   setLifecycleState: credentialsSchema.extend({
     operation: z.literal('windchill_set_lifecycle_state'),
@@ -222,7 +266,7 @@ const commonMutationShapes = {
   }),
 } as const
 
-const downloadPrimarySchema = credentialsSchema.merge(executionContextSchema).extend({
+const downloadPrimarySchema = credentialsSchema.extend({
   operation: z.literal('windchill_download_primary_content'),
   documentOid: oidSchema,
   fileName: z.string().trim().min(1).max(255).optional(),
@@ -234,7 +278,7 @@ const uploadPrimarySchema = credentialsSchema.extend({
   primaryFile: RawFileInputSchema,
 })
 
-const downloadAttachmentSchema = credentialsSchema.merge(executionContextSchema).extend({
+const downloadAttachmentSchema = credentialsSchema.extend({
   operation: z.literal('windchill_download_attachment'),
   documentOid: oidSchema,
   attachmentOid: oidSchema,
@@ -292,39 +336,59 @@ const documentSchema = z.object({
   folderLocation: nullableText,
 })
 
-const operationSchema = z.enum([
+const affectedIdsSchema = z.array(oidSchema).max(MAX_BULK_DOCUMENTS)
+const singleMutationOperationSchema = z.enum([
   'windchill_create_document',
-  'windchill_create_documents',
   'windchill_update_document',
-  'windchill_update_documents',
-  'windchill_delete_document',
-  'windchill_delete_documents',
   'windchill_check_out_document',
-  'windchill_check_out_documents',
   'windchill_check_in_document',
-  'windchill_check_in_documents',
   'windchill_undo_check_out_document',
-  'windchill_undo_check_out_documents',
   'windchill_revise_document',
-  'windchill_revise_documents',
   'windchill_set_lifecycle_state',
+])
+const bulkMutationOperationSchema = z.enum([
+  'windchill_create_documents',
+  'windchill_update_documents',
+  'windchill_check_out_documents',
+  'windchill_check_in_documents',
+  'windchill_undo_check_out_documents',
+  'windchill_revise_documents',
   'windchill_update_document_security_labels',
+])
+const deleteOperationSchema = z.enum(['windchill_delete_document', 'windchill_delete_documents'])
+const downloadOperationSchema = z.enum([
   'windchill_download_primary_content',
-  'windchill_upload_primary_content',
   'windchill_download_attachment',
+])
+const uploadOperationSchema = z.enum([
+  'windchill_upload_primary_content',
   'windchill_upload_attachments',
 ])
 
-export const windchillOperationOutputSchema = z.object({
-  operation: operationSchema,
-  affectedIds: z.array(oidSchema).max(MAX_BULK_DOCUMENTS).optional(),
-  document: documentSchema.nullable().optional(),
-  documents: z.array(documentSchema).max(MAX_BULK_DOCUMENTS).optional(),
-  uploadedFileNames: z.array(z.string().min(1).max(255)).max(MAX_ATTACHMENT_FILES).optional(),
-  file: userFileSchema.optional(),
-  fileName: z.string().min(1).max(255).optional(),
-  mimeType: z.string().min(1).max(255).optional(),
-})
+export const windchillOperationOutputSchema = z.discriminatedUnion('operation', [
+  z.object({
+    operation: singleMutationOperationSchema,
+    affectedIds: affectedIdsSchema,
+    document: documentSchema.nullable().optional(),
+  }),
+  z.object({
+    operation: bulkMutationOperationSchema,
+    affectedIds: affectedIdsSchema,
+    documents: z.array(documentSchema).max(MAX_BULK_DOCUMENTS).optional(),
+  }),
+  z.object({ operation: deleteOperationSchema, affectedIds: affectedIdsSchema }),
+  z.object({
+    operation: downloadOperationSchema,
+    file: userFileSchema,
+    fileName: z.string().min(1).max(255),
+    mimeType: z.string().min(1).max(255),
+  }),
+  z.object({
+    operation: uploadOperationSchema,
+    affectedIds: affectedIdsSchema,
+    uploadedFileNames: z.array(z.string().min(1).max(255)).max(MAX_ATTACHMENT_FILES),
+  }),
+])
 
 export const windchillOperationResponseSchema = z.discriminatedUnion('success', [
   z.object({

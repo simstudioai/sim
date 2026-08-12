@@ -40,12 +40,6 @@ export const windchillReviseDocumentsTool: ToolConfig<WindchillParams, Windchill
       visibility: 'user-or-llm',
       description: 'WT.Document OIDs to process atomically',
     },
-    versionId: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Optional target revision identifier when override-on-revise is enabled',
-    },
   },
   request: {
     url: '/api/tools/windchill',

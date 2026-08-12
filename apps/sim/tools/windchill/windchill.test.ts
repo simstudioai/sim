@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { windchillOperationBodySchema } from '@/lib/api/contracts/tools/windchill'
 import { WindchillBlock, WindchillBlockMeta } from '@/blocks/blocks/windchill'
 import type { ToolConfig } from '@/tools/types'
 import * as windchillTools from '@/tools/windchill'
@@ -11,6 +12,7 @@ import {
   type WindchillResponse,
 } from '@/tools/windchill/types'
 import {
+  buildWindchillInternalBody,
   buildWindchillReadUrl,
   createBasicAuthHeader,
   encodeWindchillOid,
@@ -19,6 +21,8 @@ import {
   resolveWindchillNextLink,
   sanitizeWindchillError,
   transformWindchillDirectRead,
+  transformWindchillInternalResponse,
+  windchillReadHeaders,
 } from '@/tools/windchill/utils'
 
 const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
@@ -109,6 +113,28 @@ describe('Windchill tools', () => {
     }
   })
 
+  it('does not forward caller-supplied execution scope to the internal route', () => {
+    expect(
+      buildWindchillInternalBody('windchill_download_primary_content', {
+        baseUrl: BASE_URL,
+        username: 'user',
+        password: 'not-a-real-password',
+        documentOid: 'OR:wt.doc.WTDocument:1',
+        _context: {
+          workspaceId: 'forged-workspace',
+          workflowId: 'forged-workflow',
+          executionId: 'forged-execution',
+        },
+      })
+    ).toEqual({
+      operation: 'windchill_download_primary_content',
+      baseUrl: BASE_URL,
+      username: 'user',
+      password: 'not-a-real-password',
+      documentOid: 'OR:wt.doc.WTDocument:1',
+    })
+  })
+
   it('normalizes only a complete versioned HTTPS service root', () => {
     expect(normalizeServiceRoot(`${BASE_URL}/`)).toBe(BASE_URL)
     expect(() => normalizeServiceRoot('http://windchill.example.com/servlet/odata/v6')).toThrow(
@@ -157,6 +183,14 @@ describe('Windchill tools', () => {
     expect(url.searchParams.get('$skip')).toBe('10')
     expect(url.searchParams.get('$count')).toBe('true')
     expect(url.searchParams.get('ptc.search.latestversion')).toBe('true')
+    expect(
+      windchillReadHeaders({
+        baseUrl: BASE_URL,
+        username: 'user',
+        password: 'not-a-real-password',
+        top: 50,
+      }).Prefer
+    ).toBe('odata.maxpagesize=50')
     expect(() =>
       buildWindchillReadUrl('windchill_list_documents', {
         baseUrl: BASE_URL,
@@ -175,15 +209,32 @@ describe('Windchill tools', () => {
     ).toThrow('top must be an integer between 1 and 200')
   })
 
-  it('accepts only same-origin next links under the configured service root', () => {
+  it('accepts next links only for the originating collection', () => {
     const next = `${BASE_URL}/DocMgmt/Documents?%24skip=100`
-    expect(resolveWindchillNextLink(BASE_URL, next)).toBe(next)
-    expect(() => resolveWindchillNextLink(BASE_URL, 'https://attacker.example.com/steal')).toThrow(
-      'configured HTTPS origin'
-    )
+    expect(resolveWindchillNextLink(BASE_URL, next, `${BASE_URL}/DocMgmt/Documents`)).toBe(next)
     expect(() =>
-      resolveWindchillNextLink(BASE_URL, 'https://windchill.example.com/unrelated')
-    ).toThrow('configured service root')
+      resolveWindchillNextLink(
+        BASE_URL,
+        'https://attacker.example.com/steal',
+        `${BASE_URL}/DocMgmt/Documents`
+      )
+    ).toThrow('configured HTTPS origin')
+    expect(() =>
+      resolveWindchillNextLink(
+        BASE_URL,
+        `${BASE_URL}/PrincipalMgmt/Users`,
+        `${BASE_URL}/DocMgmt/Documents`
+      )
+    ).toThrow('originating collection')
+
+    expect(() =>
+      buildWindchillReadUrl('windchill_list_documents', {
+        baseUrl: BASE_URL,
+        username: 'user',
+        password: 'not-a-real-password',
+        nextLink: `${BASE_URL}/PrincipalMgmt/Users`,
+      })
+    ).toThrow('originating collection')
 
     const attachmentNext = `${BASE_URL}/DocMgmt/Documents('${encodeURIComponent(
       'OR:wt.doc.WTDocument:1'
@@ -197,6 +248,19 @@ describe('Windchill tools', () => {
         nextLink: attachmentNext,
       })
     ).toBe(attachmentNext)
+
+    const structureNext = `${BASE_URL}/DocMgmt/Documents('${encodeURIComponent(
+      'OR:wt.doc.WTDocument:1'
+    )}')/DocUsageLinks?%24skiptoken=25`
+    expect(
+      buildWindchillReadUrl('windchill_get_document_structure', {
+        baseUrl: BASE_URL,
+        username: 'user',
+        password: 'not-a-real-password',
+        documentOid: 'OR:wt.doc.WTDocument:1',
+        nextLink: structureNext,
+      })
+    ).toBe(structureNext)
   })
 
   it('normalizes documented document fields and pagination', () => {
@@ -265,7 +329,9 @@ describe('Windchill tools', () => {
   it('normalizes structure, lifecycle, and content response shapes', () => {
     expect(
       normalizeWindchillReadOutput('windchill_get_document_structure', {
-        '@odata.nextLink': `${BASE_URL}/DocMgmt/DocUsageLinks?%24skiptoken=25`,
+        '@odata.nextLink': `${BASE_URL}/DocMgmt/Documents('${encodeURIComponent(
+          'OR:wt.doc.WTDocument:1'
+        )}')/DocUsageLinks?%24skiptoken=25`,
         value: [
           {
             ID: 'OR:wt.doc.WTDocumentUsageLink:1',
@@ -299,13 +365,17 @@ describe('Windchill tools', () => {
 
     expect(
       normalizeWindchillReadOutput('windchill_get_document_structure', {
-        '@odata.nextLink': `${BASE_URL}/DocMgmt/DocUsageLinks?%24skiptoken=25`,
+        '@odata.nextLink': `${BASE_URL}/DocMgmt/Documents('${encodeURIComponent(
+          'OR:wt.doc.WTDocument:1'
+        )}')/DocUsageLinks?%24skiptoken=25`,
         value: [{ ID: 'OR:wt.doc.WTDocumentUsageLink:1' }],
       }).pageInfo
     ).toEqual({
       count: 1,
       totalCount: null,
-      nextLink: `${BASE_URL}/DocMgmt/DocUsageLinks?%24skiptoken=25`,
+      nextLink: `${BASE_URL}/DocMgmt/Documents('${encodeURIComponent(
+        'OR:wt.doc.WTDocument:1'
+      )}')/DocUsageLinks?%24skiptoken=25`,
     })
 
     expect(
@@ -317,7 +387,9 @@ describe('Windchill tools', () => {
     expect(
       normalizeWindchillReadOutput('windchill_list_attachments', {
         '@odata.count': 2,
-        '@odata.nextLink': `${BASE_URL}/DocMgmt/Attachments?%24skiptoken=2`,
+        '@odata.nextLink': `${BASE_URL}/DocMgmt/Documents('${encodeURIComponent(
+          'OR:wt.doc.WTDocument:1'
+        )}')/Attachments?%24skiptoken=2`,
         value: [
           {
             ID: 'OR:wt.content.ApplicationData:1',
@@ -364,7 +436,9 @@ describe('Windchill tools', () => {
       pageInfo: {
         count: 2,
         totalCount: 2,
-        nextLink: `${BASE_URL}/DocMgmt/Attachments?%24skiptoken=2`,
+        nextLink: `${BASE_URL}/DocMgmt/Documents('${encodeURIComponent(
+          'OR:wt.doc.WTDocument:1'
+        )}')/Attachments?%24skiptoken=2`,
       },
     })
   })
@@ -376,6 +450,81 @@ describe('Windchill tools', () => {
         new Response('<html>not json</html>', { status: 200 })
       )
     ).rejects.toThrow('Windchill returned invalid JSON with status 200')
+  })
+
+  it('rejects valid JSON that does not match the selected WRS operation', async () => {
+    expect(() =>
+      normalizeWindchillReadOutput('windchill_list_documents', { unexpected: true })
+    ).toThrow('incompatible response')
+    expect(() =>
+      normalizeWindchillReadOutput('windchill_get_document', { unexpected: true })
+    ).toThrow('incompatible response')
+
+    await expect(
+      transformWindchillDirectRead(
+        'windchill_list_attachments',
+        new Response(JSON.stringify({ unexpected: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    ).rejects.toThrow('incompatible response')
+  })
+
+  it('rejects an internal response for a different operation', async () => {
+    await expect(
+      transformWindchillInternalResponse(
+        'windchill_update_document',
+        new Response(
+          JSON.stringify({
+            success: true,
+            output: {
+              operation: 'windchill_delete_document',
+              affectedIds: ['OR:wt.doc.WTDocument:1'],
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+    ).resolves.toMatchObject({
+      success: false,
+      error: 'Windchill route returned a response for a different operation',
+    })
+  })
+
+  it('accepts bounded complex attributes but rejects common properties on PATCH updates', () => {
+    const common = {
+      baseUrl: BASE_URL,
+      username: 'user',
+      password: 'not-a-real-password',
+      operation: 'windchill_update_document' as const,
+      documentOid: 'OR:wt.doc.WTDocument:1',
+    }
+    expect(
+      windchillOperationBodySchema.safeParse({
+        ...common,
+        attributes: {
+          DocClassify: { Namespace: 'com.example', Code: 'DRAWING' },
+          ClassificationAttributes: [{ Name: 'Region', Value: ['US', 'CA'] }],
+        },
+      }).success
+    ).toBe(true)
+
+    const commonProperty = windchillOperationBodySchema.safeParse({
+      ...common,
+      attributes: { Name: 'Renamed document' },
+    })
+    expect(commonProperty.success).toBe(false)
+    if (!commonProperty.success) {
+      expect(commonProperty.error.issues[0]?.message).toContain('UpdateCommonProperties')
+    }
+  })
+
+  it('represents an explicitly empty primary-content collection as null', () => {
+    expect(normalizeWindchillReadOutput('windchill_get_primary_content', { value: [] })).toEqual({
+      operation: 'windchill_get_primary_content',
+      content: null,
+    })
   })
 
   it('carries the CSRF nonce and session cookie into a mutation', async () => {
@@ -568,6 +717,25 @@ describe('Windchill block', () => {
     expect(attachmentFiles.map((subBlock) => subBlock.mode)).toEqual(['basic', 'advanced'])
     expect(WindchillBlock.inputs.primaryFile.type).toBe('file')
     expect(WindchillBlock.inputs.attachmentFiles.type).toBe('array')
+  })
+
+  it('exposes only outputs produced by the selected operation', () => {
+    expect(WindchillBlock.outputs.file.condition).toEqual({
+      field: 'operation',
+      value: ['windchill_download_primary_content', 'windchill_download_attachment'],
+    })
+    expect(WindchillBlock.outputs.pageInfo.condition).toEqual({
+      field: 'operation',
+      value: [
+        'windchill_list_documents',
+        'windchill_get_document_structure',
+        'windchill_list_attachments',
+      ],
+    })
+    expect(WindchillBlock.outputs.uploadedFileNames.condition).toEqual({
+      field: 'operation',
+      value: ['windchill_upload_primary_content', 'windchill_upload_attachments'],
+    })
   })
 
   it('coerces execution values and parses JSON without changing tool selection', () => {

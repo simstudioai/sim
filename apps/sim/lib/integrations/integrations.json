@@ -21984,11 +21984,11 @@
         },
         {
           "name": "Update Document",
-          "description": "Update attributes on one document"
+          "description": "Update PATCH-compatible attributes on one document"
         },
         {
           "name": "Update Documents",
-          "description": "Update multiple documents atomically"
+          "description": "Update PATCH-compatible attributes on multiple documents atomically"
         },
         {
           "name": "Delete Document",

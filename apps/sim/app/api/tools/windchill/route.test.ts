@@ -1,14 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
+import { createMockRequest } from '@sim/testing'
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { InternalUnauthenticatedError } from '@/lib/api/server/routes'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 const {
   MockWindchillProviderError,
+  mockAuthenticateWindchill,
   mockAssertToolFileAccess,
   mockCreateWindchillSession,
   mockDownloadServableFileFromStorage,
@@ -31,6 +33,7 @@ const {
 
   return {
     MockWindchillProviderError,
+    mockAuthenticateWindchill: vi.fn(),
     mockAssertToolFileAccess: vi.fn(),
     mockCreateWindchillSession: vi.fn(),
     mockDownloadServableFileFromStorage: vi.fn(),
@@ -42,6 +45,10 @@ const {
     mockWindchillMutationRequest: vi.fn(),
   }
 })
+
+vi.mock('@/lib/windchill/api/route-policies', () => ({
+  internalWindchillExecutorAuth: { authenticate: mockAuthenticateWindchill },
+}))
 
 vi.mock('@/app/api/files/authorization', () => ({
   assertToolFileAccess: mockAssertToolFileAccess,
@@ -166,7 +173,7 @@ const MUTATION_CASES = [
   },
   {
     operation: 'windchill_revise_documents',
-    input: { documentOids: [DOCUMENT_OID], versionId: 'B' },
+    input: { documentOids: [DOCUMENT_OID] },
     url: '/DocMgmt/ReviseDocuments',
     method: 'POST',
   },
@@ -186,12 +193,65 @@ const MUTATION_CASES = [
   },
 ] as const
 
+const MUTATION_PAYLOAD_CASES = [
+  {
+    operation: 'windchill_check_out_documents',
+    input: { documentOids: [DOCUMENT_OID], checkOutNote: 'Editing' },
+    body: { Documents: [{ ID: DOCUMENT_OID }], CheckOutNote: 'Editing' },
+  },
+  {
+    operation: 'windchill_check_in_document',
+    input: {
+      documentOid: DOCUMENT_OID,
+      checkInNote: 'Done',
+      keepCheckedOut: false,
+      checkOutNote: 'Continue editing',
+    },
+    body: {
+      CheckInNote: 'Done',
+      KeepCheckedOut: false,
+      CheckOutNote: 'Continue editing',
+    },
+  },
+  {
+    operation: 'windchill_revise_document',
+    input: { documentOid: DOCUMENT_OID, versionId: 'B' },
+    body: { VersionId: 'B' },
+  },
+  {
+    operation: 'windchill_revise_documents',
+    input: { documentOids: [DOCUMENT_OID] },
+    body: { Documents: [{ ID: DOCUMENT_OID }] },
+  },
+  {
+    operation: 'windchill_set_lifecycle_state',
+    input: { documentOid: DOCUMENT_OID, stateValue: 'RELEASED', stateDisplay: 'Released' },
+    body: { State: { Display: 'Released', Value: 'RELEASED' } },
+  },
+  {
+    operation: 'windchill_update_document_security_labels',
+    input: {
+      securityLabelUpdates: [{ id: DOCUMENT_OID, labels: { EXPORT_CONTROL: 'L1' } }],
+    },
+    body: { Documents: [{ EXPORT_CONTROL: 'L1', ID: DOCUMENT_OID }] },
+  },
+] as const
+
 beforeEach(() => {
   vi.clearAllMocks()
-  hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
-    success: true,
-    userId: 'user-1',
-    authType: 'internal_jwt',
+  mockAuthenticateWindchill.mockResolvedValue({
+    kind: 'delegated',
+    serviceId: 'executor',
+    subjectUserId: 'user-1',
+    workspaceId: '550e8400-e29b-41d4-a716-446655440000',
+    delegationId: 'delegation-1',
+    audience: 'sim:windchill',
+    issuedAt: new Date('2026-01-01T00:00:00.000Z'),
+    expiresAt: new Date('2027-01-01T00:00:00.000Z'),
+    delegationContext: {
+      kind: 'workflow_execution',
+      workflowId: '550e8400-e29b-41d4-a716-446655440001',
+    },
   })
   mockCreateWindchillSession.mockResolvedValue({
     nonceHeader: 'CSRF_NONCE',
@@ -230,15 +290,14 @@ beforeEach(() => {
 
 describe('POST /api/tools/windchill', () => {
   it('authenticates before parsing the request body', async () => {
-    hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValueOnce({
-      success: false,
-      error: 'Unauthorized',
-    })
+    mockAuthenticateWindchill.mockRejectedValueOnce(
+      new InternalUnauthenticatedError('Authentication required')
+    )
 
     const response = await POST(createMockRequest('POST', { operation: 'not-valid' }))
 
     expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ success: false, error: 'Unauthorized' })
+    expect(await response.json()).toEqual({ success: false, error: 'Authentication required' })
     expect(mockCreateWindchillSession).not.toHaveBeenCalled()
   })
 
@@ -288,6 +347,22 @@ describe('POST /api/tools/windchill', () => {
       expect(mockWindchillMutationRequest).toHaveBeenCalledTimes(1)
       expect(mockWindchillMutationRequest.mock.calls[0][0].url).toContain(url)
       expect(mockWindchillMutationRequest.mock.calls[0][0].method).toBe(method)
+    }
+  )
+
+  it.each(MUTATION_PAYLOAD_CASES)(
+    'encodes the exact $operation action payload',
+    async ({ operation, input, body }) => {
+      const response = await POST(
+        createMockRequest('POST', {
+          ...BASE_BODY,
+          operation,
+          ...input,
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockWindchillMutationRequest.mock.calls[0][0].body).toEqual(body)
     }
   )
 
@@ -594,7 +669,22 @@ describe('POST /api/tools/windchill', () => {
     )
   })
 
-  it('uses execution storage when a complete execution context is provided', async () => {
+  it('uses execution storage derived from the bound delegation principal', async () => {
+    mockAuthenticateWindchill.mockResolvedValueOnce({
+      kind: 'delegated',
+      serviceId: 'executor',
+      subjectUserId: 'user-1',
+      workspaceId: '550e8400-e29b-41d4-a716-446655440000',
+      delegationId: 'delegation-1',
+      audience: 'sim:windchill',
+      issuedAt: new Date('2026-01-01T00:00:00.000Z'),
+      expiresAt: new Date('2027-01-01T00:00:00.000Z'),
+      delegationContext: {
+        kind: 'workflow_execution',
+        workflowId: '550e8400-e29b-41d4-a716-446655440001',
+        executionId: 'execution-1',
+      },
+    })
     mockUploadExecutionFile.mockResolvedValueOnce({
       id: 'file-2',
       name: 'specification.pdf',
@@ -609,14 +699,24 @@ describe('POST /api/tools/windchill', () => {
         ...BASE_BODY,
         operation: 'windchill_download_primary_content',
         documentOid: DOCUMENT_OID,
-        workspaceId: '550e8400-e29b-41d4-a716-446655440000',
-        workflowId: '550e8400-e29b-41d4-a716-446655440001',
-        executionId: 'execution-1',
+        workspaceId: 'forged-workspace',
+        workflowId: 'forged-workflow',
+        executionId: 'forged-execution',
       })
     )
 
     expect(response.status).toBe(200)
-    expect(mockUploadExecutionFile).toHaveBeenCalledTimes(1)
+    expect(mockUploadExecutionFile).toHaveBeenCalledWith(
+      {
+        workspaceId: '550e8400-e29b-41d4-a716-446655440000',
+        workflowId: '550e8400-e29b-41d4-a716-446655440001',
+        executionId: 'execution-1',
+      },
+      Buffer.from('pdf'),
+      'specification.pdf',
+      'application/pdf',
+      'user-1'
+    )
     expect(mockUploadCopilotFile).not.toHaveBeenCalled()
   })
 

@@ -1,3 +1,4 @@
+import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -7,7 +8,7 @@ import type {
 } from '@/lib/api/contracts/tools/windchill'
 import { windchillOperationContract } from '@/lib/api/contracts/tools/windchill'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
-import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { InternalUnauthenticatedError } from '@/lib/api/server/routes'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -18,6 +19,7 @@ import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
+import { internalWindchillExecutorAuth } from '@/lib/windchill/api/route-policies'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -44,8 +46,15 @@ export const maxDuration = 900
 const logger = createLogger('WindchillAPI')
 
 type WindchillRouteOutput = Extract<WindchillOperationResponse, { success: true }>['output']
+type MutationOperation = Exclude<
+  WindchillRouteOutput['operation'],
+  | 'windchill_download_attachment'
+  | 'windchill_download_primary_content'
+  | 'windchill_upload_attachments'
+  | 'windchill_upload_primary_content'
+>
 
-const BULK_RESULT_OPERATIONS: ReadonlySet<WindchillRouteOutput['operation']> = new Set([
+const BULK_RESULT_OPERATIONS = [
   'windchill_create_documents',
   'windchill_update_documents',
   'windchill_check_out_documents',
@@ -53,12 +62,23 @@ const BULK_RESULT_OPERATIONS: ReadonlySet<WindchillRouteOutput['operation']> = n
   'windchill_undo_check_out_documents',
   'windchill_revise_documents',
   'windchill_update_document_security_labels',
-])
+] as const satisfies readonly MutationOperation[]
 
-const DELETE_OPERATIONS: ReadonlySet<WindchillRouteOutput['operation']> = new Set([
+const DELETE_OPERATIONS = [
   'windchill_delete_document',
   'windchill_delete_documents',
-])
+] as const satisfies readonly MutationOperation[]
+
+type BulkResultOperation = (typeof BULK_RESULT_OPERATIONS)[number]
+type DeleteOperation = (typeof DELETE_OPERATIONS)[number]
+
+function isBulkResultOperation(operation: MutationOperation): operation is BulkResultOperation {
+  return BULK_RESULT_OPERATIONS.includes(operation as BulkResultOperation)
+}
+
+function isDeleteOperation(operation: MutationOperation): operation is DeleteOperation {
+  return DELETE_OPERATIONS.includes(operation as DeleteOperation)
+}
 
 function successResponse(output: WindchillRouteOutput) {
   const body = { success: true, output } satisfies WindchillOperationResponse
@@ -83,7 +103,7 @@ function safeMimeType(value: string | undefined): string {
 }
 
 function mutationOutput(
-  operation: WindchillRouteOutput['operation'],
+  operation: MutationOperation,
   data: unknown,
   fallbackIds: string[]
 ): WindchillRouteOutput {
@@ -97,8 +117,8 @@ function mutationOutput(
       ? [document.id, ...collectionIds]
       : collectionIds
   const affectedIds = returnedIds.length > 0 ? returnedIds : fallbackIds
-  if (DELETE_OPERATIONS.has(operation)) return { operation, affectedIds: fallbackIds }
-  if (BULK_RESULT_OPERATIONS.has(operation)) {
+  if (isDeleteOperation(operation)) return { operation, affectedIds: fallbackIds }
+  if (isBulkResultOperation(operation)) {
     return {
       operation,
       affectedIds,
@@ -318,10 +338,7 @@ async function executeMutation(
         url: `${root}/DocMgmt/ReviseDocuments`,
         method: 'POST',
         body: {
-          Documents: body.documentOids.map((ID) => ({
-            ID,
-            ...(body.versionId ? { VersionId: body.versionId } : {}),
-          })),
+          Documents: documentsById(body.documentOids),
         },
         signal,
       })
@@ -333,7 +350,7 @@ async function executeMutation(
         session,
         url: `${windchillDocumentUrl(root, body.documentOid)}/PTC.DocMgmt.SetState`,
         method: 'POST',
-        body: { Display: body.stateDisplay, Value: body.stateValue },
+        body: { State: { Display: body.stateDisplay, Value: body.stateValue } },
         signal,
       })
       return mutationOutput(body.operation, data, [body.documentOid])
@@ -428,36 +445,36 @@ function contentDispositionFileName(value: string | null): string | null {
 }
 
 async function storeDownloadedFile({
-  body,
-  userId,
+  principal,
   buffer,
   fileName,
   contentType,
 }: {
-  body: Extract<
-    WindchillOperationBody,
-    | { operation: 'windchill_download_primary_content' }
-    | { operation: 'windchill_download_attachment' }
-  >
-  userId: string
+  principal: WorkflowExecutionDelegatedPrincipal
   buffer: Buffer
   fileName: string
   contentType: string
 }): Promise<UserFile> {
-  if (body.workspaceId && body.workflowId && body.executionId) {
+  const { workflowId, executionId } = principal.delegationContext
+  if (executionId) {
     return uploadExecutionFile(
       {
-        workspaceId: body.workspaceId,
-        workflowId: body.workflowId,
-        executionId: body.executionId,
+        workspaceId: principal.workspaceId,
+        workflowId,
+        executionId,
       },
       buffer,
       fileName,
       contentType,
-      userId
+      principal.subjectUserId
     )
   }
-  return uploadCopilotFile({ buffer, fileName, contentType, userId })
+  return uploadCopilotFile({
+    buffer,
+    fileName,
+    contentType,
+    userId: principal.subjectUserId,
+  })
 }
 
 async function executeDownload(
@@ -466,7 +483,7 @@ async function executeDownload(
     | { operation: 'windchill_download_primary_content' }
     | { operation: 'windchill_download_attachment' }
   >,
-  userId: string,
+  principal: WorkflowExecutionDelegatedPrincipal,
   signal: AbortSignal
 ): Promise<WindchillRouteOutput> {
   const documentUrl = windchillDocumentUrl(body.baseUrl, body.documentOid)
@@ -488,8 +505,7 @@ async function executeDownload(
     body.fileName || contentDispositionFileName(downloaded.contentDisposition) || fallback
   )
   const file = await storeDownloadedFile({
-    body,
-    userId,
+    principal,
     buffer: downloaded.buffer,
     fileName,
     contentType: downloaded.contentType,
@@ -504,9 +520,14 @@ async function executeDownload(
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
-  const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
-  if (!authResult.success || !authResult.userId) {
-    return failureResponse(authResult.error || 'Authentication required', 401)
+  let principal: WorkflowExecutionDelegatedPrincipal
+  try {
+    principal = await internalWindchillExecutorAuth.authenticate(request, {})
+  } catch (error) {
+    if (error instanceof InternalUnauthenticatedError) {
+      return failureResponse(error.message, 401)
+    }
+    throw error
   }
 
   const parsed = await parseRequest(
@@ -526,7 +547,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       body.operation === 'windchill_download_primary_content' ||
       body.operation === 'windchill_download_attachment'
     ) {
-      return successResponse(await executeDownload(body, authResult.userId, request.signal))
+      return successResponse(await executeDownload(body, principal, request.signal))
     }
 
     if (
@@ -537,7 +558,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         body.operation === 'windchill_upload_primary_content'
           ? [body.primaryFile]
           : body.attachmentFiles
-      const files = await loadUploadFiles(inputs, authResult.userId, requestId)
+      const files = await loadUploadFiles(inputs, principal.subjectUserId, requestId)
       if (files instanceof NextResponse) return files
       const uploadedFileNames = await uploadWindchillContent({
         params: body,
