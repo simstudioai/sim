@@ -701,6 +701,13 @@ export async function completeUploadSession<T>(params: {
   }
 }
 
+/**
+ * The completion marker is only written when the finalizer reports one. A
+ * finalizer that instead records it inside its own registration transaction —
+ * see `markUploadSessionFileRegistered` — keeps that value: clearing it would
+ * let the abort guard and the expiry sweep treat a session whose durable
+ * resource already exists as disposable.
+ */
 async function markUploadSessionCompleted(
   session: UploadSessionRecord,
   leaseId: string,
@@ -711,7 +718,7 @@ async function markUploadSessionCompleted(
     .update(uploadSession)
     .set({
       status: 'completed',
-      completedFileId,
+      ...(completedFileId !== null ? { completedFileId } : {}),
       completedAt,
       processingLeaseId: null,
       processingLeaseExpiresAt: null,

@@ -69,7 +69,11 @@ vi.mock('@/lib/users/queries', () => ({
   requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
-import { finalizeUploadPurpose } from '@/app/api/files/uploads/finalizers'
+import {
+  finalizeUploadPurpose,
+  loadCompletedUploadPurpose,
+} from '@/app/api/files/uploads/finalizers'
+import type { InternalUploadPurpose } from '@/app/api/files/uploads/purposes'
 
 const now = new Date('2026-08-04T12:00:00.000Z')
 const actor = { id: 'user-1', name: 'Ada', email: 'ada@example.com' }
@@ -137,6 +141,70 @@ const workspaceFile = {
   uploadedAt: now,
   updatedAt: now,
 }
+
+/**
+ * How each purpose replays a completion. `Record` over the union is a
+ * compile-time completeness gate: adding a purpose fails to build until its
+ * replay behavior is declared here.
+ */
+const REPLAY_ROUTE: Record<InternalUploadPurpose, 'loader' | 'idempotent-finalizer'> = {
+  workspace_file: 'loader',
+  profile_picture: 'idempotent-finalizer',
+  workspace_logo: 'idempotent-finalizer',
+  mothership_attachment: 'idempotent-finalizer',
+  execution_attachment: 'idempotent-finalizer',
+}
+
+const purposesReplayedBy = (route: 'loader' | 'idempotent-finalizer') =>
+  (Object.keys(REPLAY_ROUTE) as InternalUploadPurpose[]).filter((p) => REPLAY_ROUTE[p] === route)
+
+describe('completion replay contract', () => {
+  const REPLAY_VIA_IDEMPOTENT_FINALIZER = purposesReplayedBy('idempotent-finalizer')
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it.each(REPLAY_VIA_IDEMPOTENT_FINALIZER)(
+    'does not mark %s as loader-backed, so its replay re-runs the idempotent finalizer',
+    async (purpose) => {
+      mockSelectLimit.mockResolvedValue([])
+      mockInsertReturning.mockResolvedValue([metadataRow])
+      const request = new NextRequest('http://localhost/api/files/uploads/upload-1/complete')
+
+      const finalized = await finalizeUploadPurpose({
+        session: { ...uploadSession, purpose },
+        actor,
+        principal,
+        request,
+      })
+
+      expect(finalized.completedFileId).toBeUndefined()
+    }
+  )
+
+  it.each(REPLAY_VIA_IDEMPOTENT_FINALIZER)(
+    'reports a classified error rather than an unhandled crash if %s ever reaches the loader',
+    async (purpose) => {
+      await expect(loadCompletedUploadPurpose({ ...uploadSession, purpose })).rejects.toMatchObject(
+        { code: 'internal' }
+      )
+    }
+  )
+
+  it('loads workspace_file from its durable record on replay', async () => {
+    mockGetWorkspaceFile.mockResolvedValueOnce(workspaceFile)
+
+    const loaded = await loadCompletedUploadPurpose({
+      ...uploadSession,
+      purpose: purposesReplayedBy('loader')[0],
+      completedFileId: workspaceFile.id,
+    })
+
+    expect(loaded).toMatchObject({ id: workspaceFile.id })
+    expect(mockGetWorkspaceFile).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe('upload purpose finalizers', () => {
   beforeEach(() => {

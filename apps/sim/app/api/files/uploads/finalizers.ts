@@ -59,6 +59,14 @@ interface FinalizeUploadPurposeParams {
 
 interface FinalizedUploadPurpose {
   value: UploadPurposeResult
+  /**
+   * Recorded on the session so a replayed completion returns the original
+   * result instead of re-running a finalizer with one-time side effects.
+   *
+   * Set only for a purpose {@link loadCompletedUploadPurpose} can reload; an
+   * already-idempotent finalizer must leave it undefined so replays flow back
+   * through the finalizer itself.
+   */
   completedFileId?: string
 }
 
@@ -111,13 +119,30 @@ export async function finalizeUploadPurpose({
   }
 }
 
+/**
+ * Reloads the durable result of an already-completed session, for the purposes
+ * that report a {@link FinalizedUploadPurpose.completedFileId}.
+ *
+ * The switch is exhaustive so that adding a purpose is a compile error until
+ * its replay behavior is decided here.
+ */
 export async function loadCompletedUploadPurpose(
   session: UploadSessionRecord
 ): Promise<UploadPurposeResult> {
-  if (session.purpose !== 'workspace_file') {
-    throw new Error(`Upload purpose ${session.purpose} has no durable file result`)
+  switch (session.purpose) {
+    case 'workspace_file':
+      return toV2File(await loadCompletedWorkspaceFileUpload(session))
+    case 'profile_picture':
+    case 'workspace_logo':
+    case 'mothership_attachment':
+    case 'execution_attachment':
+    case 'table_import':
+    case 'knowledge_document':
+      throw new UploadSessionError(
+        'internal',
+        `Upload purpose ${session.purpose} recorded a completed file but has no durable loader`
+      )
   }
-  return toV2File(await loadCompletedWorkspaceFileUpload(session))
 }
 
 async function finalizeInternalWorkspaceFile(
@@ -314,7 +339,6 @@ async function finalizeExecutionAttachment(
       key: session.storageKey,
       context: 'execution',
     },
-    completedFileId: finalized.file.id,
   }
 }
 
