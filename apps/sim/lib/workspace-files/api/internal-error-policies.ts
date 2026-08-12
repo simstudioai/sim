@@ -4,7 +4,6 @@ import {
   type InternalErrorPolicy,
   internalErrorResponse,
   internalOrchestrationErrorPolicy,
-  internalPlainOrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { StorageLimitExceededError } from '@/lib/billing/storage'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
@@ -16,12 +15,12 @@ import { StyleExtractionUnsupportedError } from '@/lib/workspace-files/applicati
 
 const logger = createLogger('InternalWorkspaceFileErrors')
 
-const style = extendInternalErrorPolicy(internalPlainOrchestrationErrorPolicy, (error) => {
+const style = extendInternalErrorPolicy(internalOrchestrationErrorPolicy, (error) => {
   if (!(error instanceof StyleExtractionUnsupportedError)) return null
   return internalErrorResponse(422, { error: error.message })
 })
 
-const compiledCheck = extendInternalErrorPolicy(internalPlainOrchestrationErrorPolicy, (error) => {
+const compiledCheck = extendInternalErrorPolicy(internalOrchestrationErrorPolicy, (error) => {
   if (error instanceof CompiledCheckUnsupportedError) {
     return internalErrorResponse(422, { error: error.message })
   }
@@ -33,7 +32,7 @@ const compiledCheck = extendInternalErrorPolicy(internalPlainOrchestrationErrorP
 
 const content = extendInternalErrorPolicy(internalOrchestrationErrorPolicy, (error) => {
   if (!(error instanceof StorageLimitExceededError)) return null
-  return internalErrorResponse(402, { success: false, error: error.message })
+  return internalErrorResponse(402, { error: error.message })
 })
 
 const downloadUrl: InternalErrorPolicy = {
@@ -41,10 +40,7 @@ const downloadUrl: InternalErrorPolicy = {
     const typed = internalOrchestrationErrorPolicy.project(error)
     if (typed) return typed
     logger.error('Failed to generate workspace file download URL', { error })
-    return internalErrorResponse(500, {
-      success: false,
-      error: 'Failed to generate download URL',
-    })
+    return internalErrorResponse(500, { error: 'Failed to generate download URL' })
   },
 }
 
@@ -84,7 +80,6 @@ const inline: InternalErrorPolicy = {
 
 export const internalFileErrorPolicies = {
   default: internalOrchestrationErrorPolicy,
-  plain: internalPlainOrchestrationErrorPolicy,
   content,
   style,
   compiledCheck,

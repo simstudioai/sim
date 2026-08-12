@@ -7,6 +7,7 @@ import {
   InternalUnauthenticatedError,
   type internalSessionAuth,
 } from '@/lib/api/server/routes/internal-json-route'
+import { withRequestId } from '@/lib/api/server/routes/request-id'
 import type {
   BinaryApiRouteContract,
   BinaryResponseDescriptor,
@@ -111,10 +112,10 @@ export function defineInternalBinaryRoute<
       }
     },
     {
-      typedErrorResponse: ({ error, status }) =>
-        NextResponse.json({ error: error.message }, { status }),
-      unhandledErrorResponse: () =>
-        NextResponse.json({ error: 'Internal server error' }, { status: 500 }),
+      typedErrorResponse: ({ error, status, requestId }) =>
+        NextResponse.json({ error: error.message, requestId }, { status }),
+      unhandledErrorResponse: ({ requestId }) =>
+        NextResponse.json({ error: 'Internal server error', requestId }, { status: 500 }),
     }
   )
 
@@ -122,7 +123,7 @@ export function defineInternalBinaryRoute<
 }
 
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {
-  return NextResponse.json(descriptor.body, {
+  return NextResponse.json(withRequestId(descriptor.body), {
     status: descriptor.status,
     headers: descriptor.headers,
   })

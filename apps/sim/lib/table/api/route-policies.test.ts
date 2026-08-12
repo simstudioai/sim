@@ -24,7 +24,7 @@ vi.unmock('@/lib/auth/internal')
 
 import {
   InternalUnauthenticatedError,
-  internalPlainOrchestrationErrorPolicy,
+  internalOrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { generateInternalDelegationToken, generateInternalToken } from '@/lib/auth/internal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -176,7 +176,7 @@ describe('internal Table route authentication', () => {
   it('renders an invalid related workflow as 400 on internal and v2 surfaces', async () => {
     const error = new OrchestrationError('validation', 'Invalid workflow ID')
 
-    expect(internalPlainOrchestrationErrorPolicy.project(error)).toEqual({
+    expect(internalOrchestrationErrorPolicy.project(error)).toEqual({
       status: 400,
       body: { error: 'Invalid workflow ID' },
       headers: undefined,

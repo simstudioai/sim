@@ -1,7 +1,7 @@
 import { createTableExportResourceContract } from '@/lib/api/contracts/table-transfers'
 import {
   defineInternalJsonRoute,
-  internalPlainOrchestrationErrorPolicy,
+  internalOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
@@ -16,7 +16,7 @@ export const POST = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Existing authenticated table export creation has no request-rate policy',
   }),
-  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params, body }) => ({
     tableId: params.tableId,
     workspaceId: body.workspaceId,

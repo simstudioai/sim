@@ -4,7 +4,7 @@ import {
 } from '@/lib/api/contracts/table-transfers'
 import {
   defineInternalJsonRoute,
-  internalPlainOrchestrationErrorPolicy,
+  internalOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
@@ -21,7 +21,7 @@ export const GET = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   operation: tableOperations.readImport,
   rateLimit,
-  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params, query }) => ({
     importId: params.importId,
     workspaceId: query.workspaceId,
@@ -35,7 +35,7 @@ export const DELETE = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   operation: tableOperations.cancelImport,
   rateLimit,
-  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params, query, headers }) => ({
     importId: params.importId,
     workspaceId: query.workspaceId,

@@ -36,7 +36,7 @@ vi.mock('@/lib/api/server/routes', () => ({
   },
   extendInternalErrorPolicy: vi.fn(() => ({ kind: 'table' })),
   internalErrorResponse: vi.fn(),
-  internalPlainOrchestrationErrorPolicy: { kind: 'plain' },
+  internalOrchestrationErrorPolicy: { kind: 'plain' },
   internalRateLimits: {
     none: ({ reason }: { reason: string }) => ({ kind: 'none', reason }),
   },

@@ -7,7 +7,7 @@ import {
   defineInternalJsonRoute,
   extendInternalErrorPolicy,
   internalErrorResponse,
-  internalPlainOrchestrationErrorPolicy,
+  internalOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
@@ -21,7 +21,7 @@ import { TableLockedError } from '@/lib/table/mutation-locks'
 import type { TableDefinition } from '@/lib/table/types'
 import { normalizeColumn } from '@/app/api/table/utils'
 
-const errorPolicy = extendInternalErrorPolicy(internalPlainOrchestrationErrorPolicy, (error) =>
+const errorPolicy = extendInternalErrorPolicy(internalOrchestrationErrorPolicy, (error) =>
   error instanceof TableLockedError
     ? internalErrorResponse(423, { error: error.message, lock: error.lock })
     : null

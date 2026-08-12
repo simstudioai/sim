@@ -12,7 +12,7 @@ import { parseRequest } from '@/lib/api/server'
 import {
   defineInternalJsonRoute,
   InternalUnauthenticatedError,
-  internalPlainOrchestrationErrorPolicy,
+  internalOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
@@ -37,7 +37,7 @@ export const GET = defineInternalJsonRoute({
   auth: internalWorkflowReadAuth,
   operation: readWorkflowDefinition.operation,
   rateLimit: workflowInternalRateLimit,
-  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params }) => ({ workflowId: params.id, state: 'draft' as const }),
   useCase: readWorkflowDefinition,
   present: ({ workflow: workflowData, state }) => {
@@ -82,7 +82,7 @@ export const DELETE = defineInternalJsonRoute({
   auth: internalWorkflowSessionOrExecutorAuth,
   operation: deleteWorkflow.operation,
   rateLimit: workflowInternalRateLimit,
-  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params }) => ({ workflowId: params.id }),
   useCase: deleteWorkflow,
   present: () => ({ success: true as const }),

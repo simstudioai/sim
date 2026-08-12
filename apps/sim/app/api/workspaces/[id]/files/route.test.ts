@@ -146,13 +146,12 @@ describe('/api/workspaces/[id]/files', () => {
     mocks.createFile.mockRejectedValueOnce(new OrchestrationError('conflict', 'Name exists'))
     const conflict = await POST(createRequest({ name: 'notes.md' }), context)
     expect(conflict.status).toBe(409)
-    expect(await conflict.json()).toEqual({ success: false, error: 'Name exists' })
+    expect(await conflict.json()).toEqual({ error: 'Name exists' })
 
     mocks.createFile.mockRejectedValueOnce(new Error('database details'))
     const unexpected = await POST(createRequest({ name: 'notes.md' }), context)
     expect(unexpected.status).toBe(500)
     expect(await unexpected.json()).toEqual({
-      success: false,
       error: 'Internal server error',
     })
   })

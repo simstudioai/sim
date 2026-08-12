@@ -1,7 +1,7 @@
 import { createTableImportPartUrlsContract } from '@/lib/api/contracts/table-transfers'
 import {
   defineInternalJsonRoute,
-  internalPlainOrchestrationErrorPolicy,
+  internalOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
@@ -15,7 +15,7 @@ export const POST = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Existing authenticated table import part signing has no request-rate policy',
   }),
-  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params, query, headers, body }) => ({
     importId: params.importId,
     workspaceId: query.workspaceId,

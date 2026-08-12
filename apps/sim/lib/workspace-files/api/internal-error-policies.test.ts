@@ -41,7 +41,7 @@ describe('internal file error policies', () => {
       )
     ).toEqual({
       status: 402,
-      body: { success: false, error: 'Storage limit exceeded' },
+      body: { error: 'Storage limit exceeded' },
       headers: undefined,
     })
   })

@@ -5,7 +5,7 @@ import {
 } from '@/lib/api/contracts/deployments'
 import {
   defineInternalJsonRoute,
-  internalPlainOrchestrationErrorPolicy,
+  internalOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes'
 import { internalWorkflowSessionOrExecutorAuth } from '@/lib/workflows/api'
@@ -23,7 +23,7 @@ export const GET = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing internal workflow read behavior',
   }),
-  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params }) => ({ workflowId: params.id, state: 'deployed' as const }),
   useCase: readWorkflowDefinition,
   present: ({ state }) => ({

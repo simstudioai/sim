@@ -96,7 +96,7 @@ describe('/api/workspaces/[id]/files/[fileId]/share', () => {
     const response = await GET(getRequest(), context)
 
     expect(response.status).toBe(403)
-    expect(await response.json()).toEqual({ success: false, error: 'Access denied' })
+    expect(await response.json()).toEqual({ error: 'Access denied' })
   })
 
   it('renders resource absence as 404', async () => {
@@ -142,7 +142,7 @@ describe('/api/workspaces/[id]/files/[fileId]/share', () => {
     const response = await PUT(putRequest({ isActive: true }), context)
 
     expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({ success: false, error: 'Password is required' })
+    expect(await response.json()).toEqual({ error: 'Password is required' })
   })
 
   it('preserves the internal caller-supplied token field for compatibility', async () => {

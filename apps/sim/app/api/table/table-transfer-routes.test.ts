@@ -35,7 +35,7 @@ vi.mock('@/lib/api/server/routes', () => ({
     mocks.definitions.push(definition)
     return vi.fn()
   },
-  internalPlainOrchestrationErrorPolicy: { kind: 'plain' },
+  internalOrchestrationErrorPolicy: { kind: 'plain' },
   internalRateLimits: {
     none: ({ reason }: { reason: string }) => ({ kind: 'none', reason }),
   },
