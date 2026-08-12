@@ -140,8 +140,20 @@ export function useNodeUtilities(blocks: Record<string, any>) {
   )
 
   /**
-   * Gets the absolute position of a node (accounting for nested parents).
-   * For nodes inside containers, accounts for header and padding offsets.
+   * Gets the absolute position of a node, walking up its parent chain.
+   *
+   * A child's position is relative to its container's own origin — React Flow
+   * places it at the parent's origin plus its position, and
+   * `clampPositionToContainer` is what holds it clear of the chrome, flooring it
+   * at `LEFT_PADDING` and `HEADER_HEIGHT + TOP_PADDING`. The container's header
+   * and padding are therefore already inside the child's coordinates, and
+   * adding them again here counted them twice: a nested node reported 16px
+   * right and 66px below where it actually is.
+   *
+   * That is why callers wanting a relative position had to subtract the same
+   * three constants straight back off, and why `positionAbsolute` — React
+   * Flow's own answer, which carries no offset — disagreed with this one.
+   *
    * @param nodeId ID of the node to check
    * @returns Absolute position coordinates {x, y}
    */
@@ -184,13 +196,9 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
       const parentPos = getNodeAbsolutePosition(parentId)
 
-      const headerHeight = 50
-      const leftPadding = 16
-      const topPadding = 16
-
       return {
-        x: parentPos.x + leftPadding + node.position.x,
-        y: parentPos.y + headerHeight + topPadding + node.position.y,
+        x: parentPos.x + node.position.x,
+        y: parentPos.y + node.position.y,
       }
     },
     [getNodes, blocks]

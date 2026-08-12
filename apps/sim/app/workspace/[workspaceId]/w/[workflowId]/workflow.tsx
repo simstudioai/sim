@@ -969,14 +969,14 @@ const WorkflowContent = React.memo(
 
         let newPosition = oldPosition
         if (newParentId) {
+          /* Both absolutes are in the container's own coordinate space, so the
+             difference is already the child's position within it — the header
+             and padding are accounted for by the clamp, not subtracted here. */
           const nodeAbsPos = getNodeAbsolutePosition(nodeId)
           const parentAbsPos = getNodeAbsolutePosition(newParentId)
-          const headerHeight = 50
-          const leftPadding = 16
-          const topPadding = 16
           newPosition = {
-            x: nodeAbsPos.x - parentAbsPos.x - leftPadding,
-            y: nodeAbsPos.y - parentAbsPos.y - headerHeight - topPadding,
+            x: nodeAbsPos.x - parentAbsPos.x,
+            y: nodeAbsPos.y - parentAbsPos.y,
           }
         } else if (oldParentId) {
           newPosition = getNodeAbsolutePosition(nodeId)
@@ -2711,12 +2711,13 @@ const WorkflowContent = React.memo(
             const parentId = block.data?.parentId as string | undefined
             if (!parentId) return block.data?.extent || undefined
 
-            // Constrain ONLY the top by header height (42px) and keep a small left padding.
-            // Do not clamp right/bottom so blocks can move freely within the body.
-            const headerHeight = 42
-            const leftPadding = 16
-            const minX = leftPadding
-            const minY = headerHeight
+            // Constrain the top and left to the container's own gutter, the same
+            // floor `clampPositionToContainer` applies everywhere else — a drag
+            // that stopped somewhere different from a drop was the whole reason
+            // these numbers were written out by hand and drifted. Right and
+            // bottom stay free so a block can move anywhere in the body.
+            const minX = CONTAINER_DIMENSIONS.LEFT_PADDING
+            const minY = CONTAINER_DIMENSIONS.HEADER_HEIGHT + CONTAINER_DIMENSIONS.TOP_PADDING
             const maxX = Number.POSITIVE_INFINITY
             const maxY = Number.POSITIVE_INFINITY
 
@@ -3767,17 +3768,16 @@ const WorkflowContent = React.memo(
             })
           }
 
-          // Compute relative position BEFORE updating parent to avoid stale state
-          // Account for header (50px), left padding (16px), and top padding (16px)
+          // Computed BEFORE updating the parent to avoid stale state. The two
+          // absolutes share the container's coordinate space, so their
+          // difference is the child's position within it — which is what the
+          // sibling positions this is compared against are measured in too.
           const containerAbsPosBefore = getNodeAbsolutePosition(potentialParentId)
           const nodeAbsPosBefore = getNodeAbsolutePosition(node.id)
-          const headerHeight = 50
-          const leftPadding = 16
-          const topPadding = 16
 
           const relativePositionBefore = {
-            x: nodeAbsPosBefore.x - containerAbsPosBefore.x - leftPadding,
-            y: nodeAbsPosBefore.y - containerAbsPosBefore.y - headerHeight - topPadding,
+            x: nodeAbsPosBefore.x - containerAbsPosBefore.x,
+            y: nodeAbsPosBefore.y - containerAbsPosBefore.y,
           }
 
           // Auto-connect when moving an existing block into a container
