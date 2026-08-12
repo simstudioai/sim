@@ -20,7 +20,7 @@ const logger = createLogger('WebhookProvider:Windchill')
 type WindchillScope = 'document' | 'folder' | 'container'
 
 function eventManagementRoot(baseUrl: string): string {
-  return `${normalizeServiceRoot(baseUrl)}/EventMgmt`
+  return `${normalizeServiceRoot(baseUrl).replace(/\/v\d+$/i, '')}/EventMgmt`
 }
 
 function requiredString(config: Record<string, unknown>, key: string, label: string): string {
@@ -64,7 +64,7 @@ export const windchillHandler: WebhookProviderHandler = {
       CallbackURL: getNotificationUrl(ctx.webhook),
       'SubscribedEvent@odata.bind': `Events('${eventId}')`,
     }
-    let subscriptionUrl: string
+    const subscriptionUrl = `${eventRoot}/EventSubscriptions`
 
     if (scope === 'document') {
       const documentOid = requiredString(config, 'triggerDocumentOid', 'Windchill document OID')
@@ -74,20 +74,17 @@ export const windchillHandler: WebhookProviderHandler = {
         config.triggerSubscribeAllVersions !== false &&
         config.triggerSubscribeAllVersions !== 'false'
       requestBody['@odata.type'] = 'PTC.EventMgmt.EntityEventSubscription'
-      subscriptionUrl = `${eventRoot}/EntityEventSubscriptions`
     } else if (scope === 'folder') {
       const folderOid = requiredString(config, 'triggerFolderOid', 'Windchill folder OID')
       requestBody.SubscribedOnEntityType = 'PTC.DocMgmt.Document'
       requestBody['SubscribedOnFolder@odata.bind'] = `Folders('${encodeWindchillOid(folderOid)}')`
       requestBody['@odata.type'] = 'PTC.EventMgmt.EntityTypeInFolderEventSubscription'
-      subscriptionUrl = `${eventRoot}/EventSubscriptions`
     } else {
       const containerOid = requiredString(config, 'triggerContainerOid', 'Windchill container OID')
       requestBody.SubscribedOnEntityType = 'PTC.DocMgmt.Document'
       requestBody['SubscribedOnContext@odata.bind'] =
         `Containers('${encodeWindchillOid(containerOid)}')`
       requestBody['@odata.type'] = 'PTC.EventMgmt.EntityTypeInContainerEventSubscription'
-      subscriptionUrl = `${eventRoot}/EventSubscriptions`
     }
 
     if (lifecycleState) {

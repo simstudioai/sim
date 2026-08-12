@@ -71,7 +71,7 @@ export function buildWindchillExtraFields(
       type: 'short-input',
       placeholder: 'https://host/Windchill/servlet/odata/v6',
       description:
-        'Complete versioned HTTPS OData service root for a self-managed Windchill deployment',
+        'Complete versioned HTTPS OData service root for a self-managed Windchill deployment; Sim uses its installation root to access the default EventMgmt domain',
       required: true,
       paramVisibility: 'user-only',
       mode: 'trigger',

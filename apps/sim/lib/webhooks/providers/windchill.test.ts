@@ -103,7 +103,7 @@ describe('Windchill webhook provider', () => {
         password: BASE_CONFIG.triggerPassword,
       },
       session: { nonceHeader: 'CSRF_NONCE', nonceValue: 'nonce', cookie: null },
-      url: 'https://windchill.example.com/Windchill/servlet/odata/v6/EventMgmt/EntityEventSubscriptions',
+      url: 'https://windchill.example.com/Windchill/servlet/odata/EventMgmt/EventSubscriptions',
       method: 'POST',
       body: {
         Name: 'Sim webhook-1 EDIT_ATTRIBUTES',
@@ -132,7 +132,7 @@ describe('Windchill webhook provider', () => {
 
     expect(mockWindchillMutationRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: 'https://windchill.example.com/Windchill/servlet/odata/v6/EventMgmt/EventSubscriptions',
+        url: 'https://windchill.example.com/Windchill/servlet/odata/EventMgmt/EventSubscriptions',
         body: {
           Name: 'Sim webhook-1 EDIT_CONTENT',
           CallbackURL: 'https://app.test/api/webhooks/trigger/windchill-path',
@@ -231,7 +231,7 @@ describe('Windchill webhook provider', () => {
 
     expect(mockWindchillMutationRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: "https://windchill.example.com/Windchill/servlet/odata/v6/EventMgmt/EventSubscriptions('OR%3Awt.notify.NotificationSubscription%3A5012541')",
+        url: "https://windchill.example.com/Windchill/servlet/odata/EventMgmt/EventSubscriptions('OR%3Awt.notify.NotificationSubscription%3A5012541')",
         method: 'DELETE',
       })
     )
