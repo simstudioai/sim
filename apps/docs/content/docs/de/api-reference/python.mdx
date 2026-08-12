@@ -662,7 +662,7 @@ def stream_workflow():
                 'X-API-Key': os.getenv('SIM_API_KEY')
             },
             json={
-                'message': 'Generate a story',
+                'input': {'message': 'Generate a story'},
                 'stream': True,
                 'selectedOutputs': ['agent1.content']
             },
