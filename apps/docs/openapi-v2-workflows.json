@@ -3923,13 +3923,13 @@
             "enum": [
               "pending",
               "running",
+              "paused",
               "redacting",
               "completed",
               "failed",
-              "cancelled",
-              "paused"
+              "cancelled"
             ],
-            "description": "Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed."
+            "description": "Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` is reported while the run is waiting at a human-in-the-loop pause point."
           },
           "trigger": {
             "type": "string",
@@ -4063,14 +4063,14 @@
             "enum": [
               "pending",
               "running",
+              "paused",
               "redacting",
               "completed",
               "failed",
               "cancelled",
-              "paused",
               "queued"
             ],
-            "description": "Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed."
+            "description": "Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` is reported while the run is waiting at a human-in-the-loop pause point."
           },
           "trigger": {
             "anyOf": [
