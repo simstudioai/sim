@@ -15,6 +15,14 @@ import { describe, expect, it } from 'vitest'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
 
+/**
+ * A whole-`{{ENV_VAR}}` reference that appears in exactly one place: a table cell. The leak sweep
+ * below greps the serialized envelope for it, so it has to be a value no other fixture uses and
+ * the same symbol has to feed both the fixture and the assertion — spelling the string twice is
+ * how that sweep silently starts passing vacuously.
+ */
+const TABLE_ONLY_ENV_REF = '{{TABLE_ONLY_TOKEN}}'
+
 function makeSourceState() {
   return {
     blocks: {
@@ -79,7 +87,7 @@ function makeSourceState() {
             type: 'table',
             value: [
               { id: 'r1', cells: { Key: 'Content-Type', Value: 'application/json' } },
-              { id: 'r2', cells: { Key: 'Authorization', Value: '{{TABLE_ONLY_TOKEN}}' } },
+              { id: 'r2', cells: { Key: 'Authorization', Value: TABLE_ONLY_ENV_REF } },
             ],
           },
           params: {
@@ -202,7 +210,7 @@ describe('workflow export -> import round trip', () => {
     expect(subBlocks.headers.value).toBeNull()
     expect(subBlocks.params.value).toBeNull()
     expect(subBlocks.url.value).toBe('https://example.com/v1/items')
-    expect(exportedJson).not.toContain('{{API_TOKEN}}')
+    expect(exportedJson).not.toContain(TABLE_ONLY_ENV_REF)
   })
 
   it('withholds every parameter of a tool with no authoritative codec metadata', () => {
@@ -215,12 +223,11 @@ describe('workflow export -> import round trip', () => {
   })
 
   it('re-imports the withheld sub-blocks as empty rather than dropping or corrupting them', () => {
-    const reimportedApi = Object.values(reimported!.blocks).find(
-      (b: any) => b.type === 'api'
-    ) as any
+    const reimportedApi = Object.values(reimported!.blocks).find((b) => b.type === 'api')
 
-    expect(reimportedApi.subBlocks.headers.value).toBeNull()
-    expect(reimportedApi.subBlocks.url.value).toBe('https://example.com/v1/items')
+    expect(reimportedApi).toBeDefined()
+    expect(reimportedApi?.subBlocks.headers.value).toBeNull()
+    expect(reimportedApi?.subBlocks.url.value).toBe('https://example.com/v1/items')
   })
 
   it('does not hang on a block name containing regex metacharacters', () => {
