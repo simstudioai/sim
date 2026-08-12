@@ -43,7 +43,7 @@ vi.mock('@/lib/table/application/rows', () => ({
   queryTableRows: { operation: { id: 'tables.rows.query' }, execute: mocks.queryRows },
 }))
 
-import { POST } from '@/app/api/v2/tables/[tableId]/query/route'
+import { POST } from '@/app/api/v2/tables/[tableId]/query/count/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -77,7 +77,7 @@ const ROW = {
 }
 
 function call(body: unknown) {
-  const request = new NextRequest('http://localhost/api/v2/tables/table-1/query', {
+  const request = new NextRequest('http://localhost/api/v2/tables/table-1/query/count', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
     body: JSON.stringify(body),
@@ -88,91 +88,95 @@ function call(body: unknown) {
   }
 }
 
-describe('POST /api/v2/tables/[tableId]/query', () => {
+describe('POST /api/v2/tables/[tableId]/query/count', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.authenticate.mockResolvedValue(AUTH)
     mocks.preauthRate.mockResolvedValue(RATE)
     mocks.operationRate.mockResolvedValue(RATE)
     mocks.gate.mockResolvedValue(null)
-    mocks.queryRows.mockResolvedValue({ table: TABLE, rows: [ROW], nextCursor: null })
+    mocks.queryRows.mockResolvedValue({
+      table: TABLE,
+      rows: [ROW],
+      rowCount: 1,
+      totalCount: 4321,
+      nextCursor: 'cursor-1',
+    })
   })
 
-  it('delegates the typed query and preserves the public row envelope', async () => {
+  it('counts the predicate matches across the whole table, not the page', async () => {
     const predicate = { all: [{ field: 'name', op: 'eq', value: 'Ada' }] }
     const invocation = call({ workspaceId: WORKSPACE_ID, predicate })
     const response = await invocation.response
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: [
-        {
-          id: 'row-1',
-          data: { name: 'Ada' },
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-02T00:00:00.000Z',
-        },
-      ],
-      nextCursor: null,
-    })
+    expect(await response.json()).toEqual({ data: { totalCount: 4321 } })
     expect(mocks.queryRows).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
         tableId: 'table-1',
         assertedWorkspaceId: WORKSPACE_ID,
         predicate,
-        sort: undefined,
-        cursor: undefined,
-        limit: 100,
-        includeTotal: false,
+        limit: 1,
+        includeTotal: true,
       },
       request: invocation.request,
     })
   })
 
-  it('preserves explicit limit=0 as the unbounded opt-in', async () => {
-    await call({ workspaceId: WORKSPACE_ID, limit: 0 }).response
+  it('counts the whole table when no predicate is sent', async () => {
+    mocks.queryRows.mockResolvedValue({
+      table: TABLE,
+      rows: [],
+      rowCount: 0,
+      totalCount: 0,
+      nextCursor: null,
+    })
 
+    const response = await call({ workspaceId: WORKSPACE_ID }).response
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: { totalCount: 0 } })
     expect(mocks.queryRows).toHaveBeenCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ limit: undefined }) })
+      expect.objectContaining({ input: expect.objectContaining({ predicate: undefined }) })
     )
   })
 
-  it('rejects a v1-shaped filter key instead of answering with an unfiltered page', async () => {
+  it('rejects the paging controls a count has no use for', async () => {
+    const response = await call({ workspaceId: WORKSPACE_ID, limit: 10, cursor: 'x' }).response
+
+    expect(response.status).toBe(400)
+    expect(mocks.queryRows).not.toHaveBeenCalled()
+  })
+
+  it('keeps a malformed predicate as a structured 400', async () => {
+    mocks.queryRows.mockRejectedValue(
+      new MockTableRowsValidationError('Unknown column "nope"', { code: 'INVALID_PREDICATE' })
+    )
+
     const response = await call({
       workspaceId: WORKSPACE_ID,
-      filter: { name: { $eq: 'Ada' } },
+      predicate: { all: [{ field: 'nope', op: 'eq', value: 1 }] },
     }).response
 
     expect(response.status).toBe(400)
-    expect(mocks.queryRows).not.toHaveBeenCalled()
+    expect((await response.json()).error.details).toEqual({ code: 'INVALID_PREDICATE' })
   })
 
-  it('rejects an invalid page limit after admission and before delegation', async () => {
-    const response = await call({ workspaceId: WORKSPACE_ID, limit: 5000 }).response
+  it('never presents a fabricated zero when no total was computed', async () => {
+    mocks.queryRows.mockResolvedValue({
+      table: TABLE,
+      rows: [ROW],
+      rowCount: 1,
+      totalCount: null,
+      nextCursor: null,
+    })
 
-    expect(response.status).toBe(400)
-    expect(mocks.authenticate).toHaveBeenCalledOnce()
-    expect(mocks.operationRate).toHaveBeenCalledOnce()
-    expect(mocks.queryRows).not.toHaveBeenCalled()
-  })
+    const response = await call({ workspaceId: WORKSPACE_ID }).response
 
-  it('keeps malformed POST query cursors as a structured 400', async () => {
-    mocks.queryRows.mockRejectedValue(
-      new MockTableRowsValidationError('Invalid cursor', { code: 'INVALID_CURSOR' })
-    )
-
-    const response = await call({ workspaceId: WORKSPACE_ID, cursor: 'malformed' }).response
-
-    expect(response.status).toBe(400)
-    expect((await response.json()).error.details).toEqual({ code: 'INVALID_CURSOR' })
-  })
-
-  it('enforces the one MiB body cap before delegation', async () => {
-    const response = await call({ workspaceId: WORKSPACE_ID, cursor: 'x'.repeat(1024 * 1024) })
-      .response
-
-    expect(response.status).toBe(413)
-    expect(mocks.queryRows).not.toHaveBeenCalled()
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    })
   })
 })

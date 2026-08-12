@@ -181,7 +181,7 @@ describe('/api/v2/tables', () => {
     })
   })
 
-  it('rejects required in a table column before calling the use case', async () => {
+  it('forwards required on a table column to the use case', async () => {
     const request = new NextRequest('http://localhost:3000/api/v2/tables', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
@@ -189,6 +189,28 @@ describe('/api/v2/tables', () => {
         workspaceId: WORKSPACE_ID,
         name: 'Contacts',
         schema: { columns: [{ name: 'Name', type: 'string', required: true }] },
+      }),
+    })
+    const response = await POST(request)
+
+    expect(response.status).toBe(201)
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          schema: { columns: [{ name: 'Name', type: 'string', required: true }] },
+        }),
+      })
+    )
+  })
+
+  it('rejects an unrecognized key in a table column before calling the use case', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/tables', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+      body: JSON.stringify({
+        workspaceId: WORKSPACE_ID,
+        name: 'Contacts',
+        schema: { columns: [{ name: 'Name', type: 'string', requried: true }] },
       }),
     })
     const response = await POST(request)

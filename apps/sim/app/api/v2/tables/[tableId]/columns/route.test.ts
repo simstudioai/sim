@@ -108,6 +108,49 @@ describe('/api/v2/tables/[tableId]/columns', () => {
     })
   })
 
+  it('forwards required on both the add and the update column write', async () => {
+    await POST(
+      request('POST', {
+        workspaceId: WORKSPACE_ID,
+        column: { name: 'Name', type: 'string', required: true },
+      }),
+      context
+    )
+    await PATCH(
+      request('PATCH', {
+        workspaceId: WORKSPACE_ID,
+        columnName: 'Name',
+        updates: { required: false },
+      }),
+      context
+    )
+
+    expect(mocks.add).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          column: { name: 'Name', type: 'string', required: true },
+        }),
+      })
+    )
+    expect(mocks.update).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ updates: { required: false } }) })
+    )
+  })
+
+  it('rejects an unrecognized key on the column delete body', async () => {
+    const response = await DELETE(
+      request('DELETE', {
+        workspaceId: WORKSPACE_ID,
+        columnName: 'Other',
+        columnNames: ['Other'],
+      }),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
   it('maps typed application validation failures without inspecting messages', async () => {
     mocks.update.mockRejectedValueOnce(new OrchestrationError('validation', 'Invalid column'))
 
