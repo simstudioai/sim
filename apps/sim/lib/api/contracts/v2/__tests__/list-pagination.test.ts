@@ -74,9 +74,15 @@ const PAGED_LISTS = [
  * matter what the upstream server reports — bounded by construction rather than
  * by a caller's `limit`. The MCP *server* list is not: nothing caps how many
  * servers a workspace registers, which is why it is paged.
+ * Every remaining entry but the MCP server list and the knowledge tag list is a
+ * *folder* list, and a folder tree is already capped where it is loaded
+ * (`MAX_*_FOLDERS_PER_WORKSPACE`) — bounded by construction rather than by a
+ * caller's `limit`. The knowledge tag list is bounded the same way: a knowledge
+ * base has a fixed number of tag slots, so its vocabulary cannot grow past them.
  */
 const FULL_SET_LISTS = [
   'GET /api/v2/files/folders',
+  'GET /api/v2/knowledge/[id]/tags',
   'GET /api/v2/knowledge/folders',
   'GET /api/v2/mcp-servers/[id]/tools',
   'GET /api/v2/tables/[tableId]/groups',

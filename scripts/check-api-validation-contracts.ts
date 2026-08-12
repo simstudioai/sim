@@ -8,9 +8,8 @@ const CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts')
 const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
-const BASELINE = {
-  totalRoutes: 1103,
-  zodRoutes: 1103,
+const BASELINE = {  totalRoutes: 1104,
+  zodRoutes: 1104,
   nonZodRoutes: 0,
 } as const
 

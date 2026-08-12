@@ -1,5 +1,6 @@
 import {
   v2AbortKnowledgeDocumentUploadContract,
+  v2BulkUpdateKnowledgeDocumentsContract,
   v2CompleteKnowledgeDocumentUploadContract,
   v2CreateKnowledgeBaseContract,
   v2CreateKnowledgeDocumentUploadContract,
@@ -13,9 +14,11 @@ import {
   v2ListKnowledgeBasesContract,
   v2ListKnowledgeDocumentsContract,
   v2ListKnowledgeFoldersContract,
+  v2ListKnowledgeTagsContract,
   v2RelocateKnowledgeFolderContract,
   v2SearchKnowledgeContract,
   v2UpdateKnowledgeBaseContract,
+  v2UpdateKnowledgeDocumentContract,
   v2UploadKnowledgeDocumentContract,
   v2UploadKnowledgeDocumentFormSchema,
 } from '@/lib/api/contracts/v2/knowledge'
@@ -206,7 +209,7 @@ const routes = [
       operationId: 'searchKnowledge',
       summary: 'Search Knowledge',
       description:
-        'Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. The request body is capped at 2 MiB; a larger body is a 413.',
+        'Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Set `rerankerEnabled` with a `rerankerModel` to re-order the retrieved chunks with a reranking model before truncating to `topK`; reranked results carry a `rerankerScore` and are ordered by it, and reranking is billed as an additional search unit. Every result names the `knowledgeBaseId` it came from. The request body is capped at 2 MiB; a larger body is a 413.',
       errors: [...WORKSPACE_ERRORS, 'UsageLimitExceeded', 'NotFound', 'PayloadTooLarge'],
       success: { description: 'Matching document chunks ordered by relevance.' },
     }),
@@ -234,12 +237,43 @@ const routes = [
     }
   ),
   defineOpenApiRoute(
+    v2ListKnowledgeTagsContract,
+    knowledgeOperation({
+      operationId: 'listKnowledgeTags',
+      summary: 'List Tags',
+      description:
+        "List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Display names are what tag filters and the tag values on document reads use; slots are what document writes set (`tag1`..`tag7`). The vocabulary is bounded by the fixed slot table, so the whole set is returned in one response and `nextCursor` is always null.",
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The knowledge base tag vocabulary.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ListKnowledgeTagsContract.params,
+        'ListKnowledgeTagsParams',
+        'List knowledge tags path parameters',
+        'Knowledge base whose tags should be listed.'
+      ),
+      query: documentedSchema(
+        v2ListKnowledgeTagsContract.query,
+        'ListKnowledgeTagsQuery',
+        'List knowledge tags query',
+        'Workspace scope for the knowledge base.'
+      ),
+      response: documentedSchema(
+        v2ListKnowledgeTagsContract.response.schema,
+        'V2KnowledgeTagListResponse',
+        'Knowledge tag list response',
+        'The full tag vocabulary of one knowledge base.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2ListKnowledgeDocumentsContract,
     knowledgeOperation({
       operationId: 'listKnowledgeDocuments',
       summary: 'List Documents',
       description:
-        'List documents in a knowledge base with filename search, state filtering, sorting, and opaque cursor pagination.',
+        'List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Each document carries its tag values keyed by tag display name; resolve those names to write slots with `GET /api/v2/knowledge/{id}/tags`.',
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of knowledge documents.' },
     }),
@@ -254,13 +288,51 @@ const routes = [
         v2ListKnowledgeDocumentsContract.query,
         'ListKnowledgeDocumentsQuery',
         'List knowledge documents query',
-        'Workspace, pagination, filtering, search, and sorting options.'
+        'Workspace, pagination, filtering, tag filtering, search, and sorting options.'
       ),
       response: documentedSchema(
         v2ListKnowledgeDocumentsContract.response.schema,
         'V2KnowledgeDocumentListResponse',
         'Knowledge document list response',
         'A cursor-paginated page of knowledge documents.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2BulkUpdateKnowledgeDocumentsContract,
+    knowledgeOperation({
+      operationId: 'bulkUpdateKnowledgeDocuments',
+      summary: 'Bulk Enable or Disable Documents',
+      description:
+        'Enable or disable many documents in one request, either by identifier (up to 100) or, with `selectAll`, every document in the knowledge base optionally narrowed by `enabledFilter`. Disabling keeps a document indexed but excludes it from search. Bulk delete is deliberately not offered: the bulk path records no audit entries, so deletions go through `DELETE /api/v2/knowledge/{id}/documents/{documentId}`, which audits each one.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The number and identifiers of the documents that changed.' },
+    }),
+    {
+      params: documentedSchema(
+        v2BulkUpdateKnowledgeDocumentsContract.params,
+        'BulkUpdateKnowledgeDocumentsParams',
+        'Bulk knowledge document path parameters',
+        'Knowledge base whose documents should be updated.'
+      ),
+      body: documentedSchema(
+        v2BulkUpdateKnowledgeDocumentsContract.body,
+        'BulkUpdateKnowledgeDocumentsRequest',
+        'Bulk knowledge document request',
+        'Operation and the documents it applies to.',
+        [
+          {
+            workspaceId: WORKSPACE_ID,
+            operation: 'disable',
+            documentIds: ['b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12'],
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2BulkUpdateKnowledgeDocumentsContract.response.schema,
+        'V2BulkKnowledgeDocumentsResponse',
+        'Bulk knowledge document response',
+        'Outcome of a bulk enable or disable.'
       ),
     }
   ),
@@ -498,6 +570,38 @@ const routes = [
         'V2KnowledgeDocumentResponse',
         'Knowledge document response',
         'Full knowledge document detail.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateKnowledgeDocumentContract,
+    knowledgeOperation({
+      operationId: 'updateKnowledgeDocument',
+      summary: 'Update Document',
+      description:
+        'Rename a document, enable or disable it for search, set its tag slots, or requeue it for processing. Absent fields are unchanged. Only caller-owned fields are accepted: derived indexing state (`chunkCount`, `tokenCount`, `characterCount`, `processingStatus`, `processingError`) is written by the processing pipeline and cannot be asserted here. `retryProcessing: true` re-queues a failed or stuck document and must be sent on its own — it runs instead of, not alongside, the field updates — and it answers with a queue acknowledgement rather than the document. Otherwise the updated document is returned; it omits the connector provenance the detail read carries, so re-read with GET when that is needed.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The updated document, or the requeue acknowledgement.' },
+    }),
+    {
+      params: documentedSchema(
+        v2UpdateKnowledgeDocumentContract.params,
+        'UpdateKnowledgeDocumentParams',
+        'Update knowledge document path parameters',
+        'Knowledge base and document selected for update.'
+      ),
+      body: documentedSchema(
+        v2UpdateKnowledgeDocumentContract.body,
+        'UpdateKnowledgeDocumentRequest',
+        'Update knowledge document request',
+        'Filename, search state, tag slot values, or a processing retry.',
+        [{ workspaceId: WORKSPACE_ID, enabled: false, tag1: 'billing' }]
+      ),
+      response: documentedSchema(
+        v2UpdateKnowledgeDocumentContract.response.schema,
+        'V2UpdateKnowledgeDocumentResponse',
+        'Update knowledge document response',
+        'The updated document, or the processing requeue acknowledgement.'
       ),
     }
   ),
