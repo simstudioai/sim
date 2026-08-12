@@ -1,4 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, auditUpdatedFields, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { credential, environment, webhook, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -336,7 +336,7 @@ export async function performUpdateCredential(
         .where(and(eq(webhook.provider, 'slack'), eq(webhook.routingKey, params.credentialId)))
     }
 
-    const updatedFields = Object.keys(updates).filter((key) => key !== 'updatedAt')
+    const updatedFields = auditUpdatedFields(updates)
     recordAudit({
       workspaceId: access.credential.workspaceId,
       actorId: params.userId,

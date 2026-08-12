@@ -1,4 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, auditUpdatedFields, recordAudit } from '@sim/audit'
 import { db, mcpServers } from '@sim/db'
 import { mcpServerOauth } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -400,7 +400,7 @@ export async function updateMcpServer(
       success: true,
       server,
       configurationChanged: shouldClearCache,
-      updatedFields: Object.keys(updateData).filter((key) => key !== 'updatedAt'),
+      updatedFields: auditUpdatedFields(updateData),
     }
   } catch (error) {
     logger.error('Failed to update MCP server', { error })

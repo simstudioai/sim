@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  auditMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -26,6 +32,7 @@ vi.mock('@sim/audit', () => ({
   AuditAction: { CREDENTIAL_UPDATED: 'credential.updated' },
   AuditResourceType: { CREDENTIAL: 'credential' },
   recordAudit: mockRecordAudit,
+  auditUpdatedFields: auditMock.auditUpdatedFields,
 }))
 vi.mock('@/lib/credentials/access', () => ({
   getCredentialActorContext: mockGetCredentialActorContext,
