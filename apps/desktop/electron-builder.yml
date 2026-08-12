@@ -18,6 +18,7 @@ asar: true
 # before packaging; see mac.x64ArchFiles for how the universal merge treats them.
 asarUnpack:
   - "**/node_modules/@lydell/node-pty-*/prebuilds/**"
+  - "**/dist/native/*.node"
 
 # Space-free regardless of productName ("Sim Dev" etc.): GitHub rewrites
 # asset names containing spaces, which would desync the electron-updater

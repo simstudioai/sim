@@ -977,7 +977,7 @@ export interface SimDesktopUpdatesApi {
   onState(callback: (state: DesktopUpdateState) => void): () => void
 }
 
-export type DesktopCommand = 'toggle-sidebar'
+export type DesktopCommand = 'toggle-sidebar' | 'open-search'
 
 export interface DesktopWindowState {
   isFullScreen: boolean

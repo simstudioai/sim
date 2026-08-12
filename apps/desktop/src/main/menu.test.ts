@@ -22,6 +22,7 @@ function makeDeps(): MenuDeps {
     newChat: vi.fn(),
     handleFocusedResourceShortcut: vi.fn(() => false),
     toggleSidebar: vi.fn(),
+    openSearch: vi.fn(),
     signOut: vi.fn(),
     checkForUpdates: vi.fn(),
   }
@@ -77,6 +78,7 @@ describe('buildMenuTemplate', () => {
       'Close Window',
     ])
     expect(submenu(template, 'View').map((item) => item.label ?? item.role ?? item.type)).toEqual([
+      'Search',
       'Toggle Sidebar',
       'separator',
       'Back',
@@ -263,6 +265,18 @@ describe('buildMenuTemplate', () => {
     )
     expect(focusedWindow.webContents.setZoomLevel).toHaveBeenCalledWith(0)
     expect(deps.config.set).toHaveBeenCalledWith('zoomLevel', 0)
+  })
+
+  it('opens the search palette from View with the platform Mod+K accelerator', () => {
+    const deps = makeDeps()
+    const item = submenu(buildMenuTemplate(deps), 'View').find(
+      (entry) => entry.accelerator === 'CmdOrCtrl+K'
+    )
+
+    expect(item).toMatchObject({ label: 'Search' })
+    ;(item?.click as unknown as () => void)()
+    expect(deps.openSearch).toHaveBeenCalledOnce()
+    expect(deps.handleFocusedResourceShortcut).not.toHaveBeenCalled()
   })
 
   it('offers the standard new-window command', () => {
