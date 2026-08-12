@@ -45,6 +45,21 @@ const logger = createLogger('WindchillAPI')
 
 type WindchillRouteOutput = Extract<WindchillOperationResponse, { success: true }>['output']
 
+const BULK_RESULT_OPERATIONS: ReadonlySet<WindchillRouteOutput['operation']> = new Set([
+  'windchill_create_documents',
+  'windchill_update_documents',
+  'windchill_check_out_documents',
+  'windchill_check_in_documents',
+  'windchill_undo_check_out_documents',
+  'windchill_revise_documents',
+  'windchill_update_document_security_labels',
+])
+
+const DELETE_OPERATIONS: ReadonlySet<WindchillRouteOutput['operation']> = new Set([
+  'windchill_delete_document',
+  'windchill_delete_documents',
+])
+
 function successResponse(output: WindchillRouteOutput) {
   const body = { success: true, output } satisfies WindchillOperationResponse
   return NextResponse.json(body)
@@ -82,11 +97,18 @@ function mutationOutput(
       ? [document.id, ...collectionIds]
       : collectionIds
   const affectedIds = returnedIds.length > 0 ? returnedIds : fallbackIds
+  if (DELETE_OPERATIONS.has(operation)) return { operation, affectedIds: fallbackIds }
+  if (BULK_RESULT_OPERATIONS.has(operation)) {
+    return {
+      operation,
+      affectedIds,
+      ...(documents.length > 0 ? { documents } : {}),
+    }
+  }
   return {
     operation,
     affectedIds,
     ...(document ? { document } : {}),
-    ...(documents.length > 0 ? { documents } : {}),
   }
 }
 

@@ -297,7 +297,7 @@ export async function uploadWindchillContent({
     session,
     url: `${documentUrl}/PTC.DocMgmt.UploadStage1Action`,
     method: 'POST',
-    body: { noOfFiles: files.length },
+    body: { NoOfFiles: files.length },
     signal,
   })
   const descriptor = stageOneDescriptor(stageOne)

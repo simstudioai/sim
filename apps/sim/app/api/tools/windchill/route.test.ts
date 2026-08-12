@@ -311,6 +311,43 @@ describe('POST /api/tools/windchill', () => {
     })
   })
 
+  it('returns operation-specific single, bulk, and delete mutation shapes', async () => {
+    const singleResponse = await POST(
+      createMockRequest('POST', {
+        ...BASE_BODY,
+        operation: 'windchill_update_document',
+        documentOid: DOCUMENT_OID,
+        attributes: { Title: 'Updated' },
+      })
+    )
+    const singleOutput = (await singleResponse.json()).output
+    expect(singleOutput.document).toMatchObject({ id: DOCUMENT_OID })
+    expect(singleOutput).not.toHaveProperty('documents')
+
+    const bulkResponse = await POST(
+      createMockRequest('POST', {
+        ...BASE_BODY,
+        operation: 'windchill_update_documents',
+        documents: [{ id: DOCUMENT_OID, attributes: { Title: 'Updated' } }],
+      })
+    )
+    const bulkOutput = (await bulkResponse.json()).output
+    expect(bulkOutput.documents).toEqual([expect.objectContaining({ id: DOCUMENT_OID })])
+    expect(bulkOutput).not.toHaveProperty('document')
+
+    const deleteResponse = await POST(
+      createMockRequest('POST', {
+        ...BASE_BODY,
+        operation: 'windchill_delete_document',
+        documentOid: DOCUMENT_OID,
+      })
+    )
+    const deleteOutput = (await deleteResponse.json()).output
+    expect(deleteOutput.affectedIds).toEqual([DOCUMENT_OID])
+    expect(deleteOutput).not.toHaveProperty('document')
+    expect(deleteOutput).not.toHaveProperty('documents')
+  })
+
   it('authorizes and reads a UserFile before starting the upload transaction', async () => {
     const response = await POST(
       createMockRequest('POST', {

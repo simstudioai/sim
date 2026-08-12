@@ -1,5 +1,179 @@
 import type { UserFile } from '@/executor/types'
-import type { ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
+import type { ToolOutputProperty, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
+
+export const WINDCHILL_DOCUMENT_PROPERTIES = {
+  id: { type: 'string', description: 'Windchill object identifier', nullable: true },
+  name: { type: 'string', description: 'Document name', nullable: true },
+  number: { type: 'string', description: 'Document number', nullable: true },
+  title: { type: 'string', description: 'Document title', nullable: true },
+  description: { type: 'string', description: 'Document description', nullable: true },
+  state: { type: 'string', description: 'Life cycle state', nullable: true },
+  versionId: { type: 'string', description: 'Version identifier', nullable: true },
+  revision: { type: 'string', description: 'Revision identifier', nullable: true },
+  version: { type: 'string', description: 'Version and iteration', nullable: true },
+  latest: { type: 'boolean', description: 'Whether this is the latest version', nullable: true },
+  checkoutState: { type: 'string', description: 'Checkout state', nullable: true },
+  folderName: { type: 'string', description: 'Folder name', nullable: true },
+  folderLocation: { type: 'string', description: 'Folder path', nullable: true },
+} as const satisfies Record<string, ToolOutputProperty>
+
+export const WINDCHILL_CONTENT_PROPERTIES = {
+  id: { type: 'string', description: 'Content object identifier', nullable: true },
+  fileName: { type: 'string', description: 'Content file name', nullable: true },
+  description: { type: 'string', description: 'Content description', nullable: true },
+  format: { type: 'string', description: 'Windchill content format', nullable: true },
+  mimeType: { type: 'string', description: 'Content MIME type', nullable: true },
+  fileSize: { type: 'number', description: 'Content size in bytes', nullable: true },
+} as const satisfies Record<string, ToolOutputProperty>
+
+export const WINDCHILL_DOCUMENT_OUTPUTS = {
+  operation: { type: 'string', description: 'Windchill operation that was executed' },
+  document: {
+    type: 'object',
+    description: 'Windchill document',
+    nullable: true,
+    properties: WINDCHILL_DOCUMENT_PROPERTIES,
+  },
+} as const satisfies Record<string, ToolOutputProperty>
+
+export const WINDCHILL_LIST_DOCUMENTS_OUTPUTS = {
+  operation: { type: 'string', description: 'Windchill operation that was executed' },
+  documents: {
+    type: 'array',
+    description: 'Windchill documents',
+    items: { type: 'object', properties: WINDCHILL_DOCUMENT_PROPERTIES },
+  },
+  pageInfo: {
+    type: 'object',
+    description: 'OData pagination information',
+    properties: {
+      count: { type: 'number', description: 'Number of documents in this page' },
+      totalCount: { type: 'number', description: 'Total matching documents', nullable: true },
+      nextLink: { type: 'string', description: 'URL for the next page', nullable: true },
+    },
+  },
+} as const satisfies Record<string, ToolOutputProperty>
+
+export const WINDCHILL_USAGE_LINK_PROPERTIES = {
+  id: { type: 'string', description: 'Document usage link OID', nullable: true },
+  parent: {
+    type: 'object',
+    description: 'Parent document',
+    nullable: true,
+    properties: WINDCHILL_DOCUMENT_PROPERTIES,
+  },
+  child: {
+    type: 'object',
+    description: 'Child document',
+    nullable: true,
+    properties: WINDCHILL_DOCUMENT_PROPERTIES,
+  },
+  children: {
+    type: 'array',
+    description: 'Nested child usage links with the same recursive shape',
+    items: { type: 'json' },
+  },
+} as const satisfies Record<string, ToolOutputProperty>
+
+export const WINDCHILL_USAGE_LINK_OUTPUT = {
+  type: 'object',
+  description: 'Document usage link',
+  properties: WINDCHILL_USAGE_LINK_PROPERTIES,
+} as const satisfies ToolOutputProperty
+
+export const WINDCHILL_STRUCTURE_OUTPUTS = {
+  operation: { type: 'string', description: 'Windchill operation that was executed' },
+  structure: {
+    type: 'array',
+    description: 'Document usage links, including recursively expanded child links',
+    items: WINDCHILL_USAGE_LINK_OUTPUT,
+  },
+} as const satisfies Record<string, ToolOutputProperty>
+
+export const WINDCHILL_STATE_OUTPUTS = {
+  operation: { type: 'string', description: 'Windchill operation that was executed' },
+  states: {
+    type: 'array',
+    description: 'Valid lifecycle transitions',
+    items: {
+      type: 'object',
+      properties: {
+        value: { type: 'string', description: 'Internal state value', nullable: true },
+        display: { type: 'string', description: 'Displayed state value', nullable: true },
+      },
+    },
+  },
+} as const satisfies Record<string, ToolOutputProperty>
+
+export const WINDCHILL_PRIMARY_CONTENT_OUTPUTS = {
+  operation: { type: 'string', description: 'Windchill operation that was executed' },
+  content: {
+    type: 'object',
+    description: 'Primary-content metadata',
+    nullable: true,
+    properties: WINDCHILL_CONTENT_PROPERTIES,
+  },
+} as const satisfies Record<string, ToolOutputProperty>
+
+export const WINDCHILL_ATTACHMENTS_OUTPUTS = {
+  operation: { type: 'string', description: 'Windchill operation that was executed' },
+  attachments: {
+    type: 'array',
+    description: 'Document attachments',
+    items: { type: 'object', properties: WINDCHILL_CONTENT_PROPERTIES },
+  },
+} as const satisfies Record<string, ToolOutputProperty>
+
+export const WINDCHILL_AFFECTED_OUTPUTS = {
+  operation: { type: 'string', description: 'Windchill operation that was executed' },
+  affectedIds: {
+    type: 'array',
+    description: 'Document identifiers affected by the operation',
+    items: { type: 'string' },
+  },
+} as const satisfies Record<string, ToolOutputProperty>
+
+export const WINDCHILL_SINGLE_MUTATION_OUTPUTS = {
+  ...WINDCHILL_AFFECTED_OUTPUTS,
+  document: {
+    type: 'object',
+    description: 'Document returned by Windchill when the operation returns one',
+    optional: true,
+    nullable: true,
+    properties: WINDCHILL_DOCUMENT_PROPERTIES,
+  },
+} as const satisfies Record<string, ToolOutputProperty>
+
+export const WINDCHILL_BULK_MUTATION_OUTPUTS = {
+  ...WINDCHILL_AFFECTED_OUTPUTS,
+  documents: {
+    type: 'array',
+    description: 'Documents returned by Windchill when the operation returns them',
+    optional: true,
+    items: { type: 'object', properties: WINDCHILL_DOCUMENT_PROPERTIES },
+  },
+} as const satisfies Record<string, ToolOutputProperty>
+
+export const WINDCHILL_FILE_OUTPUTS = {
+  operation: { type: 'string', description: 'Windchill operation that was executed' },
+  file: { type: 'file', description: 'Downloaded content stored as a canonical UserFile' },
+  fileName: { type: 'string', description: 'Downloaded file name' },
+  mimeType: { type: 'string', description: 'Downloaded content MIME type' },
+} as const satisfies Record<string, ToolOutputProperty>
+
+export const WINDCHILL_UPLOAD_OUTPUTS = {
+  operation: { type: 'string', description: 'Windchill operation that was executed' },
+  affectedIds: {
+    type: 'array',
+    description: 'Document identifiers affected by the upload',
+    items: { type: 'string' },
+  },
+  uploadedFileNames: {
+    type: 'array',
+    description: 'Names of files accepted by Windchill',
+    items: { type: 'string' },
+  },
+} as const satisfies Record<string, ToolOutputProperty>
 
 export const WINDCHILL_OPERATIONS = [
   'windchill_list_documents',
@@ -66,6 +240,7 @@ export interface WindchillDocumentUsageLink {
   id: string | null
   parent: WindchillDocument | null
   child: WindchillDocument | null
+  children: WindchillDocumentUsageLink[]
 }
 
 export interface WindchillPageInfo {
@@ -121,7 +296,6 @@ export interface WindchillParams {
   fileName?: string
   select?: string
   filter?: string
-  expand?: string
   orderBy?: string
   top?: number
   skip?: number
