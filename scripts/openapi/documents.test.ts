@@ -31,7 +31,7 @@ const EXPECTED_OPERATION_COUNTS = new Map<string, number>([
   ['apps/docs/openapi-v2-tables.json', 44],
   ['apps/docs/openapi-v2-knowledge.json', 18],
   ['apps/docs/openapi-v2-billing.json', 2],
-  ['apps/docs/openapi-v2-resources.json', 21],
+  ['apps/docs/openapi-v2-resources.json', 22],
 ])
 
 function getOperation(spec: JsonObject, path: string, method: string): JsonObject {

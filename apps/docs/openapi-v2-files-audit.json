@@ -40,7 +40,7 @@
       "get": {
         "operationId": "listFiles",
         "summary": "List Files",
-        "description": "List workspace files with search, sorting, folder filtering, and opaque cursor pagination.",
+        "description": "List workspace files with search, sorting, folder filtering, and opaque cursor pagination. Defaults to active files; pass `scope=archived` to page over soft-deleted files, whose `deletedAt` is non-null and which `POST /files/{fileId}/restore` can bring back.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -62,6 +62,18 @@
             "schema": {
               "description": "Restrict results to files directly inside this folder.",
               "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns 404 when the containing folder was archived too.",
+            "schema": {
+              "default": "active",
+              "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns 404 when the containing folder was archived too.",
+              "type": "string",
+              "enum": ["active", "archived"]
             }
           },
           {
@@ -678,7 +690,7 @@
       "delete": {
         "operationId": "deleteFile",
         "summary": "Delete File",
-        "description": "Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in listings and is no longer readable through the API, and its stored bytes are never removed. An archived file can be restored from the workspace Recently Deleted settings; the v2 API exposes no restore operation.",
+        "description": "Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in the default listing and is no longer readable through the API, and its stored bytes are never removed. List archived files with `GET /files?scope=archived` and reverse the delete with `POST /files/{fileId}/restore`.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -803,6 +815,87 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2FileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/files/{fileId}/restore": {
+      "post": {
+        "operationId": "restoreFile",
+        "summary": "Restore File",
+        "description": "Reverse a soft delete and return the file to the workspace. Restore is not a pure undo: the file comes back at the workspace root regardless of the folder it was deleted from, and it gains a `_restored` suffix when another file at the root already holds its name — so read `folderPath` and `name` off the response rather than assuming the pre-delete values. Restoring a file that is already active is a no-op that returns that file, so a retry is safe. Returns 400 when the workspace itself has been archived, and 409 when no free restore name could be found.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "File identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "description": "File identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope for the archived file.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreFileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The file as it exists after the restore.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2RestoreFileResponse"
                 }
               }
             }
@@ -2195,6 +2288,19 @@
             "description": "ISO 8601 timestamp of the last content or metadata write.",
             "format": "date-time",
             "examples": ["2026-01-15T10:30:00Z"]
+          },
+          "deletedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the file was archived by `DELETE /files/{fileId}`, or null while the file is active. Only `GET /files?scope=archived` returns files with a non-null value.",
+            "format": "date-time",
+            "examples": ["2026-01-16T09:00:00Z"]
           }
         },
         "required": [
@@ -2206,7 +2312,8 @@
           "folderPath",
           "uploadedByEmail",
           "uploadedAt",
-          "updatedAt"
+          "updatedAt",
+          "deletedAt"
         ],
         "additionalProperties": false,
         "title": "Workspace file",
@@ -2250,7 +2357,8 @@
                 "folderPath": "/Engineering",
                 "uploadedByEmail": "jane@example.com",
                 "uploadedAt": "2026-01-15T10:30:00Z",
-                "updatedAt": "2026-01-15T10:30:00Z"
+                "updatedAt": "2026-01-15T10:30:00Z",
+                "deletedAt": null
               }
             ],
             "nextCursor": null
@@ -2280,7 +2388,8 @@
               "folderPath": "/Engineering",
               "uploadedByEmail": "jane@example.com",
               "uploadedAt": "2026-01-15T10:30:00Z",
-              "updatedAt": "2026-01-15T10:30:00Z"
+              "updatedAt": "2026-01-15T10:30:00Z",
+              "deletedAt": null
             }
           }
         ]
@@ -2696,6 +2805,54 @@
           }
         ]
       },
+      "V2RestoreFileResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2File"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Restore file response",
+        "description": "The restored workspace file, at the root and under its post-restore name.",
+        "examples": [
+          {
+            "data": {
+              "id": "wf_V1StGXR8z5jdHi6BmyT91",
+              "name": "data_restored.csv",
+              "size": 1024,
+              "type": "text/csv",
+              "key": "workspace/example/data.csv",
+              "folderPath": "/",
+              "uploadedByEmail": "jane@example.com",
+              "uploadedAt": "2026-01-15T10:30:00Z",
+              "updatedAt": "2026-01-15T10:30:00Z",
+              "deletedAt": null
+            }
+          }
+        ]
+      },
+      "RestoreFileRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace that owns the archived file."
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Restore file request",
+        "description": "Workspace scope for the archived file.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+          }
+        ]
+      },
       "V2FileShare": {
         "type": "object",
         "properties": {
@@ -2812,6 +2969,19 @@
             "format": "date-time",
             "examples": ["2026-01-15T10:30:00Z"]
           },
+          "deletedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the file was archived by `DELETE /files/{fileId}`, or null while the file is active. Only `GET /files?scope=archived` returns files with a non-null value.",
+            "format": "date-time",
+            "examples": ["2026-01-16T09:00:00Z"]
+          },
           "share": {
             "anyOf": [
               {
@@ -2834,6 +3004,7 @@
           "uploadedByEmail",
           "uploadedAt",
           "updatedAt",
+          "deletedAt",
           "share"
         ],
         "additionalProperties": false,
@@ -2864,6 +3035,7 @@
               "uploadedByEmail": "jane@example.com",
               "uploadedAt": "2026-01-15T10:30:00Z",
               "updatedAt": "2026-01-15T10:30:00Z",
+              "deletedAt": null,
               "share": null
             }
           },
@@ -2878,6 +3050,7 @@
               "uploadedByEmail": "jane@example.com",
               "uploadedAt": "2026-01-15T10:30:00Z",
               "updatedAt": "2026-01-15T10:30:00Z",
+              "deletedAt": null,
               "share": {
                 "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
                 "token": "share-token-example",

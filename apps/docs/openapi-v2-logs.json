@@ -85,20 +85,24 @@
             "name": "startDate",
             "in": "query",
             "required": false,
-            "description": "Only include runs started at or after this ISO 8601 timestamp.",
+            "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.",
             "schema": {
               "type": "string",
-              "description": "Only include runs started at or after this ISO 8601 timestamp."
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected."
             }
           },
           {
             "name": "endDate",
             "in": "query",
             "required": false,
-            "description": "Only include runs started at or before this ISO 8601 timestamp.",
+            "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.",
             "schema": {
               "type": "string",
-              "description": "Only include runs started at or before this ISO 8601 timestamp."
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected."
             }
           },
           {
@@ -657,7 +661,7 @@
               "failed",
               "cancelled"
             ],
-            "description": "Current execution status. `redacting` is transient while run output is scrubbed. `paused` is reported when a resume attempt did not run to completion and the run is waiting to be resumed again."
+            "description": "Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not run to completion and the run is waiting to be resumed again. **This differs from the run resources for the same run:** `GET /api/v2/workflows/{id}/runs` and `GET /api/v2/workflows/{id}/runs/{runId}` additionally report `paused` for a run held at a human-in-the-loop pause point, which this field reports as `pending`. Use the run resources when the pause state matters."
           },
           "level": {
             "type": "string",
@@ -1053,7 +1057,7 @@
               "failed",
               "cancelled"
             ],
-            "description": "Current execution status. `redacting` is transient while run output is scrubbed. `paused` is reported when a resume attempt did not run to completion and the run is waiting to be resumed again."
+            "description": "Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not run to completion and the run is waiting to be resumed again. **This differs from the run resources for the same run:** `GET /api/v2/workflows/{id}/runs` and `GET /api/v2/workflows/{id}/runs/{runId}` additionally report `paused` for a run held at a human-in-the-loop pause point, which this field reports as `pending`. Use the run resources when the pause state matters."
           },
           "level": {
             "type": "string",

@@ -1455,6 +1455,82 @@
         }
       }
     },
+    "/api/v2/tables/{tableId}/query/count": {
+      "post": {
+        "operationId": "countTableRows",
+        "summary": "Count Rows",
+        "description": "Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and rowCount on the table resource counts every row rather than the predicate matches. Omit the predicate to count the whole table.",
+        "tags": ["Tables"],
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "description": "Unique table identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique table identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and the optional predicate whose matches are counted.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CountTableRowsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The number of matching table rows.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2CountTableRowsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/tables/{tableId}/views": {
       "get": {
         "operationId": "listTableViews",
@@ -4172,6 +4248,10 @@
                       "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
                       "description": "Column data type."
                     },
+                    "required": {
+                      "description": "Whether inserts must supply a value for this column.",
+                      "type": "boolean"
+                    },
                     "unique": {
                       "description": "Whether values in the column must be unique.",
                       "type": "boolean"
@@ -4450,6 +4530,10 @@
                 "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
                 "description": "Column data type."
               },
+              "required": {
+                "description": "Whether inserts must supply a value for this column.",
+                "type": "boolean"
+              },
               "unique": {
                 "description": "Whether values in the column must be unique.",
                 "type": "boolean"
@@ -4541,6 +4625,10 @@
                 "type": "string",
                 "enum": ["string", "number", "currency", "boolean", "date", "json", "select"]
               },
+              "required": {
+                "description": "Whether inserts must supply a value for this column.",
+                "type": "boolean"
+              },
               "unique": {
                 "description": "Whether values in the column must be unique.",
                 "type": "boolean"
@@ -4612,6 +4700,7 @@
           }
         },
         "required": ["workspaceId", "columnName"],
+        "additionalProperties": false,
         "title": "Delete table column request",
         "description": "Workspace scope and column name to delete.",
         "examples": [
@@ -4773,7 +4862,8 @@
                 "description": "Rows to insert, with cells keyed by column name."
               }
             },
-            "required": ["workspaceId", "rows"]
+            "required": ["workspaceId", "rows"],
+            "additionalProperties": false
           },
           {
             "type": "object",
@@ -4798,7 +4888,8 @@
                 "minLength": 1
               }
             },
-            "required": ["workspaceId", "data"]
+            "required": ["workspaceId", "data"],
+            "additionalProperties": false
           }
         ],
         "title": "Create table rows request",
@@ -4869,6 +4960,7 @@
           }
         },
         "required": ["workspaceId", "filter", "data"],
+        "additionalProperties": false,
         "title": "Update table rows request",
         "description": "Workspace scope, typed predicate, and row-data patch."
       },
@@ -4945,6 +5037,7 @@
           }
         },
         "required": ["workspaceId"],
+        "additionalProperties": false,
         "title": "Delete table rows request",
         "description": "Workspace scope and exactly one of a predicate or row identifier list.",
         "examples": [
@@ -4981,6 +5074,7 @@
           }
         },
         "required": ["workspaceId", "data"],
+        "additionalProperties": false,
         "title": "Update table row request",
         "description": "Workspace scope and row-data patch keyed by column name.",
         "examples": [
@@ -5073,6 +5167,7 @@
           }
         },
         "required": ["workspaceId", "data"],
+        "additionalProperties": false,
         "title": "Upsert table row request",
         "description": "Workspace scope, row data, and optional unique-column conflict target.",
         "examples": [
@@ -5159,6 +5254,7 @@
           }
         },
         "required": ["workspaceId"],
+        "additionalProperties": false,
         "title": "Query table rows request",
         "description": "Workspace scope, optional predicate and sort, and cursor pagination controls.",
         "examples": [
@@ -5180,6 +5276,65 @@
               }
             ],
             "limit": 100
+          }
+        ]
+      },
+      "V2QueryRowsCountData": {
+        "type": "object",
+        "properties": {
+          "totalCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of rows matching the predicate across the entire table."
+          }
+        },
+        "required": ["totalCount"],
+        "additionalProperties": false,
+        "title": "Query rows count data",
+        "description": "Total number of table rows matching a predicate."
+      },
+      "V2CountTableRowsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2QueryRowsCountData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Count table rows response",
+        "description": "The total number of table rows matching the predicate."
+      },
+      "CountTableRowsRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique workspace identifier."
+          },
+          "predicate": {
+            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Count table rows request",
+        "description": "Workspace scope and the optional predicate whose matches are counted.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "predicate": {
+              "all": [
+                {
+                  "field": "status",
+                  "op": "eq",
+                  "value": "active"
+                }
+              ]
+            }
           }
         ]
       },
@@ -5460,6 +5615,7 @@
           }
         },
         "required": ["workspaceId", "name", "config"],
+        "additionalProperties": false,
         "title": "Create table view request",
         "description": "Workspace scope, name, and saved filter, sort, and layout configuration."
       },
@@ -5651,6 +5807,7 @@
           }
         },
         "required": ["workspaceId"],
+        "additionalProperties": false,
         "title": "Update table view request",
         "description": "Workspace scope and one or more saved-view changes."
       },
@@ -6488,6 +6645,7 @@
           }
         },
         "required": ["workspaceId", "groupIds"],
+        "additionalProperties": false,
         "title": "Run table columns request",
         "description": "Workspace scope, producer groups, execution mode, and optional row scope.",
         "examples": [
@@ -6520,6 +6678,7 @@
           }
         },
         "required": ["workspaceId"],
+        "additionalProperties": false,
         "title": "Run row enrichment request",
         "description": "Workspace scope for the row enrichment.",
         "examples": [
@@ -6622,6 +6781,7 @@
           }
         },
         "required": ["workspaceId", "q"],
+        "additionalProperties": false,
         "title": "Find table rows request",
         "description": "Workspace scope, substring query, and optional predicate and sort.",
         "examples": [
@@ -7624,6 +7784,7 @@
           }
         },
         "required": ["workspaceId"],
+        "additionalProperties": false,
         "title": "Create table export request",
         "description": "Workspace scope and export format.",
         "examples": [
@@ -7754,6 +7915,7 @@
           }
         },
         "required": ["workspaceId", "scope"],
+        "additionalProperties": false,
         "title": "Cancel table runs request",
         "description": "Workspace scope, cancellation scope, and optional predicate or producer groups.",
         "examples": [
