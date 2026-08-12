@@ -5,6 +5,8 @@
  */
 import {
   dbChainMockFns,
+  encryptionMock,
+  encryptionMockFns,
   hybridAuthMockFns,
   permissionsMock,
   permissionsMockFns,
@@ -30,6 +32,8 @@ const {
   mockSerializeBillingAttributionHeader: vi.fn(),
   fetchMock: vi.fn(),
 }))
+
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   BILLING_ATTRIBUTION_HEADER: 'x-sim-billing-attribution',
@@ -99,6 +103,9 @@ describe('MCP Serve Route', () => {
     )
     mockAssertBillingAttributionSnapshot.mockImplementation((value: unknown) => value)
     mockSerializeBillingAttributionHeader.mockReturnValue('serialized-attribution')
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: `decrypted:${encryptedValue}`,
+    }))
   })
 
   afterEach(() => {
@@ -1119,6 +1126,232 @@ describe('MCP Serve Route', () => {
 
     expect(response.status).toBe(200)
     expect(JSON.parse(body.result.content[0].text)).toEqual(['a', 'b'])
+  })
+
+  it('serves a public tool whose workflow was authored by someone other than the actor', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          id: 'server-1',
+          name: 'Public Server',
+          workspaceId: 'ws-1',
+          isPublic: true,
+          createdBy: 'owner-1',
+        },
+      ])
+      .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
+    mockExecuteWorkflowService.mockResolvedValueOnce({
+      ok: true,
+      executionId: 'exec-1',
+      workflowId: 'wf-1',
+      status: 'completed',
+      aborted: null,
+      output: { ok: true },
+      error: null,
+      hasResponseBlock: false,
+      resolvedSecretTraceProvenance: createResolvedSecretTraceProvenance('author-2'),
+    })
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'tool_a', arguments: { q: 'test' } },
+      }),
+    })
+    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(body.result.content[0].text)).toEqual({ ok: true })
+  })
+
+  it('serves a private tool whose workflow was authored by someone other than the caller', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          id: 'server-1',
+          name: 'Private Server',
+          workspaceId: 'ws-1',
+          isPublic: false,
+          createdBy: 'owner-1',
+        },
+      ])
+      .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
+    /**
+     * `vi.clearAllMocks()` does not drain `mockResolvedValueOnce` queues, and a public-server
+     * test never reaches `checkHybridAuth`, so an earlier queued auth would be consumed here.
+     */
+    hybridAuthMockFns.mockCheckHybridAuth.mockReset()
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
+      success: true,
+      userId: 'user-1',
+      authType: 'api_key',
+      apiKeyType: 'workspace',
+      workspaceId: 'ws-1',
+    })
+    mockGetUserEntityPermissions.mockResolvedValueOnce('write')
+    mockExecuteWorkflowService.mockResolvedValueOnce({
+      ok: true,
+      executionId: 'exec-1',
+      workflowId: 'wf-1',
+      status: 'completed',
+      aborted: null,
+      output: { ok: true },
+      error: null,
+      hasResponseBlock: false,
+      resolvedSecretTraceProvenance: createResolvedSecretTraceProvenance('author-2'),
+    })
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      headers: { 'X-API-Key': 'wsk_test_123' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'tool_a', arguments: { q: 'test' } },
+      }),
+    })
+    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(body.result.content[0].text)).toEqual({ ok: true })
+  })
+
+  it('anonymizes an author-scoped secret label when the actor is not the author', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          id: 'server-1',
+          name: 'Public Server',
+          workspaceId: 'ws-1',
+          isPublic: true,
+          createdBy: 'owner-1',
+        },
+      ])
+      .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
+    mockExecuteWorkflowService.mockResolvedValueOnce({
+      ok: true,
+      executionId: 'exec-1',
+      workflowId: 'wf-1',
+      status: 'completed',
+      aborted: null,
+      output: { leaked: 'decrypted:author-ciphertext' },
+      error: null,
+      hasResponseBlock: false,
+      resolvedSecretTraceProvenance: {
+        ...createResolvedSecretTraceProvenance('author-2'),
+        entries: [{ name: 'AUTHOR_TOKEN', encryptedValue: 'author-ciphertext' }],
+      },
+    })
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'tool_a', arguments: { q: 'test' } },
+      }),
+    })
+    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(body.result.content[0].text)).toEqual({ leaked: '[REDACTED_SECRET]' })
+    expect(body.result.content[0].text).not.toContain('AUTHOR_TOKEN')
+  })
+
+  it('keeps the author-scoped secret label when the actor is the author', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          id: 'server-1',
+          name: 'Public Server',
+          workspaceId: 'ws-1',
+          isPublic: true,
+          createdBy: 'owner-1',
+        },
+      ])
+      .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
+    mockExecuteWorkflowService.mockResolvedValueOnce({
+      ok: true,
+      executionId: 'exec-1',
+      workflowId: 'wf-1',
+      status: 'completed',
+      aborted: null,
+      output: { leaked: 'decrypted:owner-ciphertext' },
+      error: null,
+      hasResponseBlock: false,
+      resolvedSecretTraceProvenance: {
+        ...createResolvedSecretTraceProvenance('owner-1'),
+        entries: [{ name: 'OWNER_TOKEN', encryptedValue: 'owner-ciphertext' }],
+      },
+    })
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'tool_a', arguments: { q: 'test' } },
+      }),
+    })
+    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(body.result.content[0].text)).toEqual({ leaked: '{{OWNER_TOKEN}}' })
+  })
+
+  it('refuses a tool result whose provenance was stamped for another workspace', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          id: 'server-1',
+          name: 'Public Server',
+          workspaceId: 'ws-1',
+          isPublic: true,
+          createdBy: 'owner-1',
+        },
+      ])
+      .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
+    mockExecuteWorkflowService.mockResolvedValueOnce({
+      ok: true,
+      executionId: 'exec-1',
+      workflowId: 'wf-1',
+      status: 'completed',
+      aborted: null,
+      output: { ok: true },
+      error: null,
+      hasResponseBlock: false,
+      resolvedSecretTraceProvenance: createResolvedSecretTraceProvenance('owner-1', 'ws-other'),
+    })
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'tool_a', arguments: { q: 'test' } },
+      }),
+    })
+    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body.error.code).toBe(-32603)
   })
 
   it('rejects duplicate tool names instead of choosing an arbitrary workflow', async () => {
