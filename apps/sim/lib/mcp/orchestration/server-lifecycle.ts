@@ -91,6 +91,13 @@ export interface PerformMcpServerResult {
   updated?: boolean
   authType?: McpAuthType
   configurationChanged?: boolean
+  /**
+   * Fields the update's SET clause wrote, minus `updatedAt`, for audit. Only
+   * the writer knows these: a param is not a write, and callers cannot see the
+   * `connectionStatus`/`lastConnected`/`lastError` reset that an auth or
+   * credential change forces. Record this instead of deriving names from input.
+   */
+  updatedFields?: string[]
 }
 
 export type McpServerMutationAction = 'create' | 'update' | 'delete'
@@ -389,7 +396,12 @@ export async function updateMcpServer(
       params.timeout !== undefined ||
       params.retries !== undefined
 
-    return { success: true, server, configurationChanged: shouldClearCache }
+    return {
+      success: true,
+      server,
+      configurationChanged: shouldClearCache,
+      updatedFields: Object.keys(updateData).filter((key) => key !== 'updatedAt'),
+    }
   } catch (error) {
     logger.error('Failed to update MCP server', { error })
     throw error
@@ -501,15 +513,7 @@ export async function performUpdateMcpServer(
         serverName: result.server.name,
         transport: result.server.transport,
         url: result.server.url,
-        updatedFields: Object.entries(params)
-          .filter(
-            ([key, value]) =>
-              value !== undefined &&
-              !['workspaceId', 'userId', 'serverId', 'actorName', 'actorEmail', 'request'].includes(
-                key
-              )
-          )
-          .map(([key]) => key),
+        updatedFields: result.updatedFields ?? [],
       },
       request: params.request,
     })

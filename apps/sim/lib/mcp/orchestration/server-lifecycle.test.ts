@@ -3,6 +3,7 @@
  */
 import {
   auditMock,
+  auditMockFns,
   dbChainMock,
   dbChainMockFns,
   encryptionMock,
@@ -64,6 +65,9 @@ import {
 } from '@/lib/mcp/orchestration/server-lifecycle'
 
 describe('MCP server lifecycle orchestration', () => {
+  const auditUpdatedFields = (): string[] | undefined =>
+    auditMockFns.mockRecordAudit.mock.calls.at(-1)?.[0].metadata.updatedFields
+
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -151,6 +155,48 @@ describe('MCP server lifecycle orchestration', () => {
     )
     // ...and revoke the now-orphaned OAuth tokens rather than leaving them stored and valid.
     expect(mockRevokeOauthTokens).toHaveBeenCalledWith('server-1', 'workspace-1')
+    // The reset columns are the point of this audit row — an auditor needs to see
+    // that the connection was invalidated, not just that authType was touched.
+    expect(auditUpdatedFields()).toEqual(
+      expect.arrayContaining(['authType', 'connectionStatus', 'lastConnected', 'lastError'])
+    )
+  })
+
+  it('audits only the columns an edit wrote, not the params it was handed', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Renamed',
+        transport: 'streamable-http',
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+      },
+    ])
+
+    // A rename from the settings modal: the route always sends the OAuth params.
+    const result = await performUpdateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+      name: 'Renamed',
+      oauthClientId: null,
+      oauthClientIdProvided: false,
+      oauthClientSecretProvided: false,
+    })
+
+    expect(result.success).toBe(true)
+    // `updatedAt` is excluded deliberately — it moves on every write, so it would
+    // be noise in every audit row.
+    expect(auditUpdatedFields()).toEqual(['name'])
   })
 
   it('resets to disconnected when a create/upsert flips an existing OAuth server to headers', async () => {
