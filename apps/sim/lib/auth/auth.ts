@@ -38,6 +38,7 @@ import {
 } from '@/lib/auth/constants'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
+import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
@@ -45,6 +46,12 @@ import {
   authorizeSubscriptionReference,
   isPersonalCheckoutRequest,
 } from '@/lib/billing/authorization'
+import {
+  type CheckoutAdmissionClaim,
+  claimCheckoutAdmission,
+  releaseCheckoutAdmission,
+  resolveCheckoutReferenceId,
+} from '@/lib/billing/checkout-admission'
 import {
   getOrganizationIdForSubscriptionReference,
   syncSubscriptionPlan,
@@ -1008,12 +1015,38 @@ export const auth = betterAuth({
       if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
         const session = await getSessionFromCtx(ctx)
         const sessionUserId = session?.user?.id
-        if (sessionUserId && isPersonalCheckoutRequest(ctx.body ?? {}, sessionUserId)) {
-          await assertPersonalCheckoutAllowed(sessionUserId)
+        if (sessionUserId) {
+          const requestBody = ctx.body ?? {}
+          const referenceId = resolveCheckoutReferenceId(
+            requestBody,
+            sessionUserId,
+            getActiveOrganizationId(session)
+          )
+          if (referenceId) {
+            const checkoutAdmissionClaim = await claimCheckoutAdmission(referenceId)
+            try {
+              if (isPersonalCheckoutRequest(requestBody, sessionUserId)) {
+                await assertPersonalCheckoutAllowed(sessionUserId)
+              }
+            } catch (error) {
+              await releaseCheckoutAdmission(checkoutAdmissionClaim)
+              throw error
+            }
+            return { context: { billingCheckoutAdmissionClaim: checkoutAdmissionClaim } }
+          }
         }
       }
 
       return
+    }),
+    after: createAuthMiddleware(async (ctx) => {
+      if (!isBillingEnabled || ctx.path !== '/subscription/upgrade') return
+      const context = ctx.context as typeof ctx.context & {
+        billingCheckoutAdmissionClaim?: CheckoutAdmissionClaim
+      }
+      if (context.billingCheckoutAdmissionClaim) {
+        await releaseCheckoutAdmission(context.billingCheckoutAdmissionClaim)
+      }
     }),
   },
   plugins: [

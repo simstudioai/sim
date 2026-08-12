@@ -86,17 +86,20 @@ function guardWriteSurface<TAdapter extends SubscriptionWriteSurface>(
         })
 
         if (row && attemptsStripeSubscriptionRebind(row, data.update)) {
+          const rejectedStripeSubscriptionId = (data.update as { stripeSubscriptionId: string })
+            .stripeSubscriptionId
           logger.error(
             'Blocked rebinding an existing subscription to a different Stripe subscription',
             {
               subscriptionId: row.id,
               referenceId: row.referenceId,
               currentStripeSubscriptionId: row.stripeSubscriptionId,
-              rejectedStripeSubscriptionId: (data.update as { stripeSubscriptionId: string })
-                .stripeSubscriptionId,
+              rejectedStripeSubscriptionId,
             }
           )
-          return null as never
+          throw new Error(
+            `Subscription ${row.id} is already bound to Stripe subscription ${row.stripeSubscriptionId}; refusing to bind ${rejectedStripeSubscriptionId}`
+          )
         }
 
         if (!hasNonOrgPlanWrite(data.update)) return adapter.update(data)

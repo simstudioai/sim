@@ -160,18 +160,19 @@ describe('guardSubscriptionPlanWrites', () => {
     base.findOne.mockResolvedValueOnce(personalPro)
 
     const guarded = asAdapter(base)
-    const result = await guarded.update({
-      model: 'subscription',
-      where: [{ field: 'id', value: personalPro.id }] as never,
-      update: {
-        stripeSubscriptionId: 'sub_enterprise',
-        status: 'active',
-        periodEnd: new Date('2026-09-11T18:36:09Z'),
-        billingInterval: 'month',
-      },
-    })
+    await expect(
+      guarded.update({
+        model: 'subscription',
+        where: [{ field: 'id', value: personalPro.id }] as never,
+        update: {
+          stripeSubscriptionId: 'sub_enterprise',
+          status: 'active',
+          periodEnd: new Date('2026-09-11T18:36:09Z'),
+          billingInterval: 'month',
+        },
+      })
+    ).rejects.toThrow(/already bound to Stripe subscription sub_personal_pro/)
 
-    expect(result).toBeNull()
     expect(base.update).not.toHaveBeenCalled()
   })
 
