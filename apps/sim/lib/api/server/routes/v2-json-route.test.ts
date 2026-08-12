@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
-import type { ParsedRequest } from '@/lib/api/server/validation'
+import type { ParsedRequest, ParseRequestOptions } from '@/lib/api/server/validation'
 import type { OperationUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
@@ -88,6 +88,7 @@ interface HandlerOverrides {
   }) => void | Promise<void>
   present?: (result: Result) => { data: { value: string } } | Promise<{ data: { value: string } }>
   statusForResult?: (result: Result) => number
+  parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
 }
 
 function createHandler(overrides: HandlerOverrides = {}) {
@@ -111,6 +112,7 @@ function createHandler(overrides: HandlerOverrides = {}) {
     present: overrides.present ?? ((result) => ({ data: result })),
     onSuccess: overrides.onSuccess,
     statusForResult: overrides.statusForResult,
+    parseOptions: overrides.parseOptions,
   })
 }
 
@@ -119,6 +121,22 @@ function request(body: unknown = { value: 'ok' }): NextRequest {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
     body: JSON.stringify(body),
+  })
+}
+
+/**
+ * A body the size guard rejects on the declared `content-length` alone, which is
+ * how an oversized request is refused before any of it is buffered.
+ */
+function oversizedRequest(maxBodyBytes: number): NextRequest {
+  return new NextRequest('http://localhost/api/v2/widgets', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': 'secret',
+      'content-length': String(maxBodyBytes + 1),
+    },
+    body: JSON.stringify({ value: 'ok' }),
   })
 }
 
@@ -416,6 +434,38 @@ describe('defineV2JsonRoute', () => {
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toEqual({
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    })
+  })
+
+  it('renders an oversized body in the v2 error envelope without a per-route override', async () => {
+    const maxBodyBytes = 64
+    const response = await createHandler({ parseOptions: { maxBodyBytes } })(
+      oversizedRequest(maxBodyBytes)
+    )
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' },
+    })
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+  })
+
+  it('lets a route override the default payload-too-large response', async () => {
+    const maxBodyBytes = 64
+    const response = await createHandler({
+      parseOptions: {
+        maxBodyBytes,
+        payloadTooLargeResponse: () =>
+          NextResponse.json(
+            { error: { code: 'PAYLOAD_TOO_LARGE', message: 'Import archive is too large' } },
+            { status: 413 }
+          ),
+      },
+    })(oversizedRequest(maxBodyBytes))
+
+    expect(response.status).toBe(413)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Import archive is too large' },
     })
   })
 })

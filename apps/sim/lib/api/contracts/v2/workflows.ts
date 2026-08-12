@@ -36,6 +36,7 @@ import {
   workflowIdParamsSchema,
 } from '@/lib/api/contracts/workflows'
 import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
+import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
 
@@ -981,17 +982,56 @@ export const v2ResumeWorkflowContract = defineRouteContract({
   },
 })
 
-export const v2WorkflowRunStatusValueSchema = z.enum([
-  'queued',
+/**
+ * Every status the execution logger can persist into `workflow_execution_logs.status`,
+ * including the transient `redacting` state written while a finished run's output is
+ * scrubbed. The column is free text and both run endpoints pass it straight through, so
+ * a value missing here fails the response parse — and because list validation is
+ * whole-page, one such row turns an entire page into a 500. `_ExhaustiveRunStatus` makes
+ * a future addition to the persisted union a compile error instead.
+ */
+const V2_PERSISTED_RUN_STATUSES = [
   'pending',
   'running',
+  'redacting',
   'completed',
   'failed',
   'cancelled',
-  'paused',
-])
+] as const satisfies readonly PersistedWorkflowExecutionStatus[]
 
-export const v2WorkflowRunListStatusValueSchema = z.enum([
+type AssertNever<T extends never> = T
+type _ExhaustiveRunStatus = AssertNever<
+  Exclude<PersistedWorkflowExecutionStatus, (typeof V2_PERSISTED_RUN_STATUSES)[number]>
+>
+
+/**
+ * The list projection overlays `paused` onto the persisted status whenever the run has a
+ * `paused` or `partially_resumed` row in `paused_executions`. It cannot report `queued`:
+ * a run that is still only in the job queue has no log row to list.
+ */
+const V2_WORKFLOW_RUN_LIST_STATUSES = [...V2_PERSISTED_RUN_STATUSES, 'paused'] as const
+
+const RUN_STATUS_DESCRIPTION =
+  'Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed.'
+
+export const v2WorkflowRunListStatusValueSchema = z
+  .enum(V2_WORKFLOW_RUN_LIST_STATUSES)
+  .describe(RUN_STATUS_DESCRIPTION)
+
+/**
+ * The single-run read additionally consults the async job queue by deterministic job id,
+ * so a run accepted but not yet started reports `queued` rather than 404.
+ */
+export const v2WorkflowRunStatusValueSchema = z
+  .enum([...V2_WORKFLOW_RUN_LIST_STATUSES, 'queued'])
+  .describe(RUN_STATUS_DESCRIPTION)
+
+/**
+ * Statuses accepted by the run-list `status` filter. Narrower than the reported set on
+ * purpose: the filter compares against the same projection, and `redacting` is a
+ * sub-second window nothing can usefully page through.
+ */
+export const v2WorkflowRunStatusFilterSchema = z.enum([
   'pending',
   'running',
   'completed',
@@ -1002,7 +1042,7 @@ export const v2WorkflowRunListStatusValueSchema = z.enum([
 
 export const v2ListWorkflowRunsQuerySchema = z
   .object({
-    status: v2WorkflowRunListStatusValueSchema.optional().describe('Filter by run status.'),
+    status: v2WorkflowRunStatusFilterSchema.optional().describe('Filter by run status.'),
     trigger: z
       .string()
       .min(1, 'trigger cannot be empty')
@@ -1071,7 +1111,7 @@ export const v2WorkflowRunListItemSchema = z
   .object({
     runId: v2WorkflowRunIdSchema,
     workflowId: z.string().describe('Workflow that produced the run.'),
-    status: v2WorkflowRunListStatusValueSchema.describe('Current or terminal run status.'),
+    status: v2WorkflowRunListStatusValueSchema,
     trigger: z.string().describe('Trigger type that started the run.'),
     startedAt: z
       .string()
@@ -1120,7 +1160,7 @@ export const v2WorkflowRunStatusSchema = z
   .object({
     runId: v2WorkflowRunIdSchema,
     workflowId: z.string().describe('Workflow that produced the run.'),
-    status: v2WorkflowRunStatusValueSchema.describe('Current or terminal run status.'),
+    status: v2WorkflowRunStatusValueSchema,
     trigger: z.string().nullable().describe('Trigger type, or null before the run is recorded.'),
     startedAt: z
       .string()

@@ -460,7 +460,7 @@ const routes = [
       operationId: 'listAuditLogs',
       summary: 'List Audit Logs',
       description: `List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...STANDARD_ERRORS, 'BadRequest', 'Forbidden'],
+      errors: [...VALIDATED_ERRORS, 'Forbidden', 'NotFound'],
       success: { description: 'A page of audit-log entries.' },
     }),
     {

@@ -23,7 +23,6 @@ export const POST = defineV2JsonRoute({
   parseOptions: {
     optionalJsonBody: true,
     invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
-    payloadTooLargeResponse: () => v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large'),
   },
   mapInput: ({ params, body }) => ({
     workflowId: params.id,

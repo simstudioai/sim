@@ -101,6 +101,16 @@ export const v2RateLimits = {
   } satisfies V2RateLimitPolicy,
 } as const
 
+/**
+ * Default `413` for every v2 JSON route. `parseRequest` otherwise falls back to its
+ * framework-level body, a bare `{ "error": string }` that carries no `error.code`, is not
+ * the v2 error envelope, and omits the `Cache-Control: private, no-store` every other v2
+ * response sets. Declared here so a route only has to set `parseOptions.maxBodyBytes` to
+ * get a correct 413; a route that supplies its own `payloadTooLargeResponse` still wins.
+ */
+export const v2PayloadTooLargeResponse = () =>
+  v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large')
+
 export interface V2ErrorPolicy {
   render(error: unknown): NextResponse | null
 }
@@ -240,6 +250,7 @@ export function defineV2JsonRoute<
       }
 
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
+        payloadTooLargeResponse: v2PayloadTooLargeResponse,
         ...options.parseOptions,
         validationErrorResponse: v2ValidationError,
       })
