@@ -54,7 +54,7 @@ export const GET = defineInternalJsonRoute({
   auth: internalKnowledgeSessionOrExecutorAuth,
   operation: knowledgeOperations.listChunks,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal chunk-list behavior' }),
-  errorPolicy: internalKnowledgeErrorPolicies.chunks,
+  errorPolicy: internalKnowledgeErrorPolicies.chunkList,
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     documentId: params.documentId,

@@ -2,6 +2,7 @@ import {
   createInternalResourceConcealmentPolicy,
   createInternalSessionOrExecutorAuth,
   createV2ResourceConcealmentPolicy,
+  extendInternalErrorPolicy,
   type InternalErrorPolicy,
   internalErrorResponse,
   internalOrchestrationErrorPolicy,
@@ -11,6 +12,7 @@ import {
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
+import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import { KnowledgeSearchProvenanceUnavailableError } from '@/lib/knowledge/application/search'
 import { KnowledgeDocumentUnsupportedMediaTypeError } from '@/lib/knowledge/application/upload-sessions'
 import { v2Error } from '@/app/api/v2/lib/response'
@@ -81,6 +83,19 @@ export const internalKnowledgeErrorPolicies = {
   ),
   chunks: concealKnowledgeBase(
     internalKnowledgeErrorPolicy('Failed to process knowledge chunk request')
+  ),
+  chunkList: concealKnowledgeBase(
+    extendInternalErrorPolicy(
+      internalKnowledgeErrorPolicy('Failed to process knowledge chunk request'),
+      (error) =>
+        error instanceof KnowledgeDocumentNotReadyError
+          ? internalErrorResponse(400, {
+              error: 'Document is not ready for access',
+              details: `Document status: ${error.processingStatus}`,
+              retryAfter: error.processingStatus === 'processing' ? 5 : null,
+            })
+          : null
+    )
   ),
   upsert: concealKnowledgeBase(internalKnowledgeUploadErrorPolicy),
   search: concealKnowledgeBase(internalKnowledgeSearchErrorPolicy),

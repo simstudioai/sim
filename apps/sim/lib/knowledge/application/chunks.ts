@@ -7,6 +7,7 @@ import {
 } from '@/lib/execution/durable-secret-provenance'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
+import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import {
   type ActiveKnowledgeDocumentContext,
   resolveActiveKnowledgeChunkContext,
@@ -62,10 +63,7 @@ export interface BulkKnowledgeChunksInput extends KnowledgeDocumentChunkInput {
 
 function requireChunkReadable(context: ActiveKnowledgeDocumentContext): void {
   if (context.document.processingStatus !== 'completed') {
-    throw new OrchestrationError(
-      'validation',
-      `Document is not ready for access (status: ${context.document.processingStatus})`
-    )
+    throw new KnowledgeDocumentNotReadyError(context.document.processingStatus)
   }
 }
 
