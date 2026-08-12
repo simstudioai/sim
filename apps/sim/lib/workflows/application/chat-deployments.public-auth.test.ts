@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
-    canSetPublicChatAuth: vi.fn(),
+    canExposePublicly: vi.fn(),
     validateChatDeployAuth: vi.fn(),
     resolveContext: vi.fn(),
     resolvePermission: vi.fn(),
@@ -49,8 +49,8 @@ vi.mock('drizzle-orm', () => ({
   isNull: vi.fn(),
 }))
 
-vi.mock('@/lib/chat/permissions', () => ({
-  canSetPublicChatAuth: mocks.canSetPublicChatAuth,
+vi.mock('@/lib/deployments/public-exposure', () => ({
+  canExposePublicly: mocks.canExposePublicly,
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => {
@@ -107,7 +107,7 @@ describe('copilot chat deploy cannot bypass the public-chat admin gate', () => {
   })
 
   it('rejects a write principal defaulting to public', async () => {
-    mocks.canSetPublicChatAuth.mockResolvedValue(false)
+    mocks.canExposePublicly.mockResolvedValue(false)
 
     await expect(
       deployWorkflowChat.execute({
@@ -127,7 +127,7 @@ describe('copilot chat deploy cannot bypass the public-chat admin gate', () => {
   })
 
   it('allows a write principal to deploy a password-protected chat', async () => {
-    mocks.canSetPublicChatAuth.mockResolvedValue(false)
+    mocks.canExposePublicly.mockResolvedValue(false)
 
     await deployWorkflowChat.execute({
       principal: WRITE_PRINCIPAL,
@@ -144,11 +144,11 @@ describe('copilot chat deploy cannot bypass the public-chat admin gate', () => {
     })
 
     expect(mocks.chatDeploy).toHaveBeenCalled()
-    expect(mocks.canSetPublicChatAuth).not.toHaveBeenCalled()
+    expect(mocks.canExposePublicly).not.toHaveBeenCalled()
   })
 
   it('allows an admin principal to deploy a public chat', async () => {
-    mocks.canSetPublicChatAuth.mockResolvedValue(true)
+    mocks.canExposePublicly.mockResolvedValue(true)
 
     await deployWorkflowChat.execute({
       principal: WRITE_PRINCIPAL,

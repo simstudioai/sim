@@ -8,11 +8,11 @@ import type { NextRequest } from 'next/server'
 import { chatIdParamsSchema, updateChatContract } from '@/lib/api/contracts/chats'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { canSetPublicChatAuth } from '@/lib/chat/permissions'
 import { isDev } from '@/lib/core/config/env-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { canExposePublicly } from '@/lib/deployments/public-exposure'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import {
   getWorkflowDeploymentSummary,
@@ -130,10 +130,7 @@ export const PATCH = withRouteHandler(
       if (authType && authType !== existingChatRecord.authType && chatWorkspaceId) {
         // Only the transition *to* public is admin-gated. Leaving an already-public
         // chat as-is, or moving it off public, does not increase exposure.
-        if (
-          authType === 'public' &&
-          !(await canSetPublicChatAuth(session.user.id, chatWorkspaceId))
-        ) {
+        if (authType === 'public' && !(await canExposePublicly(session.user.id, chatWorkspaceId))) {
           return createErrorResponse('Only admins can make a chat public', 403)
         }
 

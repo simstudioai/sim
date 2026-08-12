@@ -1,9 +1,14 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import {
+  type Principal,
+  requirePrincipalSubjectUserId,
+  resolvePrincipalAttribution,
+} from '@sim/auth/principal'
 import { db, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { canExposePublicly } from '@/lib/deployments/public-exposure'
 import { mcpServerDelegationPolicy } from '@/lib/mcp/application/authorization'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
@@ -147,12 +152,37 @@ export interface CreateWorkflowMcpDeploymentServerInput {
   workflowIds?: string[]
 }
 
+/**
+ * A public workflow MCP server skips authentication entirely on the serve path
+ * (`api/mcp/serve/[serverId]` returns early when `isPublic`), so anyone with the
+ * URL can invoke every workflow published on it. That is the same
+ * unauthenticated exposure this codebase keeps admin-only for the public
+ * workflow API and public chats — creating or updating the server itself needs
+ * only `write`, but flipping it public needs `admin`.
+ *
+ * Only a transition *to* public is gated; `isPublic: false` and omitted values
+ * pass through, since neither increases exposure.
+ */
+async function assertCanSetPublicExposure(
+  principal: Principal,
+  workspaceId: string,
+  isPublic: boolean | undefined
+): Promise<void> {
+  if (isPublic !== true) return
+  const subjectUserId = requirePrincipalSubjectUserId(principal)
+  if (!(await canExposePublicly(subjectUserId, workspaceId))) {
+    throw new OrchestrationError('forbidden', 'Only admins can make an MCP server public')
+  }
+}
+
 export const createWorkflowMcpDeploymentServer = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.createWorkflowDeploymentServer,
   resolveContext: ({ input }: { input: CreateWorkflowMcpDeploymentServerInput }) =>
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
   async execute({ principal, input, context }) {
+    await assertCanSetPublicExposure(principal, context.workspaceId, input.isPublic)
+
     const result = await performCreateWorkflowMcpServer({
       ...input,
       workspaceId: context.workspaceId,
@@ -201,6 +231,8 @@ export const updateWorkflowMcpDeploymentServer = defineAuthorizedWorkspaceUseCas
     resolveServerContext(input.serverId),
   authorizationOptions,
   async execute({ principal, input, context }) {
+    await assertCanSetPublicExposure(principal, context.workspaceId, input.isPublic)
+
     const result = await performUpdateWorkflowMcpServer({
       ...input,
       workspaceId: context.workspaceId,

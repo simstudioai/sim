@@ -25,12 +25,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 const {
   mockCheckChatAccess,
-  mockCanSetPublicChatAuth,
+  mockCanExposePublicly,
   mockCheckNeedsRedeployment,
   mockValidateChatDeployAuth,
 } = vi.hoisted(() => ({
   mockCheckChatAccess: vi.fn(),
-  mockCanSetPublicChatAuth: vi.fn(),
+  mockCanExposePublicly: vi.fn(),
   mockCheckNeedsRedeployment: vi.fn(),
   mockValidateChatDeployAuth: vi.fn(),
 }))
@@ -51,8 +51,8 @@ vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/app/api/chat/utils', () => ({
   checkChatAccess: mockCheckChatAccess,
 }))
-vi.mock('@/lib/chat/permissions', () => ({
-  canSetPublicChatAuth: mockCanSetPublicChatAuth,
+vi.mock('@/lib/deployments/public-exposure', () => ({
+  canExposePublicly: mockCanExposePublicly,
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => {
@@ -88,7 +88,7 @@ describe('Chat Edit API Route', () => {
     vi.clearAllMocks()
     // Existing chat suites deploy with authType public; default to admin so they
     // keep testing what they were written to test.
-    mockCanSetPublicChatAuth.mockResolvedValue(true)
+    mockCanExposePublicly.mockResolvedValue(true)
     resetDbChainMock()
     mockPerformChatUndeploy.mockResolvedValue({ success: true })
 

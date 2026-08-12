@@ -18,11 +18,11 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCheckWorkflowAccessForChatCreation,
-  mockCanSetPublicChatAuth,
+  mockCanExposePublicly,
   mockValidateChatDeployAuth,
 } = vi.hoisted(() => ({
   mockCheckWorkflowAccessForChatCreation: vi.fn(),
-  mockCanSetPublicChatAuth: vi.fn(),
+  mockCanExposePublicly: vi.fn(),
   mockValidateChatDeployAuth: vi.fn(),
 }))
 
@@ -36,8 +36,8 @@ vi.mock('@/app/api/chat/utils', () => ({
   checkWorkflowAccessForChatCreation: mockCheckWorkflowAccessForChatCreation,
 }))
 
-vi.mock('@/lib/chat/permissions', () => ({
-  canSetPublicChatAuth: mockCanSetPublicChatAuth,
+vi.mock('@/lib/deployments/public-exposure', () => ({
+  canExposePublicly: mockCanExposePublicly,
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => {
@@ -64,7 +64,7 @@ describe('Chat API Route', () => {
     vi.clearAllMocks()
     // Existing chat suites deploy with authType public; default to admin so they
     // keep testing what they were written to test.
-    mockCanSetPublicChatAuth.mockResolvedValue(true)
+    mockCanExposePublicly.mockResolvedValue(true)
     setEnv({ NODE_ENV: 'development', NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
 
     mockCreateSuccessResponse.mockImplementation((data) => {
@@ -274,7 +274,7 @@ describe('Chat API Route', () => {
         workflow: { userId: 'user-id', workspaceId: 'workspace-1', isDeployed: true },
       })
       // Write access is enough to deploy a chat, but not to make one public.
-      mockCanSetPublicChatAuth.mockResolvedValue(false)
+      mockCanExposePublicly.mockResolvedValue(false)
 
       const response = await POST(
         new NextRequest('http://localhost:3000/api/chat', {
@@ -290,7 +290,7 @@ describe('Chat API Route', () => {
       )
 
       expect(response.status).toBe(403)
-      expect(mockCanSetPublicChatAuth).toHaveBeenCalledWith('user-id', 'workspace-1')
+      expect(mockCanExposePublicly).toHaveBeenCalledWith('user-id', 'workspace-1')
     })
 
     it('lets a non-admin deploy a password-protected chat', async () => {
@@ -303,7 +303,7 @@ describe('Chat API Route', () => {
         hasAccess: true,
         workflow: { userId: 'user-id', workspaceId: 'workspace-1', isDeployed: true },
       })
-      mockCanSetPublicChatAuth.mockResolvedValue(false)
+      mockCanExposePublicly.mockResolvedValue(false)
 
       const response = await POST(
         new NextRequest('http://localhost:3000/api/chat', {

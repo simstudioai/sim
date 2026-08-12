@@ -13,7 +13,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { canSetPublicChatAuth } from '@/lib/chat/permissions'
+import { canExposePublicly } from '@/lib/deployments/public-exposure'
 import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 
 /**
@@ -90,17 +90,17 @@ describe('public chat auth is admin-only', () => {
 
   it('allows an admin', async () => {
     mockGetUserEntityPermissions.mockResolvedValue('admin')
-    await expect(canSetPublicChatAuth('user-1', 'ws-1')).resolves.toBe(true)
+    await expect(canExposePublicly('user-1', 'ws-1')).resolves.toBe(true)
     expect(mockGetUserEntityPermissions).toHaveBeenCalledWith('user-1', 'workspace', 'ws-1')
   })
 
   it.each(['write', 'read'] as const)('refuses a %s member', async (permission) => {
     mockGetUserEntityPermissions.mockResolvedValue(permission)
-    await expect(canSetPublicChatAuth('user-1', 'ws-1')).resolves.toBe(false)
+    await expect(canExposePublicly('user-1', 'ws-1')).resolves.toBe(false)
   })
 
   it('refuses a member with no permission on the workspace', async () => {
     mockGetUserEntityPermissions.mockResolvedValue(null)
-    await expect(canSetPublicChatAuth('user-1', 'ws-1')).resolves.toBe(false)
+    await expect(canExposePublicly('user-1', 'ws-1')).resolves.toBe(false)
   })
 })

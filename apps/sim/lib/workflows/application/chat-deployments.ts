@@ -7,8 +7,8 @@ import {
 } from '@sim/auth/principal'
 import { chat, db } from '@sim/db'
 import { and, eq, isNull } from 'drizzle-orm'
-import { canSetPublicChatAuth } from '@/lib/chat/permissions'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { canExposePublicly } from '@/lib/deployments/public-exposure'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -149,10 +149,7 @@ export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
        * defaults `authType` to `public`, so without this check a `write`
        * principal could ship an unauthenticated chat through copilot.
        */
-      if (
-        authType === 'public' &&
-        !(await canSetPublicChatAuth(subjectUserId, context.workspaceId))
-      ) {
+      if (authType === 'public' && !(await canExposePublicly(subjectUserId, context.workspaceId))) {
         throw new OrchestrationError('forbidden', 'Only admins can deploy a public chat')
       }
 
