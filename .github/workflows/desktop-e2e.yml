@@ -10,6 +10,9 @@ name: Desktop E2E
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: desktop-e2e-${{ github.ref }}
   cancel-in-progress: true
