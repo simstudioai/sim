@@ -74,7 +74,7 @@ const v2LogWorkflowStateSchema = z
   )
   .nullable()
   .describe(
-    'Workflow graph snapshot captured for the run, with credential values redacted: `oauth-input` values and `password: true` sub-block values are null, while `{{VAR}}` environment-variable references are preserved. Null when no snapshot is retained.'
+    'Workflow graph snapshot captured for the run, with credential values redacted: `oauth-input`, `password: true`, and table sub-block values are null; sensitive nested tool parameters and every parameter without authoritative codec metadata are null; and `{{VAR}}` references in non-opaque fields are preserved. Null when no snapshot is retained.'
   )
 
 const v2LogWorkflowSummarySchema = z.object({

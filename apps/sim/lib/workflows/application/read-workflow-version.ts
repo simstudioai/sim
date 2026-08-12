@@ -20,10 +20,15 @@ function isWorkflowState(value: unknown): value is WorkflowState {
  *
  * `preserveEnvVars` keeps `{{VAR}}` references: those name a workspace environment variable
  * rather than carrying its value — resolution happens at execution time — so the reference is
- * not a secret and is what keeps the pinned graph diffable. Literal inline secrets are nulled.
+ * not a secret and is what keeps the pinned graph diffable. Literal inline secrets, opaque table
+ * cells, sensitive nested tool parameters, and tool parameters without authoritative codec
+ * metadata are nulled.
  */
 function sanitizeVersionState(state: WorkflowState): WorkflowState {
-  const sanitized = sanitizeWorkflowForSharing(state, { preserveEnvVars: true })
+  const sanitized = sanitizeWorkflowForSharing(state, {
+    preserveEnvVars: true,
+    redactOpaqueCredentialInputs: true,
+  })
   // double-cast-allowed: the sanitizer clones the graph and only nulls sub-block values, so the shape is unchanged, but its widened return type no longer overlaps WorkflowState
   return sanitized as unknown as WorkflowState
 }

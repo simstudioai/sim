@@ -43,6 +43,24 @@ vi.mock('@/lib/logs/execution/trace-store', () => ({
   materializeExecutionDataForDisplay: mocks.materialize,
 }))
 
+vi.mock('@/lib/workflows/search-replace/indexer', () => ({
+  getToolInputParamConfigs: ({
+    tool,
+  }: {
+    tool: { type: string; params?: Record<string, unknown> }
+  }) =>
+    Object.entries(tool.params ?? {}).map(([paramId, value]) => ({
+      paramId,
+      authoritative: tool.type !== 'custom-tool' && tool.type !== 'mcp',
+      value,
+      config: {
+        id: paramId,
+        type: 'short-input',
+        password: paramId === 'apiKey',
+      },
+    })),
+}))
+
 vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
 
 /**
@@ -56,6 +74,8 @@ vi.mock('@/blocks/registry', () => ({
       { id: 'credential', type: 'oauth-input' },
       { id: 'botToken', type: 'short-input', password: true },
       { id: 'envToken', type: 'short-input', password: true },
+      { id: 'tools', type: 'tool-input' },
+      { id: 'headers', type: 'table' },
       { id: 'channel', type: 'short-input' },
     ],
     outputs: {},
@@ -155,6 +175,21 @@ describe('public log application use cases', () => {
               credential: { id: 'credential', type: 'oauth-input', value: 'cred_9f2a' },
               botToken: { id: 'botToken', type: 'short-input', value: 'xoxb-plaintext-secret' },
               envToken: { id: 'envToken', type: 'short-input', value: '{{SLACK_TOKEN}}' },
+              tools: {
+                id: 'tools',
+                type: 'tool-input',
+                value: [
+                  {
+                    type: 'custom-tool',
+                    params: { apiKey: 'sk-log-tool-secret', query: 'safe input' },
+                  },
+                ],
+              },
+              headers: {
+                id: 'headers',
+                type: 'table',
+                value: [{ Key: 'Authorization', Value: 'Bearer log-table-secret' }],
+              },
               channel: { id: 'channel', type: 'short-input', value: '#general' },
             },
           },
@@ -177,7 +212,16 @@ describe('public log application use cases', () => {
     expect(subBlocks.credential.value).toBeNull()
     expect(subBlocks.botToken.value).toBeNull()
     expect(subBlocks.envToken.value).toBe('{{SLACK_TOKEN}}')
+    expect(subBlocks.tools.value).toEqual([
+      {
+        type: 'custom-tool',
+        params: { apiKey: null, query: null },
+      },
+    ])
+    expect(subBlocks.headers.value).toBeNull()
     expect(subBlocks.channel.value).toBe('#general')
+    expect(JSON.stringify(subBlocks)).not.toContain('sk-log-tool-secret')
+    expect(JSON.stringify(subBlocks)).not.toContain('log-table-secret')
   })
 
   it('passes the personal-key subject through as the projection reader', async () => {

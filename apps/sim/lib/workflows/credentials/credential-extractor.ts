@@ -1,4 +1,7 @@
+import { isPlainRecord } from '@sim/utils/object'
+import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-replace/resources/registry'
+import { setValueAtPath } from '@/lib/workflows/search-replace/value-walker'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -8,6 +11,7 @@ import {
   isSubBlockVisibleForMode,
   type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
+import { parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
@@ -66,6 +70,8 @@ const WORKSPACE_SPECIFIC_TYPES: ReadonlySet<string> = new Set<string>([
  * type-keyed registry above cannot supply, so this list stays explicit.
  */
 const WORKSPACE_SPECIFIC_FIELDS = new Set([
+  'credentialId',
+  'oauthCredential',
   'knowledgeBaseId',
   'tagFilters',
   'documentTags',
@@ -76,6 +82,15 @@ const WORKSPACE_SPECIFIC_FIELDS = new Set([
   'channelId',
   'folderId',
 ])
+
+/**
+ * Sub-block values whose interior cannot be projected safely for a read-only snapshot API.
+ *
+ * Tables are arbitrary key/value rows used for authorization headers and sandbox environment
+ * variables. Their cells carry no password metadata, so public snapshots must withhold the whole
+ * value. Tool inputs are handled separately through the search-replace parameter codecs.
+ */
+const OPAQUE_CREDENTIAL_BEARING_TYPES: ReadonlySet<string> = new Set(['table'])
 
 /**
  * Extract required credentials from a workflow state
@@ -192,9 +207,13 @@ function formatFieldName(fieldName: string): string {
     .join(' ')
 }
 
+interface MutableSubBlockState extends Omit<SubBlockState, 'value'> {
+  value: unknown
+}
+
 /** Block state with mutable subBlocks for sanitization */
 interface MutableBlockState extends Omit<BlockState, 'subBlocks'> {
-  subBlocks: Record<string, SubBlockState | null | undefined>
+  subBlocks: Record<string, MutableSubBlockState | null | undefined>
   data?: Record<string, unknown>
 }
 
@@ -248,6 +267,90 @@ interface SanitizedWorkflowState {
   [key: string]: unknown
 }
 
+interface WorkflowSanitizationOptions {
+  preserveEnvVars?: boolean
+  redactOpaqueCredentialInputs?: boolean
+}
+
+type CredentialSanitizationConfig = Pick<
+  SubBlockConfig,
+  'id' | 'type' | 'password' | 'canonicalParamId'
+>
+
+function isEnvironmentVariableReference(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith('{{') && value.endsWith('}}')
+}
+
+/**
+ * Sanitizes nested tool parameters using the same codecs as workflow search and fork remapping.
+ * Only parameters resolved from a registered definition retain non-sensitive values. Custom, MCP,
+ * and unknown schemas lack reliable secret annotations, so their generic parameters are withheld.
+ */
+function sanitizeToolInputValue(value: unknown, options: WorkflowSanitizationOptions): unknown {
+  const tools = parseStoredToolInputValue(value)
+  if (!Array.isArray(value)) return null
+  if (tools.length !== value.length) return null
+
+  let sanitizedValue: unknown = value
+  tools.forEach((tool, toolIndex) => {
+    const storedTool = value[toolIndex]
+    if (!isPlainRecord(storedTool)) {
+      throw new Error(`Parsed tool input at index ${toolIndex} lost its object shape`)
+    }
+    if (storedTool.params != null && !isPlainRecord(storedTool.params)) {
+      sanitizedValue = setValueAtPath(sanitizedValue, [toolIndex, 'params'], null)
+      return
+    }
+
+    const configs = getToolInputParamConfigs({ tool, toolIndex })
+    const configByParamKey = new Map<
+      string,
+      { config: CredentialSanitizationConfig; authoritative: boolean }
+    >()
+    configs.forEach(({ paramId, config, authoritative }) => {
+      configByParamKey.set(paramId, { config, authoritative })
+      if (config.canonicalParamId) {
+        configByParamKey.set(config.canonicalParamId, { config, authoritative })
+      }
+    })
+
+    Object.entries(tool.params ?? {}).forEach(([paramKey, paramValue]) => {
+      const resolved = configByParamKey.get(paramKey)
+      const nextValue = resolved?.authoritative
+        ? sanitizeConfiguredSubBlockValue(paramValue, resolved.config, options)
+        : null
+      sanitizedValue = setValueAtPath(sanitizedValue, [toolIndex, 'params', paramKey], nextValue)
+    })
+  })
+
+  return sanitizedValue
+}
+
+function sanitizeConfiguredSubBlockValue(
+  value: unknown,
+  config: CredentialSanitizationConfig,
+  options: WorkflowSanitizationOptions
+): unknown {
+  if (config.type === 'oauth-input') return null
+  if (options.redactOpaqueCredentialInputs && config.type === 'tool-input') {
+    return sanitizeToolInputValue(value, options)
+  }
+  if (options.redactOpaqueCredentialInputs && OPAQUE_CREDENTIAL_BEARING_TYPES.has(config.type)) {
+    return null
+  }
+  if (config.password === true) {
+    return options.preserveEnvVars && isEnvironmentVariableReference(value) ? value : null
+  }
+  if (
+    WORKSPACE_SPECIFIC_TYPES.has(config.type) ||
+    WORKSPACE_SPECIFIC_FIELDS.has(config.id) ||
+    (config.canonicalParamId != null && WORKSPACE_SPECIFIC_FIELDS.has(config.canonicalParamId))
+  ) {
+    return null
+  }
+  return value
+}
+
 /**
  * Sanitize workflow state by removing all credentials and workspace-specific data
  * This is used for both template creation and workflow export to ensure consistency
@@ -257,9 +360,7 @@ interface SanitizedWorkflowState {
  */
 export function sanitizeWorkflowForSharing(
   state: Partial<WorkflowState> | null | undefined,
-  options: {
-    preserveEnvVars?: boolean // Keep {{VAR}} references for export
-  } = {}
+  options: WorkflowSanitizationOptions = {}
 ): SanitizedWorkflowState {
   const sanitized = structuredClone(state) as SanitizedWorkflowState
 
@@ -281,35 +382,11 @@ export function sanitizeWorkflowForSharing(
         if (block.subBlocks?.[subBlockConfig.id]) {
           const subBlock = block.subBlocks[subBlockConfig.id]
 
-          // Clear OAuth credentials (type: 'oauth-input')
-          if (subBlockConfig.type === 'oauth-input') {
-            block.subBlocks[subBlockConfig.id]!.value = null
-          }
-
-          // Clear secret fields (password: true)
-          else if (subBlockConfig.password === true) {
-            // Preserve environment variable references if requested
-            if (
-              options.preserveEnvVars &&
-              typeof subBlock?.value === 'string' &&
-              subBlock.value.startsWith('{{') &&
-              subBlock.value.endsWith('}}')
-            ) {
-              // Keep the env var reference
-            } else {
-              block.subBlocks[subBlockConfig.id]!.value = null
-            }
-          }
-
-          // Clear workspace-specific selectors
-          else if (WORKSPACE_SPECIFIC_TYPES.has(subBlockConfig.type)) {
-            block.subBlocks[subBlockConfig.id]!.value = null
-          }
-
-          // Clear workspace-specific fields by ID
-          else if (WORKSPACE_SPECIFIC_FIELDS.has(subBlockConfig.id)) {
-            block.subBlocks[subBlockConfig.id]!.value = null
-          }
+          block.subBlocks[subBlockConfig.id]!.value = sanitizeConfiguredSubBlockValue(
+            subBlock?.value,
+            subBlockConfig,
+            options
+          )
         }
       })
     }
@@ -317,6 +394,14 @@ export function sanitizeWorkflowForSharing(
     // Process subBlocks without config (fallback)
     if (block.subBlocks) {
       Object.entries(block.subBlocks).forEach(([key, subBlock]) => {
+        if (options.redactOpaqueCredentialInputs && subBlock) {
+          if (subBlock.type === 'tool-input') {
+            subBlock.value = sanitizeToolInputValue(subBlock.value, options)
+          } else if (OPAQUE_CREDENTIAL_BEARING_TYPES.has(subBlock.type)) {
+            subBlock.value = null
+          }
+        }
+
         // Clear workspace-specific fields by key name
         if (WORKSPACE_SPECIFIC_FIELDS.has(key) && subBlock) {
           subBlock.value = null

@@ -5,10 +5,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   EXPORT_PRESERVED_RESOURCE_TYPES,
   sanitizeForExport,
+  sanitizeWorkflowForSharing,
 } from '@/lib/workflows/credentials/credential-extractor'
 import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-replace/resources/registry'
 import { getBlock } from '@/blocks/registry'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+
+vi.mock('@/lib/workflows/search-replace/indexer', () => ({
+  getToolInputParamConfigs: ({
+    tool,
+  }: {
+    tool: { type: string; params?: Record<string, unknown> }
+  }) =>
+    Object.entries(tool.params ?? {}).map(([paramId, value]) => ({
+      paramId,
+      authoritative: tool.type !== 'custom-tool' && tool.type !== 'mcp',
+      value,
+      config: {
+        id: paramId,
+        type: 'short-input',
+        password: paramId === 'apiKey' || paramId === 'token',
+        canonicalParamId: paramId === 'manualCredential' ? 'oauthCredential' : undefined,
+      },
+    })),
+}))
 
 function stateWithSubBlock(type: string, value: unknown): Partial<WorkflowState> {
   return {
@@ -92,5 +112,132 @@ describe('export sanitizer resource coverage', () => {
       },
     } as unknown as Partial<WorkflowState>)
     expect(sanitized.blocks?.b1?.subBlocks?.tableId?.value).toBeNull()
+  })
+
+  it('uses authoritative tool-input codecs to withhold secrets while preserving safe config', () => {
+    const value = [
+      {
+        type: 'gmail',
+        toolId: 'gmail_send',
+        operation: 'send_gmail',
+        params: {
+          apiKey: 'sk-plaintext-secret',
+          query: 'safe input',
+        },
+      },
+    ]
+    vi.mocked(getBlock).mockReturnValue({
+      name: 'Test',
+      description: '',
+      subBlocks: [{ id: 'field', title: 'Field', type: 'tool-input' }],
+      outputs: {},
+    } as never)
+
+    const sanitized = sanitizeWorkflowForSharing(stateWithSubBlock('tool-input', value), {
+      preserveEnvVars: true,
+      redactOpaqueCredentialInputs: true,
+    })
+
+    expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toEqual([
+      {
+        type: 'gmail',
+        toolId: 'gmail_send',
+        operation: 'send_gmail',
+        params: { apiKey: null, query: 'safe input' },
+      },
+    ])
+  })
+
+  it('withholds advanced credential selectors nested inside tool inputs', () => {
+    const value = [
+      {
+        type: 'gmail',
+        toolId: 'gmail_send',
+        operation: 'send_gmail',
+        params: {
+          manualCredential: 'credential-id',
+          query: 'safe input',
+        },
+      },
+    ]
+    vi.mocked(getBlock).mockReturnValue({
+      name: 'Test',
+      description: '',
+      subBlocks: [{ id: 'field', title: 'Field', type: 'tool-input' }],
+      outputs: {},
+    } as never)
+
+    const sanitized = sanitizeWorkflowForSharing(stateWithSubBlock('tool-input', value), {
+      preserveEnvVars: true,
+      redactOpaqueCredentialInputs: true,
+    })
+
+    expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toEqual([
+      {
+        type: 'gmail',
+        toolId: 'gmail_send',
+        operation: 'send_gmail',
+        params: { manualCredential: null, query: 'safe input' },
+      },
+    ])
+  })
+
+  it('withholds opaque table values from public snapshots', () => {
+    const value = [
+      { Key: 'Authorization', Value: 'Bearer plaintext-secret' },
+      { Key: 'API_TOKEN', Value: '{{API_TOKEN}}' },
+    ]
+    vi.mocked(getBlock).mockReturnValue({
+      name: 'Test',
+      description: '',
+      subBlocks: [{ id: 'field', title: 'Field', type: 'table' }],
+      outputs: {},
+    } as never)
+
+    const sanitized = sanitizeWorkflowForSharing(stateWithSubBlock('table', value), {
+      preserveEnvVars: true,
+      redactOpaqueCredentialInputs: true,
+    })
+
+    expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toBeNull()
+  })
+
+  it('withholds every unclassified custom-tool parameter', () => {
+    vi.mocked(getBlock).mockReturnValue(undefined as never)
+
+    const sanitized = sanitizeWorkflowForSharing(
+      stateWithSubBlock('tool-input', [
+        {
+          type: 'custom-tool',
+          params: { token: 'plaintext-secret', query: 'ordinary configuration' },
+        },
+      ]),
+      { redactOpaqueCredentialInputs: true }
+    )
+
+    expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toEqual([
+      { type: 'custom-tool', params: { token: null, query: null } },
+    ])
+  })
+
+  it.each([
+    ['string', 'plaintext-secret'],
+    ['array', ['plaintext-secret']],
+  ])('withholds malformed %s tool params', (_shape, params) => {
+    vi.mocked(getBlock).mockReturnValue({
+      name: 'Test',
+      description: '',
+      subBlocks: [{ id: 'field', title: 'Field', type: 'tool-input' }],
+      outputs: {},
+    } as never)
+
+    const sanitized = sanitizeWorkflowForSharing(
+      stateWithSubBlock('tool-input', [{ type: 'custom-tool', params }]),
+      { redactOpaqueCredentialInputs: true }
+    )
+
+    expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toEqual([
+      { type: 'custom-tool', params: null },
+    ])
   })
 })
