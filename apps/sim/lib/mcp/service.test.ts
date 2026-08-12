@@ -199,7 +199,7 @@ function expectSqlSideFailureIncrement(values: Record<string, unknown>): void {
   expect(statusConfig).toContain("-> 'lastSuccessfulDiscovery'")
 
   const connectionStatus = renderSql(values.connectionStatus)
-  expect(connectionStatus).toContain(") + 1 >= ")
+  expect(connectionStatus).toContain(') + 1 >= ')
   expect(connectionStatus).toContain(String(MCP_CONSTANTS.MAX_CONSECUTIVE_FAILURES))
   expect(connectionStatus).toContain("THEN 'error' ELSE 'disconnected' END")
 }

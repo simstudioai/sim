@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
+import {
+  issueCodes,
+  type SchemaLike,
+  strictnessTargets,
+} from '@/lib/api/contracts/v2/__tests__/schema-introspection'
 import * as tableContracts from '@/lib/api/contracts/v2/tables'
 import {
   V2_TABLE_IMPORT_OPTIONS_MAX_BYTES,
@@ -14,11 +19,6 @@ import {
   v2TableUploadImportSourceSchema,
   v2UpdateTableColumnBodySchema,
 } from '@/lib/api/contracts/v2/tables'
-import {
-  issueCodes,
-  type SchemaLike,
-  strictnessTargets,
-} from '@/lib/api/contracts/v2/__tests__/schema-introspection'
 import { getValidationErrorMessage } from '@/lib/api/server/validation'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { CSV_DURABLE_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
