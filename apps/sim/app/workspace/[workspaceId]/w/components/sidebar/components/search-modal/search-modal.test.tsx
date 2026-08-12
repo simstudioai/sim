@@ -580,6 +580,28 @@ describe('SearchModal', () => {
     expect(rows()[1]?.getAttribute('aria-selected')).toBe('false')
   })
 
+  it('re-anchors selection to the first row after the re-ranked results commit', async () => {
+    const workflows = [
+      { id: 'workflow-1', name: 'Funnel', href: '/workspace/workspace-1/w/workflow-1' },
+      { id: 'workflow-2', name: 'Funnel two', href: '/workspace/workspace-1/w/workflow-2' },
+      { id: 'workflow-3', name: 'Function alpha', href: '/workspace/workspace-1/w/workflow-3' },
+    ]
+    await act(async () => {
+      root.render(<SearchModal open onOpenChange={vi.fn()} workflows={workflows} />)
+    })
+
+    const rows = () => Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]'))
+
+    await enterSearchQuery('fun')
+    expect(rows()[0]?.textContent).toContain('Funnel')
+    expect(rows()[0]?.getAttribute('aria-selected')).toBe('true')
+
+    await enterSearchQuery('func')
+    expect(rows()).toHaveLength(1)
+    expect(rows()[0]?.textContent).toContain('Function alpha')
+    expect(rows()[0]?.getAttribute('aria-selected')).toBe('true')
+  })
+
   it('unmounts while closed and reopens with a blank query', async () => {
     await act(async () => {
       root.render(<SearchModal open onOpenChange={vi.fn()} />)
