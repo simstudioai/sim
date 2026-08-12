@@ -31,9 +31,8 @@ vi.mock('@/lib/table/rows/service', () => ({
 vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mockGetLimits }))
 vi.mock('@/app/api/table/utils', async () => {
   const { NextResponse } = await import('next/server')
-  const { asOrchestrationError, statusForOrchestrationError } = await import(
-    '@/lib/core/orchestration/types'
-  )
+  const { asOrchestrationError, messageForOrchestrationError, statusForOrchestrationError } =
+    await import('@/lib/core/orchestration/types')
   return {
     normalizeColumn: (column: unknown) => column,
     csvProxyBodyCapResponse: () => null,
@@ -41,6 +40,17 @@ vi.mock('@/app/api/table/utils', async () => {
       NextResponse.json(
         { error: error.message },
         { status: error.code === 'FILE_TOO_LARGE' ? 413 : 400 }
+      ),
+    orchestrationOutcomeErrorResponse: (
+      outcome: { error?: string; errorCode?: OrchestrationErrorCode; lock?: string },
+      fallback: string
+    ) =>
+      NextResponse.json(
+        {
+          error: messageForOrchestrationError(outcome, fallback),
+          ...(outcome.lock ? { lock: outcome.lock } : {}),
+        },
+        { status: statusForOrchestrationError(outcome.errorCode) }
       ),
     orchestrationErrorResponse: (error: unknown) => {
       const classified = asOrchestrationError(error)
@@ -55,7 +65,8 @@ vi.mock('@/app/api/table/utils', async () => {
 })
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import { TableLockedError } from '@/lib/table/mutation-locks'
 import { POST } from '@/app/api/table/import-csv/route'
 
 type Part =
@@ -211,6 +222,19 @@ describe('POST /api/table/import-csv', () => {
 
     expect(response.status).toBe(500)
     expect(mockDeleteTable).toHaveBeenCalledWith('tbl_1', expect.any(String))
+  })
+
+  it('names the lock that rejected the import on a 423', async () => {
+    // The lock kind is the only thing that tells a client which lock to clear; rendering the
+    // outcome by hand is how the field gets dropped from one route and not its sibling.
+    mockBatchInsertRows.mockRejectedValueOnce(new TableLockedError('insert'))
+
+    const response = await POST(makeRequest(uploadParts(csvWithRows(250))))
+    const data = await response.json()
+
+    expect(response.status).toBe(423)
+    expect(data.lock).toBe('insert')
+    expect(data.error).toMatch(/lock/i)
   })
 
   it('returns 401 when unauthenticated', async () => {

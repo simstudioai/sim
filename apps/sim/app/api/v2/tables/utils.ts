@@ -15,12 +15,7 @@ import { predicateToStorage } from '@/lib/table/select-values'
 import type { Filter, TableLockKind } from '@/lib/table/types'
 import type { TableView } from '@/lib/table/views/service'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
-import {
-  CSV_IMPORT_PROXY_BODY_CAP_BYTES,
-  normalizeColumn,
-  orchestrationErrorResponse,
-  rootErrorMessage,
-} from '@/app/api/table/utils'
+import { CSV_IMPORT_PROXY_BODY_CAP_BYTES, normalizeColumn } from '@/app/api/table/utils'
 import { v2Error, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
 /**
@@ -284,17 +279,6 @@ export function v2TableOrchestrationError(
     outcome.error ?? fallback,
     Object.keys(details).length > 0 ? details : undefined
   )
-}
-
-/**
- * Maps a known user-facing row-write failure (schema/size/unique/limit) to a v2
- * `BAD_REQUEST`, reusing v1's {@link orchestrationErrorResponse} classifier as the
- * single source of truth for which messages are safe to surface. Returns `null`
- * for unrecognized errors so the caller logs and returns a generic 500.
- */
-export function v2RowWriteError(error: unknown): NextResponse | null {
-  if (!orchestrationErrorResponse(error)) return null
-  return v2Error('BAD_REQUEST', rootErrorMessage(error))
 }
 
 /**

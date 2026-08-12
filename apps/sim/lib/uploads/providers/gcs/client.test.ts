@@ -491,16 +491,25 @@ describe('GCS Client', () => {
         .mockResolvedValueOnce(['https://example.com/part-1'])
         .mockResolvedValueOnce(['https://example.com/part-2'])
 
-      const urls = await getGcsMultipartPartUrls('key.csv', 'upload-123', [1, 2])
+      const expires = new Date('2026-01-01T00:02:00.000Z')
+      const urls = await getGcsMultipartPartUrls(
+        'key.csv',
+        'upload-123',
+        [1, 2],
+        undefined,
+        expires
+      )
 
       expect(urls).toEqual([
         { partNumber: 1, url: 'https://example.com/part-1' },
         { partNumber: 2, url: 'https://example.com/part-2' },
       ])
+      // The caller owns the lifetime and advertises the matching `expiresAt`; signing to a
+      // window this function picked itself is how the two drift apart.
       expect(mockFile.getSignedUrl).toHaveBeenCalledWith({
         version: 'v4',
         action: 'write',
-        expires: expect.any(Number),
+        expires,
         queryParams: { partNumber: '1', uploadId: 'upload-123' },
       })
     })

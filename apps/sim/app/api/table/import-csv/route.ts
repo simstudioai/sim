@@ -5,7 +5,6 @@ import { csvExtensionSchema, csvImportFormSchema } from '@/lib/api/contracts/tab
 import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -14,7 +13,11 @@ import { CSV_SYNC_MAX_FILE_SIZE_BYTES } from '@/lib/table'
 import { performCreateTableFromCsv } from '@/lib/table/orchestration'
 import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { csvProxyBodyCapResponse, multipartErrorResponse } from '@/app/api/table/utils'
+import {
+  csvProxyBodyCapResponse,
+  multipartErrorResponse,
+  orchestrationOutcomeErrorResponse,
+} from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSV')
 
@@ -118,10 +121,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (!outcome.success) {
-      return NextResponse.json(
-        { error: outcome.errorCode === 'internal' ? 'Failed to import CSV' : outcome.error },
-        { status: statusForOrchestrationError(outcome.errorCode) }
-      )
+      return orchestrationOutcomeErrorResponse(outcome, 'Failed to import CSV')
     }
 
     return NextResponse.json({ success: true, data: outcome.data })

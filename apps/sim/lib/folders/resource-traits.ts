@@ -21,8 +21,13 @@ export const FOLDER_RESOURCE_LABELS: Record<FolderResourceType, string> = {
 /**
  * Resource types whose folders participate in the mutation-lock system. Only
  * workflow folders can be locked; the rest have no lock semantics to honour.
+ *
+ * The single declaration of that fact: `./config` composes it into
+ * {@link FolderResourceConfig.supportsLocking} rather than restating it, so the
+ * routes that read the trait directly and the orchestration that reads it off
+ * the config cannot disagree about which resources lock.
  */
-const FOLDER_RESOURCE_SUPPORTS_LOCKING: Record<FolderResourceType, boolean> = {
+export const FOLDER_RESOURCE_SUPPORTS_LOCKING: Record<FolderResourceType, boolean> = {
   workflow: true,
   file: false,
   knowledge_base: false,

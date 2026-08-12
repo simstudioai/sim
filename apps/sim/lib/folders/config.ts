@@ -11,7 +11,10 @@ import {
 import { eq, type SQL } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
-import { FOLDER_RESOURCE_LABELS } from '@/lib/folders/resource-traits'
+import {
+  FOLDER_RESOURCE_LABELS,
+  FOLDER_RESOURCE_SUPPORTS_LOCKING,
+} from '@/lib/folders/resource-traits'
 
 /**
  * Counts of cascaded resources returned by a folder delete/restore, keyed per resource
@@ -98,8 +101,13 @@ export interface FolderResourceConfig {
    * Declared here rather than checked as `resourceType === 'workflow'` at each call site, so
    * every surface that touches locking asks the same question and a future lockable resource
    * is one flag rather than a hunt through routes.
+   *
+   * Required, and every entry composes it from {@link FOLDER_RESOURCE_SUPPORTS_LOCKING} — the
+   * same treatment as `label`. Routes read the trait module directly (it is a leaf, so a
+   * lock check costs no db-schema graph) while orchestration reads this field; declaring the
+   * value twice would let those two answers drift.
    */
-  supportsLocking?: boolean
+  supportsLocking: boolean
   /** Narrows which rows of `table` participate in folder membership at all. */
   scope?: SQL
   /**
@@ -441,7 +449,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
           >,
       },
     ],
-    supportsLocking: true,
+    supportsLocking: FOLDER_RESOURCE_SUPPORTS_LOCKING.workflow,
     archiveChildren: archiveWorkflowChildren,
     guardDelete: guardLastWorkflows,
   },
@@ -456,6 +464,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
   file: {
     resourceType: 'file',
     label: FOLDER_RESOURCE_LABELS.file,
+    supportsLocking: FOLDER_RESOURCE_SUPPORTS_LOCKING.file,
     countKey: 'files',
     table: workspaceFiles,
     idColumn: workspaceFiles.id,
@@ -474,6 +483,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
   knowledge_base: {
     resourceType: 'knowledge_base',
     label: FOLDER_RESOURCE_LABELS.knowledge_base,
+    supportsLocking: FOLDER_RESOURCE_SUPPORTS_LOCKING.knowledge_base,
     countKey: 'knowledgeBases',
     table: knowledgeBase,
     idColumn: knowledgeBase.id,
@@ -491,6 +501,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
   table: {
     resourceType: 'table',
     label: FOLDER_RESOURCE_LABELS.table,
+    supportsLocking: FOLDER_RESOURCE_SUPPORTS_LOCKING.table,
     countKey: 'tables',
     table: userTableDefinitions,
     idColumn: userTableDefinitions.id,

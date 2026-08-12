@@ -239,6 +239,15 @@ export async function createPutProviderTransfer(params: {
   }
 }
 
+/**
+ * Signs the per-part data plane for a multipart upload session.
+ *
+ * The signature lifetime and the advertised `expiresAt` are both derived from
+ * {@link UPLOAD_URL_TTL_MS} and threaded into each provider in that provider's own unit —
+ * seconds for S3, an absolute instant for blob and GCS. Neither side may re-derive it: a
+ * provider defaulting the lifetime internally is how an advertised expiry and the real
+ * signature drift apart.
+ */
 export async function getMultipartProviderPartUrls(params: {
   provider: UploadStorageProvider
   providerUploadId: string | null
@@ -247,7 +256,9 @@ export async function getMultipartProviderPartUrls(params: {
   partNumbers: number[]
   localUrl: (partNumber: number) => string
 }): Promise<UploadPartUrl[]> {
-  const expiresAt = new Date(Date.now() + UPLOAD_URL_TTL_MS).toISOString()
+  const expiresOn = new Date(Date.now() + UPLOAD_URL_TTL_MS)
+  const expiresIn = Math.floor(UPLOAD_URL_TTL_MS / 1000)
+  const expiresAt = expiresOn.toISOString()
   if (params.provider === 'local') {
     return params.partNumbers.map((partNumber) => ({
       partNumber,
@@ -265,7 +276,8 @@ export async function getMultipartProviderPartUrls(params: {
       params.key,
       params.providerUploadId,
       params.partNumbers,
-      createS3Config(config)
+      createS3Config(config),
+      expiresIn
     )
     return urls.map(({ partNumber, url }) => ({
       partNumber,
@@ -279,7 +291,8 @@ export async function getMultipartProviderPartUrls(params: {
     const urls = await getMultipartPartUrls(
       params.key,
       params.partNumbers,
-      createBlobConfig(config)
+      createBlobConfig(config),
+      expiresOn
     )
     return urls.map(({ partNumber, url }) => ({
       partNumber,
@@ -293,7 +306,8 @@ export async function getMultipartProviderPartUrls(params: {
     params.key,
     params.providerUploadId,
     params.partNumbers,
-    createGcsConfig(config)
+    createGcsConfig(config),
+    expiresOn
   )
   return urls.map(({ partNumber, url }) => ({
     partNumber,

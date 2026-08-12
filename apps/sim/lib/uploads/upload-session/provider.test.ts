@@ -353,6 +353,25 @@ describe('signed transfer URL lifetimes', () => {
       new Date(first[0].expiresAt).getTime()
     )
   })
+
+  it('signs multipart parts for the same lifetime it advertises', async () => {
+    const urls = await getMultipartProviderPartUrls({
+      provider: 's3',
+      providerUploadId: 'provider-upload-1',
+      key: 'workspace/workspace-1/file.bin',
+      context: CONTEXT,
+      partNumbers: [1],
+      localUrl: (partNumber) => `http://local/${partNumber}`,
+    })
+
+    // The advertised `expiresAt` and the signature's own lifetime both come from
+    // `UPLOAD_URL_TTL_MS`. A provider that defaults its own window instead would keep signing
+    // 1h URLs while the advertised expiry moved — the advertise-vs-sign mismatch this ttl
+    // constant exists to prevent.
+    const signedExpiresIn = mockS3PartUrls.mock.calls[0][4]
+    expect(signedExpiresIn).toBe(UPLOAD_URL_TTL_MS / 1000)
+    expect(new Date(urls[0].expiresAt).getTime() - Date.now()).toBe(signedExpiresIn * 1000)
+  })
 })
 
 function byteStream(...chunks: string[]): ReadableStream<Uint8Array> {

@@ -66,6 +66,7 @@ import {
   deleteFromBlob,
   downloadFromBlob,
   getBlobPresignedUploadUrl,
+  getMultipartPartUrls,
   getPresignedUrl,
   headBlobObject,
   initiateMultipartUpload,
@@ -187,6 +188,19 @@ describe('Azure Blob Storage Client', () => {
           'x-ms-meta-purpose': 'workspace_file',
         },
       })
+    })
+
+    it('signs multipart part URLs to the lifetime the caller passed', async () => {
+      const expiresOn = new Date('2026-01-01T00:02:00.000Z')
+
+      await getMultipartPartUrls('workspace/workspace-1/file.bin', [1], customConfig, expiresOn)
+
+      // The caller owns the lifetime and advertises the matching `expiresAt`; a window this
+      // function picks for itself is how the advertised expiry and the real SAS token drift.
+      expect(mockGenerateBlobSASQueryParameters).toHaveBeenCalledWith(
+        expect.objectContaining({ expiresOn }),
+        expect.anything()
+      )
     })
 
     it('returns only completed objects as usable upload identities', async () => {

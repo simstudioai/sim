@@ -376,6 +376,13 @@ export interface PerformCreateTableFromCsvResult {
   success: boolean
   error?: string
   errorCode?: OrchestrationErrorCode
+  /**
+   * Which lock rejected the write. Set only when `errorCode` is `'locked'`, which
+   * {@link classifyImportFailure} populates for either entry point. Declared even though a
+   * table created by this call starts unlocked: the field is the only thing that tells a
+   * caller which lock to clear, and leaving it off the type is how a 423 silently loses it.
+   */
+  lock?: TableLockKind
   data?: { table: CreatedTableFromCsv }
 }
 

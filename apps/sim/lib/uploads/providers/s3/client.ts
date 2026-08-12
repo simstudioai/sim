@@ -463,13 +463,19 @@ export async function uploadS3Part(
 }
 
 /**
- * Generate presigned URLs for uploading parts to S3
+ * Generate presigned URLs for uploading parts to S3.
+ *
+ * `expiresIn` is required rather than defaulted: the caller owns the part-URL lifetime and
+ * advertises the matching `expiresAt` to the client, so a local default would be a second
+ * source of truth that silently keeps signing 1h URLs after the caller's window changed.
  */
 export async function getS3MultipartPartUrls(
   key: string,
   uploadId: string,
   partNumbers: number[],
-  customConfig?: S3Config
+  customConfig: S3Config | undefined,
+  /** Signature lifetime, in seconds. */
+  expiresIn: number
 ): Promise<S3PartUploadUrl[]> {
   const config = customConfig || { bucket: S3_KB_CONFIG.bucket, region: S3_KB_CONFIG.region }
   const s3Client = getS3Client()
@@ -483,7 +489,7 @@ export async function getS3MultipartPartUrls(
         UploadId: uploadId,
       })
 
-      const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 })
+      const url = await getSignedUrl(s3Client, command, { expiresIn })
       return { partNumber, url }
     })
   )
