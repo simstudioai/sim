@@ -94,7 +94,7 @@ describe('/api/v2/tables/[tableId]/rows', () => {
     mocks.preauthRate.mockResolvedValue(RATE)
     mocks.operationRate.mockResolvedValue(RATE)
     mocks.gate.mockResolvedValue(null)
-    mocks.listRows.mockResolvedValue({ table: TABLE, rows: [ROW], nextOffset: null })
+    mocks.listRows.mockResolvedValue({ table: TABLE, rows: [ROW], nextCursor: null })
     mocks.createRows.mockResolvedValue({ kind: 'single', table: TABLE, row: ROW })
     mocks.updateRows.mockResolvedValue({
       table: TABLE,
@@ -111,31 +111,13 @@ describe('/api/v2/tables/[tableId]/rows', () => {
     })
   })
 
-  /**
-   * Coercing an undecodable cursor to offset 0 re-served page one while the
-   * client believed it was paging forward, which loops a paging client forever.
-   * Every sibling v2 cursor list rejects instead, so this one does too.
-   */
-  it.each([
-    ['undecodable base64-JSON', 'malformed'],
-    ['a payload with no offset', Buffer.from(JSON.stringify({ o: 5 })).toString('base64')],
-    ['a non-integer offset', Buffer.from(JSON.stringify({ offset: 1.5 })).toString('base64')],
-    ['a negative offset', Buffer.from(JSON.stringify({ offset: -1 })).toString('base64')],
-  ])('rejects a GET cursor with %s instead of restarting pagination', async (_label, cursor) => {
-    const req = request(
-      'GET',
-      undefined,
-      `?workspaceId=${WORKSPACE_ID}&limit=25&cursor=${encodeURIComponent(cursor)}`
-    )
-    const response = await GET(req, CONTEXT)
-
-    expect(response.status).toBe(400)
-    expect((await response.json()).error).toMatchObject({ message: 'Invalid cursor' })
-    expect(mocks.listRows).not.toHaveBeenCalled()
-  })
-
-  it('resumes at the encoded offset for a well-formed cursor', async () => {
-    const cursor = Buffer.from(JSON.stringify({ offset: 50 })).toString('base64')
+  it('passes the opaque native row cursor through the route unchanged', async () => {
+    const cursor = 'native-row-cursor'
+    mocks.listRows.mockResolvedValue({
+      table: TABLE,
+      rows: [ROW],
+      nextCursor: 'next-native-cursor',
+    })
     const req = request(
       'GET',
       undefined,
@@ -150,10 +132,11 @@ describe('/api/v2/tables/[tableId]/rows', () => {
         tableId: 'table-1',
         assertedWorkspaceId: WORKSPACE_ID,
         limit: 25,
-        offset: 50,
+        cursor,
       },
       request: req,
     })
+    expect((await response.json()).nextCursor).toBe('next-native-cursor')
   })
 
   it('delegates single and batch creation through one semantic use case', async () => {

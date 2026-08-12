@@ -644,9 +644,9 @@ export const v2DeleteTableColumnContract = defineRouteContract({
 /**
  * Row list query: a plain cursor page over the default row order. Filtering and
  * sorting are NOT part of this surface — rich reads go through the dedicated
- * `POST /query` endpoint's predicate grammar. The opaque cursor encodes the
- * underlying offset today; it can move to a keyset implementation later without
- * an interface change. Total row count is available as `rowCount` on the table.
+ * `POST /query` endpoint's predicate grammar. The opaque cursor uses the
+ * `(order_key, id)` keyset when possible and handles legacy rows without an order
+ * key internally. Total row count is available as `rowCount` on the table.
  */
 export const v2TableRowsQuerySchema = tableRowsQueryBaseSchema
   .pick({ workspaceId: true, limit: true })

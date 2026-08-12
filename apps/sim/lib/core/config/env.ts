@@ -138,7 +138,7 @@ export const env = createEnv({
     ENTERPRISE_TABLES_LIMIT:               z.number().optional(),                  // Max user tables per workspace on enterprise tier (default: 10000)
     ENTERPRISE_TABLE_ROWS_LIMIT:           z.number().optional(),                  // Max rows per table on enterprise tier (default: 1000000)
     TABLE_MAX_ROW_SIZE_BYTES:              z.number().optional(),                  // Max serialized size in bytes of a single user-table row (default: 409600)
-    TABLE_MAX_PAGE_BYTES:                  z.number().optional(),                  // Byte budget per row-page read; pages cut early past it (unset = disabled)
+    TABLE_MAX_PAGE_BYTES:                  z.number().optional(),                  // Byte budget per row-page read; pages cut early past it (default: 5242880)
     TABLE_DISPATCH_CONCURRENCY_FREE:       z.number().optional(),                  // Rows one table run executes in parallel on free tier (default: 20)
     TABLE_DISPATCH_CONCURRENCY_PAID:       z.number().optional(),                  // Rows one table run executes in parallel on paid tiers (default: 50)
 

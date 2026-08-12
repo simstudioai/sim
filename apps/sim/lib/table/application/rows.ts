@@ -192,12 +192,12 @@ function rethrowQueryValidation(error: unknown): never {
 
 export interface ListTableRowsInput extends TableScopedInput {
   limit: number
-  offset: number
+  cursor?: string
 }
 
 export interface ListTableRowsResult extends TableResult {
   rows: TableRow[]
-  nextOffset: number | null
+  nextCursor: string | null
 }
 
 export const listTableRows = defineAuthorizedTableUseCase({
@@ -205,25 +205,24 @@ export const listTableRows = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: ListTableRowsInput }) => resolveActiveTableContext(input),
   async execute({ input, context }): Promise<ListTableRowsResult> {
     requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_QUERY_LIMIT, 'Limit')
-    if (!Number.isSafeInteger(input.offset) || input.offset < 0) {
-      throw new TableRowsValidationError('Offset must be 0 or greater')
-    }
     try {
+      const cursor = input.cursor ? decodeCursor(input.cursor) : undefined
+      if (cursor) assertCursorSortBinding(cursor, undefined)
       const result = await queryRows(
         context.table,
         {
           limit: input.limit,
-          offset: input.offset,
-          includeTotal: true,
+          after: cursor?.after,
+          offset: cursor?.offset,
+          includeTotal: false,
           withExecutions: false,
         },
         requestId(input)
       )
-      const total = result.totalCount ?? 0
       return {
         table: context.table,
         rows: result.rows,
-        nextOffset: input.offset + result.rowCount < total ? input.offset + input.limit : null,
+        nextCursor: result.nextCursor,
       }
     } catch (error) {
       rethrowQueryValidation(error)
