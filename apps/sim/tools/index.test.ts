@@ -800,6 +800,34 @@ describe('executeTool Function', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
+  it('surfaces cancellation instead of a concurrent permission database failure', async () => {
+    const controller = new AbortController()
+    const abortReason = new Error('Execution cancelled')
+    const databaseError = new DrizzleQueryError(
+      'select "id" from "workspace" where "workspace"."id" = $1',
+      ['workspace-secret-id'],
+      Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    )
+    mockAssertPermissionsAllowed.mockImplementationOnce(async () => {
+      controller.abort(abortReason)
+      throw databaseError
+    })
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'return 1' },
+      {
+        executionContext: createToolExecutionContext({ userId: 'user-123' }),
+        signal: controller.signal,
+      }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Execution cancelled')
+    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(1)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
   it('should call internal routes directly', async () => {
     const originalFunctionTool = { ...tools.function_execute }
     tools.function_execute = {

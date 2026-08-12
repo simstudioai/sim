@@ -130,16 +130,17 @@ async function assertToolPermissionsWithRetry({
   ...permission
 }: ToolPermissionPreflight): Promise<void> {
   for (let attempt = 1; ; attempt += 1) {
+    signal?.throwIfAborted()
     try {
       await assertPermissionsAllowed(permission)
       return
     } catch (error) {
+      signal?.throwIfAborted()
       const isDatabaseQueryError = Boolean(
         findCause(error, (cause): cause is DrizzleQueryError => cause instanceof DrizzleQueryError)
       )
       if (
         attempt >= PERMISSION_PREFLIGHT_MAX_ATTEMPTS ||
-        signal?.aborted ||
         !isDatabaseQueryError ||
         !isRetryableInfrastructureError(error)
       ) {
