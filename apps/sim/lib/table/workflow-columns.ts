@@ -12,7 +12,12 @@ import {
   userTableRows as userTableRowsTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import {
+  findCause,
+  getPostgresConstraintName,
+  getPostgresErrorCode,
+  toError,
+} from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, gt, inArray, notInArray, or, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
@@ -25,6 +30,7 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { buildCancelledExecution } from '@/lib/table/cell-write'
+import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type {
   Filter,
   RowData,
@@ -43,6 +49,7 @@ const TABLE_CANCELLATION_MAX_ROWS = 5_000
 const TABLE_CANCELLATION_CONCURRENCY = 10
 const TABLE_TRIGGER_CANCELLATION_MAX_RUNS = 5_000
 const TABLE_TRIGGER_CANCELLATION_RETENTION_MS = 14 * 24 * 60 * 60_000
+const TABLE_ROW_EXECUTIONS_ROW_FK = 'table_row_executions_row_id_user_table_rows_id_fk'
 
 import { getColumnId } from '@/lib/table/column-keys'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
@@ -715,20 +722,29 @@ export async function cancelWorkflowGroupRuns(
     )
 
     await mapWithConcurrency(mutations, TABLE_CANCELLATION_CONCURRENCY, async (mutation) => {
-      const updated = await updateRow(
-        {
-          tableId,
-          rowId: mutation.rowId,
-          data: {},
-          /** No cell values are written, so there is nothing to stamp. */
-          secretProvenance: undefined,
-          workspaceId: table.workspaceId,
-          executionsPatch: mutation.executionsPatch,
-        },
-        table,
-        `wfgrp-cancel-${mutation.rowId}`
-      )
-      if (!updated) throw new Error('Authoritative cancellation write was rejected')
+      try {
+        const updated = await updateRow(
+          {
+            tableId,
+            rowId: mutation.rowId,
+            data: {},
+            /** No cell values are written, so there is nothing to stamp. */
+            secretProvenance: undefined,
+            workspaceId: table.workspaceId,
+            executionsPatch: mutation.executionsPatch,
+          },
+          table,
+          `wfgrp-cancel-${mutation.rowId}`
+        )
+        if (!updated) throw new Error('Authoritative cancellation write was rejected')
+      } catch (error) {
+        const rowNotFound = findCause(
+          error,
+          (cause): cause is TableRowNotFoundError => cause instanceof TableRowNotFoundError
+        )
+        if (rowNotFound) return
+        throw error
+      }
     })
     cancelledCount += mutations.reduce((total, mutation) => total + mutation.cancelledCount, 0)
 
@@ -783,25 +799,35 @@ export async function cancelWorkflowGroupRuns(
         needsTombstone,
         TABLE_CANCELLATION_CONCURRENCY,
         async (tombstone) => {
-          await db
-            .insert(tableRowExecutions)
-            .values({
-              tableId,
-              rowId,
-              groupId: tombstone.groupId,
-              status: 'cancelled',
-              executionId: null,
-              jobId: null,
-              workflowId: tombstone.workflowId,
-              error: 'Cancelled',
-              runningBlockIds: [],
-              blockErrors: {},
-              cancelledAt: now,
-              updatedAt: now,
-            })
-            .onConflictDoNothing({
-              target: [tableRowExecutions.rowId, tableRowExecutions.groupId],
-            })
+          try {
+            await db
+              .insert(tableRowExecutions)
+              .values({
+                tableId,
+                rowId,
+                groupId: tombstone.groupId,
+                status: 'cancelled',
+                executionId: null,
+                jobId: null,
+                workflowId: tombstone.workflowId,
+                error: 'Cancelled',
+                runningBlockIds: [],
+                blockErrors: {},
+                cancelledAt: now,
+                updatedAt: now,
+              })
+              .onConflictDoNothing({
+                target: [tableRowExecutions.rowId, tableRowExecutions.groupId],
+              })
+          } catch (error) {
+            if (
+              getPostgresErrorCode(error) === '23503' &&
+              getPostgresConstraintName(error) === TABLE_ROW_EXECUTIONS_ROW_FK
+            ) {
+              return
+            }
+            throw error
+          }
         }
       )
     }
