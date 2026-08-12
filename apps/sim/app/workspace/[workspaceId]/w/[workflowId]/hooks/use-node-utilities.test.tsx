@@ -18,10 +18,10 @@ vi.mock('reactflow', () => ({
 import { useNodeUtilities } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-node-utilities'
 
 /** Renders the hook and hands back what it returned, without a test library. */
-function renderNodeUtilities(blockMap: Record<string, unknown>) {
+function renderNodeUtilities(blockMap: Parameters<typeof useNodeUtilities>[0]) {
   let api: ReturnType<typeof useNodeUtilities> | null = null
   function Probe() {
-    api = useNodeUtilities(blockMap as Record<string, any>)
+    api = useNodeUtilities(blockMap)
     return null
   }
   const host = document.createElement('div')
@@ -43,7 +43,7 @@ const CHILD_POSITION = {
   y: CONTAINER_DIMENSIONS.HEADER_HEIGHT + CONTAINER_DIMENSIONS.TOP_PADDING,
 }
 
-const blocks = {
+const blocks: Parameters<typeof useNodeUtilities>[0] = {
   loop: { id: 'loop', type: 'loop', position: CONTAINER_POSITION, data: {} },
   child: { id: 'child', type: 'gmail_v2', position: CHILD_POSITION, data: { parentId: 'loop' } },
   root: { id: 'root', type: 'gmail_v2', position: { x: 10, y: 20 }, data: {} },

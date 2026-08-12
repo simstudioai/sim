@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { useReactFlow } from 'reactflow'
 import { getBlockMetrics } from '@/lib/workflows/autolayout/utils'
 import {
@@ -14,7 +15,7 @@ const logger = createLogger('NodeUtilities')
 /**
  * Hook providing utilities for node position, hierarchy, and dimension calculations
  */
-export function useNodeUtilities(blocks: Record<string, any>) {
+export function useNodeUtilities(blocks: Record<string, BlockState>) {
   const { getNodes } = useReactFlow()
 
   /**
@@ -180,9 +181,10 @@ export function useNodeUtilities(blocks: Record<string, any>) {
       }
 
       const visited = new Set<string>()
-      let currentId = nodeId
-      while (currentId && blocks?.[currentId]?.data?.parentId) {
-        const currentParentId = blocks[currentId].data.parentId
+      let currentId: string | undefined = nodeId
+      while (currentId) {
+        const currentParentId: string | undefined = blocks[currentId]?.data?.parentId
+        if (!currentParentId) break
         if (visited.has(currentParentId)) {
           logger.error('Circular parent reference detected', {
             nodeId,
