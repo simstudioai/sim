@@ -6,6 +6,7 @@ import {
   internalCancelWorkflowExecutionReasonSchema,
   updateWorkflowBodySchema,
   workflowListItemSchema,
+  workflowStateSchema,
 } from '@/lib/api/contracts/workflows'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
@@ -147,5 +148,46 @@ describe('workflow contracts', () => {
       expect(internalCancelWorkflowExecutionReasonSchema.options).toContain(reason)
       expect(cancelWorkflowExecutionReasonSchema.options).not.toContain(reason)
     }
+  })
+
+  /**
+   * `workflowStateSchema` is the PUT `/api/workflows/[id]/state` body and also
+   * the `state` slot of the GET response. A stored value outside these bounds
+   * used to 500 the read, which is now prevented by pinning the policy when the
+   * normalized tables are loaded — not by widening the write contract. Relaxing
+   * these bounds would let a caller persist a policy the executor will not run.
+   */
+  it('rejects a retry policy outside the bounds on the write contract', () => {
+    const stateWith = (retry: Record<string, unknown>) => ({
+      blocks: {
+        'block-1': {
+          id: 'block-1',
+          type: 'api',
+          name: 'API',
+          position: { x: 0, y: 0 },
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+          retry,
+        },
+      },
+      edges: [],
+    })
+
+    expect(
+      workflowStateSchema.safeParse(
+        stateWith({ enabled: true, maxTries: 999, waitBetweenTriesMs: 0 })
+      ).success
+    ).toBe(false)
+    expect(
+      workflowStateSchema.safeParse(
+        stateWith({ enabled: true, maxTries: 3, waitBetweenTriesMs: 10_000_000 })
+      ).success
+    ).toBe(false)
+    expect(
+      workflowStateSchema.safeParse(
+        stateWith({ enabled: true, maxTries: 3, waitBetweenTriesMs: 0 })
+      ).success
+    ).toBe(true)
   })
 })
