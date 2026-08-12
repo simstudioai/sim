@@ -1489,21 +1489,7 @@ function addTabInternal({
   return tab
 }
 
-/** Forks the agent cursor before the user takes over the same live page. */
-function yieldAutomationTabToUser(tab: AgentTab): void {
-  if (currentScope.automationTabId !== tab.id) return
-  const replacement = addTabInternal({ activate: false, notify: false })
-  currentScope.automationTabId = replacement.id
-  const url = sanitizeRestorableUrl(tabUrl(tab))
-  if (url && url !== 'about:blank') {
-    void replacement.view.webContents.loadURL(url).catch(() => {})
-  }
-  applyActiveTabThrottling()
-  persistBrowserSession()
-  events?.onTabsChanged()
-}
-
-/** Marks the visible page as user-owned; automation forks only if it acts again. */
+/** Marks the visible page as user-selected without blocking automation on it. */
 export function claimActiveTabForUser(): AgentTab | null {
   const tab = activeTab()
   if (!tab) return null
@@ -1590,10 +1576,6 @@ export function addAutomationTab(): AgentTab {
 export function ensureAutomationTab(): AgentTab {
   restoreBrowserSession()
   let tab = automationTab()
-  if (tab?.id === currentScope.activeTabId && currentScope.visibleTabUserSelected) {
-    yieldAutomationTabToUser(tab)
-    tab = automationTab()
-  }
   if (tab) return tab
   tab = activeTab()
   if (tab) {
@@ -1608,11 +1590,7 @@ export function ensureAutomationTab(): AgentTab {
 /** Current agent target without creating one. */
 export function requireAutomationTab(): AgentTab {
   restoreBrowserSession()
-  let tab = automationTab()
-  if (tab?.id === currentScope.activeTabId && currentScope.visibleTabUserSelected) {
-    yieldAutomationTabToUser(tab)
-    tab = automationTab()
-  }
+  const tab = automationTab()
   if (!tab) {
     throw new SessionError('No page is open yet — call browser_navigate or browser_open_tab first.')
   }

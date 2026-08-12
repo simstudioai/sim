@@ -1133,19 +1133,6 @@ export class TerminalService {
   private requireSession(args: TerminalToolArgs): TerminalSession {
     const requested = typeof args.terminalId === 'string' ? args.terminalId : null
     if (requested) {
-      if (requested === this.activeId && this.activeTerminalUserSelected) {
-        const claimed = this.sessions.get(requested)
-        if (claimed?.alive && requested === this.agentActiveId) {
-          return this.spawn(claimed.currentCwd ?? this.startingCwd(), claimed.cols, claimed.rows, {
-            activateVisible: false,
-            activateAgent: true,
-          })
-        }
-        throw new TerminalError(
-          'INVALID_REQUEST',
-          'That terminal is currently being used by the user. Open or switch to another agent terminal first.'
-        )
-      }
       const session = this.sessions.get(requested)
       if (!session?.alive) {
         throw new TerminalError('NO_SUCH_TERMINAL', unknownTerminal(requested))
@@ -1153,13 +1140,7 @@ export class TerminalService {
       return session
     }
 
-    let active = this.agentActiveId ? this.sessions.get(this.agentActiveId) : null
-    if (active?.terminalId === this.activeId && this.activeTerminalUserSelected) {
-      active = this.spawn(active.currentCwd ?? this.startingCwd(), active.cols, active.rows, {
-        activateVisible: false,
-        activateAgent: true,
-      })
-    }
+    const active = this.agentActiveId ? this.sessions.get(this.agentActiveId) : null
     if (active?.alive) return active
 
     const spawned = this.spawn(this.startingCwd(), 80, 24, {

@@ -232,7 +232,7 @@ describe('focus-gated shortcuts', () => {
     expect(runShortcut(terminal, 'new-tab', renderer.window)).toBe(false)
   })
 
-  it('moves agent work to a background shell after the user claims the visible terminal', async () => {
+  it('keeps agent work in the visible terminal after the user focuses it', async () => {
     const terminal = service()
     const started = terminal.start({ cols: 80, rows: 24 })
     const visibleId = started.activeTerminalId as string
@@ -243,9 +243,10 @@ describe('focus-gated shortcuts', () => {
     const result = response.result as { terminalId: string } | undefined
 
     expect(response.ok).toBe(true)
-    expect(result?.terminalId).not.toBe(visibleId)
+    expect(result?.terminalId).toBe(visibleId)
+    expect(terminal.getTabs().tabs).toHaveLength(1)
     expect(terminal.getTabs().activeTerminalId).toBe(visibleId)
-    expect(terminal.getTabs().agentActiveTerminalId).toBe(result?.terminalId)
+    expect(terminal.getTabs().agentActiveTerminalId).toBe(visibleId)
   })
 
   it('keeps a running terminal open when close confirmation is declined', () => {

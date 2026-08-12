@@ -212,14 +212,13 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   activeResourceParamRef.current = activeResourceParam
 
   function handleResourceEvent(resourceId: string) {
-    // Agent work should always make the resource surface available. Expanding
-    // the panel is independent from selecting a resource: once the user has
-    // chosen another resource, the agent may work in the background without
-    // taking that selection away.
+    // Agent work should always make the resource surface available, but it
+    // must never replace an existing selection. Activity in another resource
+    // stays in the background and gets an attention marker instead.
     if (isResourceCollapsedRef.current) setIsResourceCollapsed(false)
 
     const activeResourceId = activeResourceParamRef.current
-    if (userOwnsResourceViewRef.current && activeResourceId && activeResourceId !== resourceId) {
+    if (activeResourceId && activeResourceId !== resourceId) {
       setResourceActivityIds((current) => new Set(current).add(resourceId))
       return
     }

@@ -35,7 +35,11 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { type IBufferRange, Terminal } from '@xterm/xterm'
 import { useTheme } from 'next-themes'
 import '@xterm/xterm/css/xterm.css'
-import type { TerminalTabState, TerminalTabsState } from '@sim/terminal-protocol'
+import {
+  describeRunningCommand,
+  type TerminalTabState,
+  type TerminalTabsState,
+} from '@sim/terminal-protocol'
 import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { getDesktopBridge } from '@/lib/desktop'
@@ -686,7 +690,9 @@ const TerminalView = memo(function TerminalView({
   const closeThisTerminal = useCallback(() => {
     if (
       running &&
-      !window.confirm(`${running} is still running. Close this terminal and stop it?`)
+      !window.confirm(
+        `${describeRunningCommand(running)} is still running. Close this terminal and stop it?`
+      )
     ) {
       return
     }
@@ -978,7 +984,9 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
       const tab = tabs.find((entry) => entry.terminalId === terminalId)
       if (
         tab?.running &&
-        !window.confirm(`${tab.running} is still running. Close this terminal and stop it?`)
+        !window.confirm(
+          `${describeRunningCommand(tab.running)} is still running. Close this terminal and stop it?`
+        )
       ) {
         return
       }

@@ -1099,26 +1099,27 @@ describe('browser-agent session', () => {
     expect(session.getTabsState().activeTabId).toBe(visible.id)
   })
 
-  it('moves the next agent action to a background copy after the user claims its tab', () => {
+  it('keeps agent actions on a tab after the user selects it', () => {
     const visible = session.ensureTab()
     session.switchTab(visible.id)
 
     const agent = session.ensureAutomationTab()
 
-    expect(agent.id).not.toBe(visible.id)
+    expect(agent.id).toBe(visible.id)
     expect(session.getTabsState().activeTabId).toBe(visible.id)
-    expect(session.getTabsState().automationTabId).toBe(agent.id)
+    expect(session.getTabsState().automationTabId).toBe(visible.id)
+    expect(session.listTabs()).toHaveLength(1)
   })
 
-  it('does not create a background tab until the agent resumes after a toolbar action', () => {
+  it('keeps agent actions on a tab after a toolbar action claims it', () => {
     const visible = session.ensureTab()
 
     expect(session.claimActiveTabForUser()?.id).toBe(visible.id)
     expect(session.listTabs()).toHaveLength(1)
 
     const agent = session.ensureAutomationTab()
-    expect(agent.id).not.toBe(visible.id)
-    expect(session.listTabs()).toHaveLength(2)
+    expect(agent.id).toBe(visible.id)
+    expect(session.listTabs()).toHaveLength(1)
   })
 
   it('does not treat a passive native focus event as user takeover', () => {
@@ -1134,7 +1135,7 @@ describe('browser-agent session', () => {
     expect(session.listTabs()).toHaveLength(1)
   })
 
-  it('moves automation to a background copy after real page interaction', () => {
+  it('keeps automation on the same tab after real page interaction', () => {
     const visible = session.ensureTab()
     const contents = (visible.view as unknown as MockView).webContents
     const beforeMouse = contents.on.mock.calls.find(
@@ -1143,9 +1144,9 @@ describe('browser-agent session', () => {
 
     beforeMouse?.({}, { type: 'mouseDown' })
 
-    expect(session.ensureAutomationTab().id).not.toBe(visible.id)
+    expect(session.ensureAutomationTab().id).toBe(visible.id)
     expect(session.getTabsState().activeTabId).toBe(visible.id)
-    expect(session.listTabs()).toHaveLength(2)
+    expect(session.listTabs()).toHaveLength(1)
   })
 
   it('clears automation indicators instead of moving them when their tab closes', () => {
