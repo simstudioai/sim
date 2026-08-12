@@ -7,6 +7,19 @@ import type { WorkflowToolExecutionContext } from '@/tools/types'
 
 const logger = createLogger('SchemaEnrichers')
 
+/**
+ * Reads a table's schema as the acting user.
+ *
+ * Deliberately still on the deprecated `buildAuthHeaders`, unlike its siblings in this
+ * file: `GET /api/table/[tableId]` authenticates through `checkSessionOrInternalAuth`,
+ * which accepts a legacy `type: 'internal'` token and rejects an executor delegation.
+ * Swapping this to `buildExecutorDelegationHeaders` before that route migrates would
+ * break every table tool on an Agent block. The route's own test pins the pairing.
+ *
+ * Unlike the workflow and knowledge enrichers, a failure here is loud — this runs as a
+ * tool-level `toolEnrichment`, so `createLLMToolSchema` surfaces it as a
+ * `ToolSchemaEnrichmentError` naming the tool rather than degrading the schema silently.
+ */
 async function fetchTableSchema(
   tableId: string,
   context: WorkflowToolExecutionContext
