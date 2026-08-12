@@ -14,6 +14,7 @@ import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
+import { encodeFilenameForHeader } from '@/app/api/files/utils'
 import { toV2File } from '@/app/api/v2/files/utils'
 
 export const dynamic = 'force-dynamic'
@@ -42,7 +43,7 @@ export const GET = defineV2BinaryRoute({
   present: ({ file, stream, contentType, contentLength }) => ({
     body: stream,
     contentType,
-    contentDisposition: `attachment; filename="${file.name.replace(/[^\w.-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+    contentDisposition: `attachment; ${encodeFilenameForHeader(file.name)}`,
     contentLength,
   }),
 })

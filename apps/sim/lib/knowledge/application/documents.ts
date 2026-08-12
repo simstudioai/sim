@@ -287,19 +287,13 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
         fileSize: document.fileSize,
         mimeType: document.mimeType,
       }
-      processDocumentsWithQueue(
+      await processDocumentsWithQueue(
         [processingDocument],
         context.knowledgeBaseId,
         input.processingOptions ?? {},
         requestId,
         billingAttribution
-      ).catch((error: unknown) => {
-        logger.error('Knowledge document processing pipeline failed', {
-          knowledgeBaseId: context.knowledgeBaseId,
-          documentId: document.id,
-          error,
-        })
-      })
+      )
     }
     return { document, created: true as const }
   },

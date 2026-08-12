@@ -449,6 +449,26 @@ describe('knowledge document application use cases', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
+  it('propagates processing dispatch failures without reporting upload success', async () => {
+    const failure = new Error('queue unavailable')
+    mocks.processQueue.mockRejectedValueOnce(failure)
+
+    await expect(
+      uploadKnowledgeDocument.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          knowledgeBaseId: 'knowledge-1',
+          assertedWorkspaceId: 'workspace-1',
+          document,
+        },
+      })
+    ).rejects.toBe(failure)
+
+    expect(mocks.createDocument).toHaveBeenCalledOnce()
+    expect(mocks.processQueue).toHaveBeenCalledOnce()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
   it('bounds bulk document creation before billing or orchestration', async () => {
     await expect(
       createKnowledgeDocuments.execute({
