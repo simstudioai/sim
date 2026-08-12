@@ -6,6 +6,7 @@ import {
 } from '@/lib/api/contracts/deployments'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import {
+  concealCrossTenantResourceError,
   defineInternalJsonRoute,
   InternalUnauthenticatedError,
   internalRateLimits,
@@ -14,7 +15,7 @@ import {
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createInternalWorkflowErrorPolicy } from '@/lib/workflows/api'
+import { createInternalWorkflowErrorPolicy, WORKFLOW_NOT_FOUND_MESSAGE } from '@/lib/workflows/api'
 import {
   activateWorkflowVersion,
   updateWorkflowVersion,
@@ -118,7 +119,9 @@ export const PATCH = withRouteHandler(
       if (error instanceof InternalUnauthenticatedError) {
         return createErrorResponse(error.message, 401)
       }
-      const orchestrationError = asOrchestrationError(error)
+      const orchestrationError = asOrchestrationError(
+        concealCrossTenantResourceError(error, WORKFLOW_NOT_FOUND_MESSAGE)
+      )
       if (orchestrationError) {
         return createErrorResponse(
           orchestrationError.message,

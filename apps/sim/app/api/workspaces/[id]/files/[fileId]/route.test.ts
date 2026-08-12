@@ -31,6 +31,12 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
 
+import {
+  DelegatedWorkspaceAuthorizationError,
+  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
+  WorkspaceApiKeyScopeAuthorizationError,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PATCH } from '@/app/api/workspaces/[id]/files/[fileId]/route'
 
@@ -129,6 +135,28 @@ describe('PATCH /api/workspaces/[id]/files/[fileId]', () => {
       error: 'Insufficient workspace permissions',
     })
     expect(mocks.captureServerEvent).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    new NoWorkspaceAccessError(),
+    new WorkspaceApiKeyScopeAuthorizationError(),
+    new DelegatedWorkspaceAuthorizationError(),
+  ])('conceals a cross-tenant denial as an absent file: %s', async (error) => {
+    mocks.rename.mockRejectedValue(error)
+
+    const response = await callRename({ name: 'renamed.csv' })
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'File not found' })
+  })
+
+  it('keeps a same-workspace role denial forbidden', async () => {
+    mocks.rename.mockRejectedValue(new InsufficientWorkspacePermissionsError())
+
+    const response = await callRename({ name: 'renamed.csv' })
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'Insufficient workspace permissions' })
   })
 
   it('hides unexpected failures behind the internal 500 envelope', async () => {

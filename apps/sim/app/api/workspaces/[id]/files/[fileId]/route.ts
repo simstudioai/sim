@@ -28,7 +28,7 @@ export const PATCH = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: fileOperations.rename,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal rename behavior' }),
-  errorPolicy: internalFileErrorPolicies.default,
+  errorPolicy: internalFileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, body }) => ({
     fileId: params.fileId,
     assertedWorkspaceId: params.id,
@@ -48,7 +48,7 @@ export const DELETE = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: fileOperations.delete,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal delete behavior' }),
-  errorPolicy: internalFileErrorPolicies.default,
+  errorPolicy: internalFileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params }) => ({ fileId: params.fileId, assertedWorkspaceId: params.id }),
   useCase: deleteWorkspaceFileOperation,
   onSuccess: internalFileAnalytics.deleted,

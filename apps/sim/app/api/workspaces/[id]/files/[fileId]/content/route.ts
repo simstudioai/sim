@@ -22,7 +22,7 @@ export const PUT = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing internal content-update behavior',
   }),
-  errorPolicy: internalFileErrorPolicies.content,
+  errorPolicy: internalFileErrorPolicies.concealContentAuthorization,
   parseOptions: { maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES },
   beforeParse: async ({ principal, params }) => {
     if (typeof params.fileId === 'string') {

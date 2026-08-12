@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import {
+  createInternalResourceConcealmentPolicy,
   extendInternalErrorPolicy,
   type InternalErrorPolicy,
   internalErrorResponse,
@@ -78,9 +79,23 @@ const inline: InternalErrorPolicy = {
   },
 }
 
+const FILE_NOT_FOUND_MESSAGE = 'File not found'
+
 export const internalFileErrorPolicies = {
   default: internalOrchestrationErrorPolicy,
   content,
+  /**
+   * Single-file internal routes reach the same use cases as the concealing v2
+   * file routes, so they withhold the same cross-tenant existence signal.
+   */
+  concealResourceAuthorization: createInternalResourceConcealmentPolicy({
+    base: internalOrchestrationErrorPolicy,
+    notFoundMessage: FILE_NOT_FOUND_MESSAGE,
+  }),
+  concealContentAuthorization: createInternalResourceConcealmentPolicy({
+    base: content,
+    notFoundMessage: FILE_NOT_FOUND_MESSAGE,
+  }),
   style,
   compiledCheck,
   downloadUrl,

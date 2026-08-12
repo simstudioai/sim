@@ -1,4 +1,5 @@
 import {
+  createInternalResourceConcealmentPolicy,
   createInternalSessionOrExecutorAuth,
   createV2ResourceConcealmentPolicy,
   type InternalErrorPolicy,
@@ -52,21 +53,42 @@ export const internalKnowledgeSessionOrExecutorAuth = createInternalSessionOrExe
   audience: KNOWLEDGE_DELEGATION_AUDIENCE,
 })
 
+export const KNOWLEDGE_BASE_NOT_FOUND_MESSAGE = 'Knowledge base not found'
+
+/**
+ * Conceals a knowledge-base-scoped internal policy the way the v2 knowledge
+ * routes conceal theirs. The workspace-level `list` and `create` policies are
+ * deliberately left alone: neither names a knowledge base, so there is no
+ * resource whose existence a 403 could betray.
+ */
+function concealKnowledgeBase(base: InternalErrorPolicy): InternalErrorPolicy {
+  return createInternalResourceConcealmentPolicy({
+    base,
+    notFoundMessage: KNOWLEDGE_BASE_NOT_FOUND_MESSAGE,
+  })
+}
+
 export const internalKnowledgeErrorPolicies = {
   list: internalKnowledgeErrorPolicy('Failed to fetch knowledge bases'),
-  read: internalKnowledgeErrorPolicy('Failed to fetch knowledge base'),
+  read: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to fetch knowledge base')),
   create: internalKnowledgeErrorPolicy('Failed to create knowledge base'),
-  update: internalKnowledgeErrorPolicy('Failed to update knowledge base'),
-  delete: internalKnowledgeErrorPolicy('Failed to delete knowledge base'),
-  restore: internalKnowledgeErrorPolicy('Internal server error'),
+  update: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to update knowledge base')),
+  delete: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to delete knowledge base')),
+  restore: concealKnowledgeBase(internalKnowledgeErrorPolicy('Internal server error')),
   default: internalKnowledgeErrorPolicy('Internal server error'),
-  documents: internalKnowledgeErrorPolicy('Failed to process knowledge document request'),
-  chunks: internalKnowledgeErrorPolicy('Failed to process knowledge chunk request'),
-  upsert: internalKnowledgeUploadErrorPolicy,
-  search: internalKnowledgeSearchErrorPolicy,
-  tags: internalKnowledgeErrorPolicy('Failed to process knowledge tag request'),
-  connectors: internalKnowledgeErrorPolicy('Internal server error'),
-  uploads: internalKnowledgeUploadErrorPolicy,
+  documents: concealKnowledgeBase(
+    internalKnowledgeErrorPolicy('Failed to process knowledge document request')
+  ),
+  chunks: concealKnowledgeBase(
+    internalKnowledgeErrorPolicy('Failed to process knowledge chunk request')
+  ),
+  upsert: concealKnowledgeBase(internalKnowledgeUploadErrorPolicy),
+  search: concealKnowledgeBase(internalKnowledgeSearchErrorPolicy),
+  tags: concealKnowledgeBase(
+    internalKnowledgeErrorPolicy('Failed to process knowledge tag request')
+  ),
+  connectors: concealKnowledgeBase(internalKnowledgeErrorPolicy('Internal server error')),
+  uploads: concealKnowledgeBase(internalKnowledgeUploadErrorPolicy),
 } as const
 
 const v2KnowledgeUsageErrorPolicy = {

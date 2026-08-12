@@ -1,6 +1,10 @@
 import {
+  createInternalResourceConcealmentPolicy,
   createInternalSessionOrExecutorAuth,
   createV2ResourceConcealmentPolicy,
+  extendInternalErrorPolicy,
+  internalErrorResponse,
+  internalOrchestrationErrorPolicy,
   type V2ErrorPolicy,
 } from '@/lib/api/server/routes'
 import { TABLE_DELEGATION_AUDIENCE } from '@/lib/table/application/authorization'
@@ -51,5 +55,37 @@ export const v2TableErrorPolicies = {
   concealExportAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Table export not found',
     render: renderTableError,
+  }),
+} as const
+
+const internalTableGroupErrorPolicy = extendInternalErrorPolicy(
+  internalOrchestrationErrorPolicy,
+  (error) =>
+    error instanceof TableLockedError
+      ? internalErrorResponse(423, { error: error.message, lock: error.lock })
+      : null
+)
+
+/**
+ * Internal-surface counterparts of {@link v2TableErrorPolicies}. The internal
+ * routes reach the same table use cases, so they conceal the same cross-tenant
+ * authorization failures behind the same not-found wording.
+ */
+export const internalTableErrorPolicies = {
+  concealTableAuthorization: createInternalResourceConcealmentPolicy({
+    base: internalOrchestrationErrorPolicy,
+    notFoundMessage: 'Table not found',
+  }),
+  concealTableGroupAuthorization: createInternalResourceConcealmentPolicy({
+    base: internalTableGroupErrorPolicy,
+    notFoundMessage: 'Table not found',
+  }),
+  concealImportAuthorization: createInternalResourceConcealmentPolicy({
+    base: internalOrchestrationErrorPolicy,
+    notFoundMessage: 'Table import not found',
+  }),
+  concealExportAuthorization: createInternalResourceConcealmentPolicy({
+    base: internalOrchestrationErrorPolicy,
+    notFoundMessage: 'Table export not found',
   }),
 } as const

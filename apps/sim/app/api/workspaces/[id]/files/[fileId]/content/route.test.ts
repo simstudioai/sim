@@ -20,6 +20,11 @@ vi.mock('@/lib/workspace-files/application/update-workspace-file-content', () =>
 }))
 
 import { StorageLimitExceededError } from '@/lib/billing/storage'
+import {
+  DelegatedWorkspaceAuthorizationError,
+  NoWorkspaceAccessError,
+  WorkspaceApiKeyScopeAuthorizationError,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PUT } from '@/app/api/workspaces/[id]/files/[fileId]/content/route'
 
@@ -85,6 +90,20 @@ describe('PUT /api/workspaces/[id]/files/[fileId]/content', () => {
 
     expect(response.status).toBe(403)
     expect(mocks.admit).toHaveBeenCalledWith(PRINCIPAL, FILE_ID)
+    expect(mocks.updateContent).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    new NoWorkspaceAccessError(),
+    new WorkspaceApiKeyScopeAuthorizationError(),
+    new DelegatedWorkspaceAuthorizationError(),
+  ])('conceals a cross-tenant admission denial as an absent file: %s', async (error) => {
+    mocks.admit.mockRejectedValue(error)
+
+    const response = await PUT(createRequest('{not-json'), routeContext)
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toMatchObject({ error: 'File not found' })
     expect(mocks.updateContent).not.toHaveBeenCalled()
   })
 
