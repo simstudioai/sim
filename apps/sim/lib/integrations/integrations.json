@@ -2972,7 +2972,7 @@
       "longDescription": "Invoke a Claude Platform Managed Agent from a workflow. Select a Claude Platform account, pick an agent and environment from that workspace, optionally attach vaults, a memory store, and files, and add metadata tags. Returns the assistant's final text.",
       "bgColor": "#DA7756",
       "iconName": "ClaudeIcon",
-      "docsUrl": "https://docs.sim.ai/integrations/managed-agent",
+      "docsUrl": "https://docs.sim.ai/integrations/managed_agent",
       "operations": [
         {
           "name": "Run session (create, send, wait for reply)",
@@ -4501,7 +4501,7 @@
       "longDescription": "Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.",
       "bgColor": "#1E1E1E",
       "iconName": "CursorIcon",
-      "docsUrl": "https://cursor.com/docs/cloud-agent/api/endpoints",
+      "docsUrl": "https://docs.sim.ai/integrations/cursor",
       "operations": [
         {
           "name": "Launch Agent",
@@ -4797,7 +4797,7 @@
       "longDescription": "Integrate Datagma to find verified work emails from a name and company, enrich person profiles via email or LinkedIn URL, enrich company data from a domain or name, look up mobile phone numbers from LinkedIn, and check your credit balance.",
       "bgColor": "#FFFFFF",
       "iconName": "DatagmaIcon",
-      "docsUrl": "https://docs.sim.ai/tools/datagma",
+      "docsUrl": "https://docs.sim.ai/integrations/datagma",
       "operations": [
         {
           "name": "Find Email",
@@ -5344,7 +5344,7 @@
       "longDescription": "Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.",
       "bgColor": "#0ABA9F",
       "iconName": "DropcontactIcon",
-      "docsUrl": "https://docs.sim.ai/tools/dropcontact",
+      "docsUrl": "https://docs.sim.ai/integrations/dropcontact",
       "operations": [
         {
           "name": "Enrich Contact",
@@ -6015,7 +6015,7 @@
       "longDescription": "Access real-time B2B data intelligence with Enrich.so. Enrich profiles from email addresses, find work emails from LinkedIn, verify email deliverability, search for people and companies, and analyze LinkedIn post engagement.",
       "bgColor": "#E5E5E6",
       "iconName": "EnrichSoIcon",
-      "docsUrl": "https://docs.enrich.so/",
+      "docsUrl": "https://docs.sim.ai/integrations/enrich",
       "operations": [
         {
           "name": "Email to Profile",
@@ -6162,7 +6162,7 @@
       "longDescription": "Integrate Enrow to find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Enrow performs deterministic verifications including catch-all emails — no additional verifier needed.",
       "bgColor": "#FFFFFF",
       "iconName": "EnrowIcon",
-      "docsUrl": "https://enrow.readme.io",
+      "docsUrl": "https://docs.sim.ai/integrations/enrow",
       "operations": [
         {
           "name": "Find Email",
@@ -8165,7 +8165,7 @@
       "longDescription": "Connect to Google Workspace to create, update, and manage groups and their members using the Admin SDK Directory API.",
       "bgColor": "#E8F0FE",
       "iconName": "GoogleGroupsIcon",
-      "docsUrl": "https://developers.google.com/admin-sdk/directory/v1/guides/manage-groups",
+      "docsUrl": "https://docs.sim.ai/integrations/google_groups",
       "operations": [
         {
           "name": "List Groups",
@@ -9691,7 +9691,7 @@
       "longDescription": "Integrate Icypeas to find a professional email address from a name and company domain, or verify whether an existing email is valid and deliverable. Results are returned asynchronously via polling.",
       "bgColor": "#d4d4d4",
       "iconName": "IcypeasIcon",
-      "docsUrl": "https://docs.sim.ai/tools/icypeas",
+      "docsUrl": "https://docs.sim.ai/integrations/icypeas",
       "operations": [
         {
           "name": "Find Email",
@@ -11246,7 +11246,7 @@
       "longDescription": "Integrate LeadMagic to find verified work emails by name or company, validate email deliverability, find direct mobile numbers, enrich LinkedIn profiles, reverse-lookup profiles from emails, search companies by domain, identify role holders at accounts, and check account credit balance.",
       "bgColor": "#FFFFFF",
       "iconName": "LeadMagicIcon",
-      "docsUrl": "https://docs.sim.ai/tools/leadmagic",
+      "docsUrl": "https://docs.sim.ai/integrations/leadmagic",
       "operations": [
         {
           "name": "Find Email",
@@ -14892,7 +14892,7 @@
       "longDescription": "Integrate Qdrant into the workflow. Can upsert, search, and fetch points.",
       "bgColor": "#1A223F",
       "iconName": "QdrantIcon",
-      "docsUrl": "https://qdrant.tech/documentation/",
+      "docsUrl": "https://docs.sim.ai/integrations/qdrant",
       "operations": [
         {
           "name": "Upsert",
@@ -17868,7 +17868,7 @@
       "longDescription": "Access comprehensive website analytics including traffic estimates, engagement metrics, rankings, and traffic sources using the Similarweb API.",
       "bgColor": "#000922",
       "iconName": "SimilarwebIcon",
-      "docsUrl": "https://developers.similarweb.com/docs/similarweb-web-traffic-api",
+      "docsUrl": "https://docs.sim.ai/integrations/similarweb",
       "operations": [
         {
           "name": "Website Overview",
@@ -20387,7 +20387,7 @@
       "longDescription": "Integrate Thrive Learning into the workflow. Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.",
       "bgColor": "#FFFFFF",
       "iconName": "ThriveIcon",
-      "docsUrl": "https://docs.sim.ai/tools/thrive",
+      "docsUrl": "https://docs.sim.ai/integrations/thrive",
       "operations": [
         {
           "name": "Create User",

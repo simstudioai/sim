@@ -9,7 +9,7 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Enrow to find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Enrow performs deterministic verifications including catch-all emails — no additional verifier needed.',
-  docsLink: 'https://enrow.readme.io',
+  docsLink: 'https://docs.sim.ai/integrations/enrow',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',

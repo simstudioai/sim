@@ -10,7 +10,7 @@ export const CursorBlock: BlockConfig<CursorResponse> = {
   description: 'Launch and manage Cursor cloud agents to work on GitHub repositories',
   longDescription:
     'Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.',
-  docsLink: 'https://cursor.com/docs/cloud-agent/api/endpoints',
+  docsLink: 'https://docs.sim.ai/integrations/cursor',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   bgColor: '#1E1E1E',

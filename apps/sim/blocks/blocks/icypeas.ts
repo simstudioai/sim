@@ -8,7 +8,7 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
   description: 'Find and verify professional email addresses',
   longDescription:
     'Integrate Icypeas to find a professional email address from a name and company domain, or verify whether an existing email is valid and deliverable. Results are returned asynchronously via polling.',
-  docsLink: 'https://docs.sim.ai/tools/icypeas',
+  docsLink: 'https://docs.sim.ai/integrations/icypeas',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#d4d4d4',
