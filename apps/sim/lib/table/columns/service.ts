@@ -747,6 +747,41 @@ export function applyPendingRename(
 }
 
 /**
+ * What a retype must write back for one already-compatible cell, or `null` when
+ * the stored value is already the value the new type should hold.
+ *
+ * A blank the target CANNOT read becomes null — the write path turns an
+ * unreadable value into null on an optional column, so the conversion does the
+ * same. A blank the target CAN read (`''` in a `string` or `json` column) is
+ * left exactly as stored: nulling it would silently destroy the cell, and on a
+ * `required` target it would leave a null behind a constraint that just passed
+ * (`countEmptyCells` does not treat `''` as empty).
+ *
+ * Everything else goes through the target's `coerce`, which frequently
+ * *transforms* the value — an epoch becomes an ISO date, `$1,234.56` becomes
+ * `1234.56`. Without writing the transformed value back the cell keeps its old
+ * bytes under the new type, and since filters and sorts apply the type's
+ * `jsonbCast` to whatever is stored, an epoch left in a `date` column makes
+ * `::timestamptz` fail on EVERY query against that column.
+ */
+export function retypeCellRewrite(
+  value: unknown,
+  target: ColumnDefinition
+): { value: JsonValue } | null {
+  if (value === null || value === undefined) return null
+
+  if (!isValueCompatibleWithColumn(value, target)) {
+    // Incompatible non-blanks never reach here: the compatibility scan already
+    // refused the whole conversion for them.
+    return value === '' ? { value: null } : null
+  }
+
+  const coerced = columnTypeById(target.type).coerce(value as JsonValue, target)
+  if (coerced.ok && !Object.is(coerced.value, value)) return { value: coerced.value }
+  return null
+}
+
+/**
  * The column definition a retype produces: prior per-type metadata dropped,
  * then only what the TARGET type declares it owns carried forward, then that
  * type's own defaults stamped on.
@@ -912,19 +947,11 @@ export async function updateColumnType(
       let incompatibleCount = 0
       let blankCount = 0
       /**
-       * Row id → the value the cell must END UP holding.
-       *
-       * Collected during the compatibility scan rather than re-derived later, so
-       * it reads the same `effective` value the check accepted — which for a
-       * `select` source is the option name, not the stored id.
-       *
-       * Load-bearing: a conversion is allowed exactly when the target type's
-       * `coerce` accepts the value, and `coerce` frequently *transforms* it (an
-       * epoch number becomes an ISO date, a formatted amount becomes a number).
-       * Without writing the transformed value back, the cell keeps its old bytes
-       * under the new type — and since filters and sorts apply the type's
-       * `jsonbCast` to whatever is stored, an epoch left in a `date` column makes
-       * `::timestamptz` fail on EVERY query against it.
+       * Compatibility scan, paged so a wide table cannot pull every row into
+       * memory at once. Only counts here — the values the cells must END UP
+       * holding are derived in the rewrite pass below, which reads the rows
+       * back after `migrationFrom` has run so a `select` source is already in
+       * its option-name form. See {@link retypeCellRewrite}.
        */
       const retypeScanBatchSize = getColumnRetypeScanBatchSize()
       let validationAfterId: string | undefined
@@ -1017,16 +1044,8 @@ export async function updateColumnType(
           if (rows.length === 0) break
           const coercedByRowId = new Map<string, JsonValue>()
           for (const row of rows) {
-            const value = row.value
-            if (value === null || value === undefined) continue
-            if (value === '') {
-              coercedByRowId.set(row.id, null)
-              continue
-            }
-            const coerced = columnTypeById(data.newType).coerce(value as JsonValue, convertedColumn)
-            if (coerced.ok && !Object.is(coerced.value, value)) {
-              coercedByRowId.set(row.id, coerced.value)
-            }
+            const rewrite = retypeCellRewrite(row.value, convertedColumn)
+            if (rewrite) coercedByRowId.set(row.id, rewrite.value)
           }
           await writeBackCoercedCells(
             trx,
