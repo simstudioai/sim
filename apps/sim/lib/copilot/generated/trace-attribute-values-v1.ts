@@ -117,6 +117,16 @@ export const CopilotConfirmOutcome = {
 export type CopilotConfirmOutcomeKey = keyof typeof CopilotConfirmOutcome
 export type CopilotConfirmOutcomeValue = (typeof CopilotConfirmOutcome)[CopilotConfirmOutcomeKey]
 
+export const CopilotDegradedReason = {
+  BindingRejected: 'binding_rejected',
+  ClientPickupTimeout: 'client_pickup_timeout',
+  MissingToolResult: 'missing_tool_result',
+  StreamDeadBeforeDispatch: 'stream_dead_before_dispatch',
+} as const
+
+export type CopilotDegradedReasonKey = keyof typeof CopilotDegradedReason
+export type CopilotDegradedReasonValue = (typeof CopilotDegradedReason)[CopilotDegradedReasonKey]
+
 export const CopilotFinalizeOutcome = {
   Aborted: 'aborted',
   Error: 'error',

@@ -226,6 +226,22 @@ export async function prePersistClientExecutableToolCall(
 
   if (!context.runId) return
 
+  // Pin the workflow target into the arguments before they are sealed, persisted,
+  // and forwarded, so the row, the browser, and the completion waiter all read one
+  // explicit field.
+  //
+  // They used to disagree: the server resolved `args.workflowId ?? run.workflowId`
+  // while the browser resolved `args.workflowId ?? activeWorkflowId`. In a
+  // workspace chat `copilot_runs.workflow_id` is NULL, so every call that omitted
+  // the (optional) argument resolved to nothing server-side and to the open tab
+  // client-side — a guaranteed rejection at the execute endpoint.
+  if (isWorkflowToolName(data.toolName)) {
+    const targetWorkflowId = resolveWorkflowToolTargetId(data.arguments, execContext?.workflowId)
+    if (targetWorkflowId) {
+      data.arguments = { ...(data.arguments ?? {}), workflowId: targetWorkflowId }
+    }
+  }
+
   let sealedContext: Awaited<ReturnType<typeof sealClientToolContext>> | undefined
   if (execContext?.resolvedSecretTraceRegistry) {
     try {
@@ -691,6 +707,39 @@ async function dispatchToolExecution(
     })
   }
 
+  /**
+   * Refuse a workflow tool call whose target this side cannot name.
+   *
+   * The execute endpoint validates the run against the tool call's bound
+   * workflow, so dispatching an unbound call only buys a rejection the model
+   * cannot interpret. Failing here instead tells it exactly what to send back,
+   * and never guesses a workflow on the user's behalf.
+   */
+  const refuseUnboundWorkflowTool = async (): Promise<AsyncCompletionSignal> => {
+    const error = `${toolName} requires an explicit workflowId. This chat is not scoped to a workflow, so there is no current workflow to fall back to — pass the id of the workflow to run.`
+    logger.warn('Refusing workflow tool call with no resolvable workflow target', {
+      toolCallId,
+      toolName,
+    })
+    setTerminalToolCallState(toolCall, {
+      status: MothershipStreamV1ToolOutcome.error,
+      output: { error },
+      error,
+    })
+    markToolResultSeen(toolCallId)
+    await emitSyntheticToolResult(
+      toolCallId,
+      toolCall.name,
+      {
+        status: MothershipStreamV1ToolOutcome.error,
+        message: error,
+        data: { error },
+      },
+      options
+    )
+    return { status: MothershipStreamV1ToolOutcome.error, message: error, data: { error } }
+  }
+
   // Returns the promise instead of registering it, so the permission gate can
   // wrap the whole thing in one pending promise that stays unsettled until the
   // tool has actually run. Null means nothing was dispatched.
@@ -707,6 +756,12 @@ async function dispatchToolExecution(
       if (isSimExecuted(toolName) && !delegateWorkflowRunToClient && !userLocalVfsCall) {
         if (abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) return null
         return fireToolExecution()
+      }
+      if (
+        delegateWorkflowRunToClient &&
+        !resolveWorkflowToolTargetId(args, execContext.workflowId)
+      ) {
+        return refuseUnboundWorkflowTool()
       }
       return waitForClientExecution()
     }

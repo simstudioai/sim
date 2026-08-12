@@ -4268,14 +4268,14 @@ export const RunBlock: ToolCatalogEntry = {
       workflowId: {
         type: 'string',
         description:
-          'Optional workflow ID to run. If not provided, uses the current workflow in context.',
+          'ID of the workflow to run. Always pass this explicitly — outside a workflow-scoped chat there is no current workflow to fall back to, and the run is rejected without it.',
       },
       workflow_input: {
         type: 'object',
         description: 'JSON object with key-value mappings where each key is an input field name',
       },
     },
-    required: ['blockId'],
+    required: ['workflowId', 'blockId'],
   },
   clientExecutable: true,
 }
@@ -4396,14 +4396,14 @@ export const RunFromBlock: ToolCatalogEntry = {
       workflowId: {
         type: 'string',
         description:
-          'Optional workflow ID to run. If not provided, uses the current workflow in context.',
+          'ID of the workflow to run. Always pass this explicitly — outside a workflow-scoped chat there is no current workflow to fall back to, and the run is rejected without it.',
       },
       workflow_input: {
         type: 'object',
         description: 'JSON object with key-value mappings where each key is an input field name',
       },
     },
-    required: ['startBlockId'],
+    required: ['workflowId', 'startBlockId'],
   },
   clientExecutable: true,
 }
@@ -4444,7 +4444,7 @@ export const RunWorkflow: ToolCatalogEntry = {
       workflowId: {
         type: 'string',
         description:
-          'Optional workflow ID to run. If not provided, uses the current workflow in context.',
+          'ID of the workflow to run. Always pass this explicitly — outside a workflow-scoped chat there is no current workflow to fall back to, and the run is rejected without it.',
       },
       workflow_input: {
         type: 'object',
@@ -4452,6 +4452,7 @@ export const RunWorkflow: ToolCatalogEntry = {
           "JSON object matching the target trigger's inputSchema (from get_workflow_run_options). For external/webhook triggers this is the event payload; for API/Input triggers it is the form fields.",
       },
     },
+    required: ['workflowId'],
   },
   clientExecutable: true,
   requiresApproval: true,
@@ -4492,7 +4493,7 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
       workflowId: {
         type: 'string',
         description:
-          'Optional workflow ID to run. If not provided, uses the current workflow in context.',
+          'ID of the workflow to run. Always pass this explicitly — outside a workflow-scoped chat there is no current workflow to fall back to, and the run is rejected without it.',
       },
       workflow_input: {
         type: 'object',
@@ -4500,7 +4501,7 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
           "JSON object matching the target trigger's inputSchema (from get_workflow_run_options). For external/webhook triggers this is the event payload; for API/Input triggers it is the form fields.",
       },
     },
-    required: ['stopAfterBlockId'],
+    required: ['workflowId', 'stopAfterBlockId'],
   },
   clientExecutable: true,
   requiresApproval: true,

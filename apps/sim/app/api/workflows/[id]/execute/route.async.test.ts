@@ -852,8 +852,13 @@ describe('workflow execute async route', () => {
         status: 'pending',
       },
       { id: 'copilot-run-1', userId: 'session-user-1', workflowId: 'workflow-1' },
+      403,
+      'COPILOT_WORKFLOW_TOOL_BINDING_AWAITING_APPROVAL',
     ],
     [
+      // A finished call is a benign duplicate, not a defect: some other runner
+      // already owns this tool call, so it reports the same conflict the
+      // execution claim does and the client stays silent.
       'terminal tool row',
       {
         toolCallId: 'copilot-tool-1',
@@ -863,6 +868,8 @@ describe('workflow execute async route', () => {
         status: 'completed',
       },
       { id: 'copilot-run-1', userId: 'session-user-1', workflowId: 'workflow-1' },
+      409,
+      'COPILOT_WORKFLOW_EXECUTION_CONFLICT',
     ],
     [
       'different workflow target',
@@ -874,6 +881,8 @@ describe('workflow execute async route', () => {
         status: 'running',
       },
       { id: 'copilot-run-1', userId: 'session-user-1', workflowId: 'workflow-1' },
+      403,
+      'COPILOT_WORKFLOW_TOOL_BINDING_WORKFLOW_MISMATCH',
     ],
     [
       'different execution actor',
@@ -885,19 +894,28 @@ describe('workflow execute async route', () => {
         status: 'running',
       },
       { id: 'copilot-run-1', userId: 'other-user', workflowId: 'workflow-1' },
+      403,
+      'COPILOT_WORKFLOW_TOOL_BINDING_FOREIGN_OWNER',
     ],
-  ])('rejects a Copilot binding owned by a %s', async (_caseName, toolCall, run) => {
-    mockGetAsyncToolCall.mockResolvedValueOnce(toolCall)
-    mockGetRunSegment.mockResolvedValueOnce(run)
+    ['missing tool row', null, null, 404, 'COPILOT_WORKFLOW_TOOL_BINDING_UNKNOWN'],
+  ])(
+    'rejects a Copilot binding owned by a %s',
+    async (_caseName, toolCall, run, expectedStatus, expectedCode) => {
+      mockGetAsyncToolCall.mockResolvedValueOnce(toolCall)
+      mockGetRunSegment.mockResolvedValueOnce(run)
 
-    const response = await POST(createBoundCopilotExecutionRequest(), {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
+      const response = await POST(createBoundCopilotExecutionRequest(), {
+        params: Promise.resolve({ id: 'workflow-1' }),
+      })
 
-    expect(response.status).toBe(403)
-    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
-    expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).not.toHaveBeenCalled()
-  })
+      expect(response.status).toBe(expectedStatus)
+      // The reason must be machine-readable — an opaque 403 is what stopped the
+      // client telling a benign duplicate from a real failure.
+      await expect(response.json()).resolves.toMatchObject({ code: expectedCode })
+      expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+      expect(loggingSessionMockFns.mockSetTrustedExecutionCorrelation).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects Copilot workflow bindings outside the interactive SSE surface', async () => {
     const response = await POST(createBoundCopilotExecutionRequest({ stream: false }), {

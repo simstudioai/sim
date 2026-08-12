@@ -681,11 +681,20 @@ async function doExecuteRunTool(
       logger.error('[RunTool] Workflow execution threw', { toolCallId, toolName, error: msg })
       const failedExecutionId =
         useExecutionStore.getState().getCurrentExecutionId(targetWorkflowId) ?? executionId
+      // Carry the real failure through instead of the generic "Workflow execution
+      // failed." — the agent can only correct a bad request (a rejected binding,
+      // an undeployed workflow) if it is told what was wrong.
+      const failureCode = isExecutionStreamHttpError(err) ? err.code : undefined
       await reportCompletion(
         toolCallId,
         MothershipStreamV1ToolOutcome.error,
-        getWorkflowToolCompletionMessage(MothershipStreamV1ToolOutcome.error),
-        undefined,
+        msg,
+        {
+          success: false,
+          workflowId: targetWorkflowId,
+          error: msg,
+          ...(failureCode ? { code: failureCode } : {}),
+        },
         failedExecutionId
       )
     }

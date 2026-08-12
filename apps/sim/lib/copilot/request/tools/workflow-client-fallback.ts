@@ -7,6 +7,8 @@ import type {
   AsyncTerminalCompletionSnapshot,
 } from '@/lib/copilot/async-runs/lifecycle'
 import { claimWorkflowToolExecution } from '@/lib/copilot/async-runs/repository'
+import { CopilotDegradedReason } from '@/lib/copilot/generated/trace-attribute-values-v1'
+import { recordDegraded } from '@/lib/copilot/request/metrics'
 import { waitForWorkflowToolCompletion } from '@/lib/copilot/request/tools/client'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -121,6 +123,7 @@ export async function raceWorkflowToolClientPickup(
     return { winner: 'client', completion: await clientWait }
   }
 
+  recordDegraded(CopilotDegradedReason.ClientPickupTimeout)
   logger.info('No client picked up workflow tool within grace; running it server-side', {
     toolCallId,
     workflowId,

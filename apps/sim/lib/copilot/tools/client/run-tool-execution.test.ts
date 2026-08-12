@@ -451,6 +451,38 @@ describe('run tool execution cancellation', () => {
     )
   })
 
+  it('reports the real failure reason so the agent can correct its arguments', async () => {
+    // A generic "Workflow execution failed." told the model nothing, so it could
+    // not fix a rejected binding or an undeployed workflow on retry.
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    executeWorkflowWithFullLogging.mockRejectedValueOnce(
+      new MockExecutionStreamHttpError(
+        'This Copilot workflow tool call is bound to a different workflow',
+        403,
+        'COPILOT_WORKFLOW_TOOL_BINDING_WORKFLOW_MISMATCH'
+      )
+    )
+
+    executeRunToolOnClient('tool-binding-rejected', 'run_workflow', { workflowId: 'wf-1' })
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/copilot/confirm',
+        expect.objectContaining({
+          body: expect.stringContaining('COPILOT_WORKFLOW_TOOL_BINDING_WORKFLOW_MISMATCH'),
+        })
+      )
+    })
+    const confirmBody = JSON.parse(
+      fetchMock.mock.calls.find(([url]) => url === '/api/copilot/confirm')?.[1]?.body as string
+    )
+    expect(confirmBody.message).toBe(
+      'This Copilot workflow tool call is bound to a different workflow'
+    )
+    expect(confirmBody.status).toBe('error')
+  })
+
   it('drops a duplicate async launch without confirming or surfacing an error', async () => {
     // The server fallback (or another tab) already claimed this tool call.
     // Reporting an error here would overwrite a run that is in flight.

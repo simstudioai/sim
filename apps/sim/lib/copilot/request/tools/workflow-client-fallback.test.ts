@@ -4,10 +4,15 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { waitForWorkflowToolCompletion, claimWorkflowToolExecution } = vi.hoisted(() => ({
-  waitForWorkflowToolCompletion: vi.fn(),
-  claimWorkflowToolExecution: vi.fn(),
-}))
+const { waitForWorkflowToolCompletion, claimWorkflowToolExecution, recordDegraded } = vi.hoisted(
+  () => ({
+    waitForWorkflowToolCompletion: vi.fn(),
+    claimWorkflowToolExecution: vi.fn(),
+    recordDegraded: vi.fn(),
+  })
+)
+
+vi.mock('@/lib/copilot/request/metrics', () => ({ recordDegraded }))
 
 vi.mock('@/lib/copilot/request/tools/client', () => ({
   waitForWorkflowToolCompletion,
@@ -84,6 +89,9 @@ describe('raceWorkflowToolClientPickup', () => {
 
     expect(outcome.winner).toBe('sim')
     expect(outcome.signal).toEqual({ status: 'success' })
+    // Falling back is non-fatal, so it has to be countable — Sim logs do not
+    // reach Loki and this path emits no exported span.
+    expect(recordDegraded).toHaveBeenCalledWith('client_pickup_timeout')
     expect(claimWorkflowToolExecution).toHaveBeenCalledTimes(1)
     expect(params.runOnServer).toHaveBeenCalledTimes(1)
     // The claimed id is what the server run must bind to.
