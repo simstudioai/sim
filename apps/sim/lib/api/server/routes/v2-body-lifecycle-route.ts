@@ -41,18 +41,13 @@ interface V2BodyLifecycleContext<C extends JsonApiRouteContract, A> {
   admission: A
 }
 
-interface V2BodyLifecycleTransferContext<C extends JsonApiRouteContract, A, B>
+interface V2BodyLifecycleInputContext<C extends JsonApiRouteContract, A, B>
   extends V2BodyLifecycleContext<C, A> {
   body: B
 }
 
-interface V2BodyLifecycleInputContext<C extends JsonApiRouteContract, A, B, T>
-  extends V2BodyLifecycleTransferContext<C, A, B> {
-  transfer: T
-}
-
-interface V2BodyLifecycleSuccessContext<C extends JsonApiRouteContract, A, B, T, I, R>
-  extends V2BodyLifecycleInputContext<C, A, B, T> {
+interface V2BodyLifecycleSuccessContext<C extends JsonApiRouteContract, A, B, I, R>
+  extends V2BodyLifecycleInputContext<C, A, B> {
   input: I
   result: R
 }
@@ -63,7 +58,6 @@ interface V2BodyLifecycleRouteOptions<
   AI,
   A,
   B,
-  T,
   I,
   R,
 > {
@@ -75,12 +69,11 @@ interface V2BodyLifecycleRouteOptions<
   parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
   admission: V2BodyLifecycleAdmission<O, C, AI, A>
   readBody(context: V2BodyLifecycleContext<C, A>): Promise<B>
-  transfer(context: V2BodyLifecycleTransferContext<C, A, B>): Promise<T>
-  mapInput(context: V2BodyLifecycleInputContext<C, A, B, T>): I
+  mapInput(context: V2BodyLifecycleInputContext<C, A, B>): I
   useCase: OperationUseCase<NoInfer<O>, I, R>
   present(result: R): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
   onSuccess?(
-    context: V2BodyLifecycleSuccessContext<C, A, B, T, NoInfer<I>, NoInfer<R>>
+    context: V2BodyLifecycleSuccessContext<C, A, B, NoInfer<I>, NoInfer<R>>
   ): void | Promise<void>
 }
 
@@ -95,10 +88,9 @@ export function defineV2BodyLifecycleRoute<
   AI,
   A,
   B,
-  T,
   I,
   R,
->(options: V2BodyLifecycleRouteOptions<C, O, AI, A, B, T, I, R>): JsonNextRouteHandler {
+>(options: V2BodyLifecycleRouteOptions<C, O, AI, A, B, I, R>): JsonNextRouteHandler {
   if (options.contract.body) {
     throw new Error(
       `${options.contract.method} ${options.contract.path} must omit its body schema so admission precedes body reads`
@@ -153,8 +145,7 @@ export function defineV2BodyLifecycleRoute<
         })
         const lifecycleContext = { request, principal, parsed: parsed.data, admission }
         const body = await options.readBody(lifecycleContext)
-        const transfer = await options.transfer({ ...lifecycleContext, body })
-        const inputContext = { ...lifecycleContext, body, transfer }
+        const inputContext = { ...lifecycleContext, body }
         const input = options.mapInput(inputContext)
         const result = await options.useCase.execute({ principal, input, request })
         const responseBody = options.contract.response.schema.parse(await options.present(result))

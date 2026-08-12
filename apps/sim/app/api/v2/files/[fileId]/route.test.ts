@@ -141,6 +141,25 @@ describe('v2 single-file routes', () => {
     })
   })
 
+  it('encodes special characters in the extended download filename', async () => {
+    mocks.download.mockResolvedValueOnce({
+      file: fileRecord({ name: "it's (final)* café.pdf" }),
+      stream: new Blob(['pdf']).stream(),
+      contentType: 'application/pdf',
+      contentLength: 3,
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}?workspaceId=${WORKSPACE_ID}`),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Disposition')).toBe(
+      `attachment; filename="it's (final)* caf_.pdf"; filename*=UTF-8''it%27s%20%28final%29%2A%20caf%C3%A9.pdf`
+    )
+  })
+
   it('conceals cross-workspace download authorization', async () => {
     mocks.download.mockRejectedValue(new NoWorkspaceAccessError())
 

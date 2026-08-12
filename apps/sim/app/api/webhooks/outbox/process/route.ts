@@ -9,6 +9,7 @@ import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
 import { processOutboxEvents } from '@/lib/core/outbox/service'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
 import { invitationMigrationOutboxHandlers } from '@/lib/workspaces/admin-move'
 import { reapStaleBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
@@ -23,6 +24,7 @@ const handlers = {
   ...membershipBillingOutboxHandlers,
   ...enterpriseIssuanceOutboxHandlers,
   ...invitationMigrationOutboxHandlers,
+  ...knowledgeDocumentProcessingOutboxHandlers,
   ...workflowDeploymentOutboxHandlers,
 } as const
 

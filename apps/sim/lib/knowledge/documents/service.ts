@@ -64,6 +64,8 @@ import {
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import { failStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
+import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
   createDocumentProcessingPayload,
@@ -777,6 +779,7 @@ export async function processDocumentAsync(
   providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext
 ): Promise<void> {
   const startTime = Date.now()
+  const processingStartedAt = new Date()
   try {
     logger.info(`[${documentId}] Starting document processing`, {
       knowledgeBaseId,
@@ -859,7 +862,7 @@ export async function processDocumentAsync(
       .update(document)
       .set({
         processingStatus: 'processing',
-        processingStartedAt: new Date(),
+        processingStartedAt,
         processingCompletedAt: null,
         processingError: null,
       })
@@ -934,7 +937,13 @@ export async function processDocumentAsync(
             usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.',
           processingCompletedAt: new Date(),
         })
-        .where(eq(document.id, documentId))
+        .where(
+          and(
+            eq(document.id, documentId),
+            eq(document.processingStatus, 'processing'),
+            eq(document.processingStartedAt, processingStartedAt)
+          )
+        )
       return
     }
     let billableEmbeddingTokens = 0
@@ -953,6 +962,7 @@ export async function processDocumentAsync(
       currentSourceFileProvenance
     )
 
+    let processingCommitted = false
     await withTimeout(
       runWithKnowledgeModelInputProvenance(
         documentSecretContext.registry,
@@ -1068,7 +1078,7 @@ export async function processDocumentAsync(
             updatedAt: now,
           }))
 
-          await db.transaction(async (tx) => {
+          processingCommitted = await db.transaction(async (tx) => {
             const activeDocument = await tx
               .select({ id: document.id })
               .from(document)
@@ -1076,15 +1086,18 @@ export async function processDocumentAsync(
               .where(
                 and(
                   eq(document.id, documentId),
+                  eq(document.processingStatus, 'processing'),
+                  eq(document.processingStartedAt, processingStartedAt),
                   isNull(document.archivedAt),
                   isNull(document.deletedAt),
                   isNull(knowledgeBase.deletedAt)
                 )
               )
+              .for('update', { of: document })
               .limit(1)
 
             if (activeDocument.length === 0) {
-              return
+              return false
             }
 
             if (embeddingRecords.length > 0) {
@@ -1130,7 +1143,14 @@ export async function processDocumentAsync(
                 processingCompletedAt: now,
                 processingError: null,
               })
-              .where(eq(document.id, documentId))
+              .where(
+                and(
+                  eq(document.id, documentId),
+                  eq(document.processingStatus, 'processing'),
+                  eq(document.processingStartedAt, processingStartedAt)
+                )
+              )
+            return true
           })
         },
         {
@@ -1142,6 +1162,11 @@ export async function processDocumentAsync(
       TIMEOUTS.OVERALL_PROCESSING,
       'Document processing'
     )
+
+    if (!processingCommitted) {
+      logger.info(`[${documentId}] Discarded output from an obsolete processing attempt`)
+      return
+    }
 
     const processingTime = Date.now() - startTime
     logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
@@ -1204,7 +1229,13 @@ export async function processDocumentAsync(
         processingError: errorMessage,
         processingCompletedAt: new Date(),
       })
-      .where(eq(document.id, documentId))
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(document.processingStatus, 'processing'),
+          eq(document.processingStartedAt, processingStartedAt)
+        )
+      )
 
     throw error
   }
@@ -1860,7 +1891,13 @@ export async function createSingleDocument(
   uploadedBy: string | null = null,
   documentId = generateId(),
   secretProvenance?: KnowledgeDocumentWriteSecretProvenance,
-  options?: { expectedWorkspaceId?: string }
+  options?: {
+    expectedWorkspaceId?: string
+    processing?: {
+      processingOptions: ProcessingOptions
+      billingAttribution: BillingAttributionSnapshot
+    }
+  }
 ): Promise<{
   id: string
   knowledgeBaseId: string
@@ -2057,6 +2094,15 @@ export async function createSingleDocument(
       .update(knowledgeBase)
       .set({ updatedAt: now })
       .where(eq(knowledgeBase.id, knowledgeBaseId))
+
+    if (options?.processing) {
+      await enqueueKnowledgeDocumentProcessing(tx, {
+        knowledgeBaseId,
+        documentId,
+        processingOptions: options.processing.processingOptions,
+        billingAttribution: options.processing.billingAttribution,
+      })
+    }
 
     return storageNotification
   })
@@ -2311,31 +2357,17 @@ export async function markDocumentAsFailedTimeout(
   processingStartedAt: Date,
   requestId: string
 ): Promise<{ success: boolean; processingDuration: number }> {
-  const now = new Date()
-  const processingDuration = now.getTime() - processingStartedAt.getTime()
-  const DEAD_PROCESS_THRESHOLD_MS = 600 * 1000 // 10 minutes
+  const result = await failStaleDocumentProcessingClaim({ documentId, processingStartedAt })
 
-  if (processingDuration <= DEAD_PROCESS_THRESHOLD_MS) {
-    throw new Error('Document has not been processing long enough to be considered dead')
+  if (result.success) {
+    logger.info(
+      `[${requestId}] Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(result.processingDuration / 1000)}s)`
+    )
+  } else {
+    logger.info(`[${requestId}] Did not time out document ${documentId} because its claim changed`)
   }
 
-  await db
-    .update(document)
-    .set({
-      processingStatus: 'failed',
-      processingError: 'Processing timed out. Please retry or re-sync the connector.',
-      processingCompletedAt: now,
-    })
-    .where(eq(document.id, documentId))
-
-  logger.info(
-    `[${requestId}] Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(processingDuration / 1000)}s)`
-  )
-
-  return {
-    success: true,
-    processingDuration,
-  }
+  return result
 }
 
 export async function retryDocumentProcessing(
