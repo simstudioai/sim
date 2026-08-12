@@ -631,6 +631,33 @@ describe('knowledge_base trusted application delegation', () => {
     })
   })
 
+  it('preserves credential access guidance for connector creation', async () => {
+    mockCreateKnowledgeConnector.mockRejectedValueOnce(
+      new OrchestrationError(
+        'validation',
+        'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.'
+      )
+    )
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'add_connector',
+        args: {
+          knowledgeBaseId: KNOWLEDGE_BASE.id,
+          connectorType: 'notion',
+          credentialId: 'credential-1',
+        },
+      },
+      CONTEXT
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.',
+    })
+  })
+
   it('preserves caller-actionable tag provenance conflicts', async () => {
     mockDeleteKnowledgeTag.mockRejectedValueOnce(
       new OrchestrationError(

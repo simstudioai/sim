@@ -158,7 +158,7 @@ async function syncToolSchemasToWorkflows(
 }
 
 export const POST = withRouteHandler(
-  withMcpAuth<{ id: string }>('read')(
+  withMcpAuth<{ id: string }>('write')(
     async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
       try {
         const paramsValidation = mcpServerIdParamsSchema.safeParse(await params)

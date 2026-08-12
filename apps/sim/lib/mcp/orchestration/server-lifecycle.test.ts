@@ -150,7 +150,7 @@ describe('MCP server lifecycle orchestration', () => {
       })
     )
     // ...and revoke the now-orphaned OAuth tokens rather than leaving them stored and valid.
-    expect(mockRevokeOauthTokens).toHaveBeenCalledWith('server-1')
+    expect(mockRevokeOauthTokens).toHaveBeenCalledWith('server-1', 'workspace-1')
   })
 
   it('resets to disconnected when a create/upsert flips an existing OAuth server to headers', async () => {
@@ -196,7 +196,7 @@ describe('MCP server lifecycle orchestration', () => {
       })
     )
     // ...and revoke the now-orphaned OAuth tokens.
-    expect(mockRevokeOauthTokens).toHaveBeenCalledWith('server-1')
+    expect(mockRevokeOauthTokens).toHaveBeenCalledWith('server-1', 'workspace-1')
   })
 
   it('evicts the deleted server from the connection pool (row is already gone from clearCache)', async () => {
@@ -211,6 +211,7 @@ describe('MCP server lifecycle orchestration', () => {
     })
 
     expect(result.success).toBe(true)
+    expect(mockRevokeOauthTokens).toHaveBeenCalledWith('server-1', 'workspace-1')
     expect(mockEvictServerConnections).toHaveBeenCalledWith('server-1', expect.any(String))
   })
 })
