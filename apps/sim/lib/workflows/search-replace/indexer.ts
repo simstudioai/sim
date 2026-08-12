@@ -698,10 +698,10 @@ export function getToolInputParamConfigs({
   credentialTypeById?: Record<string, string | undefined>
   blockConfigs?: WorkflowSearchIndexerOptions['blockConfigs']
 }): ResolvedToolInputParamConfig[] {
-  const toolId =
-    tool.type !== 'custom-tool' && tool.type !== 'mcp'
-      ? getToolIdForOperation(tool.type, tool.operation) || tool.toolId
-      : tool.toolId
+  const hasAuthoritativeRegistryDefinition = tool.type !== 'custom-tool' && tool.type !== 'mcp'
+  const toolId = hasAuthoritativeRegistryDefinition
+    ? getToolIdForOperation(tool.type, tool.operation) || tool.toolId
+    : undefined
   const toolParamValues = tool.params ?? {}
   const values = { operation: tool.operation, ...toolParamValues }
   const genericFallback = () =>
@@ -737,20 +737,14 @@ export function getToolInputParamConfigs({
     toolIndex,
     tool.type
   )
-  const blockConfig =
-    tool.type !== 'custom-tool' && tool.type !== 'mcp'
-      ? (blockConfigs?.[tool.type] ?? getBlock(tool.type))
-      : null
-  const subBlocksResult =
-    tool.type !== 'custom-tool' && tool.type !== 'mcp'
-      ? getSubBlocksForToolInput(
-          toolId,
-          tool.type,
-          values,
-          scopedCanonicalModes,
-          blockConfig?.subBlocks ? { subBlocks: blockConfig.subBlocks } : undefined
-        )
-      : null
+  const blockConfig = blockConfigs?.[tool.type] ?? getBlock(tool.type)
+  const subBlocksResult = getSubBlocksForToolInput(
+    toolId,
+    tool.type,
+    values,
+    scopedCanonicalModes,
+    blockConfig?.subBlocks ? { subBlocks: blockConfig.subBlocks } : undefined
+  )
   const toolParams = getToolParametersConfig(toolId, tool.type, values)
   const displayParams = toolParams?.userInputParameters ?? []
 
