@@ -1,18 +1,34 @@
 ---
 title: Windchill
-description: Manage WT.Document objects and content in PTC Windchill
+description: Manage documents, revisions, and content in PTC Windchill
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="windchill"
   color="#FFFFFF"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[PTC Windchill](https://www.ptc.com/en/products/windchill) is the product lifecycle management system manufacturers use as the system of record for engineering data. Documents in Windchill are controlled objects: each one carries a number, a revision and iteration, a lifecycle state, folder placement, security labels, and a checkout status that decides who is allowed to change it right now.
+
+This integration talks to Windchill REST Services (WRS) 2.7 over its OData API using a Basic-authenticated service account. Point it at a complete versioned service root — `https://your-host/Windchill/servlet/odata/v6` — and your agents can:
+
+- **Find and read documents**: list documents with an OData filter, sort order, field selection, page size, and a latest-version-only switch; fetch a single document by its object identifier (OID); and walk a document's structure through its usage links to see child documents with their versions and states.
+- **Create and update**: create one document or a batch of them in a container and optional folder, and patch installed attributes on one or many documents. Name, Number, and Organization are deliberately rejected — Windchill requires its own `UpdateCommonProperties` action for those.
+- **Run the version and lifecycle cycle**: check documents out and back in with notes, undo a checkout, revise to the next revision, read the lifecycle states a document is actually allowed to move to, and transition it to one of them.
+- **Move files**: download a document's primary content or a named attachment into a Sim file, and upload files as primary content or attachments through Windchill's three-stage vault upload.
+
+Bulk actions are atomic on Windchill's side: if the action fails for any object in the batch, the whole operation rolls back and nothing changes. Every write first fetches a CSRF nonce and replays it, matching what WRS requires of any REST client.
+
+Two limits are worth knowing before you build. Windchill identifies everything by OID (`OR:wt.doc.WTDocument:48796581`), so most operations need an OID you got from a list or get call rather than a document number. And this integration supports Basic authentication only — Windchill deployments fronted by OAuth are not currently supported.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
-Integrate PTC Windchill REST Services 2.7 document management into your workflow using Basic authentication. Read and update WT.Document metadata, perform version and lifecycle actions, and transfer primary content and attachments. Windchill OAuth deployments are not currently supported.
+Integrate PTC Windchill REST Services 2.7 document management into your workflow using Basic authentication. Read and update document metadata, perform version and lifecycle actions, and transfer primary content and attachments. Windchill OAuth deployments are not currently supported.
 
 
 
@@ -295,7 +311,7 @@ Create multiple WT.Document objects atomically
 | `baseUrl` | string | Yes | Complete WRS 2.7 versioned service root using Basic authentication, for example https://host/Windchill/servlet/odata/v6 |
 | `username` | string | Yes | Windchill service-account username |
 | `password` | string | Yes | Windchill service-account password |
-| `documents` | json | Yes | Document inputs as a JSON array; each item requires name and containerOid |
+| `documents` | array | Yes | Document inputs as a JSON array; each item requires name and containerOid |
 
 #### Output
 
@@ -366,7 +382,7 @@ Update PATCH-compatible attributes on multiple documents atomically
 | `baseUrl` | string | Yes | Complete WRS 2.7 versioned service root using Basic authentication, for example https://host/Windchill/servlet/odata/v6 |
 | `username` | string | Yes | Windchill service-account username |
 | `password` | string | Yes | Windchill service-account password |
-| `documents` | json | Yes | Document updates as a JSON array; each item requires id and bounded PATCH-compatible attributes. Name, Number, and Organization are not supported. |
+| `documents` | array | Yes | Document updates as a JSON array; each item requires id and bounded PATCH-compatible attributes. Name, Number, and Organization are not supported. |
 
 #### Output
 
@@ -767,7 +783,7 @@ Update installed security-label attributes for one or more documents
 | `baseUrl` | string | Yes | Complete WRS 2.7 versioned service root using Basic authentication, for example https://host/Windchill/servlet/odata/v6 |
 | `username` | string | Yes | Windchill service-account username |
 | `password` | string | Yes | Windchill service-account password |
-| `securityLabelUpdates` | json | Yes | Array of document IDs and installed security-label values |
+| `securityLabelUpdates` | array | Yes | Array of document IDs and installed security-label values |
 
 #### Output
 
@@ -816,7 +832,7 @@ Download primary content into a canonical UserFile
 
 ### Windchill Upload Primary Content
 
-Upload or replace a document primary-content file
+Upload a primary-content file to a document that has none
 
 #### Input
 
@@ -835,6 +851,7 @@ Upload or replace a document primary-content file
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the upload |
 | `uploadedFileNames` | array | Names of files accepted by Windchill |
+
 ### Windchill Download Attachment
 
 Download a document attachment into a canonical UserFile
@@ -880,3 +897,5 @@ Upload one or more files as document attachments
 | `operation` | string | Windchill operation that was executed |
 | `affectedIds` | array | Document identifiers affected by the upload |
 | `uploadedFileNames` | array | Names of files accepted by Windchill |
+
+

@@ -16,6 +16,7 @@ const {
   mockDownloadServableFileFromStorage,
   mockDownloadWindchillContent,
   mockGetSession,
+  mockResolveWindchillContentUrl,
   mockProcessFilesToUserFiles,
   mockUploadCopilotFile,
   mockUploadExecutionFile,
@@ -42,6 +43,7 @@ const {
     mockDownloadServableFileFromStorage: vi.fn(),
     mockDownloadWindchillContent: vi.fn(),
     mockGetSession: vi.fn(),
+    mockResolveWindchillContentUrl: vi.fn(),
     mockProcessFilesToUserFiles: vi.fn(),
     mockUploadCopilotFile: vi.fn(),
     mockUploadExecutionFile: vi.fn(),
@@ -78,6 +80,7 @@ vi.mock('@/lib/uploads/contexts/execution', () => ({
 vi.mock('@/tools/windchill/utils.server', () => ({
   createWindchillSession: mockCreateWindchillSession,
   downloadWindchillContent: mockDownloadWindchillContent,
+  resolveWindchillContentUrl: mockResolveWindchillContentUrl,
   sanitizeWindchillError: (message: string) => message.replace(/https?:\/\/\S+/g, '[redacted URL]'),
   uploadWindchillContent: mockUploadWindchillContent,
   windchillDocumentUrl: (baseUrl: string, documentOid: string) =>
@@ -302,6 +305,10 @@ beforeEach(() => {
     contentType: 'application/pdf',
   })
   mockUploadWindchillContent.mockResolvedValue(['specification.pdf'])
+  mockResolveWindchillContentUrl.mockImplementation(
+    async ({ contentPath }: { contentPath: string }) =>
+      `https://windchill.example.com/Windchill/servlet/WindchillGW/download?from=${encodeURIComponent(contentPath)}`
+  )
   mockDownloadWindchillContent.mockResolvedValue({
     buffer: Buffer.from('pdf'),
     contentType: 'application/pdf',
@@ -694,9 +701,15 @@ describe('POST /api/tools/windchill', () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
+    expect(mockResolveWindchillContentUrl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contentPath: expect.stringContaining('/PrimaryContent'),
+      })
+    )
+    expect(mockResolveWindchillContentUrl.mock.calls[0][0].contentPath).not.toContain('$value')
     expect(mockDownloadWindchillContent).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: expect.stringContaining('/PrimaryContent/$value'),
+        url: expect.stringContaining('/WindchillGW/download'),
       })
     )
     expect(mockUploadCopilotFile).toHaveBeenCalledWith(
@@ -722,9 +735,14 @@ describe('POST /api/tools/windchill', () => {
     )
 
     expect(response.status).toBe(200)
+    expect(mockResolveWindchillContentUrl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contentPath: expect.stringContaining("/Attachments('OR%3Awt.content.ApplicationData%3A2')"),
+      })
+    )
     expect(mockDownloadWindchillContent).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: expect.stringContaining("/Attachments('OR%3Awt.content.ApplicationData%3A2')/$value"),
+        url: expect.stringContaining('/WindchillGW/download'),
       })
     )
   })

@@ -35,7 +35,7 @@ export const windchillUpdateDocumentsTool: ToolConfig<WindchillParams, Windchill
       description: 'Windchill service-account password',
     },
     documents: {
-      type: 'json',
+      type: 'array',
       required: true,
       visibility: 'user-or-llm',
       description:

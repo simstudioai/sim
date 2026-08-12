@@ -38,7 +38,7 @@ export const windchillUpdateDocumentSecurityLabelsTool: ToolConfig<
       description: 'Windchill service-account password',
     },
     securityLabelUpdates: {
-      type: 'json',
+      type: 'array',
       required: true,
       visibility: 'user-or-llm',
       description: 'Array of document IDs and installed security-label values',

@@ -12,7 +12,7 @@ import {
 export const windchillUploadPrimaryContentTool: ToolConfig<WindchillParams, WindchillResponse> = {
   id: 'windchill_upload_primary_content',
   name: 'Windchill Upload Primary Content',
-  description: 'Upload or replace a document primary-content file',
+  description: 'Upload a primary-content file to a document that has none',
   version: '1.0.0',
   params: {
     baseUrl: {

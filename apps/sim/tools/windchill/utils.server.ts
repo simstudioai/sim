@@ -244,9 +244,9 @@ function multipartBody(
     descriptor.streamIds
       .map(
         (streamId, index) =>
-          `${streamId}:${descriptor.fileNames[index]}:${streamId}:${files[index].size}`
+          `${streamId}:${descriptor.fileNames[index]}:${streamId}:${files[index].size};`
       )
-      .join('; ')
+      .join(' ')
   )
   files.forEach((file, index) => {
     chunks.push(
@@ -351,6 +351,65 @@ export async function uploadWindchillContent({
     signal,
   })
   return files.map((file) => file.name)
+}
+
+/**
+ * Resolves the signed vault URL that serves a content item's bytes.
+ *
+ * Windchill has no OData media-stream segment for content. The documented path is a typed
+ * navigation to `Content/URL`, which returns a short-lived signed WindchillGW/WindchillAuthGW
+ * download URL on the same origin as the service root.
+ */
+export async function resolveWindchillContentUrl({
+  params,
+  contentPath,
+  signal,
+}: {
+  params: Pick<WindchillParams, 'baseUrl' | 'username' | 'password'>
+  contentPath: string
+  signal?: AbortSignal
+}): Promise<string> {
+  const response = await secureFetchWithValidation(
+    `${contentPath}/PTC.ApplicationData/Content/URL`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: createBasicAuthHeader(params.username, params.password),
+        Accept: 'application/json',
+      },
+      maxRedirects: 0,
+      maxResponseBytes: WINDCHILL_CONTROL_RESPONSE_BYTES,
+      timeout: WINDCHILL_TIMEOUT_MS,
+      signal,
+    },
+    'baseUrl'
+  )
+  const data = await checkedBody(response)
+  const value = isRecordLike(data) ? data.value : null
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new WindchillProviderError('Windchill did not return a content download URL', 502)
+  }
+
+  const serviceRoot = new URL(normalizeServiceRoot(params.baseUrl))
+  let resolved: URL
+  try {
+    resolved = new URL(value, `${serviceRoot.toString()}/`)
+  } catch {
+    throw new WindchillProviderError('Windchill returned an invalid content download URL', 502)
+  }
+  if (
+    resolved.protocol !== 'https:' ||
+    resolved.origin !== serviceRoot.origin ||
+    resolved.username ||
+    resolved.password ||
+    resolved.hash
+  ) {
+    throw new WindchillProviderError(
+      'Windchill content download URL must remain on the configured HTTPS origin',
+      502
+    )
+  }
+  return resolved.toString()
 }
 
 export async function downloadWindchillContent({

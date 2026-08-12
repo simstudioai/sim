@@ -21944,8 +21944,8 @@
       "type": "windchill",
       "slug": "windchill",
       "name": "Windchill",
-      "description": "Manage WT.Document objects and content in PTC Windchill",
-      "longDescription": "Integrate PTC Windchill REST Services 2.7 document management into your workflow using Basic authentication. Read and update WT.Document metadata, perform version and lifecycle actions, and transfer primary content and attachments. Windchill OAuth deployments are not currently supported.",
+      "description": "Manage documents, revisions, and content in PTC Windchill",
+      "longDescription": "Integrate PTC Windchill REST Services 2.7 document management into your workflow using Basic authentication. Read and update document metadata, perform version and lifecycle actions, and transfer primary content and attachments. Windchill OAuth deployments are not currently supported.",
       "bgColor": "#FFFFFF",
       "iconName": "WindchillIcon",
       "docsUrl": "https://docs.sim.ai/integrations/windchill",
@@ -22044,7 +22044,7 @@
         },
         {
           "name": "Upload Primary Content",
-          "description": "Upload or replace a document primary-content file"
+          "description": "Upload a primary-content file to a document that has none"
         },
         {
           "name": "Download Attachment",

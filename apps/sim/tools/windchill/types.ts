@@ -1,3 +1,4 @@
+import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import type { UserFile } from '@/executor/types'
 import type { ToolOutputProperty, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
 
@@ -40,7 +41,6 @@ export const WINDCHILL_DOCUMENT_OUTPUTS = {
   document: {
     type: 'object',
     description: 'Windchill document',
-    nullable: true,
     properties: WINDCHILL_DOCUMENT_PROPERTIES,
   },
 } as const satisfies Record<string, ToolOutputProperty>
@@ -178,7 +178,6 @@ export const WINDCHILL_SINGLE_MUTATION_OUTPUTS = {
     type: 'object',
     description: 'Document returned by Windchill when the operation returns one',
     optional: true,
-    nullable: true,
     properties: WINDCHILL_DOCUMENT_PROPERTIES,
   },
 } as const satisfies Record<string, ToolOutputProperty>
@@ -343,8 +342,8 @@ export interface WindchillParams {
   stateValue?: string
   stateDisplay?: string
   securityLabelUpdates?: WindchillSecurityLabelInput[]
-  primaryFile?: unknown
-  attachmentFiles?: unknown
+  primaryFile?: RawFileInput
+  attachmentFiles?: RawFileInput[]
   fileName?: string
   select?: string
   filter?: string
@@ -360,7 +359,7 @@ export interface WindchillParams {
 
 export interface WindchillOutput {
   operation: WindchillOperation
-  document?: WindchillDocument | null
+  document?: WindchillDocument
   documents?: WindchillDocument[]
   structure?: WindchillDocumentUsageLink[]
   states?: WindchillStateTransition[]

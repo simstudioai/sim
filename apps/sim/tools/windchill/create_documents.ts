@@ -35,7 +35,7 @@ export const windchillCreateDocumentsTool: ToolConfig<WindchillParams, Windchill
       description: 'Windchill service-account password',
     },
     documents: {
-      type: 'json',
+      type: 'array',
       required: true,
       visibility: 'user-or-llm',
       description: 'Document inputs as a JSON array; each item requires name and containerOid',

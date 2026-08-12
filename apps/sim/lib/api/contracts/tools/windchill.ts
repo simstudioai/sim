@@ -317,8 +317,14 @@ export const windchillOperationBodySchema = z.discriminatedUnion('operation', [
   uploadAttachmentsSchema,
 ])
 
-const nullableId = z.string().max(MAX_OID_LENGTH).nullable()
-const nullableText = z.string().max(MAX_TEXT_LENGTH).nullable()
+/**
+ * Response primitives are deliberately looser than their request counterparts: these values are
+ * whatever the customer's Windchill returned, so re-applying the request-side OID regex or text
+ * bounds would turn an already-committed mutation into an opaque parse failure.
+ */
+const returnedOidSchema = z.string().min(1)
+const nullableId = z.string().nullable()
+const nullableText = z.string().nullable()
 const documentSchema = z.object({
   id: nullableId,
   name: nullableText,
@@ -336,7 +342,7 @@ const documentSchema = z.object({
   folderLocation: nullableText,
 })
 
-const affectedIdsSchema = z.array(oidSchema).max(MAX_BULK_DOCUMENTS)
+const affectedIdsSchema = z.array(returnedOidSchema)
 const singleMutationOperationSchema = z.enum([
   'windchill_create_document',
   'windchill_update_document',
@@ -369,24 +375,24 @@ export const windchillOperationOutputSchema = z.discriminatedUnion('operation', 
   z.object({
     operation: singleMutationOperationSchema,
     affectedIds: affectedIdsSchema,
-    document: documentSchema.nullable().optional(),
+    document: documentSchema.optional(),
   }),
   z.object({
     operation: bulkMutationOperationSchema,
     affectedIds: affectedIdsSchema,
-    documents: z.array(documentSchema).max(MAX_BULK_DOCUMENTS).optional(),
+    documents: z.array(documentSchema).optional(),
   }),
   z.object({ operation: deleteOperationSchema, affectedIds: affectedIdsSchema }),
   z.object({
     operation: downloadOperationSchema,
     file: userFileSchema,
-    fileName: z.string().min(1).max(255),
-    mimeType: z.string().min(1).max(255),
+    fileName: z.string().min(1),
+    mimeType: z.string().min(1),
   }),
   z.object({
     operation: uploadOperationSchema,
     affectedIds: affectedIdsSchema,
-    uploadedFileNames: z.array(z.string().min(1).max(255)).max(MAX_ATTACHMENT_FILES),
+    uploadedFileNames: z.array(z.string().min(1)),
   }),
 ])
 
@@ -397,7 +403,7 @@ export const windchillOperationResponseSchema = z.discriminatedUnion('success', 
   }),
   z.object({
     success: z.literal(false),
-    error: z.string().min(1).max(MAX_TEXT_LENGTH),
+    error: z.string().min(1),
   }),
 ])
 

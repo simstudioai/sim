@@ -2497,12 +2497,13 @@ export function DocumentIcon(props: SVGProps<SVGSVGElement>) {
 export function WindchillIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      {...props}
-      viewBox='87.3 60.2 71.1 82'
+      viewBox='79 57 88 88'
       role='img'
       aria-label='Windchill icon'
       xmlns='http://www.w3.org/2000/svg'
+      {...props}
     >
+      <rect x='79' y='57' width='88' height='88' fill='#FFFFFF' />
       <g fill='#3D4647'>
         <polygon points='137.2,86.6 137.2,68.5 122.8,60.2 107.1,69.2' />
         <polygon points='142.7,106.4 158.4,97.3 158.4,80.7 142.7,71.6' />

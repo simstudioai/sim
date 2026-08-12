@@ -35,6 +35,7 @@ import {
 import {
   createWindchillSession,
   downloadWindchillContent,
+  resolveWindchillContentUrl,
   uploadWindchillContent,
   WindchillProviderError,
   type WindchillUploadFile,
@@ -116,8 +117,12 @@ function documentsById(documentOids: string[]) {
   return documentOids.map((ID) => ({ ID }))
 }
 
+/** Keeps the media type and drops any `; charset=...` parameters Windchill cannot use. */
 function safeMimeType(value: string | undefined): string {
-  if (value && /^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/.test(value)) return value
+  const mediaType = value?.split(';', 1)[0]?.trim()
+  if (mediaType && /^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/.test(mediaType)) {
+    return mediaType
+  }
   return 'application/octet-stream'
 }
 
@@ -506,10 +511,15 @@ async function executeDownload(
   signal: AbortSignal
 ): Promise<WindchillRouteOutput> {
   const documentUrl = windchillDocumentUrl(body.baseUrl, body.documentOid)
-  const contentUrl =
+  const contentPath =
     body.operation === 'windchill_download_primary_content'
-      ? `${documentUrl}/PrimaryContent/$value`
-      : `${documentUrl}/Attachments('${encodeWindchillOid(body.attachmentOid)}')/$value`
+      ? `${documentUrl}/PrimaryContent`
+      : `${documentUrl}/Attachments('${encodeWindchillOid(body.attachmentOid)}')`
+  const contentUrl = await resolveWindchillContentUrl({
+    params: body,
+    contentPath,
+    signal,
+  })
   const downloaded = await downloadWindchillContent({
     params: body,
     url: contentUrl,
@@ -523,89 +533,98 @@ async function executeDownload(
   const fileName = sanitizeFileName(
     body.fileName || contentDispositionFileName(downloaded.contentDisposition) || fallback
   )
+  const mimeType = safeMimeType(downloaded.contentType)
   const file = await storeDownloadedFile({
     principal,
     buffer: downloaded.buffer,
     fileName,
-    contentType: downloaded.contentType,
+    contentType: mimeType,
   })
   return {
     operation: body.operation,
     file: { ...file },
     fileName,
-    mimeType: downloaded.contentType,
+    mimeType,
   }
 }
 
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateRequestId()
-  let principal: WorkflowExecutionDelegatedPrincipal
-  try {
-    principal = await authenticateWindchillExecutor(request)
-  } catch (error) {
-    if (error instanceof InternalUnauthenticatedError) {
-      return failureResponse(error.message, 401)
-    }
-    throw error
-  }
-
-  const parsed = await parseRequest(
-    windchillOperationContract,
-    request,
-    {},
-    {
-      validationErrorResponse: (error) =>
-        failureResponse(getValidationErrorMessage(error, 'Invalid Windchill request'), 400),
-    }
-  )
-  if (!parsed.success) return parsed.response
-  const body = parsed.data.body
-
-  try {
-    if (
-      body.operation === 'windchill_download_primary_content' ||
-      body.operation === 'windchill_download_attachment'
-    ) {
-      return successResponse(await executeDownload(body, principal, request.signal))
+export const POST = withRouteHandler(
+  async (request: NextRequest) => {
+    const requestId = generateRequestId()
+    let principal: WorkflowExecutionDelegatedPrincipal
+    try {
+      principal = await authenticateWindchillExecutor(request)
+    } catch (error) {
+      if (error instanceof InternalUnauthenticatedError) {
+        return failureResponse(error.message, 401)
+      }
+      throw error
     }
 
-    if (
-      body.operation === 'windchill_upload_primary_content' ||
-      body.operation === 'windchill_upload_attachments'
-    ) {
-      const inputs =
-        body.operation === 'windchill_upload_primary_content'
-          ? [body.primaryFile]
-          : body.attachmentFiles
-      const files = await loadUploadFiles(inputs, principal.subjectUserId, requestId)
-      if (files instanceof NextResponse) return files
-      const uploadedFileNames = await uploadWindchillContent({
-        params: body,
-        documentOid: body.documentOid,
-        files,
-        primaryContent: body.operation === 'windchill_upload_primary_content',
-        signal: request.signal,
-      })
-      return successResponse({
-        operation: body.operation,
-        affectedIds: [body.documentOid],
-        uploadedFileNames,
-      })
-    }
-
-    return successResponse(await executeMutation(body, request.signal))
-  } catch (error) {
-    logger.error('Windchill operation failed', {
-      operation: body.operation,
-      error: sanitizeWindchillError(getErrorMessage(error, 'Windchill operation failed')),
-    })
-    if (error instanceof WindchillProviderError) {
-      const status = error.status >= 400 && error.status <= 599 ? error.status : 502
-      return failureResponse(error.message, status)
-    }
-    return failureResponse(
-      getErrorMessage(error, 'Windchill operation failed'),
-      isPayloadSizeLimitError(error) ? 413 : 500
+    const parsed = await parseRequest(
+      windchillOperationContract,
+      request,
+      {},
+      {
+        validationErrorResponse: (error) =>
+          failureResponse(getValidationErrorMessage(error, 'Invalid Windchill request'), 400),
+        invalidJsonResponse: () =>
+          failureResponse('Windchill request body must be valid JSON', 400),
+        payloadTooLargeResponse: () => failureResponse('Windchill request body is too large', 413),
+      }
     )
+    if (!parsed.success) return parsed.response
+    const body = parsed.data.body
+
+    try {
+      if (
+        body.operation === 'windchill_download_primary_content' ||
+        body.operation === 'windchill_download_attachment'
+      ) {
+        return successResponse(await executeDownload(body, principal, request.signal))
+      }
+
+      if (
+        body.operation === 'windchill_upload_primary_content' ||
+        body.operation === 'windchill_upload_attachments'
+      ) {
+        const inputs =
+          body.operation === 'windchill_upload_primary_content'
+            ? [body.primaryFile]
+            : body.attachmentFiles
+        const files = await loadUploadFiles(inputs, principal.subjectUserId, requestId)
+        if (files instanceof NextResponse) return files
+        const uploadedFileNames = await uploadWindchillContent({
+          params: body,
+          documentOid: body.documentOid,
+          files,
+          primaryContent: body.operation === 'windchill_upload_primary_content',
+          signal: request.signal,
+        })
+        return successResponse({
+          operation: body.operation,
+          affectedIds: [body.documentOid],
+          uploadedFileNames,
+        })
+      }
+
+      return successResponse(await executeMutation(body, request.signal))
+    } catch (error) {
+      logger.error('Windchill operation failed', {
+        operation: body.operation,
+        error: sanitizeWindchillError(getErrorMessage(error, 'Windchill operation failed')),
+      })
+      if (error instanceof WindchillProviderError) {
+        const status = error.status >= 400 && error.status <= 599 ? error.status : 502
+        return failureResponse(error.message, status)
+      }
+      return failureResponse(
+        getErrorMessage(error, 'Windchill operation failed'),
+        isPayloadSizeLimitError(error) ? 413 : 500
+      )
+    }
+  },
+  {
+    unhandledErrorResponse: () => failureResponse('Windchill operation failed', 500),
   }
-})
+)

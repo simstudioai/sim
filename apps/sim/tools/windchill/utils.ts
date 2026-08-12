@@ -16,6 +16,19 @@ import type {
   WindchillStateTransition,
 } from '@/tools/windchill/types'
 
+/**
+ * Deepest `DocUsageLinks` expansion this integration ever requests, and therefore the deepest
+ * nesting it will normalize. Bounding the walk keeps a pathologically nested provider response
+ * from recursing without limit.
+ */
+const MAX_STRUCTURE_DEPTH = 3
+
+/** Windchill's documented maximum server page size (`Prefer: odata.maxpagesize`). */
+const MAX_PAGE_SIZE = 2000
+
+/** Page size requested when the caller does not choose one. */
+const DEFAULT_PAGE_SIZE = 200
+
 function stringValue(record: Record<string, unknown>, key: string): string | null {
   return typeof record[key] === 'string' ? record[key] : null
 }
@@ -108,6 +121,17 @@ export function normalizeWindchillContent(value: unknown): WindchillContent | nu
   }
 }
 
+/**
+ * Redacts this integration's own transport credentials out of an error string.
+ *
+ * Targets exactly three artifacts Sim itself puts on the wire: the `Basic` header built by
+ * {@link createBasicAuthHeader}, the CSRF nonce pair from `createWindchillSession`, and the
+ * short-lived signed vault URL from `resolveWindchillContentUrl`, whose bearer token lives in the
+ * query string. None of these can reach the shared resolved-secret registry — it matches
+ * `{{...}}`-resolved plaintext, never a base64 derivative or a provider-issued token.
+ *
+ * Applied to error strings only. Successful provider payloads are returned untouched.
+ */
 export function sanitizeWindchillError(message: string): string {
   return message
     .replace(/https?:\/\/[^\s"'<>]+/gi, (url) => sanitizeUrlForLog(url, 512))
@@ -155,7 +179,8 @@ function normalizeState(value: unknown): WindchillStateTransition | null {
 
 function normalizeUsageLink(
   value: unknown,
-  parentFallback: WindchillDocument | null = null
+  parentFallback: WindchillDocument | null = null,
+  depth = 0
 ): WindchillDocumentUsageLink | null {
   if (
     !isRecordLike(value) ||
@@ -167,11 +192,12 @@ function normalizeUsageLink(
   }
   const childValue = value.DocUses
   const child = normalizeWindchillDocument(childValue)
-  const children = isRecordLike(childValue)
-    ? collection(childValue.DocUsageLinks)
-        .map((link) => normalizeUsageLink(link, child))
-        .filter((link): link is WindchillDocumentUsageLink => link !== null)
-    : []
+  const children =
+    isRecordLike(childValue) && depth < MAX_STRUCTURE_DEPTH
+      ? collection(childValue.DocUsageLinks)
+          .map((link) => normalizeUsageLink(link, child, depth + 1))
+          .filter((link): link is WindchillDocumentUsageLink => link !== null)
+      : []
   return {
     id: stringValue(value, 'ID'),
     parent: normalizeWindchillDocument(value.DocUsedBy) ?? parentFallback,
@@ -266,6 +292,24 @@ function structureExpand(depth: number): string {
   return `DocUsedBy,${child}`
 }
 
+/**
+ * Serializes a built OData URL.
+ *
+ * `URLSearchParams` uses the form-urlencoded serializer, which writes a space as `+`. OData
+ * readers percent-decode but never form-decode, so `$orderby=Name desc` would reach Windchill as
+ * the literal `Name+desc`. Re-encoding the query's `+` as `%20` keeps multi-token `$filter` and
+ * `$orderby` expressions intact.
+ */
+function serializeODataUrl(url: URL): string {
+  if (!url.search) return url.toString()
+  return `${url.origin}${url.pathname}${url.search.replace(/\+/g, '%20')}`
+}
+
+/** Treats a cleared subblock (`''`) exactly like an absent one. */
+function isBlank(value: unknown): boolean {
+  return value === undefined || value === null || value === ''
+}
+
 function integerInRange(value: number, field: string, minimum: number, maximum?: number): number {
   if (!Number.isInteger(value) || value < minimum || (maximum !== undefined && value > maximum)) {
     const range =
@@ -318,17 +362,20 @@ export function buildWindchillReadUrl(
     if (params.select) url.searchParams.set('$select', normalizedSelect(params.select))
     if (params.filter) url.searchParams.set('$filter', params.filter.trim())
     if (params.orderBy) url.searchParams.set('$orderby', params.orderBy.trim())
-    if (params.top !== undefined) {
-      url.searchParams.set('$top', String(integerInRange(params.top, 'top', 1, 200)))
+    if (!isBlank(params.top)) {
+      url.searchParams.set(
+        '$top',
+        String(integerInRange(params.top as number, 'top', 1, MAX_PAGE_SIZE))
+      )
     }
-    if (params.skip !== undefined) {
-      url.searchParams.set('$skip', String(integerInRange(params.skip, 'skip', 0)))
+    if (!isBlank(params.skip)) {
+      url.searchParams.set('$skip', String(integerInRange(params.skip as number, 'skip', 0)))
     }
-    if (params.count !== undefined) url.searchParams.set('$count', String(params.count))
-    if (params.latestVersion !== undefined) {
+    if (!isBlank(params.count)) url.searchParams.set('$count', String(params.count))
+    if (!isBlank(params.latestVersion)) {
       url.searchParams.set('ptc.search.latestversion', String(params.latestVersion))
     }
-    return url.toString()
+    return serializeODataUrl(url)
   }
 
   if (!params.documentOid) throw new Error('Document OID is required')
@@ -336,14 +383,19 @@ export function buildWindchillReadUrl(
   if (operation === 'windchill_get_document') {
     const url = new URL(path)
     if (params.select) url.searchParams.set('$select', normalizedSelect(params.select))
-    return url.toString()
+    return serializeODataUrl(url)
   }
   if (operation === 'windchill_get_document_structure') {
-    const depth = integerInRange(params.structureDepth ?? 1, 'structureDepth', 1, 3)
+    const depth = integerInRange(
+      isBlank(params.structureDepth) ? 1 : (params.structureDepth as number),
+      'structureDepth',
+      1,
+      MAX_STRUCTURE_DEPTH
+    )
     const url = new URL(`${path}/DocUsageLinks`)
     if (params.nextLink) return resolveWindchillNextLink(root, params.nextLink, url.toString())
     url.searchParams.set('$expand', structureExpand(depth))
-    return url.toString()
+    return serializeODataUrl(url)
   }
   if (operation === 'windchill_get_valid_state_transitions') {
     return `${path}/PTC.DocMgmt.GetValidStateTransitions()`
@@ -410,8 +462,16 @@ export function normalizeWindchillReadOutput(
   throw new Error(`Operation ${operation} does not have a direct-read response transform`)
 }
 
+/**
+ * Builds the internal-route body.
+ *
+ * Cleared subblocks arrive as `''`. The executor merges the raw block inputs before the block's
+ * own param transform, so a cleared optional field cannot be dropped upstream — strip blanks here,
+ * where every internal-route tool passes through, rather than trusting the caller.
+ */
 export function buildWindchillInternalBody(operation: WindchillOperation, params: WindchillParams) {
-  return { ...omit(params, ['_context']), operation }
+  const supplied = Object.entries(omit(params, ['_context'])).filter(([, value]) => value !== '')
+  return { ...Object.fromEntries(supplied), operation }
 }
 
 function providerError(value: unknown, fallback: string): string {
@@ -430,7 +490,7 @@ export function windchillReadHeaders(params: WindchillParams) {
   return {
     Authorization: createBasicAuthHeader(params.username, params.password),
     Accept: 'application/json',
-    Prefer: `odata.maxpagesize=${params.top ?? 200}`,
+    Prefer: `odata.maxpagesize=${isBlank(params.top) ? DEFAULT_PAGE_SIZE : params.top}`,
   }
 }
 

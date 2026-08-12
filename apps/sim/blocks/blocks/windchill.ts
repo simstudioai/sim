@@ -122,9 +122,9 @@ function coerceBoolean(value: unknown): boolean | undefined {
 export const WindchillBlock: BlockConfig<WindchillResponse> = {
   type: 'windchill',
   name: 'Windchill',
-  description: 'Manage WT.Document objects and content in PTC Windchill',
+  description: 'Manage documents, revisions, and content in PTC Windchill',
   longDescription:
-    'Integrate PTC Windchill REST Services 2.7 document management into your workflow using Basic authentication. Read and update WT.Document metadata, perform version and lifecycle actions, and transfer primary content and attachments. Windchill OAuth deployments are not currently supported.',
+    'Integrate PTC Windchill REST Services 2.7 document management into your workflow using Basic authentication. Read and update document metadata, perform version and lifecycle actions, and transfer primary content and attachments. Windchill OAuth deployments are not currently supported.',
   docsLink: 'https://docs.sim.ai/integrations/windchill',
   category: 'tools',
   integrationType: IntegrationType.Documents,
@@ -158,44 +158,36 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
           { text: 'Create document', field: 'name', core: true },
           { text: 'in container', field: 'containerOid' },
         ],
-        windchill_create_documents: [{ text: 'Create documents', field: 'documents', core: true }],
+        windchill_create_documents: [{ text: 'Create', field: 'documents', core: true }],
         windchill_update_document: [
           { text: 'Update document', field: 'documentOid', core: true },
           { text: 'with', field: 'attributes' },
         ],
-        windchill_update_documents: [{ text: 'Update documents', field: 'documents', core: true }],
+        windchill_update_documents: [{ text: 'Update', field: 'documents', core: true }],
         windchill_delete_document: [{ text: 'Delete document', field: 'documentOid', core: true }],
-        windchill_delete_documents: [
-          { text: 'Delete documents', field: 'documentOids', core: true },
-        ],
+        windchill_delete_documents: [{ text: 'Delete', field: 'documentOids', core: true }],
         windchill_check_out_document: [
           { text: 'Check out document', field: 'documentOid', core: true },
         ],
-        windchill_check_out_documents: [
-          { text: 'Check out documents', field: 'documentOids', core: true },
-        ],
+        windchill_check_out_documents: [{ text: 'Check out', field: 'documentOids', core: true }],
         windchill_check_in_document: [
           { text: 'Check in document', field: 'documentOid', core: true },
         ],
-        windchill_check_in_documents: [
-          { text: 'Check in documents', field: 'documentOids', core: true },
-        ],
+        windchill_check_in_documents: [{ text: 'Check in', field: 'documentOids', core: true }],
         windchill_undo_check_out_document: [
           { text: 'Undo checkout for document', field: 'documentOid', core: true },
         ],
         windchill_undo_check_out_documents: [
-          { text: 'Undo checkout for documents', field: 'documentOids', core: true },
+          { text: 'Undo checkout for', field: 'documentOids', core: true },
         ],
         windchill_revise_document: [{ text: 'Revise document', field: 'documentOid', core: true }],
-        windchill_revise_documents: [
-          { text: 'Revise documents', field: 'documentOids', core: true },
-        ],
+        windchill_revise_documents: [{ text: 'Revise', field: 'documentOids', core: true }],
         windchill_set_lifecycle_state: [
           { text: 'Set document', field: 'documentOid', core: true },
           { text: 'to lifecycle state', field: 'stateDisplay', core: true },
         ],
         windchill_update_document_security_labels: [
-          { text: 'Update security labels', field: 'securityLabelUpdates', core: true },
+          { text: 'Apply', field: 'securityLabelUpdates', core: true },
         ],
         windchill_download_primary_content: [
           { text: 'Download primary content from', field: 'documentOid', core: true },
@@ -224,7 +216,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
         {
           label: 'List Documents',
           id: 'windchill_list_documents',
-          description: 'List documents with bounded OData filtering and pagination',
+          description: 'List documents with an OData filter and pagination',
         },
         {
           label: 'Get Document',
@@ -264,12 +256,12 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
         {
           label: 'Update Document',
           id: 'windchill_update_document',
-          description: 'Update PATCH-compatible installed attributes on one document',
+          description: "Update a document's editable attributes",
         },
         {
           label: 'Update Documents',
           id: 'windchill_update_documents',
-          description: 'Update PATCH-compatible installed attributes on multiple documents',
+          description: "Update several documents' editable attributes",
         },
         {
           label: 'Delete Document',
@@ -477,6 +469,8 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
         value: ['windchill_create_documents', 'windchill_update_documents'],
       },
       required: true,
+      description:
+        'Create Documents takes [{name, containerOid, number?, title?, description?, folderOid?, attributes?}]. Update Documents takes [{id, attributes}], where attributes excludes Name, Number, and Organization.',
     },
     {
       id: 'checkOutNote',
@@ -525,6 +519,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
       title: 'State Display',
       type: 'short-input',
       placeholder: 'Released',
+      canvasNoun: 'a state',
       condition: { field: 'operation', value: 'windchill_set_lifecycle_state' },
       required: true,
     },
@@ -534,6 +529,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
       type: 'code',
       language: 'json',
       placeholder: '[{"id":"OR:wt.doc.WTDocument:48796581","labels":{"EXPORT_CONTROL":"L1"}}]',
+      canvasNoun: 'security labels',
       condition: {
         field: 'operation',
         value: 'windchill_update_document_security_labels',
@@ -664,6 +660,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
       title: 'Primary Content',
       type: 'file-upload',
       canonicalParamId: 'primaryFile',
+      canvasNoun: 'a file',
       placeholder: 'Upload primary-content file',
       condition: { field: 'operation', value: 'windchill_upload_primary_content' },
       mode: 'basic',
@@ -675,6 +672,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
       title: 'Primary Content',
       type: 'short-input',
       canonicalParamId: 'primaryFile',
+      canvasNoun: 'a file',
       placeholder: 'Reference a file from a previous block',
       condition: { field: 'operation', value: 'windchill_upload_primary_content' },
       mode: 'advanced',
@@ -685,6 +683,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
       title: 'Attachments',
       type: 'file-upload',
       canonicalParamId: 'attachmentFiles',
+      canvasNoun: 'files',
       placeholder: 'Upload up to 10 attachment files',
       condition: { field: 'operation', value: 'windchill_upload_attachments' },
       mode: 'basic',
@@ -696,6 +695,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
       title: 'Attachments',
       type: 'short-input',
       canonicalParamId: 'attachmentFiles',
+      canvasNoun: 'files',
       placeholder: 'Reference files from a previous block',
       condition: { field: 'operation', value: 'windchill_upload_attachments' },
       mode: 'advanced',
@@ -775,18 +775,12 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
             ? { primaryFile: normalizeFileInput(primaryFile, { single: true }) }
             : {}),
           ...(attachmentFiles ? { attachmentFiles: normalizeFileInput(attachmentFiles) } : {}),
-          ...(top === undefined || top === '' ? {} : { top: coerceNumber(top, 'top') }),
-          ...(skip === undefined || skip === '' ? {} : { skip: coerceNumber(skip, 'skip') }),
-          ...(structureDepth === undefined || structureDepth === ''
-            ? {}
-            : { structureDepth: coerceNumber(structureDepth, 'structureDepth') }),
-          ...(count === undefined || count === '' ? {} : { count: coerceBoolean(count) }),
-          ...(latestVersion === undefined || latestVersion === ''
-            ? {}
-            : { latestVersion: coerceBoolean(latestVersion) }),
-          ...(keepCheckedOut === undefined || keepCheckedOut === ''
-            ? {}
-            : { keepCheckedOut: coerceBoolean(keepCheckedOut) }),
+          top: coerceNumber(top, 'top'),
+          skip: coerceNumber(skip, 'skip'),
+          structureDepth: coerceNumber(structureDepth, 'structureDepth'),
+          count: coerceBoolean(count),
+          latestVersion: coerceBoolean(latestVersion),
+          keepCheckedOut: coerceBoolean(keepCheckedOut),
         }
       },
     },
@@ -806,14 +800,14 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
     containerOid: { type: 'string', description: 'Container OID' },
     folderOid: { type: 'string', description: 'Folder OID' },
     attributes: { type: 'json', description: 'Document attributes' },
-    documents: { type: 'json', description: 'Bulk document inputs' },
+    documents: { type: 'array', description: 'Bulk document inputs' },
     checkOutNote: { type: 'string', description: 'Checkout note' },
     checkInNote: { type: 'string', description: 'Check-in note' },
     keepCheckedOut: { type: 'boolean', description: 'Keep document checked out after check-in' },
     versionId: { type: 'string', description: 'Target revision identifier' },
     stateValue: { type: 'string', description: 'Internal lifecycle state value' },
     stateDisplay: { type: 'string', description: 'Displayed lifecycle state value' },
-    securityLabelUpdates: { type: 'json', description: 'Security-label updates' },
+    securityLabelUpdates: { type: 'array', description: 'Security-label updates' },
     select: { type: 'string', description: 'Comma-separated normalized document fields' },
     filter: { type: 'string', description: 'OData filter expression' },
     orderBy: { type: 'string', description: 'OData order-by expression' },
@@ -981,7 +975,7 @@ export const WindchillBlockMeta = {
       description:
         'Validate a Windchill document and move it through a permitted lifecycle transition.',
       content:
-        '# Release Controlled Document\n\nValidate a document before moving it to a requested Windchill lifecycle state.\n\n## Steps\n1. Use Get Document to retrieve the current revision, state, checkout status, and required metadata.\n2. If the document is checked out, use Check In Document with a meaningful note before attempting a state change.\n3. Use Get Valid State Transitions and confirm that the requested state appears in the returned values.\n4. Use Set Lifecycle State only after the transition is confirmed.\n\n## Output\nReport the document OID, prior state, resulting state, revision, and any validation issue that prevented release.',
+        '# Release Controlled Document\n\nValidate a document before moving it to a requested Windchill lifecycle state.\n\n## Steps\n1. Use Get Document to retrieve the current revision, state, checkout status, and required metadata.\n2. If the document is checked out, use Check In Document with a meaningful note before attempting a state change.\n3. Use Get Valid State Transitions and confirm the requested state appears in the returned values. Each entry is a value/display pair.\n4. Use Set Lifecycle State only after the transition is confirmed, passing both State Value and State Display from that same pair - Windchill rejects the call if either is missing.\n5. Some Windchill configurations route releases through a Promotion Request instead of a direct state change. If Set Lifecycle State is refused, report that rather than retrying.\n\n## Output\nReport the document OID, prior state, resulting state, revision, and any validation issue that prevented release.',
     },
     {
       name: 'audit-document-structure',
@@ -1002,7 +996,21 @@ export const WindchillBlockMeta = {
       description:
         'Check out, update, check in, and revise a Windchill document through a controlled change cycle.',
       content:
-        '# Prepare Document Revision\n\nApply a controlled metadata change and prepare the document for its next Windchill revision.\n\n## Steps\n1. Use Get Document to confirm the document OID, current version, lifecycle state, and checkout state.\n2. Use Check Out Document with a concise note. Capture the working-copy OID returned as document.id or the first affectedIds value.\n3. Use that working-copy OID—not the original document OID—for Update Document and Check In Document. Update only the installed PATCH-compatible attributes that must change, then check in with a change summary.\n4. Use Revise Document only when a new revision is requested, supplying a target version ID only when the Windchill installation requires one.\n\n## Output\nReport the original document OID, working-copy OID, original version, resulting version or revision, changed attribute names, and final checkout and lifecycle states.',
+        '# Prepare Document Revision\n\nApply a controlled metadata change and prepare the document for its next Windchill revision.\n\n## Steps\n1. Use Get Document to confirm the document OID, current version, lifecycle state, and checkout state.\n2. Use Check Out Document with a concise note, then read document.id from the response.\n3. If document.id differs from the OID you checked out, Windchill returned a working-copy identifier: use it for Update Document and Check In Document. If it matches, keep using the original OID. Never assume which - always read it back. Update only the editable attributes that must change, then check in with a change summary.\n4. Use Revise Document only when a new revision is requested, supplying a target version ID only when the Windchill installation requires one.\n\n## Output\nReport the OID you checked out, the OID you actually edited, the original version, the resulting version or revision, changed attribute names, and final checkout and lifecycle states.',
+    },
+    {
+      name: 'retire-superseded-documents',
+      description:
+        'Move superseded Windchill documents to an obsolete lifecycle state instead of deleting them.',
+      content:
+        '# Retire Superseded Documents\n\nPLM practice is to obsolete controlled documents rather than delete them, so history and references survive.\n\n## Steps\n1. Use List Documents to gather the retirement population, selecting ID, Number, Name, Version, and State.\n2. For each candidate, use Get Valid State Transitions and confirm the obsolete state is reachable. Skip and report any document that cannot make the transition rather than forcing it.\n3. Use Set Lifecycle State with the value/display pair returned in step 2.\n4. Use Update Document only if the installation records a retirement reason or date as an editable attribute. Do not attempt to change Name, Number, or Organization.\n5. Prefer Set Lifecycle State over Delete Document. Delete only when the request explicitly asks for removal.\n\n## Output\nReport each document OID with its prior and resulting state, and list every document skipped along with the reason.',
+    },
+    {
+      name: 'reclaim-stale-checkouts',
+      description:
+        'Find Windchill documents left checked out and release the locks in bounded batches.',
+      content:
+        '# Reclaim Stale Checkouts\n\nDocuments left checked out by someone unavailable block everyone else. Release those locks deliberately.\n\n## Steps\n1. Use List Documents with Select including ID, Number, Name, and CheckoutState. Do NOT put checkout state in the Filter field - Windchill does not allow filtering on it and the request will fail.\n2. Filter the returned rows for a checked-out state in the workflow itself, following the next-page URL until the requested scope is covered.\n3. Confirm the intended scope with the requester before releasing anything. Undoing a checkout discards that working copy and any uncommitted edits.\n4. Use Undo Check Out Documents in batches of at most 100. The action is all-or-nothing: if it fails for one document the whole batch rolls back, so retry with the failing document removed.\n\n## Output\nReport the documents found checked out, which locks were released, and any batch that rolled back together with the document that caused it.',
     },
   ],
 } as const satisfies BlockMeta
