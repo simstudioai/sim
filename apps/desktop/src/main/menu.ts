@@ -211,7 +211,7 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           click: () => void openExternalSafe(DOCS_URL, deps.allowHttpLocalhost()),
         },
         {
-          label: 'System Status',
+          label: 'Sim Status',
           click: () => void openExternalSafe(STATUS_URL, deps.allowHttpLocalhost()),
         },
       ],
