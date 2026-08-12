@@ -636,7 +636,7 @@ export const ManagedAgentBlockMeta = {
       icon: ClaudeIcon,
       title: 'Claude Managed Agents PR reviewer',
       prompt:
-        'Create a workflow that triggers on a new pull request, runs a Claude Managed Agents session over the diff, and posts the findings back as a review comment on the PR.',
+        'Create a workflow that triggers on a new GitHub pull request, runs a Claude Managed Agents session over the diff, and posts the findings back as a review comment on the PR.',
       modules: ['agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'code-review'],
@@ -665,7 +665,7 @@ export const ManagedAgentBlockMeta = {
       icon: ClaudeIcon,
       title: 'Claude Managed Agents weekly report',
       prompt:
-        'Build a scheduled workflow that runs a Claude Managed Agents session every Monday to compile last week’s metrics into a spreadsheet, then emails the finished file to the leadership list.',
+        'Build a scheduled workflow that runs a Claude Managed Agents session every Monday to compile last week’s metrics into a spreadsheet, then sends the finished file to the leadership list over Gmail.',
       modules: ['scheduled', 'files', 'agent', 'workflows'],
       category: 'operations',
       tags: ['reporting', 'automation'],
@@ -704,7 +704,7 @@ export const ManagedAgentBlockMeta = {
       icon: ClaudeIcon,
       title: 'Claude Managed Agents runaway stopper',
       prompt:
-        'Build a scheduled workflow that checks long-running Claude Managed Agents sessions, interrupts any that have been working past a threshold, and archives the ones that already finished.',
+        'Build a scheduled workflow that checks long-running Claude Managed Agents sessions, interrupts any that have been working past a threshold, archives the ones that already finished, and posts what it stopped to Slack.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['monitoring', 'automation'],
