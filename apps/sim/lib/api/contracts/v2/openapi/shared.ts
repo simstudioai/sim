@@ -136,6 +136,35 @@ export const RESOURCE_MUTATION_ERRORS = [
   'Locked',
 ] as const satisfies readonly ErrorResponseId[]
 
+/**
+ * The two sets below add the `413` that every body-carrying operation can emit.
+ *
+ * It is not a property of the resource but of the request: `parseRequest` reads
+ * the JSON body through `parseJsonBody` under `DEFAULT_MAX_JSON_BODY_BYTES`
+ * before schema validation runs, and the v2 builders supply
+ * `V2_PARSE_DEFAULTS.payloadTooLargeResponse`, so a body over
+ * the cap is answered `413` on any route whose contract declares one. That made
+ * `413` reachable-but-unpublished across a whole family, which is the mirror of
+ * the defect these sets exist to prevent — a caller cannot handle a status the
+ * spec never mentions.
+ *
+ * Reachability is not automatic, so these are opt-in rather than folded into the
+ * base sets. An operation with no request body cannot emit this `413` at all,
+ * and neither can one whose handler reads its payload through a path that
+ * applies no cap; documenting it there would publish a response that can never
+ * arrive.
+ */
+export const RESOURCE_BODY_ERRORS = [
+  ...RESOURCE_ERRORS,
+  'PayloadTooLarge',
+] as const satisfies readonly ErrorResponseId[]
+
+/** {@link RESOURCE_CONFLICT_ERRORS} plus the body-size `413`. */
+export const RESOURCE_CONFLICT_BODY_ERRORS = [
+  ...RESOURCE_CONFLICT_ERRORS,
+  'PayloadTooLarge',
+] as const satisfies readonly ErrorResponseId[]
+
 export const V2_API_KEY_SECURITY = [{ apiKey: [] }] as const
 
 export const V2_API_KEY_SECURITY_SCHEMES = {
