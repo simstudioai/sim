@@ -315,9 +315,7 @@ function updateAudit(
       serverName: result.server.name,
       transport: result.server.transport,
       url: result.server.url,
-      updatedFields: Object.keys(input).filter(
-        (key) => !['workspaceId', 'serverId', 'source'].includes(key)
-      ),
+      updatedFields: result.updatedFields ?? [],
       source: input.source,
     },
   }
