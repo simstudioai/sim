@@ -66,8 +66,8 @@ describe('deployment permission matrix', () => {
    * surface routed through the operation registry. The v1 REST API
    * (`resolveV1DeploymentWorkflow`) predates the registry and runs its own
    * `validateWorkspaceAccess`, resolving a workspace key to its creator — so a
-   * workspace key can still deploy there. That gap is pre-existing and tracked
-   * separately; do not read these assertions as covering v1.
+   * workspace key can still deploy there. That gap is pre-existing and out of
+   * scope here; do not read these assertions as covering v1.
    */
   describe('deployment operations reject workspace API keys', () => {
     it.each([

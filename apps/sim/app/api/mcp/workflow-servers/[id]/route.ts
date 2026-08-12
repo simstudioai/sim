@@ -118,8 +118,9 @@ export const PATCH = withRouteHandler(
          * `write` member must still be able to rename an already-public server.
          *
          * This route calls the orchestration layer directly rather than the
-         * application use case, so the use case's gate does not apply here —
-         * see the TODO about migrating both MCP server routes.
+         * application use case, so `updateWorkflowMcpDeploymentServer`'s gate
+         * does not apply here and the rule has to be repeated. Delete this copy
+         * once the route goes through that use case.
          */
         if (body.isPublic === true) {
           const [current] = await db

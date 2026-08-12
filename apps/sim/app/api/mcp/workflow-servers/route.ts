@@ -120,8 +120,9 @@ export const POST = withRouteHandler(
          * `withMcpAuth('write')` covers managing the server, but a public
          * server skips authentication on the serve path, so publishing one is
          * admin-only. This route calls the orchestration layer directly rather
-         * than the application use case, so the use case's gate does not apply
-         * here — see the TODO about migrating both MCP server routes.
+         * than the application use case, so `createWorkflowMcpDeploymentServer`'s
+         * gate does not apply here and the rule has to be repeated. Delete this
+         * copy once the route goes through that use case.
          */
         if (
           increasesPublicExposure(body.isPublic, false) &&
