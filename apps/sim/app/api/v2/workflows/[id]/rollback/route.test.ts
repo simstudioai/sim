@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/api/server/routes', () => ({
+  createInternalResourceConcealmentPolicy: vi.fn(() => ({ kind: 'conceal-internal-resource' })),
+  internalOrchestrationErrorPolicy: { kind: 'internal-plain' },
   createInternalSessionOrExecutorAuth: vi.fn(() => ({ kind: 'internal-workflow' })),
   createV2ResourceConcealmentPolicy: vi.fn(() => ({ kind: 'conceal-resource' })),
   defineV2JsonRoute: mocks.defineRoute,

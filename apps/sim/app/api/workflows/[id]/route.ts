@@ -10,17 +10,19 @@ import {
 } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import {
+  concealCrossTenantResourceError,
   defineInternalJsonRoute,
   InternalUnauthenticatedError,
-  internalOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
+  internalWorkflowErrorPolicies,
   internalWorkflowReadAuth,
   internalWorkflowSessionOrExecutorAuth,
+  WORKFLOW_NOT_FOUND_MESSAGE,
 } from '@/lib/workflows/api'
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
@@ -37,7 +39,7 @@ export const GET = defineInternalJsonRoute({
   auth: internalWorkflowReadAuth,
   operation: readWorkflowDefinition.operation,
   rateLimit: workflowInternalRateLimit,
-  errorPolicy: internalOrchestrationErrorPolicy,
+  errorPolicy: internalWorkflowErrorPolicies.concealWorkflowAuthorization,
   mapInput: ({ params }) => ({ workflowId: params.id, state: 'draft' as const }),
   useCase: readWorkflowDefinition,
   present: ({ workflow: workflowData, state }) => {
@@ -82,7 +84,7 @@ export const DELETE = defineInternalJsonRoute({
   auth: internalWorkflowSessionOrExecutorAuth,
   operation: deleteWorkflow.operation,
   rateLimit: workflowInternalRateLimit,
-  errorPolicy: internalOrchestrationErrorPolicy,
+  errorPolicy: internalWorkflowErrorPolicies.concealWorkflowAuthorization,
   mapInput: ({ params }) => ({ workflowId: params.id }),
   useCase: deleteWorkflow,
   present: () => ({ success: true as const }),
@@ -147,7 +149,9 @@ export const PUT = withRouteHandler(
       if (error instanceof InternalUnauthenticatedError) {
         return NextResponse.json({ error: error.message }, { status: 401 })
       }
-      const orchestrationError = asOrchestrationError(error)
+      const orchestrationError = asOrchestrationError(
+        concealCrossTenantResourceError(error, WORKFLOW_NOT_FOUND_MESSAGE)
+      )
       if (orchestrationError) {
         return NextResponse.json(
           { error: orchestrationError.message },

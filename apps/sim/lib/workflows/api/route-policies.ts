@@ -1,11 +1,13 @@
 import type { Principal } from '@sim/auth/principal'
 import {
+  createInternalResourceConcealmentPolicy,
   createInternalSessionOrExecutorAuth,
   createV2ResourceConcealmentPolicy,
   type InternalAuthPolicy,
   type InternalErrorPolicy,
   InternalUnauthenticatedError,
   internalErrorResponse,
+  internalOrchestrationErrorPolicy,
   type V2ErrorPolicy,
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
@@ -63,22 +65,42 @@ function legacyWorkflowErrorCode(message: string): string {
   return message.toUpperCase().replace(/\s+/g, '_')
 }
 
+export const WORKFLOW_NOT_FOUND_MESSAGE = 'Workflow not found'
+
+/**
+ * Every route built on this policy is scoped to a single workflow, so all of
+ * them conceal cross-tenant authorization the way their v2 counterparts do.
+ */
 export function createInternalWorkflowErrorPolicy(fallback: string): InternalErrorPolicy {
   if (!fallback.trim()) throw new Error('Internal workflow error fallback is required')
-  return {
-    project(error) {
-      const classified = asOrchestrationError(error)
-      if (!classified) return null
-      return internalErrorResponse(statusForOrchestrationError(classified.code), {
-        error: classified.message,
-        code: legacyWorkflowErrorCode(classified.message),
-      })
+  return createInternalResourceConcealmentPolicy({
+    notFoundMessage: WORKFLOW_NOT_FOUND_MESSAGE,
+    base: {
+      project(error) {
+        const classified = asOrchestrationError(error)
+        if (!classified) return null
+        return internalErrorResponse(statusForOrchestrationError(classified.code), {
+          error: classified.message,
+          code: legacyWorkflowErrorCode(classified.message),
+        })
+      },
+      unhandled() {
+        return internalErrorResponse(500, {
+          error: fallback,
+          code: legacyWorkflowErrorCode(fallback),
+        })
+      },
     },
-    unhandled() {
-      return internalErrorResponse(500, {
-        error: fallback,
-        code: legacyWorkflowErrorCode(fallback),
-      })
-    },
-  }
+  })
 }
+
+/**
+ * Internal-surface counterparts of {@link v2WorkflowErrorPolicies} for the
+ * workflow routes that project plain orchestration errors.
+ */
+export const internalWorkflowErrorPolicies = {
+  concealWorkflowAuthorization: createInternalResourceConcealmentPolicy({
+    base: internalOrchestrationErrorPolicy,
+    notFoundMessage: WORKFLOW_NOT_FOUND_MESSAGE,
+  }),
+} as const

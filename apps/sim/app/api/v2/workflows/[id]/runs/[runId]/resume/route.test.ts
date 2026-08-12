@@ -34,6 +34,8 @@ vi.mock('@/lib/api/server/routes', () => {
   }
   return {
     admitV2Request: mocks.admit,
+    createInternalResourceConcealmentPolicy: vi.fn(() => ({ project: () => null })),
+    internalOrchestrationErrorPolicy: { project: () => null },
     createInternalSessionOrExecutorAuth: vi.fn(() => ({ authenticate: vi.fn() })),
     createV2ResourceConcealmentPolicy: vi.fn(
       ({ render }: { render?: (error: unknown) => Response | null }) => ({
