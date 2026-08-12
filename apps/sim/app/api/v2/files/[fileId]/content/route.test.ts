@@ -159,6 +159,7 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
         uploadedByEmail: 'ada@example.com',
         uploadedAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-03T00:00:00.000Z',
+        deletedAt: null,
       },
     })
     expect(mocks.updateContent).toHaveBeenCalledWith({

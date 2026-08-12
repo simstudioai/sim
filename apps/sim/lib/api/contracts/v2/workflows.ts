@@ -285,6 +285,29 @@ export const v2DeploymentStateSchema = z
     description: 'Current workflow deployment state and lifecycle progress.',
   })
 
+/**
+ * Read-only deployment state. Extends the shared state with `needsRedeployment`,
+ * which the mutation responses cannot carry: it compares the live graph against
+ * the draft, and immediately after a deploy or rollback the two are equal by
+ * construction.
+ */
+export const v2WorkflowDeploymentSchema = v2DeploymentStateSchema
+  .extend({
+    needsRedeployment: z
+      .boolean()
+      .describe(
+        'Whether the editable draft has diverged from the live deployment version. False while a deployment attempt is still preparing or activating, and false when nothing is deployed.'
+      ),
+  })
+  .meta({
+    id: 'WorkflowDeployment',
+    title: 'Workflow deployment',
+    description:
+      'Current deployment state of a workflow, including draft-versus-live drift and the most recent deployment attempt.',
+  })
+
+export type V2WorkflowDeployment = z.output<typeof v2WorkflowDeploymentSchema>
+
 export const v2DeployWorkflowDataSchema = v2DeploymentStateSchema
   .extend({
     version: z
@@ -624,6 +647,16 @@ export const v2GetWorkflowVersionContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowVersionDetailSchema),
+  },
+})
+
+export const v2GetWorkflowDeploymentContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[id]/deployment',
+  params: v2WorkflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowDeploymentSchema),
   },
 })
 

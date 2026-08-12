@@ -138,6 +138,7 @@ describe('/api/v2/files', () => {
           uploadedByEmail: 'ada@example.com',
           uploadedAt: '2026-08-04T00:00:00.000Z',
           updatedAt: '2026-08-05T00:00:00.000Z',
+          deletedAt: null,
         },
       ],
       nextCursor: null,
@@ -146,12 +147,43 @@ describe('/api/v2/files', () => {
       principal: auth.principal,
       input: expect.objectContaining({
         workspaceId: WORKSPACE_ID,
+        scope: 'active',
         sortBy: 'name',
         sortOrder: 'asc',
         limit: 100,
       }),
       request,
     })
+  })
+
+  it('pages the archived set and dates each soft delete when asked for it', async () => {
+    mocks.queryFiles.mockResolvedValueOnce({
+      files: [{ ...FILE, deletedAt: new Date('2026-08-06T00:00:00.000Z') }],
+      nextKeys: undefined,
+      cursorSort: 'uploadedAt:asc',
+    })
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}&scope=archived`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data[0].deletedAt).toBe('2026-08-06T00:00:00.000Z')
+    expect(mocks.queryFiles).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: expect.objectContaining({ scope: 'archived' }),
+      request: expect.anything(),
+    })
+  })
+
+  it('rejects an unimplemented scope instead of silently listing the active set', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}&scope=all`)
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.queryFiles).not.toHaveBeenCalled()
   })
 
   it('preserves escaped slashes in the containing folder path', async () => {

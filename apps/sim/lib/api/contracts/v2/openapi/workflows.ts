@@ -24,6 +24,7 @@ import {
   v2ExecuteWorkflowSyncResponseSchema,
   v2ExportWorkflowContract,
   v2GetWorkflowContract,
+  v2GetWorkflowDeploymentContract,
   v2GetWorkflowRunContract,
   v2GetWorkflowVersionContract,
   v2ImportWorkflowContract,
@@ -319,6 +320,54 @@ const routes = [
               isActive: WORKFLOW_VERSION_EXAMPLE.isActive,
               createdAt: WORKFLOW_VERSION_EXAMPLE.createdAt,
               state: { blocks: {}, edges: [] },
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2GetWorkflowDeploymentContract,
+    workflowOperation({
+      operationId: 'getWorkflowDeploymentV2',
+      summary: 'Get Workflow Deployment',
+      description:
+        'Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only place `needsRedeployment` is published — the deploy, undeploy, and rollback responses cannot carry it, because they answer at the moment the draft and the live version are equal.',
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess('The current deployment state.'),
+    }),
+    {
+      params: v2GetWorkflowDeploymentContract.params,
+      response: documentedSchema(
+        v2GetWorkflowDeploymentContract.response.schema,
+        'WorkflowDeploymentResponse',
+        'Workflow deployment response',
+        'Current deployment state, including draft-versus-live drift.',
+        [
+          {
+            data: {
+              id: WORKFLOW_ID,
+              isDeployed: true,
+              needsRedeployment: true,
+              deployedAt: '2026-06-12T10:30:00.000Z',
+              warnings: [],
+              activeDeployment: {
+                deploymentVersionId: 'depver_01J8ZK3QW4M6X2R9T7B5C0V2',
+                version: 3,
+                deployedAt: '2026-06-12T10:30:00.000Z',
+              },
+              latestDeploymentAttempt: {
+                id: 'depop_01J8ZK3QW4M6X2R9T7B5C0V1',
+                deploymentVersionId: 'depver_01J8ZK3QW4M6X2R9T7B5C0V2',
+                version: 3,
+                action: 'deploy',
+                status: 'active',
+                isCurrent: true,
+                readiness: { webhooks: 'ready', schedules: 'ready', mcp: 'not_applicable' },
+                requestedAt: '2026-06-12T10:29:58.000Z',
+                activatedAt: '2026-06-12T10:30:00.000Z',
+                error: null,
+              },
             },
           },
         ]

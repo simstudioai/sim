@@ -18,6 +18,8 @@ export interface ListAllWorkspaceFilesInput {
 
 export interface QueryWorkspaceFilePageInput {
   workspaceId: string
+  /** Lifecycle set to page over. Omission preserves the active-only default. */
+  scope?: 'active' | 'archived'
   folderPath?: string
   search?: string
   sortBy: 'name' | 'size' | 'uploadedAt' | 'updatedAt'
@@ -63,6 +65,7 @@ export const queryWorkspaceFilePage = defineAuthorizedWorkspaceFileUseCase({
     }
 
     const { files, nextKeys } = await queryWorkspaceFiles(context.workspaceId, {
+      scope: input.scope,
       folderId,
       search: input.search,
       sortBy: input.sortBy,

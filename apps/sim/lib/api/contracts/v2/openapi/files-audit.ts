@@ -18,6 +18,7 @@ import {
   v2MoveFileItemsContract,
   v2RelocateFileFolderContract,
   v2RenameFileContract,
+  v2RestoreFileContract,
   v2UpdateFileContentContract,
   v2UpsertFileShareContract,
 } from '@/lib/api/contracts/v2/files'
@@ -52,6 +53,7 @@ const FILE_EXAMPLE = {
   uploadedByEmail: 'jane@example.com',
   uploadedAt: '2026-01-15T10:30:00Z',
   updatedAt: '2026-01-15T10:30:00Z',
+  deletedAt: null,
 } as const
 
 const SHARE_EXAMPLE = {
@@ -119,7 +121,7 @@ const routes = [
       operationId: 'listFiles',
       summary: 'List Files',
       description:
-        'List workspace files with search, sorting, folder filtering, and opaque cursor pagination.',
+        'List workspace files with search, sorting, folder filtering, and opaque cursor pagination. Defaults to active files; pass `scope=archived` to page over soft-deleted files, whose `deletedAt` is non-null and which `POST /files/{fileId}/restore` can bring back.',
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of workspace files.' },
     }),
@@ -356,7 +358,7 @@ const routes = [
       operationId: 'deleteFile',
       summary: 'Delete File',
       description:
-        'Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in listings and is no longer readable through the API, and its stored bytes are never removed. An archived file can be restored from the workspace Recently Deleted settings; the v2 API exposes no restore operation.',
+        'Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in the default listing and is no longer readable through the API, and its stored bytes are never removed. List archived files with `GET /files?scope=archived` and reverse the delete with `POST /files/{fileId}/restore`.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Deletion confirmation.' },
     }),
@@ -415,6 +417,39 @@ const routes = [
         'File response',
         'A single workspace file.',
         [{ data: FILE_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2RestoreFileContract,
+    filesOperation({
+      operationId: 'restoreFile',
+      summary: 'Restore File',
+      description:
+        'Reverse a soft delete and return the file to the workspace. Restore is not a pure undo: the file comes back at the workspace root regardless of the folder it was deleted from, and it gains a `_restored` suffix when another file at the root already holds its name — so read `folderPath` and `name` off the response rather than assuming the pre-delete values. Restoring a file that is already active is a no-op that returns that file, so a retry is safe. Returns 400 when the workspace itself has been archived, and 409 when no free restore name could be found.',
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The file as it exists after the restore.' },
+    }),
+    {
+      params: documentedSchema(
+        v2RestoreFileContract.params,
+        'RestoreFileParams',
+        'Restore file path parameters',
+        'Archived file selected for restore.'
+      ),
+      body: documentedSchema(
+        v2RestoreFileContract.body,
+        'RestoreFileRequest',
+        'Restore file request',
+        'Workspace scope for the archived file.',
+        [{ workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64' }]
+      ),
+      response: documentedSchema(
+        v2RestoreFileContract.response.schema,
+        'V2RestoreFileResponse',
+        'Restore file response',
+        'The restored workspace file, at the root and under its post-restore name.',
+        [{ data: { ...FILE_EXAMPLE, name: 'data_restored.csv', folderPath: '/' } }]
       ),
     }
   ),
