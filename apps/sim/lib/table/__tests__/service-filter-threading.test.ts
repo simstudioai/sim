@@ -204,9 +204,7 @@ describe('queryRows byte budget', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    // The bounded-page byte cut is opt-in; pin it on rather than inheriting
-    // whatever the developer's local `.env` happens to set.
-    setEnv({ TABLE_MAX_PAGE_BYTES: TABLE_LIMITS.MAX_QUERY_RESULT_BYTES })
+    setEnv({ TABLE_MAX_PAGE_BYTES: undefined })
   })
 
   const row = (i: number, blobBytes: number) => ({
@@ -265,12 +263,9 @@ describe('queryRows byte budget', () => {
     })
   })
 
-  it('does NOT byte-cut a bounded page when TABLE_MAX_PAGE_BYTES is unset', async () => {
-    // Default-off: a short page is only safe for a client that terminates on
-    // `nextCursor === null`. A pre-existing v1 pager stopping at
-    // `rows.length < limit` would read the cut as end-of-data and truncate.
-    setEnv({ TABLE_MAX_PAGE_BYTES: undefined })
-    const perRow = Math.floor(TABLE_LIMITS.MAX_QUERY_RESULT_BYTES * 0.6)
+  it('honors a smaller bounded-page byte override', async () => {
+    setEnv({ TABLE_MAX_PAGE_BYTES: 3 * 1024 * 1024 })
+    const perRow = 2 * 1024 * 1024
     dbChainMockFns.limit.mockResolvedValueOnce([])
     dbChainMockFns.limit.mockResolvedValueOnce([row(1, perRow), row(2, perRow)])
 
@@ -280,8 +275,8 @@ describe('queryRows byte budget', () => {
       'req-1'
     )
 
-    expect(result.rows).toHaveLength(2)
-    expect(result.nextCursor).toBeNull()
+    expect(result.rows).toHaveLength(1)
+    expect(result.nextCursor).not.toBeNull()
   })
 
   it('still fails fast on an UNBOUNDED query with TABLE_MAX_PAGE_BYTES unset', async () => {

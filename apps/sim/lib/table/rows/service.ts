@@ -1202,7 +1202,7 @@ export async function queryRows(
     startOffset: offset,
     limit,
     budgetBytes: TABLE_LIMITS.MAX_QUERY_RESULT_BYTES,
-    pageCutBytes: getMaxPageBytes() ?? undefined,
+    pageCutBytes: getMaxPageBytes(),
   })
 
   const [fetched, totalCount] = await Promise.all([drainPromise, countPromise])
@@ -1271,11 +1271,8 @@ interface BoundedFetchParams {
   limit?: number
   /** Drain ceiling: sizes batches, and the fail-fast bound for an unbounded query. */
   budgetBytes: number
-  /**
-   * Opt-in byte cut for a **bounded** page (`TABLE_MAX_PAGE_BYTES`); `undefined`
-   * disables it, so a bounded page always returns its full `limit`.
-   */
-  pageCutBytes?: number
+  /** Byte cut for a **bounded** page; defaults to 5MB and is environment-overridable. */
+  pageCutBytes: number
 }
 
 interface BoundedFetchResult {
@@ -1300,9 +1297,9 @@ const MAX_QUERY_BATCHES = 1000
  *
  * Byte ceiling: an **unbounded** query (no `limit`) always fails fast at
  * `budgetBytes` — returning part of a result that promised everything would be
- * silent truncation. A **bounded** page cuts short only when `pageCutBytes` is
- * set (`TABLE_MAX_PAGE_BYTES`), because a short page is only safe for clients
- * that terminate on `nextCursor === null` rather than on page fullness.
+ * silent truncation. A **bounded** page cuts short at `pageCutBytes` and returns
+ * a cursor, so clients must terminate on `nextCursor === null` rather than on
+ * page fullness.
  *
  * Advance strategy: when `keysetValid`, the loop re-anchors on each consumed
  * keyed row and seeks `(order_key, id) > (anchor)` — delete-tolerant and an
@@ -1319,7 +1316,7 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
   const firstBatchCap = Math.max(1, Math.floor((4 * budgetBytes) / TABLE_LIMITS.MAX_ROW_SIZE_BYTES))
 
   // The byte ceiling that ends the drain: an unbounded query fails fast at the
-  // budget; a bounded page cuts only when the operator opted in.
+  // budget; a bounded page cuts at the configured page budget.
   const cutBytes = limit === undefined ? budgetBytes : pageCutBytes
 
   const rows: Array<typeof userTableRows.$inferSelect> = []

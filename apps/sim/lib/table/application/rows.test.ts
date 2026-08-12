@@ -142,6 +142,7 @@ vi.mock('@/lib/table/events', () => ({
 import {
   createTableRows,
   deleteTableRows,
+  listTableRows,
   ProjectedWireRowsValidationError,
   queryTableRows,
   replaceProjectedWireRows,
@@ -152,6 +153,7 @@ import {
   updateTableRows,
   upsertTableRow,
 } from '@/lib/table/application/rows'
+import { encodeCursor } from '@/lib/table/rows/cursor'
 
 const TABLE: TableDefinition = {
   id: 'table-1',
@@ -582,6 +584,49 @@ describe('row query and upsert application semantics', () => {
 
     expect(mockQueryRows).not.toHaveBeenCalled()
     expect(mockLoadSecretProvenance).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed list cursor before querying storage', async () => {
+    await expect(
+      listTableRows.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, limit: 25, cursor: 'malformed' },
+      })
+    ).rejects.toMatchObject({ details: { code: 'INVALID_CURSOR' } })
+
+    expect(mockQueryRows).not.toHaveBeenCalled()
+  })
+
+  it('passes the native row cursor through a short list page', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row-50', orderKey: 'a50' },
+      keysetValid: true,
+      nextOffset: 50,
+    })
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [{ id: 'row-51', data: {} }],
+      rowCount: 1,
+      totalCount: null,
+      nextCursor: 'native-next-cursor',
+    })
+
+    const result = await listTableRows.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, limit: 25, cursor },
+    })
+
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      TABLE,
+      {
+        limit: 25,
+        after: { id: 'row-50', orderKey: 'a50' },
+        offset: undefined,
+        includeTotal: false,
+        withExecutions: false,
+      },
+      expect.any(String)
+    )
+    expect(result.nextCursor).toBe('native-next-cursor')
   })
 
   it('loads requested persisted provenance inside the authorized application query', async () => {

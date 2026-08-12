@@ -358,7 +358,7 @@ const routes = [
       operationId: 'listTableRows',
       summary: 'List Rows',
       description:
-        'List a plain cursor page in default row order. Use the query endpoint for predicate filtering and sorting.',
+        'List a plain cursor page in default row order. Pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. Use the query endpoint for predicate filtering and sorting.',
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of table rows.' },
     }),
@@ -619,7 +619,7 @@ const routes = [
       operationId: 'queryTableRows',
       summary: 'Query Rows',
       description:
-        'Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination.',
+        'Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null.',
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of matching table rows.' },
     }),
