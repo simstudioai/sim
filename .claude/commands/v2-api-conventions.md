@@ -15,12 +15,13 @@ failure (always)      { "error": { "code": "...", "message": "...", "details"?: 
 
 Nothing else at the top level. No `success: true`, no bare `{ "error": "string" }`, no HTML.
 
-That promise is worth stating as a rule because it has been broken four separate ways, each time by a route or a builder taking a shortcut that looked local:
+That promise is worth stating as a rule because it has been broken five separate ways, each time by a route or a builder taking a shortcut that looked local:
 
 - `GET /workflows?limit=1.5` returned **500**. The contract was copied from a sibling and lost its `.int()`, so a fractional limit passed validation and reached Postgres as `LIMIT 2.5`.
 - A malformed JSON body returned **`{"error":"Request body must be valid JSON"}`** — a bare string. The envelope was a per-route opt-in that only 8 of 77 routes remembered.
 - `GET /api/v2/nonexistent` returned a **full HTML 404 document**, because no route file matched and the request fell through to the app's global not-found page.
 - Four collections returned `nextCursor` while **silently discarding** any `limit` the caller sent, because Zod strips unknown keys unless the schema is `.strict()`.
+- Handing back a `nextCursor` from any timestamp-sorted list and passing it straight in returned **500**. The value was validated and bound — but bound with no SQL type, into `date_trunc`, which is overloaded, so Postgres could resolve no overload. Validation was never the missing half; the type was.
 
 Each was one line. The rules below are the generalisations.
 
@@ -61,7 +62,11 @@ Two of these carry real design weight:
 
 **404 is deliberately overloaded.** A workspace the caller cannot reach answers `404 "Workspace not found"`, never 403 — a 403 would confirm the resource exists. `createV2ResourceConcealmentPolicy` does this by mapping a cross-tenant authorization failure to `v2Error('NOT_FOUND', ...)`. The rollout gate answers the same way for the same reason (`gate.ts`: "an ungated caller cannot distinguish 'not in the rollout cohort' from 'no such endpoint'"), and so does the unknown-path catch-all at `app/api/v2/[[...segments]]/route.ts` — its body is byte-identical to the gate's on purpose.
 
-**500 is never caller-reachable.** Any input a caller can send must be rejected at the contract boundary with a 400. If you can construct a query string or body that produces a 500, that is a bug in the contract, not something to wrap in a `try`/`catch`. `v2ErrorForOrchestration` also replaces the message on an unclassified failure with a generic one, so internal detail never leaks. A caller-reachable 500 has shipped twice — a fractional `limit` reaching `LIMIT 2.5`, and a plain `HEAD` tripping the builder's method guard — so treat "a well-formed request produced a 500" as the highest-severity class of defect on this surface.
+**500 is never caller-reachable.** Any input a caller can send must be rejected at the contract boundary with a 400. If you can construct a query string or body that produces a 500, that is a bug in the contract, not something to wrap in a `try`/`catch`. `v2ErrorForOrchestration` also replaces the message on an unclassified failure with a generic one, so internal detail never leaks. A caller-reachable 500 has shipped three times — a fractional `limit` reaching `LIMIT 2.5`, a plain `HEAD` tripping the builder's method guard, and a keyset cursor's timestamp reaching `date_trunc` as an untyped placeholder — so treat "a well-formed request produced a 500" as the highest-severity class of defect on this surface.
+
+**Validating a value is only half of it; the value also has to reach SQL with a type.** A bound parameter arrives as `unknown` and takes its type from context. Against a typed column (`sort_order > $1`) that inference always succeeds, which is why the gap stays invisible almost everywhere — but as an argument to an overloaded function it can resolve to nothing at all. So: **if a bound value is an argument to a SQL function rather than one side of a comparison, write its type down** (`lib/api/list-query.ts`, `timestampKey`, casts from the column).
+
+And this class survives a green test suite — `keysetAfter` returned well-formed SQL and every assertion passed; only Postgres's parser rejected it. When a change alters the *shape* of generated SQL rather than its values, execute it somewhere before believing the suite.
 
 **Which of 403 and 404 an operation documents follows from its authorization, not from whether it is a read.** `requirePermission` throws two different failures: no workspace access at all is `NoWorkspaceAccessError`, which `createV2ResourceConcealmentPolicy` conceals as 404; access below the operation's `minimumRole` is `InsufficientWorkspacePermissionsError`, which stays a 403. So:
 
@@ -181,7 +186,7 @@ Run this against any new or changed v2 endpoint.
 - [ ] Success body is exactly `{data}` or `{data, nextCursor}`; failures are exactly `{error:{code,message,details?}}`.
 - [ ] Route uses a shared builder; no hand-built `NextResponse.json`.
 - [ ] Query and body schemas are `.strict()`.
-- [ ] No caller-supplied value can produce a 500 — check every numeric param reaches SQL as a validated integer.
+- [ ] No caller-supplied value can produce a 500 — check every numeric param reaches SQL as a validated integer, and that any bound value passed as an argument to a SQL function carries an explicit type.
 - [ ] `limit` comes from `v2PaginationFields`, not a hand-written `z.coerce.number()`.
 - [ ] If the response carries `nextCursor`, the query accepts `limit` + `cursor` and the query actually applies them.
 - [ ] Keyset sorts end in a unique `id` key.
