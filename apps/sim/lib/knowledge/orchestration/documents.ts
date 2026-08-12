@@ -61,9 +61,12 @@ export interface KnowledgeDocumentInput {
  */
 export type KnowledgeDocumentProcessing = 'queue' | 'async'
 
-export type CreatedKnowledgeDocument = Awaited<ReturnType<typeof createSingleDocument>> & {
-  /** Present when an idempotent completion returns an already-processing document. */
-  processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
+export type CreatedKnowledgeDocument = Omit<
+  Awaited<ReturnType<typeof createSingleDocument>>,
+  'processingStatus'
+> & {
+  /** New documents are pending; idempotent completion may return a later persisted state. */
+  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
 }
 
 export interface PerformUploadKnowledgeDocumentParams extends KnowledgeOperationContext {

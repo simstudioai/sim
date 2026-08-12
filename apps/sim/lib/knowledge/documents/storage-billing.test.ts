@@ -144,6 +144,25 @@ describe('knowledge document storage attribution', () => {
     expect(mockMaybeNotifyStorageLimitForBillingContext).toHaveBeenCalledWith(STORAGE_CONTEXT, 5)
   })
 
+  it('returns the pending processing state persisted for a new document', async () => {
+    const created = await createSingleDocument(
+      {
+        filename: 'note.txt',
+        fileUrl: 'data:text/plain;base64,SGVsbG8=',
+        fileSize: 5,
+        mimeType: 'text/plain',
+      },
+      'knowledge-base-1',
+      'request-1',
+      'external-collaborator'
+    )
+
+    expect(created.processingStatus).toBe('pending')
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ processingStatus: 'pending' })
+    )
+  })
+
   it('resolves admission before opening the document transaction', async () => {
     let transactionOpen = false
     mockResolveStorageBillingContext.mockImplementationOnce(async () => {

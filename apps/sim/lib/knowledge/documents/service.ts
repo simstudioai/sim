@@ -1908,6 +1908,7 @@ export async function createSingleDocument(
   chunkCount: number
   tokenCount: number
   characterCount: number
+  processingStatus: 'pending'
   enabled: boolean
   uploadedAt: Date
   tag1: string | null
@@ -1973,6 +1974,7 @@ export async function createSingleDocument(
     chunkCount: 0,
     tokenCount: 0,
     characterCount: 0,
+    processingStatus: 'pending' as const,
     enabled: true,
     uploadedAt: now,
     uploadedBy,
@@ -2126,6 +2128,7 @@ export async function createSingleDocument(
     chunkCount: number
     tokenCount: number
     characterCount: number
+    processingStatus: 'pending'
     enabled: boolean
     uploadedAt: Date
     tag1: string | null
@@ -2143,7 +2146,7 @@ export async function getDocumentByUploadId(
   documentId: string,
   knowledgeBaseId: string
 ): Promise<
-  | (Awaited<ReturnType<typeof createSingleDocument>> & {
+  | (Omit<Awaited<ReturnType<typeof createSingleDocument>>, 'processingStatus'> & {
       processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
     })
   | null

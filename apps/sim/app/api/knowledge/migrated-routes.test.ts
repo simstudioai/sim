@@ -151,7 +151,7 @@ const document = {
   chunkCount: 1,
   tokenCount: 5,
   characterCount: 20,
-  processingStatus: 'completed' as const,
+  processingStatus: 'pending' as const,
   enabled: true,
   uploadedAt: new Date('2026-01-01T00:00:00Z'),
 }
@@ -356,6 +356,10 @@ describe('migrated internal Knowledge routes', () => {
     })
 
     expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      data: { processingStatus: 'pending' },
+    })
     expect(mocks.platformUpload).toHaveBeenCalledOnce()
     expect(mocks.capture).toHaveBeenCalledOnce()
     expect(mocks.createDocuments.mock.invocationCallOrder[0]).toBeLessThan(
