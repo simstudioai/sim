@@ -5,20 +5,17 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { and } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetJob } = vi.hoisted(() => ({
+const { mockGetJob, mockMaterializeForDisplay } = vi.hoisted(() => ({
   mockGetJob: vi.fn(),
+  mockMaterializeForDisplay: vi.fn(),
 }))
 
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({ getJob: mockGetJob }),
 }))
 
-vi.mock('@/lib/logs/execution/functional-outputs', () => ({
-  collectFunctionalBlockOutputs: vi.fn().mockReturnValue(new Map()),
-}))
-
 vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionData: vi.fn(),
+  materializeExecutionDataForDisplay: mockMaterializeForDisplay,
 }))
 
 vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
@@ -38,6 +35,54 @@ describe('getWorkflowExecutionStatus queue projection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockMaterializeForDisplay.mockResolvedValue({})
+  })
+
+  it('selects run outputs only from the secret-safe display projection', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        status: 'completed',
+        level: 'info',
+        trigger: 'api',
+        startedAt: new Date('2026-08-05T12:00:00.000Z'),
+        endedAt: new Date('2026-08-05T12:00:01.000Z'),
+        totalDurationMs: 1000,
+        executionData: {
+          executionState: {
+            blockStates: { 'block-1': { output: { token: 'resolved-secret' } } },
+          },
+        },
+        costTotal: null,
+      },
+    ])
+    queueTableRows(schemaMock.resumeQueue, [])
+    queueTableRows(schemaMock.pausedExecutions, [])
+    mockMaterializeForDisplay.mockResolvedValueOnce({
+      finalOutput: { token: '[REDACTED]' },
+      traceSpans: [{ blockId: 'block-1', output: { token: '[REDACTED]' } }],
+    })
+    const status = await getWorkflowExecutionStatus({
+      ...input,
+      includeOutput: true,
+      selectedOutputs: ['block-1'],
+    })
+
+    expect(mockMaterializeForDisplay).toHaveBeenCalledWith(
+      expect.objectContaining({ executionState: expect.anything() }),
+      {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+      }
+    )
+    expect(status).toMatchObject({
+      finalOutput: { token: '[REDACTED]' },
+      blockOutputs: { 'block-1': { token: '[REDACTED]' } },
+    })
+    expect(JSON.stringify(status)).not.toContain('resolved-secret')
   })
 
   it('projects a queued workflow job as an execution resource', async () => {

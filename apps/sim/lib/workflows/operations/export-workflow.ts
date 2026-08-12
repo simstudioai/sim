@@ -12,11 +12,13 @@ import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
  *
  * Unlike the admin export (`/api/v1/admin/workflows/[id]/export`), which emits
  * the raw state for backup/restore, this runs the payload through
- * `sanitizeForExport`, which nulls three classes of sub-block value:
+ * `sanitizeForExport`, which nulls five classes of sub-block value:
  * - `password: true` fields, unless the value is a whole `{{ENV_VAR}}`
  *   reference, which is preserved so the import resolves it in the target
  *   workspace;
  * - `oauth-input` credentials;
+ * - sensitive nested `tool-input` params and params without authoritative metadata;
+ * - opaque credential-bearing values such as arbitrary table cells;
  * - **workspace-scoped bindings** — selector fields and id-keyed fields that
  *   point at rows that do not exist in another workspace, cleared rather than
  *   carried across as dangling ids.

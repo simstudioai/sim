@@ -8,7 +8,7 @@ import {
   collectFunctionalBlockOutputs,
   type FunctionalExecutionDataSource,
 } from '@/lib/logs/execution/functional-outputs'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import {
   RESUME_EXECUTION_JOB_ID_PREFIX,
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,
@@ -259,9 +259,7 @@ export async function getWorkflowExecutionStatus(
 
   const cost = logRow.costTotal != null ? { total: Number(logRow.costTotal) } : null
 
-  // Heavy execution data may live in object storage; resolve the pointer
-  // before reading error / finalOutput / traceSpans (no-op for inline rows).
-  const executionData = (await materializeExecutionData(
+  const executionData = (await materializeExecutionDataForDisplay(
     logRow.executionData as Record<string, unknown> | null,
     {
       workspaceId: logRow.workspaceId,

@@ -662,6 +662,7 @@ export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
   // Use unified sanitization with env var preservation for export
   const sanitizedState = sanitizeWorkflowForSharing(fullState, {
     preserveEnvVars: true, // Keep {{ENV_VAR}} references in exported workflows
+    redactOpaqueCredentialInputs: true,
   }) as ExportWorkflowState['state']
 
   return {
