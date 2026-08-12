@@ -205,11 +205,20 @@ async function projectWorkflowToolOutput(
   provenance: unknown,
   scope: { userId: string; workspaceId: string }
 ): Promise<unknown> {
+  /**
+   * Deliberately compares the tenant only, never the user. The executor stamps provenance with
+   * the workflow AUTHOR (`personalEnvUserId` falls back to `metadata.workflowUserId` on this
+   * non-session path) while `scope` here is the ACTING caller, and a caller who did not author
+   * the workflow is the ordinary team configuration — demanding they match refuses every such
+   * call after the workflow has already run and been billed. Restoring a user comparison here
+   * is not hardening: the registry compares both scope fields itself and marks every entry
+   * imported from another user anonymous, so a non-author already sees the opaque redaction
+   * placeholder rather than the author's secret names.
+   */
   if (
     !isResolvedSecretTraceProvenanceV1(provenance) ||
     !provenance.complete ||
-    provenance.scope?.userId !== scope.userId ||
-    provenance.scope.workspaceId !== scope.workspaceId
+    provenance.scope?.workspaceId !== scope.workspaceId
   ) {
     throw new Error('MCP workflow execution provenance is unavailable')
   }
