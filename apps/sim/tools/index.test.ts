@@ -25,6 +25,7 @@ import {
   setEnvFlags,
 } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
@@ -54,6 +55,7 @@ const {
   mockGenerateInternalDelegationToken,
   mockGenerateInternalToken,
   mockResolveWorkspaceFileReference,
+  mockAssertPermissionsAllowed,
 } = vi.hoisted(() => ({
   mockGetBYOKKey: vi.fn(),
   mockGetToolAsync: vi.fn(),
@@ -71,6 +73,7 @@ const {
   mockGenerateInternalDelegationToken: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
+  mockAssertPermissionsAllowed: vi.fn(),
 }))
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
@@ -94,7 +97,7 @@ vi.mock('@/lib/core/security/encryption', () => ({
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: vi.fn().mockResolvedValue(undefined),
+  assertPermissionsAllowed: mockAssertPermissionsAllowed,
   validateBlockType: vi.fn().mockResolvedValue(undefined),
   validateMcpToolsAllowed: vi.fn().mockResolvedValue(undefined),
   validateCustomToolsAllowed: vi.fn().mockResolvedValue(undefined),
@@ -460,6 +463,7 @@ vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQu
 
 beforeEach(() => {
   vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
+  mockAssertPermissionsAllowed.mockResolvedValue(undefined)
   mockGenerateInternalDelegationToken.mockResolvedValue('executor-token')
   mockRunWorkflowTool.mockResolvedValue({ success: true, output: {} })
   // Suites below call vi.resetAllMocks(), which wipes the shared env/urls mock
@@ -690,6 +694,53 @@ describe('executeTool Function', () => {
     expect(result.timing?.duration).toBeGreaterThanOrEqual(0)
 
     tools.function_execute = originalFunctionTool
+  })
+
+  it('logs database query diagnostics without exposing query details to the caller', async () => {
+    const driverError = Object.assign(new Error('read ECONNRESET'), {
+      code: 'ECONNRESET',
+      errno: 'ECONNRESET',
+      syscall: 'read',
+    })
+    const databaseError = new DrizzleQueryError(
+      'select "id" from "workspace" where "workspace"."id" = $1 limit $2',
+      ['workspace-secret-id', 1],
+      driverError
+    )
+    mockAssertPermissionsAllowed.mockRejectedValueOnce(databaseError)
+    mockToolsLogger.error.mockClear()
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'return 1' },
+      { executionContext: createToolExecutionContext({ userId: 'user-123' }) }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe(
+      'An internal error occurred while executing the tool. Please try again.'
+    )
+    expect(JSON.stringify(result)).not.toContain('Failed query')
+    expect(JSON.stringify(result)).not.toContain('workspace-secret-id')
+    expect(global.fetch).not.toHaveBeenCalled()
+
+    const loggedError = mockToolsLogger.error.mock.calls.at(-1)?.[1]
+    expect(loggedError).toEqual(
+      expect.objectContaining({
+        cause: expect.objectContaining({
+          name: 'Error',
+          message: 'read ECONNRESET',
+          code: 'ECONNRESET',
+          errno: 'ECONNRESET',
+          syscall: 'read',
+          causeChain: expect.arrayContaining([
+            expect.stringContaining('params: [redacted]'),
+            'Error: read ECONNRESET',
+          ]),
+        }),
+      })
+    )
+    expect(JSON.stringify(loggedError)).not.toContain('workspace-secret-id')
   })
 
   it('should call internal routes directly', async () => {

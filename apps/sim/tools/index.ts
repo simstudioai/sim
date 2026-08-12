@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { describeError, findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
   type GenerateInternalDelegationTokenInput,
@@ -92,6 +93,8 @@ const PRIVATE_MODEL_INPUT_DIRECT_EXECUTION_ERROR_MESSAGE =
   'Private model input provenance is not supported by direct execution'
 const PRIVATE_SECRET_PROVENANCE_DIRECT_EXECUTION_ERROR_MESSAGE =
   'Private secret provenance is not supported by direct execution'
+const INTERNAL_DATABASE_ERROR_MESSAGE =
+  'An internal error occurred while executing the tool. Please try again.'
 
 function projectToolLogMetadata(
   metadata: Record<string, unknown>,
@@ -2034,17 +2037,25 @@ async function executeToolImplementation(
     }
   } catch (error: any) {
     const normalizedError = toError(error)
+    const databaseQueryError = findCause(
+      error,
+      (cause): cause is DrizzleQueryError => cause instanceof DrizzleQueryError
+    )
+    const databaseErrorCause = databaseQueryError ? describeError(error) : undefined
     logger.error(
       `[${requestId}] Error executing tool ${toolId}:`,
       projectToolLogMetadata(
         {
-          error: normalizedError.message,
+          ...(databaseErrorCause
+            ? { cause: databaseErrorCause }
+            : { error: normalizedError.message }),
           stack: error instanceof Error ? error.stack : undefined,
         },
         resolvedSecretTraceRegistry,
         {
           errorName: normalizedError.name,
           hasStack: Boolean(error instanceof Error && error.stack),
+          ...(databaseErrorCause ? { cause: databaseErrorCause } : {}),
         },
         structuralOnlyToolLogs
       )
@@ -2062,7 +2073,9 @@ async function executeToolImplementation(
     let errorDetails = {}
 
     if (error instanceof Error) {
-      errorMessage = error.message || `Error executing tool ${toolId}`
+      errorMessage = databaseQueryError
+        ? INTERNAL_DATABASE_ERROR_MESSAGE
+        : error.message || `Error executing tool ${toolId}`
       // HTTP errors are thrown as Error instances carrying `status`/`statusText`/
       // `data` (see createTransformedErrorFromErrorInfo). Surface them on the
       // output so callers can branch on the status (e.g. treat 404 as a clean
