@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import {
   McpDnsResolutionError,
   McpDomainNotAllowedError,
@@ -245,7 +246,16 @@ export async function createMcpServer(
         if (params.oauthClientSecretProvided) {
           updateValues.oauthClientSecret = oauthClientSecretEncrypted
         }
-        updatedFields = Object.keys(updateValues).filter((key) => key !== 'updatedAt')
+        /**
+         * Drizzle skips `undefined` in `.set()`, and this object assigns every
+         * column unconditionally — `description` is present but undefined when
+         * the registration omits it. Keys must therefore be filtered by value,
+         * or the audit claims a column the write never touched. `null` stays:
+         * clearing a value is a write.
+         */
+        updatedFields = Object.entries(updateValues)
+          .filter(([key, value]) => key !== 'updatedAt' && value !== undefined)
+          .map(([key]) => key)
         await tx.update(mcpServers).set(updateValues).where(eq(mcpServers.id, serverId))
       })
 
@@ -501,7 +511,7 @@ export async function performCreateMcpServer(
       metadata: {
         serverName: result.server.name,
         transport: result.server.transport,
-        url: result.server.url,
+        url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
         timeout: result.server.timeout,
         retries: result.server.retries,
         source,
@@ -537,7 +547,7 @@ export async function performUpdateMcpServer(
       metadata: {
         serverName: result.server.name,
         transport: result.server.transport,
-        url: result.server.url,
+        url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
         updatedFields: result.updatedFields ?? [],
       },
       request: params.request,
@@ -586,7 +596,7 @@ export async function performDeleteMcpServer(
       metadata: {
         serverName: result.server.name,
         transport: result.server.transport,
-        url: result.server.url,
+        url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
         source,
       },
       request: params.request,

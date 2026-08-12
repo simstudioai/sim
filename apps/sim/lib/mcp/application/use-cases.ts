@@ -4,6 +4,7 @@ import { getPostgresErrorCode } from '@sim/utils/errors'
 import type { ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { mcpServerDelegationPolicy } from '@/lib/mcp/application/authorization'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
@@ -197,7 +198,7 @@ function createAudit(
       metadata: {
         serverName: result.server.name,
         transport: result.server.transport,
-        url: result.server.url,
+        url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
         timeout: result.server.timeout,
         retries: result.server.retries,
         source: input.source,
@@ -321,7 +322,7 @@ function updateAudit(
     metadata: {
       serverName: result.server.name,
       transport: result.server.transport,
-      url: result.server.url,
+      url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
       updatedFields: result.updatedFields ?? [],
       source: input.source,
     },
@@ -389,7 +390,7 @@ export const deleteMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
     metadata: {
       serverName: result.server.name,
       transport: result.server.transport,
-      url: result.server.url,
+      url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
       source: input.source,
     },
   }),
