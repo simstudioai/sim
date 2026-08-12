@@ -80,16 +80,30 @@ export const estimateNoteBlockHeight = (content: string) => {
   )
 }
 
+/**
+ * A container's box, and the gutter it keeps around the blocks inside it.
+ *
+ * Each padding is the gap between a child's edge and the container's, and
+ * nothing else. The header is counted once, by the child's own position, which
+ * `clampPositionToContainer` floors at `HEADER_HEIGHT + TOP_PADDING` — so these
+ * are the numbers you see, and three of them match because those three edges
+ * are only gutter.
+ *
+ * `RIGHT_PADDING` is the deliberate exception. The container's own output
+ * handle sits on that edge, so a child needs clearance there it does not need
+ * anywhere else. That makes it chrome rather than gutter, which is why it is
+ * not tied to the other three.
+ */
 export const CONTAINER_DIMENSIONS = {
   DEFAULT_WIDTH: 500,
   DEFAULT_HEIGHT: 300,
   MIN_WIDTH: 400,
   MIN_HEIGHT: 200,
   HEADER_HEIGHT: 50,
-  LEFT_PADDING: 16,
+  LEFT_PADDING: 24,
   RIGHT_PADDING: 80,
-  TOP_PADDING: 16,
-  BOTTOM_PADDING: 16,
+  TOP_PADDING: 24,
+  BOTTOM_PADDING: 24,
 } as const
 
 /**
