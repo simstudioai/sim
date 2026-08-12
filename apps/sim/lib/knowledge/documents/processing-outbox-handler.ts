@@ -59,6 +59,9 @@ const processKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, cont
   context.signal.throwIfAborted()
   const document = await getKnowledgeDocument(payload.knowledgeBaseId, payload.documentId)
   if (!document || document.processingStatus === 'completed') return
+  if (document.processingStatus === 'processing') {
+    throw new Error(`Knowledge document ${document.id} is already being processed`)
+  }
 
   context.signal.throwIfAborted()
   await processDocumentsWithQueue(

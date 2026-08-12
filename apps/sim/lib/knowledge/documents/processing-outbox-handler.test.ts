@@ -105,6 +105,19 @@ describe('knowledge document processing outbox handler', () => {
     }
   )
 
+  it('keeps the event retryable while an earlier processing attempt is active', async () => {
+    mocks.getKnowledgeDocument.mockResolvedValueOnce({
+      ...DOCUMENT,
+      processingStatus: 'processing',
+    })
+
+    await expect(handler()(PAYLOAD, createContext())).rejects.toThrow(
+      'Knowledge document document-1 is already being processed'
+    )
+
+    expect(mocks.processDocumentsWithQueue).not.toHaveBeenCalled()
+  })
+
   it('propagates dispatch failures so the outbox schedules a retry', async () => {
     const failure = new Error('queue unavailable')
     mocks.processDocumentsWithQueue.mockRejectedValueOnce(failure)

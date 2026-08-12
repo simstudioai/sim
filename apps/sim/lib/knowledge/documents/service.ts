@@ -778,6 +778,7 @@ export async function processDocumentAsync(
   providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext
 ): Promise<void> {
   const startTime = Date.now()
+  const processingStartedAt = new Date()
   try {
     logger.info(`[${documentId}] Starting document processing`, {
       knowledgeBaseId,
@@ -815,6 +816,7 @@ export async function processDocumentAsync(
         boolean1: document.boolean1,
         boolean2: document.boolean2,
         boolean3: document.boolean3,
+        processingStatus: document.processingStatus,
       })
       .from(document)
       .innerJoin(knowledgeBase, eq(knowledgeBase.id, document.knowledgeBaseId))
@@ -856,17 +858,30 @@ export async function processDocumentAsync(
       mimeType: ctx.mimeType,
     }
 
-    await db
+    const [claimedDocument] = await db
       .update(document)
       .set({
         processingStatus: 'processing',
-        processingStartedAt: new Date(),
+        processingStartedAt,
         processingCompletedAt: null,
         processingError: null,
       })
       .where(
-        and(eq(document.id, documentId), isNull(document.archivedAt), isNull(document.deletedAt))
+        and(
+          eq(document.id, documentId),
+          inArray(document.processingStatus, ['pending', 'failed']),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt)
+        )
       )
+      .returning({ id: document.id })
+
+    if (!claimedDocument) {
+      logger.info(`[${documentId}] Skipping document processing because another attempt owns it`, {
+        processingStatus: ctx.processingStatus,
+      })
+      return
+    }
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
@@ -935,7 +950,13 @@ export async function processDocumentAsync(
             usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.',
           processingCompletedAt: new Date(),
         })
-        .where(eq(document.id, documentId))
+        .where(
+          and(
+            eq(document.id, documentId),
+            eq(document.processingStatus, 'processing'),
+            eq(document.processingStartedAt, processingStartedAt)
+          )
+        )
       return
     }
     let billableEmbeddingTokens = 0
@@ -954,6 +975,7 @@ export async function processDocumentAsync(
       currentSourceFileProvenance
     )
 
+    let processingCommitted = false
     await withTimeout(
       runWithKnowledgeModelInputProvenance(
         documentSecretContext.registry,
@@ -1069,7 +1091,7 @@ export async function processDocumentAsync(
             updatedAt: now,
           }))
 
-          await db.transaction(async (tx) => {
+          processingCommitted = await db.transaction(async (tx) => {
             const activeDocument = await tx
               .select({ id: document.id })
               .from(document)
@@ -1077,15 +1099,18 @@ export async function processDocumentAsync(
               .where(
                 and(
                   eq(document.id, documentId),
+                  eq(document.processingStatus, 'processing'),
+                  eq(document.processingStartedAt, processingStartedAt),
                   isNull(document.archivedAt),
                   isNull(document.deletedAt),
                   isNull(knowledgeBase.deletedAt)
                 )
               )
+              .for('update', { of: document })
               .limit(1)
 
             if (activeDocument.length === 0) {
-              return
+              return false
             }
 
             if (embeddingRecords.length > 0) {
@@ -1131,7 +1156,14 @@ export async function processDocumentAsync(
                 processingCompletedAt: now,
                 processingError: null,
               })
-              .where(eq(document.id, documentId))
+              .where(
+                and(
+                  eq(document.id, documentId),
+                  eq(document.processingStatus, 'processing'),
+                  eq(document.processingStartedAt, processingStartedAt)
+                )
+              )
+            return true
           })
         },
         {
@@ -1143,6 +1175,11 @@ export async function processDocumentAsync(
       TIMEOUTS.OVERALL_PROCESSING,
       'Document processing'
     )
+
+    if (!processingCommitted) {
+      logger.info(`[${documentId}] Discarded output from an obsolete processing attempt`)
+      return
+    }
 
     const processingTime = Date.now() - startTime
     logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
@@ -1205,7 +1242,13 @@ export async function processDocumentAsync(
         processingError: errorMessage,
         processingCompletedAt: new Date(),
       })
-      .where(eq(document.id, documentId))
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(document.processingStatus, 'processing'),
+          eq(document.processingStartedAt, processingStartedAt)
+        )
+      )
 
     throw error
   }

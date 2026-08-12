@@ -138,6 +138,7 @@ describe('knowledge document processing source', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }])
     mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
     mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
       context === 'workspace' ? [SOURCE_BINDING] : []
@@ -224,6 +225,20 @@ describe('knowledge document processing source', () => {
         mimeType: 'text/plain',
       })
     ).rejects.toThrow('Knowledge document secret provenance is unavailable')
+
+    expect(mockProcessDocument).not.toHaveBeenCalled()
+    expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+  })
+
+  it('does not start work when another processing attempt already owns the document', async () => {
+    dbChainMockFns.returning.mockReset().mockResolvedValueOnce([])
+
+    await processDocumentAsync('knowledge-base-1', 'document-1', {
+      filename: 'stale.pdf',
+      fileUrl: 'https://example.com/stale.pdf',
+      fileSize: 1,
+      mimeType: 'text/plain',
+    })
 
     expect(mockProcessDocument).not.toHaveBeenCalled()
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
