@@ -84,6 +84,10 @@ import {
   useIsBlockInActiveExecutionHandoff,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
+import {
+  isEdgeConnectedToEditor,
+  isEdgeHighlighted,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/edge-highlight'
 import { hasBlockAccent } from '@/blocks/accent'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlock } from '@/blocks/registry'
@@ -716,19 +720,21 @@ export const WorkflowBlock = memo(function WorkflowBlock({
         const keys: string[] = []
         for (const edge of state.edges) {
           if (edge.source !== id && edge.target !== id) continue
-          /*
-           * Must mirror workflow-edge's shouldHighlightEdge exactly: the edge
-           * darkens when an endpoint is canvas-selected OR open in the editor
-           * panel. If the knob checks fewer conditions than the line, a dark
-           * line runs into a light knob.
-           */
-          const isHighlighted =
-            state.nodeInternals.get(edge.source)?.selected ||
-            state.nodeInternals.get(edge.target)?.selected ||
-            (edge.data as { isConnectedToSelection?: boolean } | undefined)
-              ?.isConnectedToSelection ||
-            (editorOpenBlockId !== null &&
-              (edge.source === editorOpenBlockId || edge.target === editorOpenBlockId))
+          /* Same predicate the line itself uses — a knob checking fewer
+             conditions than the edge leaves a dark line running into a light
+             knob. */
+          const isHighlighted = isEdgeHighlighted({
+            isEndpointSelected:
+              state.nodeInternals.get(edge.source)?.selected ||
+              state.nodeInternals.get(edge.target)?.selected ||
+              (edge.data as { isConnectedToSelection?: boolean } | undefined)
+                ?.isConnectedToSelection,
+            isConnectedToEditor: isEdgeConnectedToEditor(
+              editorOpenBlockId,
+              edge.source,
+              edge.target
+            ),
+          })
           if (!isHighlighted) continue
           if (edge.source === id) keys.push(edge.sourceHandle || 'source')
           if (edge.target === id) keys.push(edge.targetHandle || 'target')

@@ -94,6 +94,10 @@ import {
   validateTriggerPaste,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import {
+  isEdgeConnectedToEditor,
+  isEdgeHighlighted,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/edge-highlight'
+import {
   defaultEdgeOptions,
   edgeTypes,
   embeddedFitViewOptions,
@@ -127,7 +131,7 @@ import {
 } from '@/stores/execution'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type { PendingConnect } from '@/stores/modals/search/types'
-import { usePanelEditorStore } from '@/stores/panel'
+import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -4461,6 +4465,11 @@ const WorkflowContent = React.memo(
     }, [closeConnectionBlockSelector, displayNodes, lastInteractedNodeId, pendingConnect])
 
     /** Transforms edges to include selection state and delete handlers. Memoized to prevent re-renders. */
+    /* Subscribed rather than read from `getState()`: the edge z below depends on
+       which block is open, so the memo has to re-run when that changes. */
+    const editorOpenBlockId = usePanelEditorStore((state) => state.currentBlockId)
+    const panelActiveTab = usePanelStore((state) => state.activeTab)
+
     const edgesWithSelection = useMemo(() => {
       const nodeMap = new Map(displayNodes.map((n) => [n.id, n]))
       /* Indexed once: this memo re-runs on every drag frame, and scanning the
@@ -4493,7 +4502,15 @@ const WorkflowContent = React.memo(
           selectedNodeIdSet.has(edge.source) || selectedNodeIdSet.has(edge.target)
         const isSelected = selectedEdges.has(edgeContextId)
         const baseZIndex = getEdgeZIndex(containerNode ? (containerNode.zIndex ?? 0) : undefined, {
-          isHighlighted: isSelected || isConnectedToSelection,
+          isHighlighted: isEdgeHighlighted({
+            isEndpointSelected: isConnectedToSelection,
+            isConnectedToEditor: isEdgeConnectedToEditor(
+              panelActiveTab === 'editor' ? editorOpenBlockId : null,
+              edge.source,
+              edge.target
+            ),
+            isEdgeSelected: isSelected,
+          }),
         })
 
         return {
@@ -4510,7 +4527,15 @@ const WorkflowContent = React.memo(
           },
         }
       })
-    }, [edgesForDisplay, displayNodes, selectedNodeIds, selectedEdges, handleEdgeDelete])
+    }, [
+      edgesForDisplay,
+      displayNodes,
+      selectedNodeIds,
+      selectedEdges,
+      handleEdgeDelete,
+      editorOpenBlockId,
+      panelActiveTab,
+    ])
 
     const edgesForRender = useMemo(() => {
       if (!pendingConnect) return edgesWithSelection
