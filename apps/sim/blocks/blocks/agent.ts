@@ -664,7 +664,10 @@ Return ONLY the JSON array.`,
     },
     temperature: { type: 'number', description: 'Response randomness level' },
     maxTokens: { type: 'number', description: 'Maximum number of tokens in the response' },
-    reasoningEffort: { type: 'string', description: 'Reasoning effort level for GPT-5 models' },
+    reasoningEffort: {
+      type: 'string',
+      description: 'Reasoning effort level for models that support it',
+    },
     verbosity: { type: 'string', description: 'Verbosity level for GPT-5 models' },
     thinkingLevel: {
       type: 'string',

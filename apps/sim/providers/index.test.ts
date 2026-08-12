@@ -1405,6 +1405,26 @@ describe('executeProviderRequest — model level normalization', () => {
     expect(sentRequest().verbosity).toBe('high')
   })
 
+  it('keeps the reasoning effort a Grok model declares', async () => {
+    await executeProviderRequest('xai', {
+      model: 'grok-4.6',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'xhigh',
+    })
+
+    expect(sentRequest().reasoningEffort).toBe('xhigh')
+  })
+
+  it('drops the reasoning effort for a Grok model that rejects the parameter', async () => {
+    await executeProviderRequest('xai', {
+      model: 'grok-4.20-0309-reasoning',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'high',
+    })
+
+    expect(sentRequest().reasoningEffort).toBeUndefined()
+  })
+
   /**
    * Sim's per-model level lists drive the pickers and can lag a provider that has started
    * accepting a new level, so an unrecognized level is forwarded rather than dropped: the
