@@ -80,50 +80,29 @@ function expectedEntry(block: BlockConfig): CatalogEntry {
 const DOCS_LOCALE_ROOT = dirname(DOCS_OUTPUT_PATH)
 
 /**
- * Integrations that deliberately send readers to the vendor's own documentation
- * instead of Sim's generated page. Listed explicitly so a newly pasted vendor
- * URL — or a typo in one of these — fails the check rather than passing as
- * "probably intentional".
- */
-const VENDOR_DOCS_INTEGRATIONS: ReadonlySet<string> = new Set([
-  'cursor_v2',
-  'enrich',
-  'enrow',
-  'google_groups',
-  'qdrant',
-  'similarweb',
-])
-
-/**
- * Verifies every visible integration's `docsLink` resolves to a real docs page.
+ * Verifies every visible integration's `docsLink` resolves to a real Sim docs
+ * page.
  *
  * A hand-written `docsLink` overrides {@link defaultIntegrationDocsUrl}, so a
- * typo — a hyphen where the page uses an underscore, or a stale `tools/` prefix
- * — silently ships a 404 that no other check looks at. The catalog comparison
- * below only covers deployment fields.
+ * typo — a hyphen where the page uses an underscore, a stale `tools/` prefix,
+ * or a vendor URL pasted in place of ours — silently ships a link that misses
+ * Sim's own page, and no other check looks at it. Every visible integration
+ * gets a generated page, so pointing anywhere else is always a mistake; link to
+ * the vendor from `BlockMeta.url` instead.
  */
 function verifyDocsLinks(blocks: readonly BlockConfig[]): void {
   const issues: string[] = []
-  const vendorLinked = new Set<string>()
   for (const block of blocks) {
     const docsLink = block.docsLink ?? defaultIntegrationDocsUrl(block.type)
     if (!docsLink.startsWith(DOCS_ORIGIN)) {
-      vendorLinked.add(block.type)
-      if (!VENDOR_DOCS_INTEGRATIONS.has(block.type)) {
-        issues.push(
-          `"${block.type}" docsLink points outside ${DOCS_ORIGIN} (${docsLink}) — add it to VENDOR_DOCS_INTEGRATIONS if that is intentional`
-        )
-      }
+      issues.push(
+        `"${block.type}" docsLink points outside ${DOCS_ORIGIN} (${docsLink}) — link to Sim's own page and put the vendor's docs on BlockMeta.url`
+      )
       continue
     }
     const page = docsLink.slice(DOCS_ORIGIN.length)
     if (!existsSync(join(DOCS_LOCALE_ROOT, `${page}.mdx`))) {
       issues.push(`"${block.type}" docsLink 404s — no docs page at en/${page}.mdx (${docsLink})`)
-    }
-  }
-  for (const type of VENDOR_DOCS_INTEGRATIONS) {
-    if (!vendorLinked.has(type)) {
-      issues.push(`"${type}" is in VENDOR_DOCS_INTEGRATIONS but no longer links to vendor docs`)
     }
   }
   if (issues.length > 0) {
