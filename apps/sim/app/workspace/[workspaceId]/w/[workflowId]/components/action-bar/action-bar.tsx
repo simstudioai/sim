@@ -98,12 +98,15 @@ const RUNNING_FILL_INSET_PLAIN = 'left-[26px]'
  * inside it at the bottom — the fill visibly ran off the block. The per-slot
  * version never did, because each button's own clip contained it.
  *
- * Same taper, read off that path: the edge sits 16.67px in from the row's right
- * at the overlay's top (y=4) and 3.33px at its bottom (y=20), a slope of 20/24.
- * Changing the end silhouette means changing these two numbers with it.
+ * Same taper, read off that path. Its straight run — (22.4, 2.88) to
+ * (36.59, 19.9) in the slot's own 40×24 box — has a slope of 20/24, so across
+ * the full row it moves from 20px in at the top to flush at the bottom. The
+ * overlay spans the row, so those are its two numbers; they are the slot's own
+ * edge continued, which is what puts the hatch's end exactly where a hovered
+ * slot's fill ends. Changing the end silhouette means changing them with it.
  */
 const RUNNING_FILL_END_TAPER =
-  '[clip-path:polygon(0_0,calc(100%_-_16.67px)_0,calc(100%_-_3.33px)_100%,0_100%)]'
+  '[clip-path:polygon(0_0,calc(100%_-_20px)_0,100%_100%,0_100%)]'
 
 const ICON_SIZE = 'size-[14px]'
 
@@ -429,7 +432,11 @@ export const ActionBar = memo(
             <span
               aria-hidden='true'
               className={cn(
-                'pointer-events-none absolute inset-y-[4px] right-0 overflow-hidden',
+                /* Spans the row, so the hatch occupies exactly the box a slot's
+                   hover fill does — same height, and the same padding in from
+                   the swell on every side, since the row already sits inside
+                   the container's own inset. */
+                'pointer-events-none absolute inset-y-0 right-0 overflow-hidden',
                 isSwell ? RUNNING_FILL_INSET_SWELL : RUNNING_FILL_INSET_PLAIN,
                 isSwell && RUNNING_FILL_END_TAPER
               )}
