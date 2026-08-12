@@ -156,7 +156,8 @@ function dispatchGroupAutoRun(params: {
       tableId: params.tableId,
       workspaceId: params.workspaceId,
       groupIds: [params.groupId],
-      mode: 'all',
+      mode: 'new',
+      isManualRun: false,
       requestId: generateRequestId(),
       triggeredByUserId: params.actorUserId,
     })

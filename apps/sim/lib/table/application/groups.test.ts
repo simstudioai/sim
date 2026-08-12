@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   resolveContext: vi.fn(),
   resolvePermission: vi.fn(),
   resolveWorkflowContext: vi.fn(),
+  runDetached: vi.fn(),
+  runWorkflowColumn: vi.fn(),
   signal: vi.fn(),
   updateGroup: vi.fn(),
 }))
@@ -36,7 +38,12 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 vi.mock('@sim/utils/id', () => ({ generateId: () => 'generated-id' }))
 vi.mock('@/enrichments/registry', () => ({ getEnrichment: mocks.getEnrichment }))
-vi.mock('@/lib/core/utils/background', () => ({ runDetached: vi.fn() }))
+vi.mock('@/lib/core/utils/background', () => ({
+  runDetached: (label: string, work: () => Promise<unknown>) => {
+    mocks.runDetached(label)
+    void work()
+  },
+}))
 vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: () => 'request-1' }))
 vi.mock('@/lib/table/application/context', () => ({
   resolveActiveTableContext: mocks.resolveContext,
@@ -51,7 +58,9 @@ vi.mock('@/lib/table/column-naming', () => ({
   },
 }))
 vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
-vi.mock('@/lib/table/workflow-columns', () => ({ runWorkflowColumn: vi.fn() }))
+vi.mock('@/lib/table/workflow-columns', () => ({
+  runWorkflowColumn: mocks.runWorkflowColumn,
+}))
 vi.mock('@/lib/table/workflow-groups/service', () => ({
   addWorkflowGroup: mocks.addGroup,
   addWorkflowGroupOutput: mocks.addOutput,
@@ -145,6 +154,10 @@ describe('workflow and enrichment Table application commands', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
+    mocks.runWorkflowColumn.mockResolvedValue({
+      dispatchId: 'dispatch-1',
+      shouldSignalRowsChanged: false,
+    })
     mocks.resolveContext.mockResolvedValue({
       tableId: table.id,
       table,
@@ -242,6 +255,30 @@ describe('workflow and enrichment Table application commands', () => {
       }),
       'request-1'
     )
+  })
+
+  it('starts group auto-run without manual rerun semantics', async () => {
+    await createWorkflowTableGroup.execute({
+      principal,
+      input: {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        workflowId: 'workflow-1',
+        outputs: [{ blockId: 'block-2', path: 'score' }],
+        autoRun: true,
+      },
+    })
+
+    expect(mocks.runDetached).toHaveBeenCalledWith('table-workflow-group-create-auto-run')
+    expect(mocks.runWorkflowColumn).toHaveBeenCalledWith({
+      tableId: table.id,
+      workspaceId: table.workspaceId,
+      groupIds: ['generated-id'],
+      mode: 'new',
+      isManualRun: false,
+      requestId: 'request-1',
+      triggeredByUserId: 'user-1',
+    })
   })
 
   it('conceals a cross-workspace workflow before group mutation or effects', async () => {
