@@ -41,9 +41,12 @@ async function cancelActiveWorkflowJob(executionId: string): Promise<boolean> {
 }
 
 /**
- * Cancellation outcome vocabulary. `recorded`/`redis_unavailable`/
+ * Cancellation outcome vocabulary produced by this service, and so the whole
+ * vocabulary the public v2 endpoint can return. `recorded`/`redis_unavailable`/
  * `redis_write_failed` come from the Redis record step; the two `paused_*`
- * values from the paused-HITL path.
+ * values from the paused-HITL path. The internal cancel route resolves further
+ * outcomes on top of these — see `internalCancelWorkflowExecutionReasonSchema`
+ * in `lib/api/contracts/workflows`.
  */
 export type CancelWorkflowExecutionReason =
   | 'recorded'
