@@ -36,7 +36,7 @@ import {
   workflowIdParamsSchema,
 } from '@/lib/api/contracts/workflows'
 import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
-import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
+import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
 
@@ -982,40 +982,20 @@ export const v2ResumeWorkflowContract = defineRouteContract({
   },
 })
 
-/**
- * Every status the execution logger can persist into `workflow_execution_logs.status`,
- * including the transient `redacting` state written while a finished run's output is
- * scrubbed. The column is free text and both run endpoints pass it straight through, so
- * a value missing here fails the response parse — and because list validation is
- * whole-page, one such row turns an entire page into a 500. `_ExhaustiveRunStatus` makes
- * a future addition to the persisted union a compile error instead.
- */
-const V2_PERSISTED_RUN_STATUSES = [
-  'pending',
-  'running',
-  'redacting',
-  'completed',
-  'failed',
-  'cancelled',
-] as const satisfies readonly PersistedWorkflowExecutionStatus[]
-
-type AssertNever<T extends never> = T
-type _ExhaustiveRunStatus = AssertNever<
-  Exclude<PersistedWorkflowExecutionStatus, (typeof V2_PERSISTED_RUN_STATUSES)[number]>
->
-
-/**
- * The list projection overlays `paused` onto the persisted status whenever the run has a
- * `paused` or `partially_resumed` row in `paused_executions`. It cannot report `queued`:
- * a run that is still only in the job queue has no log row to list.
- */
-const V2_WORKFLOW_RUN_LIST_STATUSES = [...V2_PERSISTED_RUN_STATUSES, 'paused'] as const
-
 const RUN_STATUS_DESCRIPTION =
-  'Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed.'
+  'Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` means the run is not executing and is waiting to be resumed: either held at a human-in-the-loop pause point, or left paused because a resume attempt did not run to completion. The status alone does not say which. On the single-run response `paused.automaticResumeWaitingReason` distinguishes them: it is recorded whenever a resume attempt fails and cleared once a resume succeeds, so a null value means the run is waiting on human input. When the failure is not retryable or the automatic retries are exhausted, the reason is prefixed `Automatic resume requires manual intervention: `. Run-list items carry no `paused` object, so the two cases are indistinguishable there.'
 
+/**
+ * The list projection passes `workflow_execution_logs.status` through except where it
+ * overlays `paused` for a run holding a `paused` or `partially_resumed` row in
+ * `paused_executions` — so a reported `paused` is either that overlay or the persisted
+ * value a failed resume attempt left behind. Both branches land in the persisted set, so the reported enum is
+ * derived from it — a value missing here fails the response parse, and because list
+ * validation is whole-page one such row turns an entire page into a 500. `queued` is not
+ * reportable: a run still only in the job queue has no log row to list.
+ */
 export const v2WorkflowRunListStatusValueSchema = z
-  .enum(V2_WORKFLOW_RUN_LIST_STATUSES)
+  .enum(PERSISTED_WORKFLOW_EXECUTION_STATUSES)
   .describe(RUN_STATUS_DESCRIPTION)
 
 /**
@@ -1023,7 +1003,7 @@ export const v2WorkflowRunListStatusValueSchema = z
  * so a run accepted but not yet started reports `queued` rather than 404.
  */
 export const v2WorkflowRunStatusValueSchema = z
-  .enum([...V2_WORKFLOW_RUN_LIST_STATUSES, 'queued'])
+  .enum([...PERSISTED_WORKFLOW_EXECUTION_STATUSES, 'queued'])
   .describe(RUN_STATUS_DESCRIPTION)
 
 /**

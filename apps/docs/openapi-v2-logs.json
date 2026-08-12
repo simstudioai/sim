@@ -640,8 +640,16 @@
           },
           "status": {
             "type": "string",
-            "enum": ["pending", "running", "redacting", "completed", "failed", "cancelled"],
-            "description": "Current execution status. `redacting` is transient while run output is scrubbed."
+            "enum": [
+              "pending",
+              "running",
+              "paused",
+              "redacting",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "description": "Current execution status. `redacting` is transient while run output is scrubbed. `paused` is reported when a resume attempt did not run to completion and the run is waiting to be resumed again."
           },
           "level": {
             "type": "string",
@@ -1028,8 +1036,16 @@
           },
           "status": {
             "type": "string",
-            "enum": ["pending", "running", "redacting", "completed", "failed", "cancelled"],
-            "description": "Current execution status. `redacting` is transient while run output is scrubbed."
+            "enum": [
+              "pending",
+              "running",
+              "paused",
+              "redacting",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "description": "Current execution status. `redacting` is transient while run output is scrubbed. `paused` is reported when a resume attempt did not run to completion and the run is waiting to be resumed again."
           },
           "level": {
             "type": "string",

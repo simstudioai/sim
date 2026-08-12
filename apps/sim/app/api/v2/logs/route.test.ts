@@ -98,6 +98,24 @@ describe('GET /api/v2/logs', () => {
     })
   })
 
+  it('serves a run whose persisted status is paused', async () => {
+    mocks.execute.mockResolvedValue({
+      items: [{ log: { ...log, status: 'paused' }, executionData: null }],
+      nextCursor: null,
+      includeFullDetails: false,
+      includeFinalOutput: false,
+      includeTraceSpans: false,
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}`)
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data[0]).toMatchObject({ runId: 'run-1', status: 'paused' })
+  })
+
   it('rejects malformed cursors after admission and before protected reads', async () => {
     const response = await GET(
       new NextRequest(

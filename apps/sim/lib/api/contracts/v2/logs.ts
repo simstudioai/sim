@@ -10,7 +10,7 @@ import {
   v2FolderPathSchema,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
-import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
+import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 
 /**
  * v2 logs contracts. The query schemas are reused verbatim from v1 (the request
@@ -23,29 +23,16 @@ const v2LogCostSchema = z
   .nullable()
   .describe('Cost charged for the run, or null when unavailable.')
 /**
- * Every status the execution logger can persist, including the transient
- * `redacting` state written while a finished run's output is scrubbed. The
- * column is free text, so a value missing here fails the response parse and
- * turns a single row into a 500 for the whole page. `_ExhaustiveLogStatus`
- * makes a future addition to the persisted union a compile error instead.
+ * Both log endpoints pass `workflow_execution_logs.status` through verbatim, so the
+ * reported set is exactly the persisted set — a value missing here fails the response
+ * parse, and because list validation is whole-page one such row turns an entire page
+ * into a 500.
  */
-const V2_LOG_STATUSES = [
-  'pending',
-  'running',
-  'redacting',
-  'completed',
-  'failed',
-  'cancelled',
-] as const satisfies readonly PersistedWorkflowExecutionStatus[]
-
-type AssertNever<T extends never> = T
-type _ExhaustiveLogStatus = AssertNever<
-  Exclude<PersistedWorkflowExecutionStatus, (typeof V2_LOG_STATUSES)[number]>
->
-
 export const v2LogStatusSchema = z
-  .enum(V2_LOG_STATUSES)
-  .describe('Current execution status. `redacting` is transient while run output is scrubbed.')
+  .enum(PERSISTED_WORKFLOW_EXECUTION_STATUSES)
+  .describe(
+    'Current execution status. `redacting` is transient while run output is scrubbed. `paused` is reported when a resume attempt did not run to completion and the run is waiting to be resumed again.'
+  )
 
 /** Execution `files` is a per-run jsonb array of attachment metadata. */
 const v2LogFilesSchema = z

@@ -204,13 +204,31 @@ export interface WorkflowExecutionLog {
   createdAt: string
 }
 
+/**
+ * Every value written into `workflow_execution_logs.status`. The column is free text and
+ * one writer sets it through a raw `sql` CASE Drizzle cannot type-check, so this list —
+ * not the column type — is the only source of truth. API contracts that pass the column
+ * through derive their enums from it, so adding a status here widens the public wire; the
+ * contract tests fail until that widening is reviewed and the OpenAPI specs regenerated.
+ *
+ * `redacting` is transient while a finished run's output is scrubbed. `paused` is written
+ * only by `PauseResumeManager.markResumeAttemptFailed`, when a resume attempt does not run
+ * to completion — it failed admission, the run buffer was unavailable, the resume job could
+ * not be enqueued, or the attempt was cancelled. An ordinary human-in-the-loop pause
+ * persists `pending`.
+ */
+export const PERSISTED_WORKFLOW_EXECUTION_STATUSES = [
+  'pending',
+  'running',
+  'paused',
+  'redacting',
+  'completed',
+  'failed',
+  'cancelled',
+] as const
+
 export type PersistedWorkflowExecutionStatus =
-  | 'running'
-  | 'pending'
-  | 'completed'
-  | 'failed'
-  | 'cancelled'
-  | 'redacting'
+  (typeof PERSISTED_WORKFLOW_EXECUTION_STATUSES)[number]
 
 export interface CompletedWorkflowExecutionLog extends WorkflowExecutionLog {
   persistedStatus: PersistedWorkflowExecutionStatus

@@ -4,36 +4,49 @@ import {
   v2WorkflowRunStatusFilterSchema,
   v2WorkflowRunStatusValueSchema,
 } from '@/lib/api/contracts/v2/workflows'
-import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
+import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 
 /**
- * The runtime mirror of the persisted union. `satisfies` keeps it honest against
- * `PersistedWorkflowExecutionStatus`, and the `AssertNever` gate in the contract keeps
- * that union honest against the reported enums, so a status added to the execution logger
- * fails compilation in both places before it can 500 a response parse.
+ * Both run endpoints report `workflow_execution_logs.status`, overlaid with `paused` from
+ * `paused_executions`, so every reported value lands in the persisted set. These tests
+ * guard the two ways that can break: the derivation being replaced by a hand-maintained
+ * list again, and a status being added to the persisted set without anyone confirming it
+ * belongs on the public wire (and regenerating the OpenAPI specs).
  */
-const PERSISTED_STATUSES = [
-  'pending',
-  'running',
-  'redacting',
-  'completed',
-  'failed',
-  'cancelled',
-] as const satisfies readonly PersistedWorkflowExecutionStatus[]
-
 describe('v2 workflow run status schemas', () => {
-  it.each(PERSISTED_STATUSES)('reports the persisted status %s on both run endpoints', (status) => {
-    expect(v2WorkflowRunListStatusValueSchema.parse(status)).toBe(status)
-    expect(v2WorkflowRunStatusValueSchema.parse(status)).toBe(status)
+  it('publishes exactly the persisted statuses on the run list', () => {
+    expect(v2WorkflowRunListStatusValueSchema.options).toEqual([
+      'pending',
+      'running',
+      'paused',
+      'redacting',
+      'completed',
+      'failed',
+      'cancelled',
+    ])
   })
 
-  it('reports the paused overlay on both run endpoints', () => {
-    expect(v2WorkflowRunListStatusValueSchema.parse('paused')).toBe('paused')
-    expect(v2WorkflowRunStatusValueSchema.parse('paused')).toBe('paused')
+  it('stays derived from the persisted status list', () => {
+    expect(v2WorkflowRunListStatusValueSchema.options).toEqual([
+      ...PERSISTED_WORKFLOW_EXECUTION_STATUSES,
+    ])
+    expect(v2WorkflowRunStatusValueSchema.options).toEqual([
+      ...PERSISTED_WORKFLOW_EXECUTION_STATUSES,
+      'queued',
+    ])
   })
 
   it('reports queued only where the job queue is consulted', () => {
-    expect(v2WorkflowRunStatusValueSchema.parse('queued')).toBe('queued')
+    expect(v2WorkflowRunStatusValueSchema.options).toEqual([
+      'pending',
+      'running',
+      'paused',
+      'redacting',
+      'completed',
+      'failed',
+      'cancelled',
+      'queued',
+    ])
     expect(v2WorkflowRunListStatusValueSchema.safeParse('queued').success).toBe(false)
   })
 
