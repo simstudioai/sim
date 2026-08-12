@@ -19,7 +19,19 @@ const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, '..')
 
 const BLOCKS_PATH = path.join(rootDir, 'apps/sim/blocks/blocks')
-const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/integrations')
+export const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/integrations')
+
+export const DOCS_ORIGIN = 'https://docs.sim.ai/'
+
+/**
+ * The docs URL a block gets when it declares no `docsLink` — one generated page
+ * per service, named for the block's base type. Exported so the catalog checker
+ * validates the same contract this generator emits rather than a second copy of
+ * it that can silently drift.
+ */
+export function defaultIntegrationDocsUrl(blockType: string): string {
+  return `${DOCS_ORIGIN}integrations/${stripVersionSuffix(blockType)}`
+}
 const ICONS_PATH = path.join(rootDir, 'apps/sim/components/icons.tsx')
 const DOCS_ICONS_PATH = path.join(rootDir, 'apps/docs/components/icons.tsx')
 const INTEGRATIONS_DATA_PATH = path.join(rootDir, 'apps/sim/lib/integrations')
@@ -1041,7 +1053,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
         const triggers: TriggerInfo[] = triggerIds
           .map((id) => triggerRegistry.get(id))
           .filter((t): t is TriggerInfo => t !== undefined)
-        const docsUrl = (config as any).docsLink || `https://docs.sim.ai/integrations/${baseType}`
+        const docsUrl = (config as any).docsLink || defaultIntegrationDocsUrl(baseType)
 
         const slug = config.name
           .toLowerCase()
@@ -1259,7 +1271,7 @@ function extractBlockConfigFromContent(
     const docsLink =
       extractStringPropertyFromContent(blockContent, 'docsLink', true) ||
       baseConfig?.docsLink ||
-      `https://docs.sim.ai/integrations/${stripVersionSuffix(blockType)}`
+      defaultIntegrationDocsUrl(blockType)
 
     const integrationType =
       extractEnumPropertyFromContent(blockContent, 'integrationType') ||

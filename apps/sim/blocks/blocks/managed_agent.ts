@@ -136,7 +136,7 @@ export const ManagedAgentBlock: BlockConfig = {
     "Invoke a Claude Platform Managed Agent from a workflow. Select a Claude Platform account, pick an agent and environment from that workspace, optionally attach vaults, a memory store, and files, and add metadata tags. Returns the assistant's final text.",
   category: 'tools',
   integrationType: IntegrationType.AI,
-  docsLink: 'https://docs.sim.ai/integrations/managed-agent',
+  docsLink: 'https://docs.sim.ai/integrations/managed_agent',
   bgColor: '#DA7756',
   iconColor: '#DA7756',
   icon: ClaudeIcon,
@@ -620,4 +620,146 @@ export const ManagedAgentBlock: BlockConfig = {
 export const ManagedAgentBlockMeta = {
   tags: ['agentic', 'llm'],
   url: 'https://platform.claude.com/',
+  templates: [
+    {
+      icon: ClaudeIcon,
+      title: 'Claude Managed Agents overnight refactor',
+      prompt:
+        'Build a workflow that runs nightly, opens a Claude Managed Agents session against a mounted repository, asks it to work through the migration backlog, and posts the branches it pushed to Slack in the morning.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'automation'],
+      alsoIntegrations: ['slack'],
+      featured: true,
+    },
+    {
+      icon: ClaudeIcon,
+      title: 'Claude Managed Agents PR reviewer',
+      prompt:
+        'Create a workflow that triggers on a new pull request, runs a Claude Managed Agents session over the diff, and posts the findings back as a review comment on the PR.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'code-review'],
+      alsoIntegrations: ['github'],
+    },
+    {
+      icon: ClaudeIcon,
+      title: 'Claude Managed Agents approval gate',
+      prompt:
+        'Build a workflow that creates a Claude Managed Agents session, polls it for tool calls waiting on permission, posts each one to Slack for a human decision, and sends the allow or deny answer back to the session so it keeps working.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['human-in-the-loop', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ClaudeIcon,
+      title: 'Claude Managed Agents research desk',
+      prompt:
+        'Create a workflow that takes a research question, runs a Claude Managed Agents session to gather and cross-check sources, and writes the findings plus every citation into a table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['research', 'automation'],
+    },
+    {
+      icon: ClaudeIcon,
+      title: 'Claude Managed Agents weekly report',
+      prompt:
+        'Build a scheduled workflow that runs a Claude Managed Agents session every Monday to compile last week’s metrics into a spreadsheet, then emails the finished file to the leadership list.',
+      modules: ['scheduled', 'files', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['reporting', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: ClaudeIcon,
+      title: 'Claude Managed Agents support triage',
+      prompt:
+        'Create a workflow that opens a Claude Managed Agents session per incoming ticket, has it reproduce the issue and draft a reply, and files a Linear issue when it finds a real bug.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'automation'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: ClaudeIcon,
+      title: 'Claude Managed Agents conversational assistant',
+      prompt:
+        'Build a workflow that creates a Claude Managed Agents session on the first Slack message in a thread, stores the session id, and sends every later reply in that thread to the same session so the agent keeps its context across runs.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'productivity',
+      tags: ['messaging', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: ClaudeIcon,
+      title: 'Claude Managed Agents run auditor',
+      prompt:
+        'Create a workflow that reads the event history of a finished Claude Managed Agents session, extracts every tool call and its result, and writes a per-run audit row into a table for compliance review.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['compliance', 'monitoring'],
+    },
+    {
+      icon: ClaudeIcon,
+      title: 'Claude Managed Agents runaway stopper',
+      prompt:
+        'Build a scheduled workflow that checks long-running Claude Managed Agents sessions, interrupts any that have been working past a threshold, and archives the ones that already finished.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['monitoring', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'run-managed-agent-task',
+      description:
+        'Send one task to a Claude Platform Managed Agent and wait for its final answer. Use for a self-contained job where you only need the result, not the intermediate steps.',
+      content:
+        '# Run Managed Agent Task\n\nHand a Claude Platform Managed Agent a single task and return what it produced.\n\n## Steps\n1. Choose the **Run session** operation — it creates a session, sends one message, waits for the agent to finish, and returns its text in one block.\n2. Select the Claude Platform account, then pick the Agent and Environment from that workspace. The agent already carries its own model, system prompt, and tools — you supply the task, not the configuration.\n3. Write the User message as a complete brief: the goal, the constraints, and what "done" looks like. The agent cannot ask a follow-up question mid-run, so anything you leave out it has to guess.\n4. Attach what the task needs: credential vaults for any MCP servers the agent calls, files it should read, and a memory store if it should carry context from earlier sessions.\n\n## Output\nReturn the agent\'s final text, plus the session id so the run can be traced later. Report the outcome as the agent stated it — if it says a step failed or was skipped, pass that through rather than summarizing it as success.',
+    },
+    {
+      name: 'resume-managed-agent-conversation',
+      description:
+        'Keep one Managed Agent session alive across separate workflow runs so follow-up turns retain earlier context. Use for chat threads, ticket conversations, and any multi-turn exchange.',
+      content:
+        "# Resume Managed Agent Conversation\n\nHold a conversation with a Managed Agent across runs instead of starting over each time.\n\n## Steps\n1. On the first turn, use **Create session** — it opens the session and returns its id without waiting for a reply. Store that id somewhere durable (a table row keyed by the thread or ticket).\n2. On every later turn, use **Send message** with the stored Session ID. The agent still has its earlier turns; do not re-send the history.\n3. Use **Get session** when you need to know whether the agent is still working, is waiting on you, or has finished before you send the next message.\n4. When the conversation ends, use **Archive session** to make it read-only, or **Delete session** to remove it and its history entirely.\n\n## Output\nReturn the agent's reply for this turn and the session id you used. If the session turned out to be already terminated or archived, say so plainly rather than silently opening a new one — a fresh session loses every earlier turn.",
+    },
+    {
+      name: 'approve-managed-agent-tool-calls',
+      description:
+        'Answer the permission prompts a Managed Agent raises before running a gated tool. Use when the agent is configured to ask before acting and a human or policy decides each call.',
+      content:
+        '# Approve Managed Agent Tool Calls\n\nUnblock a session that has paused waiting for permission to run a tool.\n\n## Steps\n1. Use **Get session** to see the session status and the tool calls currently waiting on a decision. A session sitting idle with pending calls is blocked until you answer.\n2. For each pending call, decide allow or deny. Route it to a person when the action is hard to reverse — sending mail, deleting data, pushing to a shared branch.\n3. Use **Respond to tool confirmation** with the tool use event IDs and the decision. Answer every pending call; one left unanswered keeps the session blocked.\n4. On a deny, write a Deny reason saying what to do instead. The agent reads it and adjusts, rather than retrying the same call.\n\n## Output\nReturn which calls were allowed and which were denied, with the reason for each denial, and confirm the session resumed. If it did not resume, report which calls are still pending instead of assuming the answers landed.',
+    },
+    {
+      name: 'answer-managed-agent-custom-tool',
+      description:
+        'Execute a custom tool a Managed Agent invoked and return the result to the session. Use when the agent calls a tool your own workflow implements rather than one the platform runs.',
+      content:
+        "# Answer Managed Agent Custom Tool\n\nRun a tool the agent asked for and hand back what it produced.\n\n## Steps\n1. Use **Get session** or **List events** to find the custom tool call the agent is waiting on, and read the arguments it passed.\n2. Do the work in your workflow — call the API, query the table, run the function. This is the point of a custom tool: the credential and the logic stay on your side, never inside the agent's sandbox.\n3. Use **Respond to custom tool** with the custom tool use event ID and the result. Keep the result focused — the agent reads it directly, so return the fields it needs rather than a raw dump.\n4. If the work failed, still respond, and mark it as an error with the reason. The agent can then try a different approach instead of waiting on a result that will never come.\n\n## Output\nReturn what the tool did and what you sent back, and confirm the session resumed. Never fabricate a result to unblock a session — an invented answer propagates into everything the agent does next.",
+    },
+    {
+      name: 'audit-managed-agent-session',
+      description:
+        'Reconstruct what a Managed Agent actually did from its event history. Use for compliance review, debugging a bad run, or reporting cost and token usage per run.',
+      content:
+        '# Audit Managed Agent Session\n\nBuild an evidence trail for one session from the events it emitted.\n\n## Steps\n1. Use **Get session** for the summary: status, title, metadata, and cumulative input and output tokens.\n2. Use **List events** to read the history. Narrow with Event types when you only care about one kind — tool calls, messages, status changes — and raise Max events when the run was long enough that the default page truncates it.\n3. Walk the events in order and pair each tool call with its result, so the record shows what the agent attempted and what came back, not just what it said afterwards.\n4. Write the reconstructed trail wherever it needs to live — a table row per run, a file, a message to the reviewing channel.\n\n## Output\nReturn the ordered list of what the agent did, the token totals, and the final status. Base every claim on an event you actually read; if the history was truncated, say where it stops rather than describing the run as complete.',
+    },
+    {
+      name: 'stop-runaway-managed-agent-session',
+      description:
+        'Halt a Managed Agent session that is working longer than it should and clean it up. Use for cost control and for cancelling work a user changed their mind about.',
+      content:
+        '# Stop Runaway Managed Agent Session\n\nStop work in progress without losing what the session already produced.\n\n## Steps\n1. Use **Get session** to confirm the session is genuinely running rather than idle and waiting on you — a session blocked on a tool confirmation needs an answer, not an interrupt.\n2. Use **Interrupt session** to stop it. The agent halts at a safe point and goes idle; it does not treat the interrupt as a message, so its history and outputs survive.\n3. Send a follow-up message if you want it to continue differently. The session is still usable after an interrupt.\n4. When you are finished with it, use **Archive session** to keep the record read-only, or **Delete session** to remove the session and its history for good. Deletion is not reversible.\n\n## Output\nReturn why the session was stopped, what it had completed at that point, and whether you archived or deleted it. Prefer archive over delete when anyone may need the history later.',
+    },
+    {
+      name: 'give-managed-agent-persistent-memory',
+      description:
+        'Attach a memory store so an agent carries learnings between sessions. Use when repeated runs should build on earlier ones instead of starting cold.',
+      content:
+        "# Give Managed Agent Persistent Memory\n\nLet an agent remember across sessions rather than only within one.\n\n## Steps\n1. Set the Environment type to cloud — memory stores and file attachments are cloud-only, and a self-hosted environment rejects them.\n2. On **Run session** or **Create session**, select the Memory store the agent should mount. Choose read-only when the store is shared reference material the agent must not edit; choose read-write when it should record what it learns.\n3. Write Memory instructions saying what lives in the store and when to consult it. The agent reads that description to decide whether the store is relevant, so describe the contents, not the mechanics.\n4. Keep secrets out of the store. Memories are replayed verbatim into every later session that mounts it — put API keys and tokens in a credential vault instead.\n\n## Output\nReturn the agent's result and note whether it read from or wrote to the store. If the agent reports that expected context was missing, say so rather than assuming the store was mounted correctly.",
+    },
+  ],
 } as const satisfies BlockMeta

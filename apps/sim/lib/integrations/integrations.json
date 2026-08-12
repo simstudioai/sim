@@ -2972,7 +2972,7 @@
       "longDescription": "Invoke a Claude Platform Managed Agent from a workflow. Select a Claude Platform account, pick an agent and environment from that workspace, optionally attach vaults, a memory store, and files, and add metadata tags. Returns the assistant's final text.",
       "bgColor": "#DA7756",
       "iconName": "ClaudeIcon",
-      "docsUrl": "https://docs.sim.ai/integrations/managed-agent",
+      "docsUrl": "https://docs.sim.ai/integrations/managed_agent",
       "operations": [
         {
           "name": "Run session (create, send, wait for reply)",
@@ -4797,7 +4797,7 @@
       "longDescription": "Integrate Datagma to find verified work emails from a name and company, enrich person profiles via email or LinkedIn URL, enrich company data from a domain or name, look up mobile phone numbers from LinkedIn, and check your credit balance.",
       "bgColor": "#FFFFFF",
       "iconName": "DatagmaIcon",
-      "docsUrl": "https://docs.sim.ai/tools/datagma",
+      "docsUrl": "https://docs.sim.ai/integrations/datagma",
       "operations": [
         {
           "name": "Find Email",
@@ -5344,7 +5344,7 @@
       "longDescription": "Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.",
       "bgColor": "#0ABA9F",
       "iconName": "DropcontactIcon",
-      "docsUrl": "https://docs.sim.ai/tools/dropcontact",
+      "docsUrl": "https://docs.sim.ai/integrations/dropcontact",
       "operations": [
         {
           "name": "Enrich Contact",
@@ -9691,7 +9691,7 @@
       "longDescription": "Integrate Icypeas to find a professional email address from a name and company domain, or verify whether an existing email is valid and deliverable. Results are returned asynchronously via polling.",
       "bgColor": "#d4d4d4",
       "iconName": "IcypeasIcon",
-      "docsUrl": "https://docs.sim.ai/tools/icypeas",
+      "docsUrl": "https://docs.sim.ai/integrations/icypeas",
       "operations": [
         {
           "name": "Find Email",
@@ -11246,7 +11246,7 @@
       "longDescription": "Integrate LeadMagic to find verified work emails by name or company, validate email deliverability, find direct mobile numbers, enrich LinkedIn profiles, reverse-lookup profiles from emails, search companies by domain, identify role holders at accounts, and check account credit balance.",
       "bgColor": "#FFFFFF",
       "iconName": "LeadMagicIcon",
-      "docsUrl": "https://docs.sim.ai/tools/leadmagic",
+      "docsUrl": "https://docs.sim.ai/integrations/leadmagic",
       "operations": [
         {
           "name": "Find Email",
@@ -20387,7 +20387,7 @@
       "longDescription": "Integrate Thrive Learning into the workflow. Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.",
       "bgColor": "#FFFFFF",
       "iconName": "ThriveIcon",
-      "docsUrl": "https://docs.sim.ai/tools/thrive",
+      "docsUrl": "https://docs.sim.ai/integrations/thrive",
       "operations": [
         {
           "name": "Create User",

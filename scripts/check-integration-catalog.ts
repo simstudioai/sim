@@ -1,4 +1,6 @@
 #!/usr/bin/env bun
+import { existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { stripVersionSuffix } from '@sim/utils/string'
 /**
  * Verifies the registry-free integration catalog matches the executable block
@@ -7,6 +9,7 @@ import { stripVersionSuffix } from '@sim/utils/string'
 import { BLOCK_REGISTRY } from '../apps/sim/blocks/registry-maps'
 import { AuthMode, type BlockConfig } from '../apps/sim/blocks/types'
 import integrationsJson from '../apps/sim/lib/integrations/integrations.json'
+import { DOCS_ORIGIN, DOCS_OUTPUT_PATH, defaultIntegrationDocsUrl } from './generate-docs'
 
 type CatalogAuthType = 'oauth' | 'api-key' | 'none'
 
@@ -70,10 +73,71 @@ function expectedEntry(block: BlockConfig): CatalogEntry {
   }
 }
 
+/**
+ * A `docsLink` path carries its own section segment (`integrations/…`), so it
+ * resolves against the locale root rather than the integrations directory.
+ */
+const DOCS_LOCALE_ROOT = dirname(DOCS_OUTPUT_PATH)
+
+/**
+ * Integrations that deliberately send readers to the vendor's own documentation
+ * instead of Sim's generated page. Listed explicitly so a newly pasted vendor
+ * URL — or a typo in one of these — fails the check rather than passing as
+ * "probably intentional".
+ */
+const VENDOR_DOCS_INTEGRATIONS: ReadonlySet<string> = new Set([
+  'cursor_v2',
+  'enrich',
+  'enrow',
+  'google_groups',
+  'qdrant',
+  'similarweb',
+])
+
+/**
+ * Verifies every visible integration's `docsLink` resolves to a real docs page.
+ *
+ * A hand-written `docsLink` overrides {@link defaultIntegrationDocsUrl}, so a
+ * typo — a hyphen where the page uses an underscore, or a stale `tools/` prefix
+ * — silently ships a 404 that no other check looks at. The catalog comparison
+ * below only covers deployment fields.
+ */
+function verifyDocsLinks(blocks: readonly BlockConfig[]): void {
+  const issues: string[] = []
+  for (const block of blocks) {
+    const docsLink = block.docsLink ?? defaultIntegrationDocsUrl(block.type)
+    if (!docsLink.startsWith(DOCS_ORIGIN)) {
+      if (!VENDOR_DOCS_INTEGRATIONS.has(block.type)) {
+        issues.push(
+          `"${block.type}" docsLink points outside ${DOCS_ORIGIN} (${docsLink}) — add it to VENDOR_DOCS_INTEGRATIONS if that is intentional`
+        )
+      }
+      continue
+    }
+    const page = docsLink.slice(DOCS_ORIGIN.length)
+    if (!existsSync(join(DOCS_LOCALE_ROOT, `${page}.mdx`))) {
+      issues.push(`"${block.type}" docsLink 404s — no docs page at en/${page}.mdx (${docsLink})`)
+    }
+  }
+  const staleAllowlist = [...VENDOR_DOCS_INTEGRATIONS].filter(
+    (type) =>
+      !blocks.some((block) => block.type === type && !block.docsLink?.startsWith(DOCS_ORIGIN))
+  )
+  for (const type of staleAllowlist) {
+    issues.push(`"${type}" is in VENDOR_DOCS_INTEGRATIONS but no longer links to vendor docs`)
+  }
+  if (issues.length > 0) {
+    throw new Error(
+      `Integration docs links are broken:\n- ${issues.join('\n- ')}\nPoint docsLink at an existing page, or drop it to use the generated default.`
+    )
+  }
+}
+
 function verifyIntegrationCatalog(): void {
   const expected = Object.values(BLOCK_REGISTRY).filter(
     (block) => block.category === 'tools' && !block.hideFromToolbar && !block.preview
   )
+  verifyDocsLinks(expected)
   const expectedBaseTypes = new Map<string, string>()
   for (const block of expected) {
     const baseType = stripVersionSuffix(block.type)

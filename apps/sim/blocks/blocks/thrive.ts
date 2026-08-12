@@ -75,7 +75,7 @@ export const ThriveBlock: BlockConfig = {
   description: 'Manage users, audiences, learning and CPD on Thrive',
   longDescription:
     'Integrate Thrive Learning into the workflow. Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.',
-  docsLink: 'https://docs.sim.ai/tools/thrive',
+  docsLink: 'https://docs.sim.ai/integrations/thrive',
   category: 'tools',
   integrationType: IntegrationType.HR,
   bgColor: '#FFFFFF',
