@@ -1,11 +1,12 @@
 import { statSync } from 'node:fs'
-import type {
-  TerminalCommandEvent,
-  TerminalOperation,
-  TerminalStartOptions,
-  TerminalTabsState,
-  TerminalToolArgs,
-  TerminalToolResponse,
+import {
+  describeRunningCommand,
+  type TerminalCommandEvent,
+  type TerminalOperation,
+  type TerminalStartOptions,
+  type TerminalTabsState,
+  type TerminalToolArgs,
+  type TerminalToolResponse,
 } from '@sim/terminal-protocol'
 import { type BrowserWindow, dialog, type WebContents } from 'electron'
 import type { TerminalSessionSnapshot } from '@/main/desktop-chat-session-store'
@@ -239,7 +240,7 @@ export class TerminalRegistry {
               dialog.showMessageBoxSync(ownerWindow, {
                 type: 'warning',
                 title: 'Close Running Terminal?',
-                message: `${running} is still running.`,
+                message: `${describeRunningCommand(running)} is still running.`,
                 detail: 'Closing this terminal will stop the process.',
                 buttons: ['Close Terminal', 'Cancel'],
                 defaultId: 1,
