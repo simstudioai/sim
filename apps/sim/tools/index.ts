@@ -1792,7 +1792,11 @@ async function executeToolImplementation(
           // Trusted `executionContext`, never `_context` — that bag spreads
           // model-reachable `contextParams._context` first, so a model could otherwise
           // inject its own env map or disable redaction.
-          environmentVariables: executionContext?.environmentVariables ?? {},
+          // Copied, not aliased: the child holds this map for its whole run, and a
+          // write through it would corrupt the parent's env and every later sibling
+          // tool call. Every other consumer of `ctx.environmentVariables` already
+          // copies (`normalizeStringRecord`); this boundary is the longest-lived one.
+          environmentVariables: { ...executionContext?.environmentVariables },
           piiBlockOutputRedaction: executionContext?.piiBlockOutputRedaction,
         }
       )
