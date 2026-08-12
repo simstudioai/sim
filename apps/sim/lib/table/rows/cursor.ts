@@ -13,10 +13,15 @@
  *   the last keyed anchor, then OFFSET past the unkeyed rows consumed after it.
  *   This only resolves correctly because the seek admits `order_key IS NULL`
  *   rows; a bare `(order_key, id) > (…)` excludes them and strands the tail.
+ *
+ * Any shape carrying an offset is stamped with the query state that offset
+ * counts positions within — the sort AND the filters — and refuses to resume
+ * under a different one. See {@link assertCursorQueryBinding}.
  */
 
+import { createHash } from 'node:crypto'
 import { TableQueryValidationError } from '@/lib/table/errors'
-import type { Sort, TableRow, TableRowsCursor } from '@/lib/table/types'
+import type { Filter, Sort, TablePredicate, TableRow, TableRowsCursor } from '@/lib/table/types'
 
 /**
  * Cursor payload version. Every encoded token carries `v`; decode rejects any
@@ -26,8 +31,22 @@ import type { Sort, TableRow, TableRowsCursor } from '@/lib/table/types'
 const CURSOR_VERSION = 1
 
 type CursorBody = { k: string; i: string } | { o: number } | { k: string; i: string; o: number }
-type SortBinding = { s?: string }
-type CursorPayload = CursorBody & SortBinding & { v: number }
+type QueryBinding = { s?: string; p?: string }
+type CursorPayload = CursorBody & QueryBinding & { v: number }
+
+/**
+ * The filters an offset counts positions within. A cursor carrying an offset is
+ * bound to both this and the sort; a pure keyset cursor is bound to neither,
+ * because `(order_key, id)` names an absolute position that stays correct under
+ * any membership change.
+ */
+export interface CursorQueryScope {
+  sort?: Sort | null
+  /** v2 predicate tree, in the same storage form the query runs under. */
+  predicate?: TablePredicate | null
+  /** Legacy `$`-operator filter, for the surfaces that still send one. */
+  filter?: Filter | null
+}
 
 /**
  * Canonical fingerprint of a sort for cursor binding. Entry order is the sort
@@ -41,19 +60,59 @@ export function canonicalSortKey(sort: Sort | null | undefined): string | undefi
 }
 
 /**
+ * Deterministic JSON for a filter tree: object keys sorted so two structurally
+ * equal filters serialize identically regardless of the key order the caller's
+ * JSON happened to arrive in. Array order is preserved — reordering an `in` list
+ * is treated as a different filter, which only ever costs a restart.
+ */
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, entry]) => entry !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`).join(',')}}`
+}
+
+/**
+ * Fingerprint of the filters a page was produced under, or `undefined` for an
+ * unfiltered read. Hashed rather than embedded: a predicate tree can be up to
+ * the request-body ceiling, and the cursor has to stay a short opaque token.
+ * SHA-256 over the canonical form, so a caller cannot cheaply construct a second
+ * predicate that replays another sequence's offsets.
+ */
+export function canonicalFilterKey(
+  scope: Pick<CursorQueryScope, 'predicate' | 'filter'>
+): string | undefined {
+  const predicate = scope.predicate ?? undefined
+  const filter = scope.filter && Object.keys(scope.filter).length > 0 ? scope.filter : undefined
+  if (!predicate && !filter) return undefined
+  const canonical = canonicalJson(predicate ? { predicate } : { filter })
+  return createHash('sha256').update(canonical).digest('base64url').slice(0, 22)
+}
+
+/**
  * A cursor is only valid for the exact query shape it was minted under:
  * keyset/compound cursors encode a position in the DEFAULT `(order_key, id)`
  * order, and an offset cursor from a sorted view encodes a position in THAT
  * sort. Replaying either against a different ordering silently pages the wrong
  * sequence — rows skipped or duplicated with no error. Throws
  * `CURSOR_SORT_CONFLICT` so callers restart paging without the cursor.
+ *
+ * Any offset — the whole-view one and the compound cursor's offset-from-anchor
+ * alike — counts rows in the FILTERED sequence, so it is bound to the filters as
+ * well. Replaying an offset under a different predicate lands at that ordinal of
+ * a sequence the caller never asked for: a narrower filter silently returns an
+ * empty page the caller reads as "no more matches". That mismatch throws
+ * `CURSOR_FILTER_CONFLICT`. A pure keyset cursor carries no offset and is left
+ * unbound — `(order_key, id)` is an absolute position, correct under any filter.
  */
-export function assertCursorSortBinding(
-  decoded: { after?: TableRowsCursor; offset?: number; sortKey?: string },
-  sort: Sort | null | undefined
+export function assertCursorQueryBinding(
+  decoded: { after?: TableRowsCursor; offset?: number; sortKey?: string; filterKey?: string },
+  scope: CursorQueryScope
 ): void {
-  const requested = canonicalSortKey(sort)
-  if (decoded.after && requested !== undefined) {
+  const requestedSort = canonicalSortKey(scope.sort)
+  if (decoded.after && requestedSort !== undefined) {
     throw new TableQueryValidationError(
       'Cursor is not valid for a sorted query. Restart paging without the cursor.',
       'CURSOR_SORT_CONFLICT'
@@ -62,11 +121,17 @@ export function assertCursorSortBinding(
   if (
     decoded.after === undefined &&
     decoded.offset !== undefined &&
-    decoded.sortKey !== requested
+    decoded.sortKey !== requestedSort
   ) {
     throw new TableQueryValidationError(
       'Cursor was created under a different sort. Restart paging without the cursor.',
       'CURSOR_SORT_CONFLICT'
+    )
+  }
+  if (decoded.offset !== undefined && decoded.filterKey !== canonicalFilterKey(scope)) {
+    throw new TableQueryValidationError(
+      'Cursor was created under a different filter. Restart paging without the cursor.',
+      'CURSOR_FILTER_CONFLICT'
     )
   }
 }
@@ -102,6 +167,10 @@ export function encodeCursor(args: {
   seekBase?: { anchor: TableRowsCursor; offsetFromAnchor: number }
   /** The sort the page was produced under — stamps offset cursors so they can't be replayed against a different ordering. */
   sort?: Sort | null
+  /** The predicate the page was produced under — stamps any offset so it can't be replayed against a different row set. */
+  predicate?: TablePredicate | null
+  /** The legacy filter the page was produced under, for surfaces that send one instead of a predicate. */
+  filter?: Filter | null
 }): string {
   let body: CursorBody
   if (args.keysetValid && args.lastRow.orderKey) {
@@ -120,11 +189,15 @@ export function encodeCursor(args: {
     body = { o: args.nextOffset }
   }
   const sortKey = canonicalSortKey(args.sort)
+  const filterKey = canonicalFilterKey(args)
   const payload: CursorPayload = {
     ...body,
     // Only the pure-offset shape can exist under a custom sort; keyset and
     // compound shapes are default-order by construction and carry no binding.
     ...('k' in body || sortKey === undefined ? {} : { s: sortKey }),
+    // Every offset — whole-view or offset-from-anchor — counts filtered rows, so
+    // both the pure-offset and compound shapes carry the filter stamp.
+    ...('o' in body && filterKey !== undefined ? { p: filterKey } : {}),
     v: CURSOR_VERSION,
   }
   return toBase64Url(JSON.stringify(payload))
@@ -136,6 +209,8 @@ export function decodeCursor(token: string): {
   offset?: number
   /** Sort fingerprint an offset cursor was minted under; absent = default order. */
   sortKey?: string
+  /** Filter fingerprint an offset cursor was minted under; absent = unfiltered. */
+  filterKey?: string
 } {
   let payload: unknown
   try {
@@ -152,10 +227,13 @@ export function decodeCursor(token: string): {
   const hasKeyset = typeof record.k === 'string' && typeof record.i === 'string'
   const hasOffset = typeof record.o === 'number' && Number.isInteger(record.o) && record.o >= 0
 
+  const filterBinding = typeof record.p === 'string' ? { filterKey: record.p } : {}
+
   if (hasKeyset && hasOffset) {
     return {
       after: { orderKey: record.k as string, id: record.i as string },
       offset: record.o as number,
+      ...filterBinding,
     }
   }
   if (hasKeyset) {
@@ -165,6 +243,7 @@ export function decodeCursor(token: string): {
     return {
       offset: record.o as number,
       ...(typeof record.s === 'string' ? { sortKey: record.s } : {}),
+      ...filterBinding,
     }
   }
   invalidCursor()

@@ -345,11 +345,18 @@ export function v2RunOrderSchema(subject: 'execution' | 'run') {
     )
 }
 
+/**
+ * Longest caller-supplied substring any v2 search accepts. Every one of them
+ * compiles to an unindexed `ILIKE` scan, so the term itself has to be bounded
+ * wherever it is accepted — including the searches that are not name searches.
+ */
+export const V2_SEARCH_MAX_LENGTH = 200
+
 export const v2SearchSchema = z
   .string()
   .trim()
   .min(1, 'search cannot be empty')
-  .max(200, 'search is too long')
+  .max(V2_SEARCH_MAX_LENGTH, 'search is too long')
   .optional()
   .describe('Case-insensitive substring search on the resource name.')
 

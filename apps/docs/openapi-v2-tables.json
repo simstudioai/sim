@@ -504,7 +504,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "The updated table columns.",
             "headers": {
               "X-RateLimit-Limit": {
@@ -536,6 +536,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -614,6 +617,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -690,6 +696,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -835,7 +844,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "The inserted row or rows.",
             "headers": {
               "X-RateLimit-Limit": {
@@ -867,6 +876,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -945,6 +957,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -1021,6 +1036,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -1197,6 +1215,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -1364,6 +1385,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -1383,7 +1407,7 @@
       "post": {
         "operationId": "queryTableRows",
         "summary": "Query Rows",
-        "description": "Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null.",
+        "description": "Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1442,6 +1466,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1672,6 +1699,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1843,6 +1873,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2079,6 +2112,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -2159,6 +2195,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -2235,6 +2274,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -2314,6 +2356,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2413,6 +2458,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2488,6 +2536,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2577,7 +2628,7 @@
       "get": {
         "operationId": "getTableImport",
         "summary": "Get Table Import",
-        "description": "Read progress and terminal state for a durable table import.",
+        "description": "Read progress and terminal state for a durable table import.\n\nAn upload-backed import has no durable record until its upload completes, so send the signed upload control token to read it during the `uploading` phase; without the token that phase returns `404`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2600,6 +2651,17 @@
               "type": "string",
               "minLength": 1,
               "description": "Workspace that owns the transfer resource."
+            }
+          },
+          {
+            "name": "upload-token",
+            "in": "header",
+            "required": false,
+            "description": "Signed upload control token returned when an upload-backed import was created.",
+            "schema": {
+              "description": "Signed upload control token returned when an upload-backed import was created.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -2826,6 +2888,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2997,6 +3062,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3305,6 +3373,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -6607,6 +6678,7 @@
           "rowIds": {
             "description": "Explicit row subset to run.",
             "minItems": 1,
+            "maxItems": 1000000,
             "type": "array",
             "items": {
               "type": "string",
@@ -6712,15 +6784,16 @@
         "type": "object",
         "properties": {
           "matches": {
+            "maxItems": 1000,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/V2TableRowMatch"
             },
-            "description": "Matching table cells."
+            "description": "Matching table cells, at most 1000."
           },
           "truncated": {
             "type": "boolean",
-            "description": "Whether more matches exist beyond the server cap."
+            "description": "Whether more than 1000 cells matched, so the list was cut."
           }
         },
         "required": ["matches", "truncated"],
@@ -6752,6 +6825,7 @@
           "q": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 200,
             "description": "Case-insensitive cell substring to find."
           },
           "predicate": {
@@ -6846,15 +6920,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "uploading",
-              "queued",
-              "processing",
-              "completed",
-              "failed",
-              "canceled",
-              "expired"
-            ],
+            "enum": ["uploading", "processing", "completed", "failed", "canceled", "expired"],
             "description": "Current import lifecycle state."
           },
           "source": {
@@ -7075,15 +7141,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "uploading",
-              "queued",
-              "processing",
-              "completed",
-              "failed",
-              "canceled",
-              "expired"
-            ],
+            "enum": ["uploading", "processing", "completed", "failed", "canceled", "expired"],
             "description": "Current import lifecycle state."
           },
           "source": {
@@ -7399,15 +7457,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "uploading",
-              "queued",
-              "processing",
-              "completed",
-              "failed",
-              "canceled",
-              "expired"
-            ],
+            "enum": ["uploading", "processing", "completed", "failed", "canceled", "expired"],
             "description": "Current import lifecycle state."
           },
           "source": {

@@ -45,6 +45,20 @@ export const TABLE_LIMITS = {
   EXPORT_ASYNC_THRESHOLD_ROWS: 10000,
   /** Cap on the exclusion set ("select all, minus these") sent to an async delete job. */
   MAX_EXCLUDE_ROW_IDS: 10000,
+  /**
+   * Matching cells one Find returns. The scan fetches one extra to decide
+   * `truncated`; matches carry no cursor, so a caller past the cap narrows its
+   * predicate instead of paging. Published in the response contract — a cap a
+   * caller cannot see is a cap it cannot plan around.
+   */
+  MAX_FIND_MATCHES: 1000,
+  /**
+   * Saved views per table. The views list is a single unpaginated full-set read
+   * (`GET /tables/{id}/views` always answers `nextCursor: null`), so the write
+   * side is what keeps that set small — the same shape as the folder cap, which
+   * bounds every reader that materializes a workspace's folder tree.
+   */
+  MAX_VIEWS_PER_TABLE: 100,
 } as const
 
 /**
@@ -71,6 +85,14 @@ export const DEFAULT_TABLE_PLAN_LIMITS = {
     maxRowsPerTable: 1000000,
   },
 } as const
+
+/**
+ * Explicit row ids one column run may target. The largest table any plan allows
+ * is the ceiling: a longer list necessarily names rows that do not exist, and
+ * the run command rejects it. Declared on the request contract so the refusal
+ * is a documented bound rather than a surprise from the domain.
+ */
+export const MAX_RUN_TARGET_ROW_IDS = DEFAULT_TABLE_PLAN_LIMITS.enterprise.maxRowsPerTable
 
 /**
  * Byte budget at which a **bounded** page (one with an explicit `limit`) is cut

@@ -29,6 +29,7 @@ import type {
 import {
   COLUMN_TYPES,
   FILTER_OPS,
+  MAX_RUN_TARGET_ROW_IDS,
   MAX_SELECT_OPTIONS,
   NAME_PATTERN,
   SORT_DIRECTIONS,
@@ -1741,7 +1742,12 @@ export const runColumnBodyBaseSchema = z.object({
     .enum(['all', 'incomplete'])
     .default('all')
     .describe('Whether to run all or only incomplete cells.'),
-  rowIds: z.array(z.string().min(1)).min(1).optional().describe('Explicit row subset to run.'),
+  rowIds: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(MAX_RUN_TARGET_ROW_IDS, `Cannot target more than ${MAX_RUN_TARGET_ROW_IDS} rows`)
+    .optional()
+    .describe('Explicit row subset to run.'),
   /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
    *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
   filter: bulkFilterSchema.optional(),

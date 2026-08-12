@@ -899,9 +899,6 @@ export interface FindRowMatch {
   column: string
 }
 
-/** Max matching cells returned by {@link findRowMatches}; one extra is fetched to detect truncation. */
-const FIND_MATCH_LIMIT = 1000
-
 /**
  * Builds a SQL text expression that resolves a scanned select cell (`kv.value`,
  * keyed by `kv.key`) to its option **name(s)** — the label the user searches by,
@@ -1020,13 +1017,13 @@ export async function findRowMatches(
       WHERE (kv.value ILIKE ${pattern}${nameMatchClause})
         AND ${inArray(sql`kv.key`, columnIds)}
       ORDER BY o.ordinal
-      LIMIT ${FIND_MATCH_LIMIT + 1}
+      LIMIT ${TABLE_LIMITS.MAX_FIND_MATCHES + 1}
     `)
   })
 
   const all = Array.from(result)
-  const truncated = all.length > FIND_MATCH_LIMIT
-  const sliced = truncated ? all.slice(0, FIND_MATCH_LIMIT) : all
+  const truncated = all.length > TABLE_LIMITS.MAX_FIND_MATCHES
+  const sliced = truncated ? all.slice(0, TABLE_LIMITS.MAX_FIND_MATCHES) : all
   const matches: FindRowMatch[] = sliced.map((r) => ({
     ordinal: Number(r.ordinal),
     rowId: r.id,
@@ -1243,6 +1240,8 @@ export async function queryRows(
             ? { anchor: fetched.anchor, offsetFromAnchor: fetched.anchorOffset }
             : undefined,
           sort,
+          predicate,
+          filter,
         })
       : null
 

@@ -143,7 +143,10 @@ describe('/api/v2/tables/[tableId]/rows', () => {
 
   it('delegates single and batch creation through one semantic use case', async () => {
     const single = request('POST', { workspaceId: WORKSPACE_ID, data: { name: 'Ada' } })
-    expect((await (await POST(single, CONTEXT)).json()).data.id).toBe('row-1')
+    const singleResponse = await POST(single, CONTEXT)
+    // 201 on both arms: every v2 create answers the same status, batch included.
+    expect(singleResponse.status).toBe(201)
+    expect((await singleResponse.json()).data.id).toBe('row-1')
     expect(mocks.createRows).toHaveBeenLastCalledWith({
       principal: PRINCIPAL,
       input: {
@@ -157,7 +160,9 @@ describe('/api/v2/tables/[tableId]/rows', () => {
 
     mocks.createRows.mockResolvedValue({ kind: 'batch', table: TABLE, rows: [ROW] })
     const batch = request('POST', { workspaceId: WORKSPACE_ID, rows: [{ name: 'Ada' }] })
-    expect((await (await POST(batch, CONTEXT)).json()).data.insertedCount).toBe(1)
+    const batchResponse = await POST(batch, CONTEXT)
+    expect(batchResponse.status).toBe(201)
+    expect((await batchResponse.json()).data.insertedCount).toBe(1)
     expect(mocks.createRows).toHaveBeenLastCalledWith({
       principal: PRINCIPAL,
       input: {

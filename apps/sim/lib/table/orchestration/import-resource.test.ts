@@ -47,7 +47,11 @@ vi.mock('@/lib/uploads/upload-session/service', () => ({
 vi.mock('@/lib/users/queries', () => ({ getUserSettings: mockGetUserSettings }))
 
 import { CSV_DURABLE_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
-import { createAuthorizedTableImportResource } from '@/lib/table/orchestration/import-resource'
+import {
+  createAuthorizedTableImportResource,
+  findTableImportResource,
+  getTableImportResource,
+} from '@/lib/table/orchestration/import-resource'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const SOURCE = { type: 'workspace_file' as const, fileId: 'file-1' }
@@ -177,5 +181,73 @@ describe('createAuthorizedTableImportResource upload size', () => {
       })
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mockCreateUploadSession).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * `type = 'import'` rows are written by the first-party CSV paths too, without
+ * the v2 payload. Those ids are reachable from a v2 read — `GET /tables/{id}`
+ * hands the caller the running job's id — so an unreadable job must answer 404,
+ * not an unclassified error the v2 policy can only render as a 500.
+ */
+describe('findTableImportResource on a job that is not a v2 import resource', () => {
+  const IMPORT_ID = 'job-1'
+
+  function job(overrides: Record<string, unknown>) {
+    return {
+      id: IMPORT_ID,
+      tableId: 'table-1',
+      workspaceId: WORKSPACE_ID,
+      type: 'import',
+      status: 'running',
+      payload: null,
+      rowsProcessed: 0,
+      error: null,
+      startedAt: new Date('2026-08-04T12:00:00.000Z'),
+      updatedAt: new Date('2026-08-04T12:00:00.000Z'),
+      completedAt: null,
+      ...overrides,
+    }
+  }
+
+  const PAYLOAD = {
+    kind: 'table_import',
+    userId: 'user-1',
+    source: SOURCE,
+    target: TARGET,
+    options: {},
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('reads a first-party import job with a null payload as absent', async () => {
+    mockDbLimit.mockResolvedValue([job({})])
+
+    await expect(findTableImportResource({ importId: IMPORT_ID })).resolves.toBeNull()
+    await expect(getTableImportResource({ importId: IMPORT_ID })).rejects.toMatchObject({
+      code: 'not_found',
+    })
+  })
+
+  it('reads a job in a status the resource cannot represent as absent', async () => {
+    mockDbLimit.mockResolvedValue([job({ payload: PAYLOAD, status: 'queued' })])
+
+    await expect(findTableImportResource({ importId: IMPORT_ID })).resolves.toBeNull()
+    await expect(getTableImportResource({ importId: IMPORT_ID })).rejects.toMatchObject({
+      code: 'not_found',
+    })
+  })
+
+  it('still reads a well-formed v2 import job', async () => {
+    mockDbLimit.mockResolvedValue([job({ payload: PAYLOAD })])
+
+    await expect(findTableImportResource({ importId: IMPORT_ID })).resolves.toMatchObject({
+      id: IMPORT_ID,
+      status: 'running',
+      source: SOURCE,
+      target: TARGET,
+    })
   })
 })
