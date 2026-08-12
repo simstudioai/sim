@@ -43,6 +43,7 @@ import {
   v1ListTablesQuerySchema,
 } from '@/lib/api/contracts/v1/tables'
 import {
+  V2_SEARCH_MAX_LENGTH,
   v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
@@ -618,6 +619,7 @@ export const v2UpdateTableColumnBodySchema = z
 
 export type V2UpdateTableColumnBody = z.input<typeof v2UpdateTableColumnBodySchema>
 
+/** `201`, like every other v2 create; the body is the table's full column set. */
 export const v2AddTableColumnContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/columns',
@@ -626,6 +628,7 @@ export const v2AddTableColumnContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2TableColumnsDataSchema),
+    status: 201,
   },
 })
 
@@ -851,6 +854,13 @@ export const v2CreateTableRowsBodySchema = z.union(
   }
 )
 
+/**
+ * `201` on both arms of the union. The batch arm returns a count rather than one
+ * created resource and neither arm carries a `Location`, but no v2 create does —
+ * the status describes what happened to the server, and rows were created. A
+ * caller that has to read the body to learn whether its POST created anything is
+ * exactly what a uniform create status prevents.
+ */
 export const v2CreateTableRowsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/rows',
@@ -859,6 +869,7 @@ export const v2CreateTableRowsContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.union([v2CreateSingleTableRowResponseSchema, v2CreateBatchTableRowsResponseSchema]),
+    status: 201,
   },
 })
 
@@ -1083,9 +1094,10 @@ export const v2DeleteTableViewDataSchema = z
 export type V2DeleteTableViewData = z.output<typeof v2DeleteTableViewDataSchema>
 
 /**
- * Every saved view on a table, oldest first. A table carries a small bounded
- * set of views, so this is a single full page (`nextCursor` is always `null`);
- * the cursor envelope keeps the v2 list surface uniform.
+ * Every saved view on a table, oldest first. The create path enforces
+ * `TABLE_LIMITS.MAX_VIEWS_PER_TABLE`, so the set is bounded and this is a single
+ * full page (`nextCursor` is always `null`); the cursor envelope keeps the v2
+ * list surface uniform.
  */
 export const v2ListTableViewsContract = defineRouteContract({
   method: 'GET',
@@ -1460,6 +1472,7 @@ export const v2FindRowsBodySchema = z
     q: z
       .string()
       .min(1, 'q must be a non-empty search string')
+      .max(V2_SEARCH_MAX_LENGTH, 'q is too long')
       .describe('Case-insensitive cell substring to find.'),
     predicate: predicateSchema.optional(),
     sort: sortSpecSchema.optional().describe('Ordered table-row sort specification.'),
@@ -1487,14 +1500,21 @@ export const v2RowMatchSchema = z
 export type V2RowMatch = z.output<typeof v2RowMatchSchema>
 
 /**
- * Match set. `truncated` is `true` when the search hit the server-side cap and
- * more cells match than were returned — narrow the predicate rather than
- * paging, since matches have no cursor.
+ * Match set. `truncated` is `true` when the search hit the server-side cap of
+ * {@link TABLE_LIMITS.MAX_FIND_MATCHES} and more cells match than were returned
+ * — narrow the predicate rather than paging, since matches have no cursor.
  */
 export const v2FindRowsDataSchema = z
   .object({
-    matches: z.array(v2RowMatchSchema).describe('Matching table cells.'),
-    truncated: z.boolean().describe('Whether more matches exist beyond the server cap.'),
+    matches: z
+      .array(v2RowMatchSchema)
+      .max(TABLE_LIMITS.MAX_FIND_MATCHES)
+      .describe(`Matching table cells, at most ${TABLE_LIMITS.MAX_FIND_MATCHES}.`),
+    truncated: z
+      .boolean()
+      .describe(
+        `Whether more than ${TABLE_LIMITS.MAX_FIND_MATCHES} cells matched, so the list was cut.`
+      ),
   })
   .meta({
     id: 'V2FindRowsData',
@@ -1669,9 +1689,17 @@ export const v2CreateTableImportBodySchema = z
   })
 export type V2CreateTableImportBody = z.input<typeof v2CreateTableImportBodySchema>
 
+/**
+ * Every state an import can be read in, and nothing else.
+ *
+ * `uploading` and `expired` come from the upload session that backs an
+ * upload-sourced import; the other four are projections of the durable job's
+ * status. There is deliberately no `queued`: a job row exists only once its
+ * runner has started it, so an import is never observable between creation and
+ * `processing`.
+ */
 export const v2TableImportStatusSchema = z.enum([
   'uploading',
-  'queued',
   'processing',
   'completed',
   'failed',
@@ -1760,11 +1788,21 @@ export const v2CreateTableImportContract = defineRouteContract({
   },
 })
 
+/**
+ * Reads an import in any of its states, including the upload phase.
+ *
+ * The optional upload token is what makes the upload phase readable at all: an
+ * upload-sourced import has no `table_jobs` row until its upload completes, so
+ * without the token the id the 201 just handed back would 404 for the whole
+ * time the caller is uploading parts. `DELETE` takes the same header for the
+ * same reason.
+ */
 export const v2GetTableImportContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/tables/imports/[importId]',
   params: v2TableImportParamsSchema,
   query: v2TableTransferWorkspaceQuerySchema,
+  headers: v2TableOptionalUploadTokenHeadersSchema,
   response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
 })
 

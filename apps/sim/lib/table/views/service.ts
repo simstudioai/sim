@@ -13,11 +13,12 @@ import { db } from '@sim/db'
 import { tableViews } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, ne, sql } from 'drizzle-orm'
+import { and, asc, count, eq, ne, sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
-import { NAME_PATTERN } from '@/lib/table/constants'
+import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { signalTableViewsChanged } from '@/lib/table/events'
 import { filterRulesToPredicate, filterToRules } from '@/lib/table/query-builder/converters'
+import { withLockedTable } from '@/lib/table/service'
 import type {
   ColumnDefinition,
   Filter,
@@ -226,20 +227,46 @@ export interface CreateTableViewData {
   columns: ColumnDefinition[]
 }
 
+/**
+ * Creates a saved view, refusing one that would push the table past
+ * {@link TABLE_LIMITS.MAX_VIEWS_PER_TABLE}.
+ *
+ * The list read returns every view in one unpaginated page, so that promise only
+ * holds if the write side enforces it. The count and the insert share the
+ * table's advisory lock — the same device the column mutators use — which is
+ * what makes the count authoritative against a concurrent create rather than a
+ * check two racing writers can both pass.
+ */
 export async function createTableView(data: CreateTableViewData): Promise<TableView> {
   const name = normalizeName(data.name)
 
-  const [row] = await db
-    .insert(tableViews)
-    .values({
-      id: generateId(),
-      tableId: data.tableId,
-      workspaceId: data.workspaceId,
-      name,
-      config: data.config,
-      createdBy: data.userId,
-    })
-    .returning()
+  const row = await withLockedTable(data.tableId, async (_table, trx) => {
+    const [existing] = await trx
+      .select({ total: count() })
+      .from(tableViews)
+      .where(
+        and(eq(tableViews.tableId, data.tableId), eq(tableViews.workspaceId, data.workspaceId))
+      )
+
+    if (Number(existing?.total ?? 0) >= TABLE_LIMITS.MAX_VIEWS_PER_TABLE) {
+      throw new TableViewValidationError(
+        `A table cannot have more than ${TABLE_LIMITS.MAX_VIEWS_PER_TABLE} saved views`
+      )
+    }
+
+    const [created] = await trx
+      .insert(tableViews)
+      .values({
+        id: generateId(),
+        tableId: data.tableId,
+        workspaceId: data.workspaceId,
+        name,
+        config: data.config,
+        createdBy: data.userId,
+      })
+      .returning()
+    return created
+  })
 
   logger.info('Created table view', { tableId: data.tableId, viewId: row.id })
   // Views are table-wide shared state, so every open reader refetches the list live.

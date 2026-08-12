@@ -183,6 +183,15 @@ export async function getPrincipalTableImportUpload(params: {
   return upload
 }
 
+/**
+ * The import resource an in-flight upload session stands for, without touching
+ * it. Callers that also mutate the session (abort, complete) build their
+ * resource from the post-mutation record instead.
+ */
+export function tableImportResourceFromUpload(upload: UploadSessionRecord): TableImportResource {
+  return resourceFromUpload(upload, tableImportBodyFromUpload(upload))
+}
+
 export async function abortAuthorizedTableImportUpload(
   upload: UploadSessionRecord,
   principal: Principal
@@ -201,6 +210,17 @@ export async function getTableImportResource(params: {
   return record
 }
 
+/**
+ * The `table_jobs` row for an import id, or `null` when there is no import
+ * resource behind that id.
+ *
+ * `type = 'import'` is NOT sufficient to make a job one of these resources: the
+ * first-party CSV paths write import jobs with a null payload, and a job may
+ * carry a lifecycle status this resource has no public state for. Neither is a
+ * server fault — the id simply does not name a readable import — so both read
+ * back as `null` and surface as the 404 they are, rather than throwing an
+ * unclassified error that the v2 error policy can only render as a 500.
+ */
 export async function findTableImportResource(params: {
   importId: string
   assertedWorkspaceId?: string
@@ -220,15 +240,18 @@ export async function findTableImportResource(params: {
     .limit(1)
   if (!job) return null
   const payload = parseImportJobPayload(job.payload)
+  if (!payload) return null
+  const status = tableImportStatus(job.status)
+  if (!status) return null
   return {
     id: job.id,
     workspaceId: job.workspaceId,
     userId: payload.userId,
-    source: v2TableImportSourceSchema.parse(payload.source),
-    target: v2TableImportTargetSchema.parse(payload.target),
+    source: payload.source,
+    target: payload.target,
     options: payload.options,
     tableId: job.tableId,
-    status: tableImportStatus(job.status),
+    status,
     rowsProcessed: job.rowsProcessed,
     error: job.error,
     createdAt: job.startedAt,
@@ -469,10 +492,21 @@ function importOptions(body: V2CreateTableImportBody): TableImportJobPayload['op
   }
 }
 
-function parseImportJobPayload(payload: unknown): TableImportJobPayload {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    throw new Error('Table import job is missing its payload')
-  }
+interface ParsedTableImportPayload {
+  userId: string
+  source: V2TableImportSource
+  target: V2TableImportTarget
+  options: TableImportJobPayload['options']
+}
+
+/**
+ * Reads a `table_jobs.payload` as an import-resource payload, or `null` when it
+ * is not one. A null payload is the normal shape for the first-party CSV import
+ * paths, which write `type = 'import'` jobs without one, so failing to parse is
+ * an ordinary "not this resource" answer rather than an error condition.
+ */
+function parseImportJobPayload(payload: unknown): ParsedTableImportPayload | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
   const candidate = payload as Partial<TableImportJobPayload>
   if (
     candidate.kind !== 'table_import' ||
@@ -480,11 +514,17 @@ function parseImportJobPayload(payload: unknown): TableImportJobPayload {
     !candidate.options ||
     typeof candidate.options !== 'object'
   ) {
-    throw new Error('Table import job has an invalid payload')
+    return null
   }
-  v2TableImportSourceSchema.parse(candidate.source)
-  v2TableImportTargetSchema.parse(candidate.target)
-  return candidate as TableImportJobPayload
+  const source = v2TableImportSourceSchema.safeParse(candidate.source)
+  const target = v2TableImportTargetSchema.safeParse(candidate.target)
+  if (!source.success || !target.success) return null
+  return {
+    userId: candidate.userId,
+    source: source.data,
+    target: target.data,
+    options: candidate.options,
+  }
 }
 
 async function validateTarget(
@@ -582,9 +622,15 @@ function assertCsvFileName(fileName: string): void {
   }
 }
 
-function tableImportStatus(status: string): TableImportStatus {
+/**
+ * The public lifecycle state for a job status, or `null` when the job is in a
+ * state this resource cannot represent. `table_jobs.status` is an unconstrained
+ * text column shared by every job kind, so a value outside the four documented
+ * import states means "no readable import here" — a 404 — not a server fault.
+ */
+function tableImportStatus(status: string): TableImportStatus | null {
   if (status !== 'running' && status !== 'ready' && status !== 'failed' && status !== 'canceled') {
-    throw new Error(`Invalid table import job status: ${status}`)
+    return null
   }
   return status
 }

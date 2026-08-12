@@ -1168,9 +1168,16 @@ export async function updateColumnConstraints(
 
 /**
  * Updates the option set (and optional single/multi mode) of a `select` column
- * without changing its type. Existing cell values are left untouched — ids that
- * no longer match an option render as a neutral fallback pill until reassigned;
- * a single↔multi toggle is reconciled lazily on the next row write.
+ * without changing its type.
+ *
+ * Lock gating is split, because the payload decides how destructive the write
+ * is. Every call changes the schema, so `assertSchemaMutable` always runs. A
+ * payload that DROPS options additionally rewrites `user_table_rows.data` (see
+ * {@link clearRemovedSelectOptions}) — exactly the cell destruction the delete
+ * lock exists to refuse — so that case escalates to `assertColumnDestructive`.
+ * Adding, reordering, or renaming options and toggling `multiple` never clear a
+ * cell (a multi→single toggle refuses rather than truncates), so gating those on
+ * the delete lock would block a non-destructive edit.
  */
 export async function updateColumnOptions(
   data: UpdateColumnOptionsData,
@@ -1180,6 +1187,8 @@ export async function updateColumnOptions(
   return withLockedTable(
     data.tableId,
     async (table, trx) => {
+      assertSchemaMutable(table)
+
       const schema = table.schema
       const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
       if (columnIndex === -1) {
@@ -1219,6 +1228,9 @@ export async function updateColumnOptions(
       // request. `applyConstraints` validates and applies it below, after the cell
       // migrations; the checks in between need to read the target value.
       const targetRequired = !!(data.required ?? column.required)
+
+      // Dropping an option is a row-data rewrite, not a schema-only edit.
+      if (removedAny) assertColumnDestructive(table)
 
       if (togglingCardinality || removedAny) {
         const timeoutMs = scaledStatementTimeoutMs(table.rowCount ?? 0, {

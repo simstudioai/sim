@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   resolveWorkspaceContext: vi.fn(),
   startUploadedImport: vi.fn(),
   tableImportBodyFromUpload: vi.fn(),
+  resourceFromUpload: vi.fn(),
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -53,6 +54,7 @@ vi.mock('@/lib/table/orchestration/import-resource', () => ({
   getTableImportResource: mocks.getResource,
   startUploadedTableImport: mocks.startUploadedImport,
   tableImportBodyFromUpload: mocks.tableImportBodyFromUpload,
+  tableImportResourceFromUpload: mocks.resourceFromUpload,
 }))
 
 vi.mock('@/lib/uploads/upload-session/application', () => ({
@@ -164,6 +166,7 @@ describe('table import application use cases', () => {
     mocks.startUploadedImport.mockResolvedValue({ ...record, status: 'ready' })
     mocks.createResource.mockResolvedValue({ record, upload: null })
     mocks.getWorkspaceFile.mockResolvedValue(workspaceFile)
+    mocks.resourceFromUpload.mockReturnValue(record)
   })
 
   it('creates an import through the domain resource boundary without presenting a v2 DTO', async () => {
@@ -247,6 +250,43 @@ describe('table import application use cases', () => {
       undefined,
       { forUpdate: undefined }
     )
+  })
+
+  /**
+   * The 201 that creates an upload-backed import reports `status: "uploading"`
+   * against an id that has no durable job row yet. Reading that id back is only
+   * possible through the upload session, so the token has to be honored here the
+   * same way `DELETE` honors it — otherwise the whole upload phase 404s.
+   */
+  it('reads an upload-phase import through its upload token', async () => {
+    await expect(
+      readTableImportUseCase.execute({
+        principal: workspaceKey,
+        input: { importId: 'import-1', workspaceId: 'workspace-1', uploadToken: 'signed-token' },
+      })
+    ).resolves.toEqual({ import: record })
+
+    expect(mocks.getUpload).toHaveBeenCalledWith({
+      importId: 'import-1',
+      assertedWorkspaceId: 'workspace-1',
+      principal: workspaceKey,
+      uploadToken: 'signed-token',
+    })
+    expect(mocks.getResource).not.toHaveBeenCalled()
+    expect(mocks.resourceFromUpload).toHaveBeenCalledWith(upload)
+  })
+
+  it('prefers the durable job once the upload has started one', async () => {
+    const running = { ...record, status: 'running' as const }
+    mocks.findResource.mockResolvedValue(running)
+
+    await expect(
+      readTableImportUseCase.execute({
+        principal: workspaceKey,
+        input: { importId: 'import-1', workspaceId: 'workspace-1', uploadToken: 'signed-token' },
+      })
+    ).resolves.toEqual({ import: running })
+    expect(mocks.resourceFromUpload).not.toHaveBeenCalled()
   })
 
   it('resolves a workspace-file source canonically inside the authorized import command', async () => {

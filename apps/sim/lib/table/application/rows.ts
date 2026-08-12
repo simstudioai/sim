@@ -54,7 +54,7 @@ import {
   validateSortSpec,
   validateStoragePredicate,
 } from '@/lib/table/query-builder/validate'
-import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
+import { assertCursorQueryBinding, decodeCursor } from '@/lib/table/rows/cursor'
 import {
   createExactEmptyTableRowSecretProvenance,
   createTableRowSecretProvenanceFromRegistry,
@@ -207,7 +207,7 @@ export const listTableRows = defineAuthorizedTableUseCase({
     requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_QUERY_LIMIT, 'Limit')
     try {
       const cursor = input.cursor ? decodeCursor(input.cursor) : undefined
-      if (cursor) assertCursorSortBinding(cursor, undefined)
+      if (cursor) assertCursorQueryBinding(cursor, {})
       const result = await queryRows(
         context.table,
         {
@@ -269,7 +269,7 @@ export const queryTableRows = defineAuthorizedTableUseCase({
         ? Object.fromEntries(sortSpec.map((item) => [item.field, item.direction]))
         : undefined
       const cursor = input.cursor ? decodeCursor(input.cursor) : undefined
-      if (cursor) assertCursorSortBinding(cursor, sort)
+      if (cursor) assertCursorQueryBinding(cursor, { sort, predicate })
       const result = await queryRows(
         context.table,
         {

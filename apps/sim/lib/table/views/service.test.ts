@@ -1,18 +1,24 @@
 /**
  * @vitest-environment node
  */
+import { db } from '@sim/db'
 import { tableViews } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ColumnDefinition, TableViewConfig } from '@/lib/table/types'
 
-const { mockSignalTableViewsChanged } = vi.hoisted(() => ({
+const { mockSignalTableViewsChanged, mockWithLockedTable } = vi.hoisted(() => ({
   mockSignalTableViewsChanged: vi.fn(),
+  mockWithLockedTable: vi.fn(),
 }))
 vi.mock('@/lib/table/events', () => ({
   signalTableViewsChanged: mockSignalTableViewsChanged,
 }))
+vi.mock('@/lib/table/service', () => ({
+  withLockedTable: mockWithLockedTable,
+}))
 
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   createTableView,
   deleteTableView,
@@ -137,9 +143,14 @@ describe('table-view mutations signal collaborators', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockWithLockedTable.mockImplementation(
+      async (_tableId: string, mutate: (table: unknown, trx: unknown) => unknown) =>
+        mutate({ id: 'table-1' }, db)
+    )
   })
 
   it('createTableView signals the table after inserting', async () => {
+    queueTableRows(tableViews, [{ total: 0 }]) // the in-lock view-count check
     dbChainMockFns.returning.mockResolvedValueOnce([viewRow])
 
     await createTableView({
@@ -253,5 +264,59 @@ describe('getTableView', () => {
 
   it('returns null for a view id that is not on this table', async () => {
     expect(await getTableView('view-elsewhere', 'table-1', columns)).toBeNull()
+  })
+})
+
+/**
+ * `GET /tables/{id}/views` returns every view in one unpaginated page and
+ * declares the set bounded. Nothing made that true, so the ceiling is asserted
+ * on the write that could cross it.
+ */
+describe('saved-view ceiling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockWithLockedTable.mockImplementation(
+      async (_tableId: string, mutate: (table: unknown, trx: unknown) => unknown) =>
+        mutate({ id: 'table-1' }, db)
+    )
+  })
+
+  function create() {
+    return createTableView({
+      tableId: 'table-1',
+      workspaceId: 'ws-1',
+      name: 'Another View',
+      config: {},
+      userId: 'user-1',
+      columns: [],
+    })
+  }
+
+  it('refuses a create that would cross MAX_VIEWS_PER_TABLE', async () => {
+    queueTableRows(tableViews, [{ total: TABLE_LIMITS.MAX_VIEWS_PER_TABLE }])
+
+    await expect(create()).rejects.toMatchObject({ name: 'TableViewValidationError' })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(mockSignalTableViewsChanged).not.toHaveBeenCalled()
+  })
+
+  it('allows the create that lands exactly on the ceiling', async () => {
+    queueTableRows(tableViews, [{ total: TABLE_LIMITS.MAX_VIEWS_PER_TABLE - 1 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'view-100',
+        tableId: 'table-1',
+        workspaceId: 'ws-1',
+        name: 'Another View',
+        config: {},
+        isDefault: false,
+        createdBy: 'user-1',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ])
+
+    await expect(create()).resolves.toMatchObject({ id: 'view-100' })
   })
 })

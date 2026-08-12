@@ -629,6 +629,64 @@ describe('row query and upsert application semantics', () => {
     expect(result.nextCursor).toBe('native-next-cursor')
   })
 
+  /**
+   * An offset cursor names a position in one filtered sequence. Replayed under a
+   * different predicate that ordinal belongs to a sequence the caller never asked
+   * for — page 2 of the archived rows, or an empty page the caller reads as "no
+   * more matches". It must be refused, exactly as a changed sort already is.
+   */
+  it('refuses an offset cursor replayed under a different predicate', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row-100', orderKey: null },
+      keysetValid: false,
+      nextOffset: 100,
+      predicate: { all: [{ field: 'column-name', op: 'eq', value: 'Ada' }] },
+    })
+
+    await expect(
+      queryTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          cursor,
+          predicate: { all: [{ field: 'name', op: 'eq', value: 'Grace' }] },
+        },
+      })
+    ).rejects.toMatchObject({ details: { code: 'CURSOR_FILTER_CONFLICT' } })
+    expect(mockQueryRows).not.toHaveBeenCalled()
+  })
+
+  it('resumes the same offset page under the identical predicate', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row-100', orderKey: null },
+      keysetValid: false,
+      nextOffset: 100,
+      predicate: { all: [{ field: 'column-name', op: 'eq', value: 'Ada' }] },
+    })
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [],
+      rowCount: 0,
+      totalCount: null,
+      nextCursor: null,
+    })
+
+    await expect(
+      queryTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          cursor,
+          predicate: { all: [{ field: 'name', op: 'eq', value: 'Ada' }] },
+        },
+      })
+    ).resolves.toMatchObject({ rowCount: 0 })
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      TABLE,
+      expect.objectContaining({ offset: 100 }),
+      expect.any(String)
+    )
+  })
+
   it('loads requested persisted provenance inside the authorized application query', async () => {
     const row = {
       id: 'row-1',
