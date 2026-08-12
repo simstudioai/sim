@@ -25,6 +25,7 @@ vi.mock('@/lib/workflows/search-replace/indexer', () => ({
         id: paramId,
         type: 'short-input',
         password: paramId === 'apiKey' || paramId === 'token',
+        canonicalParamId: paramId === 'manualCredential' ? 'oauthCredential' : undefined,
       },
     })),
 }))
@@ -143,6 +144,40 @@ describe('export sanitizer resource coverage', () => {
         toolId: 'gmail_send',
         operation: 'send_gmail',
         params: { apiKey: null, query: 'safe input' },
+      },
+    ])
+  })
+
+  it('withholds advanced credential selectors nested inside tool inputs', () => {
+    const value = [
+      {
+        type: 'gmail',
+        toolId: 'gmail_send',
+        operation: 'send_gmail',
+        params: {
+          manualCredential: 'credential-id',
+          query: 'safe input',
+        },
+      },
+    ]
+    vi.mocked(getBlock).mockReturnValue({
+      name: 'Test',
+      description: '',
+      subBlocks: [{ id: 'field', title: 'Field', type: 'tool-input' }],
+      outputs: {},
+    } as never)
+
+    const sanitized = sanitizeWorkflowForSharing(stateWithSubBlock('tool-input', value), {
+      preserveEnvVars: true,
+      redactOpaqueCredentialInputs: true,
+    })
+
+    expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toEqual([
+      {
+        type: 'gmail',
+        toolId: 'gmail_send',
+        operation: 'send_gmail',
+        params: { manualCredential: null, query: 'safe input' },
       },
     ])
   })

@@ -70,6 +70,8 @@ const WORKSPACE_SPECIFIC_TYPES: ReadonlySet<string> = new Set<string>([
  * type-keyed registry above cannot supply, so this list stays explicit.
  */
 const WORKSPACE_SPECIFIC_FIELDS = new Set([
+  'credentialId',
+  'oauthCredential',
   'knowledgeBaseId',
   'tagFilters',
   'documentTags',
@@ -339,7 +341,11 @@ function sanitizeConfiguredSubBlockValue(
   if (config.password === true) {
     return options.preserveEnvVars && isEnvironmentVariableReference(value) ? value : null
   }
-  if (WORKSPACE_SPECIFIC_TYPES.has(config.type) || WORKSPACE_SPECIFIC_FIELDS.has(config.id)) {
+  if (
+    WORKSPACE_SPECIFIC_TYPES.has(config.type) ||
+    WORKSPACE_SPECIFIC_FIELDS.has(config.id) ||
+    (config.canonicalParamId != null && WORKSPACE_SPECIFIC_FIELDS.has(config.canonicalParamId))
+  ) {
     return null
   }
   return value
