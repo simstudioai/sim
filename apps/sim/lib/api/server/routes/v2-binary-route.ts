@@ -20,7 +20,7 @@ import {
 import { parseRequest } from '@/lib/api/server/validation'
 import type { ApplicationOperation } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { v2Error, v2HttpError, v2ValidationError } from '@/app/api/v2/lib/response'
+import { v2Error, v2HeadNoEffect, v2HttpError, v2ValidationError } from '@/app/api/v2/lib/response'
 
 interface V2BinaryRouteOptions<
   C extends BinaryApiRouteContract,
@@ -31,6 +31,19 @@ interface V2BinaryRouteOptions<
   auth: typeof v2ApiKeyAuth
   rateLimit: V2RateLimitPolicy
   errorPolicy: V2ErrorPolicy
+  /**
+   * Whether this route's `GET` is safe enough for Next's `HEAD`→`GET` aliasing
+   * to run it. Defaults to `true`, which is correct for a read.
+   *
+   * Set `false` when the `GET` opens an outbound connection or writes a row.
+   * Such a route still authenticates and rate-limits a `HEAD`, then answers a
+   * bodiless 200 without executing the use case — see {@link v2HeadNoEffect}.
+   *
+   * A binary `GET` is a download, and a download is the archetypal read that
+   * records that it happened, so this matters here at least as much as on the
+   * JSON builder it mirrors.
+   */
+  headSafe?: boolean
 }
 
 export function defineV2BinaryRoute<
@@ -60,6 +73,10 @@ export function defineV2BinaryRoute<
         options.rateLimit
       )
       if (!admission.success) return admission.response
+
+      if (request.method === 'HEAD' && options.headSafe === false) {
+        return v2HeadNoEffect()
+      }
 
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
         ...V2_PARSE_DEFAULTS,

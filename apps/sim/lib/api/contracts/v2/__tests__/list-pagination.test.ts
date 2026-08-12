@@ -72,17 +72,18 @@ const PAGED_LISTS = [
  * Lists that accept neither param and always return `nextCursor: null`, because
  * the set is small and bounded per workspace, per table, or per server.
  *
- * Every folder list is capped where the tree is loaded
- * (`MAX_*_FOLDERS_PER_WORKSPACE`), and one MCP server's tool inventory is capped
- * by tool discovery itself (`LIST_TOOLS_MAX_TOOLS` / `LIST_TOOLS_MAX_BYTES`) no
- * matter what the upstream server reports — bounded by construction rather than
- * by a caller's `limit`. The MCP *server* list is not: nothing caps how many
- * servers a workspace registers, which is why it is paged.
- * Every remaining entry but the MCP server list and the knowledge tag list is a
- * *folder* list, and a folder tree is already capped where it is loaded
- * (`MAX_*_FOLDERS_PER_WORKSPACE`) — bounded by construction rather than by a
- * caller's `limit`. The knowledge tag list is bounded the same way: a knowledge
- * base has a fixed number of tag slots, so its vocabulary cannot grow past them.
+ * Every entry is bounded by construction rather than by a caller's `limit`:
+ *
+ * - The four folder lists are capped where the tree is loaded
+ *   (`MAX_*_FOLDERS_PER_WORKSPACE`).
+ * - One MCP server's tool inventory is capped by tool discovery itself
+ *   (`LIST_TOOLS_MAX_TOOLS` / `LIST_TOOLS_MAX_BYTES`), whatever the upstream
+ *   server reports. The MCP *server* list is not bounded that way — nothing caps
+ *   how many servers a workspace registers — which is why it is paged and does
+ *   not appear here.
+ * - A knowledge base has a fixed number of tag slots, so its tag vocabulary
+ *   cannot grow past them.
+ * - A table's saved views and its dispatchable groups are capped per table.
  */
 const FULL_SET_LISTS = [
   'GET /api/v2/files/folders',

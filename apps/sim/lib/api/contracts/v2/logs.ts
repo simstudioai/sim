@@ -9,6 +9,7 @@ import {
   v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2PaginationFields,
+  v2RunOrderSchema,
   v2RunWindowBoundSchema,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
@@ -247,14 +248,11 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
      * would break every caller, while accepting `sortOrder` as an alias would
      * add a second spelling of one thing with undefined precedence when both
      * arrive — so the split is documented rather than papered over.
+     *
+     * Shared with `GET /workflows/{id}/runs` so the two spell the enum the same
+     * way in the generated specs.
      */
-    order: z
-      .enum(['desc', 'asc'])
-      .describe(
-        'Sort direction by execution start time. This operation deviates from the v2 `sortBy` + `sortOrder` convention: logs are sortable only by start time, so the direction is carried by this single `order` param and `sortBy`/`sortOrder` are not accepted.'
-      )
-      .optional()
-      .default('desc'),
+    order: v2RunOrderSchema('execution'),
     folderPaths: z
       .string()
       .describe('Comma-separated workflow folder paths to include.')

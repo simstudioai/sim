@@ -34,13 +34,16 @@ export const WORKSPACE_ERRORS = [
  * 403 a caller can do something about names its cause in `error.details.code`.
  *
  * The wording is deliberately "where the cause is one a caller can act on"
- * rather than "always". Nine domain refusals still throw a bare
- * `OrchestrationError('forbidden', …)` and reach the wire without a code —
- * `GET /api/v2/billing/status` with a personal key against a workspace that
- * disallows them is one. Reparenting those onto `ForbiddenOperationError` is
- * worth doing, but one of them is a cross-tenant refusal that belongs in the
- * codeless class and would change its status, so it is a deliberate change
- * rather than a sweep. Until then this description must not over-claim.
+ * rather than "always", and it must stay that way. The billing, secret, table-
+ * quota, credential-list, and public-sharing refusals have been reparented onto
+ * `ForbiddenOperationError` (the one cross-tenant refusal among them became a
+ * concealed `404` instead, which is a status change rather than a code), but a
+ * handful of domain refusals still throw a bare
+ * `OrchestrationError('forbidden', …)` and reach the wire with no code — the
+ * knowledge-base file-ownership guard deliberately, others because nothing in
+ * the closed set fits them yet. Do not restate this as "every 403 names its
+ * cause": the audit that produced these codes found the claim false, and it will
+ * be false again the moment a domain adds a refusal without one.
  */
 const FORBIDDEN_DESCRIPTION = [
   'The caller lacks the rights this operation requires. Where the cause is one a caller can act on, `error.details.code` names it, drawn from a closed set:',
@@ -66,7 +69,6 @@ export const ERROR_RESPONSES = {
       'The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.',
     headers: ['X-Run-Id'],
   },
-  Gone: { status: 410, description: 'The requested generated resource has expired.' },
   PayloadTooLarge: {
     status: 413,
     description:
@@ -82,9 +84,28 @@ export const ERROR_RESPONSES = {
     description: 'The caller exceeded the request rate limit.',
     headers: ['Retry-After'],
   },
+  /**
+   * Published on exactly one operation, and deliberately not on the rest.
+   *
+   * Every v2 JSON route can *emit* a 499: `defineV2JsonRoute` renders an
+   * aborted request as `CLIENT_CLOSED_REQUEST`. But a 499 is written to a socket
+   * the caller has already closed, so no conforming client ever reads it — it is
+   * an observability record for Sim's own logs and its proxies, not a response
+   * an SDK can branch on. Publishing it on every operation would add a branch to
+   * every generated client that can never be taken.
+   *
+   * `POST /workflows/{id}/execute` is the exception because there an abort
+   * leaves *residue*: the run may keep going and bill, so the response carries
+   * `error.details.runId` for the caller to reconcile against once it reconnects.
+   * That is caller-actionable information about state that outlives the
+   * connection, which is what makes it worth documenting. Anywhere else an abort
+   * leaves nothing behind to reconcile. Publish a 499 on a new operation only
+   * when the same is true of it.
+   */
   ClientClosedRequest: {
     status: 499,
-    description: 'The client closed the connection before the response was produced.',
+    description:
+      'The client closed the connection before the response was produced. The response is written to a connection that is already gone, so the caller that caused it never reads it; it is documented only on operations where an abort can leave work running. There, `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.',
   },
   InternalError: { status: 500, description: 'An unexpected server error occurred.' },
   ServiceUnavailable: {
@@ -165,8 +186,10 @@ export const FOLDER_TREE_TOO_LARGE =
  * in one page.
  *
  * Every v2 list returns `{ data, nextCursor }`, so a caller cannot tell a
- * single-page list from a paged one by shape alone. Saying so once keeps the six
- * such operations from drifting into six paraphrases of the same promise.
+ * single-page list from a paged one by shape alone. Saying so once keeps the
+ * eight such operations from drifting into eight paraphrases of the same
+ * promise. The authoritative membership is pinned in
+ * `contracts/v2/__tests__/list-pagination.test.ts` as `FULL_SET_LISTS`.
  */
 export const FULL_SET_LIST =
   'The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.'

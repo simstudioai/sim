@@ -330,7 +330,7 @@ const routes = [
       operationId: 'downloadFile',
       summary: 'Download File',
       description:
-        'Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it returns `409` while that artifact is still compiling and `413` if it renders past the size ceiling.',
+        'Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it returns `409` while that artifact is still compiling and `413` if it renders past the size ceiling. Downloading is recorded as an audit event, so it is not a safe read: a `HEAD` request is answered with an empty `200` without fetching the bytes or recording anything, and reports only that the endpoint exists and the caller is authorized.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: {
         description: 'The file bytes.',

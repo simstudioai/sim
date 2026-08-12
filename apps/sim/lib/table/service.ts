@@ -28,6 +28,7 @@ import {
   textKey,
   timestampKey,
 } from '@/lib/api/list-query'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
@@ -554,10 +555,24 @@ export async function createTable(
         )
 
       if (Number(existingCount) >= maxTables) {
-        // A quota ceiling, not bad input — both create routes have always
-        // answered 403 for it.
-        throw new OrchestrationError(
-          'forbidden',
+        /**
+         * A quota ceiling, not bad input — both create routes have always
+         * answered 403 for it. It names its cause so a client can tell a
+         * ceiling apart from a role or key-kind refusal: one is cleared by
+         * deleting a table, the other by changing who is calling.
+         *
+         * The status is left as it shipped, and it disagrees with its sibling:
+         * {@link TableRowLimitError} answers 400 for the row ceiling. Neither is
+         * obviously right — a capacity ceiling is arguably a 409, since the
+         * request is well-formed, the caller is authorized, and the conflict is
+         * with the collection's current state, which the caller can clear. The
+         * disagreement is recorded rather than resolved here because the row
+         * ceiling is also reachable from the internal surface, where the 400 is
+         * shipped and not behind the v2 flag, so restatusing one and not the
+         * other would widen the split instead of closing it.
+         */
+        throw new ForbiddenOperationError(
+          'WORKSPACE_RESOURCE_LIMIT_REACHED',
           `Workspace has reached maximum table limit (${maxTables})`
         )
       }
