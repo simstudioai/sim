@@ -743,6 +743,7 @@ export const getWorkflowResponseDataSchema = z.object({
   deployedAt: z.coerce.date().nullable(),
   isPublicApi: z.boolean(),
   locked: z.boolean(),
+  forkSyncExcluded: z.boolean().default(false),
   runCount: z.number(),
   lastRunAt: z.coerce.date().nullable(),
   archivedAt: z.coerce.date().nullable(),

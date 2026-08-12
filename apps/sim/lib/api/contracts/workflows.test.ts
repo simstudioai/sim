@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   executeWorkflowBodySchema,
+  getWorkflowResponseDataSchema,
   updateWorkflowBodySchema,
   workflowListItemSchema,
 } from '@/lib/api/contracts/workflows'
@@ -118,5 +119,12 @@ describe('workflow contracts', () => {
       locked: false,
     })
     expect(item.forkSyncExcluded).toBe(false)
+  })
+
+  it('detail response preserves forkSyncExcluded and defaults old responses', () => {
+    const forkPolicySchema = getWorkflowResponseDataSchema.pick({ forkSyncExcluded: true })
+
+    expect(forkPolicySchema.parse({ forkSyncExcluded: true }).forkSyncExcluded).toBe(true)
+    expect(forkPolicySchema.parse({}).forkSyncExcluded).toBe(false)
   })
 })
