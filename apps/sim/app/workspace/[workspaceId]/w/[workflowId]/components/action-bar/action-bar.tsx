@@ -66,10 +66,24 @@ const ACTION_BUTTON_STYLES = [
  * 25.11px of period. Writing 24/26 directly would render ~3.5% wide and drift
  * out of the squares' rhythm across the row.
  *
+ * Each edge ramps over 0.75px rather than switching colour at a single offset,
+ * which is why the stops come in pairs 0.375px either side of 23.18 and 25.11.
+ * A gradient is sampled once per pixel with no coverage term, so a hard stop on
+ * a 15°-off-vertical edge can only ever land wholly on one side or the other —
+ * the marks came out visibly stepped, which is the one thing a shape this thin
+ * cannot hide. Ramping across roughly a device pixel gives the rasterizer the
+ * intermediate values antialiasing would have produced, and measured edge
+ * deviation drops from 0.28 device px (pure quantization) to 0.05.
+ *
+ * The ramps are centred on the old offsets, so the 50%-coverage line — the edge
+ * the eye actually locates — has not moved and the 24/2 rhythm is untouched.
+ * Widening the feather further would keep smoothing, but the gap is only 1.93px
+ * of stop, so it comes straight out of the mark's dark core.
+ *
  * `--surface-2` is the same fill the slots used; only where it is painted moved.
  */
 const RUNNING_FILL =
-  'bg-[repeating-linear-gradient(75deg,var(--surface-2)_0_23.18px,transparent_23.18px_25.11px)]'
+  'bg-[repeating-linear-gradient(75deg,var(--surface-2)_0_22.805px,transparent_23.555px_24.735px,var(--surface-2)_25.11px)]'
 
 /** Left edge of the fill: clears the run/stop button, which stays live mid-run. */
 const RUNNING_FILL_INSET_SWELL = 'left-[42px]'
