@@ -1696,3 +1696,108 @@ describe('PauseResumeManager resume log claims', () => {
     })
   })
 })
+
+/**
+ * Every refusal here is an ordinary client outcome — a stale `contextId`, a run
+ * someone else already resumed, a pause of the wrong kind for the endpoint. The
+ * resume surfaces classify a failure by its `statusCode`, so an untyped throw
+ * for any of these reaches the caller as a `500` and tells them nothing about
+ * what to fix.
+ */
+describe('PauseResumeManager.enqueueOrStartResume admission refusals', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  function pausedRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'paused-exec-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      status: 'paused',
+      pausePoints: {
+        'ctx-1': { contextId: 'ctx-1', resumeStatus: 'paused', snapshotReady: true },
+      },
+      ...overrides,
+    }
+  }
+
+  function enqueue(allowedPauseKinds?: ('human' | 'time')[]) {
+    return PauseResumeManager.enqueueOrStartResume({
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      contextId: 'ctx-1',
+      resumeInput: {},
+      userId: 'user-1',
+      allowedPauseKinds,
+    })
+  }
+
+  it.each([
+    ['a run with no paused row', undefined, 404, 'Paused execution not found or already resumed'],
+    [
+      'a paused row in a terminal state',
+      pausedRow({ status: 'cancelled' }),
+      409,
+      'Paused execution is not resumable',
+    ],
+    [
+      'an unknown pause point',
+      pausedRow({ pausePoints: {} }),
+      404,
+      'Pause point not found for execution',
+    ],
+    [
+      'a pause point already being resumed',
+      pausedRow({
+        pausePoints: { 'ctx-1': { resumeStatus: 'resuming', snapshotReady: true } },
+      }),
+      409,
+      'Pause point already resumed or in progress',
+    ],
+    [
+      'a pause still finalizing its snapshot',
+      pausedRow({ pausePoints: { 'ctx-1': { resumeStatus: 'paused', snapshotReady: false } } }),
+      409,
+      'Snapshot not ready; execution still finalizing pause',
+    ],
+  ])('reports %s with its own status', async (_case, row, statusCode, message) => {
+    dbChainMockFns.limit.mockResolvedValueOnce(row ? [row] : [])
+
+    await expect(enqueue()).rejects.toMatchObject({
+      name: 'ResumeAdmissionError',
+      message,
+      statusCode,
+    })
+  })
+
+  it('reports a pause of the wrong kind for the endpoint as a bad request', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      pausedRow({
+        pausePoints: {
+          'ctx-1': { resumeStatus: 'paused', snapshotReady: true, pauseKind: 'time' },
+        },
+      }),
+    ])
+
+    await expect(enqueue(['human'])).rejects.toMatchObject({
+      name: 'ResumeAdmissionError',
+      statusCode: 400,
+    })
+  })
+
+  /**
+   * A snapshot that has not finished persisting is the one refusal that a later
+   * automatic attempt can clear; the rest read identically on every retry.
+   */
+  it('marks only the still-finalizing snapshot as worth retrying', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      pausedRow({ pausePoints: { 'ctx-1': { resumeStatus: 'paused', snapshotReady: false } } }),
+    ])
+    await expect(enqueue()).rejects.toMatchObject({ retryable: true })
+
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    await expect(enqueue()).rejects.toMatchObject({ retryable: false })
+  })
+})

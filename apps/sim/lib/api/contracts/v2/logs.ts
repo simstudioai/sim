@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { traceSpansSchema } from '@/lib/api/contracts/logs'
-import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  runIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v1ListLogsQuerySchema } from '@/lib/api/contracts/v1/logs'
 import {
@@ -189,10 +193,9 @@ export const v2LogDetailSchema = z
 export type V2LogDetail = z.output<typeof v2LogDetailSchema>
 
 export const v2LogParamsSchema = z.object({
-  runId: z
-    .string()
-    .min(1, 'runId cannot be empty')
-    .describe('The unique run identifier shared by lifecycle and diagnostic resources.'),
+  runId: runIdSchema.describe(
+    'The unique run identifier shared by lifecycle and diagnostic resources.'
+  ),
 })
 
 export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
@@ -204,11 +207,7 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
     startDate: v2RunWindowBoundSchema('startDate').optional(),
     endDate: v2RunWindowBoundSchema('endDate').optional(),
-    runId: z
-      .string()
-      .min(1, 'runId cannot be empty')
-      .describe('Exact run identifier to match.')
-      .optional(),
+    runId: runIdSchema.describe('Exact run identifier to match.').optional(),
     minDurationMs: z.coerce
       .number()
       .describe('Minimum total execution duration in milliseconds.')

@@ -235,6 +235,22 @@ export const organizationIdSchema = requiredFieldSchema('Organization ID is requ
 export const workflowIdSchema = requiredFieldSchema('Workflow ID is required')
 
 /**
+ * A workflow run identifier, shared by the run resources, the caller-supplied
+ * `X-Run-Id` claim, and the log resources keyed on the same value. One
+ * identifier gets one schema: the log surfaces address the very rows the run
+ * surfaces mint, so a bound enforced on one and not the other decides nothing
+ * except which endpoint an oversized value reaches the database through.
+ */
+export const runIdSchema = z
+  .string()
+  .min(1, 'Invalid run ID')
+  .max(128, 'Run ID too long')
+  .regex(
+    /^[A-Za-z0-9._:-]+$/,
+    'Run ID can only contain letters, numbers, dots, underscores, colons, and hyphens'
+  )
+
+/**
  * A `folder.id` value. Not `.uuid()`: the column is free-form `text` and the
  * legacy `workflow_folder` rows migrated onto it keep their original id shape.
  * Callers that also allow "no folder" chain `.nullable()` themselves so the

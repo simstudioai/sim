@@ -105,6 +105,20 @@ async function releaseCancelledResumeReservations(
   )
 }
 
+/**
+ * A resume attempt that was not admitted, carrying the status the caller should
+ * see. Every admission refusal must be raised through this rather than a bare
+ * `Error`: the resume surfaces classify a failure by its `statusCode`, so an
+ * untyped throw for an ordinary client mistake — a stale `contextId`, an
+ * already-resumed pause — reaches the caller as a `500`.
+ *
+ * `retryable` says whether an automatic resume should try the attempt again.
+ * Only a pause still finalizing its snapshot is; a pause that is absent, in the
+ * wrong state, or of the wrong kind will read the same on every retry.
+ *
+ * Messages must stay free of identifiers, snapshot contents, and ORM detail —
+ * they are forwarded verbatim to API callers.
+ */
 class ResumeAdmissionError extends Error {
   constructor(
     message: string,
@@ -654,29 +668,35 @@ export class PauseResumeManager {
         .then((rows) => rows[0])
 
       if (!pausedExecution) {
-        throw new Error('Paused execution not found or already resumed')
+        throw new ResumeAdmissionError('Paused execution not found or already resumed', 404, false)
       }
 
       if (!isResumablePausedStatus(pausedExecution.status)) {
-        throw new Error('Paused execution is not resumable')
+        throw new ResumeAdmissionError('Paused execution is not resumable', 409, false)
       }
 
       const pausePoints = pausedExecution.pausePoints as Record<string, any>
       const pausePoint = pausePoints?.[contextId]
       if (!pausePoint) {
-        throw new Error('Pause point not found for execution')
+        throw new ResumeAdmissionError('Pause point not found for execution', 404, false)
       }
       if (pausePoint.resumeStatus !== 'paused') {
-        throw new Error('Pause point already resumed or in progress')
+        throw new ResumeAdmissionError('Pause point already resumed or in progress', 409, false)
       }
       if (!pausePoint.snapshotReady) {
-        throw new Error('Snapshot not ready; execution still finalizing pause')
+        throw new ResumeAdmissionError(
+          'Snapshot not ready; execution still finalizing pause',
+          409,
+          true
+        )
       }
 
       const pauseKind: PauseKind = pausePoint.pauseKind ?? 'human'
       if (allowedPauseKinds && !allowedPauseKinds.includes(pauseKind)) {
-        throw new Error(
-          `Pause kind '${pauseKind}' is not allowed for this resume endpoint (allowed: ${allowedPauseKinds.join(', ')})`
+        throw new ResumeAdmissionError(
+          `Pause kind '${pauseKind}' is not allowed for this resume endpoint (allowed: ${allowedPauseKinds.join(', ')})`,
+          400,
+          false
         )
       }
 
