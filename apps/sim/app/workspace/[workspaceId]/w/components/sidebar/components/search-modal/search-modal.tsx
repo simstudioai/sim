@@ -634,6 +634,19 @@ function SearchModalContent({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  /**
+   * cmdk re-anchors selection on input change against the rows the DOM still
+   * shows, but ranking runs against the deferred query, so those rows are one
+   * keystroke stale. When the re-ranked list lands, the stale pick either
+   * lingers mid-list (it still matches, demoted) or dangles on an unmounted
+   * row (cmdk only self-heals when the selected row is the last one removed),
+   * leaving the first visible row unfocused. Re-anchor once the list the
+   * ranking agrees with has committed.
+   */
+  useEffect(() => {
+    inputRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
+  }, [deferredSearch])
+
   const handleBlockSelect = useCallback(
     (block: SearchBlockItem, type: 'block' | 'trigger' | 'tool') => {
       const enableTriggerMode =
