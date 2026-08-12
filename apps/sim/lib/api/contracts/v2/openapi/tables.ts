@@ -46,6 +46,7 @@ import {
   v2ListTableViewsContract,
   v2ListWorkflowGroupsContract,
   v2QueryRowsContract,
+  v2QueryRowsCountContract,
   v2RelocateTableFolderContract,
   v2RunRowEnrichmentContract,
   v2RunTableColumnContract,
@@ -649,6 +650,43 @@ const routes = [
         'V2QueryTableRowsResponse',
         'Query table rows response',
         'A cursor-paginated page of matching table rows.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2QueryRowsCountContract,
+    tableOperation({
+      operationId: 'countTableRows',
+      summary: 'Count Rows',
+      description:
+        'Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and rowCount on the table resource counts every row rather than the predicate matches. Omit the predicate to count the whole table.',
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The number of matching table rows.' },
+    }),
+    {
+      params: documentedSchema(
+        v2QueryRowsCountContract.params,
+        'CountTableRowsParams',
+        'Count table rows path parameters',
+        'Table whose matching rows should be counted.'
+      ),
+      body: documentedSchema(
+        v2QueryRowsCountContract.body,
+        'CountTableRowsRequest',
+        'Count table rows request',
+        'Workspace scope and the optional predicate whose matches are counted.',
+        [
+          {
+            workspaceId: WORKSPACE_ID,
+            predicate: { all: [{ field: 'status', op: 'eq', value: 'active' }] },
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2QueryRowsCountContract.response.schema,
+        'V2CountTableRowsResponse',
+        'Count table rows response',
+        'The total number of table rows matching the predicate.'
       ),
     }
   ),

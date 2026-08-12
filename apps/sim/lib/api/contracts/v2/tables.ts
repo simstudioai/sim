@@ -364,13 +364,22 @@ const v2TableColumnInputShape = {
   id: z.string().optional().describe('Optional client-provided column identifier.'),
   name: columnNameSchema.describe('Column name.'),
   type: columnTypeSchema.describe('Column data type.'),
+  required: z.boolean().optional().describe('Whether inserts must supply a value for this column.'),
   unique: z.boolean().optional().describe('Whether values in the column must be unique.'),
   options: selectOptionsSchema.optional().describe('Select options for select-type columns.'),
   multiple: z.boolean().optional().describe('Whether a select column accepts multiple values.'),
   currencyCode: currencyCodeSchema.optional().describe('ISO 4217 code for currency columns.'),
 }
 
-/** Public column input. `required` is response-only and rejected on every v2 write. */
+/**
+ * Public column input.
+ *
+ * `required` round-trips: it is emitted on every column read, accepted here, and
+ * accepted on the update body below. Setting it on a column whose existing rows
+ * have null, missing, or empty cells is rejected by the domain with a 400 naming
+ * the offending row count, so the flag can never be turned on over data that
+ * would violate it.
+ */
 export const v2TableColumnInputSchema = z
   .object(v2TableColumnInputShape)
   .strict()
@@ -582,6 +591,10 @@ export const v2UpdateTableColumnBodySchema = z
       .object({
         name: columnNameSchema.optional().describe('Replacement column name.'),
         type: columnTypeSchema.optional().describe('Replacement column data type.'),
+        required: z
+          .boolean()
+          .optional()
+          .describe('Whether inserts must supply a value for this column.'),
         unique: z.boolean().optional().describe('Whether values in the column must be unique.'),
         options: selectOptionsSchema
           .optional()
@@ -624,11 +637,20 @@ export const v2UpdateTableColumnContract = defineRouteContract({
   },
 })
 
+/**
+ * The first-party body, narrowed to `.strict()` for the public surface. The
+ * first-party schema stays permissive because the grid posts it; a public caller
+ * that misspells `columnName` must hear about it rather than get a 400 about a
+ * missing field it believes it sent.
+ */
+export const v2DeleteTableColumnBodySchema = deleteTableColumnBodySchema.strict()
+export type V2DeleteTableColumnBody = z.input<typeof v2DeleteTableColumnBodySchema>
+
 export const v2DeleteTableColumnContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/tables/[tableId]/columns',
   params: tableIdParamsSchema,
-  body: deleteTableColumnBodySchema,
+  body: v2DeleteTableColumnBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2TableColumnsDataSchema),
@@ -685,28 +707,64 @@ export const v2ListTableRowsContract = defineRouteContract({
  * field refs keyed by column NAME. `limit`: omitted →
  * {@link V2_DEFAULT_ROW_LIMIT}; `0` → unbounded (whole result or a 400
  * `TABLE_QUERY_RESULT_TOO_LARGE`); `1..{@link V2_MAX_ROW_LIMIT}` → page cap.
+ *
+ * `.strict()` earns its place here more than anywhere else on this surface: v1
+ * named its row filter `filter`, and while this body tolerated unknown keys that
+ * request was answered with 200 and a fully unfiltered page.
  */
-export const v2QueryRowsBodySchema = z.object({
-  workspaceId: workspaceIdSchema,
-  predicate: predicateSchema.optional(),
-  sort: sortSpecSchema.optional().describe('Ordered table-row sort specification.'),
-  limit: z
-    .number({ error: 'Limit must be a number' })
-    .int('Limit must be an integer')
-    .min(0, 'Limit must be at least 0 (use 0 for an unbounded query)')
-    .max(
-      V2_MAX_ROW_LIMIT,
-      `Limit cannot exceed ${V2_MAX_ROW_LIMIT}; use limit=0 for a full result or create an export resource for large datasets`
-    )
-    .optional()
-    .describe('Maximum rows to return; zero requests an unbounded result.'),
-  cursor: z
-    .string()
-    .min(1, 'cursor must be a non-empty token')
-    .optional()
-    .describe('Opaque cursor returned by the previous query page.'),
-})
+export const v2QueryRowsBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    predicate: predicateSchema.optional(),
+    sort: sortSpecSchema.optional().describe('Ordered table-row sort specification.'),
+    limit: z
+      .number({ error: 'Limit must be a number' })
+      .int('Limit must be an integer')
+      .min(0, 'Limit must be at least 0 (use 0 for an unbounded query)')
+      .max(
+        V2_MAX_ROW_LIMIT,
+        `Limit cannot exceed ${V2_MAX_ROW_LIMIT}; use limit=0 for a full result or create an export resource for large datasets`
+      )
+      .optional()
+      .describe('Maximum rows to return; zero requests an unbounded result.'),
+    cursor: z
+      .string()
+      .min(1, 'cursor must be a non-empty token')
+      .optional()
+      .describe('Opaque cursor returned by the previous query page.'),
+  })
+  .strict()
 export type V2QueryRowsBody = z.input<typeof v2QueryRowsBodySchema>
+
+/**
+ * Match count for a filtered read: the same `predicate` grammar as
+ * {@link v2QueryRowsBodySchema}, with the paging controls dropped because a
+ * count has no page. Omitting `predicate` counts the whole table, which is also
+ * what `rowCount` on the table resource reports.
+ */
+export const v2QueryRowsCountBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    predicate: predicateSchema.optional(),
+  })
+  .strict()
+export type V2QueryRowsCountBody = z.input<typeof v2QueryRowsCountBodySchema>
+
+/** Number of rows matching a predicate across the whole table, not one page. */
+export const v2QueryRowsCountDataSchema = z
+  .object({
+    totalCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Number of rows matching the predicate across the entire table.'),
+  })
+  .meta({
+    id: 'V2QueryRowsCountData',
+    title: 'Query rows count data',
+    description: 'Total number of table rows matching a predicate.',
+  })
+export type V2QueryRowsCountData = z.output<typeof v2QueryRowsCountDataSchema>
 
 /**
  * Rich filtered/sorted row read with cursor pagination — the v2 read surface
@@ -725,6 +783,27 @@ export const v2QueryRowsContract = defineRouteContract({
 })
 
 /**
+ * How many rows a predicate matches. The cursor-paged reads deliberately carry
+ * no total — `{ data, nextCursor }` has nowhere to put one and computing a COUNT
+ * on every page is a cost a paging caller has not asked for — so the count is
+ * its own single-purpose read. `rowCount` on the table resource answers the
+ * unfiltered question; this answers the filtered one.
+ *
+ * POST for the same reason `POST /query` is a POST: the predicate tree is a
+ * structured body, not a querystring dialect.
+ */
+export const v2QueryRowsCountContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/tables/[tableId]/query/count',
+  params: tableIdParamsSchema,
+  body: v2QueryRowsCountBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2QueryRowsCountDataSchema),
+  },
+})
+
+/**
  * Single contract for `POST /rows` — the body is the single|batch union so the
  * route can dispatch in one `parseRequest`, and the response is the matching
  * union (`{ data: <row> }` for a single insert, `{ data: { rows,
@@ -735,18 +814,21 @@ export const v2InsertTableRowBodySchema = insertTableRowBodyBaseSchema
   .extend({
     data: v2RowDataSchema.describe('Row cells keyed by column name.'),
   })
+  .strict()
   .refine(...rowAnchorMutexRefine)
 
-export const v2BatchInsertTableRowsBodySchema = v1BatchInsertTableRowsBodySchema.extend({
-  rows: z
-    .array(v2RowDataSchema)
-    .min(1, 'At least one row is required')
-    .max(
-      TABLE_LIMITS.MAX_BATCH_INSERT_SIZE,
-      `Cannot insert more than ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} rows per batch`
-    )
-    .describe('Rows to insert, with cells keyed by column name.'),
-})
+export const v2BatchInsertTableRowsBodySchema = v1BatchInsertTableRowsBodySchema
+  .extend({
+    rows: z
+      .array(v2RowDataSchema)
+      .min(1, 'At least one row is required')
+      .max(
+        TABLE_LIMITS.MAX_BATCH_INSERT_SIZE,
+        `Cannot insert more than ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE} rows per batch`
+      )
+      .describe('Rows to insert, with cells keyed by column name.'),
+  })
+  .strict()
 
 export const v2CreateTableRowsBodySchema = z.union([
   v2BatchInsertTableRowsBodySchema,
@@ -771,6 +853,7 @@ export const v2UpdateRowsByPredicateBodySchema = updateRowsByFilterBodySchema
     filter: predicateSchema,
     data: v2RowDataSchema.describe('Row-data patch applied to every matching row.'),
   })
+  .strict()
 export type V2UpdateRowsByPredicateBody = z.input<typeof v2UpdateRowsByPredicateBodySchema>
 
 /**
@@ -814,6 +897,7 @@ export const v2DeleteTableRowsBodySchema = z
       .optional()
       .describe('Explicit row identifiers to delete.'),
   })
+  .strict()
   .refine((data) => Boolean(data.filter) !== Boolean(data.rowIds), {
     message: 'Provide either filter or rowIds, but not both',
   })
@@ -835,6 +919,7 @@ export const v2UpdateTableRowBodySchema = updateTableRowBodySchema
   .extend({
     data: v2RowDataSchema.describe('Partial row-data patch keyed by column name.'),
   })
+  .strict()
 
 /**
  * Upsert body. `data` is a WHOLE-ROW value, not a patch — on the update branch
@@ -850,6 +935,7 @@ export const v2UpsertTableRowBodySchema = upsertTableRowBodySchema
       'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging PATCH /rows/{rowId}.'
     ),
   })
+  .strict()
 
 export const v2GetTableRowContract = defineRouteContract({
   method: 'GET',
@@ -900,7 +986,7 @@ export const v2UpsertTableRowContract = defineRouteContract({
  * belong to. Present so every v2 mutation carries the same scope check the rest
  * of the surface applies through `resolveWorkspaceScope`.
  */
-export const v2WorkspaceScopedBodySchema = z.object({ workspaceId: workspaceIdSchema })
+export const v2WorkspaceScopedBodySchema = z.object({ workspaceId: workspaceIdSchema }).strict()
 export type V2WorkspaceScopedBody = z.input<typeof v2WorkspaceScopedBodySchema>
 
 const v2TableViewPredicateOutputSchema = z
@@ -989,11 +1075,18 @@ export const v2ListTableViewsContract = defineRouteContract({
   },
 })
 
+/** First-party view bodies narrowed to `.strict()` for the public surface. */
+export const v2CreateTableViewBodySchema = createTableViewBodySchema.strict()
+export type V2CreateTableViewBody = z.input<typeof v2CreateTableViewBodySchema>
+
+export const v2UpdateTableViewBodySchema = updateTableViewBodySchema.strict()
+export type V2UpdateTableViewBody = z.input<typeof v2UpdateTableViewBodySchema>
+
 export const v2CreateTableViewContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/views',
   params: tableIdParamsSchema,
-  body: createTableViewBodySchema,
+  body: v2CreateTableViewBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2ApiViewSchema),
@@ -1016,7 +1109,7 @@ export const v2UpdateTableViewContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/views/[viewId]',
   params: tableViewParamsSchema,
-  body: updateTableViewBodySchema,
+  body: v2UpdateTableViewBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2ApiViewSchema),
@@ -1266,6 +1359,7 @@ export const v2DeleteWorkflowGroupContract = defineRouteContract({
  */
 export const v2RunColumnBodySchema = runColumnBodyBaseSchema
   .extend({ filter: predicateSchema.optional() })
+  .strict()
   .refine(...runColumnScopeMutexRefine)
   .refine(...runColumnExcludeMutexRefine)
 export type V2RunColumnBody = z.input<typeof v2RunColumnBodySchema>
@@ -1331,15 +1425,17 @@ export const v2RunRowEnrichmentContract = defineRouteContract({
  * by the same predicate/sort grammar as `POST /query`. POST because the
  * predicate tree is a structured body, not a querystring dialect.
  */
-export const v2FindRowsBodySchema = z.object({
-  workspaceId: workspaceIdSchema,
-  q: z
-    .string()
-    .min(1, 'q must be a non-empty search string')
-    .describe('Case-insensitive cell substring to find.'),
-  predicate: predicateSchema.optional(),
-  sort: sortSpecSchema.optional().describe('Ordered table-row sort specification.'),
-})
+export const v2FindRowsBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    q: z
+      .string()
+      .min(1, 'q must be a non-empty search string')
+      .describe('Case-insensitive cell substring to find.'),
+    predicate: predicateSchema.optional(),
+    sort: sortSpecSchema.optional().describe('Ordered table-row sort specification.'),
+  })
+  .strict()
 export type V2FindRowsBody = z.input<typeof v2FindRowsBodySchema>
 
 /**
@@ -1700,11 +1796,15 @@ export const v2TableExportSchema = z
   })
 export type V2TableExport = z.output<typeof v2TableExportSchema>
 
+/** First-party export body narrowed to `.strict()` for the public surface. */
+export const v2CreateTableExportBodySchema = exportTableAsyncBodySchema.strict()
+export type V2CreateTableExportBody = z.input<typeof v2CreateTableExportBodySchema>
+
 export const v2CreateTableExportContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/exports',
   params: tableIdParamsSchema,
-  body: exportTableAsyncBodySchema,
+  body: v2CreateTableExportBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema), status: 201 },
 })
 
@@ -1750,6 +1850,7 @@ export const v2TableExportDownloadContract = defineRouteContract({
  */
 export const v2CancelTableRunsBodySchema = cancelTableRunsBodyBaseSchema
   .extend({ filter: predicateSchema.optional() })
+  .strict()
   .superRefine((value, ctx) => {
     for (const issue of refineCancelTableRunsScope(value)) {
       ctx.addIssue({ code: 'custom', ...issue })
