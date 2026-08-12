@@ -88,9 +88,11 @@ export const v2SkillParamsSchema = z.object({
 })
 export type V2SkillParams = z.output<typeof v2SkillParamsSchema>
 
-export const v2SkillWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the skill.'),
-})
+export const v2SkillWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the skill.'),
+  })
+  .strict()
 export type V2SkillWorkspaceQuery = z.output<typeof v2SkillWorkspaceQuerySchema>
 
 export const v2SkillSortFields = ['name', 'createdAt', 'updatedAt'] as const

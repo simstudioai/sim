@@ -162,6 +162,57 @@ describe('MCP server application use cases', () => {
     expect(mocks.effects).not.toHaveBeenCalled()
   })
 
+  /**
+   * A server id is derived from the workspace and endpoint URL, so re-registering
+   * a URL that was soft-deleted reuses the same row. That is a create from the
+   * caller's side — the resource they asked for did not exist a moment ago — so it
+   * must succeed with the create's 201 rather than collide with its own tombstone.
+   * The conflict guard therefore keys on the id state's `deleted` flag, not on
+   * whether the writer reported an update.
+   */
+  it('creates over a soft-deleted registration rather than colliding with its tombstone', async () => {
+    mocks.idState.mockResolvedValueOnce({ deleted: true })
+    mocks.create.mockResolvedValueOnce({
+      success: true,
+      serverId: server.id,
+      server,
+      updated: true,
+    })
+
+    const result = await createMcpServerUseCase.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: workspace.workspaceId, name: server.name, url: server.url },
+    })
+
+    expect(result.server.id).toBe(server.id)
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({ existingServerBehavior: 'reject' })
+    )
+    expect(events).toEqual(['audit', 'effects'])
+  })
+
+  /**
+   * The pre-check reads the id state outside the write, so two concurrent creates
+   * of the same URL can both pass it. The unique index is what actually decides,
+   * and its `23505` must surface as the same conflict the pre-check reports —
+   * otherwise the loser of the race gets a 500 for a condition the API defines.
+   */
+  it('reports the unique-index loser of a concurrent create as a conflict', async () => {
+    mocks.create.mockRejectedValueOnce(
+      Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' })
+    )
+
+    await expect(
+      createMcpServerUseCase.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { workspaceId: workspace.workspaceId, name: server.name, url: server.url },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+
+    expect(mocks.audit).not.toHaveBeenCalled()
+    expect(mocks.effects).not.toHaveBeenCalled()
+  })
+
   it('rejects workspace-key tool discovery before protected loading', async () => {
     await expect(
       discoverMcpToolsUseCase.execute({

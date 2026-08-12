@@ -3019,10 +3019,6 @@
                   "type": "string",
                   "description": "Name of a required argument."
                 }
-              },
-              "description": {
-                "description": "Description of the argument object.",
-                "type": "string"
               }
             },
             "required": ["type"],

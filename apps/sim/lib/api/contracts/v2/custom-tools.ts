@@ -110,9 +110,11 @@ export const v2CustomToolParamsSchema = z.object({
 })
 export type V2CustomToolParams = z.output<typeof v2CustomToolParamsSchema>
 
-export const v2CustomToolWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the custom tool.'),
-})
+export const v2CustomToolWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the custom tool.'),
+  })
+  .strict()
 export type V2CustomToolWorkspaceQuery = z.output<typeof v2CustomToolWorkspaceQuerySchema>
 
 /** A custom tool's natural name field is `title`, so that is what `search` matches. */

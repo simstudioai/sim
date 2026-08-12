@@ -31,9 +31,9 @@ import {
   type McpCacheStorageAdapter,
 } from '@/lib/mcp/storage'
 import {
-  McpConnectionError,
   McpOauthAuthorizationRequiredError,
   type McpServerConfig,
+  McpServerCooldownError,
   type McpServerStatusConfig,
   type McpServerSummary,
   type McpTool,
@@ -1060,10 +1060,7 @@ class McpService {
 
     if (refresh !== 'force' && (await this.isServerUnhealthy(workspaceId, serverId))) {
       logger.info(`[${requestId}] Skipping recently-failed server ${serverId} (negative-cache)`)
-      throw new McpConnectionError(
-        'Server recently failed and is in cooldown — try again shortly.',
-        serverId
-      )
+      throw new McpServerCooldownError(serverId)
     }
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {

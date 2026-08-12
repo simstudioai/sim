@@ -180,6 +180,50 @@ describe('/api/v2/skills', () => {
   })
 
   /**
+   * `search` and `sortOrder` change the sequence the offset counts positions in
+   * just as `sortBy` does, so both are stamped into the scope and both must
+   * invalidate a replayed cursor.
+   */
+  it.each([
+    ['search', 'search=other'],
+    ['sortOrder', 'sortOrder=asc'],
+  ])('rejects a cursor replayed under a different %s', async (_field, param) => {
+    const cursor = Buffer.from(JSON.stringify({ scope: SCOPE(), offset: 2 })).toString('base64')
+
+    const response = await GET(
+      request(
+        'GET',
+        `/api/v2/skills?workspaceId=${WORKSPACE_ID}&${param}&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `limit` is deliberately absent from the scope: it selects how much of the
+   * sequence to return, not what the sequence is. Stamping it would strand every
+   * cursor the moment a caller changed page size, for no correctness gain.
+   */
+  it('resumes a cursor minted under a different page size', async () => {
+    mocks.list.mockResolvedValueOnce({ skills: [skill], hasMore: false, offset: 2, limit: 5 })
+    const cursor = Buffer.from(JSON.stringify({ scope: SCOPE(), offset: 2 })).toString('base64')
+
+    const response = await GET(
+      request(
+        'GET',
+        `/api/v2/skills?workspaceId=${WORKSPACE_ID}&limit=5&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ limit: 5, offset: 2 }) })
+    )
+  })
+
+  /**
    * The guard itself is unit-tested in `definition.test.ts`; this proves the
    * pairing end-to-end, on a real v2 read that used to reply 500 to a plain HEAD.
    */

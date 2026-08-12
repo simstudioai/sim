@@ -21,12 +21,12 @@ import {
   FULL_SET_LIST,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
+  RESOURCE_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
-  WORKSPACE_ERRORS,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   v2DeleteSecretContract,
@@ -209,7 +209,7 @@ const routes = [
       summary: 'Get Workspace',
       description:
         'Return public metadata for one accessible workspace. Governance identities, billing identities, and internal membership identifiers are intentionally omitted.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'Public workspace metadata.' },
     }),
     {
@@ -235,7 +235,7 @@ const routes = [
       summary: 'List Workspace Members',
       description:
         "List the workspace's effective members ordered by email. Explicit workspace grants and inherited organization-administrator grants are merged; internal membership and billing identities are omitted.",
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'An email-ordered page of effective workspace members.' },
     }),
     {
@@ -267,7 +267,7 @@ const routes = [
       summary: 'List MCP Servers',
       description:
         'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. Nothing caps how many servers a workspace registers, so this list is paginated: paginate with `limit` and `cursor`, stopping when `nextCursor` is null. `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh` describe the most recent tool discovery and stay at their registration defaults until one runs — call `GET /api/v2/mcp-servers/{id}/tools` to run it.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'MCP servers registered in the workspace.' },
     }),
     {
@@ -293,7 +293,7 @@ const routes = [
       summary: 'Create MCP Server',
       description:
         'Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only. `transport`, `timeout`, `retries`, and `enabled` are applied server-side when omitted; the effective values are in the response.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The MCP server was registered.' },
     }),
     {
@@ -328,7 +328,7 @@ const routes = [
       summary: 'Get MCP Server',
       description:
         'Fetch one MCP server by identifier. Request-header values and OAuth client secrets are never returned.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The MCP server.' },
     }),
     {
@@ -360,7 +360,7 @@ const routes = [
       summary: 'Update MCP Server',
       description:
         'Update the supplied MCP server fields. The URL is immutable because it determines server identity; delete and recreate the server to change endpoints. Two fields do not follow the omitted-fields-are-retained rule. `headers` is replaced wholesale rather than merged: sending it drops every stored header it does not repeat, and the only way to keep a header is to resend it. Changing `oauthClientId`, or sending `oauthClientSecret` as null or a new value, revokes the stored OAuth grant and forces reauthorization; switching away from OAuth authentication revokes it too.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The updated MCP server.' },
     }),
     {
@@ -393,7 +393,7 @@ const routes = [
       summary: 'Delete MCP Server',
       description:
         "Remove an MCP server and revoke its OAuth tokens. Workflows retain blocks that referenced the server's tools, but those tools can no longer be called.",
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The MCP server was deleted.' },
     }),
     {
@@ -456,7 +456,7 @@ const routes = [
       summary: 'List Skills',
       description:
         'List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'Skills available in the workspace.' },
     }),
     {
@@ -482,7 +482,7 @@ const routes = [
       summary: 'Create Skill',
       description:
         'Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. Note that a workspace API key may create a skill but may not later update or delete it.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The skill was created.' },
     }),
     {
@@ -516,7 +516,7 @@ const routes = [
       summary: 'Get Skill',
       description:
         'Fetch one workspace or built-in skill, including its full content. Built-in skills are marked read-only.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The skill.' },
     }),
     {
@@ -547,7 +547,7 @@ const routes = [
       operationId: 'updateSkill',
       summary: 'Update Skill',
       description: `Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated skill.' },
     }),
     {
@@ -579,7 +579,7 @@ const routes = [
       operationId: 'deleteSkill',
       summary: 'Delete Skill',
       description: `Delete a workspace skill. Built-in skills are read-only and cannot be deleted. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The skill was deleted.' },
     }),
     {
@@ -611,7 +611,7 @@ const routes = [
       summary: 'List Custom Tools',
       description:
         'List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'Custom tools defined in the workspace.' },
     }),
     {
@@ -637,7 +637,7 @@ const routes = [
       summary: 'Create Custom Tool',
       description:
         'Create a code-backed custom tool in a workspace. Its title must be unique because tools resolve by title at call time.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The custom tool was created.' },
     }),
     {
@@ -670,7 +670,7 @@ const routes = [
       operationId: 'getCustomTool',
       summary: 'Get Custom Tool',
       description: 'Fetch one custom tool by identifier, scoped to its workspace.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The custom tool.' },
     }),
     {
@@ -702,7 +702,7 @@ const routes = [
       summary: 'Update Custom Tool',
       description:
         'Update the supplied custom tool fields. Omitted fields retain their stored values, and titles must remain unique within the workspace.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated custom tool.' },
     }),
     {
@@ -735,7 +735,7 @@ const routes = [
       summary: 'Delete Custom Tool',
       description:
         'Delete a custom tool. Agent blocks retain their configuration but can no longer call the deleted tool.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The custom tool was deleted.' },
     }),
     {
@@ -767,7 +767,7 @@ const routes = [
       summary: 'List Credentials',
       description:
         'List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'Credentials visible to the caller.' },
     }),
     {
@@ -792,7 +792,7 @@ const routes = [
       operationId: 'listSecrets',
       summary: 'List Secrets',
       description: `List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned. Paginate with \`limit\` and \`cursor\`, stopping when \`nextCursor\` is null. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'Secret metadata visible to the caller.' },
     }),
     {
@@ -817,7 +817,7 @@ const routes = [
       operationId: 'setSecret',
       summary: 'Set Secret',
       description: `Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: {
         byStatus: {
           200: { description: 'The existing secret value was replaced.' },
@@ -860,7 +860,7 @@ const routes = [
       operationId: 'deleteSecret',
       summary: 'Delete Secret',
       description: `Delete a workspace or caller-owned personal secret without reading or returning its stored value. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The secret was deleted.' },
     }),
     {
