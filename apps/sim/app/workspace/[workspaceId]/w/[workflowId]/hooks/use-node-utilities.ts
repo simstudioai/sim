@@ -40,9 +40,8 @@ export function useNodeUtilities(blocks: Record<string, any>) {
    * because measurements are not persisted. Estimating from state removes the
    * gap rather than waiting it out: both passes now produce the same number.
    */
-  const getBlockDimensions = useCallback(
-    (blockId: string): { width: number; height: number } => {
-      const block = blocks[blockId]
+  const dimensionsOfBlock = useCallback(
+    (block: any): { width: number; height: number } => {
       if (!block) {
         return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: BLOCK_DIMENSIONS.MIN_HEIGHT }
       }
@@ -66,7 +65,12 @@ export function useNodeUtilities(blocks: Record<string, any>) {
         height: block.type === 'note' && block.height ? block.height : metrics.height,
       }
     },
-    [blocks, isContainerType]
+    [isContainerType]
+  )
+
+  const getBlockDimensions = useCallback(
+    (blockId: string): { width: number; height: number } => dimensionsOfBlock(blocks[blockId]),
+    [blocks, dimensionsOfBlock]
   )
 
   /**
@@ -298,14 +302,21 @@ export function useNodeUtilities(blocks: Record<string, any>) {
         .map((childId) => {
           const child = currentBlocks[childId]
           if (!child?.position) return null
-          const { width, height } = getBlockDimensions(childId)
+          /* Sized from `currentBlocks`, the same snapshot the position came
+             from. Reading dimensions off the hook's render snapshot instead
+             mixed two ages of the same store: `resizeLoopNodes` walks
+             deepest-first, so an inner container resized earlier in the pass
+             was already updated here but still old there, and the parent sized
+             against a stale inner box — leaving nested containers to converge
+             over a second pass. */
+          const { width, height } = dimensionsOfBlock(child)
           return { x: child.position.x, y: child.position.y, width, height }
         })
         .filter((position): position is NonNullable<typeof position> => position !== null)
 
       return calculateContainerDimensions(childPositions)
     },
-    [getBlockDimensions]
+    [dimensionsOfBlock]
   )
 
   /**
