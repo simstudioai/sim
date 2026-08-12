@@ -455,6 +455,12 @@ import {
 } from '@/triggers/webflow'
 import { whatsappWebhookTrigger } from '@/triggers/whatsapp'
 import {
+  windchillCustomDocumentEventTrigger,
+  windchillDocumentAttributesChangedTrigger,
+  windchillDocumentIdentityChangedTrigger,
+  windchillDocumentLifecycleStateChangedTrigger,
+} from '@/triggers/windchill'
+import {
   zendeskTicketCommentAddedTrigger,
   zendeskTicketCreatedTrigger,
   zendeskTicketPriorityChangedTrigger,
@@ -771,6 +777,10 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   tiktok_post_publish_complete: tiktokPostPublishCompleteTrigger,
   tiktok_post_publish_failed: tiktokPostPublishFailedTrigger,
   typeform_webhook: typeformWebhookTrigger,
+  windchill_document_attributes_changed: windchillDocumentAttributesChangedTrigger,
+  windchill_document_identity_changed: windchillDocumentIdentityChangedTrigger,
+  windchill_document_lifecycle_state_changed: windchillDocumentLifecycleStateChangedTrigger,
+  windchill_custom_document_event: windchillCustomDocumentEventTrigger,
   whatsapp_webhook: whatsappWebhookTrigger,
   google_forms_webhook: googleFormsWebhookTrigger,
   twilio_voice_webhook: twilioVoiceWebhookTrigger,
