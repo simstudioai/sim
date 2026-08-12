@@ -983,7 +983,7 @@ export const v2ResumeWorkflowContract = defineRouteContract({
 })
 
 const RUN_STATUS_DESCRIPTION =
-  'Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` means the run is not executing and is waiting to be resumed: either held at a human-in-the-loop pause point, or left paused because a resume attempt did not run to completion. This field does not distinguish the two. On the single-run response a non-null `paused.automaticResumeWaitingReason` identifies a run waiting on a scheduled automatic retry, but it is cleared once retries are disabled, exhausted, or the failure is classified non-retryable — so its absence does not imply a human-input pause.'
+  'Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` means the run is not executing and is waiting to be resumed: either held at a human-in-the-loop pause point, or left paused because a resume attempt did not run to completion. The status alone does not say which. On the single-run response `paused.automaticResumeWaitingReason` distinguishes them: it is recorded whenever a resume attempt fails and cleared once a resume succeeds, so a null value means the run is waiting on human input. When the failure is not retryable or the automatic retries are exhausted, the reason is prefixed `Automatic resume requires manual intervention: `. Run-list items carry no `paused` object, so the two cases are indistinguishable there.'
 
 /**
  * The list projection passes `workflow_execution_logs.status` through except where it
