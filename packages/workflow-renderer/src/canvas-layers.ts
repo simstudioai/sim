@@ -37,7 +37,7 @@ const EDGE_Z_DEPTH_MAX = 18
  * own endpoints; a line belongs behind cards, knobs and the action-bar swell
  * whether or not it is highlighted.
  */
-export const EDGE_Z_HIGHLIGHTED = 19
+const EDGE_Z_HIGHLIGHTED = 19
 export const EDGE_Z_MAX = 20
 export const BLOCK_Z_BASE = 21
 export const CONTAINER_CHILD_Z_BASE = 1000

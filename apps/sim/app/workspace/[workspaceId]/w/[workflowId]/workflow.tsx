@@ -4529,7 +4529,12 @@ const WorkflowContent = React.memo(
           target: CONNECTION_BLOCK_SELECTOR_NODE_ID,
           targetHandle: 'target',
           type: 'workflowEdge',
-          zIndex: getEdgeZIndex(sourceParentNode ? (sourceParentNode.zIndex ?? 0) : undefined),
+          /* Rendered highlighted (`isConnectedToSelection` below), so it is
+             elevated like any other highlighted edge — the preview line is the
+             one the user is currently drawing. */
+          zIndex: getEdgeZIndex(sourceParentNode ? (sourceParentNode.zIndex ?? 0) : undefined, {
+            isHighlighted: true,
+          }),
           focusable: false,
           deletable: false,
           reconnectable: false,
