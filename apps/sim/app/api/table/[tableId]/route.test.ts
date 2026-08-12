@@ -55,7 +55,7 @@ vi.mock('@/app/api/table/utils', () => ({
   tableLockErrorResponse: () => null,
 }))
 
-import { PATCH } from '@/app/api/table/[tableId]/route'
+import { GET, PATCH } from '@/app/api/table/[tableId]/route'
 
 const TABLE = {
   id: 'tbl_1',
@@ -160,5 +160,38 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
     expect(response.status).toBe(400)
     expect(mockMoveTableToFolder).not.toHaveBeenCalled()
     expect(mockRenameTable).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Pins the auth mode this route's executor caller is built against.
+ *
+ * `fetchTableSchema` in `@/tools/schema-enrichers` reaches this route with a legacy
+ * `type: 'internal'` token from the deprecated `buildAuthHeaders`. That token is only
+ * accepted while GET authenticates through `checkSessionOrInternalAuth`; the delegation
+ * policy the sibling table routes use rejects it outright. Migrating this route without
+ * moving that caller to `buildExecutorDelegationHeaders` in the same change breaks every
+ * table tool attached to an Agent block, so this assertion fails first and says so.
+ */
+describe('GET /api/table/[tableId] executor auth pairing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+      authType: 'internal_jwt',
+    })
+    mockCheckAccess.mockResolvedValue({ ok: true, table: TABLE })
+    mockGetLimits.mockResolvedValue({ maxRowsPerTable: 1000 })
+  })
+
+  it('authenticates a legacy internal token, which is what fetchTableSchema sends', async () => {
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/table/tbl_1?workspaceId=workspace-1'),
+      routeContext
+    )
+
+    expect(response.status).toBe(200)
+    expect(hybridAuthMockFns.mockCheckSessionOrInternalAuth).toHaveBeenCalled()
   })
 })
