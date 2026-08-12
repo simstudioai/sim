@@ -11,6 +11,7 @@ import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
+import { HttpError } from '@/lib/core/utils/http-error'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
@@ -678,6 +679,32 @@ export const UNKNOWN_CURSOR_MESSAGE =
   'cursor does not identify a usage event. Restart pagination without a cursor; a cursor is only valid against the ledger it was issued from.'
 
 /**
+ * The rejection for an unresolvable `cursor`, classified for both kinds of caller
+ * this shared ledger has.
+ *
+ * The v2 route reads the classification off the `cause` chain
+ * (`asOrchestrationError` walks it) and renders the v2 `BAD_REQUEST` envelope. The
+ * session-only internal route (`GET /api/users/me/usage-logs`) is a raw
+ * `withRouteHandler` with no error policy, and its `readTypedError` matches
+ * `instanceof HttpError` only — so an `OrchestrationError` alone would have made a
+ * hand-typed `?cursor=` a 500 there. Being both at once is what keeps every surface
+ * on 400 without either one having to learn about the other.
+ *
+ * `message` is the caller-facing constant above, so forwarding it verbatim (which is
+ * what `withRouteHandler` does for an `HttpError`) exposes nothing internal.
+ */
+export class UnknownUsageCursorError extends HttpError {
+  readonly statusCode = 400
+
+  constructor() {
+    super(UNKNOWN_CURSOR_MESSAGE, {
+      cause: new OrchestrationError('validation', UNKNOWN_CURSOR_MESSAGE),
+    })
+    this.name = 'UnknownUsageCursorError'
+  }
+}
+
+/**
  * Options for querying usage logs
  */
 export interface GetUsageLogsOptions {
@@ -781,8 +808,7 @@ async function getUsageLogs(
         resolvedCursorCreatedAt = cursorLog[0]?.createdAt
       }
 
-      if (!resolvedCursorCreatedAt)
-        throw new OrchestrationError('validation', UNKNOWN_CURSOR_MESSAGE)
+      if (!resolvedCursorCreatedAt) throw new UnknownUsageCursorError()
 
       const cursorCondition = or(
         lt(usageLog.createdAt, resolvedCursorCreatedAt),

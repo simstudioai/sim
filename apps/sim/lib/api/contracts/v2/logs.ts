@@ -220,13 +220,13 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     startDate: z
       .string()
       .datetime({
-        message: 'startDate must be a UTC ISO 8601 timestamp, e.g. 2026-08-06T00:00:00Z',
+        error: 'startDate must be a UTC ISO 8601 timestamp, e.g. 2026-08-06T00:00:00Z',
       })
       .describe(V2_LOG_START_DATE_DESCRIPTION)
       .optional(),
     endDate: z
       .string()
-      .datetime({ message: 'endDate must be a UTC ISO 8601 timestamp, e.g. 2026-08-06T00:00:00Z' })
+      .datetime({ error: 'endDate must be a UTC ISO 8601 timestamp, e.g. 2026-08-06T00:00:00Z' })
       .describe(V2_LOG_END_DATE_DESCRIPTION)
       .optional(),
     runId: z
@@ -294,6 +294,23 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       }),
   })
   .strict()
+  /**
+   * The other half of the parity with the sibling run list
+   * (`v2ListWorkflowRunsQuerySchema`): agreeing on the timestamp *format* while
+   * still disagreeing on window *validity* would leave an inverted window a 400 on
+   * `/runs` and a silently empty page here — the same wrong-answer-instead-of-error
+   * shape the format check was added to remove.
+   */
+  .refine(
+    (query) =>
+      !query.startDate ||
+      !query.endDate ||
+      Date.parse(query.startDate) <= Date.parse(query.endDate),
+    {
+      error: 'startDate must be before or equal to endDate',
+      path: ['startDate'],
+    }
+  )
 
 export const v2ListLogsContract = defineRouteContract({
   method: 'GET',

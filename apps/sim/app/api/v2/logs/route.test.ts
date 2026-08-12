@@ -172,6 +172,23 @@ describe('GET /api/v2/logs', () => {
     )
   })
 
+  it('rejects an inverted window instead of answering with an empty page', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&startDate=2026-08-06T00:00:00Z&endDate=2026-08-05T00:00:00Z`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'BAD_REQUEST',
+        message: expect.stringContaining('startDate must be before or equal to endDate'),
+      },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
   it('projects typed folder errors', async () => {
     mocks.execute.mockRejectedValueOnce(new OrchestrationError('not_found', 'Folder not found'))
 

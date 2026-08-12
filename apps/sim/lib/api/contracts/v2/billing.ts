@@ -28,9 +28,12 @@ const parseableDateSchema = z
  * `.strict()` carries more weight here than on an ordinary read. `workspaceId` is
  * optional and selects *which payer* is reported, so a key Zod would otherwise strip —
  * a mis-cased `workspaceID`, or a param copied from a sibling contract — silently
- * demotes a workspace-scoped question to account scope and answers 200 with the wrong
- * payer's plan, standing, and allowance. Rejecting the unknown key turns a wrong answer
- * about money into a 400.
+ * demotes a workspace-scoped question to account scope and answers 200 about a
+ * different payer than the caller asked about. It is a wrong answer, not a cross-tenant
+ * read: `resolveBillingReadScope` still pins a workspace API key to its own workspace
+ * whatever the query says, so the reachable case is a personal key being told about its
+ * own account when it asked about a workspace. Rejecting the unknown key turns that
+ * wrong answer about money into a 400.
  */
 export const v2BillingStatusQuerySchema = z
   .object({

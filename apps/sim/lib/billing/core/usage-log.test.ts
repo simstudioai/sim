@@ -42,7 +42,10 @@ import {
   recordUsage,
   resolveCumulativeTopUp,
   UNKNOWN_CURSOR_MESSAGE,
+  UnknownUsageCursorError,
 } from '@/lib/billing/core/usage-log'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { HttpError } from '@/lib/core/utils/http-error'
 
 /**
  * Re-wires the shared db mocks (`dbChainMockFns`, backing the single shared
@@ -426,10 +429,32 @@ describe('usage-log query scopes', () => {
   it('rejects a cursor that resolves to no usage event instead of restarting at page 1', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
 
-    await expect(
-      getUserUsageLogs('user-1', { cursor: 'log-from-another-ledger', includeSummary: false })
-    ).rejects.toMatchObject({
-      name: 'OrchestrationError',
+    const rejection = await getUserUsageLogs('user-1', {
+      cursor: 'log-from-another-ledger',
+      includeSummary: false,
+    }).catch((error: unknown) => error)
+
+    expect(rejection).toBeInstanceOf(UnknownUsageCursorError)
+    expect((rejection as Error).message).toBe(UNKNOWN_CURSOR_MESSAGE)
+  })
+
+  /**
+   * Both projections of the same throw: the v2 route reads the classification off
+   * the `cause` chain, the session-only internal route reads `statusCode` off the
+   * `HttpError`. Asserting them here is what lets the route suites stay on the
+   * surface behaviour.
+   */
+  it('classifies the unresolvable-cursor rejection for both surfaces', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    const rejection = await getUserUsageLogs('user-1', {
+      cursor: 'log-from-another-ledger',
+      includeSummary: false,
+    }).catch((error: unknown) => error)
+
+    expect(rejection).toBeInstanceOf(HttpError)
+    expect((rejection as HttpError).statusCode).toBe(400)
+    expect(asOrchestrationError(rejection)).toMatchObject({
       code: 'validation',
       message: UNKNOWN_CURSOR_MESSAGE,
     })
@@ -458,6 +483,8 @@ describe('usage-log query scopes', () => {
       type: 'and',
       conditions: [{ type: 'eq', left: 'userId', right: 'user-1' }, { type: 'or' }],
     })
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(26)
   })
 
   it('keeps personal queries actor-scoped with an optional workspace filter', async () => {
