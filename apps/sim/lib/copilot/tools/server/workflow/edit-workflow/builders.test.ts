@@ -1,11 +1,13 @@
 /**
  * @vitest-environment node
  */
+import { isValidUuid } from '@sim/utils/id'
 import { describe, expect, it, vi } from 'vitest'
 import {
   applyTriggerConfigToBlockSubblocks,
   createBlockFromParams,
   filterDisallowedTools,
+  normalizeBlockIdsInOperations,
   normalizeSubblockValue,
 } from '@/lib/copilot/tools/server/workflow/edit-workflow/builders'
 
@@ -243,5 +245,82 @@ describe('applyTriggerConfigToBlockSubblocks', () => {
       type: 'channel-selector',
       value: 'C-new',
     })
+  })
+})
+
+describe('normalizeBlockIdsInOperations', () => {
+  it('mints UUIDs for nested child ids so a model handle never becomes the global block primary key', () => {
+    const { normalizedOperations, idMapping } = normalizeBlockIdsInOperations([
+      {
+        operation_type: 'add',
+        block_id: 'pollLoop',
+        params: {
+          type: 'loop',
+          nestedNodes: {
+            waitPoll: { type: 'wait' },
+            setStatus: { type: 'variables' },
+          },
+        },
+      },
+    ] as any)
+
+    const nestedNodes = (normalizedOperations[0] as any).params.nestedNodes
+    const childIds = Object.keys(nestedNodes)
+
+    expect(childIds).toHaveLength(2)
+    for (const childId of childIds) {
+      expect(isValidUuid(childId)).toBe(true)
+    }
+    expect(childIds).not.toContain('waitPoll')
+    expect(childIds).not.toContain('setStatus')
+    expect(idMapping.get('waitPoll')).toBe(childIds[0])
+    expect(idMapping.get('setStatus')).toBe(childIds[1])
+  })
+
+  it('remaps children of nested containers and the sibling references they carry', () => {
+    const { normalizedOperations, idMapping } = normalizeBlockIdsInOperations([
+      {
+        operation_type: 'add',
+        block_id: 'outerLoop',
+        params: {
+          type: 'loop',
+          nestedNodes: {
+            innerLoop: {
+              type: 'parallel',
+              nestedNodes: {
+                deepChild: { type: 'agent' },
+              },
+            },
+            sibling: {
+              type: 'function',
+              connections: { success: 'deepChild' },
+            },
+          },
+        },
+      },
+    ] as any)
+
+    const outer = (normalizedOperations[0] as any).params.nestedNodes
+    const innerId = idMapping.get('innerLoop') as string
+    const deepId = idMapping.get('deepChild') as string
+    const siblingId = idMapping.get('sibling') as string
+
+    expect(isValidUuid(deepId)).toBe(true)
+    expect(Object.keys(outer[innerId].nestedNodes)).toEqual([deepId])
+    expect(outer[siblingId].connections.success).toBe(deepId)
+  })
+
+  it('leaves ids that are already UUIDs untouched', () => {
+    const existing = '11111111-2222-4333-8444-555555555555'
+    const { normalizedOperations, idMapping } = normalizeBlockIdsInOperations([
+      {
+        operation_type: 'add',
+        block_id: existing,
+        params: { type: 'loop', nestedNodes: {} },
+      },
+    ] as any)
+
+    expect(idMapping.size).toBe(0)
+    expect((normalizedOperations[0] as any).block_id).toBe(existing)
   })
 })
