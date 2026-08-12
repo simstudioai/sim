@@ -267,6 +267,9 @@ Get metadata (and optionally columns/items) for a SharePoint list
 |   ↳ `lastModifiedDateTime` | string | When the list was last modified |
 |   ↳ `list` | object | List properties \(e.g., template\) |
 |   ↳ `columns` | array | List column definitions |
+|   ↳ `items` | array | List items \(with fields when expanded\) |
+|     ↳ `id` | string | Item ID |
+|     ↳ `fields` | object | Field values for the item |
 | `lists` | array | All lists in the site when no listId/title provided |
 | `items` | array | List items with expanded fields when reading list items |
 |   ↳ `id` | string | Item ID |
