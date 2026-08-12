@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-11",
+  "updatedAt": "2026-08-12",
   "integrations": [
     {
       "type": "onepassword",
@@ -21939,6 +21939,129 @@
       "category": "tools",
       "integrationType": "search",
       "tags": ["knowledge-base"]
+    },
+    {
+      "type": "windchill",
+      "slug": "windchill",
+      "name": "Windchill",
+      "description": "Manage WT.Document objects and content in PTC Windchill",
+      "longDescription": "Integrate PTC Windchill document management into your workflow. Read and update WT.Document metadata, perform version and lifecycle actions, and transfer primary content and attachments.",
+      "bgColor": "#4B5563",
+      "iconName": "DocumentIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/windchill",
+      "operations": [
+        {
+          "name": "List Documents",
+          "description": ""
+        },
+        {
+          "name": "Get Document",
+          "description": ""
+        },
+        {
+          "name": "Get Document Structure",
+          "description": ""
+        },
+        {
+          "name": "Get Valid State Transitions",
+          "description": ""
+        },
+        {
+          "name": "Get Primary Content",
+          "description": ""
+        },
+        {
+          "name": "List Attachments",
+          "description": ""
+        },
+        {
+          "name": "Create Document",
+          "description": ""
+        },
+        {
+          "name": "Create Documents",
+          "description": ""
+        },
+        {
+          "name": "Update Document",
+          "description": ""
+        },
+        {
+          "name": "Update Documents",
+          "description": ""
+        },
+        {
+          "name": "Delete Document",
+          "description": ""
+        },
+        {
+          "name": "Delete Documents",
+          "description": ""
+        },
+        {
+          "name": "Check Out Document",
+          "description": ""
+        },
+        {
+          "name": "Check Out Documents",
+          "description": ""
+        },
+        {
+          "name": "Check In Document",
+          "description": ""
+        },
+        {
+          "name": "Check In Documents",
+          "description": ""
+        },
+        {
+          "name": "Undo Check Out Document",
+          "description": ""
+        },
+        {
+          "name": "Undo Check Out Documents",
+          "description": ""
+        },
+        {
+          "name": "Revise Document",
+          "description": ""
+        },
+        {
+          "name": "Revise Documents",
+          "description": ""
+        },
+        {
+          "name": "Set Lifecycle State",
+          "description": ""
+        },
+        {
+          "name": "Update Document Security Labels",
+          "description": ""
+        },
+        {
+          "name": "Download Primary Content",
+          "description": ""
+        },
+        {
+          "name": "Upload Primary Content",
+          "description": ""
+        },
+        {
+          "name": "Download Attachment",
+          "description": ""
+        },
+        {
+          "name": "Upload Attachments",
+          "description": ""
+        }
+      ],
+      "operationCount": 26,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["content-management", "document-processing"]
     },
     {
       "type": "wiza",

@@ -1,0 +1,669 @@
+---
+title: Windchill
+description: Manage WT.Document objects and content in PTC Windchill
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="windchill"
+  color="#4B5563"
+/>
+
+## Usage Instructions
+
+Integrate PTC Windchill document management into your workflow. Read and update WT.Document metadata, perform version and lifecycle actions, and transfer primary content and attachments.
+
+
+
+## Actions
+
+### Windchill List Documents
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Get Document
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Get Document Structure
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Get Valid State Transitions
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Get Primary Content
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill List Attachments
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Create Document
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Create Documents
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Update Document
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Update Documents
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Delete Document
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Delete Documents
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Check Out Document
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Check Out Documents
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Check In Document
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Check In Documents
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Undo Check Out Document
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Undo Check Out Documents
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Revise Document
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Revise Documents
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Set Lifecycle State
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Update Document Security Labels
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Download Primary Content
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Upload Primary Content
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Download Attachment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |
+
+### Windchill Upload Attachments
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `document` | json | Windchill document |
+| `documents` | json | Windchill documents |
+| `structure` | json | Document structure links |
+| `states` | json | Valid lifecycle states |
+| `content` | json | Primary-content metadata |
+| `attachments` | json | Attachment metadata |
+| `pageInfo` | json | OData pagination information |
+| `affectedIds` | array | Affected document identifiers |
+| `uploadedFileNames` | array | Uploaded file names |
+| `file` | file | Downloaded file |
+| `fileName` | string | Downloaded file name |
+| `mimeType` | string | Downloaded content MIME type |

@@ -1,0 +1,445 @@
+/**
+ * @vitest-environment node
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { WindchillBlock, WindchillBlockMeta } from '@/blocks/blocks/windchill'
+import { WINDCHILL_OPERATIONS } from '@/tools/windchill/types'
+import {
+  buildWindchillReadUrl,
+  createBasicAuthHeader,
+  createWindchillTool,
+  encodeWindchillOid,
+  normalizeServiceRoot,
+  normalizeWindchillReadOutput,
+  resolveWindchillNextLink,
+  sanitizeWindchillError,
+  WINDCHILL_OPERATION_DEFINITIONS,
+} from '@/tools/windchill/utils'
+
+const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
+  mockSecureFetchWithValidation: vi.fn(),
+}))
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  secureFetchWithValidation: mockSecureFetchWithValidation,
+  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
+}))
+
+import {
+  createWindchillSession,
+  uploadWindchillContent,
+  windchillMutationRequest,
+} from '@/tools/windchill/utils.server'
+
+const BASE_URL = 'https://windchill.example.com/Windchill/servlet/odata/v6'
+
+function mockResponse({
+  body,
+  status = 200,
+  cookies = [],
+  contentType = 'application/json',
+}: {
+  body?: unknown
+  status?: number
+  cookies?: string[]
+  contentType?: string
+}) {
+  const headers = new Headers({ 'content-type': contentType })
+  Object.defineProperty(headers, 'getSetCookie', { value: () => cookies })
+  const text = body === undefined ? '' : JSON.stringify(body)
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: '',
+    headers,
+    body: null,
+    text: async () => text,
+    json: async () => body,
+    arrayBuffer: async () => Buffer.from(text),
+  }
+}
+
+beforeEach(() => {
+  mockSecureFetchWithValidation.mockReset()
+})
+
+describe('Windchill tools', () => {
+  it('defines and builds every registered operation', () => {
+    expect(Object.keys(WINDCHILL_OPERATION_DEFINITIONS)).toEqual([...WINDCHILL_OPERATIONS])
+
+    for (const operation of WINDCHILL_OPERATIONS) {
+      const tool = createWindchillTool(operation)
+      expect(tool.id).toBe(operation)
+      expect(tool.params.baseUrl.visibility).toBe('user-only')
+      expect(tool.params.username.visibility).toBe('user-only')
+      expect(tool.params.password.visibility).toBe('user-only')
+
+      if (WINDCHILL_OPERATION_DEFINITIONS[operation].directRead) {
+        expect(tool.request.url).toBeTypeOf('function')
+        expect(tool.request.stripAuthOnRedirect).toBe(true)
+      } else {
+        expect(tool.request.url).toBe('/api/tools/windchill')
+        expect(tool.request.internalAuth).toBe('executor_delegation')
+      }
+    }
+  })
+
+  it('normalizes only a complete versioned HTTPS service root', () => {
+    expect(normalizeServiceRoot(`${BASE_URL}/`)).toBe(BASE_URL)
+    expect(() => normalizeServiceRoot('http://windchill.example.com/servlet/odata/v6')).toThrow(
+      'must use HTTPS'
+    )
+    expect(() => normalizeServiceRoot('https://windchill.example.com/servlet/odata')).toThrow(
+      'must end with'
+    )
+    expect(() => normalizeServiceRoot(`${BASE_URL}?token=secret`)).toThrow(
+      'must not include credentials, query parameters, or a hash'
+    )
+  })
+
+  it('builds Basic auth and safely encodes document identifiers', () => {
+    expect(createBasicAuthHeader('windchill-user', 'not-a-real-password')).toBe(
+      `Basic ${Buffer.from('windchill-user:not-a-real-password').toString('base64')}`
+    )
+    expect(encodeWindchillOid('OR:wt.doc.WTDocument:48796581')).toBe(
+      'OR%3Awt.doc.WTDocument%3A48796581'
+    )
+    expect(() => encodeWindchillOid("OR:wt.doc.WTDocument:1' or 1 eq 1")).toThrow(
+      'unsupported characters'
+    )
+  })
+
+  it('builds bounded OData list queries after execution-time coercion', () => {
+    const value = buildWindchillReadUrl('windchill_list_documents', {
+      baseUrl: BASE_URL,
+      username: 'user',
+      password: 'not-a-real-password',
+      select: 'ID,Name,State',
+      filter: "State eq 'RELEASED'",
+      orderBy: 'Name asc',
+      top: 50,
+      skip: 10,
+      count: true,
+      latestVersion: true,
+    })
+    const url = new URL(value)
+
+    expect(url.pathname).toBe('/Windchill/servlet/odata/v6/DocMgmt/Documents')
+    expect(url.searchParams.get('$select')).toBe('ID,Name,State')
+    expect(url.searchParams.get('$filter')).toBe("State eq 'RELEASED'")
+    expect(url.searchParams.get('$orderby')).toBe('Name asc')
+    expect(url.searchParams.get('$top')).toBe('50')
+    expect(url.searchParams.get('$skip')).toBe('10')
+    expect(url.searchParams.get('$count')).toBe('true')
+    expect(url.searchParams.get('ptc.search.latestversion')).toBe('true')
+    expect(() =>
+      buildWindchillReadUrl('windchill_list_documents', {
+        baseUrl: BASE_URL,
+        username: 'user',
+        password: 'not-a-real-password',
+        top: 201,
+      })
+    ).toThrow('top must be an integer between 1 and 200')
+  })
+
+  it('accepts only same-origin next links under the configured service root', () => {
+    const next = `${BASE_URL}/DocMgmt/Documents?%24skip=100`
+    expect(resolveWindchillNextLink(BASE_URL, next)).toBe(next)
+    expect(() => resolveWindchillNextLink(BASE_URL, 'https://attacker.example.com/steal')).toThrow(
+      'configured HTTPS origin'
+    )
+    expect(() =>
+      resolveWindchillNextLink(BASE_URL, 'https://windchill.example.com/unrelated')
+    ).toThrow('configured service root')
+  })
+
+  it('normalizes documented document fields and pagination', () => {
+    expect(
+      normalizeWindchillReadOutput('windchill_list_documents', {
+        '@odata.count': 2,
+        '@odata.nextLink': `${BASE_URL}/DocMgmt/Documents?%24skip=2`,
+        value: [
+          {
+            ID: 'OR:wt.doc.WTDocument:1',
+            Name: 'Specification',
+            Number: 'DOC-001',
+            State: 'RELEASED',
+            VersionID: 'A',
+            Version: 'A.2',
+            Latest: true,
+            UnexpectedProviderField: 'not projected',
+          },
+          { ID: 'OR:wt.doc.WTDocument:2', Name: 'Drawing' },
+        ],
+      })
+    ).toEqual({
+      operation: 'windchill_list_documents',
+      documents: [
+        {
+          id: 'OR:wt.doc.WTDocument:1',
+          name: 'Specification',
+          number: 'DOC-001',
+          title: null,
+          description: null,
+          state: 'RELEASED',
+          versionId: 'A',
+          revision: null,
+          version: 'A.2',
+          latest: true,
+          checkoutState: null,
+          folderName: null,
+          folderLocation: null,
+        },
+        {
+          id: 'OR:wt.doc.WTDocument:2',
+          name: 'Drawing',
+          number: null,
+          title: null,
+          description: null,
+          state: null,
+          versionId: null,
+          revision: null,
+          version: null,
+          latest: null,
+          checkoutState: null,
+          folderName: null,
+          folderLocation: null,
+        },
+      ],
+      pageInfo: {
+        count: 2,
+        totalCount: 2,
+        nextLink: `${BASE_URL}/DocMgmt/Documents?%24skip=2`,
+      },
+    })
+  })
+
+  it('normalizes structure, lifecycle, and content response shapes', () => {
+    expect(
+      normalizeWindchillReadOutput('windchill_get_document_structure', {
+        value: [
+          {
+            ID: 'OR:wt.doc.WTDocumentUsageLink:1',
+            DocUsedBy: { ID: 'OR:wt.doc.WTDocument:1', Name: 'Parent' },
+            DocUses: { ID: 'OR:wt.doc.WTDocument:2', Name: 'Child' },
+          },
+        ],
+      }).structure?.[0]
+    ).toMatchObject({
+      id: 'OR:wt.doc.WTDocumentUsageLink:1',
+      parent: { id: 'OR:wt.doc.WTDocument:1', name: 'Parent' },
+      child: { id: 'OR:wt.doc.WTDocument:2', name: 'Child' },
+    })
+
+    expect(
+      normalizeWindchillReadOutput('windchill_get_valid_state_transitions', {
+        value: [{ Value: 'RELEASED', Display: 'Released' }],
+      }).states
+    ).toEqual([{ value: 'RELEASED', display: 'Released' }])
+
+    expect(
+      normalizeWindchillReadOutput('windchill_list_attachments', {
+        value: [
+          {
+            ID: 'OR:wt.content.ApplicationData:1',
+            FileName: 'drawing.pdf',
+            MimeType: 'application/pdf',
+            FileSize: '42',
+          },
+        ],
+      }).attachments
+    ).toEqual([
+      {
+        id: 'OR:wt.content.ApplicationData:1',
+        fileName: 'drawing.pdf',
+        description: null,
+        format: null,
+        mimeType: 'application/pdf',
+        fileSize: 42,
+      },
+    ])
+  })
+
+  it('carries the CSRF nonce and session cookie into a mutation', async () => {
+    mockSecureFetchWithValidation
+      .mockResolvedValueOnce(
+        mockResponse({
+          body: { NonceKey: 'CSRF_NONCE', NonceValue: 'nonce-value' },
+          cookies: ['JSESSIONID=session-value; Path=/; Secure'],
+        })
+      )
+      .mockResolvedValueOnce(mockResponse({ body: { ID: 'OR:wt.doc.WTDocument:1' } }))
+
+    const params = {
+      baseUrl: BASE_URL,
+      username: 'windchill-user',
+      password: 'not-a-real-password',
+    }
+    const session = await createWindchillSession(params)
+    await windchillMutationRequest({
+      params,
+      session,
+      url: `${BASE_URL}/DocMgmt/Documents`,
+      method: 'POST',
+      body: { Name: 'Specification' },
+    })
+
+    expect(mockSecureFetchWithValidation.mock.calls[0][0]).toBe(
+      'https://windchill.example.com/Windchill/servlet/odata/PTC/GetCSRFToken()'
+    )
+    expect(mockSecureFetchWithValidation.mock.calls[1][1]).toMatchObject({
+      method: 'POST',
+      maxRedirects: 0,
+      headers: {
+        Authorization: createBasicAuthHeader('windchill-user', 'not-a-real-password'),
+        Cookie: 'JSESSIONID=session-value',
+        CSRF_NONCE: 'nonce-value',
+        'Content-Type': 'application/json',
+      },
+    })
+  })
+
+  it('uploads content in three stages without sending credentials to ReplicaUrl', async () => {
+    mockSecureFetchWithValidation
+      .mockResolvedValueOnce(
+        mockResponse({ body: { NonceKey: 'CSRF_NONCE', NonceValue: 'nonce-value' } })
+      )
+      .mockResolvedValueOnce(
+        mockResponse({
+          body: {
+            value: [
+              {
+                ReplicaUrl: 'https://replica.example.com/upload/signed',
+                MasterUrl: 'https://windchill.example.com/master',
+                StreamIds: ['stream-1'],
+                FileNames: ['specification.pdf'],
+              },
+            ],
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        mockResponse({
+          body: {
+            contentInfos: [{ streamId: 'stream-1', fileSize: 3, encodedInfo: 'encoded-info' }],
+          },
+        })
+      )
+      .mockResolvedValueOnce(mockResponse({ body: {} }))
+
+    const names = await uploadWindchillContent({
+      params: {
+        baseUrl: BASE_URL,
+        username: 'windchill-user',
+        password: 'not-a-real-password',
+      },
+      documentOid: 'OR:wt.doc.WTDocument:1',
+      files: [
+        {
+          name: 'specification.pdf',
+          mimeType: 'application/pdf',
+          size: 3,
+          buffer: Buffer.from('pdf'),
+        },
+      ],
+      primaryContent: true,
+    })
+
+    expect(names).toEqual(['specification.pdf'])
+    expect(mockSecureFetchWithValidation).toHaveBeenCalledTimes(4)
+    expect(mockSecureFetchWithValidation.mock.calls[1][0]).toContain(
+      '/PTC.DocMgmt.UploadStage1Action'
+    )
+    expect(JSON.parse(mockSecureFetchWithValidation.mock.calls[1][1].body)).toEqual({
+      noOfFiles: 1,
+    })
+    expect(mockSecureFetchWithValidation.mock.calls[2][0]).toBe(
+      'https://replica.example.com/upload/signed'
+    )
+    expect(mockSecureFetchWithValidation.mock.calls[2][1].headers.Authorization).toBeUndefined()
+    expect(mockSecureFetchWithValidation.mock.calls[2][1].headers.Cookie).toBeUndefined()
+    expect(mockSecureFetchWithValidation.mock.calls[2][2]).toBe('ReplicaUrl')
+    expect(mockSecureFetchWithValidation.mock.calls[3][0]).toContain(
+      '/PTC.DocMgmt.UploadStage3Action'
+    )
+    expect(JSON.parse(mockSecureFetchWithValidation.mock.calls[3][1].body)).toEqual({
+      ContentInfo: [
+        {
+          StreamId: 'stream-1',
+          EncodedInfo: 'encoded-info',
+          FileName: 'specification.pdf',
+          PrimaryContent: true,
+          MimeType: 'application/pdf',
+          FileSize: 3,
+        },
+      ],
+    })
+  })
+
+  it('redacts provider URLs, nonce values, and Basic credentials from errors', () => {
+    expect(
+      sanitizeWindchillError(
+        'POST https://replica.example.com/signed?token=secret CSRF_NONCE=nonce Basic dXNlcjpwYXNz'
+      )
+    ).toBe('POST [redacted URL] [redacted nonce] Basic [redacted]')
+  })
+})
+
+describe('Windchill block', () => {
+  it('selects only registered operation IDs and defaults to list documents', () => {
+    const operation = WindchillBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
+    expect(operation?.value?.({})).toBe('windchill_list_documents')
+    expect(operation?.options?.map((option) => option.id)).toEqual([...WINDCHILL_OPERATIONS])
+    expect(WindchillBlock.tools.access).toEqual([...WINDCHILL_OPERATIONS])
+
+    for (const toolId of WINDCHILL_OPERATIONS) {
+      expect(WindchillBlock.tools.config?.tool({ operation: toolId })).toBe(toolId)
+    }
+  })
+
+  it('uses one canonical parameter for each basic and advanced file pair', () => {
+    const primaryFiles = WindchillBlock.subBlocks.filter(
+      (subBlock) => subBlock.canonicalParamId === 'primaryFile'
+    )
+    const attachmentFiles = WindchillBlock.subBlocks.filter(
+      (subBlock) => subBlock.canonicalParamId === 'attachmentFiles'
+    )
+
+    expect(primaryFiles.map((subBlock) => subBlock.mode)).toEqual(['basic', 'advanced'])
+    expect(attachmentFiles.map((subBlock) => subBlock.mode)).toEqual(['basic', 'advanced'])
+    expect(WindchillBlock.inputs.primaryFile.type).toBe('file')
+    expect(WindchillBlock.inputs.attachmentFiles.type).toBe('array')
+  })
+
+  it('coerces execution values and parses JSON without changing tool selection', () => {
+    const params = WindchillBlock.tools.config?.params?.({
+      operation: 'windchill_list_documents',
+      baseUrl: BASE_URL,
+      username: 'user',
+      password: 'not-a-real-password',
+      top: '25',
+      skip: '10',
+      count: 'true',
+      latestVersion: false,
+      documentOids: '["OR:wt.doc.WTDocument:1"]',
+      attributes: '{"Title":"Updated"}',
+    })
+
+    expect(params).toMatchObject({
+      baseUrl: BASE_URL,
+      top: 25,
+      skip: 10,
+      count: true,
+      latestVersion: false,
+      documentOids: ['OR:wt.doc.WTDocument:1'],
+      attributes: { Title: 'Updated' },
+    })
+    expect(params).not.toHaveProperty('operation')
+  })
+
+  it('publishes document-management metadata with concrete templates', () => {
+    expect(WindchillBlock.integrationType).toBe('documents')
+    expect(WindchillBlockMeta.tags).toEqual(['content-management', 'document-processing'])
+    expect(WindchillBlockMeta.templates).toHaveLength(7)
+  })
+})
