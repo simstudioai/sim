@@ -22056,8 +22056,29 @@
         }
       ],
       "operationCount": 26,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "windchill_document_attributes_changed",
+          "name": "Windchill Document Attributes Changed",
+          "description": "Trigger a workflow when Windchill document attributes change"
+        },
+        {
+          "id": "windchill_document_identity_changed",
+          "name": "Windchill Document Identity Changed",
+          "description": "Trigger a workflow when a Windchill document identity changes"
+        },
+        {
+          "id": "windchill_document_lifecycle_state_changed",
+          "name": "Windchill Document Lifecycle State Changed",
+          "description": "Trigger a workflow when a Windchill document enters a selected lifecycle state"
+        },
+        {
+          "id": "windchill_custom_document_event",
+          "name": "Windchill Custom Document Event",
+          "description": "Trigger a workflow for an installed Windchill document event"
+        }
+      ],
+      "triggerCount": 4,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "documents",
