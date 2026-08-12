@@ -5,6 +5,7 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  failStaleDocumentProcessingClaim,
   KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS,
   reclaimStaleDocumentProcessingClaim,
 } from '@/lib/knowledge/documents/processing-claim'
@@ -66,5 +67,63 @@ describe('reclaimStaleDocumentProcessingClaim', () => {
     })
 
     expect(reclaimed).toBe(false)
+  })
+})
+
+describe('failStaleDocumentProcessingClaim', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('rejects an active processing claim', async () => {
+    await expect(
+      failStaleDocumentProcessingClaim({
+        documentId: 'document-1',
+        processingStartedAt: new Date(
+          NOW.getTime() - KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS
+        ),
+        now: NOW,
+      })
+    ).rejects.toThrow('Document has not been processing long enough to be considered dead')
+
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
+  it('fails the exact abandoned processing claim', async () => {
+    const processingStartedAt = new Date(
+      NOW.getTime() - KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS - 1
+    )
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }])
+
+    const result = await failStaleDocumentProcessingClaim({
+      documentId: 'document-1',
+      processingStartedAt,
+      now: NOW,
+    })
+
+    expect(result).toEqual({
+      success: true,
+      processingDuration: KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS + 1,
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      processingStatus: 'failed',
+      processingError: 'Processing timed out. Please retry or re-sync the connector.',
+      processingCompletedAt: NOW,
+    })
+  })
+
+  it('does not fail a replacement processing claim', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const result = await failStaleDocumentProcessingClaim({
+      documentId: 'document-1',
+      processingStartedAt: new Date(
+        NOW.getTime() - KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS - 1
+      ),
+      now: NOW,
+    })
+
+    expect(result.success).toBe(false)
   })
 })

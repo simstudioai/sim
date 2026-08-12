@@ -72,6 +72,7 @@ describe('processDocumentsWithQueue billing attribution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    setEnvFlags({ isTriggerDevEnabled: true })
     mockBatchTrigger.mockResolvedValue({ batchId: 'batch-1' })
     for (const key of Object.keys(env)) {
       delete (env as Record<string, unknown>)[key]
@@ -151,5 +152,30 @@ describe('processDocumentsWithQueue billing attribution', () => {
       workspaceId: null,
     })
     expect(jobs[0].payload).not.toHaveProperty('billingAttribution')
+  })
+
+  it('keeps direct dispatch retryable when another worker wins the document claim', async () => {
+    setEnvFlags({ isTriggerDevEnabled: false })
+    env.TRIGGER_SECRET_KEY = undefined
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ userId: 'legacy-owner', workspaceId: null }])
+      .mockResolvedValueOnce([
+        {
+          workspaceId: null,
+          knowledgeBaseUserId: 'legacy-owner',
+          processingStatus: 'pending',
+          filename: DOCUMENT.filename,
+          fileUrl: DOCUMENT.fileUrl,
+          fileSize: DOCUMENT.fileSize,
+          mimeType: DOCUMENT.mimeType,
+        },
+      ])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    await expect(
+      processDocumentsWithQueue([DOCUMENT], 'knowledge-base-1', {}, 'request-1', undefined)
+    ).rejects.toThrow('All 1 document processing dispatches failed')
+
+    expect(mockBatchTrigger).not.toHaveBeenCalled()
   })
 })

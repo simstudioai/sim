@@ -230,17 +230,22 @@ describe('knowledge document processing source', () => {
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
   })
 
-  it('does not start work when another processing attempt already owns the document', async () => {
+  it('keeps the carrier retryable when another processing attempt owns the document', async () => {
     dbChainMockFns.returning.mockReset().mockResolvedValueOnce([])
 
-    await processDocumentAsync('knowledge-base-1', 'document-1', {
-      filename: 'stale.pdf',
-      fileUrl: 'https://example.com/stale.pdf',
-      fileSize: 1,
-      mimeType: 'text/plain',
-    })
+    await expect(
+      processDocumentAsync('knowledge-base-1', 'document-1', {
+        filename: 'stale.pdf',
+        fileUrl: 'https://example.com/stale.pdf',
+        fileSize: 1,
+        mimeType: 'text/plain',
+      })
+    ).rejects.toThrow('processing claim is owned by another attempt')
 
     expect(mockProcessDocument).not.toHaveBeenCalled()
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ processingStatus: 'failed' })
+    )
   })
 })

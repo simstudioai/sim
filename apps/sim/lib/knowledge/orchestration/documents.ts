@@ -527,7 +527,17 @@ export async function performMarkKnowledgeDocumentTimedOut(
   }
 
   try {
-    await markDocumentAsFailedTimeout(document.id, document.processingStartedAt, requestId)
+    const result = await markDocumentAsFailedTimeout(
+      document.id,
+      document.processingStartedAt,
+      requestId
+    )
+    if (!result.success) {
+      return fail(
+        'Document processing attempt changed before timeout could be recorded',
+        'conflict'
+      )
+    }
   } catch (error) {
     // The service rejects a document that has not been processing long enough
     // to be presumed dead; that is a caller-fixable "try again later", not a fault.

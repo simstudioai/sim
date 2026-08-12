@@ -378,7 +378,13 @@ describe('performDeleteKnowledgeDocument', () => {
 })
 
 describe('document processing state changes', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockMarkDocumentAsFailedTimeout.mockResolvedValue({
+      success: true,
+      processingDuration: 600_001,
+    })
+  })
 
   it('refuses to time out a document that is not processing', async () => {
     const outcome = await performMarkKnowledgeDocumentTimedOut({
@@ -407,6 +413,19 @@ describe('document processing state changes', () => {
     })
 
     expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
+  })
+
+  it('reports a conflict when the processing claim changes before the timeout write', async () => {
+    mockMarkDocumentAsFailedTimeout.mockResolvedValue({
+      success: false,
+      processingDuration: 600_001,
+    })
+
+    const outcome = await performMarkKnowledgeDocumentTimedOut({
+      document: { id: 'doc-1', processingStatus: 'processing', processingStartedAt: new Date() },
+    })
+
+    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
   })
 
   it('refuses to retry a document that has not failed', async () => {

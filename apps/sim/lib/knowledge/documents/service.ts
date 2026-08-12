@@ -64,7 +64,7 @@ import {
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
-import { KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-claim'
+import { failStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
 import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
@@ -117,6 +117,13 @@ import type { processDocument as processDocumentTask } from '@/background/knowle
 import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('DocumentService')
+
+class DocumentProcessingClaimUnavailableError extends Error {
+  constructor(documentId: string) {
+    super(`Knowledge document ${documentId} processing claim is owned by another attempt`)
+    this.name = 'DocumentProcessingClaimUnavailableError'
+  }
+}
 
 /**
  * Thrown when a knowledge-base document's `fileUrl` references an internal
@@ -881,7 +888,7 @@ export async function processDocumentAsync(
       logger.info(`[${documentId}] Skipping document processing because another attempt owns it`, {
         processingStatus: ctx.processingStatus,
       })
-      return
+      throw new DocumentProcessingClaimUnavailableError(documentId)
     }
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
@@ -1235,6 +1242,10 @@ export async function processDocumentAsync(
       mimeType: docData.mimeType,
       fileSize: docData.fileSize,
     })
+
+    if (error instanceof DocumentProcessingClaimUnavailableError) {
+      throw error
+    }
 
     await db
       .update(document)
@@ -2371,30 +2382,17 @@ export async function markDocumentAsFailedTimeout(
   processingStartedAt: Date,
   requestId: string
 ): Promise<{ success: boolean; processingDuration: number }> {
-  const now = new Date()
-  const processingDuration = now.getTime() - processingStartedAt.getTime()
+  const result = await failStaleDocumentProcessingClaim({ documentId, processingStartedAt })
 
-  if (processingDuration <= KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS) {
-    throw new Error('Document has not been processing long enough to be considered dead')
+  if (result.success) {
+    logger.info(
+      `[${requestId}] Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(result.processingDuration / 1000)}s)`
+    )
+  } else {
+    logger.info(`[${requestId}] Did not time out document ${documentId} because its claim changed`)
   }
 
-  await db
-    .update(document)
-    .set({
-      processingStatus: 'failed',
-      processingError: 'Processing timed out. Please retry or re-sync the connector.',
-      processingCompletedAt: now,
-    })
-    .where(eq(document.id, documentId))
-
-  logger.info(
-    `[${requestId}] Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(processingDuration / 1000)}s)`
-  )
-
-  return {
-    success: true,
-    processingDuration,
-  }
+  return result
 }
 
 export async function retryDocumentProcessing(
