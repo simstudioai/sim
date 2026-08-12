@@ -3,7 +3,8 @@ import { folder as folderTable, workspaceFiles, workspace as workspaceTable } fr
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, min, sql } from 'drizzle-orm'
+import { type ListSortOrder, listOrderBy } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
@@ -17,6 +18,7 @@ import {
   parseFolderPath,
   requireNonRootFolderPath,
 } from '@/lib/folders/paths'
+import { FOLDER_SORTS, type FolderSortBy } from '@/lib/folders/queries'
 import { collectDescendantFolderIds } from '@/lib/folders/subtree'
 import { encodeWorkspaceFileFolderDisplaySegment } from '@/lib/workspace-files/folder-display-path'
 import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
@@ -383,11 +385,21 @@ export async function findWorkspaceFileFolderIdByPath(
   return parentId
 }
 
+/**
+ * Lists a workspace's file folders, ordered in the database like every other folder
+ * list so a name sort uses the same collation and the same `createdAt` tiebreak.
+ * Defaults to `position` — `sortOrder ASC, createdAt ASC` — which honours a user's
+ * manual ordering and is what surfaces reading the payload positionally expect.
+ */
 export async function listWorkspaceFileFolders(
   workspaceId: string,
-  options?: { scope?: WorkspaceFileFolderScope }
+  options?: {
+    scope?: WorkspaceFileFolderScope
+    sortBy?: FolderSortBy
+    sortOrder?: ListSortOrder
+  }
 ): Promise<WorkspaceFileFolderRecord[]> {
-  const { scope = 'active' } = options ?? {}
+  const { scope = 'active', sortBy = 'position', sortOrder = 'asc' } = options ?? {}
   const rows = await db
     .select()
     .from(folderTable)
@@ -406,7 +418,7 @@ export async function listWorkspaceFileFolders(
               isNull(folderTable.deletedAt)
             )
     )
-    .orderBy(asc(folderTable.sortOrder), asc(folderTable.createdAt))
+    .orderBy(...listOrderBy(FOLDER_SORTS[sortBy], sortOrder))
 
   const paths = buildWorkspaceFileFolderPathMap(rows)
   return rows.map((row) => mapFolder(row, paths))

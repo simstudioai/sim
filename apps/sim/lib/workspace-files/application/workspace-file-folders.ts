@@ -1,8 +1,10 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import type { ListSortOrder } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { parseFolderPath } from '@/lib/folders/paths'
+import type { FolderSortBy } from '@/lib/folders/queries'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   assertWorkspaceFileItemsBelongToWorkspace,
@@ -30,8 +32,14 @@ export interface ListWorkspaceFileFoldersInput {
   scope?: 'active' | 'archived' | 'all'
   parentPath?: string
   search?: string
-  sortBy?: 'name' | 'createdAt' | 'updatedAt'
-  sortOrder?: 'asc' | 'desc'
+  /**
+   * Only v2 sends a sort; the internal route, Copilot, and the VFS do not, and some of
+   * their consumers render the payload in the order it arrives. So this stays optional
+   * and undefined means "leave the repository's `position` ordering alone" — a default
+   * applied here would silently reorder those surfaces.
+   */
+  sortBy?: Exclude<FolderSortBy, 'position'>
+  sortOrder?: ListSortOrder
 }
 
 export interface ListWorkspaceFileFoldersResult {
@@ -115,6 +123,8 @@ async function executeListWorkspaceFileFolders(args: {
 }): Promise<ListWorkspaceFileFoldersResult> {
   let folders = await listWorkspaceFileFolders(args.context.workspaceId, {
     scope: args.input.scope,
+    sortBy: args.input.sortBy,
+    sortOrder: args.input.sortOrder,
   })
   if (args.input.parentPath !== undefined) {
     const parentSegments = parseFolderPath(args.input.parentPath)
@@ -128,14 +138,6 @@ async function executeListWorkspaceFileFolders(args: {
     const search = args.input.search.toLowerCase()
     folders = folders.filter((folder) => folder.name.toLowerCase().includes(search))
   }
-  const sortBy = args.input.sortBy ?? 'name'
-  const sortOrder = args.input.sortOrder ?? 'asc'
-  folders.sort((left, right) => {
-    const leftValue = left[sortBy]
-    const rightValue = right[sortBy]
-    const comparison = leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0
-    return sortOrder === 'asc' ? comparison : -comparison
-  })
   return { folders }
 }
 
