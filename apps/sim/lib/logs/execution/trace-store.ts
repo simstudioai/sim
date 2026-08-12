@@ -3,10 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
-import {
-  collectFunctionalBlockOutputs,
-  type FunctionalExecutionDataSource,
-} from '@/lib/logs/execution/functional-outputs'
+import { FunctionalOutputsUnavailableError } from '@/lib/logs/execution/functional-outputs'
 import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
@@ -280,8 +277,8 @@ export async function materializeExecutionDataForDisplay(
 
 /**
  * Materializes one trusted row into its display envelope plus secret-safe functional outputs.
- * Execution-state output remains authoritative when present, but only requested blocks are
- * projected and returned; the raw execution state never crosses the display boundary.
+ * Only requested execution-state outputs are projected and returned; trace spans remain display
+ * data and the raw execution state never crosses the display boundary.
  */
 export async function materializeExecutionDataForDisplayWithBlockOutputs(
   executionData: Record<string, unknown> | null | undefined,
@@ -296,12 +293,11 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
 
   const executionState = readRecord(materialized.executionState)
   const blockStates = readRecord(executionState?.blockStates)
-  const displaySource = displayData as FunctionalExecutionDataSource
   if (!blockStates) {
-    return {
-      executionData: displayData,
-      blockOutputs: collectFunctionalBlockOutputs(displaySource),
+    if (materialized.executionDataTruncated === true) {
+      throw new FunctionalOutputsUnavailableError()
     }
+    return { executionData: displayData, blockOutputs: new Map() }
   }
 
   const runRegistry = await importResolvedSecretTraceRegistry(
@@ -309,14 +305,13 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
       executionState?.[RESOLVED_SECRET_PROVENANCE_KEY],
     'traceStore.blockOutputRunProvenance'
   )
-  const blockOutputs = collectFunctionalBlockOutputs({ traceSpans: displaySource.traceSpans })
+  const blockOutputs = new Map<string, unknown>()
   const projectionStore = createReadOnlyProjectionStore(context)
 
   for (const blockId of new Set(blockIds)) {
     const blockState = readRecord(blockStates[blockId])
     if (!blockState || blockState.output === undefined) continue
 
-    blockOutputs.delete(blockId)
     const hasExactProvenance = Object.hasOwn(blockState, RESOLVED_SECRET_PROVENANCE_KEY)
     const registry = hasExactProvenance
       ? await importResolvedSecretTraceRegistry(

@@ -136,7 +136,7 @@ describe('projectExecutionDataForDisplay', () => {
     expect(JSON.stringify([...materialized.blockOutputs])).not.toContain('12345678')
   })
 
-  it('falls back to projected trace output for a requested block missing from partial state', async () => {
+  it('does not use trace output for a requested block missing from partial state', async () => {
     const emptyProvenance = {
       version: 1 as const,
       complete: true,
@@ -172,12 +172,59 @@ describe('projectExecutionDataForDisplay', () => {
       ['state-only', 'trace-only']
     )
 
-    expect(materialized.blockOutputs).toEqual(
-      new Map([
-        ['trace-only', { result: 'trace-output' }],
-        ['state-only', { result: 'state-output' }],
-      ])
+    expect(materialized.blockOutputs).toEqual(new Map([['state-only', { result: 'state-output' }]]))
+  })
+
+  it('does not derive block outputs from legacy trace spans', async () => {
+    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
+      {
+        traceSpans: [
+          {
+            id: 'span-1',
+            blockId: 'function-1',
+            name: 'Function 1',
+            type: 'function',
+            duration: 1,
+            startTime: '2026-08-11T00:00:00.000Z',
+            endTime: '2026-08-11T00:00:00.001Z',
+            output: { token: 'raw-legacy-secret' },
+          },
+        ],
+      },
+      CONTEXT,
+      ['function-1']
     )
+
+    expect(materialized.blockOutputs).toEqual(new Map())
+  })
+
+  it('does not mix legacy trace output into partial execution state', async () => {
+    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
+      {
+        traceSpans: [
+          {
+            id: 'span-1',
+            blockId: 'trace-only',
+            name: 'Trace-only block',
+            type: 'function',
+            duration: 1,
+            startTime: '2026-08-11T00:00:00.000Z',
+            endTime: '2026-08-11T00:00:00.001Z',
+            output: { token: 'raw-legacy-secret' },
+          },
+        ],
+        executionState: {
+          blockStates: {
+            'state-only': { output: { result: 'unproven-state-output' } },
+          },
+        },
+      },
+      CONTEXT,
+      ['state-only', 'trace-only']
+    )
+
+    expect(materialized.blockOutputs).toEqual(new Map())
+    expect(JSON.stringify([...materialized.blockOutputs])).not.toContain('raw-legacy-secret')
   })
 
   it('omits state-only block outputs that lack usable secret provenance', async () => {
