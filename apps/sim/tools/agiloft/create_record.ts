@@ -78,7 +78,8 @@ export const agiloftCreateRecordTool: ToolConfig<AgiloftCreateRecordParams, Agil
       },
       fields: {
         type: 'json',
-        description: 'Field values of the created record',
+        description:
+          'Any field values Agiloft returned with the create. Usually empty - the create publishes the ID, so read the record back to get its stored values.',
       },
     },
   }

@@ -6,13 +6,14 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { parseEwRest } from '@/tools/agiloft/ewrest'
 import type { AgiloftRecordResponse } from '@/tools/agiloft/types'
-import { alrestRecordCollectionUrl } from '@/tools/agiloft/utils'
 import {
-  executeAlrestRequest,
-  isAgiloftRefusal,
-  readAlrestJson,
-} from '@/tools/agiloft/utils.server'
+  buildCreateRecordBody,
+  buildCreateRecordUrl,
+  describeAgiloftError,
+} from '@/tools/agiloft/utils'
+import { executeEwRequest } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,53 +69,67 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    const result = await executeAlrestRequest<AgiloftRecordResponse>(
+    const result = await executeEwRequest<AgiloftRecordResponse>(
       params,
       (base) => ({
-        url: alrestRecordCollectionUrl(base, params.table),
+        url: buildCreateRecordUrl(base),
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(fieldValues),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: buildCreateRecordBody(params, fieldValues),
       }),
       async (response) => {
-        const record = await readAlrestJson<Record<string, unknown>>(response)
-        const id = record?.id
+        const text = await response.text()
 
         /**
-         * A create that reports no ID did not create anything usable — callers
-         * chain on this ID, so surface it as a failure rather than handing back
-         * a successful-looking null.
+         * Every failure below is one Agiloft already decided on, so each is
+         * reported in a 200 body with `success: false`. A non-2xx status would
+         * make the tool runner retry, and a retried create writes a second
+         * record rather than converging on the first.
          */
-        if (id == null) {
+        if (!response.ok) {
           return {
             success: false,
-            output: { id: null, fields: record ?? {} },
-            error: 'Agiloft did not return an ID for the created record',
+            output: { id: null, fields: {} },
+            error: `Agiloft error ${response.status}: ${describeAgiloftError(text)}`,
           }
         }
 
-        return {
-          success: true,
-          output: { id: String(id), fields: record ?? {} },
+        const values = parseEwRest(text)
+        const id = values.get('id')
+
+        /**
+         * EWCreate publishes the new record's ID as `EWREST_id`. Reaching this
+         * branch means the write may well have landed while the ID did not come
+         * back, so the caller is told not to retry blindly: a second attempt
+         * would create a duplicate rather than recover the first record.
+         */
+        if (!id) {
+          logger.error(`[${requestId}] Agiloft create returned no record ID`, {
+            table: params.table,
+          })
+          return {
+            success: false,
+            output: { id: null, fields: {} },
+            error: `Agiloft accepted the create but returned no record ID, so the record may exist. Check the table before retrying - retrying creates a second record. Response: ${describeAgiloftError(text)}`,
+          }
         }
+
+        /**
+         * EWCreate documents only the ID, but any other assignment it returns is
+         * a field value on the new record, so it is passed through rather than
+         * dropped. Usually empty.
+         */
+        const fields: Record<string, unknown> = {}
+        for (const [key, value] of values) {
+          if (key !== 'id') fields[key] = value
+        }
+
+        return { success: true, output: { id, fields } }
       }
     )
 
     return NextResponse.json(result)
   } catch (error) {
-    /**
-     * A refusal Agiloft already decided on is a final answer, not a transient
-     * fault — returning 500 would make the tool runner retry it.
-     */
-    if (isAgiloftRefusal(error)) {
-      logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
-      return NextResponse.json({
-        success: false,
-        output: { id: null, fields: {} },
-        error: error.message,
-      })
-    }
-
     logger.error(`[${requestId}] Error creating Agiloft record:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
