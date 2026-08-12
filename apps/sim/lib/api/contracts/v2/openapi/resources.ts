@@ -11,13 +11,16 @@ import {
   v2DeleteMcpServerContract,
   v2GetMcpServerContract,
   v2ListMcpServersContract,
+  v2ListMcpServerToolsContract,
   v2UpdateMcpServerContract,
 } from '@/lib/api/contracts/v2/mcp-servers'
 import {
   documentedSchema,
   ERROR_RESPONSES,
   type ErrorResponseId,
+  FULL_SET_LIST,
   RATE_LIMIT_HEADERS,
+  RESOURCE_CONFLICT_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
@@ -88,6 +91,18 @@ const MCP_SERVER_EXAMPLE = {
   hasHeaders: true,
   headerNames: ['Authorization'],
   hasOauthClientSecret: false,
+} as const
+
+const MCP_TOOL_EXAMPLE = {
+  name: 'search_docs',
+  description: 'Search the internal documentation',
+  inputSchema: {
+    type: 'object',
+    properties: { query: { type: 'string', description: 'Search terms' } },
+    required: ['query'],
+  },
+  serverId: 'mcp-3f7a9c21',
+  serverName: 'Docs server',
 } as const
 
 const SKILL_SUMMARY_EXAMPLE = {
@@ -251,7 +266,7 @@ const routes = [
       operationId: 'listMcpServers',
       summary: 'List MCP Servers',
       description:
-        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.',
+        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. Nothing caps how many servers a workspace registers, so this list is paginated: paginate with `limit` and `cursor`, stopping when `nextCursor` is null. `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh` describe the most recent tool discovery and stay at their registration defaults until one runs — call `GET /api/v2/mcp-servers/{id}/tools` to run it.',
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'MCP servers registered in the workspace.' },
     }),
@@ -260,7 +275,7 @@ const routes = [
         v2ListMcpServersContract.query,
         'ListMcpServersQuery',
         'List MCP servers query',
-        'Workspace, search, and sorting controls for MCP servers.'
+        'Workspace, search, sorting, and pagination controls for MCP servers.'
       ),
       response: documentedSchema(
         v2ListMcpServersContract.response.schema,
@@ -400,6 +415,37 @@ const routes = [
         'Delete MCP server response',
         'Acknowledgement that the MCP server was deleted.',
         [{ data: { id: MCP_SERVER_EXAMPLE.id, deleted: true } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListMcpServerToolsContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'listMcpServerTools',
+      summary: 'List MCP Server Tools',
+      description: `Connect to a registered MCP server and return the tools it exposes. Unlike most reads this one has side effects: it opens a live connection to the third-party server and writes \`connectionStatus\`, \`toolCount\`, \`lastError\`, and \`lastToolsRefresh\` on the server resource, so registering a server and then calling this completes onboarding without opening the Sim UI. Because the pass is not a safe read, a \`HEAD\` request is answered with an empty \`200\` without connecting or writing, so it reports only that the endpoint exists and the caller is authorized. Results are served from a short-lived per-workspace cache, so an uncached call reflects whichever workspace member last ran discovery; pass \`refresh=true\` to reconnect under your own credentials and pick up tools added since the last pass, at the cost of a live round trip to the server. The set is bounded by discovery itself — at most 1,000 tools and 5 MB of tool payload per server. ${FULL_SET_LIST} An unreachable, slow, or cooling-down server is a \`503\`; a server whose stored OAuth grant no longer works is a \`409\` with \`error.details.code\` \`MCP_SERVER_REAUTHORIZATION_REQUIRED\`, meaning the registration is intact but a human must reauthorize it in Sim — your API key is fine and re-issuing it changes nothing. ${WORKSPACE_API_KEY_DENIED} Discovery resolves the calling user's own OAuth credentials for the server, which a workspace key cannot supply — so a workspace key that can register a server cannot list its tools.`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Tools exposed by the MCP server.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ListMcpServerToolsContract.params,
+        'ListMcpServerToolsParams',
+        'List MCP server tools path parameters',
+        'MCP server whose tools should be listed.'
+      ),
+      query: documentedSchema(
+        v2ListMcpServerToolsContract.query,
+        'ListMcpServerToolsQuery',
+        'List MCP server tools query',
+        'Workspace scope and cache control for tool discovery.'
+      ),
+      response: documentedSchema(
+        v2ListMcpServerToolsContract.response.schema,
+        'ListMcpServerToolsResponse',
+        'List MCP server tools response',
+        'Tools exposed by the MCP server.',
+        [{ data: [MCP_TOOL_EXAMPLE], nextCursor: null }]
       ),
     }
   ),

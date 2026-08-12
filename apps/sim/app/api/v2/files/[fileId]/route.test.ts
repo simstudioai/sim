@@ -1,6 +1,15 @@
 /**
  * @vitest-environment node
  */
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,9 +17,6 @@ const mocks = vi.hoisted(() => ({
   download: vi.fn(),
   rename: vi.fn(),
   deleteFile: vi.fn(),
-  authenticateV2ApiKey: vi.fn(),
-  checkRateLimitDirect: vi.fn(),
-  checkRateLimitDirectOrThrow: vi.fn(),
   getUserEmailsByIds: vi.fn(),
 }))
 
@@ -35,20 +41,9 @@ vi.mock('@/lib/workspace-files/application/delete-workspace-file', () => ({
   },
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mocks.checkRateLimitDirect
-    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
-  },
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: vi.fn().mockResolvedValue(null) }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/users/queries', () => ({
   getUserEmailsByIds: mocks.getUserEmailsByIds,
@@ -97,17 +92,10 @@ function fileRecord(overrides: Record<string, unknown> = {}) {
 describe('v2 single-file routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticateV2ApiKey.mockResolvedValue(auth)
-    mocks.checkRateLimitDirect.mockResolvedValue({
-      allowed: true,
-      remaining: 599,
-      resetAt: new Date('2024-01-01T01:00:00Z'),
-    })
-    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
-      allowed: true,
-      remaining: 99,
-      resetAt: new Date('2024-01-01T01:00:00Z'),
-    })
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.download.mockResolvedValue({
       file: fileRecord(),
       stream: new Blob(['id,name\n']).stream(),
@@ -139,6 +127,18 @@ describe('v2 single-file routes', () => {
       input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
       request: expect.anything(),
     })
+  })
+
+  it('rejects an unauthenticated request', async () => {
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}?workspaceId=${WORKSPACE_ID}`),
+      context
+    )
+
+    expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 
   it('encodes special characters in the extended download filename', async () => {
@@ -226,7 +226,11 @@ describe('v2 single-file routes', () => {
 
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({
-      error: { code: 'FORBIDDEN', message: 'Insufficient workspace permissions' },
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Insufficient workspace permissions',
+        details: { code: 'INSUFFICIENT_WORKSPACE_ROLE' },
+      },
     })
   })
 

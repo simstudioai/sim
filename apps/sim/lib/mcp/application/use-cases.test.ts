@@ -13,6 +13,9 @@ const { events, mocks } = vi.hoisted(() => ({
     create: vi.fn(),
     effects: vi.fn(),
     audit: vi.fn(),
+    getServer: vi.fn(),
+    listServers: vi.fn(),
+    discoverServerTools: vi.fn(),
   },
 }))
 
@@ -41,11 +44,19 @@ vi.mock('@/lib/mcp/orchestration', () => ({
 }))
 vi.mock('@/lib/mcp/queries', () => ({
   getMcpServerIdState: mocks.idState,
-  getWorkspaceMcpServer: vi.fn(),
-  listWorkspaceMcpServers: vi.fn(),
+  getWorkspaceMcpServer: mocks.getServer,
+  listWorkspaceMcpServers: mocks.listServers,
+}))
+vi.mock('@/lib/mcp/service', () => ({
+  mcpService: { discoverTools: vi.fn(), discoverServerTools: mocks.discoverServerTools },
 }))
 
-import { createMcpServerUseCase, discoverMcpToolsUseCase } from '@/lib/mcp/application/use-cases'
+import {
+  createMcpServerUseCase,
+  discoverMcpServerToolsUseCase,
+  discoverMcpToolsUseCase,
+  listMcpServersUseCase,
+} from '@/lib/mcp/application/use-cases'
 
 type McpServerRow = typeof mcpServers.$inferSelect
 const workspace = {
@@ -97,6 +108,9 @@ describe('MCP server application use cases', () => {
     })
     mocks.audit.mockImplementation(() => events.push('audit'))
     mocks.effects.mockImplementation(async () => events.push('effects'))
+    mocks.getServer.mockResolvedValue(server)
+    mocks.listServers.mockResolvedValue({ data: [server], nextCursorKeys: null })
+    mocks.discoverServerTools.mockResolvedValue([])
   })
 
   it('keeps strict creation, compatibility attribution, audit, and effects in order', async () => {
@@ -161,6 +175,88 @@ describe('MCP server application use cases', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.loadContext).not.toHaveBeenCalled()
+  })
+
+  it('rejects workspace-key per-server tool discovery before protected loading', async () => {
+    await expect(
+      discoverMcpServerToolsUseCase.execute({
+        principal: {
+          kind: 'workspace_api_key',
+          workspaceId: workspace.workspaceId,
+          keyId: 'workspace-key-1',
+        },
+        input: { workspaceId: workspace.workspaceId, serverId: server.id },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.loadContext).not.toHaveBeenCalled()
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
+  })
+
+  it('resolves the server in the caller workspace before reaching the network', async () => {
+    mocks.getServer.mockResolvedValueOnce(null)
+
+    await expect(
+      discoverMcpServerToolsUseCase.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { workspaceId: workspace.workspaceId, serverId: 'mcp-from-another-workspace' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
+  })
+
+  it('discovers one server tools for the acting subject, honouring refresh', async () => {
+    const tools = [
+      {
+        name: 'search_docs',
+        inputSchema: { type: 'object' },
+        serverId: server.id,
+        serverName: server.name,
+      },
+    ]
+    mocks.discoverServerTools.mockResolvedValueOnce(tools)
+
+    const result = await discoverMcpServerToolsUseCase.execute({
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      input: { workspaceId: workspace.workspaceId, serverId: server.id, refresh: true },
+    })
+
+    expect(result.tools).toBe(tools)
+    /**
+     * A public `refresh` skips the positive cache but must keep the failure
+     * cooldown: `force` would let one API key drive a connection attempt per
+     * request at an endpoint already known to be failing, from Sim's egress
+     * addresses.
+     */
+    expect(mocks.discoverServerTools).toHaveBeenCalledWith(
+      'user-1',
+      server.id,
+      workspace.workspaceId,
+      'skip-cache'
+    )
+  })
+
+  it('bounds the server list by the caller limit and reports the resuming keys', async () => {
+    mocks.listServers.mockResolvedValueOnce({
+      data: [server],
+      nextCursorKeys: ['2026-01-01T00:00:00.000Z', server.id],
+    })
+
+    const result = await listMcpServersUseCase.execute({
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      input: { workspaceId: workspace.workspaceId, limit: 1 },
+    })
+
+    expect(mocks.listServers).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: workspace.workspaceId, limit: 1 })
+    )
+    expect(result).toMatchObject({
+      servers: [server],
+      nextCursorKeys: ['2026-01-01T00:00:00.000Z', server.id],
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
   })
 
   it('fails fast when a post-audit domain effect fails', async () => {

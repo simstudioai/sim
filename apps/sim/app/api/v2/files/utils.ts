@@ -30,6 +30,7 @@ function serializeV2File(record: WorkspaceFileRecord, uploadedByEmail: string): 
     uploadedByEmail,
     uploadedAt: record.uploadedAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
+    deletedAt: record.deletedAt?.toISOString() ?? null,
   }
 }
 

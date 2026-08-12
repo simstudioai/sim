@@ -1,35 +1,25 @@
 /**
  * @vitest-environment node
  */
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockPreauth, mockOperationRate, mockGate, mockExecute } = vi.hoisted(() => ({
-  mockPreauth: vi.fn(),
-  mockOperationRate: vi.fn(),
-  mockGate: vi.fn(),
+const { mockExecute } = vi.hoisted(() => ({
   mockExecute: vi.fn(),
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: vi.fn().mockResolvedValue({
-    principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
-    rolloutUserId: 'owner-1',
-    rateLimitSubjectIds: ['workspace:workspace-1'],
-    rateLimitSubscription: null,
-    keyType: 'workspace',
-  }),
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mockPreauth
-    checkRateLimitDirectOrThrow = mockOperationRate
-  },
-  getRateLimit: vi
-    .fn()
-    .mockReturnValue({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 vi.mock('@/lib/api/server/rate-limit-context', () => ({
   recordRateLimitSnapshot: vi.fn(),
   getRateLimitHeaders: vi.fn().mockReturnValue(null),
@@ -38,7 +28,6 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn().mockReturnValue('request-1'),
   getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
 }))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mockGate }))
 vi.mock('@/lib/workspace-files/application/archive-workspace-file-items', () => ({
   archiveWorkspaceFileItemsOperation: {
     operation: { id: 'files.delete', minimumRole: 'write', workspaceApiKey: 'allow' },
@@ -46,13 +35,22 @@ vi.mock('@/lib/workspace-files/application/archive-workspace-file-items', () => 
   },
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/v2/files/bulk-delete/route'
+import { v2Error } from '@/app/api/v2/lib/response'
 
 const WS = 'workspace-1'
-const RATE_LIMIT_OK = {
-  allowed: true,
+const AUTH = {
+  principal: { kind: 'workspace_api_key' as const, workspaceId: WS, keyId: 'key-1' },
+  rolloutUserId: 'owner-1',
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WS}`] as const,
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
+}
+const RATE_LIMIT_DENIED = {
+  allowed: false,
   limit: 100,
-  remaining: 99,
+  remaining: 0,
   resetAt: new Date('2024-01-01T01:00:00Z'),
   retryAfterMs: 0,
 }
@@ -69,15 +67,15 @@ const callDelete = (body: unknown) =>
 describe('POST /api/v2/files/bulk-delete', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockPreauth.mockResolvedValue(RATE_LIMIT_OK)
-    mockOperationRate.mockResolvedValue(RATE_LIMIT_OK)
-    mockGate.mockResolvedValue(null)
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mockExecute.mockResolvedValue({ deletedItems: { files: 3, folders: 0 } })
   })
 
   it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    mockGate.mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
+    v2RouteMocks.gate.mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
     const res = await callDelete({ workspaceId: WS, fileIds: ['wf_1'] })
     expect(res.status).toBe(404)
     expect(mockExecute).not.toHaveBeenCalled()
@@ -91,17 +89,24 @@ describe('POST /api/v2/files/bulk-delete', () => {
   })
 
   it('surfaces a forbidden collection operation', async () => {
-    const { OrchestrationError } = await import('@/lib/core/orchestration/types')
     mockExecute.mockRejectedValue(new OrchestrationError('forbidden', 'Access denied'))
     const res = await callDelete({ workspaceId: WS, fileIds: ['wf_1'] })
     expect(res.status).toBe(403)
   })
 
   it('returns the rate-limit response when denied', async () => {
-    mockPreauth.mockResolvedValue({ ...RATE_LIMIT_OK, allowed: false, remaining: 0 })
+    v2RouteMocks.preauthRate.mockResolvedValue(RATE_LIMIT_DENIED)
     const res = await callDelete({ workspaceId: WS, fileIds: ['wf_1'] })
     expect(res.status).toBe(429)
     expect((await res.json()).error.code).toBe('RATE_LIMITED')
+  })
+
+  it('rejects an unauthenticated request', async () => {
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+    const res = await callDelete({ workspaceId: WS, fileIds: ['wf_1'] })
+    expect(res.status).toBe(401)
+    expect((await res.json()).error.code).toBe('UNAUTHORIZED')
+    expect(mockExecute).not.toHaveBeenCalled()
   })
 
   it('deletes the selection and reports the file count', async () => {
@@ -114,7 +119,6 @@ describe('POST /api/v2/files/bulk-delete', () => {
   })
 
   it('maps a not-found failure to 404', async () => {
-    const { OrchestrationError } = await import('@/lib/core/orchestration/types')
     mockExecute.mockRejectedValue(new OrchestrationError('not_found', 'File not found'))
     const res = await callDelete({ workspaceId: WS, fileIds: ['wf_missing'] })
     expect(res.status).toBe(404)

@@ -46,7 +46,7 @@ A route built with `defineV2JsonRoute` gets this for free: its `present` returns
 | 200 / 201 | — | Success. 201 only for a created resource. |
 | 400 | `BAD_REQUEST` | Contract validation. Carries field-level `details` from `serializeZodIssues`. |
 | 401 | `UNAUTHORIZED` | No/!valid API key. **Runs before the rollout gate.** |
-| 403 | `FORBIDDEN` | Authenticated, same tenant, insufficient rights. Carry a machine-readable `details.code` (e.g. `WORKFLOW_NOT_DEPLOYED`). |
+| 403 | `FORBIDDEN` | Authenticated, same tenant, insufficient rights. Carries a machine-readable `details.code` from the closed set in `lib/core/application/forbidden.ts` (e.g. `INSUFFICIENT_WORKSPACE_ROLE`, `PERSONAL_API_KEYS_DISABLED`). |
 | 404 | `NOT_FOUND` | Not found, **and** cross-tenant concealment, **and** the rollout gate, **and** an unknown path. |
 | 409 | `CONFLICT` | Uniqueness/state conflict, human-readable message. |
 | 413 | `PAYLOAD_TOO_LARGE` | Body over the route's `maxBodyBytes`. |
@@ -67,6 +67,12 @@ And this class survives a green test suite — `keysetAfter` returned well-forme
 
 - An operation whose `minimumRole` is `write` or `admin` can always 403 — a member with a lower role hits it. Document 403.
 - An operation whose `minimumRole` is `read` cannot 403 *that* way, because `read` is the floor of the `read < write < admin` ordering and anyone without access is concealed as 404 instead. It can still 403 through `PersonalApiKeysDisabledError` (a personal API key against a workspace whose organization disabled them) or `WorkspaceApiKeyAuthorizationError` (`workspaceApiKey: 'deny'`), and every v2 operation is reachable by a personal API key. **So in practice every workspace-scoped v2 operation documents 403**, and the reads that omitted it were wrong, not principled.
+
+**Every 403 names its cause in `error.details.code`.** One status covers four different remedies — raise a member's role, issue a personal key instead of a workspace-scoped one, re-point a workspace key, buy an enterprise plan — and prose is not branchable, so a client that must tell them apart was string-matching messages, which turns every reword into a silent break.
+
+The vocabulary is a closed set, `FORBIDDEN_DETAIL_CODES` in `lib/core/application/forbidden.ts`, with a `Record` of descriptions beside it that the generated OpenAPI 403 description is built from. Adding a member fails to compile until it is documented, so a code cannot reach the wire unpublished. Do not invent a code at a route: throw `ForbiddenOperationError(code, message)` from the domain and let `v2CaughtOrchestrationError` — the function every v2 error policy falls through to — attach it. `InsufficientWorkspacePermissionsError`, `PersonalApiKeysDisabledError`, `WorkspaceApiKeyAuthorizationError`, and `PrincipalKindAuthorizationError` already carry theirs.
+
+The cross-tenant refusals (`NoWorkspaceAccessError`, `WorkspaceApiKeyScopeAuthorizationError`, `DelegatedWorkspaceAuthorizationError`) deliberately carry **no** code. They are concealed as 404, and naming their cause would hand back the resource-existence signal the concealment exists to withhold.
 
 Use the shared sets in `contracts/v2/openapi/shared.ts` — `RESOURCE_ERRORS`, `RESOURCE_CONFLICT_ERRORS`, `RESOURCE_MUTATION_ERRORS` — rather than assembling a per-operation list; all three already include `Forbidden`, and hand-assembled lists are how three knowledge reads and three upload operations quietly lost it.
 
@@ -93,9 +99,15 @@ Two cursor schemes exist, both opaque base64-JSON from `response.ts`. Which one 
 
 Return `nextCursor: null` on the last page and only then. Never construct a cursor client-side.
 
+**Ordering is `sortBy` + `sortOrder`, except where there is nothing to sort by.** Fourteen lists take the pair. Two — `GET /logs` and `GET /workflows/{id}/runs` — have exactly one sortable column (start time), so there is no `sortBy` to pair with and the direction rides on a single `order` param; `sortBy`/`sortOrder` are not accepted there. That split is documented in both contracts and is the *only* sanctioned deviation. A new list picks the pair. Do not "fix" the two by accepting `sortOrder` as an alias: an alias is a second spelling of one thing with undefined precedence when both arrive, which is its own inconsistency, and renaming `order` would break every shipped caller.
+
+**A boolean query param is a real boolean**, declared with `booleanQueryFlagSchema` from `contracts/primitives.ts`. It coerces `'true'`/`'1'` and `'false'`/`'0'`/`''`, so it is a strict widening of a `z.enum(['true','false'])` — which is what two v2 params used to be, purely by inheritance from the internal shapes they reused. Reusing an internal `.shape.x` inherits the internal spelling; re-declare instead when the internal one is not the v2 convention.
+
 ## Rule 4 — reject what you do not implement
 
-Query and body schemas are **`.strict()`**. Zod strips unknown keys by default, so a non-strict schema answers `?limit=1` with 200 and the whole set — the caller believes it bounded the response and it did not. That is a contract lie, and on an uncapped list it is also an unbounded-response risk.
+Query and body schemas are **`.strict()`** — and `.strict()` binds the **top level only**. A strict body containing a non-strict nested object still drops unknown keys one level down, which is the headline `filter` bug at a smaller scale: `sort: [{ field, direction, nulls: 'last' }]` answered 200 and ordered by the default. Strictness belongs on the shared nested schema (`sortSpecSchema`'s element, `tableViewConfigSchema`), not restated per body.
+
+Before tightening a schema that is **also** a response or a stored blob, make the read canonical first. `table_views.config` is schemaless JSONB, so a legacy row carrying a retired key would fail a newly strict response parse and become a 500; `normalizeStoredViewConfig` projects the stored blob onto the declared keys so the tightening is safe in both directions. Zod strips unknown keys by default, so a non-strict schema answers `?limit=1` with 200 and the whole set — the caller believes it bounded the response and it did not. That is a contract lie, and on an uncapped list it is also an unbounded-response risk.
 
 Error messages name the field and, where there is one, the escape hatch:
 
@@ -188,7 +200,9 @@ Run this against any new or changed v2 endpoint.
 - [ ] The list is classified in `list-pagination.test.ts`.
 - [ ] Cross-tenant access answers 404, never 403 — and carries `Cache-Control: private, no-store`, because RFC 9110 §15.5.5 makes 404 heuristically cacheable and an authorization-dependent 404 must never be stored. `v2Error` sets this unconditionally; do not build a v2 response any other way.
 - [ ] A retryable failure says when: 429 and 503 carry `Retry-After`. No other status invents one.
-- [ ] 403s carry a machine-readable `details.code`.
+- [ ] 403s carry a machine-readable `details.code` from `FORBIDDEN_DETAIL_CODES`, thrown as `ForbiddenOperationError` in the domain rather than attached at the route.
+- [ ] Nested objects inside a `.strict()` body are strict too — `.strict()` does not recurse.
+- [ ] Ordering uses `sortBy` + `sortOrder`; boolean query params use `booleanQueryFlagSchema`.
 - [ ] Validation messages name the field and echo the valid set.
 - [ ] Response schema matches every field the route actually emits.
 - [ ] OpenAPI description regenerated and truthful about pagination.
@@ -196,4 +210,4 @@ Run this against any new or changed v2 endpoint.
 
 ## Known gap
 
-A 405 on a path that *does* have a route file but does not export that verb is generated by Next.js before any Sim code runs: zero-byte body, no `content-type`, and no `Allow` header, which RFC 9110 §15.5.6 requires. Fixing it means either exporting explicit rejecting handlers from all 77 v2 route files or intercepting in `apps/sim/proxy.ts` with a static path→methods table. Neither is done. Unknown *paths* are handled — the catch-all covers those.
+A 405 on a path that *does* have a route file but does not export that verb is generated by Next.js before any Sim code runs: zero-byte body, no `content-type`, and no `Allow` header, which RFC 9110 §15.5.6 requires. Fixing it means either exporting explicit rejecting handlers from every v2 route file or intercepting in `apps/sim/proxy.ts` with a static path→methods table. Neither is done. Unknown *paths* are handled — the catch-all covers those.

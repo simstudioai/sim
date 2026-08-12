@@ -25,13 +25,13 @@ const DOCUMENTS = [
 ] as const
 
 const EXPECTED_OPERATION_COUNTS = new Map<string, number>([
-  ['apps/docs/openapi-v2-workflows.json', 21],
+  ['apps/docs/openapi-v2-workflows.json', 22],
   ['apps/docs/openapi-v2-logs.json', 2],
-  ['apps/docs/openapi-v2-files-audit.json', 21],
-  ['apps/docs/openapi-v2-tables.json', 43],
-  ['apps/docs/openapi-v2-knowledge.json', 18],
+  ['apps/docs/openapi-v2-files-audit.json', 22],
+  ['apps/docs/openapi-v2-tables.json', 44],
+  ['apps/docs/openapi-v2-knowledge.json', 21],
   ['apps/docs/openapi-v2-billing.json', 2],
-  ['apps/docs/openapi-v2-resources.json', 21],
+  ['apps/docs/openapi-v2-resources.json', 22],
 ])
 
 function getOperation(spec: JsonObject, path: string, method: string): JsonObject {
@@ -163,8 +163,7 @@ describe('generated OpenAPI documents', () => {
         })
       }
     }
-
-    expect(totalOperations).toBe(128)
+    expect(totalOperations).toBe(135)
   })
 
   it('documents mixed workflow execution and resume responses', () => {

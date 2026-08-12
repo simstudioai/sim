@@ -196,7 +196,7 @@ export const POST = withRouteHandler(
             userId,
             serverId,
             workspaceId,
-            true
+            'force'
           )
           logger.info(
             `[${requestId}] Discovered ${discoveredTools.length} tools from server ${serverId}`

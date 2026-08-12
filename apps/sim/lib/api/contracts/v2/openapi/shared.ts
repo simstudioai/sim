@@ -5,6 +5,10 @@ import type {
   OpenApiHeader,
   OpenApiSecurityScheme,
 } from '@/lib/api/openapi/types'
+import {
+  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
+  FORBIDDEN_DETAIL_CODES,
+} from '@/lib/core/application/forbidden'
 
 export const RATE_LIMIT_HEADERS = [
   'X-RateLimit-Limit',
@@ -21,6 +25,31 @@ export const WORKSPACE_ERRORS = [
   'ServiceUnavailable',
 ] as const
 
+/**
+ * The 403 description, assembled from the closed cause set rather than written
+ * out, so a new code is published the moment it exists.
+ *
+ * Four remedies hide behind one status — raise a role, switch key kind,
+ * re-point a workspace key, change the plan — and prose is not branchable, so a
+ * 403 a caller can do something about names its cause in `error.details.code`.
+ *
+ * The wording is deliberately "where the cause is one a caller can act on"
+ * rather than "always". Nine domain refusals still throw a bare
+ * `OrchestrationError('forbidden', …)` and reach the wire without a code —
+ * `GET /api/v2/billing/status` with a personal key against a workspace that
+ * disallows them is one. Reparenting those onto `ForbiddenOperationError` is
+ * worth doing, but one of them is a cross-tenant refusal that belongs in the
+ * codeless class and would change its status, so it is a deliberate change
+ * rather than a sweep. Until then this description must not over-claim.
+ */
+const FORBIDDEN_DESCRIPTION = [
+  'The caller lacks the rights this operation requires. Where the cause is one a caller can act on, `error.details.code` names it, drawn from a closed set:',
+  ...FORBIDDEN_DETAIL_CODES.map(
+    (code) => `- \`${code}\` — ${FORBIDDEN_DETAIL_CODE_DESCRIPTIONS[code]}`
+  ),
+  'A resource in a workspace the caller cannot reach at all answers `404`, not `403`, so absence and denial are indistinguishable to a caller who was never entitled to tell them apart.',
+].join('\n')
+
 export const ERROR_RESPONSES = {
   BadRequest: { status: 400, description: 'The request is invalid.' },
   Unauthorized: { status: 401, description: 'The API key is missing or invalid.' },
@@ -28,7 +57,7 @@ export const ERROR_RESPONSES = {
     status: 402,
     description: 'The workspace has exceeded its usage or billing limits.',
   },
-  Forbidden: { status: 403, description: 'The caller lacks access to the resource.' },
+  Forbidden: { status: 403, description: FORBIDDEN_DESCRIPTION },
   NotFound: { status: 404, description: 'The requested resource was not found.' },
   Conflict: { status: 409, description: 'The request conflicts with current resource state.' },
   RunIdConflict: {
@@ -130,6 +159,17 @@ export const V2_API_KEY_SECURITY_SCHEMES = {
  */
 export const FOLDER_TREE_TOO_LARGE =
   'A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.'
+
+/**
+ * Appended to a list whose result set is bounded by construction, so it answers
+ * in one page.
+ *
+ * Every v2 list returns `{ data, nextCursor }`, so a caller cannot tell a
+ * single-page list from a paged one by shape alone. Saying so once keeps the six
+ * such operations from drifting into six paraphrases of the same promise.
+ */
+export const FULL_SET_LIST =
+  'The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.'
 
 /**
  * Appended to an operation whose semantic operation sets `workspaceApiKey: 'deny'`.

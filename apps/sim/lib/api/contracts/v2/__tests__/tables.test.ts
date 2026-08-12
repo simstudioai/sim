@@ -1,42 +1,55 @@
 import { describe, expect, it } from 'vitest'
+import type { z } from 'zod'
+import {
+  issueCodes,
+  type SchemaLike,
+  strictnessTargets,
+} from '@/lib/api/contracts/v2/__tests__/schema-introspection'
+import * as tableContracts from '@/lib/api/contracts/v2/tables'
 import {
   V2_TABLE_IMPORT_OPTIONS_MAX_BYTES,
   v2ApiTableSchema,
   v2CreateTableBodySchema,
   v2CreateTableColumnBodySchema,
   v2CreateTableImportBodySchema,
+  v2CreateTableRowsBodySchema,
   v2CsvImportCreateColumnsSchema,
   v2CsvImportMappingSchema,
+  v2QueryRowsBodySchema,
   v2TableUploadImportSourceSchema,
   v2UpdateTableColumnBodySchema,
 } from '@/lib/api/contracts/v2/tables'
+import { getValidationErrorMessage } from '@/lib/api/server/validation'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { CSV_DURABLE_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 
 describe('v2 table column contracts', () => {
-  it('rejects required on every public column write', () => {
+  it('accepts required on every public column write so a column round-trips', () => {
     expect(
       v2CreateTableBodySchema.safeParse({
         workspaceId: WORKSPACE_ID,
         name: 'contacts',
         schema: { columns: [{ name: 'email', type: 'string', required: true }] },
-      }).success
-    ).toBe(false)
+      })
+    ).toMatchObject({
+      success: true,
+      data: { schema: { columns: [{ required: true }] } },
+    })
     expect(
       v2CreateTableColumnBodySchema.safeParse({
         workspaceId: WORKSPACE_ID,
         column: { name: 'email', type: 'string', required: true },
-      }).success
-    ).toBe(false)
+      })
+    ).toMatchObject({ success: true, data: { column: { required: true } } })
     expect(
       v2UpdateTableColumnBodySchema.safeParse({
         workspaceId: WORKSPACE_ID,
         columnName: 'email',
         updates: { required: true },
-      }).success
-    ).toBe(false)
+      })
+    ).toMatchObject({ success: true, data: { updates: { required: true } } })
   })
 
   it('keeps required in table responses for existing stored schemas', () => {
@@ -61,6 +74,92 @@ describe('v2 table column contracts', () => {
         updatedAt: '2026-01-01T00:00:00.000Z',
       }).success
     ).toBe(true)
+  })
+})
+
+interface BodyBearingContract {
+  method: string
+  path: string
+  body: SchemaLike
+}
+
+function isBodyBearingContract(value: unknown): value is BodyBearingContract {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as Record<string, unknown>
+  if (typeof candidate.method !== 'string' || typeof candidate.path !== 'string') return false
+  const body = candidate.body
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    typeof (body as { safeParse?: unknown }).safeParse === 'function'
+  )
+}
+
+describe('v2 table request bodies', () => {
+  const contracts = Object.entries(tableContracts)
+    .filter((entry): entry is [string, BodyBearingContract] => isBodyBearingContract(entry[1]))
+    .map(([name, contract]) => [`${contract.method} ${contract.path} (${name})`, contract] as const)
+
+  const bodySchemas = contracts.flatMap(([label, contract]) => {
+    const targets = strictnessTargets(contract.body)
+    return targets.length === 1
+      ? [[label, targets[0]] as const]
+      : targets.map((target, index) => [`${label} union member ${index}`, target] as const)
+  })
+
+  it('covers every table contract that accepts a body', () => {
+    expect(contracts.length).toBeGreaterThan(20)
+  })
+
+  /**
+   * Guards the sweep itself: if the rows body stopped expanding into its two
+   * members, every case below would collapse back to the vacuous union
+   * assertion without any test turning red.
+   */
+  it('sweeps each member of the union-bodied rows contract separately', () => {
+    expect(strictnessTargets(v2CreateTableRowsBodySchema)).toHaveLength(2)
+    expect(bodySchemas.length).toBeGreaterThan(contracts.length)
+  })
+
+  it.each(bodySchemas)('rejects an unrecognized key on %s', (_label, schema) => {
+    const result = schema.safeParse({ notAContractField: true })
+
+    expect(result.success).toBe(false)
+    expect(issueCodes(result.error?.issues ?? [])).toContain('unrecognized_keys')
+  })
+
+  /**
+   * A union's first issue is `invalid_union`, and its default message —
+   * `Invalid input` — is what the 400 body surfaces. The v2 conventions name
+   * that exact string as failing the "errors must be actionable" rule.
+   */
+  it('names both accepted shapes when the rows body matches neither', () => {
+    const result = v2CreateTableRowsBodySchema.safeParse({
+      workspaceId: WORKSPACE_ID,
+      data: { name: 'ada' },
+      bogus: 1,
+    })
+
+    expect(result.success).toBe(false)
+    expect(getValidationErrorMessage(result.error as z.ZodError)).toBe(
+      'Row insert body must be either { rows: [...] } for a batch insert or { data: {...} } for a single row'
+    )
+    expect(issueCodes(result.error?.issues ?? [])).toContain('unrecognized_keys')
+  })
+
+  /**
+   * The regression this class of bug actually produced: v1 named its row filter
+   * `filter`, and a non-strict query body answered that request with 200 and an
+   * unfiltered page.
+   */
+  it('rejects the v1-shaped filter key on the rows query body', () => {
+    const result = v2QueryRowsBodySchema.safeParse({
+      workspaceId: WORKSPACE_ID,
+      filter: { status: { $eq: 'active' } },
+    })
+
+    expect(result.success).toBe(false)
+    expect(issueCodes(result.error?.issues ?? [])).toContain('unrecognized_keys')
   })
 })
 

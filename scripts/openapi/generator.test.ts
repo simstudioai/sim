@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { defineRouteContract } from '../../apps/sim/lib/api/contracts/types'
 import { billingOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/billing'
 import { filesAuditOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/files-audit'
+import { workflowsOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/workflows'
 import {
   defineOpenApiDocument,
   defineOpenApiRoute,
@@ -581,19 +582,46 @@ describe('OpenAPI generator', () => {
     ])
   })
 
-  it('uses string wire values for transformed boolean defaults', () => {
+  /**
+   * `recursive` is declared with `z.stringbool()`, which accepts only strings
+   * (including `yes`/`no`/`on`/`off`), so `type: 'string'` is what the wire
+   * genuinely takes. It is the last v2 boolean query param not on
+   * `booleanQueryFlagSchema`; moving it would *narrow* the accepted set, which
+   * is why it stays and is pinned here instead.
+   */
+  it('uses string wire values for a stringbool query param', () => {
     const spec = generateOpenApiDocument(filesAuditOpenApiDocument)
     const deleteFolder = getOperation(spec, '/api/v2/files/folders', 'delete')
     const deleteFolderParameters = deleteFolder.parameters as JsonObject[]
     const recursive = deleteFolderParameters.find((parameter) => parameter.name === 'recursive')
-    const listAuditLogs = getOperation(spec, '/api/v2/audit-logs', 'get')
-    const listAuditLogParameters = listAuditLogs.parameters as JsonObject[]
+
+    expect(recursive?.schema).toMatchObject({ type: 'string', default: 'false' })
+  })
+
+  /**
+   * Every other v2 boolean query param documents a real boolean.
+   * `includeDeparted` and `includeOutput` used to be `'true'`/`'false'` string
+   * enums inherited from the internal shapes they reused, so the spec told
+   * callers to send a string for what four sibling params took as a boolean.
+   */
+  it('documents boolean query flags as booleans', () => {
+    const auditSpec = generateOpenApiDocument(filesAuditOpenApiDocument)
+    const listAuditLogParameters = getOperation(auditSpec, '/api/v2/audit-logs', 'get')
+      .parameters as JsonObject[]
     const includeDeparted = listAuditLogParameters.find(
       (parameter) => parameter.name === 'includeDeparted'
     )
 
-    expect(recursive?.schema).toMatchObject({ type: 'string', default: 'false' })
-    expect(includeDeparted?.schema).toMatchObject({ type: 'string', default: 'false' })
+    const workflowSpec = generateOpenApiDocument(workflowsOpenApiDocument)
+    const getRunParameters = getOperation(
+      workflowSpec,
+      '/api/v2/workflows/{id}/runs/{runId}',
+      'get'
+    ).parameters as JsonObject[]
+    const includeOutput = getRunParameters.find((parameter) => parameter.name === 'includeOutput')
+
+    expect(includeDeparted?.schema).toMatchObject({ type: 'boolean' })
+    expect(includeOutput?.schema).toMatchObject({ type: 'boolean' })
   })
 
   it('documents binary download response headers', () => {

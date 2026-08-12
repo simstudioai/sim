@@ -1,10 +1,13 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
+  getWorkspaceFile,
   restoreWorkspaceFile,
   type WorkspaceFileLifecycleContext,
+  type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -19,6 +22,13 @@ export interface RestoreWorkspaceFileInput {
 
 export interface RestoreWorkspaceFileResult {
   restored: true
+  /**
+   * The file as it exists after the restore. Restore is not a pure undo — it
+   * returns the file to the workspace root and renames it to avoid colliding
+   * with whatever took its name — so the caller needs the post-restore record
+   * rather than the one it deleted.
+   */
+  file: WorkspaceFileRecord
 }
 
 async function executeRestoreWorkspaceFile({
@@ -29,7 +39,9 @@ async function executeRestoreWorkspaceFile({
   WorkspaceFileLifecycleContext
 >): Promise<RestoreWorkspaceFileResult> {
   await restoreWorkspaceFile(context.workspaceId, context.fileId)
-  return { restored: true }
+  const file = await getWorkspaceFile(context.workspaceId, context.fileId, { throwOnError: true })
+  if (!file) throw new OrchestrationError('not_found', 'File not found')
+  return { restored: true, file }
 }
 
 export const restoreWorkspaceFileOperation = defineAuthorizedWorkspaceFileUseCase({

@@ -24,17 +24,30 @@ const parseableDateSchema = z
   .min(1)
   .refine((value) => !Number.isNaN(Date.parse(value)), { error: 'Invalid date' })
 
-export const v2BillingStatusQuerySchema = z.object({
-  /**
-   * Resolve status against one workspace's payer. A workspace-scoped API key
-   * is always pinned to its own workspace; passing a different id returns 403.
-   */
-  workspaceId: workspaceIdSchema
-    .optional()
-    .describe(
-      'Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.'
-    ),
-})
+/**
+ * `.strict()` carries more weight here than on an ordinary read. `workspaceId` is
+ * optional and selects *which payer* is reported, so a key Zod would otherwise strip —
+ * a mis-cased `workspaceID`, or a param copied from a sibling contract — silently
+ * demotes a workspace-scoped question to account scope and answers 200 about a
+ * different payer than the caller asked about. It is a wrong answer, not a cross-tenant
+ * read: `resolveBillingReadScope` still pins a workspace API key to its own workspace
+ * whatever the query says, so the reachable case is a personal key being told about its
+ * own account when it asked about a workspace. Rejecting the unknown key turns that
+ * wrong answer about money into a 400.
+ */
+export const v2BillingStatusQuerySchema = z
+  .object({
+    /**
+     * Resolve status against one workspace's payer. A workspace-scoped API key
+     * is always pinned to its own workspace; passing a different id returns 403.
+     */
+    workspaceId: workspaceIdSchema
+      .optional()
+      .describe(
+        'Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.'
+      ),
+  })
+  .strict()
 
 /**
  * Current billing standing, credit allowance, and storage quota. Ledger rows
@@ -126,6 +139,14 @@ export const v2GetBillingStatusContract = defineRouteContract({
   },
 })
 
+/**
+ * Unlike the keyset lists, this ledger's `cursor` is a usage-event id resolved by
+ * lookup rather than a self-describing opaque cursor, so it cannot be re-validated
+ * from its own contents. A cursor that names no usage event is a 400
+ * (`UNKNOWN_CURSOR_MESSAGE`) rather than an unpositioned first page, so a pager
+ * holding a cursor from another environment or a wiped ledger fails loudly instead
+ * of looping over page 1 and counting the same credits on every lap.
+ */
 export const v2BillingLogsQuerySchema = z
   .object({
     source: usageLogSourceSchema.optional().describe('Restrict results to one usage source.'),

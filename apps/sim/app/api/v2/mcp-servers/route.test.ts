@@ -2,40 +2,27 @@
  * @vitest-environment node
  */
 import type { mcpServers } from '@sim/db/schema'
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
-  class MockV2ApiKeyUnauthenticatedError extends Error {}
-  return {
-    mocks: {
-      authenticate: vi.fn(),
-      preauthRate: vi.fn(),
-      operationRate: vi.fn(),
-      gate: vi.fn(),
-      list: vi.fn(),
-      create: vi.fn(),
-      capture: vi.fn(),
-    },
-    MockV2ApiKeyUnauthenticatedError,
-  }
-})
+const mocks = vi.hoisted(() => ({
+  list: vi.fn(),
+  create: vi.fn(),
+  capture: vi.fn(),
+}))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  getRateLimit: vi.fn().mockReturnValue({
-    maxTokens: 100,
-    refillRate: 100,
-    refillIntervalMs: 60_000,
-  }),
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 vi.mock('@/lib/api/server/rate-limit-context', () => ({
   recordRateLimitSnapshot: vi.fn(),
   getRateLimitHeaders: vi.fn().mockReturnValue(null),
@@ -44,7 +31,6 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn().mockReturnValue('request-1'),
   getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
 }))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 vi.mock('@/lib/mcp/application/use-cases', () => ({
   listMcpServersUseCase: { operation: { id: 'mcp_servers.list' }, execute: mocks.list },
@@ -59,16 +45,9 @@ const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_I
 const AUTH = {
   principal: PRINCIPAL,
   rolloutUserId: 'owner-1',
-  rateLimitSubjectIds: ['workspace:workspace-1'] as const,
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
-}
-const RATE_LIMIT_OK = {
-  allowed: true,
-  limit: 100,
-  remaining: 99,
-  resetAt: new Date('2026-01-01T00:00:00Z'),
-  retryAfterMs: 0,
 }
 const server = {
   id: 'mcp-server-1',
@@ -112,11 +91,16 @@ function request(method: 'GET' | 'POST', url: string, body?: unknown) {
 describe('/api/v2/mcp-servers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.gate.mockResolvedValue(null)
-    mocks.list.mockResolvedValue({ servers: [server] })
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+    mocks.list.mockResolvedValue({
+      servers: [server],
+      nextCursorKeys: null,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
     mocks.create.mockResolvedValue({ server, updated: false })
   })
 
@@ -134,9 +118,84 @@ describe('/api/v2/mcp-servers', () => {
         search: undefined,
         sortBy: 'createdAt',
         sortOrder: 'desc',
+        limit: 50,
+        cursor: undefined,
+        cursorKeys: undefined,
       },
       request: expect.anything(),
     })
+  })
+
+  it('bounds the server list by the requested limit', async () => {
+    await GET(request('GET', `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&limit=2`))
+
+    expect(mocks.list).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ limit: 2 }) })
+    )
+  })
+
+  it('mints a resumable cursor and replays it against the same sort', async () => {
+    mocks.list.mockResolvedValueOnce({
+      servers: [server],
+      nextCursorKeys: [server.createdAt.toISOString(), server.id],
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
+
+    const first = await GET(
+      request('GET', `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&limit=1`)
+    )
+    const { nextCursor } = await first.json()
+
+    expect(nextCursor).toEqual(expect.any(String))
+
+    const second = await GET(
+      request(
+        'GET',
+        `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&limit=1&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(second.status).toBe(200)
+    expect(mocks.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          cursorKeys: [server.createdAt.toISOString(), server.id],
+        }),
+      })
+    )
+  })
+
+  it('rejects a cursor minted under a different sort', async () => {
+    mocks.list.mockResolvedValueOnce({
+      servers: [server],
+      nextCursorKeys: [server.createdAt.toISOString(), server.id],
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
+
+    const first = await GET(
+      request('GET', `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&limit=1`)
+    )
+    const { nextCursor } = await first.json()
+
+    const response = await GET(
+      request(
+        'GET',
+        `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&limit=1&sortBy=name&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+  })
+
+  it('rejects a fractional limit rather than paging on a fractional LIMIT', async () => {
+    const response = await GET(
+      request('GET', `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&limit=1.5`)
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.list).not.toHaveBeenCalled()
   })
 
   it('strictly creates an MCP server with the v2 source and status', async () => {
@@ -163,9 +222,10 @@ describe('/api/v2/mcp-servers', () => {
   })
 
   it('keeps product analytics surface-specific for personal API keys', async () => {
-    mocks.authenticate.mockResolvedValueOnce({
+    v2RouteMocks.authenticate.mockResolvedValueOnce({
       ...AUTH,
       principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-personal' },
+      rateLimitSubjectIds: ['api-key:key-personal', 'user:user-1'],
       keyType: 'personal',
     })
 
@@ -187,11 +247,12 @@ describe('/api/v2/mcp-servers', () => {
   })
 
   it('authenticates before parsing create input', async () => {
-    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
 
     const response = await POST(request('POST', '/api/v2/mcp-servers', {}))
 
     expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
     expect(mocks.create).not.toHaveBeenCalled()
   })
 })

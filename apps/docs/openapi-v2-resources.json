@@ -210,7 +210,7 @@
       "get": {
         "operationId": "listMcpServers",
         "summary": "List MCP Servers",
-        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. Nothing caps how many servers a workspace registers, so this list is paginated: paginate with `limit` and `cursor`, stopping when `nextCursor` is null. `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh` describe the most recent tool discovery and stay at their registration defaults until one runs — call `GET /api/v2/mcp-servers/{id}/tools` to run it.",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -258,6 +258,30 @@
               "description": "Sort direction.",
               "type": "string",
               "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor returned by the previous page.",
+            "schema": {
+              "description": "Opaque cursor returned by the previous page.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -382,11 +406,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "MCP server to retrieve, update, or delete.",
+            "description": "MCP server the operation acts on.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "MCP server to retrieve, update, or delete."
+              "description": "MCP server the operation acts on."
             }
           },
           {
@@ -456,11 +480,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "MCP server to retrieve, update, or delete.",
+            "description": "MCP server the operation acts on.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "MCP server to retrieve, update, or delete."
+              "description": "MCP server the operation acts on."
             }
           }
         ],
@@ -530,11 +554,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "MCP server to retrieve, update, or delete.",
+            "description": "MCP server the operation acts on.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "MCP server to retrieve, update, or delete."
+              "description": "MCP server the operation acts on."
             }
           },
           {
@@ -582,6 +606,95 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/mcp-servers/{id}/tools": {
+      "get": {
+        "operationId": "listMcpServerTools",
+        "summary": "List MCP Server Tools",
+        "description": "Connect to a registered MCP server and return the tools it exposes. Unlike most reads this one has side effects: it opens a live connection to the third-party server and writes `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh` on the server resource, so registering a server and then calling this completes onboarding without opening the Sim UI. Because the pass is not a safe read, a `HEAD` request is answered with an empty `200` without connecting or writing, so it reports only that the endpoint exists and the caller is authorized. Results are served from a short-lived per-workspace cache, so an uncached call reflects whichever workspace member last ran discovery; pass `refresh=true` to reconnect under your own credentials and pick up tools added since the last pass, at the cost of a live round trip to the server. The set is bounded by discovery itself — at most 1,000 tools and 5 MB of tool payload per server. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch. An unreachable, slow, or cooling-down server is a `503`; a server whose stored OAuth grant no longer works is a `409` with `error.details.code` `MCP_SERVER_REAUTHORIZATION_REQUIRED`, meaning the registration is intact but a human must reauthorize it in Sim — your API key is fine and re-issuing it changes nothing. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key. Discovery resolves the calling user's own OAuth credentials for the server, which a workspace key cannot supply — so a workspace key that can register a server cannot list its tools.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "MCP server the operation acts on.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "MCP server the operation acts on."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the MCP server.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the MCP server."
+            }
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "description": "Bypass the cached tool list and reconnect to the server. Slower, and the only way to pick up a tool added since the last refresh.",
+            "schema": {
+              "description": "Bypass the cached tool list and reconnect to the server. Slower, and the only way to pick up a tool added since the last refresh.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tools exposed by the MCP server.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMcpServerToolsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1989,7 +2102,7 @@
         }
       },
       "Forbidden": {
-        "description": "The caller lacks access to the resource.",
+        "description": "The caller lacks the rights this operation requires. Where the cause is one a caller can act on, `error.details.code` names it, drawn from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\nA resource in a workspace the caller cannot reach at all answers `404`, not `403`, so absence and denial are indistinguishable to a caller who was never entitled to tell them apart.",
         "content": {
           "application/json": {
             "schema": {
@@ -2867,6 +2980,118 @@
               "id": "mcp-3f7a9c21",
               "deleted": true
             }
+          }
+        ]
+      },
+      "V2McpTool": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Tool name, as the MCP server reports it."
+          },
+          "description": {
+            "description": "Tool description reported by the server.",
+            "type": "string"
+          },
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "object",
+                "description": "JSON Schema type of the argument object. MCP requires `object`."
+              },
+              "properties": {
+                "description": "Argument schemas keyed by argument name.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "Server-defined JSON Schema for one tool argument."
+                }
+              },
+              "required": {
+                "description": "Names of the arguments the tool requires.",
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "Name of a required argument."
+                }
+              },
+              "description": {
+                "description": "Description of the argument object.",
+                "type": "string"
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": {
+              "description": "Additional JSON Schema keyword reported by the server."
+            },
+            "description": "JSON Schema for the tool's arguments, as reported by the server."
+          },
+          "serverId": {
+            "type": "string",
+            "description": "Identifier of the MCP server exposing the tool."
+          },
+          "serverName": {
+            "type": "string",
+            "description": "Display name of the MCP server exposing the tool."
+          }
+        },
+        "required": ["name", "inputSchema", "serverId", "serverName"],
+        "additionalProperties": false,
+        "title": "MCP tool",
+        "description": "A tool exposed by a registered MCP server."
+      },
+      "ListMcpServerToolsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2McpTool"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List MCP server tools response",
+        "description": "Tools exposed by the MCP server.",
+        "examples": [
+          {
+            "data": [
+              {
+                "name": "search_docs",
+                "description": "Search the internal documentation",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "description": "Search terms"
+                    }
+                  },
+                  "required": ["query"]
+                },
+                "serverId": "mcp-3f7a9c21",
+                "serverName": "Docs server"
+              }
+            ],
+            "nextCursor": null
           }
         ]
       },
