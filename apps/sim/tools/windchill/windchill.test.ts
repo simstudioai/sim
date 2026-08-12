@@ -125,6 +125,51 @@ describe('Windchill tools', () => {
     }
   })
 
+  it('gives every required tool param a required, non-advanced input for its operation', () => {
+    const subBlocks = WindchillBlock.subBlocks
+    const ALWAYS_SHOWN = new Set(['baseUrl', 'username', 'password'])
+    const shownFor = (subBlock: (typeof subBlocks)[number], operation: string) => {
+      const condition = subBlock.condition as { value?: unknown } | undefined
+      if (!condition) return true
+      const value = condition.value
+      return Array.isArray(value) ? value.includes(operation) : value === operation
+    }
+
+    for (const [operation, tool] of WINDCHILL_TOOLS_BY_ID) {
+      for (const [name, param] of Object.entries(tool.params)) {
+        if (!param.required || ALWAYS_SHOWN.has(name)) continue
+        const members = subBlocks.filter(
+          (subBlock) =>
+            (subBlock.canonicalParamId ?? subBlock.id) === name && shownFor(subBlock, operation)
+        )
+        expect(
+          members.length,
+          `${operation} has no input for required param ${name}`
+        ).toBeGreaterThan(0)
+        for (const member of members) {
+          expect(member.required, `${operation}.${name} input is not required`).toBeTruthy()
+        }
+      }
+    }
+  })
+
+  it("shows no input an operation's tool cannot accept", () => {
+    const subBlocks = WindchillBlock.subBlocks
+    for (const [operation, tool] of WINDCHILL_TOOLS_BY_ID) {
+      const dead = subBlocks
+        .filter((subBlock) => {
+          if (subBlock.id === 'operation') return false
+          const condition = subBlock.condition as { value?: unknown } | undefined
+          if (!condition) return false
+          const value = condition.value
+          return Array.isArray(value) ? value.includes(operation) : value === operation
+        })
+        .map((subBlock) => subBlock.canonicalParamId ?? subBlock.id)
+        .filter((id) => !(id in tool.params))
+      expect(dead, `${operation} shows inputs its tool ignores`).toEqual([])
+    }
+  })
+
   it('wires every operation to the outputs family its producer actually emits', () => {
     const expected: Record<WindchillOperation, unknown> = {
       windchill_list_documents: WINDCHILL_LIST_DOCUMENTS_OUTPUTS,
