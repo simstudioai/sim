@@ -13,14 +13,14 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 {/* MANUAL-CONTENT-START:intro */}
 [PTC Windchill](https://www.ptc.com/en/products/windchill) is the product lifecycle management system manufacturers use as the system of record for engineering data. Documents in Windchill are controlled objects: each one carries a number, a revision and iteration, a lifecycle state, folder placement, security labels, and a checkout status that decides who is allowed to change it right now.
 
-This integration talks to Windchill REST Services (WRS) 2.7 over its OData API using a Basic-authenticated service account. Point it at a complete versioned service root — `https://your-host/Windchill/servlet/odata/v6` — and your agents can:
+This integration talks to Windchill REST Services (WRS) 2.7 over OData — the query protocol Windchill exposes its data through — using a Basic-authenticated service account. Point it at a complete versioned service root — `https://your-host/Windchill/servlet/odata/v6` — and your agents can:
 
 - **Find and read documents**: list documents with an OData filter, sort order, field selection, page size, and a latest-version-only switch; fetch a single document by its object identifier (OID); and walk a document's structure through its usage links to see child documents with their versions and states.
-- **Create and update**: create one document or a batch of them in a container and optional folder, and patch installed attributes on one or many documents. Name, Number, and Organization are deliberately rejected — Windchill requires its own `UpdateCommonProperties` action for those.
+- **Create and update**: create one document or a batch of them in a container and optional folder, and patch editable attributes on one or many documents. Name, Number, and Organization are deliberately rejected — Windchill requires its own `UpdateCommonProperties` action for those.
 - **Run the version and lifecycle cycle**: check documents out and back in with notes, undo a checkout, revise to the next revision, read the lifecycle states a document is actually allowed to move to, and transition it to one of them.
-- **Move files**: download a document's primary content or a named attachment into a Sim file, and upload files as primary content or attachments through Windchill's three-stage vault upload.
+- **Move files**: download a document's primary content, or a specific attachment by its OID, into a Sim file — and upload files as primary content or attachments. Sim handles Windchill's CSRF token and its multi-step upload handshake for you.
 
-Bulk actions are atomic on Windchill's side: if the action fails for any object in the batch, the whole operation rolls back and nothing changes. Every write first fetches a CSRF nonce and replays it, matching what WRS requires of any REST client.
+Bulk actions are atomic on Windchill's side: PTC documents that if the action fails for any object in the collection, the entire action is rolled back and nothing changes.
 
 Two limits are worth knowing before you build. Windchill identifies everything by OID (`OR:wt.doc.WTDocument:48796581`), so most operations need an OID you got from a list or get call rather than a document number. And this integration supports Basic authentication only — Windchill deployments fronted by OAuth are not currently supported.
 {/* MANUAL-CONTENT-END */}
@@ -36,7 +36,7 @@ Integrate PTC Windchill REST Services 2.7 document management into your workflow
 
 ### Windchill List Documents
 
-List WT.Document objects with bounded OData query and pagination controls
+List documents with an OData query, sorting, and pagination
 
 #### Input
 
@@ -48,7 +48,7 @@ List WT.Document objects with bounded OData query and pagination controls
 | `select` | string | No | Comma-separated normalized document properties to return |
 | `filter` | string | No | OData $filter expression |
 | `orderBy` | string | No | OData $orderby expression |
-| `top` | number | No | Maximum documents in the OData result set \($top\), from 1 to 200 |
+| `top` | number | No | Maximum documents in the OData result set \($top\), from 1 to 2000 |
 | `skip` | number | No | Documents to skip |
 | `count` | boolean | No | Ask Windchill to include the total matching count |
 | `latestVersion` | boolean | No | Return only the latest version of matching documents |
@@ -302,7 +302,7 @@ Create one WT.Document
 
 ### Windchill Create Documents
 
-Create multiple WT.Document objects atomically
+Create several documents in one atomic Windchill request
 
 #### Input
 
@@ -337,7 +337,7 @@ Create multiple WT.Document objects atomically
 
 ### Windchill Update Document
 
-Update PATCH-compatible attributes on one document
+Update one document's editable attributes
 
 #### Input
 
@@ -347,7 +347,7 @@ Update PATCH-compatible attributes on one document
 | `username` | string | Yes | Windchill service-account username |
 | `password` | string | Yes | Windchill service-account password |
 | `documentOid` | string | Yes | WT.Document OID, for example OR:wt.doc.WTDocument:48796581 |
-| `attributes` | json | Yes | Installed PATCH-compatible attributes as bounded JSON. Name, Number, and Organization require UpdateCommonProperties and are not supported here. |
+| `attributes` | json | Yes | Editable attributes as a JSON object. Name, Number, and Organization require Windchill UpdateCommonProperties and are not supported here. |
 
 #### Output
 
@@ -373,7 +373,7 @@ Update PATCH-compatible attributes on one document
 
 ### Windchill Update Documents
 
-Update PATCH-compatible attributes on multiple documents atomically
+Update several documents' editable attributes in one atomic request
 
 #### Input
 
@@ -382,7 +382,7 @@ Update PATCH-compatible attributes on multiple documents atomically
 | `baseUrl` | string | Yes | Complete WRS 2.7 versioned service root using Basic authentication, for example https://host/Windchill/servlet/odata/v6 |
 | `username` | string | Yes | Windchill service-account username |
 | `password` | string | Yes | Windchill service-account password |
-| `documents` | array | Yes | Document updates as a JSON array; each item requires id and bounded PATCH-compatible attributes. Name, Number, and Organization are not supported. |
+| `documents` | array | Yes | Document updates as a JSON array; each item requires id and the editable attributes to set. Name, Number, and Organization are not supported. |
 
 #### Output
 

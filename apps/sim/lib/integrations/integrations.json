@@ -21952,7 +21952,7 @@
       "operations": [
         {
           "name": "List Documents",
-          "description": "List WT.Document objects with bounded OData query and pagination controls"
+          "description": "List documents with an OData query, sorting, and pagination"
         },
         {
           "name": "Get Document",
@@ -21980,15 +21980,15 @@
         },
         {
           "name": "Create Documents",
-          "description": "Create multiple WT.Document objects atomically"
+          "description": "Create several documents in one atomic Windchill request"
         },
         {
           "name": "Update Document",
-          "description": "Update PATCH-compatible attributes on one document"
+          "description": "Update one document's editable attributes"
         },
         {
           "name": "Update Documents",
-          "description": "Update PATCH-compatible attributes on multiple documents atomically"
+          "description": "Update several documents' editable attributes in one atomic request"
         },
         {
           "name": "Delete Document",

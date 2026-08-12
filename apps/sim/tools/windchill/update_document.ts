@@ -12,7 +12,7 @@ import {
 export const windchillUpdateDocumentTool: ToolConfig<WindchillParams, WindchillResponse> = {
   id: 'windchill_update_document',
   name: 'Windchill Update Document',
-  description: 'Update PATCH-compatible attributes on one document',
+  description: "Update one document's editable attributes",
   version: '1.0.0',
   params: {
     baseUrl: {
@@ -45,7 +45,7 @@ export const windchillUpdateDocumentTool: ToolConfig<WindchillParams, WindchillR
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Installed PATCH-compatible attributes as bounded JSON. Name, Number, and Organization require UpdateCommonProperties and are not supported here.',
+        'Editable attributes as a JSON object. Name, Number, and Organization require Windchill UpdateCommonProperties and are not supported here.',
     },
   },
   request: {

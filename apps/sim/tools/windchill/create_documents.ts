@@ -12,7 +12,7 @@ import {
 export const windchillCreateDocumentsTool: ToolConfig<WindchillParams, WindchillResponse> = {
   id: 'windchill_create_documents',
   name: 'Windchill Create Documents',
-  description: 'Create multiple WT.Document objects atomically',
+  description: 'Create several documents in one atomic Windchill request',
   version: '1.0.0',
   params: {
     baseUrl: {
