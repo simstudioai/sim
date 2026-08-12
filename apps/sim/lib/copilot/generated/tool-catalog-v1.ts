@@ -61,7 +61,6 @@ export interface ToolCatalogEntry {
     | 'get_deployed_workflow_state'
     | 'get_deployment_log'
     | 'get_page_contents'
-    | 'get_platform_actions'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
     | 'glob'
@@ -102,7 +101,7 @@ export interface ToolCatalogEntry {
     | 'run_workflow_until_block'
     | 'scrape_page'
     | 'search'
-    | 'search_documentation'
+    | 'search_docs'
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
@@ -182,7 +181,6 @@ export interface ToolCatalogEntry {
     | 'get_deployed_workflow_state'
     | 'get_deployment_log'
     | 'get_page_contents'
-    | 'get_platform_actions'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
     | 'glob'
@@ -223,7 +221,7 @@ export interface ToolCatalogEntry {
     | 'run_workflow_until_block'
     | 'scrape_page'
     | 'search'
-    | 'search_documentation'
+    | 'search_docs'
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
@@ -3026,15 +3024,6 @@ export const GetPageContents: ToolCatalogEntry = {
   },
 }
 
-export const GetPlatformActions: ToolCatalogEntry = {
-  id: 'get_platform_actions',
-  name: 'get_platform_actions',
-  route: 'sim',
-  mode: 'async',
-  parameters: { type: 'object', properties: {} },
-  hidden: true,
-}
-
 export const GetWorkflowData: ToolCatalogEntry = {
   id: 'get_workflow_data',
   name: 'get_workflow_data',
@@ -4560,21 +4549,21 @@ export const Search: ToolCatalogEntry = {
   internal: true,
 }
 
-export const SearchDocumentation: ToolCatalogEntry = {
-  id: 'search_documentation',
-  name: 'search_documentation',
+export const SearchDocs: ToolCatalogEntry = {
+  id: 'search_docs',
+  name: 'search_docs',
   route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
     properties: {
-      query: { type: 'string', description: 'The search query' },
-      topK: {
-        type: 'number',
+      path: {
+        type: 'string',
         description:
-          'Number of results to return (default 10). Not clamped — keep it small, since each result is a full doc chunk.',
-        default: 10,
+          'Optional docs/ VFS path (a page such as docs/workflows/blocks/agent.mdx, or a section such as docs/workflows) that limits the search scope',
       },
+      query: { type: 'string', description: 'The search query' },
+      topK: { type: 'number', description: 'Number of results (default 5, max 25)' },
     },
     required: ['query'],
   },
@@ -6561,7 +6550,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [GetDeployedWorkflowState.id]: GetDeployedWorkflowState,
   [GetDeploymentLog.id]: GetDeploymentLog,
   [GetPageContents.id]: GetPageContents,
-  [GetPlatformActions.id]: GetPlatformActions,
   [GetWorkflowData.id]: GetWorkflowData,
   [GetWorkflowRunOptions.id]: GetWorkflowRunOptions,
   [Glob.id]: Glob,
@@ -6602,7 +6590,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [RunWorkflowUntilBlock.id]: RunWorkflowUntilBlock,
   [ScrapePage.id]: ScrapePage,
   [Search.id]: Search,
-  [SearchDocumentation.id]: SearchDocumentation,
+  [SearchDocs.id]: SearchDocs,
   [SearchIntegrationTools.id]: SearchIntegrationTools,
   [SearchKnowledgeBase.id]: SearchKnowledgeBase,
   [SearchLibraryDocs.id]: SearchLibraryDocs,

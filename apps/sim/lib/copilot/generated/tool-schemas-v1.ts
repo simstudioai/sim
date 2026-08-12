@@ -2918,13 +2918,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_platform_actions: {
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-    resultSchema: undefined,
-  },
   get_workflow_data: {
     parameters: {
       type: 'object',
@@ -4403,19 +4396,22 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  search_documentation: {
+  search_docs: {
     parameters: {
       type: 'object',
       properties: {
+        path: {
+          type: 'string',
+          description:
+            'Optional docs/ VFS path (a page such as docs/workflows/blocks/agent.mdx, or a section such as docs/workflows) that limits the search scope',
+        },
         query: {
           type: 'string',
           description: 'The search query',
         },
         topK: {
           type: 'number',
-          description:
-            'Number of results to return (default 10). Not clamped — keep it small, since each result is a full doc chunk.',
-          default: 10,
+          description: 'Number of results (default 5, max 25)',
         },
       },
       required: ['query'],
