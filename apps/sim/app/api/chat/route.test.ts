@@ -34,6 +34,9 @@ vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
 vi.mock('@/app/api/chat/utils', () => ({
   checkWorkflowAccessForChatCreation: mockCheckWorkflowAccessForChatCreation,
+}))
+
+vi.mock('@/lib/chat/permissions', () => ({
   canSetPublicChatAuth: mockCanSetPublicChatAuth,
 }))
 

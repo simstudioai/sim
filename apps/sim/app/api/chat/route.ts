@@ -7,9 +7,10 @@ import type { NextRequest } from 'next/server'
 import { createChatContract } from '@/lib/api/contracts/chats'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { canSetPublicChatAuth } from '@/lib/chat/permissions'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performChatDeploy } from '@/lib/workflows/orchestration'
-import { canSetPublicChatAuth, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
+import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import {
   ChatDeployAuthNotAllowedError,

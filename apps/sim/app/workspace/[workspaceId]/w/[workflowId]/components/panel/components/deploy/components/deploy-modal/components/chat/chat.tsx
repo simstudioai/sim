@@ -177,10 +177,20 @@ export function ChatDeploy({
     return Object.keys(newErrors).length === 0
   }
 
+  /**
+   * A public chat is admin-only (the server enforces the same rule on both the
+   * REST routes and the copilot use case), so a non-admin selecting it must not
+   * be able to submit into a 403. An already-public chat stays editable.
+   */
+  const { canAdmin } = useUserPermissionsContext()
+  const publicAuthBlocked =
+    formData.authType === 'public' && !canAdmin && existingChat?.authType !== 'public'
+
   const isFormValid =
     isIdentifierValid &&
     Boolean(formData.title.trim()) &&
     formData.selectedOutputBlocks.length > 0 &&
+    !publicAuthBlocked &&
     !isPasswordRequired(formData.authType, formData.password, existingPassword) &&
     (formData.authType !== 'password' || !isWhitespaceOnlyPassword(formData.password)) &&
     ((formData.authType !== 'email' && formData.authType !== 'sso') || formData.emails.length > 0)
@@ -726,6 +736,16 @@ function AuthSelector({
     (type) => allowedAuthTypes === null || allowedAuthTypes.includes(type) || type === savedAuthType
   )
 
+  /**
+   * A permission group restricted to public-only leaves a non-admin with no
+   * deployable mode: the org allows only public, and public is admin-only. That
+   * combination is intentional, not a bug — deferring to the group here would
+   * let any org grant editors public deploys by narrowing the allow-list — so
+   * the form surfaces the dead end instead of letting a submit 403.
+   */
+  const noDeployableAuthType =
+    authOptions.length > 0 && authOptions.every((type) => type === 'public') && !canSetPublic
+
   useEffect(() => {
     if (authOptions.length > 0 && !authOptions.includes(authType)) {
       onAuthTypeChange(authOptions[0])
@@ -769,6 +789,12 @@ function AuthSelector({
             )
           )}
         </ButtonGroup>
+        {noDeployableAuthType && (
+          <p className='mt-1 text-[var(--text-error)] text-caption'>
+            This workspace only allows public chats, and only admins can deploy those. Ask an admin
+            to deploy this chat or to allow another access mode.
+          </p>
+        )}
       </div>
 
       {authType === 'password' && (

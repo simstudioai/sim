@@ -7,6 +7,7 @@ import {
 } from '@sim/auth/principal'
 import { chat, db } from '@sim/db'
 import { and, eq, isNull } from 'drizzle-orm'
+import { canSetPublicChatAuth } from '@/lib/chat/permissions'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
@@ -141,6 +142,20 @@ export const deployWorkflowChat = defineAuthorizedWorkflowUseCase({
 
     const subjectUserId = requirePrincipalSubjectUserId(principal)
     if (authType !== existingDeployment?.authType) {
+      /**
+       * Deploying a chat needs `write`, but a public chat is invocable by anyone
+       * holding the URL with no authentication, so the exposure itself is
+       * admin-only — the same boundary the REST chat routes enforce. This path
+       * defaults `authType` to `public`, so without this check a `write`
+       * principal could ship an unauthenticated chat through copilot.
+       */
+      if (
+        authType === 'public' &&
+        !(await canSetPublicChatAuth(subjectUserId, context.workspaceId))
+      ) {
+        throw new OrchestrationError('forbidden', 'Only admins can deploy a public chat')
+      }
+
       try {
         await validateChatDeployAuth(subjectUserId, context.workspaceId, authType)
       } catch (error) {

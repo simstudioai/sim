@@ -50,8 +50,11 @@ vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/app/api/chat/utils', () => ({
   checkChatAccess: mockCheckChatAccess,
+}))
+vi.mock('@/lib/chat/permissions', () => ({
   canSetPublicChatAuth: mockCanSetPublicChatAuth,
 }))
+
 vi.mock('@/ee/access-control/utils/permission-check', () => {
   class ChatDeployAuthNotAllowedError extends Error {
     constructor() {

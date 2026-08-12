@@ -8,6 +8,7 @@ import type { NextRequest } from 'next/server'
 import { chatIdParamsSchema, updateChatContract } from '@/lib/api/contracts/chats'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { canSetPublicChatAuth } from '@/lib/chat/permissions'
 import { isDev } from '@/lib/core/config/env-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
@@ -18,7 +19,7 @@ import {
   performChatUndeploy,
   performFullDeploy,
 } from '@/lib/workflows/orchestration'
-import { canSetPublicChatAuth, checkChatAccess } from '@/app/api/chat/utils'
+import { checkChatAccess } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import {
   ChatDeployAuthNotAllowedError,

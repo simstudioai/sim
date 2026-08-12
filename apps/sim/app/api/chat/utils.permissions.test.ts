@@ -13,7 +13,8 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { canSetPublicChatAuth, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
+import { canSetPublicChatAuth } from '@/lib/chat/permissions'
+import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 
 /**
  * Chat deployment dropped from `admin` to `write` alongside the rest of the
