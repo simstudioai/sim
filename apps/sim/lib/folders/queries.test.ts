@@ -282,6 +282,40 @@ describe('folder queries', () => {
         )
       ).toBe(true)
     })
+
+    /**
+     * The bulk writers — recursive duplication, admin import, workspace fork — insert many
+     * folders per call. Charging one row and then writing N is the same overflow the ceiling
+     * exists to prevent, so the caller declares how many rows it is about to add.
+     */
+    it('refuses a bulk create that would cross the ceiling from below it', async () => {
+      queueTableRows(schemaMock.folder, [{ total: MAX_FOLDERS_PER_WORKSPACE - 3 }])
+
+      const rejection = expect(
+        assertFolderCollectionHasRoom('ws-1', 'workflow', undefined, { additionalRows: 4 })
+      ).rejects
+      await rejection.toBeInstanceOf(FolderCollectionFullError)
+      await rejection.toMatchObject({ code: 'conflict' })
+    })
+
+    it('allows a bulk create that exactly fills the ceiling', async () => {
+      queueTableRows(schemaMock.folder, [{ total: MAX_FOLDERS_PER_WORKSPACE - 4 }])
+
+      await expect(
+        assertFolderCollectionHasRoom('ws-1', 'workflow', undefined, { additionalRows: 4 })
+      ).resolves.toBeUndefined()
+    })
+
+    /**
+     * A copy that creates no folders is not a create. An over-cap workspace must still be
+     * able to run one, so the count is not even issued.
+     */
+    it('skips the count entirely when no rows are being added', async () => {
+      await expect(
+        assertFolderCollectionHasRoom('ws-1', 'workflow', undefined, { additionalRows: 0 })
+      ).resolves.toBeUndefined()
+      expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    })
   })
 
   describe('toFolderApi', () => {

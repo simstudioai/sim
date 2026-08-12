@@ -206,6 +206,17 @@ export async function loadActiveFolderPathIndex(
   return buildFolderPathIndex(rows)
 }
 
+export interface FolderCollectionRoomOptions {
+  /**
+   * How many folder rows the caller is about to insert. Bulk and recursive
+   * creates must pass their real row count: asserting room for one row and then
+   * inserting a whole subtree crosses the ceiling just as surely as ignoring it.
+   * Defaults to 1, the single-folder create.
+   */
+  additionalRows?: number
+  maxRows?: number
+}
+
 /**
  * Refuses a folder create that would push a workspace's active tree past the
  * ceiling the capped readers materialize under.
@@ -214,13 +225,22 @@ export async function loadActiveFolderPathIndex(
  * and a workspace already over the ceiling must not have its creates fail as a
  * read error. Callers run this inside the folder mutation lock, which is what
  * makes the count authoritative against a concurrent create.
+ *
+ * One query regardless of how many rows the caller is adding — a bulk writer
+ * passes `additionalRows` instead of calling this per row, which would be both
+ * O(n) queries and wrong (each call would see room for one more).
  */
 export async function assertFolderCollectionHasRoom(
   workspaceId: string,
   resourceType: FolderResourceType,
   tx: DbOrTx = db,
-  maxRows: number = MAX_FOLDERS_PER_WORKSPACE
+  options: FolderCollectionRoomOptions = {}
 ): Promise<void> {
+  const { additionalRows = 1, maxRows = MAX_FOLDERS_PER_WORKSPACE } = options
+  // A copy that creates no folders is not a create; an over-cap workspace must
+  // still be allowed to run it.
+  if (additionalRows <= 0) return
+
   const [row] = await tx
     .select({ total: count() })
     .from(folder)
@@ -232,7 +252,7 @@ export async function assertFolderCollectionHasRoom(
       )
     )
 
-  if (Number(row?.total ?? 0) >= maxRows) {
+  if (Number(row?.total ?? 0) + additionalRows > maxRows) {
     throw new FolderCollectionFullError(folderResourceConfig(resourceType).label, maxRows)
   }
 }
