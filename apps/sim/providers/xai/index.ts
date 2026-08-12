@@ -38,6 +38,20 @@ import {
 
 const logger = createLogger('XAIProvider')
 
+/**
+ * xAI's Grok models via an OpenAI-compatible chat-completions API
+ * (`api.x.ai/v1`), with these documented deviations:
+ * - `reasoning_effort` maps from `request.reasoningEffort`. Sim's `auto`
+ *   sentinel means "let the model pick its own default" and is never
+ *   forwarded — xAI rejects it outright with `Invalid reasoning effort`.
+ * - Only some Grok models accept the parameter at all; the rest reject it with
+ *   `does not support parameter reasoningEffort`. Which values each model takes
+ *   is declared per-model in `capabilities.reasoningEffort`, which is also what
+ *   gates the Agent block's effort dropdown.
+ * - Output length is capped via `max_completion_tokens`.
+ * - `tools` and `response_format` cannot be sent in the same request, so tools
+ *   run first and the schema is applied on a follow-up pass.
+ */
 export const xAIProvider: ProviderConfig = {
   id: 'xai',
   name: 'xAI',
@@ -102,6 +116,11 @@ export const xAIProvider: ProviderConfig = {
 
     if (request.temperature !== undefined) basePayload.temperature = request.temperature
     if (request.maxTokens != null) basePayload.max_completion_tokens = request.maxTokens
+
+    if (request.reasoningEffort !== undefined && request.reasoningEffort !== 'auto') {
+      basePayload.reasoning_effort = request.reasoningEffort
+    }
+
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
     if (tools?.length) {
@@ -166,7 +185,6 @@ export const xAIProvider: ProviderConfig = {
     try {
       const initialCallTime = Date.now()
 
-      // xAI cannot use tools and response_format together in the same request
       const initialPayload = { ...basePayload }
 
       let originalToolChoice: any
