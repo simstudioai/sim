@@ -27,11 +27,20 @@ export const WORKSPACE_ERRORS = [
  * out, so a new code is published the moment it exists.
  *
  * Four remedies hide behind one status — raise a role, switch key kind,
- * re-point a workspace key, change the plan — and prose is not branchable, so
- * every 403 names its cause in `error.details.code`.
+ * re-point a workspace key, change the plan — and prose is not branchable, so a
+ * 403 a caller can do something about names its cause in `error.details.code`.
+ *
+ * The wording is deliberately "where the cause is one a caller can act on"
+ * rather than "always". Nine domain refusals still throw a bare
+ * `OrchestrationError('forbidden', …)` and reach the wire without a code —
+ * `GET /api/v2/billing/status` with a personal key against a workspace that
+ * disallows them is one. Reparenting those onto `ForbiddenOperationError` is
+ * worth doing, but one of them is a cross-tenant refusal that belongs in the
+ * codeless class and would change its status, so it is a deliberate change
+ * rather than a sweep. Until then this description must not over-claim.
  */
 const FORBIDDEN_DESCRIPTION = [
-  'The caller lacks the rights this operation requires. `error.details.code` names the cause, drawn from a closed set:',
+  'The caller lacks the rights this operation requires. Where the cause is one a caller can act on, `error.details.code` names it, drawn from a closed set:',
   ...FORBIDDEN_DETAIL_CODES.map(
     (code) => `- \`${code}\` — ${FORBIDDEN_DETAIL_CODE_DESCRIPTIONS[code]}`
   ),
