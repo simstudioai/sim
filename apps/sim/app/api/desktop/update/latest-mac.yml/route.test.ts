@@ -27,8 +27,11 @@ function manifest(version: string) {
   return [`version: ${version}`, 'files:', `  - url: Sim-${version}-universal-mac.zip`].join('\n')
 }
 
-async function getFeed(hostname: string): Promise<Response> {
-  return GET(new NextRequest(`https://${hostname}/api/desktop/update/latest-mac.yml`), undefined)
+async function getFeed(hostname: string, headers?: HeadersInit): Promise<Response> {
+  return GET(
+    new NextRequest(`https://${hostname}/api/desktop/update/latest-mac.yml`, { headers }),
+    undefined
+  )
 }
 
 describe('desktop update manifest route', () => {
@@ -72,6 +75,28 @@ describe('desktop update manifest route', () => {
     expect(body).toContain(
       `https://github.com/simstudioai/sim/releases/download/${tag}/Sim-${version}-universal-mac.zip`
     )
+  })
+
+  it('uses the forwarded public hostname behind a reverse proxy', async () => {
+    fetchMock.mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url === RELEASES_URL) {
+        return Response.json([release('v1.2.0-staging.5'), release('v1.1.0')])
+      }
+      if (url === `https://downloads.example/v1.2.0-staging.5/${MANIFEST_ASSET_NAME}`) {
+        return new Response(manifest('1.2.0-staging.5'))
+      }
+      return new Response(null, { status: 404 })
+    })
+
+    const response = await getFeed('internal.service.local', {
+      'x-forwarded-host': 'www.staging.sim.ai:443, internal.service.local',
+    })
+    const body = await response.text()
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get(FEED_STATUS_HEADER)).toBe('release')
+    expect(body).toContain('version: 1.2.0-staging.5')
   })
 
   it('reports an authoritative no-release result for production with only prereleases', async () => {

@@ -21,6 +21,19 @@ const FEED_STATUS_HEADER = 'x-sim-desktop-update-feed'
 
 const RELEASES_API_URL = `https://api.github.com/repos/${DESKTOP_RELEASE_REPO}/releases?per_page=30`
 
+/** Resolves the public hostname when Next.js is running behind a reverse proxy. */
+function hostnameForRequest(request: NextRequest): string {
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
+  const host = forwardedHost || request.headers.get('host')
+  if (!host) return request.nextUrl.hostname
+
+  try {
+    return new URL(`http://${host}`).hostname
+  } catch {
+    return request.nextUrl.hostname
+  }
+}
+
 /**
  * The per-environment desktop update feed (see `lib/desktop/update-feed.ts`).
  *
@@ -30,11 +43,13 @@ const RELEASES_API_URL = `https://api.github.com/repos/${DESKTOP_RELEASE_REPO}/r
  * only describes public GitHub release artifacts.
  */
 export const GET = withRouteHandler(async (request: NextRequest): Promise<Response> => {
-  // The same deployment configuration can be promoted across environments, so
-  // its baked NEXT_PUBLIC_APP_URL is not authoritative for this public feed.
-  // The hostname the installed shell actually requested is the channel:
-  // dev -> dev, staging -> staging, and prod/self-hosted -> stable.
-  const channel = channelForHostname(request.nextUrl.hostname)
+  /**
+   * The same deployment configuration can be promoted across environments, so
+   * its baked NEXT_PUBLIC_APP_URL is not authoritative for this public feed.
+   * Reverse proxies replace the request URL's hostname with their internal
+   * origin, so use the forwarded public host to select the channel.
+   */
+  const channel = channelForHostname(hostnameForRequest(request))
 
   // A token raises the GitHub API quota from 60/h per NAT IP to 5000/h.
   // Optional: the repo is public, so the feed works without one.
