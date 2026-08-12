@@ -53,6 +53,17 @@ vi.mock('@/lib/skills/application/use-cases', () => ({
 import { GET, POST } from '@/app/api/v2/skills/route'
 
 const WORKSPACE_ID = 'workspace-1'
+
+/**
+ * The scope stamp the route mints for the default query. Written out rather
+ * than imported so the test pins the wire format a shipped cursor carries.
+ */
+const SCOPE = ({
+  search = '',
+  sortBy = 'createdAt',
+  sortOrder = 'desc',
+}: Record<string, string> = {}) =>
+  `search=${search}&sortBy=${sortBy}&sortOrder=${sortOrder}&workspaceId=${WORKSPACE_ID}`
 const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
 const AUTH = {
   principal: PRINCIPAL,
@@ -118,14 +129,21 @@ describe('/api/v2/skills', () => {
         limit: 50,
         cursor: undefined,
         offset: 0,
+        cursorScope: SCOPE(),
       },
       request: expect.anything(),
     })
   })
 
   it('resumes from the offset cursor and mints the next one while pages remain', async () => {
-    mocks.list.mockResolvedValueOnce({ skills: [skill], hasMore: true, offset: 2, limit: 2 })
-    const cursor = Buffer.from(JSON.stringify({ offset: 2 })).toString('base64')
+    mocks.list.mockResolvedValueOnce({
+      skills: [skill],
+      hasMore: true,
+      offset: 2,
+      limit: 2,
+      cursorScope: SCOPE(),
+    })
+    const cursor = Buffer.from(JSON.stringify({ scope: SCOPE(), offset: 2 })).toString('base64')
 
     const response = await GET(
       request(
@@ -136,11 +154,29 @@ describe('/api/v2/skills', () => {
 
     expect(response.status).toBe(200)
     expect((await response.json()).nextCursor).toBe(
-      Buffer.from(JSON.stringify({ offset: 4 })).toString('base64')
+      Buffer.from(JSON.stringify({ scope: SCOPE(), offset: 4 })).toString('base64')
     )
     expect(mocks.list).toHaveBeenCalledWith(
       expect.objectContaining({ input: expect.objectContaining({ limit: 2, offset: 2 }) })
     )
+  })
+
+  /**
+   * An offset means nothing against a sequence it was not counted in, so a
+   * cursor minted under one sort must not silently resume under another.
+   */
+  it('rejects a cursor replayed under a different sort', async () => {
+    const cursor = Buffer.from(JSON.stringify({ scope: SCOPE(), offset: 2 })).toString('base64')
+
+    const response = await GET(
+      request(
+        'GET',
+        `/api/v2/skills?workspaceId=${WORKSPACE_ID}&sortBy=name&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.list).not.toHaveBeenCalled()
   })
 
   it('rejects a malformed cursor rather than silently restarting at page one', async () => {

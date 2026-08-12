@@ -29,7 +29,11 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { serializeDate } from '@/app/api/v1/knowledge/utils'
-import { decodeOffsetCursor, encodeCursor } from '@/app/api/v2/lib/response'
+import {
+  decodeOffsetCursor,
+  encodeOffsetCursor,
+  offsetCursorScope,
+} from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -71,21 +75,37 @@ export const GET = defineV2JsonRoute({
   operation: knowledgeOperations.listDocuments,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
-  mapInput: ({ params, query }) => ({
-    knowledgeBaseId: params.id,
-    assertedWorkspaceId: query.workspaceId,
-    enabledFilter: query.enabledFilter,
-    search: query.search,
-    limit: query.limit,
-    offset: decodeOffsetCursor(query.cursor),
-    sortBy: query.sortBy,
-    sortOrder: query.sortOrder,
-  }),
+  mapInput: ({ params, query }) => {
+    /**
+     * The offset counts positions in the filtered, sorted document sequence, so
+     * every param that changes that sequence is stamped into the cursor and
+     * re-checked here. `limit` selects how much of the sequence to return, not
+     * what the sequence is, so it stays out.
+     */
+    const cursorScope = offsetCursorScope({
+      knowledgeBaseId: params.id,
+      enabledFilter: query.enabledFilter,
+      search: query.search,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+    })
+    return {
+      knowledgeBaseId: params.id,
+      assertedWorkspaceId: query.workspaceId,
+      enabledFilter: query.enabledFilter,
+      search: query.search,
+      limit: query.limit,
+      offset: decodeOffsetCursor(query.cursor, cursorScope),
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+      cursorScope,
+    }
+  },
   useCase: listKnowledgeDocuments,
-  present: ({ documents, pagination }) => ({
+  present: ({ documents, pagination, cursorScope }) => ({
     data: documents.map(toV2DocumentSummary),
     nextCursor: pagination.hasMore
-      ? encodeCursor({ offset: pagination.offset + pagination.limit })
+      ? encodeOffsetCursor(cursorScope ?? '', pagination.offset + pagination.limit)
       : null,
   }),
 })

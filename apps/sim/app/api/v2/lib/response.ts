@@ -174,18 +174,56 @@ export function decodeCursor<T = Record<string, unknown>>(cursor: string): T | n
   }
 }
 
+interface OffsetCursorPayload {
+  /** The query state the offset counts positions within. */
+  scope: string
+  offset: number
+}
+
 /**
- * Reads back an offset cursor minted by `encodeCursor({ offset })`.
+ * The filters and sort an offset cursor was minted under.
+ *
+ * An offset is only meaningful against one exact sequence, so everything that
+ * reorders or re-filters that sequence has to travel with it. Build the stamp
+ * from every such param; a value that does not affect ordering or membership
+ * (the page size itself) must stay out, or paging with a different `limit`
+ * would be rejected for no reason.
+ */
+export function offsetCursorScope(parts: Record<string, string | boolean | undefined>): string {
+  return Object.keys(parts)
+    .sort()
+    .map((key) => `${key}=${parts[key] ?? ''}`)
+    .join('&')
+}
+
+/** An offset cursor stamped with the query state that produced it. */
+export function encodeOffsetCursor(scope: string, offset: number): string {
+  return encodeCursor({ scope, offset } satisfies OffsetCursorPayload)
+}
+
+/**
+ * Reads back an offset cursor, refusing one minted under different filters or a
+ * different sort.
  *
  * An absent cursor means page one. A cursor that is not valid base64-JSON, or
  * that does not carry a non-negative integer `offset`, is rejected rather than
  * coerced to 0: silently restarting at page one while the caller believes it is
- * paging forward makes a paging client loop over the first page forever. The v2
- * error policies render the thrown validation error as the canonical 400.
+ * paging forward makes a paging client loop over the first page forever.
+ *
+ * The `scope` check is the offset counterpart of {@link decodeSortedCursor}'s
+ * sort stamp. A bare offset replayed against a newly filtered or re-sorted
+ * sequence names a different position in it, which silently skips rows, repeats
+ * them, or lands past the end and returns an empty page — the failure a keyset
+ * cursor is already protected from. The v2 error policies render the thrown
+ * validation error as the canonical 400.
  */
-export function decodeOffsetCursor(cursor: string | undefined): number {
+export function decodeOffsetCursor(cursor: string | undefined, scope: string): number {
   if (!cursor) return 0
-  const offset = decodeCursor<{ offset?: unknown }>(cursor)?.offset
+  const decoded = decodeCursor<Partial<OffsetCursorPayload>>(cursor)
+  if (!decoded || decoded.scope !== scope) {
+    throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
+  }
+  const { offset } = decoded
   if (typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0) {
     throw new OrchestrationError('validation', 'Invalid cursor')
   }

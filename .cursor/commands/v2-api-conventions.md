@@ -73,7 +73,7 @@ That gives `limit` (integer, 1..`V2_MAX_PAGE_SIZE`, defaulting to `V2_DEFAULT_PA
 Two cursor schemes exist, both opaque base64-JSON from `response.ts`. Which one you use is decided by what the read can express, not by taste:
 
 - **Keyset** (`readSortedCursor` in, `encodeSortedCursor` out) — the default. Requires the page to come from one ordered SQL read. The sort is stamped into the cursor and re-checked on replay, so changing `sortBy` mid-pagination is a 400, not a silently skipped page.
-- **Offset** (`decodeOffsetCursor` / `encodeCursor({ offset })`) — only when a keyset is impossible. Two lists qualify: `GET /skills` merges a static in-code registry with DB rows and re-sorts in JS, and `GET /knowledge/{id}/documents` sits on a limit/offset query.
+- **Offset** (`decodeOffsetCursor` / `encodeOffsetCursor`) — only when a keyset is impossible. Two lists qualify: `GET /skills` merges a static in-code registry with DB rows and re-sorts in JS, and `GET /knowledge/{id}/documents` sits on a limit/offset query. An offset cursor **must** be stamped with `offsetCursorScope(...)` covering every param that filters or orders the sequence (not `limit`, which only selects how much of it to return). A bare offset replayed against a re-sorted or re-filtered sequence names a different row, which skips or repeats results — the exact failure the keyset's sort stamp already prevents.
 
 **A keyset's key list must end in a unique column (`id`).** A non-unique trailing key cannot separate tied rows, so the page boundary either repeats or drops them. `lib/api/list-keyset-paging.test.ts` demonstrates the failure.
 

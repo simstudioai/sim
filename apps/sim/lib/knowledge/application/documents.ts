@@ -74,6 +74,12 @@ export interface ListKnowledgeDocumentsInput {
   sortBy?: DocumentSortField
   sortOrder?: SortOrder
   tagFilters?: TagFilterCondition[]
+  /**
+   * The query state `offset` counts positions within, echoed back so a surface
+   * presenter can stamp the next cursor with it. Surface-only; the read itself
+   * does not use it.
+   */
+  cursorScope?: string
 }
 
 export interface ReadKnowledgeDocumentInput {
@@ -219,7 +225,7 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       },
       generateRequestId()
     )
-    return { ...result, workspaceId: context.workspaceId }
+    return { ...result, workspaceId: context.workspaceId, cursorScope: input.cursorScope }
   },
 })
 
