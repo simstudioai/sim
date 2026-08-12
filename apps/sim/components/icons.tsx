@@ -2494,6 +2494,32 @@ export function DocumentIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function WindchillIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox='79 57 88 88'
+      role='img'
+      aria-label='Windchill icon'
+      xmlns='http://www.w3.org/2000/svg'
+      {...props}
+    >
+      <rect x='79' y='57' width='88' height='88' fill='#FFFFFF' />
+      <g fill='#3D4647'>
+        <polygon points='137.2,86.6 137.2,68.5 122.8,60.2 107.1,69.2' />
+        <polygon points='142.7,106.4 158.4,97.3 158.4,80.7 142.7,71.6' />
+        <polygon points='108.5,115.8 108.5,133.9 122.8,142.2 138.5,133.2' />
+        <polygon points='128.2,121 143.9,130.1 158.4,121.7 158.4,103.6' />
+        <polygon points='117.4,81.4 101.7,72.4 87.3,80.7 87.3,98.8' />
+        <polygon points='103,96 87.3,105.1 87.3,121.7 103,130.8' />
+      </g>
+      <polygon
+        fill='#40AA1D'
+        points='137.2,109.5 122.8,117.8 108.4,109.5 108.4,92.9 122.8,84.6 137.2,92.9'
+      />
+    </svg>
+  )
+}
+
 export function MintlifyIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 19 19' fill='none'>

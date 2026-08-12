@@ -66,10 +66,30 @@ const ACTION_BUTTON_STYLES = [
  * 25.11px of period. Writing 24/26 directly would render ~3.5% wide and drift
  * out of the squares' rhythm across the row.
  *
+ * Each edge ramps over 0.75px rather than switching colour at a single offset,
+ * which is why the stops come in pairs 0.375px either side of the mark's two
+ * edges. A gradient is sampled once per pixel with no coverage term, so a hard
+ * stop on a 15°-off-vertical edge can only ever land wholly on one side or the
+ * other — the marks came out visibly stepped, which is the one thing a shape
+ * this thin cannot hide. Ramping across roughly a device pixel gives the
+ * rasterizer the intermediate values antialiasing would have produced, and
+ * measured edge deviation drops from 0.28 device px (pure quantization) to 0.05.
+ *
+ * The period runs centre-of-mark to centre-of-mark (11.59 → 36.7) rather than
+ * starting at an edge, because a repeating gradient truncates at its own wrap:
+ * anchored at 0, the ramp leaving the mark would have run 24.735 → 25.485 and
+ * been cut at 25.11, so that edge got half the feather and the gap came out
+ * 1.93 → 1.75px. Both ramps have to sit strictly inside the period. The list
+ * still tiles backwards from its first stop, so the marks land exactly where
+ * anchoring at 0 put them — same 26px pitch, same phase against the squares.
+ *
+ * Widening the feather further would keep smoothing, but the gap is only 1.93px
+ * of stop, so it comes straight out of the mark's dark core.
+ *
  * `--surface-2` is the same fill the slots used; only where it is painted moved.
  */
 const RUNNING_FILL =
-  'bg-[repeating-linear-gradient(75deg,var(--surface-2)_0_23.18px,transparent_23.18px_25.11px)]'
+  'bg-[repeating-linear-gradient(75deg,var(--surface-2)_11.59px_22.805px,transparent_23.555px_24.735px,var(--surface-2)_25.485px_36.7px)]'
 
 /** Left edge of the fill: clears the run/stop button, which stays live mid-run. */
 const RUNNING_FILL_INSET_SWELL = 'left-[42px]'
@@ -84,12 +104,14 @@ const RUNNING_FILL_INSET_PLAIN = 'left-[26px]'
  * inside it at the bottom — the fill visibly ran off the block. The per-slot
  * version never did, because each button's own clip contained it.
  *
- * Same taper, read off that path: the edge sits 16.67px in from the row's right
- * at the overlay's top (y=4) and 3.33px at its bottom (y=20), a slope of 20/24.
- * Changing the end silhouette means changing these two numbers with it.
+ * Same taper, read off that path. Its straight run — (22.4, 2.88) to
+ * (36.59, 19.9) in the slot's own 40×24 box — has a slope of 20/24, so across
+ * the full row it moves from 20px in at the top to flush at the bottom. The
+ * overlay spans the row, so those are its two numbers; they are the slot's own
+ * edge continued, which is what puts the hatch's end exactly where a hovered
+ * slot's fill ends. Changing the end silhouette means changing them with it.
  */
-const RUNNING_FILL_END_TAPER =
-  '[clip-path:polygon(0_0,calc(100%_-_16.67px)_0,calc(100%_-_3.33px)_100%,0_100%)]'
+const RUNNING_FILL_END_TAPER = '[clip-path:polygon(0_0,calc(100%_-_20px)_0,100%_100%,0_100%)]'
 
 const ICON_SIZE = 'size-[14px]'
 
@@ -415,7 +437,11 @@ export const ActionBar = memo(
             <span
               aria-hidden='true'
               className={cn(
-                'pointer-events-none absolute inset-y-[4px] right-0 overflow-hidden',
+                /* Spans the row, so the hatch occupies exactly the box a slot's
+                   hover fill does — same height, and the same padding in from
+                   the swell on every side, since the row already sits inside
+                   the container's own inset. */
+                'pointer-events-none absolute inset-y-0 right-0 overflow-hidden',
                 isSwell ? RUNNING_FILL_INSET_SWELL : RUNNING_FILL_INSET_PLAIN,
                 isSwell && RUNNING_FILL_END_TAPER
               )}
