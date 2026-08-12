@@ -29,6 +29,18 @@ With the Agiloft integration in Sim, you can:
 - **Lock records**: Check, acquire, or release locks on records for concurrent editing
 
 In Sim, the Agiloft integration enables your agents to manage contracts and records programmatically as part of automated workflows. Agents can create and update records, search across tables, handle file attachments, and manage record locks — enabling intelligent contract lifecycle automation.
+
+### Field and table conventions
+
+Agiloft addresses fields and tables by their logical names, which often differ from the labels shown in the UI.
+These are the ones that most often send a workflow to the wrong place.
+You can confirm any of them in your own knowledge base under Setup > Tables and in the Field Wizard.
+
+- **Attachments live on their own table.** Attachment operations target the `attachment` table with the field `attached_file`, not the `contract` table.
+- **Contract status is `status_1a`.** The field named `wfstate` is the workflow state, which is a different thing.
+- **`contract_title1` is autopopulated on create.** It does not retain a value you supply, so you cannot use it to find a record you just wrote. Match on `creator_login` and `date_created` instead.
+- **Always pass Fields on reads and searches.** A `contract` record carries several hundred columns, and an unfiltered one runs to roughly 184KB.
+- **Natural Language Search ignores the table.** It runs across the whole knowledge base, using whichever tables the knowledge base's chat search is configured for. Use Page and Limit to bound the result.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -138,7 +150,7 @@ Create a new record in an Agiloft table.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | ID of the created record |
-| `fields` | json | Field values of the created record |
+| `fields` | json | Any field values Agiloft returned with the create. Usually empty - the create publishes the ID, so read the record back to get its stored values. |
 
 ### Agiloft Delete Record
 
