@@ -43,6 +43,7 @@ import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -927,7 +928,9 @@ export const Sidebar = memo(function Sidebar({
             id: f.id,
             name: f.name,
             href: `/workspace/${workspaceId}/files/${f.id}`,
-            folderPath: f.folderPath ? f.folderPath.split('/').filter(Boolean) : undefined,
+            folderPath: f.folderPath
+              ? parseWorkspaceFileFolderDisplayPath(f.folderPath)
+              : undefined,
           })),
     [fetchedFiles, workspaceId, permissionConfig.hideFilesTab]
   )

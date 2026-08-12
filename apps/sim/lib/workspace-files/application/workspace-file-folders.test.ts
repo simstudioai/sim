@@ -135,6 +135,20 @@ describe('workspace file folder operations', () => {
     expect(result.folders.map((item) => item.id)).toEqual(['child-1'])
   })
 
+  it('matches a parent whose name contains an escaped slash', async () => {
+    mockList.mockResolvedValue([
+      { ...folder, id: 'child-1', name: 'Q1', path: 'Finance\\/Legal/Q1' },
+      { ...folder, id: 'other-1', name: 'Other', path: 'Finance/Legal/Other' },
+    ])
+
+    const result = await listWorkspaceFileFoldersOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', parentPath: '/Finance%2FLegal' },
+    })
+
+    expect(result.folders.map((item) => item.id)).toEqual(['child-1'])
+  })
+
   it('ensures an entire decoded folder chain for a file write', async () => {
     mockEnsure.mockResolvedValue({
       folderId: 'nested-folder',

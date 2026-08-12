@@ -77,6 +77,17 @@ describe('canonical folder paths', () => {
     ).toThrow('cycle')
   })
 
+  it('keeps slashes inside names as one segment in every resource folder index', () => {
+    const index = buildFolderPathIndex([
+      { id: 'legal', name: 'Finance/Legal', parentId: null },
+      { id: 'quarterly', name: 'Quarterly', parentId: 'legal' },
+    ])
+
+    expect(index.pathById.get('legal')).toBe('/Finance%2FLegal')
+    expect(index.pathById.get('quarterly')).toBe('/Finance%2FLegal/Quarterly')
+    expect(index.idByPath.get('/Finance%2FLegal')).toBe('legal')
+  })
+
   it('enforces segment and byte limits', () => {
     expect(() =>
       buildFolderPath(Array.from({ length: MAX_FOLDER_PATH_SEGMENTS + 1 }, () => 'x'))

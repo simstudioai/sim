@@ -156,6 +156,37 @@ describe('/api/v2/files/folders', () => {
     })
   })
 
+  it('preserves an escaped slash within a folder name', async () => {
+    mocks.listFolders.mockResolvedValueOnce({
+      folders: [{ ...folder, name: 'Finance/Legal', path: 'Finance\\/Legal' }],
+    })
+
+    const response = await GET(
+      request('GET', `/api/v2/files/folders?workspaceId=${WORKSPACE_ID}`),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data[0]).toMatchObject({
+      name: 'Finance/Legal',
+      path: '/Finance%2FLegal',
+      parentPath: '/',
+    })
+  })
+
+  it('fails when a canonical path does not match the returned folder name', async () => {
+    mocks.listFolders.mockResolvedValueOnce({
+      folders: [{ ...folder, name: 'Finance/Legal', path: '/Finance/Legal' }],
+    })
+
+    const response = await GET(
+      request('GET', `/api/v2/files/folders?workspaceId=${WORKSPACE_ID}`),
+      context
+    )
+
+    expect(response.status).toBe(500)
+  })
+
   it('creates a folder from its canonical path', async () => {
     const response = await POST(
       request('POST', '/api/v2/files/folders', { workspaceId: WORKSPACE_ID, path: '/Reports' }),

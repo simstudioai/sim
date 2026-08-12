@@ -3,6 +3,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { encodeVfsPathSegments, encodeVfsSegment } from '@/lib/vfs/path'
 import {
   admitCreateWorkspaceFile,
   createWorkspaceFile,
@@ -14,6 +15,7 @@ import {
   updateWorkspaceFileContent,
   updateWorkspaceFileContentFromBuffer,
 } from '@/lib/workspace-files/application/update-workspace-file-content'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { parseWorkspaceFileCreatePath } from '@/lib/workspace-files/workspace-file-path'
 
 export interface WriteWorkspaceFileByPathInput {
@@ -56,11 +58,7 @@ function toResult(
 ): WriteWorkspaceFileByPathResult {
   const folderPath = file.folderPath ?? ''
   const encodedFolderPath = folderPath
-    ? folderPath
-        .split('/')
-        .filter(Boolean)
-        .map((segment) => encodeURIComponent(segment))
-        .join('/')
+    ? encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(folderPath))
     : ''
   return {
     id: file.id,
@@ -68,7 +66,7 @@ function toResult(
     size: file.size,
     contentType: file.type,
     downloadUrl: file.url,
-    vfsPath: `files/${encodedFolderPath ? `${encodedFolderPath}/` : ''}${encodeURIComponent(file.name)}`,
+    vfsPath: `files/${encodedFolderPath ? `${encodedFolderPath}/` : ''}${encodeVfsSegment(file.name)}`,
     mode,
   }
 }

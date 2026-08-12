@@ -46,6 +46,7 @@ import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/wor
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders } from '@/lib/workflows/utils'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { escapeRegExp } from '@/executor/constants'
 import type { BrowserTextSelection, ChatContext, TerminalTextSelection } from '@/stores/panel'
@@ -1071,7 +1072,7 @@ async function resolveFileFolderResource(
   try {
     const rawPath = await getWorkspaceFileFolderPath(workspaceId, folderId)
     if (!rawPath) return null
-    const encoded = encodeVfsPathSegments(rawPath.split('/').filter(Boolean))
+    const encoded = encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(rawPath))
     return {
       type: 'active_resource',
       tag: '@active_resource',

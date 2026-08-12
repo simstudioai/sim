@@ -21,6 +21,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 const logger = createLogger('WorkspaceFileFolders')
 
@@ -116,12 +117,11 @@ async function executeListWorkspaceFileFolders(args: {
     scope: args.input.scope,
   })
   if (args.input.parentPath !== undefined) {
-    const parentPath = parseFolderPath(args.input.parentPath).join('/')
+    const parentSegments = parseFolderPath(args.input.parentPath)
     folders = folders.filter((folder) => {
-      const parent = folder.path.includes('/')
-        ? folder.path.slice(0, folder.path.lastIndexOf('/'))
-        : ''
-      return parent === parentPath
+      const folderSegments = parseWorkspaceFileFolderDisplayPath(folder.path)
+      if (folderSegments.length !== parentSegments.length + 1) return false
+      return parentSegments.every((segment, index) => folderSegments[index] === segment)
     })
   }
   if (args.input.search) {

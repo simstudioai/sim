@@ -2,6 +2,7 @@ import type { V2File } from '@/lib/api/contracts/v2/files'
 import { buildFolderPath } from '@/lib/folders/paths'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 /** Shared serialization for the v2 files surface. */
 
@@ -14,7 +15,7 @@ function serializeV2File(record: WorkspaceFileRecord, uploadedByEmail: string): 
     ? buildFolderPath(
         (() => {
           if (!record.folderPath) throw new Error('File references an unresolved folder')
-          return record.folderPath.split('/')
+          return parseWorkspaceFileFolderDisplayPath(record.folderPath)
         })()
       )
     : '/'

@@ -75,4 +75,18 @@ describe('workspace file reference normalization', () => {
       archiveFile
     )
   })
+
+  it('resolves an encoded slash within one folder segment', () => {
+    const legalFile: WorkspaceFileRecord = {
+      ...makeFileRecord(),
+      id: 'file-legal',
+      name: 'contract.pdf',
+      folderId: 'folder-legal',
+      folderPath: 'Finance\\/Legal',
+    }
+
+    expect(findWorkspaceFileRecord([legalFile], 'files/Finance%2FLegal/contract.pdf/content')).toBe(
+      legalFile
+    )
+  })
 })

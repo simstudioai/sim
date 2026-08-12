@@ -1284,6 +1284,10 @@ export async function queryWorkspaceFiles(
  * Files are addressed by their sanitized canonical path; id-based VFS paths are not supported.
  */
 export function normalizeWorkspaceFileReference(fileReference: string): string {
+  return normalizeWorkspaceFileReferenceSegments(fileReference).join('/')
+}
+
+function normalizeWorkspaceFileReferenceSegments(fileReference: string): string[] {
   const trimmed = fileReference.trim().replace(/^\/+/, '')
   const withoutDeletedPrefix = trimmed.startsWith('recently-deleted/')
     ? trimmed.slice('recently-deleted/'.length)
@@ -1292,15 +1296,15 @@ export function normalizeWorkspaceFileReference(fileReference: string): string {
   if (withoutDeletedPrefix.startsWith('files/')) {
     const withoutPrefix = withoutDeletedPrefix.slice('files/'.length)
     if (withoutPrefix.endsWith('/meta.json')) {
-      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/meta.json'.length)).join('/')
+      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/meta.json'.length))
     }
     if (withoutPrefix.endsWith('/content')) {
-      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/content'.length)).join('/')
+      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/content'.length))
     }
-    return decodeVfsPathSegments(withoutPrefix).join('/')
+    return decodeVfsPathSegments(withoutPrefix)
   }
 
-  return decodeVfsPathSegments(withoutDeletedPrefix).join('/')
+  return decodeVfsPathSegments(withoutDeletedPrefix)
 }
 
 /**
@@ -1325,26 +1329,20 @@ export function findWorkspaceFileRecord(
     return exactIdMatch
   }
 
-  const normalizedReference = normalizeWorkspaceFileReference(fileReference)
+  const referenceSegments = normalizeWorkspaceFileReferenceSegments(fileReference)
+  const normalizedReference = referenceSegments.join('/')
   const normalizedIdMatch = files.find((file) => file.id === normalizedReference)
   if (normalizedIdMatch) {
     return normalizedIdMatch
   }
 
-  const segmentKey = normalizedReference
-    .split('/')
-    .map((segment) => normalizeVfsSegment(segment))
-    .join('/')
-  const normalizedPathMatch = files.find((file) => {
-    const folderPath = file.folderPath
-      ?.split('/')
-      .map((segment) => normalizeVfsSegment(segment))
-      .join('/')
-    const fullPath = folderPath
-      ? `${folderPath}/${normalizeVfsSegment(file.name)}`
-      : normalizeVfsSegment(file.name)
-    return fullPath === segmentKey
-  })
+  const segmentKey = referenceSegments.map(normalizeVfsSegment).join('/')
+  const normalizedPathMatch = files.find(
+    (file) =>
+      canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }).slice(
+        'files/'.length
+      ) === segmentKey
+  )
   if (normalizedPathMatch) return normalizedPathMatch
 
   return files.find((file) => normalizeVfsSegment(file.name) === segmentKey) ?? null
@@ -1352,13 +1350,8 @@ export function findWorkspaceFileRecord(
 
 async function getWorkspaceFileByExactReference(
   workspaceId: string,
-  fileReference: string
+  segments: string[]
 ): Promise<WorkspaceFileRecord | null> {
-  const segments = fileReference
-    .split('/')
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-
   if (segments.length === 0) return null
   if (segments.length === 1) {
     return getWorkspaceFileByName(workspaceId, segments[0], { folderId: null })
@@ -1375,16 +1368,14 @@ export async function resolveWorkspaceFileReference(
   workspaceId: string,
   fileReference: string
 ): Promise<WorkspaceFileRecord | null> {
-  const normalizedReference = normalizeWorkspaceFileReference(fileReference)
+  const referenceSegments = normalizeWorkspaceFileReferenceSegments(fileReference)
+  const normalizedReference = referenceSegments.join('/')
   if (normalizedReference.startsWith('wf_')) {
     const file = await getWorkspaceFile(workspaceId, normalizedReference, { throwOnError: true })
     if (file) return file
   }
 
-  const exactReferenceFile = await getWorkspaceFileByExactReference(
-    workspaceId,
-    normalizedReference
-  )
+  const exactReferenceFile = await getWorkspaceFileByExactReference(workspaceId, referenceSegments)
   if (exactReferenceFile) return exactReferenceFile
 
   const files = await listWorkspaceFiles(workspaceId)

@@ -154,6 +154,20 @@ describe('/api/v2/files', () => {
     })
   })
 
+  it('preserves escaped slashes in the containing folder path', async () => {
+    mocks.queryFiles.mockResolvedValueOnce({
+      files: [{ ...FILE, folderId: 'folder-1', folderPath: 'Finance\\/Legal' }],
+      nextKeys: undefined,
+      cursorSort: 'name:asc',
+    })
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}`)
+    )
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data[0].folderPath).toBe('/Finance%2FLegal')
+  })
+
   it('rejects malformed cursors before the application service', async () => {
     const response = await GET(
       new NextRequest(

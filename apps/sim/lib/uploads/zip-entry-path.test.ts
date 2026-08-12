@@ -19,6 +19,12 @@ describe('buildZipEntryPaths', () => {
     ])
   })
 
+  it('sanitizes a slash within one escaped folder name instead of nesting it', () => {
+    expect(
+      buildZipEntryPaths([{ name: 'contract.pdf', folderPath: 'Finance\\/Legal/Quarterly' }])
+    ).toEqual(['Finance_Legal/Quarterly/contract.pdf'])
+  })
+
   it('keeps same-named files in different folders apart', () => {
     expect(
       buildZipEntryPaths([
