@@ -90,9 +90,9 @@ describe('buildMenuTemplate', () => {
     ])
   })
 
-  it('keeps Help limited to documentation and system status', () => {
+  it('keeps Help limited to documentation and Sim status', () => {
     const help = submenu(buildMenuTemplate(makeDeps()), 'Help')
-    expect(help.map((item) => item.label)).toEqual(['Sim Documentation', 'System Status'])
+    expect(help.map((item) => item.label)).toEqual(['Sim Documentation', 'Sim Status'])
   })
 
   it('never exposes developer tools in the application menu', () => {
