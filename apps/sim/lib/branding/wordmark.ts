@@ -1,10 +1,11 @@
 /**
  * The "sim" logotype paths from the v1.0 brand guide (`simLogotype--dark.svg`).
  *
- * Shared so the two surfaces that draw the mark cannot drift. The landing
- * navbar inlines them as server-rendered SVG; `scripts/generate-email-wordmark.ts`
- * rasterizes the same paths into the PNG the email header uses, because email
- * clients (Gmail chief among them) strip inline SVG.
+ * Shared so the surfaces that draw the mark cannot drift: `SimWordmark` inlines
+ * them as server-rendered SVG for the navbar, footer, auth shell and settings
+ * sidebar. The email header cannot — clients (Gmail chief among them) strip
+ * inline SVG — so it renders a committed raster export of these same outlines;
+ * {@link EMAIL_WORDMARK_SIZE} records how that file is produced.
  */
 export const WORDMARK_VIEW_BOX = { width: 441, height: 212 } as const
 

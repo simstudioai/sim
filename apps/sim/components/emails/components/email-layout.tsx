@@ -6,9 +6,9 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 /**
- * Sim's own wordmark, rasterized from the shared brand outlines by
- * `scripts/generate-email-wordmark.ts`. Both dimensions are pinned because
- * email clients do no responsive image selection.
+ * Sim's own wordmark: a committed raster export of the brand outlines in
+ * `@/lib/branding/wordmark`, since email clients strip inline SVG. Both
+ * dimensions are pinned because they do no responsive image selection either.
  */
 const WORDMARK_SIZE = {
   width: String(EMAIL_WORDMARK_SIZE.width),
