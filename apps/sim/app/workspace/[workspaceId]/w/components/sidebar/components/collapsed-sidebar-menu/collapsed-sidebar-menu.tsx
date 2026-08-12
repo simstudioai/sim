@@ -81,11 +81,8 @@ export function CollapsedFileFolderItems({
       {fileFlyoutEntries(nodes, rootFiles ?? []).map((entry) => {
         if (entry.kind === 'file') {
           return (
-            <DropdownMenuItem key={entry.id} asChild>
-              <Link
-                href={`/workspace/${workspaceId}/files/${entry.file.id}`}
-                className={cn(currentFileId === entry.file.id && 'bg-[var(--surface-active)]')}
-              >
+            <DropdownMenuItem key={entry.id} asChild active={currentFileId === entry.file.id}>
+              <Link href={`/workspace/${workspaceId}/files/${entry.file.id}`}>
                 {FILE_FLYOUT_ICON}
                 <span className='truncate'>{entry.name}</span>
               </Link>
@@ -107,7 +104,7 @@ export function CollapsedFileFolderItems({
 
         return (
           <DropdownMenuSub key={folder.id}>
-            <DropdownMenuSubTrigger className='focus:bg-[var(--surface-hover)] data-[state=open]:bg-[var(--surface-hover)]'>
+            <DropdownMenuSubTrigger>
               <Folder className='size-[14px]' />
               <span className='truncate'>{folder.name}</span>
             </DropdownMenuSubTrigger>
@@ -265,7 +262,7 @@ export function CollapsedChatFlyoutItem({
   return (
     <DropdownMenuItem
       asChild
-      className={cn((isCurrentRoute || isMenuOpen) && 'bg-[var(--surface-active)]')}
+      active={isCurrentRoute || isMenuOpen}
       action={
         showActions ? (
           <DropdownMenuItemAction
@@ -342,7 +339,7 @@ export function CollapsedWorkflowFlyoutItem({
   return (
     <DropdownMenuItem
       asChild
-      className={cn((isCurrentRoute || actionsOpen) && 'bg-[var(--surface-active)]')}
+      active={isCurrentRoute || actionsOpen}
       action={
         hasActions ? (
           <DropdownMenuSub
@@ -460,7 +457,7 @@ export function CollapsedFolderItems(props: CollapsedFolderItemsProps) {
 
         return (
           <DropdownMenuSub key={folder.id}>
-            <DropdownMenuSubTrigger className='focus:bg-[var(--surface-active)] data-[state=open]:bg-[var(--surface-active)]'>
+            <DropdownMenuSubTrigger>
               <Folder className='size-[14px]' />
               <span className='truncate'>{folder.name}</span>
             </DropdownMenuSubTrigger>

@@ -193,7 +193,7 @@ Both pods must have `REDIS_URL`. On Helm they share one Secret, so setting it un
 
 The bucket's CORS policy does not allow your Sim origin. Uploads go directly from the browser to object storage via presigned `PUT`, so server-side configuration being correct is not enough.
 
-If small uploads succeed but files over 50 MB fail at the last step, `ETag` is missing from the CORS exposed headers — multipart uploads read it from the browser. See [Object Storage](/platform/self-hosting/object-storage).
+If small uploads succeed but files over 50 MB fail during completion, check the app logs for the provider's part-listing request. The server completes multipart uploads from provider-authoritative state; for S3, its identity needs `s3:ListMultipartUploadParts`. See [Object Storage](/platform/self-hosting/object-storage).
 
 ## Agent Output Arrives All at Once
 

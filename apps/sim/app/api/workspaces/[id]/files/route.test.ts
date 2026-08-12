@@ -1,143 +1,158 @@
 /**
- * Tests for the workspace files upload route's bounded multipart read.
- *
  * @vitest-environment node
  */
-import { authMockFns, permissionsMock, permissionsMockFns, posthogServerMock } from '@sim/testing'
+import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUploadWorkspaceFile, mockGetWorkspaceShares, mockRecordAudit } = vi.hoisted(() => ({
-  mockUploadWorkspaceFile: vi.fn(),
-  mockGetWorkspaceShares: vi.fn(),
-  mockRecordAudit: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  admitCreate: vi.fn(),
+  createFile: vi.fn(),
+  listFiles: vi.fn(),
+  captureServerEvent: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  uploadWorkspaceFile: mockUploadWorkspaceFile,
-  FileConflictError: class FileConflictError extends Error {},
+vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
+  admitCreateWorkspaceFile: mocks.admitCreate,
+  createWorkspaceFile: {
+    operation: { id: 'files.create', minimumRole: 'write', workspaceApiKey: 'allow' },
+    execute: mocks.createFile,
+  },
 }))
 
-vi.mock('@/lib/uploads/shared/types', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/uploads/shared/types')>()
-  return {
-    ...actual,
-    MAX_WORKSPACE_FORMDATA_FILE_SIZE: 1024,
-  }
-})
-
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  getWorkspaceShares: mockGetWorkspaceShares,
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
+  listAllWorkspaceFiles: {
+    operation: { id: 'files.list', minimumRole: 'read', workspaceApiKey: 'allow' },
+    execute: mocks.listFiles,
+  },
 }))
 
-vi.mock('@/lib/posthog/server', () => posthogServerMock)
-vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/app/api/workflows/utils', () => ({
-  verifyWorkspaceMembership: vi.fn().mockResolvedValue('write'),
-}))
-vi.mock('@sim/audit', () => ({
-  recordAudit: mockRecordAudit,
-  AuditAction: { FILE_UPLOADED: 'file_uploaded' },
-  AuditResourceType: { FILE: 'file' },
-}))
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
 
-const WS = '7727ef3f-8cf6-4686-b063-2bb006a10785'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { GET, POST } from '@/app/api/workspaces/[id]/files/route'
 
-import { POST } from '@/app/api/workspaces/[id]/files/route'
-
-const routeContext = { params: Promise.resolve({ id: WS }) }
-
-function buildFormData(file: File): FormData {
-  const formData = new FormData()
-  formData.append('file', file)
-  return formData
+const WORKSPACE_ID = 'workspace-1'
+const USER = { id: 'user-1', name: 'Test User', email: 'test@sim.ai' }
+const PRINCIPAL = { kind: 'session' as const, userId: USER.id, sessionId: 'session-1' }
+const FILE = {
+  id: 'wf_1',
+  workspaceId: WORKSPACE_ID,
+  name: 'notes.md',
+  key: `workspace/${WORKSPACE_ID}/notes.md`,
+  path: '/api/files/serve/notes.md?context=workspace',
+  size: 0,
+  type: 'text/markdown',
+  uploadedBy: USER.id,
+  folderId: null,
+  uploadedAt: new Date('2026-08-04T00:00:00.000Z'),
+  updatedAt: new Date('2026-08-04T00:00:00.000Z'),
 }
+const context = { params: Promise.resolve({ id: WORKSPACE_ID }) }
 
-/**
- * Builds a pull-based stream that emits fixed-size chunks on demand, so the
- * size-capped reader's `reader.cancel()` simply stops future `pull` calls
- * instead of racing an external (e.g. undici FormData) chunk producer.
- */
-function makeChunkedOverLimitBody(
-  chunkBytes: number,
-  chunkCount: number
-): ReadableStream<Uint8Array> {
-  let emitted = 0
-  return new ReadableStream<Uint8Array>({
-    pull(controller) {
-      if (emitted >= chunkCount) {
-        controller.close()
-        return
-      }
-      emitted++
-      controller.enqueue(new Uint8Array(chunkBytes))
-    },
+function createRequest(body: unknown): NextRequest {
+  return new NextRequest(`http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
   })
 }
 
-describe('workspace files upload route', () => {
+describe('/api/workspaces/[id]/files', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('write')
-    mockGetWorkspaceShares.mockResolvedValue(new Map())
-    mockUploadWorkspaceFile.mockResolvedValue({
-      id: 'file-1',
-      name: 'file.txt',
-      url: 'https://example.com/file.txt',
-      size: 11,
-      type: 'text/plain',
-    })
+    authMockFns.mockGetSession.mockResolvedValue({ user: USER, session: { id: 'session-1' } })
+    mocks.admitCreate.mockResolvedValue(undefined)
+    mocks.createFile.mockResolvedValue({ file: FILE })
+    mocks.listFiles.mockResolvedValue({ files: [FILE] })
   })
 
-  it('rejects a declared content-length above the limit before reading the body', async () => {
-    const formData = buildFormData(new File(['x'.repeat(10)], 'file.txt', { type: 'text/plain' }))
-    const req = new NextRequest(`http://localhost:3000/api/workspaces/${WS}/files`, {
-      method: 'POST',
-      headers: { 'content-length': String(10 * 1024 * 1024) },
-      body: formData,
-    })
-
-    const response = await POST(req, routeContext)
-    const data = await response.json()
-
-    expect(response.status).toBe(413)
-    expect(data.error).toContain('exceeds maximum size')
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
-  })
-
-  it('rejects a chunked body without content-length once the streamed size trips the cap', async () => {
-    const body = makeChunkedOverLimitBody(64 * 1024, 32)
-    const req = new NextRequest(`http://localhost:3000/api/workspaces/${WS}/files`, {
-      method: 'POST',
-      body,
-      // @ts-expect-error - duplex is required by undici for streamed bodies but missing from NextRequestInit types
-      duplex: 'half',
-    })
-    expect(req.headers.get('content-length')).toBeNull()
-
-    const response = await POST(req, routeContext)
-    const data = await response.json()
-
-    expect(response.status).toBe(413)
-    expect(data.error).toContain('exceeds maximum size')
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
-  })
-
-  it('uploads a normal, well-under-limit file successfully', async () => {
-    const file = new File(['hello world'], 'file.txt', { type: 'text/plain' })
-    const formData = buildFormData(file)
-    const req = new NextRequest(`http://localhost:3000/api/workspaces/${WS}/files`, {
-      method: 'POST',
-      headers: { 'content-length': '512' },
-      body: formData,
-    })
-
-    const response = await POST(req, routeContext)
-    const data = await response.json()
+  it('lists files through the shared read operation', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files?scope=archived`
+    )
+    const response = await GET(request, context)
 
     expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(mockUploadWorkspaceFile).toHaveBeenCalledTimes(1)
+    expect((await response.json()).files).toHaveLength(1)
+    expect(mocks.listFiles).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: { workspaceId: WORKSPACE_ID, scope: 'archived' },
+      request,
+    })
+  })
+
+  it('authenticates before create admission or body parsing', async () => {
+    authMockFns.mockGetSession.mockResolvedValue(null)
+
+    const response = await POST(createRequest('{not-json'), context)
+
+    expect(response.status).toBe(401)
+    expect(mocks.admitCreate).not.toHaveBeenCalled()
+    expect(mocks.createFile).not.toHaveBeenCalled()
+  })
+
+  it('authorizes the asserted workspace before buffering the create body', async () => {
+    mocks.admitCreate.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
+    )
+
+    const response = await POST(createRequest('{not-json'), context)
+
+    expect(response.status).toBe(403)
+    expect(mocks.admitCreate).toHaveBeenCalledWith(PRINCIPAL, WORKSPACE_ID)
+    expect(mocks.createFile).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed base64 after admission', async () => {
+    const response = await POST(
+      createRequest({ name: 'notes.md', content: 'not-base64!', encoding: 'base64' }),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.admitCreate).toHaveBeenCalled()
+    expect(mocks.createFile).not.toHaveBeenCalled()
+  })
+
+  it('creates through the shared use case and preserves internal analytics', async () => {
+    const request = createRequest({ name: 'notes.md', content: 'TQ==', encoding: 'base64' })
+    const response = await POST(request, context)
+
+    expect(response.status).toBe(201)
+    expect((await response.json()).file.id).toBe(FILE.id)
+    expect(mocks.createFile).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        name: 'notes.md',
+        contentType: 'text/markdown',
+        content: 'TQ==',
+        encoding: 'base64',
+        folderId: undefined,
+        exactName: false,
+      },
+      request,
+    })
+    expect(mocks.captureServerEvent).toHaveBeenCalledWith(
+      USER.id,
+      'file_uploaded',
+      { workspace_id: WORKSPACE_ID, file_type: 'text/markdown' },
+      { groups: { workspace: WORKSPACE_ID } }
+    )
+  })
+
+  it('renders typed create conflicts without exposing unknown errors', async () => {
+    mocks.createFile.mockRejectedValueOnce(new OrchestrationError('conflict', 'Name exists'))
+    const conflict = await POST(createRequest({ name: 'notes.md' }), context)
+    expect(conflict.status).toBe(409)
+    expect(await conflict.json()).toEqual({ error: 'Name exists' })
+
+    mocks.createFile.mockRejectedValueOnce(new Error('database details'))
+    const unexpected = await POST(createRequest({ name: 'notes.md' }), context)
+    expect(unexpected.status).toBe(500)
+    expect(await unexpected.json()).toEqual({
+      error: 'Internal server error',
+    })
   })
 })

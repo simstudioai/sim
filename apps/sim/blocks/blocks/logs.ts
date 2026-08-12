@@ -20,6 +20,27 @@ export const LogsBlock: BlockConfig = {
   icon: Library,
   category: 'blocks',
   docsLink: 'https://docs.sim.ai/api-reference/logs/getExecutionDetails',
+  canvasPresentation: {
+    defaultTitle: 'Logs',
+    sentences: {
+      byOperation: {
+        query: [
+          'Query execution logs',
+          { text: 'for', field: 'workflowIds' },
+          { text: ', at level', field: 'level' },
+          { text: ', up to', field: 'limit', after: 'entries' },
+        ],
+        get_log: [{ text: 'Fetch log entry', field: 'logId', core: true }],
+        get_execution: [
+          {
+            text: 'Read per-block state for execution',
+            field: 'executionIdLookup',
+            core: true,
+          },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -287,6 +308,9 @@ function joinIds(value: unknown): string | undefined {
   return undefined
 }
 
+/** Workflow filter, whichever mode the card is in. */
+const WORKFLOW_FIELD = ['workflowSelector', 'manualWorkflowIds'] as const
+
 export const LogsV2Block: BlockConfig = {
   type: 'logs_v2',
   name: 'Logs',
@@ -303,6 +327,20 @@ export const LogsV2Block: BlockConfig = {
   icon: Library,
   category: 'blocks',
   docsLink: 'https://docs.sim.ai/integrations/logs',
+  canvasPresentation: {
+    defaultTitle: 'Logs',
+    sentences: {
+      byOperation: {
+        query: [
+          'Query workflow runs',
+          { text: 'for', field: WORKFLOW_FIELD },
+          { text: ', with status', field: 'level' },
+          { text: ', over', field: 'timeRange' },
+        ],
+        get_run_details: [{ text: 'Read the trace for run', field: 'runId', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

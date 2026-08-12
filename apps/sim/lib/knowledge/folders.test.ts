@@ -105,7 +105,7 @@ describe('createKnowledgeBase — folder assignment', () => {
 
     await expect(
       createKnowledgeBase({ ...CREATE_INPUT, folderId: 'f-1' }, 'req-1')
-    ).rejects.toMatchObject({ code: 'KNOWLEDGE_BASE_FORBIDDEN' })
+    ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mockFindActiveFolder).not.toHaveBeenCalled()
   })
 })

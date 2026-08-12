@@ -1,7 +1,12 @@
-import { generateInternalToken } from '@/lib/auth/internal'
+import {
+  type GenerateInternalDelegationTokenInput,
+  generateInternalDelegationToken,
+  generateInternalToken,
+} from '@/lib/auth/internal'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { HTTP } from '@/executor/constants'
 
+/** @deprecated Use `buildExecutorDelegationHeaders` for protected application routes. */
 export async function buildAuthHeaders(userId?: string): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     'Content-Type': HTTP.CONTENT_TYPE.JSON,
@@ -13,6 +18,21 @@ export async function buildAuthHeaders(userId?: string): Promise<Record<string, 
   }
 
   return headers
+}
+
+/** Builds server-only headers for an executor call bound to its workflow execution origin. */
+export async function buildExecutorDelegationHeaders(
+  input: GenerateInternalDelegationTokenInput
+): Promise<Record<string, string>> {
+  if (typeof window !== 'undefined') {
+    throw new Error('Executor delegation headers can only be created on the server')
+  }
+
+  const token = await generateInternalDelegationToken(input)
+  return {
+    'Content-Type': HTTP.CONTENT_TYPE.JSON,
+    Authorization: `Bearer ${token}`,
+  }
 }
 
 export function buildAPIUrl(path: string, params?: Record<string, string>): URL {

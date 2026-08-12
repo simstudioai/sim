@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-09",
+  "updatedAt": "2026-08-11",
   "integrations": [
     {
       "type": "onepassword",
@@ -275,11 +275,15 @@
       "slug": "agiloft",
       "name": "Agiloft",
       "description": "Manage records in Agiloft CLM",
-      "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.",
+      "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, record locking, and running action buttons across any table in your knowledge base.",
       "bgColor": "#001028",
       "iconName": "AgiloftIcon",
       "docsUrl": "https://docs.sim.ai/integrations/agiloft",
       "operations": [
+        {
+          "name": "List Tables & Fields",
+          "description": "List the tables and fields in an Agiloft knowledge base, to discover the logical names other operations need."
+        },
         {
           "name": "Create Record",
           "description": "Create a new record in an Agiloft table."
@@ -293,6 +297,10 @@
           "description": "Update an existing record in an Agiloft table."
         },
         {
+          "name": "Upsert Record",
+          "description": "Create an Agiloft record, or update it when a record already matches the given fields."
+        },
+        {
           "name": "Delete Record",
           "description": "Delete a record from an Agiloft table."
         },
@@ -301,12 +309,12 @@
           "description": "Search for records in an Agiloft table using a query."
         },
         {
-          "name": "Select Records",
-          "description": "Select record IDs matching a SQL WHERE clause from an Agiloft table."
+          "name": "Natural Language Search",
+          "description": "Search Agiloft records by describing what you want in plain language, such as \"active NDAs submitted last month\"."
         },
         {
-          "name": "Saved Search",
-          "description": "List saved searches defined for an Agiloft table."
+          "name": "Select Records",
+          "description": "Select record IDs matching a SQL WHERE clause from an Agiloft table."
         },
         {
           "name": "Attach File",
@@ -329,11 +337,23 @@
           "description": "Lock, unlock, or check the lock status of an Agiloft record."
         },
         {
+          "name": "Run Action Button",
+          "description": "Run an action button on an Agiloft record, such as an approval or send-for-signature step."
+        },
+        {
+          "name": "Async Status",
+          "description": "Check whether an asynchronous Agiloft call, such as a run action button, has completed."
+        },
+        {
+          "name": "Saved Search",
+          "description": "List the saved searches defined for an Agiloft table."
+        },
+        {
           "name": "Get Choice Line ID",
           "description": "Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHERE clauses against choice fields."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 18,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -2843,12 +2863,20 @@
           "description": "Get information about the currently authenticated Calendly user"
         },
         {
+          "name": "Get User",
+          "description": "Get information about a specific Calendly user"
+        },
+        {
           "name": "List Event Types",
           "description": "Retrieve a list of all event types for a user or organization"
         },
         {
           "name": "Get Event Type",
           "description": "Get detailed information about a specific event type"
+        },
+        {
+          "name": "List Event Type Available Times",
+          "description": "Retrieve bookable time slots for an event type within a date range"
         },
         {
           "name": "List Scheduled Events",
@@ -2863,11 +2891,51 @@
           "description": "Retrieve a list of invitees for a scheduled event"
         },
         {
+          "name": "Get Event Invitee",
+          "description": "Retrieve a single invitee of a scheduled event, including their intake answers"
+        },
+        {
+          "name": "Book Meeting",
+          "description": "Book a meeting by creating an invitee on an event type at a chosen time. Requires a paid Calendly plan"
+        },
+        {
           "name": "Cancel Event",
           "description": "Cancel a scheduled event"
+        },
+        {
+          "name": "Mark Invitee No-Show",
+          "description": "Mark an invitee of a scheduled event as a no-show"
+        },
+        {
+          "name": "Unmark Invitee No-Show",
+          "description": "Remove the no-show status from an invitee"
+        },
+        {
+          "name": "Create Scheduling Link",
+          "description": "Create a single-use scheduling link for an event type"
+        },
+        {
+          "name": "List User Busy Times",
+          "description": "Retrieve a user's internal and external busy times within a date range, based on their connected calendars"
+        },
+        {
+          "name": "List User Availability Schedules",
+          "description": "Retrieve a user's availability schedules, working hours, and date overrides"
+        },
+        {
+          "name": "List Organization Memberships",
+          "description": "Retrieve the members of an organization, including each member profile and role"
+        },
+        {
+          "name": "List Routing Forms",
+          "description": "Retrieve the routing forms of an organization, including their questions"
+        },
+        {
+          "name": "List Routing Form Submissions",
+          "description": "Retrieve the submissions of a routing form, including answers and routing result"
         }
       ],
-      "operationCount": 7,
+      "operationCount": 19,
       "triggers": [
         {
           "id": "calendly_invitee_created",
@@ -2904,7 +2972,7 @@
       "longDescription": "Invoke a Claude Platform Managed Agent from a workflow. Select a Claude Platform account, pick an agent and environment from that workspace, optionally attach vaults, a memory store, and files, and add metadata tags. Returns the assistant's final text.",
       "bgColor": "#DA7756",
       "iconName": "ClaudeIcon",
-      "docsUrl": "https://docs.sim.ai/integrations/managed-agent",
+      "docsUrl": "https://docs.sim.ai/integrations/managed_agent",
       "operations": [
         {
           "name": "Run session (create, send, wait for reply)",
@@ -4433,7 +4501,7 @@
       "longDescription": "Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.",
       "bgColor": "#1E1E1E",
       "iconName": "CursorIcon",
-      "docsUrl": "https://cursor.com/docs/cloud-agent/api/endpoints",
+      "docsUrl": "https://docs.sim.ai/integrations/cursor",
       "operations": [
         {
           "name": "Launch Agent",
@@ -4729,7 +4797,7 @@
       "longDescription": "Integrate Datagma to find verified work emails from a name and company, enrich person profiles via email or LinkedIn URL, enrich company data from a domain or name, look up mobile phone numbers from LinkedIn, and check your credit balance.",
       "bgColor": "#FFFFFF",
       "iconName": "DatagmaIcon",
-      "docsUrl": "https://docs.sim.ai/tools/datagma",
+      "docsUrl": "https://docs.sim.ai/integrations/datagma",
       "operations": [
         {
           "name": "Find Email",
@@ -5276,7 +5344,7 @@
       "longDescription": "Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.",
       "bgColor": "#0ABA9F",
       "iconName": "DropcontactIcon",
-      "docsUrl": "https://docs.sim.ai/tools/dropcontact",
+      "docsUrl": "https://docs.sim.ai/integrations/dropcontact",
       "operations": [
         {
           "name": "Enrich Contact",
@@ -5947,7 +6015,7 @@
       "longDescription": "Access real-time B2B data intelligence with Enrich.so. Enrich profiles from email addresses, find work emails from LinkedIn, verify email deliverability, search for people and companies, and analyze LinkedIn post engagement.",
       "bgColor": "#E5E5E6",
       "iconName": "EnrichSoIcon",
-      "docsUrl": "https://docs.enrich.so/",
+      "docsUrl": "https://docs.sim.ai/integrations/enrich",
       "operations": [
         {
           "name": "Email to Profile",
@@ -6094,7 +6162,7 @@
       "longDescription": "Integrate Enrow to find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Enrow performs deterministic verifications including catch-all emails — no additional verifier needed.",
       "bgColor": "#FFFFFF",
       "iconName": "EnrowIcon",
-      "docsUrl": "https://enrow.readme.io",
+      "docsUrl": "https://docs.sim.ai/integrations/enrow",
       "operations": [
         {
           "name": "Find Email",
@@ -8097,7 +8165,7 @@
       "longDescription": "Connect to Google Workspace to create, update, and manage groups and their members using the Admin SDK Directory API.",
       "bgColor": "#E8F0FE",
       "iconName": "GoogleGroupsIcon",
-      "docsUrl": "https://developers.google.com/admin-sdk/directory/v1/guides/manage-groups",
+      "docsUrl": "https://docs.sim.ai/integrations/google_groups",
       "operations": [
         {
           "name": "List Groups",
@@ -9623,7 +9691,7 @@
       "longDescription": "Integrate Icypeas to find a professional email address from a name and company domain, or verify whether an existing email is valid and deliverable. Results are returned asynchronously via polling.",
       "bgColor": "#d4d4d4",
       "iconName": "IcypeasIcon",
-      "docsUrl": "https://docs.sim.ai/tools/icypeas",
+      "docsUrl": "https://docs.sim.ai/integrations/icypeas",
       "operations": [
         {
           "name": "Find Email",
@@ -9835,9 +9903,85 @@
         {
           "name": "Delete Escalation Path",
           "description": "Delete an escalation path in incident.io"
+        },
+        {
+          "name": "Get Who Is On Call",
+          "description": "Get who is currently on call in incident.io, as one row per ongoing shift across every schedule (or a single schedule). Also returns the shifts that take over at the next changeover."
+        },
+        {
+          "name": "List Schedule Overrides",
+          "description": "List the one-off overrides layered on top of a schedule in incident.io, such as someone covering a colleague’s shift"
+        },
+        {
+          "name": "List Alerts",
+          "description": "List alerts in incident.io, optionally filtered by status, source, or created date"
+        },
+        {
+          "name": "Show Alert",
+          "description": "Get a single alert by ID from incident.io"
+        },
+        {
+          "name": "Resolve Alert",
+          "description": "Resolve a currently firing alert in incident.io. Resolving an already-resolved alert is a no-op and returns it unchanged."
+        },
+        {
+          "name": "Create Alert Event",
+          "description": "Fire an alert into incident.io through an HTTP alert source. Send the same deduplication key with status \"resolved\" to close the alert you opened."
+        },
+        {
+          "name": "List Incident Alerts",
+          "description": "List the connections between incidents and alerts in incident.io — which alerts triggered an incident, or which incident an alert was attached to"
+        },
+        {
+          "name": "Cancel Escalation",
+          "description": "Cancel an escalation in incident.io. Notifications stop, and the escalation will not advance to further levels or repeat."
+        },
+        {
+          "name": "List Catalog Types",
+          "description": "List all catalog types in incident.io, including those synced from external resources. Use this to find the catalog type ID needed to list entries."
+        },
+        {
+          "name": "List Catalog Entries",
+          "description": "List the entries of a catalog type in incident.io — for example every service, team, or customer recorded in the catalog"
+        },
+        {
+          "name": "List Teams",
+          "description": "List all teams in the incident.io organisation, along with their members"
+        },
+        {
+          "name": "Show Team",
+          "description": "Get a single team by ID from incident.io, along with its members"
+        },
+        {
+          "name": "Create Follow-up",
+          "description": "Create a new follow-up on an incident in incident.io"
+        },
+        {
+          "name": "Update Follow-up",
+          "description": "Update an existing follow-up in incident.io, for example to mark it completed or reassign it"
+        },
+        {
+          "name": "Create Action",
+          "description": "Create a new action on an incident in incident.io"
+        },
+        {
+          "name": "Update Action",
+          "description": "Update an existing action in incident.io, for example to mark it completed or reassign it"
+        },
+        {
+          "name": "List Incident Participants",
+          "description": "List the participants of an incident in incident.io, split into those actively helping and those just observing"
+        },
+        {
+          "name": "Grant Incident Membership",
+          "description": "Make a user a member of a private incident in incident.io"
+        },
+        {
+          "name": "Revoke Incident Membership",
+          "description": "Revoke a user's membership of a private incident in incident.io"
         }
       ],
-      "operationCount": 46,
+      "operationCount": 65,
       "triggers": [
         {
           "id": "incidentio_incident_created",
@@ -11102,7 +11246,7 @@
       "longDescription": "Integrate LeadMagic to find verified work emails by name or company, validate email deliverability, find direct mobile numbers, enrich LinkedIn profiles, reverse-lookup profiles from emails, search companies by domain, identify role holders at accounts, and check account credit balance.",
       "bgColor": "#FFFFFF",
       "iconName": "LeadMagicIcon",
-      "docsUrl": "https://docs.sim.ai/tools/leadmagic",
+      "docsUrl": "https://docs.sim.ai/integrations/leadmagic",
       "operations": [
         {
           "name": "Find Email",
@@ -14748,7 +14892,7 @@
       "longDescription": "Integrate Qdrant into the workflow. Can upsert, search, and fetch points.",
       "bgColor": "#1A223F",
       "iconName": "QdrantIcon",
-      "docsUrl": "https://qdrant.tech/documentation/",
+      "docsUrl": "https://docs.sim.ai/integrations/qdrant",
       "operations": [
         {
           "name": "Upsert",
@@ -17724,7 +17868,7 @@
       "longDescription": "Access comprehensive website analytics including traffic estimates, engagement metrics, rankings, and traffic sources using the Similarweb API.",
       "bgColor": "#000922",
       "iconName": "SimilarwebIcon",
-      "docsUrl": "https://developers.similarweb.com/docs/similarweb-web-traffic-api",
+      "docsUrl": "https://docs.sim.ai/integrations/similarweb",
       "operations": [
         {
           "name": "Website Overview",
@@ -20243,7 +20387,7 @@
       "longDescription": "Integrate Thrive Learning into the workflow. Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.",
       "bgColor": "#FFFFFF",
       "iconName": "ThriveIcon",
-      "docsUrl": "https://docs.sim.ai/tools/thrive",
+      "docsUrl": "https://docs.sim.ai/integrations/thrive",
       "operations": [
         {
           "name": "Create User",

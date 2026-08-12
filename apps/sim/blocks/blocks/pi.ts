@@ -183,6 +183,16 @@ export const PiBlock: BlockConfig<PiResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: '#000000',
   icon: PiIcon,
+  canvasPresentation: {
+    defaultTitle: 'Pi Coding Agent',
+    sentences: {
+      default: [
+        { text: 'Run', field: 'task', core: true },
+        { text: 'on', field: ['repo', 'repoPath'] },
+        { text: ', in', field: 'mode', after: 'mode' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'mode',

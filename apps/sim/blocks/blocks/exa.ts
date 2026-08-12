@@ -48,6 +48,28 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
   bgColor: '#1F40ED',
   iconColor: '#1F40ED',
   icon: ExaAIIcon,
+  canvasPresentation: {
+    defaultTitle: 'Exa',
+    sentences: {
+      byOperation: {
+        exa_search: [
+          { text: 'Search the web for', field: 'query', core: true },
+          { text: ', within', field: 'includeDomains' },
+          { text: ', returning', field: 'numResults', after: 'results' },
+        ],
+        exa_get_contents: [
+          { text: 'Read page contents from', field: 'urls', core: true },
+          { text: ', summarized for', field: 'summaryQuery' },
+        ],
+        exa_answer: [{ text: 'Answer', field: 'query', after: 'with cited sources', core: true }],
+        exa_agent: [{ text: 'Run deep research on', field: 'query', core: true }],
+        exa_find_similar_links: [
+          { text: 'Find pages similar to', field: 'url', core: true },
+          { text: ', returning', field: 'numResults', after: 'results' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

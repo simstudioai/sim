@@ -37,6 +37,15 @@ export const CredentialBlock: BlockConfig<CredentialBlockOutput> = {
   docsLink: 'https://docs.sim.ai/workflows/blocks/credential',
   bgColor: '#6366F1',
   icon: CredentialIcon,
+  canvasPresentation: {
+    defaultTitle: 'Credential',
+    sentences: {
+      byOperation: {
+        select: ['Select an OAuth credential'],
+        list: ['List OAuth credentials', { text: 'for', field: 'providerFilter' }],
+      },
+    },
+  },
   category: 'blocks',
   subBlocks: [
     {

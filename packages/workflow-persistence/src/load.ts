@@ -1,13 +1,48 @@
 import { db, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import type { BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
-import { SUBFLOW_TYPES } from '@sim/workflow-types/workflow'
+import type { BlockRetryConfig, BlockState, Loop, Parallel } from '@sim/workflow-types/workflow'
+import {
+  normalizeBlockRetryTries,
+  normalizeBlockRetryWaitMs,
+  normalizeWorkflowEdgeSourceHandle,
+  normalizeWorkflowEdgeTargetHandle,
+  SUBFLOW_TYPES,
+} from '@sim/workflow-types/workflow'
 import { and, eq, getTableColumns, isNull, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { clampParallelBatchSize } from './subflow-helpers'
 import type { DbOrTx, NormalizedWorkflowData } from './types'
 
 const logger = createLogger('WorkflowPersistenceLoad')
+
+/**
+ * Rebuilds a stored retry policy as a real {@link BlockRetryConfig} instead of
+ * asserting that the raw `jsonb` blob already is one.
+ *
+ * The column is written verbatim by writers that never validate its contents —
+ * the realtime batch-add and replace-state ops take untyped block records, and
+ * the admin/superuser import routes persist externally-authored workflow JSON —
+ * so a row can hold an out-of-range number, a missing field, or a non-boolean
+ * flag. Pinning the values here is the policy the feature declares (see
+ * `resolveBlockRetryConfig`) and applies it to every reader at once: the editor
+ * renders exactly the numbers execution will use, and the strict HTTP contract
+ * that serves this state can never reject a workflow it is meant to open.
+ *
+ * `enabled` is carried across rather than resolved, so the numbers a builder
+ * configured survive switching retry off and back on. That is why
+ * `resolveBlockRetryConfig` — which collapses a disabled policy to `null` —
+ * must not be used on this path.
+ */
+function normalizeStoredBlockRetry(stored: unknown): BlockRetryConfig | undefined {
+  if (stored == null || typeof stored !== 'object') return undefined
+  const retry = stored as Record<string, unknown>
+
+  return {
+    enabled: Boolean(retry.enabled),
+    maxTries: normalizeBlockRetryTries(retry.maxTries),
+    waitBetweenTriesMs: normalizeBlockRetryWaitMs(retry.waitBetweenTriesMs),
+  }
+}
 
 export interface RawNormalizedWorkflow extends NormalizedWorkflowData {
   workspaceId: string
@@ -82,6 +117,8 @@ export async function loadWorkflowFromNormalizedTablesRaw(
         enabled: block.enabled,
         horizontalHandles: block.horizontalHandles,
         advancedMode: block.advancedMode,
+        errorEnabled: block.errorEnabled,
+        retry: normalizeStoredBlockRetry(block.retry),
         triggerMode: block.triggerMode,
         height: Number(block.height),
         subBlocks: (block.subBlocks as BlockState['subBlocks']) || {},
@@ -98,8 +135,8 @@ export async function loadWorkflowFromNormalizedTablesRaw(
       id: edge.id,
       source: edge.sourceBlockId,
       target: edge.targetBlockId,
-      sourceHandle: edge.sourceHandle ?? undefined,
-      targetHandle: edge.targetHandle ?? undefined,
+      sourceHandle: normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) ?? undefined,
+      targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle) ?? undefined,
       type: 'default',
       data: {},
     }))

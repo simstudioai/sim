@@ -1,5 +1,6 @@
 import { isAbsolute } from 'node:path'
 import {
+  cloneTerminalSelectedProfile,
   type DesktopAppearanceTheme,
   type DesktopNotificationPayload,
   type DesktopPreferenceKey,
@@ -177,12 +178,7 @@ export function createDesktopSettingsService(
       return read()
     },
     selectTerminalProfile(profile) {
-      deps.config.set('terminalTheme', {
-        id: profile.id,
-        name: profile.name,
-        source: profile.source,
-        palette: { ...profile.palette },
-      })
+      deps.config.set('terminalTheme', cloneTerminalSelectedProfile(profile))
       deps.config.flush()
       return read()
     },

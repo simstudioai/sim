@@ -136,21 +136,13 @@ export function useUpdateWorkspaceCredential() {
         credentialId: string
       } & ContractBodyInput<typeof updateWorkspaceCredentialContract>
     ) => {
+      // Forward the whole contract body rather than re-listing its fields: a
+      // hand-maintained allowlist silently drops any field added to the
+      // contract later, and the payload type makes that invisible to `tsc`.
+      const { credentialId, ...body } = payload
       return requestJson(updateWorkspaceCredentialContract, {
-        params: { id: payload.credentialId },
-        body: {
-          displayName: payload.displayName,
-          description: payload.description,
-          serviceAccountJson: payload.serviceAccountJson,
-          signingSecret: payload.signingSecret,
-          botToken: payload.botToken,
-          apiToken: payload.apiToken,
-          domain: payload.domain,
-          clientId: payload.clientId,
-          clientSecret: payload.clientSecret,
-          orgId: payload.orgId,
-          dataCenter: payload.dataCenter,
-        },
+        params: { id: credentialId },
+        body,
       })
     },
     onMutate: async (variables) => {

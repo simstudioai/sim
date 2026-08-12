@@ -16,7 +16,7 @@ import {
   type TableScope,
 } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { normalizeColumn } from '@/app/api/table/utils'
+import { normalizeColumn, orchestrationErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableAPI')
 
@@ -153,18 +153,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes('maximum table limit')) {
-        return NextResponse.json({ error: error.message }, { status: 403 })
-      }
-      if (
-        error.message.includes('Invalid table name') ||
-        error.message.includes('Invalid schema') ||
-        error.message.includes('already exists')
-      ) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-    }
+    const classified = orchestrationErrorResponse(error)
+    if (classified) return classified
 
     logger.error(`[${requestId}] Error creating table:`, error)
     return NextResponse.json({ error: 'Failed to create table' }, { status: 500 })

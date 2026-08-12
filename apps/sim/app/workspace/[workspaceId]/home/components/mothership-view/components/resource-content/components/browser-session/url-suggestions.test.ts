@@ -70,7 +70,11 @@ describe('mergeSuggestionSources', () => {
       [session('github.com', '2026-01-01T00:00:00.000Z', 'sign-in-completed')],
       []
     )
-    const [saved] = mergeSuggestionSources([], [credential('https://gitlab.com')])
+    const [saved] = mergeSuggestionSources(
+      [],
+      [credential('https://gitlab.com')],
+      [site('gitlab.com', { visits: 1 })]
+    )
 
     expect(signedIn.tier).toBe(SUGGESTION_TIER.ACCOUNT)
     expect(saved.tier).toBe(SUGGESTION_TIER.ACCOUNT)
@@ -79,7 +83,8 @@ describe('mergeSuggestionSources', () => {
   it('holds a host known only by its cookie below one with an account', () => {
     const merged = mergeSuggestionSources(
       [session('cookies.com')],
-      [credential('https://saved.com')]
+      [credential('https://saved.com')],
+      [site('saved.com', { visits: 1 })]
     )
 
     expect(merged.find((entry) => entry.hostname === 'cookies.com')?.tier).toBe(
@@ -88,10 +93,11 @@ describe('mergeSuggestionSources', () => {
     expect(hostnames(rankSuggestions(merged, ''))).toEqual(['saved.com', 'cookies.com'])
   })
 
-  it('suggests hosts with a saved password, carrying the imported icon', () => {
+  it('decorates a visited host with its saved-password icon', () => {
     const merged = mergeSuggestionSources(
       [],
-      [credential('https://news.ycombinator.com', { icon: 'data:image/png;base64,AAA' })]
+      [credential('https://news.ycombinator.com', { icon: 'data:image/png;base64,AAA' })],
+      [site('news.ycombinator.com', { visits: 12 })]
     )
 
     expect(merged[0]).toMatchObject({
@@ -99,6 +105,10 @@ describe('mergeSuggestionSources', () => {
       url: 'https://news.ycombinator.com',
       icon: 'data:image/png;base64,AAA',
     })
+  })
+
+  it('does not suggest a host known only from a saved credential', () => {
+    expect(mergeSuggestionSources([], [credential('https://saved-only.com')])).toEqual([])
   })
 
   it('lists a host present in both sources once', () => {
@@ -169,7 +179,7 @@ describe('mergeSuggestionSources with an imported directory', () => {
     const merged = mergeSuggestionSources(
       [],
       [credential('https://github.com', { icon: 'data:from-vault' })],
-      [site('github.com', { name: 'GitHub', icon: 'data:from-directory' })]
+      [site('github.com', { name: 'GitHub', icon: 'data:from-directory', visits: 1 })]
     )
 
     expect(merged).toHaveLength(1)
@@ -193,6 +203,16 @@ describe('mergeSuggestionSources with an imported directory', () => {
         visits: 42,
       },
     ])
+  })
+
+  it('does not offer an imported host without positive visit evidence', () => {
+    expect(
+      mergeSuggestionSources(
+        [],
+        [],
+        [site('cookie-only.com'), site('zero-visits.com', { visits: 0 })]
+      )
+    ).toEqual([])
   })
 
   it('lists a host that was both imported and saved once, at the tier its account earned', () => {
@@ -244,13 +264,21 @@ describe('mergeSuggestionSources with an imported directory', () => {
   })
 
   it('reaches an imported host by the name the source browser gave it', () => {
-    const merged = mergeSuggestionSources([], [], [site('mail.google.com', { name: 'Gmail' })])
+    const merged = mergeSuggestionSources(
+      [],
+      [],
+      [site('mail.google.com', { name: 'Gmail', visits: 1 })]
+    )
 
     expect(hostnames(rankSuggestions(merged, 'gmail'))).toEqual(['mail.google.com'])
   })
 
   it('skips a site record with no hostname rather than offering a bare https://', () => {
-    const merged = mergeSuggestionSources([], [], [site(''), site('github.com')])
+    const merged = mergeSuggestionSources(
+      [],
+      [],
+      [site('', { visits: 1 }), site('github.com', { visits: 1 })]
+    )
 
     expect(hostnames(merged)).toEqual(['github.com'])
   })
@@ -260,8 +288,8 @@ describe('mergeSuggestionSources with an imported directory', () => {
       [],
       [],
       [
-        site('github.com', { importedAt: 'whenever' }),
-        site('gitlab.com', { importedAt: undefined }),
+        site('github.com', { importedAt: 'whenever', visits: 1 }),
+        site('gitlab.com', { importedAt: undefined, visits: 1 }),
       ]
     )
 

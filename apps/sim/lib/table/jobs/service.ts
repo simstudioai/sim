@@ -156,6 +156,37 @@ export async function markTableJobRunning(
   return inserted.length > 0
 }
 
+/** Claims a job only when the canonical table remains in the expected workspace. */
+export async function markTableJobRunningInWorkspace(
+  tableId: string,
+  workspaceId: string,
+  jobId: string,
+  type: TableJobType,
+  payload?: unknown
+): Promise<boolean> {
+  const [definition] = await db
+    .select({ workspaceId: userTableDefinitions.workspaceId })
+    .from(userTableDefinitions)
+    .where(
+      and(eq(userTableDefinitions.id, tableId), eq(userTableDefinitions.workspaceId, workspaceId))
+    )
+    .limit(1)
+  if (!definition) return false
+  const inserted = await db
+    .insert(tableJobs)
+    .values({
+      id: jobId,
+      tableId,
+      workspaceId: definition.workspaceId,
+      type,
+      status: 'running',
+      payload: payload ?? null,
+    })
+    .onConflictDoNothing()
+    .returning({ id: tableJobs.id })
+  return inserted.length > 0
+}
+
 /**
  * Releases a claim taken by {@link markTableJobRunning} for a synchronous job — deletes the
  * transient claim row. Scoped to `jobId` + still-running so it only clears its own claim, never a
@@ -167,6 +198,26 @@ export async function releaseJobClaim(tableId: string, jobId: string): Promise<v
     .where(
       and(eq(tableJobs.id, jobId), eq(tableJobs.tableId, tableId), eq(tableJobs.status, 'running'))
     )
+}
+
+/** Releases only the active claim in the canonical workspace and reports no-op races. */
+export async function releaseJobClaimInWorkspace(
+  tableId: string,
+  workspaceId: string,
+  jobId: string
+): Promise<boolean> {
+  const released = await db
+    .delete(tableJobs)
+    .where(
+      and(
+        eq(tableJobs.id, jobId),
+        eq(tableJobs.tableId, tableId),
+        eq(tableJobs.workspaceId, workspaceId),
+        eq(tableJobs.status, 'running')
+      )
+    )
+    .returning({ id: tableJobs.id })
+  return released.length > 0
 }
 
 /**
@@ -187,6 +238,21 @@ export async function updateJobProgress(
     .update(tableJobs)
     .set({ rowsProcessed, updatedAt: new Date() })
     .where(ownsActiveJob(tableId, jobId))
+    .returning({ id: tableJobs.id })
+  return updated.length > 0
+}
+
+/** Updates transfer progress under the job's canonical workspace scope. */
+export async function updateJobProgressInWorkspace(
+  tableId: string,
+  workspaceId: string,
+  rowsProcessed: number,
+  jobId: string
+): Promise<boolean> {
+  const updated = await db
+    .update(tableJobs)
+    .set({ rowsProcessed, updatedAt: new Date() })
+    .where(ownsActiveJobInWorkspace(tableId, workspaceId, jobId))
     .returning({ id: tableJobs.id })
   return updated.length > 0
 }
@@ -340,11 +406,38 @@ export async function setJobResultKey(
     .where(ownsActiveJob(tableId, jobId))
 }
 
+/** Stamps an export result only while the canonical workspace-scoped job is active. */
+export async function setJobResultKeyInWorkspace(
+  tableId: string,
+  workspaceId: string,
+  jobId: string,
+  resultKey: string
+): Promise<boolean> {
+  const updated = await db
+    .update(tableJobs)
+    .set({
+      payload: sql`coalesce(${tableJobs.payload}, '{}'::jsonb) || jsonb_build_object('resultKey', ${resultKey}::text)`,
+      updatedAt: new Date(),
+    })
+    .where(ownsActiveJobInWorkspace(tableId, workspaceId, jobId))
+    .returning({ id: tableJobs.id })
+  return updated.length > 0
+}
+
 /** Shared WHERE for terminal transitions: this job run, and still in-flight (write-once). */
 function ownsActiveJob(tableId: string, jobId: string) {
   return and(
     eq(tableJobs.id, jobId),
     eq(tableJobs.tableId, tableId),
+    eq(tableJobs.status, 'running')
+  )
+}
+
+function ownsActiveJobInWorkspace(tableId: string, workspaceId: string, jobId: string) {
+  return and(
+    eq(tableJobs.id, jobId),
+    eq(tableJobs.tableId, tableId),
+    eq(tableJobs.workspaceId, workspaceId),
     eq(tableJobs.status, 'running')
   )
 }
@@ -364,6 +457,21 @@ export async function markJobReady(tableId: string, jobId: string): Promise<bool
   return updated.length > 0
 }
 
+/** Completes a transfer only while its canonical workspace-scoped job is active. */
+export async function markJobReadyInWorkspace(
+  tableId: string,
+  workspaceId: string,
+  jobId: string
+): Promise<boolean> {
+  const now = new Date()
+  const updated = await db
+    .update(tableJobs)
+    .set({ status: 'ready', error: null, completedAt: now, updatedAt: now })
+    .where(ownsActiveJobInWorkspace(tableId, workspaceId, jobId))
+    .returning({ id: tableJobs.id })
+  return updated.length > 0
+}
+
 /**
  * Marks a job failed, leaving any already-committed work in place. No-op unless it's still this
  * in-flight run (so a stale worker can't clobber a newer job or a cancel).
@@ -374,6 +482,22 @@ export async function markJobFailed(tableId: string, jobId: string, error: strin
     .update(tableJobs)
     .set({ status: 'failed', error: error.slice(0, 2000), completedAt: now, updatedAt: now })
     .where(ownsActiveJob(tableId, jobId))
+}
+
+/** Fails a transfer only while its canonical workspace-scoped job is active. */
+export async function markJobFailedInWorkspace(
+  tableId: string,
+  workspaceId: string,
+  jobId: string,
+  error: string
+): Promise<boolean> {
+  const now = new Date()
+  const updated = await db
+    .update(tableJobs)
+    .set({ status: 'failed', error: error.slice(0, 2000), completedAt: now, updatedAt: now })
+    .where(ownsActiveJobInWorkspace(tableId, workspaceId, jobId))
+    .returning({ id: tableJobs.id })
+  return updated.length > 0
 }
 
 /**

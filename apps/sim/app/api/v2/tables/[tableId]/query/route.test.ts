@@ -1,267 +1,168 @@
 /**
  * @vitest-environment node
- *
- * Public v2 query POST: typed predicate name→id translation, bounded-default vs
- * explicit-unbounded limit, cursor validation, workspace scoping,
- * and name-keyed row output.
  */
+
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TableDefinition } from '@/lib/table/types'
 
-const { mockCheckAccess, mockQueryRows, mockCheckRateLimit, mockCheckWorkspaceScope, mockGate } =
-  vi.hoisted(() => ({
-    mockCheckAccess: vi.fn(),
-    mockQueryRows: vi.fn(),
-    mockCheckRateLimit: vi.fn(),
-    mockCheckWorkspaceScope: vi.fn(),
-    mockGate: vi.fn(),
-  }))
-
-vi.mock('@/app/api/v1/middleware', async () => {
-  const { NextResponse } = await import('next/server')
+const { mocks, MockTableRowsValidationError } = vi.hoisted(() => {
+  class MockTableRowsValidationError extends Error {
+    constructor(
+      message: string,
+      readonly details?: unknown
+    ) {
+      super(message)
+    }
+  }
   return {
-    checkRateLimit: mockCheckRateLimit,
-    checkWorkspaceScope: mockCheckWorkspaceScope,
-    createRateLimitResponse: (r: { error?: string }) =>
-      NextResponse.json(
-        { error: r.error ?? 'Rate limit exceeded' },
-        { status: r.error ? 401 : 429 }
-      ),
+    mocks: {
+      authenticate: vi.fn(),
+      preauthRate: vi.fn(),
+      operationRate: vi.fn(),
+      gate: vi.fn(),
+      queryRows: vi.fn(),
+    },
+    MockTableRowsValidationError,
   }
 })
 
-vi.mock('@/app/api/table/utils', async () => {
-  const { NextResponse } = await import('next/server')
-  return {
-    checkAccess: mockCheckAccess,
-    accessError: (result: { status: number }) =>
-      NextResponse.json({ error: 'Access denied' }, { status: result.status }),
-    tablesV2GateError: mockGate,
-  }
-})
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
+}))
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mocks.preauthRate
+    checkRateLimitDirectOrThrow = mocks.operationRate
+  },
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
+}))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/table/application/rows', () => ({
+  TableRowsValidationError: MockTableRowsValidationError,
+  queryTableRows: { operation: { id: 'tables.rows.query' }, execute: mocks.queryRows },
+}))
 
-vi.mock('@/lib/table', async () => {
-  const columnKeys = await import('@/lib/table/column-keys')
-  return { ...columnKeys }
-})
-
-vi.mock('@/lib/table/rows/service', () => ({ queryRows: mockQueryRows }))
-
-import { encodeCursor } from '@/lib/table/rows/cursor'
 import { POST } from '@/app/api/v2/tables/[tableId]/query/route'
 
-function buildTable(): TableDefinition {
-  return {
-    id: 'tbl_1',
-    name: 'People',
-    description: null,
-    schema: {
-      columns: [
-        { id: 'col_name', name: 'name', type: 'string' },
-        { id: 'col_wins', name: 'wins', type: 'number' },
-        { id: 'col_status', name: 'status', type: 'string' },
-      ],
-    },
-    metadata: null,
-    rowCount: 0,
-    maxRows: 100,
-    workspaceId: 'workspace-1',
-    createdBy: 'user-1',
-    archivedAt: null,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
-  }
+const WORKSPACE_ID = 'workspace-1'
+const PRINCIPAL = {
+  kind: 'workspace_api_key' as const,
+  workspaceId: WORKSPACE_ID,
+  keyId: 'key-1',
+}
+const AUTH = {
+  principal: PRINCIPAL,
+  rolloutUserId: 'owner-1',
+  rateLimitSubjectIds: [`workspace:${WORKSPACE_ID}`],
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
+}
+const RATE = {
+  allowed: true,
+  remaining: 99,
+  resetAt: new Date('2026-01-01T01:00:00Z'),
+  retryAfterMs: 0,
+}
+const TABLE = {
+  id: 'table-1',
+  workspaceId: WORKSPACE_ID,
+  schema: { columns: [{ id: 'column-name', name: 'name', type: 'string' as const }] },
+}
+const ROW = {
+  id: 'row-1',
+  data: { 'column-name': 'Ada' },
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-02T00:00:00Z'),
 }
 
-const EMPTY_RESULT = {
-  rows: [],
-  rowCount: 0,
-  totalCount: 0,
-  limit: 100,
-  offset: 0,
-  nextCursor: null,
-}
-
-function callQuery(body: Record<string, unknown>) {
-  const req = new NextRequest('http://localhost:3000/api/v2/tables/tbl_1/query', {
+function call(body: unknown) {
+  const request = new NextRequest('http://localhost/api/v2/tables/table-1/query', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
     body: JSON.stringify(body),
   })
-  return POST(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+  return {
+    request,
+    response: POST(request, { params: Promise.resolve({ tableId: 'table-1' }) }),
+  }
 }
 
 describe('POST /api/v2/tables/[tableId]/query', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue({
-      allowed: true,
-      userId: 'user-1',
-      keyType: 'workspace',
-      workspaceId: 'workspace-1',
-    })
-    mockCheckWorkspaceScope.mockResolvedValue(null)
-    mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
-    mockQueryRows.mockResolvedValue(EMPTY_RESULT)
-    mockGate.mockResolvedValue(null)
+    mocks.authenticate.mockResolvedValue(AUTH)
+    mocks.preauthRate.mockResolvedValue(RATE)
+    mocks.operationRate.mockResolvedValue(RATE)
+    mocks.gate.mockResolvedValue(null)
+    mocks.queryRows.mockResolvedValue({ table: TABLE, rows: [ROW], nextCursor: null })
   })
 
-  it('returns 404 when the tables-v2-api flag is off', async () => {
-    const { NextResponse } = await import('next/server')
-    mockGate.mockResolvedValue(NextResponse.json({ error: 'Not found' }, { status: 404 }))
-    const res = await callQuery({ workspaceId: 'workspace-1' })
-    expect(res.status).toBe(404)
-    expect(mockQueryRows).not.toHaveBeenCalled()
-  })
+  it('delegates the typed query and preserves the public row envelope', async () => {
+    const predicate = { all: [{ field: 'name', op: 'eq', value: 'Ada' }] }
+    const invocation = call({ workspaceId: WORKSPACE_ID, predicate })
+    const response = await invocation.response
 
-  it('runs the flag gate only after the access check, so it cannot leak a cohort oracle', async () => {
-    mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
-    const res = await callQuery({ workspaceId: 'workspace-1' })
-    expect(res.status).toBe(403)
-    expect(mockGate).not.toHaveBeenCalled()
-  })
-
-  it('translates a name-keyed predicate to storage ids', async () => {
-    const res = await callQuery({
-      workspaceId: 'workspace-1',
-      predicate: {
-        all: [
-          { field: 'status', op: 'eq', value: 'active' },
-          { field: 'wins', op: 'gte', value: 10 },
-        ],
-      },
-    })
-    expect(res.status).toBe(200)
-    expect(mockQueryRows.mock.calls[0][1].predicate).toEqual({
-      all: [
-        { field: 'col_status', op: 'eq', value: 'active' },
-        { field: 'col_wins', op: 'gte', value: 10 },
-      ],
-    })
-  })
-
-  it('accepts a root condition and executes its canonical all group', async () => {
-    const res = await callQuery({
-      workspaceId: 'workspace-1',
-      predicate: { field: 'status', op: 'eq', value: 'active' },
-    })
-
-    expect(res.status).toBe(200)
-    expect(mockQueryRows.mock.calls[0][1].predicate).toEqual({
-      all: [{ field: 'col_status', op: 'eq', value: 'active' }],
-    })
-  })
-
-  it('applies the bounded default limit when omitted', async () => {
-    await callQuery({ workspaceId: 'workspace-1' })
-    expect(mockQueryRows.mock.calls[0][1].limit).toBe(100)
-  })
-
-  it('treats limit=0 as the explicit unbounded opt-in', async () => {
-    await callQuery({ workspaceId: 'workspace-1', limit: 0 })
-    expect(mockQueryRows.mock.calls[0][1].limit).toBeUndefined()
-  })
-
-  it('rejects a limit above the max', async () => {
-    const res = await callQuery({ workspaceId: 'workspace-1', limit: 5000 })
-    expect(res.status).toBe(400)
-    expect(mockQueryRows).not.toHaveBeenCalled()
-  })
-
-  it('rejects the removed regex ops at the contract boundary', async () => {
-    // `match`/`imatch` are no longer in FILTER_OPS — a catastrophic-backtracking
-    // pattern can pin a shared-pool connection, and nothing shipped depends on them.
-    const res = await callQuery({
-      workspaceId: 'workspace-1',
-      predicate: { all: [{ field: 'name', op: 'match', value: '^jo' }] },
-    })
-    expect(res.status).toBe(400)
-    expect(mockQueryRows).not.toHaveBeenCalled()
-  })
-
-  it('rejects a predicate referencing an unknown column', async () => {
-    const res = await callQuery({
-      workspaceId: 'workspace-1',
-      predicate: { all: [{ field: 'nope', op: 'eq', value: 1 }] },
-    })
-    expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/Unknown filter column/)
-  })
-
-  it('rejects a keyset cursor combined with a custom sort', async () => {
-    const cursor = encodeCursor({
-      lastRow: { id: 'r1', orderKey: 'a1' },
-      keysetValid: true,
-      nextOffset: 1,
-    })
-    const res = await callQuery({
-      workspaceId: 'workspace-1',
-      sort: [{ field: 'wins', direction: 'desc' }],
-      cursor,
-    })
-    expect(res.status).toBe(400)
-    expect((await res.json()).code).toBe('CURSOR_SORT_CONFLICT')
-  })
-
-  it('returns 400 INVALID_CURSOR for a malformed cursor', async () => {
-    const res = await callQuery({
-      workspaceId: 'workspace-1',
-      cursor: Buffer.from('42').toString('base64url'),
-    })
-    expect(res.status).toBe(400)
-    expect((await res.json()).code).toBe('INVALID_CURSOR')
-  })
-
-  it('surfaces a workspace-scope 403 from the middleware', async () => {
-    const { NextResponse } = await import('next/server')
-    mockCheckWorkspaceScope.mockResolvedValue(
-      NextResponse.json({ error: 'not authorized' }, { status: 403 })
-    )
-    const res = await callQuery({ workspaceId: 'workspace-1' })
-    expect(res.status).toBe(403)
-    expect(mockQueryRows).not.toHaveBeenCalled()
-  })
-
-  it('rejects a workspace-id mismatch against the table', async () => {
-    const res = await callQuery({ workspaceId: 'other-ws' })
-    expect(res.status).toBe(400)
-    expect((await res.json()).error).toBe('Invalid workspace ID')
-  })
-
-  it('returns name-keyed row data with no storage internals and a private cache header', async () => {
-    mockQueryRows.mockResolvedValue({
-      rows: [
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      data: [
         {
-          id: 'r1',
-          data: { col_status: 'active', col_wins: 12 },
-          position: 3,
-          orderKey: 'a5',
-          executions: {},
-          createdAt: new Date('2024-02-02'),
-          updatedAt: new Date('2024-02-03'),
+          id: 'row-1',
+          data: { name: 'Ada' },
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-02T00:00:00.000Z',
         },
       ],
-      rowCount: 1,
-      totalCount: 1,
-      limit: 100,
-      offset: 0,
       nextCursor: null,
     })
-    const res = await callQuery({ workspaceId: 'workspace-1' })
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-    expect((await res.json()).data.rows[0]).toEqual({
-      id: 'r1',
-      data: { status: 'active', wins: 12 },
-      createdAt: '2024-02-02T00:00:00.000Z',
-      updatedAt: '2024-02-03T00:00:00.000Z',
+    expect(mocks.queryRows).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        tableId: 'table-1',
+        assertedWorkspaceId: WORKSPACE_ID,
+        predicate,
+        sort: undefined,
+        cursor: undefined,
+        limit: 100,
+        includeTotal: false,
+      },
+      request: invocation.request,
     })
   })
 
-  it('returns the rate-limit response when the limiter denies the request', async () => {
-    mockCheckRateLimit.mockResolvedValue({ allowed: false })
-    const res = await callQuery({ workspaceId: 'workspace-1' })
-    expect(res.status).toBe(429)
-    expect(mockCheckAccess).not.toHaveBeenCalled()
+  it('preserves explicit limit=0 as the unbounded opt-in', async () => {
+    await call({ workspaceId: WORKSPACE_ID, limit: 0 }).response
+
+    expect(mocks.queryRows).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ limit: undefined }) })
+    )
+  })
+
+  it('rejects an invalid page limit after admission and before delegation', async () => {
+    const response = await call({ workspaceId: WORKSPACE_ID, limit: 5000 }).response
+
+    expect(response.status).toBe(400)
+    expect(mocks.authenticate).toHaveBeenCalledOnce()
+    expect(mocks.operationRate).toHaveBeenCalledOnce()
+    expect(mocks.queryRows).not.toHaveBeenCalled()
+  })
+
+  it('keeps malformed POST query cursors as a structured 400', async () => {
+    mocks.queryRows.mockRejectedValue(
+      new MockTableRowsValidationError('Invalid cursor', { code: 'INVALID_CURSOR' })
+    )
+
+    const response = await call({ workspaceId: WORKSPACE_ID, cursor: 'malformed' }).response
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.details).toEqual({ code: 'INVALID_CURSOR' })
+  })
+
+  it('enforces the one MiB body cap before delegation', async () => {
+    const response = await call({ workspaceId: WORKSPACE_ID, cursor: 'x'.repeat(1024 * 1024) })
+      .response
+
+    expect(response.status).toBe(413)
+    expect(mocks.queryRows).not.toHaveBeenCalled()
   })
 })

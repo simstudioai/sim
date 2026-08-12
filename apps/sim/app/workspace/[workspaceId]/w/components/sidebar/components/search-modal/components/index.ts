@@ -1,3 +1,4 @@
+export { CommandFadedList, CommandSearch } from './command-chrome'
 export {
   MemoizedCommandItem,
   MemoizedFileItem,
@@ -7,19 +8,4 @@ export {
   MemoizedWorkflowItem,
   MemoizedWorkspaceItem,
 } from './command-items'
-export {
-  BlocksGroup,
-  ChatsGroup,
-  ConnectedAccountsGroup,
-  DocsGroup,
-  FilesGroup,
-  IntegrationsGroup,
-  KnowledgeBasesGroup,
-  PagesGroup,
-  TablesGroup,
-  ToolOpsGroup,
-  ToolsGroup,
-  TriggersGroup,
-  WorkflowsGroup,
-  WorkspacesGroup,
-} from './search-groups'
+export { BlocksGroup, SearchEntryGroup, ToolsGroup } from './search-groups'

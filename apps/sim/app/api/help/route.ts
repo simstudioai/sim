@@ -20,7 +20,7 @@ const logger = createLogger('HelpAPI')
 /**
  * The form can carry several image attachments with no server-side count
  * cap, so this reuses the repo's largest existing per-request form-data
- * bound (see files/upload route) rather than an arbitrary smaller limit
+ * multipart bound rather than an arbitrary smaller limit
  * that could reject a legitimate multi-image submission.
  */
 const MAX_HELP_FORM_BYTES = MAX_WORKSPACE_FORMDATA_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES

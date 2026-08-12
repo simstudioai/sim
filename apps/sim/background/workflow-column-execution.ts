@@ -179,6 +179,8 @@ export function buildTableUsageLimitClear(args: {
     tableId,
     rowId,
     data: {},
+    /** No cell values are written, so there is nothing to stamp. */
+    secretProvenance: undefined,
     workspaceId,
     executionsPatch: { [groupId]: null },
     cancellationGuard: { groupId, executionId },

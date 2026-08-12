@@ -16,6 +16,17 @@ export const WaitBlock: BlockConfig = {
   category: 'blocks',
   bgColor: '#F59E0B',
   icon: CirclePause,
+  canvasPresentation: {
+    defaultTitle: 'Wait',
+    sentences: {
+      default: [
+        { text: 'Pause for', field: 'timeValue', core: true },
+        /* Async swaps one unit dropdown for the other, so either can be the
+           one that resolves; first available wins. */
+        { field: ['timeUnit', 'timeUnitLong'] },
+      ],
+    },
+  },
   docsLink: 'https://docs.sim.ai/workflows/blocks/wait',
   subBlocks: [
     {

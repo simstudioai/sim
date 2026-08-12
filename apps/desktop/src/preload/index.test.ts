@@ -27,11 +27,15 @@ describe('desktop preload bridge', () => {
     if (!exposed) throw new Error('Expected the desktop preload API to be exposed')
     expect(exposed.browserAgent.supportsAtomicPanelOcclusion).toBe(true)
 
+    await exposed.browserAgent.cancelTool?.('tool-1', 'chat-default')
+    await exposed.browserAgent.cancelActiveTool?.('chat-reloaded')
     await exposed.browserAgent.setPanelOccluded(true, 'chat-default')
     await exposed.browserAgent.setPanelOccluded(false, 'chat-explicit-false', false)
     await exposed.browserAgent.setPanelOccluded(true, 'chat-force', true)
 
     expect(invoke.mock.calls).toEqual([
+      ['browser-agent:cancel-tool', 'tool-1', 'chat-default'],
+      ['browser-agent:cancel-active-tool', 'chat-reloaded'],
       ['browser-agent:set-panel-occluded', true, 'chat-default', false],
       ['browser-agent:set-panel-occluded', false, 'chat-explicit-false', false],
       ['browser-agent:set-panel-occluded', true, 'chat-force', true],

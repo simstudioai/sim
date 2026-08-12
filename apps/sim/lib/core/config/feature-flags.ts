@@ -104,12 +104,24 @@ const FEATURE_FLAGS = {
       'custom-block publish/list routes. Off-AppConfig falls back to DEPLOY_AS_BLOCK.',
     fallback: 'DEPLOY_AS_BLOCK',
   },
+  'v2-api': {
+    description:
+      'Gate the whole /api/v2 HTTP surface (workflows incl. execute/executions, tables, logs, ' +
+      'knowledge, files, audit-logs, billing, and the workspace-resources spec: workspaces, ' +
+      'mcp-servers, skills, custom-tools, credentials, secrets). ' +
+      'One check per request, immediately after auth: ' +
+      'when off, every v2 route returns 404 as if the surface does not exist. The gate is keyed ' +
+      'on userId only — it never reads workspace/org membership, so an ungated caller learns ' +
+      'nothing beyond "no such route". Off-AppConfig falls back to V2_API.',
+    fallback: 'V2_API',
+  },
   'tables-v2-api': {
     description:
-      'Gate the v2 tables HTTP API — the public read API (GET /api/v2/tables, POST ' +
-      '/api/v2/tables/[tableId]/query) and the internal predicate-grammar query route (POST ' +
-      '/api/table/[tableId]/query). When off, those routes return 404 as if the surface does not ' +
-      'exist. Gated by userId/orgId/admins via AppConfig; off-AppConfig falls back to TABLES_V2_API.',
+      'Gate the internal predicate-grammar table query route (POST /api/table/[tableId]/query), ' +
+      'its only caller. When off, that route returns 404 as if it does not exist. Despite the ' +
+      'name it does NOT gate any /api/v2/tables route — the public v2 tables surface is gated ' +
+      'by v2-api alone. Gated by userId/orgId/admins via AppConfig; off-AppConfig falls back to ' +
+      'TABLES_V2_API.',
     fallback: 'TABLES_V2_API',
   },
   'table-locks': {

@@ -1,8 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type { RowExecutionMetadata, TableDefinition, WorkflowGroup } from '@/lib/table/types'
 
 const { mockAppendTableEvent, mockDecryptSecret, mockUpdateRow, mockWriteExecutionsPatch } =
@@ -93,6 +94,7 @@ describe('writeWorkflowGroupState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    queueTableRows(schemaMock.userTableRows, [{ id: CONTEXT.rowId }])
     mockWriteExecutionsPatch.mockResolvedValue('wrote')
     mockUpdateRow.mockResolvedValue({})
     mockAppendTableEvent.mockResolvedValue(null)
@@ -114,6 +116,7 @@ describe('writeWorkflowGroupState', () => {
       { [GROUP.id]: RUNNING_STATE },
       { groupId: GROUP.id, executionId: CONTEXT.executionId }
     )
+    expect(dbChainMockFns.for).toHaveBeenCalledWith('key share')
     expect(mockUpdateRow).not.toHaveBeenCalled()
     expect(mockAppendTableEvent).toHaveBeenCalledWith({
       kind: 'cell',
@@ -218,6 +221,42 @@ describe('writeWorkflowGroupState', () => {
     ).resolves.toBe('skipped')
 
     expect(mockAppendTableEvent).not.toHaveBeenCalled()
+  })
+
+  it('skips a status write when the row was deleted before pickup', async () => {
+    resetDbChainMock()
+    mockWriteExecutionsPatch.mockResolvedValue('wrote')
+
+    await expect(writeWorkflowGroupState(CONTEXT, { executionState: RUNNING_STATE })).resolves.toBe(
+      'skipped'
+    )
+
+    expect(mockWriteExecutionsPatch).not.toHaveBeenCalled()
+    expect(mockAppendTableEvent).not.toHaveBeenCalled()
+  })
+
+  it('skips a data write when the row is deleted during execution', async () => {
+    mockUpdateRow.mockRejectedValueOnce(new TableRowNotFoundError())
+
+    await expect(
+      writeWorkflowGroupState(CONTEXT, {
+        executionState: RUNNING_STATE,
+        dataPatch: { 'first-output': 'late' },
+      })
+    ).resolves.toBe('skipped')
+
+    expect(mockAppendTableEvent).not.toHaveBeenCalled()
+  })
+
+  it('still throws unrelated data-write failures', async () => {
+    mockUpdateRow.mockRejectedValueOnce(new Error('database unavailable'))
+
+    await expect(
+      writeWorkflowGroupState(CONTEXT, {
+        executionState: RUNNING_STATE,
+        dataPatch: { 'first-output': 'late' },
+      })
+    ).rejects.toThrow('database unavailable')
   })
 })
 

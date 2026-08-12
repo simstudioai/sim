@@ -109,10 +109,9 @@ export const SPEECH_RECOGNITION_LANG = 'en-US'
  * so adding a new resource type fails compilation here until a conversion is
  * supplied — preventing silent drift between the two taxonomies.
  */
-// A dragged `browser`/`terminal` resource is one TAB, and its `id` is that
-// tab's id — the panel itself is a singleton with nothing to point at. Both
-// become pointers the agent resolves with its own tools rather than content
-// captured here, so what it reads is the tab as it stands when it looks.
+// Browser/terminal resources may name either the singleton panel or one live
+// inner tab. The singleton ids ask the agent to inspect the whole resource;
+// every other id is a precise live-tab pointer.
 const RESOURCE_TO_CONTEXT: Record<
   MothershipResourceType,
   (resource: MothershipResource) => ChatContext

@@ -1,131 +1,199 @@
 /**
  * @vitest-environment node
- *
- * Public v2 tables list: auth/scope gating, typed summary output, private cache header.
  */
+
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TableDefinition } from '@/lib/table/types'
 
-const { mockListTables, mockCheckRateLimit, mockValidateWorkspaceAccess, mockGate } = vi.hoisted(
-  () => ({
-    mockListTables: vi.fn(),
-    mockCheckRateLimit: vi.fn(),
-    mockValidateWorkspaceAccess: vi.fn(),
-    mockGate: vi.fn(),
-  })
-)
-
-vi.mock('@/app/api/v1/middleware', async () => {
-  const { NextResponse } = await import('next/server')
-  return {
-    checkRateLimit: mockCheckRateLimit,
-    validateWorkspaceAccess: mockValidateWorkspaceAccess,
-    createRateLimitResponse: (r: { error?: string }) =>
-      NextResponse.json(
-        { error: r.error ?? 'Rate limit exceeded' },
-        { status: r.error ? 401 : 429 }
-      ),
-  }
-})
-
-vi.mock('@/lib/table', async () => {
-  const actual = await import('@/lib/table/column-keys')
-  return { ...actual, listTables: mockListTables }
-})
-
-vi.mock('@/app/api/table/utils', () => ({
-  normalizeColumn: (col: Record<string, unknown>) => col,
-  tablesV2GateError: mockGate,
+const mocks = vi.hoisted(() => ({
+  authenticate: vi.fn(),
+  preauthRate: vi.fn(),
+  operationRate: vi.fn(),
+  gate: vi.fn(),
+  list: vi.fn(),
+  create: vi.fn(),
+  getUserEmailsByIds: vi.fn(),
+  getMaxRowsPerTable: vi.fn(),
 }))
 
-import { GET } from '@/app/api/v2/tables/route'
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
+}))
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mocks.preauthRate
+    checkRateLimitDirectOrThrow = mocks.operationRate
+  },
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
+}))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/table/application/tables', () => ({
+  listTablesUseCase: { operation: { id: 'tables.list' }, execute: mocks.list },
+  createTableUseCase: { operation: { id: 'tables.create' }, execute: mocks.create },
+}))
+vi.mock('@/lib/users/queries', () => ({
+  getUserEmailsByIds: mocks.getUserEmailsByIds,
+  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
+}))
+vi.mock('@/lib/table/billing', () => ({
+  getMaxRowsPerTable: mocks.getMaxRowsPerTable,
+}))
 
-function buildTable(): TableDefinition {
-  return {
-    id: 'tbl_1',
-    name: 'People',
-    description: 'A table',
-    schema: { columns: [{ id: 'col_name', name: 'name', type: 'string' }] },
-    metadata: null,
-    rowCount: 5,
-    maxRows: 100,
-    workspaceId: 'workspace-1',
-    createdBy: 'user-1',
-    archivedAt: null,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-02'),
-  }
+import { GET, POST } from '@/app/api/v2/tables/route'
+
+const WORKSPACE_ID = 'workspace-1'
+const principal = {
+  kind: 'workspace_api_key' as const,
+  workspaceId: WORKSPACE_ID,
+  keyId: 'key-1',
+}
+const auth = {
+  principal,
+  rolloutUserId: 'owner-1',
+  rateLimitSubjectIds: [`workspace:${WORKSPACE_ID}`],
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
+}
+const rate = {
+  allowed: true,
+  remaining: 99,
+  resetAt: new Date('2026-01-01T01:00:00.000Z'),
+  retryAfterMs: 0,
+}
+const table = {
+  id: 'table-1',
+  workspaceId: WORKSPACE_ID,
+  createdBy: 'owner-1',
+  name: 'Contacts',
+  description: null,
+  schema: {
+    columns: [
+      { id: 'col-1', name: 'Name', type: 'string' as const, required: false, unique: false },
+    ],
+  },
+  rowCount: 0,
+  maxRows: 100,
+  folderId: null,
+  metadata: null,
+  locks: {
+    schemaLocked: false,
+    insertLocked: false,
+    updateLocked: false,
+    deleteLocked: false,
+  },
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
 }
 
-function callList(query: string) {
-  const req = new NextRequest(`http://localhost:3000/api/v2/tables?${query}`)
-  return GET(req)
-}
-
-describe('GET /api/v2/tables', () => {
+describe('/api/v2/tables', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1', keyType: 'workspace' })
-    mockValidateWorkspaceAccess.mockResolvedValue(null)
-    mockListTables.mockResolvedValue([buildTable()])
-    mockGate.mockResolvedValue(null)
-  })
-
-  it('returns 404 when the tables-v2-api flag is off', async () => {
-    const { NextResponse } = await import('next/server')
-    mockGate.mockResolvedValue(NextResponse.json({ error: 'Not found' }, { status: 404 }))
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(404)
-    expect(mockListTables).not.toHaveBeenCalled()
-  })
-
-  it('runs the flag gate only after the access check, so it cannot leak a cohort oracle', async () => {
-    const { NextResponse } = await import('next/server')
-    mockValidateWorkspaceAccess.mockResolvedValue(
-      NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    )
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(403)
-    expect(mockGate).not.toHaveBeenCalled()
-  })
-
-  it('returns a typed table summary with a private cache header', async () => {
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(200)
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-    const body = await res.json()
-    expect(body.data.totalCount).toBe(1)
-    expect(body.data.tables[0]).toMatchObject({
-      id: 'tbl_1',
-      name: 'People',
-      description: 'A table',
-      rowCount: 5,
-      maxRows: 100,
-      createdAt: '2024-01-01T00:00:00.000Z',
+    mocks.authenticate.mockResolvedValue(auth)
+    mocks.preauthRate.mockResolvedValue(rate)
+    mocks.operationRate.mockResolvedValue(rate)
+    mocks.gate.mockResolvedValue(null)
+    mocks.getUserEmailsByIds.mockResolvedValue(new Map([['owner-1', 'owner@example.com']]))
+    mocks.getMaxRowsPerTable.mockResolvedValue(5000)
+    mocks.list.mockResolvedValue({
+      tables: [{ table, folderPath: '/' }],
+      nextKeys: undefined,
+      sortBy: 'name',
+      sortOrder: 'asc',
     })
-    expect(body.data.tables[0].schema.columns[0].name).toBe('name')
+    mocks.create.mockResolvedValue({ table, folderPath: '/' })
   })
 
-  it('400s when workspaceId is missing', async () => {
-    const res = await callList('')
-    expect(res.status).toBe(400)
-    expect(mockListTables).not.toHaveBeenCalled()
-  })
-
-  it('surfaces an access-denied response from the middleware', async () => {
-    const { NextResponse } = await import('next/server')
-    mockValidateWorkspaceAccess.mockResolvedValue(
-      NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  it('lists through the semantic use case and preserves the cursor envelope', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25`
     )
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(403)
-    expect(mockListTables).not.toHaveBeenCalled()
+    const response = await GET(request)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      data: [
+        {
+          id: 'table-1',
+          folderPath: '/',
+          description: null,
+          ownerEmail: 'owner@example.com',
+          maxRows: 5000,
+        },
+      ],
+      nextCursor: null,
+    })
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal,
+      input: expect.objectContaining({ workspaceId: WORKSPACE_ID, limit: 25 }),
+      request,
+    })
   })
 
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue({ allowed: false })
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(429)
+  it('authenticates and rate-limits before rejecting invalid query input', async () => {
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/tables'))
+
+    expect(response.status).toBe(400)
+    expect(mocks.authenticate).toHaveBeenCalled()
+    expect(mocks.operationRate).toHaveBeenCalled()
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  it('maps operation rate-limit infrastructure failures to service unavailable', async () => {
+    mocks.operationRate.mockRejectedValueOnce(new Error('rate store unavailable'))
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25`)
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Service temporarily unavailable',
+      },
+    })
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  it('creates through the shared use case and keeps the 201 response contract', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/tables', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+      body: JSON.stringify({
+        workspaceId: WORKSPACE_ID,
+        name: 'Contacts',
+        schema: { columns: [{ name: 'Name', type: 'string' }] },
+      }),
+    })
+    const response = await POST(request)
+
+    expect(response.status).toBe(201)
+    expect((await response.json()).data).toMatchObject({
+      id: 'table-1',
+      ownerEmail: 'owner@example.com',
+      maxRows: 5000,
+    })
+    expect(mocks.create).toHaveBeenCalledWith({
+      principal,
+      input: expect.objectContaining({ workspaceId: WORKSPACE_ID, name: 'Contacts' }),
+      request,
+    })
+  })
+
+  it('rejects required in a table column before calling the use case', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/tables', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+      body: JSON.stringify({
+        workspaceId: WORKSPACE_ID,
+        name: 'Contacts',
+        schema: { columns: [{ name: 'Name', type: 'string', required: true }] },
+      }),
+    })
+    const response = await POST(request)
+
+    expect(response.status).toBe(400)
+    expect(mocks.create).not.toHaveBeenCalled()
   })
 })

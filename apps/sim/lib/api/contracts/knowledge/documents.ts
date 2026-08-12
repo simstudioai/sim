@@ -15,7 +15,7 @@ import {
 import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
-import { getFieldTypeForSlot } from '@/lib/knowledge/constants'
+import { getFieldTypeForSlot, MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE } from '@/lib/knowledge/constants'
 import { getOperatorsForFieldType, isValidFilterValue } from '@/lib/knowledge/filters/types'
 
 export const documentTagFilterSchema = z
@@ -129,7 +129,13 @@ export const createDocumentBodySchema = z.object({
 })
 
 export const bulkCreateDocumentsBodySchema = z.object({
-  documents: z.array(createDocumentBodySchema),
+  documents: z
+    .array(createDocumentBodySchema)
+    .min(1, 'At least one document is required')
+    .max(
+      MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE,
+      `At most ${MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE} documents may be created at once`
+    ),
   processingOptions: z
     .object({
       recipe: z.string().optional(),
@@ -338,9 +344,17 @@ export const updateKnowledgeDocumentContract = defineRouteContract({
   body: updateDocumentBodySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema(documentDataSchema),
+    schema: successResponseSchema(
+      z.union([
+        documentDataSchema,
+        z.object({ documentId: z.string(), status: z.string(), message: z.string() }),
+      ])
+    ),
   },
 })
+export type UpdateKnowledgeDocumentResponseData = z.output<
+  typeof updateKnowledgeDocumentContract.response.schema
+>['data']
 
 export const updateKnowledgeDocumentTagsContract = defineRouteContract({
   method: 'PUT',
@@ -381,6 +395,23 @@ export const upsertKnowledgeDocumentContract = defineRouteContract({
   body: upsertDocumentBodySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema(documentDataSchema),
+    schema: successResponseSchema(
+      z.object({
+        documentsCreated: z.array(
+          z.object({
+            documentId: z.string(),
+            filename: z.string(),
+            status: z.literal('pending'),
+          })
+        ),
+        isUpdate: z.boolean(),
+        previousDocumentId: z.string().nullable(),
+        processingMethod: z.literal('background'),
+        processingConfig: z.object({
+          maxConcurrentDocuments: z.number(),
+          batchSize: z.number(),
+        }),
+      })
+    ),
   },
 })

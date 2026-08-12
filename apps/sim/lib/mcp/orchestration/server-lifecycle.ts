@@ -1,4 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, auditUpdatedFields, recordAudit } from '@sim/audit'
 import { db, mcpServers } from '@sim/db'
 import { mcpServerOauth } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -6,6 +6,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import {
   McpDnsResolutionError,
   McpDomainNotAllowedError,
@@ -21,7 +22,12 @@ import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('McpServerOrchestration')
 
-export type McpServerOrchestrationErrorCode = 'not_found' | 'forbidden' | 'bad_gateway' | 'internal'
+export type McpServerOrchestrationErrorCode =
+  | 'not_found'
+  | 'forbidden'
+  | 'bad_gateway'
+  | 'conflict'
+  | 'internal'
 
 type McpServerTransport = (typeof mcpServers.$inferInsert)['transport']
 
@@ -48,6 +54,7 @@ export interface PerformCreateMcpServerParams extends ActorMetadata {
   oauthClientIdProvided?: boolean
   oauthClientSecret?: string | null
   oauthClientSecretProvided?: boolean
+  existingServerBehavior?: 'update' | 'reject'
 }
 
 export interface PerformUpdateMcpServerParams extends ActorMetadata {
@@ -83,8 +90,24 @@ export interface PerformMcpServerResult {
   serverId?: string
   server?: typeof mcpServers.$inferSelect
   updated?: boolean
+  /**
+   * Whether an `updated` result brought a soft-deleted row back rather than
+   * rewriting a live one. The two need different audit actions: a revival is an
+   * addition, a rewrite is an update.
+   */
+  revived?: boolean
   authType?: McpAuthType
+  configurationChanged?: boolean
+  /**
+   * Fields the update's SET clause wrote, minus `updatedAt`, for audit. Only
+   * the writer knows these: a param is not a write, and callers cannot see the
+   * `connectionStatus`/`lastConnected`/`lastError` reset that an auth or
+   * credential change forces. Record this instead of deriving names from input.
+   */
+  updatedFields?: string[]
 }
+
+export type McpServerMutationAction = 'create' | 'update' | 'delete'
 
 type ValidateMcpServerUrlResult =
   | { ok: true; resolvedIP: string | null }
@@ -109,8 +132,8 @@ async function validateMcpServerUrl(url: string): Promise<ValidateMcpServerUrlRe
   }
 }
 
-export async function performCreateMcpServer(
-  params: PerformCreateMcpServerParams
+export async function createMcpServer(
+  params: Omit<PerformCreateMcpServerParams, keyof ActorMetadata | 'source'>
 ): Promise<PerformMcpServerResult> {
   const validation = await validateMcpServerUrl(params.url)
   if (!validation.ok) return validation.result
@@ -144,6 +167,18 @@ export async function performCreateMcpServer(
 
     const urlChanged = existingServer ? existingServer.url !== params.url : true
 
+    if (
+      existingServer &&
+      existingServer.deletedAt === null &&
+      params.existingServerBehavior === 'reject'
+    ) {
+      return {
+        success: false,
+        error: 'An MCP server with this URL already exists in this workspace',
+        errorCode: 'conflict',
+      }
+    }
+
     let resolvedAuthType: McpAuthType = params.authType ?? 'headers'
     if (!params.authType) {
       if (existingServer && !urlChanged) {
@@ -174,13 +209,14 @@ export async function performCreateMcpServer(
       const oauthDisabled = existingServer.authType === 'oauth' && resolvedAuthType !== 'oauth'
       const shouldClearOauth = urlChanged || credsChanged || isRevival || oauthDisabled
 
-      if (shouldClearOauth) await revokeMcpOauthTokens(serverId)
+      if (shouldClearOauth) await revokeMcpOauthTokens(serverId, params.workspaceId)
 
+      let updatedFields: string[] = []
       await db.transaction(async (tx) => {
         if (shouldClearOauth) {
           await tx.delete(mcpServerOauth).where(eq(mcpServerOauth.mcpServerId, serverId))
         }
-        const updateValues: Record<string, unknown> = {
+        const updateValues: Partial<typeof mcpServers.$inferInsert> = {
           name: params.name,
           description: params.description,
           transport,
@@ -210,12 +246,34 @@ export async function performCreateMcpServer(
         if (params.oauthClientSecretProvided) {
           updateValues.oauthClientSecret = oauthClientSecretEncrypted
         }
+        /**
+         * Drizzle skips `undefined` in `.set()`, and this object assigns every
+         * column unconditionally — `description` is present but undefined when
+         * the registration omits it. Keys must therefore be filtered by value,
+         * or the audit claims a column the write never touched. `null` stays:
+         * clearing a value is a write.
+         */
+        updatedFields = Object.entries(updateValues)
+          .filter(([key, value]) => key !== 'updatedAt' && value !== undefined)
+          .map(([key]) => key)
         await tx.update(mcpServers).set(updateValues).where(eq(mcpServers.id, serverId))
       })
 
-      await mcpService.clearCache(params.workspaceId)
-      await mcpService.evictServerConnections(serverId, 'config changed')
-      return { success: true, serverId, updated: true, authType: resolvedAuthType }
+      const [server] = await db
+        .select()
+        .from(mcpServers)
+        .where(and(eq(mcpServers.id, serverId), eq(mcpServers.workspaceId, params.workspaceId)))
+        .limit(1)
+      if (!server) throw new Error(`MCP server ${serverId} missing after a successful update`)
+      return {
+        success: true,
+        serverId,
+        server,
+        updated: true,
+        revived: isRevival,
+        updatedFields,
+        authType: resolvedAuthType,
+      }
     }
 
     await db.insert(mcpServers).values({
@@ -239,61 +297,21 @@ export async function performCreateMcpServer(
       updatedAt: new Date(),
     })
 
-    await mcpService.clearCache(params.workspaceId)
-
-    try {
-      const { PlatformEvents } = await import('@/lib/core/telemetry')
-      PlatformEvents.mcpServerAdded({
-        serverId,
-        serverName: params.name,
-        transport,
-        workspaceId: params.workspaceId,
-      })
-    } catch {}
-
-    const source =
-      params.source === 'settings' || params.source === 'tool_input' ? params.source : undefined
-
-    captureServerEvent(
-      params.userId,
-      'mcp_server_connected',
-      { workspace_id: params.workspaceId, server_name: params.name, transport, source },
-      {
-        groups: { workspace: params.workspaceId },
-        setOnce: { first_mcp_connected_at: new Date().toISOString() },
-      }
-    )
-
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      actorName: params.actorName ?? undefined,
-      actorEmail: params.actorEmail ?? undefined,
-      action: AuditAction.MCP_SERVER_ADDED,
-      resourceType: AuditResourceType.MCP_SERVER,
-      resourceId: serverId,
-      resourceName: params.name,
-      description: `Added MCP server "${params.name}"`,
-      metadata: {
-        serverName: params.name,
-        transport,
-        url: params.url,
-        timeout,
-        retries,
-        source,
-      },
-      request: params.request,
-    })
-
-    return { success: true, serverId, updated: false, authType: resolvedAuthType }
+    const [server] = await db
+      .select()
+      .from(mcpServers)
+      .where(and(eq(mcpServers.id, serverId), eq(mcpServers.workspaceId, params.workspaceId)))
+      .limit(1)
+    if (!server) throw new Error(`MCP server ${serverId} missing after a successful insert`)
+    return { success: true, serverId, server, updated: false, authType: resolvedAuthType }
   } catch (error) {
     logger.error('Failed to create MCP server', { error })
-    return { success: false, error: 'Failed to register MCP server', errorCode: 'internal' }
+    throw error
   }
 }
 
-export async function performUpdateMcpServer(
-  params: PerformUpdateMcpServerParams
+export async function updateMcpServer(
+  params: Omit<PerformUpdateMcpServerParams, keyof ActorMetadata>
 ): Promise<PerformMcpServerResult> {
   if (params.url) {
     const validation = await validateMcpServerUrl(params.url)
@@ -369,7 +387,7 @@ export async function performUpdateMcpServer(
       updateData.lastError = null
     }
 
-    if (shouldClearOauth) await revokeMcpOauthTokens(params.serverId)
+    if (shouldClearOauth) await revokeMcpOauthTokens(params.serverId, params.workspaceId)
 
     const server = await db.transaction(async (tx) => {
       const [updated] = await tx
@@ -404,42 +422,23 @@ export async function performUpdateMcpServer(
       params.timeout !== undefined ||
       params.retries !== undefined
 
-    if (shouldClearCache) {
-      await mcpService.clearCache(params.workspaceId)
-      await mcpService.evictServerConnections(params.serverId, 'config changed')
+    return {
+      success: true,
+      server,
+      configurationChanged: shouldClearCache,
+      updatedFields: auditUpdatedFields(updateData),
     }
-
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      actorName: params.actorName ?? undefined,
-      actorEmail: params.actorEmail ?? undefined,
-      action: AuditAction.MCP_SERVER_UPDATED,
-      resourceType: AuditResourceType.MCP_SERVER,
-      resourceId: params.serverId,
-      resourceName: server.name || params.serverId,
-      description: `Updated MCP server "${server.name || params.serverId}"`,
-      metadata: {
-        serverName: server.name,
-        transport: server.transport,
-        url: server.url,
-        updatedFields: Object.keys(updateData).filter((key) => key !== 'updatedAt'),
-      },
-      request: params.request,
-    })
-
-    return { success: true, server }
   } catch (error) {
     logger.error('Failed to update MCP server', { error })
-    return { success: false, error: 'Failed to update MCP server', errorCode: 'internal' }
+    throw error
   }
 }
 
-export async function performDeleteMcpServer(
-  params: PerformDeleteMcpServerParams
+export async function deleteMcpServer(
+  params: Omit<PerformDeleteMcpServerParams, keyof ActorMetadata | 'source'>
 ): Promise<PerformMcpServerResult> {
   try {
-    await revokeMcpOauthTokens(params.serverId)
+    await revokeMcpOauthTokens(params.serverId, params.workspaceId)
     const [server] = await db
       .delete(mcpServers)
       .where(
@@ -449,18 +448,141 @@ export async function performDeleteMcpServer(
 
     if (!server) return { success: false, error: 'Server not found', errorCode: 'not_found' }
 
-    await mcpService.clearCache(params.workspaceId)
-    await mcpService.evictServerConnections(params.serverId, 'server deleted')
-    const source =
-      params.source === 'settings' || params.source === 'tool_input' ? params.source : undefined
+    return { success: true, server }
+  } catch (error) {
+    logger.error('Failed to delete MCP server', { error })
+    throw error
+  }
+}
 
+function legacySource(source: string | undefined): 'settings' | 'tool_input' | undefined {
+  return source === 'settings' || source === 'tool_input' ? source : undefined
+}
+
+/** Preserves the legacy internal registration result, analytics, audit, and effects contract. */
+export async function performCreateMcpServer(
+  params: PerformCreateMcpServerParams
+): Promise<PerformMcpServerResult> {
+  try {
+    const result = await createMcpServer(params)
+    if (!result.success) return result
+    if (!result.server) throw new Error('Successful MCP registration is missing its server')
+
+    await applyMcpServerMutationEffects({
+      action: 'create',
+      workspaceId: params.workspaceId,
+      result,
+    })
+    const source = legacySource(params.source)
+    if (!result.updated) {
+      captureServerEvent(
+        params.userId,
+        'mcp_server_connected',
+        {
+          workspace_id: params.workspaceId,
+          server_name: result.server.name,
+          transport: result.server.transport,
+          source,
+        },
+        {
+          groups: { workspace: params.workspaceId },
+          setOnce: { first_mcp_connected_at: new Date().toISOString() },
+        }
+      )
+    }
+
+    /**
+     * Registering a URL that already exists rewrites the live row — headers, the
+     * URL's query string, transport, enabled — so it is an update, not an
+     * addition. Reviving a soft-deleted row is still an addition. Auditing only
+     * the insert left both cases with no trace at all.
+     */
+    const isRewrite = result.updated === true && !result.revived
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      actorName: params.actorName ?? undefined,
+      actorEmail: params.actorEmail ?? undefined,
+      action: isRewrite ? AuditAction.MCP_SERVER_UPDATED : AuditAction.MCP_SERVER_ADDED,
+      resourceType: AuditResourceType.MCP_SERVER,
+      resourceId: result.server.id,
+      resourceName: result.server.name,
+      description: `${isRewrite ? 'Updated' : 'Added'} MCP server "${result.server.name}"`,
+      metadata: {
+        serverName: result.server.name,
+        transport: result.server.transport,
+        url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
+        timeout: result.server.timeout,
+        retries: result.server.retries,
+        source,
+        ...(isRewrite ? { updatedFields: result.updatedFields ?? [] } : {}),
+      },
+      request: params.request,
+    })
+    return result
+  } catch (error) {
+    logger.error('Failed to register MCP server', { error })
+    return { success: false, error: 'Failed to register MCP server', errorCode: 'internal' }
+  }
+}
+
+/** Preserves the legacy internal update result, audit, and effects contract. */
+export async function performUpdateMcpServer(
+  params: PerformUpdateMcpServerParams
+): Promise<PerformMcpServerResult> {
+  try {
+    const result = await updateMcpServer(params)
+    if (!result.success || !result.server) return result
+
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      actorName: params.actorName ?? undefined,
+      actorEmail: params.actorEmail ?? undefined,
+      action: AuditAction.MCP_SERVER_UPDATED,
+      resourceType: AuditResourceType.MCP_SERVER,
+      resourceId: result.server.id,
+      resourceName: result.server.name,
+      description: `Updated MCP server "${result.server.name}"`,
+      metadata: {
+        serverName: result.server.name,
+        transport: result.server.transport,
+        url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
+        updatedFields: result.updatedFields ?? [],
+      },
+      request: params.request,
+    })
+    await applyMcpServerMutationEffects({
+      action: 'update',
+      workspaceId: params.workspaceId,
+      result,
+    })
+    return result
+  } catch (error) {
+    logger.error('Failed to update MCP server', { error })
+    return { success: false, error: 'Failed to update MCP server', errorCode: 'internal' }
+  }
+}
+
+/** Preserves the legacy internal delete result, analytics, audit, and effects contract. */
+export async function performDeleteMcpServer(
+  params: PerformDeleteMcpServerParams
+): Promise<PerformMcpServerResult> {
+  try {
+    const result = await deleteMcpServer(params)
+    if (!result.success || !result.server) return result
+
+    const source = legacySource(params.source)
     captureServerEvent(
       params.userId,
       'mcp_server_disconnected',
-      { workspace_id: params.workspaceId, server_name: server.name, source },
+      {
+        workspace_id: params.workspaceId,
+        server_name: result.server.name,
+        source,
+      },
       { groups: { workspace: params.workspaceId } }
     )
-
     recordAudit({
       workspaceId: params.workspaceId,
       actorId: params.userId,
@@ -468,21 +590,57 @@ export async function performDeleteMcpServer(
       actorEmail: params.actorEmail ?? undefined,
       action: AuditAction.MCP_SERVER_REMOVED,
       resourceType: AuditResourceType.MCP_SERVER,
-      resourceId: params.serverId,
-      resourceName: server.name,
-      description: `Removed MCP server "${server.name}"`,
+      resourceId: result.server.id,
+      resourceName: result.server.name,
+      description: `Removed MCP server "${result.server.name}"`,
       metadata: {
-        serverName: server.name,
-        transport: server.transport,
-        url: server.url,
+        serverName: result.server.name,
+        transport: result.server.transport,
+        url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
         source,
       },
       request: params.request,
     })
-
-    return { success: true, server }
+    await applyMcpServerMutationEffects({
+      action: 'delete',
+      workspaceId: params.workspaceId,
+      result,
+    })
+    return result
   } catch (error) {
     logger.error('Failed to delete MCP server', { error })
     return { success: false, error: 'Failed to delete MCP server', errorCode: 'internal' }
+  }
+}
+
+/** Applies shared cache, connection, and domain-telemetry effects after semantic audit. */
+export async function applyMcpServerMutationEffects(params: {
+  action: McpServerMutationAction
+  workspaceId: string
+  result: PerformMcpServerResult
+}): Promise<void> {
+  const { action, workspaceId, result } = params
+  if (!result.serverId && !result.server?.id) {
+    throw new Error(`MCP ${action} result is missing its server ID`)
+  }
+  const serverId = result.serverId ?? result.server!.id
+
+  if (action === 'update' && !result.configurationChanged) return
+  await mcpService.clearCache(workspaceId)
+  if (action !== 'create' || result.updated) {
+    await mcpService.evictServerConnections(
+      serverId,
+      action === 'delete' ? 'server deleted' : 'config changed'
+    )
+  }
+
+  if (action === 'create' && result.updated === false && result.server) {
+    const { PlatformEvents } = await import('@/lib/core/telemetry')
+    PlatformEvents.mcpServerAdded({
+      serverId,
+      serverName: result.server.name,
+      transport: result.server.transport,
+      workspaceId,
+    })
   }
 }

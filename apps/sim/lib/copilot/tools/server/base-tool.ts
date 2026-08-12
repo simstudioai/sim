@@ -5,6 +5,11 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 export interface ServerToolContext {
   userId: string
   workspaceId?: string
+  executionId?: string
+  /** Stable, server-issued identity of the tool call currently executing. */
+  toolCallId?: string
+  /** True only for contexts built by the authenticated Copilot execution pipeline. */
+  copilotToolExecution?: boolean
   billingAttribution?: BillingAttributionSnapshot
   userPermission?: string
   chatId?: string

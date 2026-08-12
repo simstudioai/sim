@@ -60,6 +60,7 @@ export function buildMondaySubBlocks(options: {
     subBlocks.push({
       id: 'selectedTriggerId',
       title: 'Trigger Type',
+      canvasNoun: 'an event',
       type: 'dropdown',
       options: mondayTriggerOptions,
       value: () => triggerId,
@@ -82,6 +83,7 @@ export function buildMondaySubBlocks(options: {
     {
       id: 'boardId',
       title: 'Board ID',
+      canvasNoun: 'a board',
       type: 'short-input',
       placeholder: 'Enter the board ID from the board URL',
       description: 'The ID of the board to monitor. Find it in the URL: monday.com/boards/BOARD_ID',

@@ -157,6 +157,15 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
   category: 'blocks',
   bgColor: '#4D5FFF',
   icon: ChartBarIcon,
+  canvasPresentation: {
+    defaultTitle: 'Evaluator',
+    sentences: {
+      default: [
+        { text: 'Score', field: 'content', core: true },
+        { text: 'against', field: 'metrics' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'metrics',

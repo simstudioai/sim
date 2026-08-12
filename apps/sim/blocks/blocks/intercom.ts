@@ -4,6 +4,19 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
+/**
+ * How a new contact is identified, in the order Intercom itself prefers.
+ * Mutually exclusive in practice rather than a canonical pair, so the first
+ * one the user filled is the one the card shows.
+ */
+const CONTACT_IDENTITY_FIELD = ['email', 'external_id', 'name'] as const
+
+/** Whoever an event is attributed to — email, user id, or contact id. */
+const EVENT_ACTOR_FIELD = ['event_email', 'event_user_id', 'event_contact_id'] as const
+
+/** What an outbound message shows: its subject when set, otherwise its body. */
+const MESSAGE_PREVIEW_FIELD = ['subject', 'body'] as const
+
 export const IntercomBlock: BlockConfig = {
   type: 'intercom',
   name: 'Intercom (Legacy)',
@@ -18,6 +31,102 @@ export const IntercomBlock: BlockConfig = {
   integrationType: IntegrationType.Support,
   bgColor: '#FFFFFF',
   icon: IntercomIcon,
+  canvasPresentation: {
+    defaultTitle: 'Intercom',
+    sentences: {
+      byOperation: {
+        create_contact: [
+          { text: 'Create contact', field: CONTACT_IDENTITY_FIELD, core: true },
+          { text: 'as', field: 'role' },
+        ],
+        get_contact: [{ text: 'Fetch contact', field: 'contactId', core: true }],
+        update_contact: [
+          { text: 'Update contact', field: 'contactId', core: true },
+          { text: ', renaming it', field: 'name' },
+        ],
+        list_contacts: ['List contacts', { text: ', in pages of', field: 'per_page' }],
+        search_contacts: [
+          { text: 'Search contacts for', field: 'query', core: true },
+          { text: ', sorted by', field: 'sort_field' },
+        ],
+        delete_contact: [{ text: 'Delete contact', field: 'contactId', core: true }],
+        create_company: [
+          {
+            text: 'Create or update company',
+            field: ['company_name', 'company_id'],
+            core: true,
+          },
+          { text: ', on plan', field: 'plan' },
+        ],
+        get_company: [{ text: 'Fetch company', field: 'companyId', core: true }],
+        list_companies: ['List companies', { text: ', in pages of', field: 'per_page' }],
+        get_conversation: [{ text: 'Fetch conversation', field: 'conversationId', core: true }],
+        list_conversations: ['List conversations', { text: ', sorted by', field: 'sort' }],
+        reply_conversation: [
+          { text: 'Reply', field: 'body', core: true },
+          { text: 'to conversation', field: 'conversationId', core: true },
+        ],
+        search_conversations: [
+          { text: 'Search conversations for', field: 'query', core: true },
+          { text: ', sorted by', field: 'sort_field' },
+        ],
+        create_ticket: [{ text: 'Create a ticket of type', field: 'ticket_type_id', core: true }],
+        get_ticket: [{ text: 'Fetch ticket', field: 'ticketId', core: true }],
+        update_ticket: [
+          { text: 'Update ticket', field: 'ticketId', core: true },
+          { text: ', reassigning to', field: 'ticket_assignee_id' },
+        ],
+        create_message: [
+          { text: 'Send', field: MESSAGE_PREVIEW_FIELD, core: true },
+          { text: 'to', field: 'to_id', core: true },
+        ],
+        list_admins: ['List all admins'],
+        close_conversation: [
+          { text: 'Close conversation', field: 'conversationId', core: true },
+          { text: ', with', field: 'close_body' },
+        ],
+        open_conversation: [{ text: 'Reopen conversation', field: 'conversationId', core: true }],
+        snooze_conversation: [
+          { text: 'Snooze conversation', field: 'conversationId', core: true },
+          { text: 'until', field: 'snoozed_until' },
+        ],
+        assign_conversation: [
+          { text: 'Assign conversation', field: 'conversationId', core: true },
+          { text: 'to', field: 'assignee_id' },
+        ],
+        list_tags: ['List all tags'],
+        create_tag: [{ text: 'Create or rename tag', field: 'tag_name', core: true }],
+        tag_contact: [
+          { text: 'Add tag', field: 'tagId', core: true },
+          { text: 'to contact', field: 'tag_contact_id', core: true },
+        ],
+        untag_contact: [
+          { text: 'Remove tag', field: 'tagId', core: true },
+          { text: 'from contact', field: 'tag_contact_id', core: true },
+        ],
+        tag_conversation: [
+          { text: 'Add tag', field: 'tagId', core: true },
+          { text: 'to conversation', field: 'conversationId', core: true },
+        ],
+        create_note: [
+          { text: 'Add note', field: 'note_body', core: true },
+          { text: 'to contact', field: 'tag_contact_id', core: true },
+        ],
+        create_event: [
+          { text: 'Track event', field: 'event_name', core: true },
+          { text: 'for', field: EVENT_ACTOR_FIELD },
+        ],
+        attach_contact_to_company: [
+          { text: 'Add contact', field: 'tag_contact_id', core: true },
+          { text: 'to company', field: 'attach_company_id', core: true },
+        ],
+        detach_contact_from_company: [
+          { text: 'Remove contact', field: 'tag_contact_id', core: true },
+          { text: 'from company', field: 'attach_company_id', core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -760,6 +869,7 @@ Return ONLY the subject line - no explanations.`,
     {
       id: 'to_id',
       title: 'To ID',
+      canvasNoun: 'a contact ID',
       type: 'short-input',
       placeholder: 'Contact ID',
       required: true,

@@ -311,7 +311,7 @@ export class LoggingSession {
 
     if (!isResolvedSecretTraceProvenanceV1(provenance)) {
       const incomplete = new ResolvedSecretTraceRegistry()
-      incomplete.markIncomplete()
+      incomplete.markIncomplete('restored-provenance-untrusted')
       return incomplete
     }
 
@@ -781,7 +781,7 @@ export class LoggingSession {
         [],
         scopeUserId ? { userId: scopeUserId, workspaceId } : undefined
       )
-      if (skipLogCreation) this.resolvedSecretTraceRegistry.markIncomplete()
+      if (skipLogCreation) this.resolvedSecretTraceRegistry.markIncomplete('log-creation-skipped')
     }
 
     try {

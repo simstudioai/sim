@@ -25,7 +25,7 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
-import { getScopeDescription } from '@/lib/oauth/utils'
+import { getScopeDescription, getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { useCreateCredentialDraft, useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
 
@@ -129,10 +129,33 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
   const { open, onOpenChange, mode } = props
   const isConnect = mode === 'connect'
 
-  const providerId = useMemo(
+  const declaredProviderId = useMemo(
     () => props.providerId ?? (props.serviceId ? getProviderIdFromServiceId(props.serviceId) : ''),
     [props.providerId, props.serviceId]
   )
+
+  /**
+   * Authorization servers this service can be connected through, when it has
+   * more than one (Salesforce production vs sandbox). Offered on connect only:
+   * a reauthorize must return to the server that issued the credential.
+   */
+  const { authServerOptions, authServerHint } = useMemo(() => {
+    const service = isConnect ? getServiceConfigByProviderId(declaredProviderId) : null
+    const labels = service?.providerIdLabels
+    if (!service?.additionalProviderIds?.length || !labels) {
+      return { authServerOptions: [], authServerHint: undefined }
+    }
+    return {
+      authServerOptions: [service.providerId, ...service.additionalProviderIds].map((value) => ({
+        value,
+        label: labels[value] ?? value,
+      })),
+      authServerHint: service.providerIdPickerHint,
+    }
+  }, [isConnect, declaredProviderId])
+
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
+  const providerId = selectedProviderId ?? declaredProviderId
 
   const [displayName, setDisplayName] = useState('')
   const [description, setDescription] = useState('')
@@ -202,6 +225,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
   useEffect(() => {
     if (!open) {
       prefilled.current = false
+      setSelectedProviderId(null)
       return
     }
     if (!isConnect || prefilled.current || credentialsLoading) return
@@ -327,6 +351,18 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
           <p className='text-[var(--text-tertiary)] text-caption'>
             The "{props.toolName}" tool requires access to your account.
           </p>
+        )}
+
+        {authServerOptions.length > 0 && (
+          <ChipModalField
+            type='dropdown'
+            title='Environment'
+            value={providerId}
+            onChange={setSelectedProviderId}
+            options={authServerOptions}
+            align='start'
+            hint={authServerHint}
+          />
         )}
 
         {isConnect && (

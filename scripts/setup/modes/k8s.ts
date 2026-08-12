@@ -1,12 +1,19 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { getErrorMessage } from '@sim/utils/errors'
+import { KNOWLEDGE_EMBEDDINGS_SETUP } from '../capability-config.ts'
+import { getCapabilitySetupFields, stageCapabilitySetupTransition } from '../capability-setup.ts'
 import type { Detection } from '../detect.ts'
 import { ensureDocker } from '../docker.ts'
 import { generateSecret, ROOT } from '../env-files.ts'
 import { SetupError } from '../errors.ts'
 import { waitFor } from '../probes.ts'
 import * as p from '../prompter.ts'
-import { chatFlagValues, mothershipOverride, promptCopilotKey } from '../steps.ts'
+import {
+  chatFlagValues,
+  mothershipOverride,
+  promptCopilotKey,
+  promptKnowledgeEmbeddings,
+} from '../steps.ts'
 import { glyph, theme } from '../theme.ts'
 import { APP_SIGNUP_URL, APP_URL } from '../urls.ts'
 
@@ -361,6 +368,17 @@ export async function runK8sMode(detection: Detection): Promise<void> {
     ...overrides,
     ...(copilotKey ? { COPILOT_API_KEY: copilotKey } : {}),
     ...chatFlagValues(copilotKey),
+  }
+  const stagedVars = new Map(Object.entries(releaseValues?.app?.env ?? {}))
+  for (const [key, value] of Object.entries(appEnv)) stagedVars.set(key, value)
+  for (const key of getCapabilitySetupFields(KNOWLEDGE_EMBEDDINGS_SETUP)) {
+    const existing = stagedVars.get(key)
+    if (existing) appEnv[key] = existing
+  }
+  const remove = new Set<string>()
+  const embeddings = await promptKnowledgeEmbeddings(stagedVars, { containerized: true })
+  if (embeddings) {
+    stageCapabilitySetupTransition(stagedVars, appEnv, remove, embeddings)
   }
 
   const spin = p.spinner()

@@ -1,0 +1,779 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sim API v2 — Billing",
+    "description": "Version 2 of the Sim REST API for billing standing, credit allowance, storage quota, and cursor-paginated usage history.",
+    "version": "2.0.0",
+    "contact": {
+      "name": "Sim Support",
+      "email": "help@sim.ai",
+      "url": "https://www.sim.ai"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://www.sim.ai",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Billing",
+      "description": "Inspect billing standing, credit allowance, storage quota, and usage history."
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "paths": {
+    "/api/v2/billing/status": {
+      "get": {
+        "operationId": "getBillingStatus",
+        "summary": "Get Billing Status",
+        "description": "Return the current plan, billing standing, credit allowance, and storage quota. `credits` and `storage` report the payer's pooled allowances and are null unless the caller can manage that payer's billing; they are always null for a workspace API key. Billing history lives at `GET /api/v2/billing/logs`. Without a Stripe subscription — notably on the free plan — there is no real billing period: `period` is the open interval 1970-01-01 to 9999-12-31 and `credits.used` is lifetime consumption, not consumption since a period start.",
+        "tags": ["Billing"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": false,
+            "description": "Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.",
+            "schema": {
+              "description": "Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The current billing and storage status.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2BillingStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/billing/logs": {
+      "get": {
+        "operationId": "listBillingLogs",
+        "summary": "List Billing Logs",
+        "description": "List the credit-denominated billing ledger with source filtering and opaque cursor pagination. `period` defaults to `30d`, so an unqualified request covers only the last 30 days: paginating to `nextCursor: null` exhausts that window, not the whole ledger. Pass `period=all` for full history, or `period=custom` with `startDate` and `endDate` for a specific range.",
+        "tags": ["Billing"],
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Restrict results to one usage source.",
+            "schema": {
+              "description": "Restrict results to one usage source.",
+              "type": "string",
+              "enum": [
+                "workflow",
+                "wand",
+                "sim-chat",
+                "mcp_copilot",
+                "mothership_block",
+                "knowledge-base",
+                "voice-input",
+                "enrichment",
+                "voice-output"
+              ]
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": false,
+            "description": "Restrict results to one workspace whose payer the caller can inspect.",
+            "schema": {
+              "description": "Restrict results to one workspace whose payer the caller can inspect.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "description": "Relative window, all history, or a custom date range.",
+            "schema": {
+              "default": "30d",
+              "description": "Relative window, all history, or a custom date range.",
+              "type": "string",
+              "enum": ["1d", "7d", "30d", "all", "custom"]
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": false,
+            "description": "Start of a custom window as a Date-parseable string.",
+            "schema": {
+              "description": "Start of a custom window as a Date-parseable string.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": false,
+            "description": "End of a custom window as a Date-parseable string; defaults to now.",
+            "schema": {
+              "description": "End of a custom window as a Date-parseable string; defaults to now.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum usage events per page, from 1 to 100.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum usage events per page, from 1 to 100.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor returned by the previous page.",
+            "schema": {
+              "description": "Opaque cursor returned by the previous page.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of usage events.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2BillingLogListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
+      }
+    },
+    "headers": {
+      "X-RateLimit-Limit": {
+        "description": "Maximum requests allowed in the current window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Rate limit",
+          "description": "Maximum requests allowed in the current window."
+        }
+      },
+      "X-RateLimit-Remaining": {
+        "description": "Requests remaining in the current window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Rate limit remaining",
+          "description": "Requests remaining in the current window."
+        }
+      },
+      "X-RateLimit-Reset": {
+        "description": "ISO 8601 timestamp when the current rate-limit window resets.",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+          "title": "Rate limit reset",
+          "description": "ISO 8601 timestamp when the current rate-limit window resets."
+        }
+      },
+      "Retry-After": {
+        "description": "Seconds to wait before retrying a rate-limited request.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Retry after",
+          "description": "Seconds to wait before retrying a rate-limited request."
+        }
+      },
+      "X-Run-Id": {
+        "description": "Identifier assigned to the workflow run.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Run identifier",
+          "description": "Identifier assigned to the workflow run."
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request is invalid.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "The API key is missing or invalid.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "UsageLimitExceeded": {
+        "description": "The workspace has exceeded its usage or billing limits.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The caller lacks access to the resource.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested resource was not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The request conflicts with current resource state.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "RunIdConflict": {
+        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "headers": {
+          "X-Run-Id": {
+            "$ref": "#/components/headers/X-Run-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Gone": {
+        "description": "The requested generated resource has expired.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "The request uses an unsupported media type.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Locked": {
+        "description": "The resource is locked and cannot be modified.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "The caller exceeded the request rate limit.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "ClientClosedRequest": {
+        "description": "The client closed the connection before the response was produced.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "An unexpected server error occurred.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "A required service is temporarily unavailable.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "V2Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable error code."
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation of the error."
+              },
+              "details": {
+                "description": "Optional structured error details."
+              }
+            },
+            "required": ["code", "message"],
+            "additionalProperties": false,
+            "description": "Canonical error details."
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false,
+        "title": "v2 error response",
+        "description": "Canonical error envelope returned by the public v2 API.",
+        "examples": [
+          {
+            "error": {
+              "code": "BAD_REQUEST",
+              "message": "The request is invalid."
+            }
+          }
+        ]
+      },
+      "V2BillingStatus": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workspace whose payer was resolved, or null for account billing."
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string",
+                "description": "ISO 8601 start of the current billing period, or 1970-01-01T00:00:00.000Z when no Stripe subscription defines one.",
+                "format": "date-time"
+              },
+              "end": {
+                "type": "string",
+                "description": "ISO 8601 end of the current billing period, or 9999-12-31T00:00:00.000Z when no Stripe subscription defines one.",
+                "format": "date-time"
+              }
+            },
+            "required": ["start", "end"],
+            "additionalProperties": false,
+            "description": "Current billing period. Only a Stripe subscription defines a real period; without one — notably on the free plan — this is the open interval 1970-01-01 to 9999-12-31 and must not be read as a monthly window."
+          },
+          "plan": {
+            "type": "string",
+            "description": "Current billing plan."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "limit_exceeded", "billing_blocked"],
+            "description": "Current billing standing."
+          },
+          "credits": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "used": {
+                    "type": "number",
+                    "description": "Credits consumed so far. The counter is reset by Stripe invoice webhooks, so on a paid plan it covers the current billing period; on the free plan nothing resets it and the value is lifetime consumption."
+                  },
+                  "limit": {
+                    "type": "number",
+                    "description": "Credit allowance for the reporting window — per billing period on a paid plan, lifetime on the free plan."
+                  },
+                  "remaining": {
+                    "type": "number",
+                    "description": "Allowance minus consumption, over the same window."
+                  }
+                },
+                "required": ["used", "limit", "remaining"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The payer's credit usage and allowance — periodic on a paid plan, lifetime on the free plan, where the counter never resets. Null when the caller cannot manage that payer's billing. Always null for a workspace API key."
+          },
+          "storage": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "usedBytes": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Storage currently consumed, in bytes."
+                  },
+                  "limitBytes": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Storage quota, in bytes."
+                  },
+                  "percentUsed": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Percentage of the storage quota consumed."
+                  }
+                },
+                "required": ["usedBytes", "limitBytes", "percentUsed"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The payer's storage consumption and quota, or null when the caller cannot manage that payer's billing. Always null for a workspace API key."
+          }
+        },
+        "required": ["workspaceId", "period", "plan", "status", "credits", "storage"],
+        "additionalProperties": false,
+        "title": "Billing status",
+        "description": "Current billing standing, credit allowance, and storage quota."
+      },
+      "V2BillingStatusResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2BillingStatus"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Billing status response",
+        "description": "Current billing standing, credit allowance, and storage quota.",
+        "examples": [
+          {
+            "data": {
+              "workspaceId": null,
+              "period": {
+                "start": "2026-07-01T00:00:00.000Z",
+                "end": "2026-08-01T00:00:00.000Z"
+              },
+              "plan": "pro",
+              "status": "active",
+              "credits": {
+                "used": 512,
+                "limit": 20000,
+                "remaining": 19488
+              },
+              "storage": {
+                "usedBytes": 5242880,
+                "limitBytes": 1073741824,
+                "percentUsed": 0.48828125
+              }
+            }
+          }
+        ]
+      },
+      "V2BillingLogEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique usage-event identifier."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the usage event was recorded.",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "workflow",
+              "wand",
+              "sim-chat",
+              "mcp_copilot",
+              "mothership_block",
+              "knowledge-base",
+              "voice-input",
+              "enrichment",
+              "voice-output"
+            ],
+            "description": "Product surface that consumed the credits."
+          },
+          "workspaceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workspace attributed to the event, or null for account-level usage."
+          },
+          "workflow": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "Workflow identifier."
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Workflow display name, when available."
+                  }
+                },
+                "required": ["id", "name"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workflow attributed to the event, when applicable."
+          },
+          "runId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workflow run attributed to the event, when applicable."
+          },
+          "creditCost": {
+            "type": "number",
+            "description": "Credits apportioned to the event so page rows sum to the rounded page total; may be zero for a sub-credit event."
+          }
+        },
+        "required": ["id", "createdAt", "source", "workspaceId", "workflow", "runId", "creditCost"],
+        "additionalProperties": false,
+        "title": "Billing log entry",
+        "description": "One credit-consuming usage event in the billing ledger."
+      },
+      "V2BillingLogListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2BillingLogEntry"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Billing log list response",
+        "description": "A cursor-paginated page of credit-consuming usage events.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "log_1",
+                "createdAt": "2026-07-29T18:04:11.000Z",
+                "source": "sim-chat",
+                "workspaceId": "ws_1",
+                "workflow": null,
+                "runId": null,
+                "creditCost": 12
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      }
+    }
+  },
+  "x-generated-by": "scripts/generate-openapi.ts"
+}

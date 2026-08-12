@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
-import { generateInternalToken } from '@/lib/auth/internal'
+import { generateInternalDelegationToken } from '@/lib/auth/internal'
 import {
   BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
@@ -20,7 +21,7 @@ import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
-import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -93,9 +94,14 @@ async function queryKnowledgeBase(
   resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
 ): Promise<{ context: string[]; registry: ResolvedSecretTraceRegistry }> {
   const resultRegistry = resolvedSecretTraceRegistry.forkForInputPaths([])
+  if (!workflowId) throw new Error('Hallucination validation requires a workflow ID')
+
   try {
     const searchUrl = `${getInternalApiBaseUrl()}/api/knowledge/search`
-    const internalToken = await generateInternalToken(actorUserId)
+    const internalToken = await generateInternalDelegationToken({
+      subjectUserId: actorUserId,
+      workflowId,
+    })
     const headers = new Headers({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${internalToken}`,
@@ -122,10 +128,7 @@ async function queryKnowledgeBase(
     })
 
     if (!response.ok) {
-      logger.error(`[${requestId}] Knowledge base query failed`, {
-        status: response.status,
-      })
-      return { context: [], registry: resultRegistry }
+      throw new Error(`Knowledge base query failed with status ${response.status}`)
     }
 
     const payload: unknown = await response.json()
@@ -167,12 +170,13 @@ async function queryKnowledgeBase(
       }),
       registry: resultRegistry,
     }
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof KnowledgeProvenanceError) throw error
+    const message = getErrorMessage(error, 'Unknown Knowledge query error')
     logger.error(`[${requestId}] Error querying knowledge base`, {
-      error: error.message,
+      error: message,
     })
-    return { context: [], registry: resultRegistry }
+    throw new Error(`Failed to query knowledge base: ${message}`, { cause: error })
   }
 }
 

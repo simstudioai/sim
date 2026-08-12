@@ -401,6 +401,8 @@ interface ChatContentProps {
   questionAnswers?: string[]
   /** Transcript-derived status payload for this message's credential card. */
   credentialSubmission?: CredentialSubmissionPayload
+  /** The user moved on without submitting this message's credential card. */
+  credentialAbandoned?: boolean
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
@@ -420,6 +422,7 @@ function ChatContentInner({
   isStreaming = false,
   questionAnswers,
   credentialSubmission,
+  credentialAbandoned,
   onOptionSelect,
   onQuestionDismiss,
   onWorkspaceResourceSelect,
@@ -645,6 +648,7 @@ function ChatContentInner({
             interactionId={`${messageId ?? 'message'}:${group.index}`}
             questionAnswers={questionAnswers}
             credentialSubmission={credentialSubmission}
+            credentialAbandoned={credentialAbandoned}
             onOptionSelect={onOptionSelect}
             onQuestionDismiss={onQuestionDismiss}
           />

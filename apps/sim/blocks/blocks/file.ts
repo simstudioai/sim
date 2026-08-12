@@ -64,6 +64,23 @@ const resolveHttpFileUrl = (value: unknown): string => {
   return fileUrl
 }
 
+/**
+ * Canonical basic/advanced pairs, shared by the card summaries below.
+ *
+ * Every version of this block swaps a file picker for a raw id/URL input in
+ * advanced mode, so a summary that named only the picker would silently vanish
+ * for an advanced-mode user. Each alias lists both members of its group.
+ */
+const UPLOAD_OR_URL_FIELD = ['file', 'filePath'] as const
+const V3_PARSE_FILE_FIELD = ['file', 'fileUrl'] as const
+const V3_GET_FILE_FIELD = ['getFile', 'getFileId'] as const
+const READ_FILE_FIELD = ['readFile', 'readFileId'] as const
+const GET_CONTENT_FILE_FIELD = ['getContentFile', 'getContentFileId'] as const
+const APPEND_FILE_FIELD = ['appendFile', 'appendFileName'] as const
+const COMPRESS_FILE_FIELD = ['compressFile', 'compressFileId'] as const
+const DECOMPRESS_FILE_FIELD = ['decompressFile', 'decompressFileId'] as const
+const SHARE_FILE_FIELD = ['shareFile', 'shareFileId'] as const
+
 export const FileBlock: BlockConfig<FileParserOutput> = {
   type: 'file',
   name: 'File (Legacy)',
@@ -79,6 +96,15 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   icon: DocumentIcon,
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'file_v5' },
+  canvasPresentation: {
+    defaultTitle: 'File',
+    sentences: {
+      /* `inputMethod` has no default, so neither member of the pair is on a
+         freshly-dropped card — the literal is what the card says until the user
+         picks how to supply the file. */
+      default: ['Parse a file', { text: 'from', field: UPLOAD_OR_URL_FIELD }],
+    },
+  },
   subBlocks: [
     {
       id: 'inputMethod',
@@ -187,6 +213,15 @@ export const FileV2Block: BlockConfig<FileParserOutput> = {
   description: 'Read and parse multiple files',
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'file_v5' },
+  canvasPresentation: {
+    defaultTitle: 'File',
+    sentences: {
+      /* `inputMethod` has no default, so neither member of the pair is on a
+         freshly-dropped card — the literal is what the card says until the user
+         picks how to supply the file. */
+      default: ['Parse a file', { text: 'from', field: UPLOAD_OR_URL_FIELD }],
+    },
+  },
   subBlocks: [
     {
       id: 'file',
@@ -281,6 +316,23 @@ export const FileV3Block: BlockConfig<FileParserV3Output> = {
   icon: DocumentIcon,
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'file_v5' },
+  canvasPresentation: {
+    defaultTitle: 'File',
+    sentences: {
+      byOperation: {
+        file_parser_v3: [{ text: 'Parse', field: V3_PARSE_FILE_FIELD, core: true }],
+        file_get: [{ text: 'Get', field: V3_GET_FILE_FIELD, core: true }],
+        file_write: [
+          { text: 'Create', field: 'fileName', core: true },
+          { text: 'containing', field: 'content' },
+        ],
+        file_append: [
+          { text: 'Append', field: 'appendContent', core: true },
+          { text: 'to', field: APPEND_FILE_FIELD, core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -576,6 +628,23 @@ export const FileV4Block: BlockConfig<FileParserV3Output> = {
   - Use Read when you need an existing workspace file object by picker selection or canonical file ID.
   - Use Fetch for external file URLs. Add headers for authenticated downloads, for example Slack private file URLs require an Authorization Bearer token.
   `,
+  canvasPresentation: {
+    defaultTitle: 'File',
+    sentences: {
+      byOperation: {
+        file_read: [{ text: 'Get', field: READ_FILE_FIELD, core: true }],
+        file_fetch: [{ text: 'Fetch and parse', field: 'fileUrl', core: true }],
+        file_write: [
+          { text: 'Create', field: 'fileName', core: true },
+          { text: 'containing', field: 'content' },
+        ],
+        file_append: [
+          { text: 'Append', field: 'appendContent', core: true },
+          { text: 'to', field: APPEND_FILE_FIELD, core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -842,6 +911,35 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   - Use Compress to bundle one or more files into a single .zip archive stored in the workspace. The new archive is returned in the "files" output.
   - Use Decompress to extract a .zip archive back into the workspace; the extracted files are returned in the "files" output, ready to chain into Get Content or downstream blocks.
   `,
+  canvasPresentation: {
+    defaultTitle: 'File',
+    sentences: {
+      byOperation: {
+        file_read: [{ text: 'Get', field: READ_FILE_FIELD, core: true }],
+        file_get_content: [
+          { text: 'Extract text from', field: GET_CONTENT_FILE_FIELD, core: true },
+        ],
+        file_fetch: [{ text: 'Fetch and parse', field: 'fileUrl', core: true }],
+        file_write: [
+          { text: 'Create', field: 'fileName', core: true },
+          { text: 'containing', field: 'content' },
+        ],
+        file_append: [
+          { text: 'Append', field: 'appendContent', core: true },
+          { text: 'to', field: APPEND_FILE_FIELD, core: true },
+        ],
+        file_compress: [
+          { text: 'Compress', field: COMPRESS_FILE_FIELD, core: true },
+          { text: 'into', field: 'archiveName' },
+        ],
+        file_decompress: [{ text: 'Unzip', field: DECOMPRESS_FILE_FIELD, core: true }],
+        file_manage_sharing: [
+          { text: 'Set sharing on', field: SHARE_FILE_FIELD, core: true },
+          { text: 'to', field: 'shareVisibility' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -16,6 +16,7 @@ export interface PreparedProviderToolInputProvenance {
 
 const configuredToolInputProvenance = new WeakMap<object, ProviderToolInputProvenance>()
 const preparedToolInputProvenance = new WeakMap<object, PreparedProviderToolInputProvenance>()
+const modelInputRegistries = new WeakMap<object, ResolvedSecretTraceRegistry>()
 
 /** Associates one provider tool object with its exact resolver-recorded preset input. */
 export function registerProviderToolInputProvenance(
@@ -30,6 +31,21 @@ export function getProviderToolInputProvenance(
   tool: object
 ): ProviderToolInputProvenance | undefined {
   return configuredToolInputProvenance.get(tool)
+}
+
+/** Associates a provider tool with secrets whose placeholders were visible in this model turn. */
+export function registerProviderToolModelInputRegistry(
+  tool: object,
+  registry: ResolvedSecretTraceRegistry
+): void {
+  modelInputRegistries.set(tool, registry)
+}
+
+/** Reads the model-visible placeholder allowlist for the exact provider tool instance. */
+export function getProviderToolModelInputRegistry(
+  tool: object
+): ResolvedSecretTraceRegistry | undefined {
+  return modelInputRegistries.get(tool)
 }
 
 /** Associates one prepared execution object with its isolated transformed-input registry. */

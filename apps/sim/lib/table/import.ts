@@ -12,11 +12,13 @@
  */
 
 import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnType } from '@/lib/table/column-types'
 import { parseCurrencyInput } from '@/lib/table/currency'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
  * Field separators we sniff for, in tie-break priority order. Semicolon files are
@@ -32,6 +34,9 @@ export type CsvDelimiter = (typeof CSV_DELIMITER_CANDIDATES)[number]
  * observe the same prefix and therefore agree on the result.
  */
 export const CSV_DELIMITER_SNIFF_BYTES = 64 * 1024
+
+/** Maximum characters buffered for one CSV record before parsing fails. */
+export const CSV_MAX_RECORD_SIZE_BYTES = 1024 * 1024
 
 /**
  * Single source of truth for the `csv-parse` options used by both the buffered
@@ -61,9 +66,13 @@ export function csvParseOptions(
     relax_column_count: true,
     relax_quotes: true,
     skip_records_with_error: true,
+    on_skip(error) {
+      if (error?.code === 'CSV_MAX_RECORD_SIZE') throw error
+    },
     cast: false,
     bom: true,
     delimiter,
+    max_record_size: CSV_MAX_RECORD_SIZE_BYTES,
   }
 }
 
@@ -219,8 +228,18 @@ export const CSV_SCHEMA_SAMPLE_SIZE = 100
  */
 export const CSV_MAX_BATCH_SIZE = 5000
 
-/** Maximum CSV/TSV file size accepted by import routes (25 MB). */
-export const CSV_MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
+/** Maximum serialized CSV row data retained before an import batch is flushed. */
+export const CSV_MAX_BATCH_SIZE_BYTES = 5 * 1024 * 1024
+
+/** Maximum CSV/TSV size accepted by legacy multipart routes that buffer request bodies. */
+export const CSV_SYNC_MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
+
+export const CSV_SYNC_MAX_FILE_SIZE_MESSAGE = `File exceeds maximum allowed size of ${CSV_SYNC_MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB`
+
+/** Maximum CSV/TSV size accepted by the bounded streaming import worker. */
+export const CSV_DURABLE_MAX_FILE_SIZE_BYTES = MAX_WORKSPACE_FILE_SIZE
+
+export const CSV_DURABLE_MAX_FILE_SIZE_MESSAGE = 'File exceeds maximum allowed size of 5 GB'
 
 /**
  * Error thrown when the user-supplied mapping or CSV does not line up with the
@@ -274,11 +293,11 @@ export async function parseCsvBuffer(
   const parsed = parse(text, options) as unknown as Record<string, unknown>[]
 
   if (parsed.length === 0) {
-    throw new Error('CSV file has no data rows')
+    throw new OrchestrationError('validation', 'CSV file has no data rows')
   }
 
   if (headers.length === 0) {
-    throw new Error('CSV file has no headers')
+    throw new OrchestrationError('validation', 'CSV file has no headers')
   }
 
   return { headers, rows: parsed }
@@ -648,15 +667,18 @@ export function parseJsonRows(buffer: Buffer | string): {
   const text = typeof buffer === 'string' ? buffer : buffer.toString('utf-8')
   const parsed = JSON.parse(text)
   if (!Array.isArray(parsed)) {
-    throw new Error('JSON file must contain an array of objects')
+    throw new OrchestrationError('validation', 'JSON file must contain an array of objects')
   }
   if (parsed.length === 0) {
-    throw new Error('JSON file contains an empty array')
+    throw new OrchestrationError('validation', 'JSON file contains an empty array')
   }
   const headerSet = new Set<string>()
   for (const row of parsed) {
     if (typeof row !== 'object' || row === null || Array.isArray(row)) {
-      throw new Error('Each element in the JSON array must be a plain object')
+      throw new OrchestrationError(
+        'validation',
+        'Each element in the JSON array must be a plain object'
+      )
     }
     for (const key of Object.keys(row)) headerSet.add(key)
   }
@@ -685,5 +707,8 @@ export async function parseFileRows(
     )
     return parseCsvBuffer(buffer, delimiter)
   }
-  throw new Error(`Unsupported file format: "${ext ?? fileName}". Supported: csv, tsv, json`)
+  throw new OrchestrationError(
+    'validation',
+    `Unsupported file format: "${ext ?? fileName}". Supported: csv, tsv, json`
+  )
 }

@@ -21,7 +21,7 @@ import { writeWorkflowGroupState } from '@/lib/table/cell-write'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { isExecCancelledAfter } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
-import { type DbExecutor, withSeqscanOff } from '@/lib/table/planner'
+import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { buildFilterClause } from '@/lib/table/sql'
 import type {
@@ -87,6 +87,24 @@ export interface DispatchRow {
   requestedAt: Date
 }
 
+async function deleteExecutionRows(trx: DbTransaction, filters: SQL[]): Promise<number> {
+  const countRows = await trx.execute<{ count: number | string }>(sql`
+    WITH deleted AS (
+      DELETE FROM ${tableRowExecutions}
+      WHERE ${and(...filters)}
+      RETURNING 1
+    )
+    SELECT count(*)::integer AS count FROM deleted
+  `)
+  const [countRow] = Array.isArray(countRows) ? countRows : []
+  if (!countRow) throw new Error('Workflow cell clearing did not return a deleted count')
+  const count = Number(countRow.count)
+  if (!Number.isSafeInteger(count) || count < 0) {
+    throw new Error('Workflow cell clearing returned an invalid deleted count')
+  }
+  return count
+}
+
 export type DispatcherStepResult = 'continue' | 'done'
 
 /** Eager bulk clear at click time so the user sees every targeted cell go
@@ -96,17 +114,18 @@ export type DispatcherStepResult = 'continue' | 'done'
  *  already filled, mirroring the eligibility predicate. */
 export async function bulkClearWorkflowGroupCells(input: {
   tableId: string
+  workspaceId: string
   groups: Array<{ id: string; outputs: Array<{ columnName: string }> }>
   rowIds?: string[]
   /** Select-all scope: deselected rows whose outputs must NOT be wiped. */
   excludeRowIds?: string[]
   mode: DispatchMode
-}): Promise<void> {
-  const { tableId, groups, rowIds, excludeRowIds, mode } = input
-  if (groups.length === 0) return
+}): Promise<boolean> {
+  const { tableId, workspaceId, groups, rowIds, excludeRowIds, mode } = input
+  if (groups.length === 0) return false
   // `'new'` mode targets only rows with no prior attempt — nothing to clear.
   // Pre-existing outputs on any other row must not be wiped by an auto-fire.
-  if (mode === 'new') return
+  if (mode === 'new') return false
 
   const groupIds = groups.map((g) => g.id)
   const rowScope = rowIds && rowIds.length > 0 ? rowIds : null
@@ -119,25 +138,34 @@ export async function bulkClearWorkflowGroupCells(input: {
     const outputCols = Array.from(
       new Set(groups.flatMap((g) => g.outputs.map((o) => o.columnName)))
     )
-    const filters: SQL[] = [eq(userTableRows.tableId, tableId)]
+    const filters: SQL[] = [
+      eq(userTableRows.tableId, tableId),
+      eq(userTableRows.workspaceId, workspaceId),
+    ]
     if (rowScope) filters.push(inArray(userTableRows.id, rowScope))
     if (excluded) filters.push(notInArray(userTableRows.id, excluded))
 
-    await db.transaction(async (trx) => {
+    return db.transaction(async (trx) => {
       const rowWhere = and(...filters)!
-      await updateTableRowsWithDerivedSecretProvenance(trx, {
+      const clearedRows = await updateTableRowsWithDerivedSecretProvenance(trx, {
         rowWhere,
         transformation: { mode: 'remove-columns', columnIds: outputCols },
       })
       const execFilters: SQL[] = [
         eq(tableRowExecutions.tableId, tableId),
         inArray(tableRowExecutions.groupId, groupIds),
+        sql`${tableRowExecutions.rowId} IN (
+          SELECT ${userTableRows.id}
+          FROM ${userTableRows}
+          WHERE ${userTableRows.tableId} = ${tableId}
+            AND ${userTableRows.workspaceId} = ${workspaceId}
+        )`,
       ]
       if (rowScope) execFilters.push(inArray(tableRowExecutions.rowId, rowScope))
       if (excluded) execFilters.push(notInArray(tableRowExecutions.rowId, excluded))
-      await trx.delete(tableRowExecutions).where(and(...execFilters))
+      const deletedExecutions = await deleteExecutionRows(trx, execFilters)
+      return clearedRows > 0 || deletedExecutions > 0
     })
-    return
   }
 
   // `incomplete`: clear per-group, not per-row. Only groups that are
@@ -147,7 +175,8 @@ export async function bulkClearWorkflowGroupCells(input: {
   // because a *sibling* group on the same row is incomplete, re-running the
   // completed one. (`never-run` groups have no exec/output to clear — the
   // dispatcher runs them via eligibility.)
-  await db.transaction(async (trx) => {
+  return db.transaction(async (trx) => {
+    let rowsChanged = false
     for (const group of groups) {
       const reRunnable = sql`EXISTS (
         SELECT 1 FROM ${tableRowExecutions} re
@@ -155,12 +184,16 @@ export async function bulkClearWorkflowGroupCells(input: {
           AND re.group_id = ${group.id}
           AND re.status IN ('error', 'cancelled')
       )`
-      const filters: SQL[] = [eq(userTableRows.tableId, tableId), reRunnable]
+      const filters: SQL[] = [
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
+        reRunnable,
+      ]
       if (rowScope) filters.push(inArray(userTableRows.id, rowScope))
       if (excluded) filters.push(notInArray(userTableRows.id, excluded))
 
       const rowWhere = and(...filters)!
-      await updateTableRowsWithDerivedSecretProvenance(trx, {
+      const clearedRows = await updateTableRowsWithDerivedSecretProvenance(trx, {
         rowWhere,
         transformation: {
           mode: 'remove-columns',
@@ -172,11 +205,19 @@ export async function bulkClearWorkflowGroupCells(input: {
         eq(tableRowExecutions.tableId, tableId),
         eq(tableRowExecutions.groupId, group.id),
         sql`${tableRowExecutions.status} IN ('error', 'cancelled')`,
+        sql`${tableRowExecutions.rowId} IN (
+          SELECT ${userTableRows.id}
+          FROM ${userTableRows}
+          WHERE ${userTableRows.tableId} = ${tableId}
+            AND ${userTableRows.workspaceId} = ${workspaceId}
+        )`,
       ]
       if (rowScope) execFilters.push(inArray(tableRowExecutions.rowId, rowScope))
       if (excluded) execFilters.push(notInArray(tableRowExecutions.rowId, excluded))
-      await trx.delete(tableRowExecutions).where(and(...execFilters))
+      const deletedExecutions = await deleteExecutionRows(trx, execFilters)
+      rowsChanged ||= clearedRows > 0 || deletedExecutions > 0
     }
+    return rowsChanged
   })
 }
 

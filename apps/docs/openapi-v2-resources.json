@@ -1,0 +1,3932 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sim API v2 — Workspace Resources",
+    "description": "Version 2 of the Sim REST API for workspace metadata, members, MCP servers, skills, custom tools, credentials, and write-only secrets.",
+    "version": "2.0.0",
+    "contact": {
+      "name": "Sim Support",
+      "email": "help@sim.ai",
+      "url": "https://www.sim.ai"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://www.sim.ai",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Workspaces",
+      "description": "Read workspace metadata and its effective member roster."
+    },
+    {
+      "name": "MCP Servers",
+      "description": "Register and manage Model Context Protocol servers."
+    },
+    {
+      "name": "Skills",
+      "description": "Create and manage reusable instruction documents for agents."
+    },
+    {
+      "name": "Custom Tools",
+      "description": "Create and manage code-backed tools that agents can call."
+    },
+    {
+      "name": "Credentials",
+      "description": "List OAuth and service-account connections without secret material."
+    },
+    {
+      "name": "Secrets",
+      "description": "Set and manage write-only workspace and personal secret values."
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "paths": {
+    "/api/v2/workspaces/{workspaceId}": {
+      "get": {
+        "operationId": "getWorkspace",
+        "summary": "Get Workspace",
+        "description": "Return public metadata for one accessible workspace. Governance identities, billing identities, and internal membership identifiers are intentionally omitted.",
+        "tags": ["Workspaces"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace to retrieve.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace to retrieve."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public workspace metadata.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetWorkspaceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workspaces/{workspaceId}/members": {
+      "get": {
+        "operationId": "listWorkspaceMembers",
+        "summary": "List Workspace Members",
+        "description": "List the workspace's effective members ordered by email. Explicit workspace grants and inherited organization-administrator grants are merged; internal membership and billing identities are omitted.",
+        "tags": ["Workspaces"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace to retrieve.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace to retrieve."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum members to return. Defaults to 50 and cannot exceed 100.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum members to return. Defaults to 50 and cannot exceed 100.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor returned by the preceding page.",
+            "schema": {
+              "description": "Opaque cursor returned by the preceding page.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An email-ordered page of effective workspace members.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListWorkspaceMembersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/mcp-servers": {
+      "get": {
+        "operationId": "listMcpServers",
+        "summary": "List MCP Servers",
+        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the MCP server.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the MCP server."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the server name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the server name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "createdAt",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "MCP servers registered in the workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMcpServersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createMcpServer",
+        "summary": "Create MCP Server",
+        "description": "Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only. `transport`, `timeout`, `retries`, and `enabled` are applied server-side when omitted; the effective values are in the response.",
+        "tags": ["MCP Servers"],
+        "requestBody": {
+          "required": true,
+          "description": "Configuration for a new MCP server.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMcpServerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The MCP server was registered.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateMcpServerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/mcp-servers/{id}": {
+      "get": {
+        "operationId": "getMcpServer",
+        "summary": "Get MCP Server",
+        "description": "Fetch one MCP server by identifier. Request-header values and OAuth client secrets are never returned.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "MCP server to retrieve, update, or delete.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "MCP server to retrieve, update, or delete."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the MCP server.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the MCP server."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The MCP server.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetMcpServerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateMcpServer",
+        "summary": "Update MCP Server",
+        "description": "Update the supplied MCP server fields. The URL is immutable because it determines server identity; delete and recreate the server to change endpoints. Two fields do not follow the omitted-fields-are-retained rule. `headers` is replaced wholesale rather than merged: sending it drops every stored header it does not repeat, and the only way to keep a header is to resend it. Changing `oauthClientId`, or sending `oauthClientSecret` as null or a new value, revokes the stored OAuth grant and forces reauthorization; switching away from OAuth authentication revokes it too.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "MCP server to retrieve, update, or delete.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "MCP server to retrieve, update, or delete."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "MCP server fields to change; omitted fields retain their stored values.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMcpServerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated MCP server.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateMcpServerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMcpServer",
+        "summary": "Delete MCP Server",
+        "description": "Remove an MCP server and revoke its OAuth tokens. Workflows retain blocks that referenced the server's tools, but those tools can no longer be called.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "MCP server to retrieve, update, or delete.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "MCP server to retrieve, update, or delete."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the MCP server.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the MCP server."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The MCP server was deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteMcpServerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/skills": {
+      "get": {
+        "operationId": "listSkills",
+        "summary": "List Skills",
+        "description": "List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies and uses the standard cursor envelope with `nextCursor` always null, so there is no second page to fetch; fetch one skill to read its content.",
+        "tags": ["Skills"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the skill.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the skill."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the skill name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the skill name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "createdAt",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Skills available in the workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSkillsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createSkill",
+        "summary": "Create Skill",
+        "description": "Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. Note that a workspace API key may create a skill but may not later update or delete it.",
+        "tags": ["Skills"],
+        "requestBody": {
+          "required": true,
+          "description": "Definition of a new skill.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSkillRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The skill was created.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSkillResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/skills/{id}": {
+      "get": {
+        "operationId": "getSkill",
+        "summary": "Get Skill",
+        "description": "Fetch one workspace or built-in skill, including its full content. Built-in skills are marked read-only.",
+        "tags": ["Skills"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the skill.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the skill."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The skill.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSkillResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateSkill",
+        "summary": "Update Skill",
+        "description": "Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "tags": ["Skills"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Skill fields to change; at least one editable field is required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSkillRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated skill.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateSkillResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSkill",
+        "summary": "Delete Skill",
+        "description": "Delete a workspace skill. Built-in skills are read-only and cannot be deleted. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "tags": ["Skills"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the skill.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the skill."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The skill was deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteSkillResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/custom-tools": {
+      "get": {
+        "operationId": "listCustomTools",
+        "summary": "List Custom Tools",
+        "description": "List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.",
+        "tags": ["Custom Tools"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the custom tool.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the custom tool."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the tool title.",
+            "schema": {
+              "description": "Case-insensitive substring match against the tool title.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "createdAt",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["title", "createdAt", "updatedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Custom tools defined in the workspace.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCustomToolsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCustomTool",
+        "summary": "Create Custom Tool",
+        "description": "Create a code-backed custom tool in a workspace. Its title must be unique because tools resolve by title at call time.",
+        "tags": ["Custom Tools"],
+        "requestBody": {
+          "required": true,
+          "description": "Definition and implementation of a new custom tool.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomToolRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The custom tool was created.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCustomToolResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/custom-tools/{id}": {
+      "get": {
+        "operationId": "getCustomTool",
+        "summary": "Get Custom Tool",
+        "description": "Fetch one custom tool by identifier, scoped to its workspace.",
+        "tags": ["Custom Tools"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Custom tool to retrieve, update, or delete.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Custom tool to retrieve, update, or delete."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the custom tool.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the custom tool."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The custom tool.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetCustomToolResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateCustomTool",
+        "summary": "Update Custom Tool",
+        "description": "Update the supplied custom tool fields. Omitted fields retain their stored values, and titles must remain unique within the workspace.",
+        "tags": ["Custom Tools"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Custom tool to retrieve, update, or delete.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Custom tool to retrieve, update, or delete."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Custom tool fields to change; at least one editable field is required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCustomToolRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated custom tool.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateCustomToolResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteCustomTool",
+        "summary": "Delete Custom Tool",
+        "description": "Delete a custom tool. Agent blocks retain their configuration but can no longer call the deleted tool.",
+        "tags": ["Custom Tools"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Custom tool to retrieve, update, or delete.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Custom tool to retrieve, update, or delete."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the custom tool.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the custom tool."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The custom tool was deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteCustomToolResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/credentials": {
+      "get": {
+        "operationId": "listCredentials",
+        "summary": "List Credentials",
+        "description": "List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed. The bounded set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.",
+        "tags": ["Credentials"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose credentials should be listed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace whose credentials should be listed."
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "Restrict results to this credential type.",
+            "schema": {
+              "description": "Restrict results to this credential type.",
+              "type": "string",
+              "enum": ["oauth", "service_account"]
+            }
+          },
+          {
+            "name": "providerId",
+            "in": "query",
+            "required": false,
+            "description": "Restrict results to credentials for this integration provider.",
+            "schema": {
+              "description": "Restrict results to credentials for this integration provider.",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the credential display name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the credential display name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "createdAt",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["displayName", "createdAt", "updatedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Credentials visible to the caller.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCredentialsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/secrets": {
+      "get": {
+        "operationId": "listSecrets",
+        "summary": "List Secrets",
+        "description": "List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned. The bounded set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "tags": ["Secrets"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose secret metadata should be listed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace whose secret metadata should be listed."
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Restrict results to one ownership scope.",
+            "schema": {
+              "description": "Restrict results to one ownership scope.",
+              "type": "string",
+              "enum": ["workspace", "personal"]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the secret name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the secret name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "name",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Secret metadata visible to the caller.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSecretsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/secrets/{name}": {
+      "put": {
+        "operationId": "setSecret",
+        "summary": "Set Secret",
+        "description": "Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "tags": ["Secrets"],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Secret to create, replace, or delete.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9_]+$",
+              "description": "Secret to create, replace, or delete."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Ownership scope and write-only value for the secret.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSecretRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The existing secret value was replaced.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetSecretResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The secret was created.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetSecretResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSecret",
+        "summary": "Delete Secret",
+        "description": "Delete a workspace or caller-owned personal secret without reading or returning its stored value. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "tags": ["Secrets"],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Secret to create, replace, or delete.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9_]+$",
+              "description": "Secret to create, replace, or delete."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace in which the secret is available.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace in which the secret is available."
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "description": "Whether the secret belongs to the workspace or the caller.",
+            "schema": {
+              "type": "string",
+              "enum": ["workspace", "personal"],
+              "description": "Whether the secret belongs to the workspace or the caller."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The secret was deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteSecretResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
+      }
+    },
+    "headers": {
+      "X-RateLimit-Limit": {
+        "description": "Maximum requests allowed in the current window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Rate limit",
+          "description": "Maximum requests allowed in the current window."
+        }
+      },
+      "X-RateLimit-Remaining": {
+        "description": "Requests remaining in the current window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Rate limit remaining",
+          "description": "Requests remaining in the current window."
+        }
+      },
+      "X-RateLimit-Reset": {
+        "description": "ISO 8601 timestamp when the current rate-limit window resets.",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+          "title": "Rate limit reset",
+          "description": "ISO 8601 timestamp when the current rate-limit window resets."
+        }
+      },
+      "Retry-After": {
+        "description": "Seconds to wait before retrying a rate-limited request.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Retry after",
+          "description": "Seconds to wait before retrying a rate-limited request."
+        }
+      },
+      "X-Run-Id": {
+        "description": "Identifier assigned to the workflow run.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Run identifier",
+          "description": "Identifier assigned to the workflow run."
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request is invalid.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "The API key is missing or invalid.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "UsageLimitExceeded": {
+        "description": "The workspace has exceeded its usage or billing limits.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The caller lacks access to the resource.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested resource was not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The request conflicts with current resource state.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "RunIdConflict": {
+        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "headers": {
+          "X-Run-Id": {
+            "$ref": "#/components/headers/X-Run-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Gone": {
+        "description": "The requested generated resource has expired.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "The request uses an unsupported media type.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Locked": {
+        "description": "The resource is locked and cannot be modified.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "The caller exceeded the request rate limit.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "ClientClosedRequest": {
+        "description": "The client closed the connection before the response was produced.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "An unexpected server error occurred.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "A required service is temporarily unavailable.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "V2Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable error code."
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation of the error."
+              },
+              "details": {
+                "description": "Optional structured error details."
+              }
+            },
+            "required": ["code", "message"],
+            "additionalProperties": false,
+            "description": "Canonical error details."
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false,
+        "title": "v2 error response",
+        "description": "Canonical error envelope returned by the public v2 API.",
+        "examples": [
+          {
+            "error": {
+              "code": "BAD_REQUEST",
+              "message": "The request is invalid."
+            }
+          }
+        ]
+      },
+      "V2Workspace": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique workspace identifier."
+          },
+          "name": {
+            "type": "string",
+            "description": "Workspace display name."
+          },
+          "color": {
+            "type": "string",
+            "description": "Workspace color as a hexadecimal color value."
+          },
+          "logoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workspace logo URL, or null when none is configured."
+          },
+          "memberCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of effective members, including inherited organization administrators."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the workspace was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the workspace was last updated."
+          }
+        },
+        "required": ["id", "name", "color", "logoUrl", "memberCount", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "title": "Workspace",
+        "description": "Public metadata for an accessible workspace."
+      },
+      "GetWorkspaceResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Workspace"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get workspace response",
+        "description": "Public metadata for one workspace.",
+        "examples": [
+          {
+            "data": {
+              "id": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "name": "Engineering",
+              "color": "#33C482",
+              "logoUrl": null,
+              "memberCount": 14,
+              "createdAt": "2026-01-15T10:30:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
+            }
+          }
+        ]
+      },
+      "V2WorkspaceMember": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "description": "Member email address and public member identifier."
+          },
+          "name": {
+            "type": "string",
+            "description": "Member display name."
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Member profile image URL, or null when absent."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "write", "read"],
+            "description": "Effective role in the workspace."
+          },
+          "isExternal": {
+            "type": "boolean",
+            "description": "Whether the member belongs to a different organization than the workspace. True for an explicitly granted member whose own organization differs from the workspace's; false for the workspace owner and for a member sharing the workspace organization. Inherited organization-administrator access is always reported as false, so this is not a signal that access came from outside the explicit member list."
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when access was granted."
+          }
+        },
+        "required": ["email", "name", "image", "role", "isExternal", "joinedAt"],
+        "additionalProperties": false,
+        "title": "Workspace member",
+        "description": "An effective workspace member and their public access role."
+      },
+      "ListWorkspaceMembersResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2WorkspaceMember"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List workspace members response",
+        "description": "A cursor-paginated page of effective workspace members.",
+        "examples": [
+          {
+            "data": [
+              {
+                "email": "jane@example.com",
+                "name": "Jane Smith",
+                "image": null,
+                "role": "admin",
+                "isExternal": false,
+                "joinedAt": "2026-01-15T10:30:00.000Z"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "V2McpServer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique server identifier derived from the workspace and endpoint URL."
+          },
+          "name": {
+            "type": "string",
+            "description": "Server display name."
+          },
+          "description": {
+            "description": "Optional server description.",
+            "type": "string"
+          },
+          "transport": {
+            "default": "streamable-http",
+            "description": "Transport used to communicate with the server.",
+            "type": "string",
+            "enum": ["streamable-http"]
+          },
+          "authType": {
+            "description": "Authentication method used by the server.",
+            "type": "string",
+            "enum": ["none", "headers", "oauth"]
+          },
+          "url": {
+            "description": "Server endpoint URL.",
+            "type": "string"
+          },
+          "timeout": {
+            "description": "Per-request timeout in milliseconds.",
+            "type": "number"
+          },
+          "retries": {
+            "description": "Number of retries attempted per request.",
+            "type": "number"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the server tools are available to workflows."
+          },
+          "connectionStatus": {
+            "description": "Result of the most recent connection attempt.",
+            "type": "string",
+            "enum": ["connected", "disconnected", "error"]
+          },
+          "lastError": {
+            "description": "Message from the most recent failed connection, or null when absent.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "toolCount": {
+            "description": "Number of tools discovered on the server.",
+            "type": "number"
+          },
+          "lastToolsRefresh": {
+            "description": "ISO 8601 timestamp of the most recent tool-list refresh.",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "lastConnected": {
+            "description": "ISO 8601 timestamp of the most recent successful connection.",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "createdAt": {
+            "description": "ISO 8601 timestamp when the server was registered.",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "updatedAt": {
+            "description": "ISO 8601 timestamp when the server was last updated.",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "oauthClientId": {
+            "description": "Pre-registered OAuth client identifier, when configured.",
+            "type": "string"
+          },
+          "hasHeaders": {
+            "type": "boolean",
+            "description": "Whether any request headers are configured."
+          },
+          "headerNames": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Configured header name."
+            },
+            "description": "Names of configured request headers. Header values are never returned."
+          },
+          "hasOauthClientSecret": {
+            "type": "boolean",
+            "description": "Whether an OAuth client secret is stored. The value is never returned."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "transport",
+          "enabled",
+          "createdAt",
+          "updatedAt",
+          "hasHeaders",
+          "headerNames",
+          "hasOauthClientSecret"
+        ],
+        "additionalProperties": false,
+        "title": "MCP server",
+        "description": "Public MCP server configuration without write-only credential values."
+      },
+      "ListMcpServersResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2McpServer"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List MCP servers response",
+        "description": "MCP servers registered in the workspace.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "mcp-3f7a9c21",
+                "name": "Docs server",
+                "description": "Internal documentation tools",
+                "transport": "streamable-http",
+                "authType": "headers",
+                "url": "https://mcp.example.com/sse",
+                "timeout": 30000,
+                "retries": 3,
+                "enabled": true,
+                "connectionStatus": "connected",
+                "lastError": null,
+                "toolCount": 7,
+                "lastToolsRefresh": "2026-06-20T14:02:11.000Z",
+                "lastConnected": "2026-06-20T14:02:11.000Z",
+                "createdAt": "2026-06-01T09:14:00.000Z",
+                "updatedAt": "2026-06-20T14:02:11.000Z",
+                "hasHeaders": true,
+                "headerNames": ["Authorization"],
+                "hasOauthClientSecret": false
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "CreateMcpServerResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2McpServer"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create MCP server response",
+        "description": "The registered MCP server without write-only credentials.",
+        "examples": [
+          {
+            "data": {
+              "id": "mcp-3f7a9c21",
+              "name": "Docs server",
+              "description": "Internal documentation tools",
+              "transport": "streamable-http",
+              "authType": "headers",
+              "url": "https://mcp.example.com/sse",
+              "timeout": 30000,
+              "retries": 3,
+              "enabled": true,
+              "connectionStatus": "connected",
+              "lastError": null,
+              "toolCount": 7,
+              "lastToolsRefresh": "2026-06-20T14:02:11.000Z",
+              "lastConnected": "2026-06-20T14:02:11.000Z",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z",
+              "hasHeaders": true,
+              "headerNames": ["Authorization"],
+              "hasOauthClientSecret": false
+            }
+          }
+        ]
+      },
+      "CreateMcpServerRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace in which to register the server."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Server display name."
+          },
+          "description": {
+            "description": "Optional server description.",
+            "type": "string",
+            "maxLength": 2000
+          },
+          "transport": {
+            "description": "Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.",
+            "default": "streamable-http",
+            "type": "string",
+            "enum": ["streamable-http"]
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "description": "Absolute HTTP or HTTPS endpoint URL without `{{ENV_VAR}}` references."
+          },
+          "authType": {
+            "description": "Authentication method. Sim detects it from the server when omitted.",
+            "type": "string",
+            "enum": ["none", "headers", "oauth"]
+          },
+          "headers": {
+            "description": "Write-only request headers sent to the server.",
+            "writeOnly": true,
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1
+            },
+            "additionalProperties": {
+              "type": "string",
+              "description": "Header value sent to the MCP server."
+            }
+          },
+          "timeout": {
+            "description": "Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.",
+            "default": 30000,
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 300000
+          },
+          "retries": {
+            "description": "Number of retries per request. Applied server-side as 3 when omitted on create.",
+            "default": 3,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "enabled": {
+            "description": "Whether the server tools are available to workflows. Applied server-side as true when omitted on create.",
+            "default": true,
+            "type": "boolean"
+          },
+          "oauthClientId": {
+            "description": "Pre-registered OAuth client identifier.",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "oauthClientSecret": {
+            "description": "Write-only pre-registered OAuth client secret.",
+            "writeOnly": true,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["workspaceId", "name", "url"],
+        "additionalProperties": false,
+        "title": "Create MCP server request",
+        "description": "Configuration for a new MCP server.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "name": "Docs server",
+            "url": "https://mcp.example.com/sse",
+            "authType": "headers",
+            "headers": {
+              "Authorization": "Bearer YOUR_TOKEN"
+            }
+          }
+        ]
+      },
+      "GetMcpServerResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2McpServer"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get MCP server response",
+        "description": "One MCP server without write-only credentials.",
+        "examples": [
+          {
+            "data": {
+              "id": "mcp-3f7a9c21",
+              "name": "Docs server",
+              "description": "Internal documentation tools",
+              "transport": "streamable-http",
+              "authType": "headers",
+              "url": "https://mcp.example.com/sse",
+              "timeout": 30000,
+              "retries": 3,
+              "enabled": true,
+              "connectionStatus": "connected",
+              "lastError": null,
+              "toolCount": 7,
+              "lastToolsRefresh": "2026-06-20T14:02:11.000Z",
+              "lastConnected": "2026-06-20T14:02:11.000Z",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z",
+              "hasHeaders": true,
+              "headerNames": ["Authorization"],
+              "hasOauthClientSecret": false
+            }
+          }
+        ]
+      },
+      "UpdateMcpServerResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2McpServer"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update MCP server response",
+        "description": "The updated MCP server.",
+        "examples": [
+          {
+            "data": {
+              "id": "mcp-3f7a9c21",
+              "name": "Docs server",
+              "description": "Internal documentation tools",
+              "transport": "streamable-http",
+              "authType": "headers",
+              "url": "https://mcp.example.com/sse",
+              "timeout": 30000,
+              "retries": 3,
+              "enabled": false,
+              "connectionStatus": "connected",
+              "lastError": null,
+              "toolCount": 7,
+              "lastToolsRefresh": "2026-06-20T14:02:11.000Z",
+              "lastConnected": "2026-06-20T14:02:11.000Z",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z",
+              "hasHeaders": true,
+              "headerNames": ["Authorization"],
+              "hasOauthClientSecret": false
+            }
+          }
+        ]
+      },
+      "UpdateMcpServerRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace that owns the MCP server."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Server display name."
+          },
+          "description": {
+            "description": "Optional server description.",
+            "type": "string",
+            "maxLength": 2000
+          },
+          "transport": {
+            "description": "Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.",
+            "default": "streamable-http",
+            "type": "string",
+            "enum": ["streamable-http"]
+          },
+          "url": {
+            "description": "Immutable server URL. When provided, it must equal the current URL; use delete and create to change endpoints.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "authType": {
+            "description": "Authentication method. Sim detects it from the server when omitted.",
+            "type": "string",
+            "enum": ["none", "headers", "oauth"]
+          },
+          "headers": {
+            "description": "Write-only request headers sent to the server.",
+            "writeOnly": true,
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1
+            },
+            "additionalProperties": {
+              "type": "string",
+              "description": "Header value sent to the MCP server."
+            }
+          },
+          "timeout": {
+            "description": "Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.",
+            "default": 30000,
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 300000
+          },
+          "retries": {
+            "description": "Number of retries per request. Applied server-side as 3 when omitted on create.",
+            "default": 3,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "enabled": {
+            "description": "Whether the server tools are available to workflows. Applied server-side as true when omitted on create.",
+            "default": true,
+            "type": "boolean"
+          },
+          "oauthClientId": {
+            "description": "Pre-registered OAuth client identifier.",
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "oauthClientSecret": {
+            "description": "Write-only pre-registered OAuth client secret.",
+            "writeOnly": true,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Update MCP server request",
+        "description": "MCP server fields to change; omitted fields retain their stored values.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "enabled": false
+          }
+        ]
+      },
+      "V2McpServerDeleteData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the deleted MCP server."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the server was deleted."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete MCP server data",
+        "description": "MCP server deletion acknowledgement."
+      },
+      "DeleteMcpServerResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2McpServerDeleteData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete MCP server response",
+        "description": "Acknowledgement that the MCP server was deleted.",
+        "examples": [
+          {
+            "data": {
+              "id": "mcp-3f7a9c21",
+              "deleted": true
+            }
+          }
+        ]
+      },
+      "V2SkillSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique skill identifier. Built-in skills use their name as the id."
+          },
+          "name": {
+            "type": "string",
+            "description": "Kebab-case name that agents use to reference the skill."
+          },
+          "description": {
+            "type": "string",
+            "description": "One-line summary of when the skill applies."
+          },
+          "readOnly": {
+            "type": "boolean",
+            "description": "Whether this is a built-in skill that cannot be modified or deleted."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the skill was created. Built-in skills report the Unix epoch."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the skill was last updated. Built-in skills report the Unix epoch."
+          }
+        },
+        "required": ["id", "name", "description", "readOnly", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "title": "Skill summary",
+        "description": "Public summary metadata for a workspace or built-in skill."
+      },
+      "ListSkillsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2SkillSummary"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List skills response",
+        "description": "Skill summaries available in the workspace.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "V1StGXR8Z5jdHi6BmyT",
+                "name": "refund-policy",
+                "description": "How support should handle refund requests",
+                "readOnly": false,
+                "createdAt": "2026-06-01T09:14:00.000Z",
+                "updatedAt": "2026-06-20T14:02:11.000Z"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "V2Skill": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique skill identifier. Built-in skills use their name as the id."
+          },
+          "name": {
+            "type": "string",
+            "description": "Kebab-case name that agents use to reference the skill."
+          },
+          "description": {
+            "type": "string",
+            "description": "One-line summary of when the skill applies."
+          },
+          "readOnly": {
+            "type": "boolean",
+            "description": "Whether this is a built-in skill that cannot be modified or deleted."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the skill was created. Built-in skills report the Unix epoch."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the skill was last updated. Built-in skills report the Unix epoch."
+          },
+          "content": {
+            "type": "string",
+            "description": "Skill body containing the instructions given to the agent."
+          }
+        },
+        "required": ["id", "name", "description", "readOnly", "createdAt", "updatedAt", "content"],
+        "additionalProperties": false,
+        "title": "Skill",
+        "description": "A workspace or built-in skill including its instruction body."
+      },
+      "CreateSkillResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Skill"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create skill response",
+        "description": "The created skill including its content.",
+        "examples": [
+          {
+            "data": {
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "name": "refund-policy",
+              "description": "How support should handle refund requests",
+              "readOnly": false,
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z",
+              "content": "# Refund policy\n\nAlways check the order date first."
+            }
+          }
+        ]
+      },
+      "CreateSkillRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace in which to create the skill."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "Kebab-case name, unique within the workspace and not reserved by a built-in skill."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "One-line summary of when the skill applies."
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50000,
+            "description": "Skill body containing the instructions given to the agent."
+          }
+        },
+        "required": ["workspaceId", "name", "description", "content"],
+        "additionalProperties": false,
+        "title": "Create skill request",
+        "description": "Definition of a new skill.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "name": "refund-policy",
+            "description": "How support should handle refund requests",
+            "content": "# Refund policy\n\nAlways check the order date first."
+          }
+        ]
+      },
+      "GetSkillResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Skill"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get skill response",
+        "description": "One skill including its full content.",
+        "examples": [
+          {
+            "data": {
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "name": "refund-policy",
+              "description": "How support should handle refund requests",
+              "readOnly": false,
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z",
+              "content": "# Refund policy\n\nAlways check the order date first."
+            }
+          }
+        ]
+      },
+      "UpdateSkillResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Skill"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update skill response",
+        "description": "The updated skill including its full content.",
+        "examples": [
+          {
+            "data": {
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "name": "refund-policy",
+              "description": "Updated refund guidance",
+              "readOnly": false,
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z",
+              "content": "# Refund policy\n\nAlways check the order date first."
+            }
+          }
+        ]
+      },
+      "UpdateSkillRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace that owns the skill."
+          },
+          "name": {
+            "description": "New kebab-case skill name.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+          },
+          "description": {
+            "description": "New one-line summary of when the skill applies.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "content": {
+            "description": "Replacement skill body.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50000
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Update skill request",
+        "description": "Skill fields to change; at least one editable field is required.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "description": "Updated refund guidance"
+          }
+        ]
+      },
+      "V2SkillDeleteData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the deleted skill."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the skill was deleted."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete skill data",
+        "description": "Skill deletion acknowledgement."
+      },
+      "DeleteSkillResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2SkillDeleteData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete skill response",
+        "description": "Acknowledgement that the skill was deleted.",
+        "examples": [
+          {
+            "data": {
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "deleted": true
+            }
+          }
+        ]
+      },
+      "V2CustomTool": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique custom tool identifier."
+          },
+          "title": {
+            "type": "string",
+            "description": "Display title, unique within the workspace."
+          },
+          "schema": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "function",
+                "description": "Function declaration discriminator."
+              },
+              "function": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Function name presented to the model."
+                  },
+                  "description": {
+                    "description": "Optional explanation of what the function does.",
+                    "type": "string"
+                  },
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "JSON Schema type for the arguments, usually `object`."
+                      },
+                      "properties": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "description": "Caller-defined JSON Schema for one tool argument."
+                        },
+                        "description": "Caller-defined argument schemas keyed by argument name."
+                      },
+                      "required": {
+                        "description": "Names of required arguments.",
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["type", "properties"],
+                    "additionalProperties": {
+                      "description": "Caller-defined extension value preserved by the public API."
+                    },
+                    "description": "JSON Schema describing the arguments accepted by the tool."
+                  }
+                },
+                "required": ["name", "parameters"],
+                "additionalProperties": {
+                  "description": "Caller-defined extension value preserved by the public API."
+                },
+                "description": "OpenAI-style function definition."
+              }
+            },
+            "required": ["type", "function"],
+            "additionalProperties": {
+              "description": "Caller-defined extension value preserved by the public API."
+            },
+            "description": "OpenAI-style function declaration describing the callable tool surface."
+          },
+          "code": {
+            "type": "string",
+            "description": "Tool implementation executed in the sandboxed function runtime."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the tool was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the tool was last updated."
+          }
+        },
+        "required": ["id", "title", "schema", "code", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "title": "Custom tool",
+        "description": "A workspace custom tool and its callable function declaration."
+      },
+      "ListCustomToolsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2CustomTool"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List custom tools response",
+        "description": "Custom tools defined in the workspace.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "V1StGXR8Z5jdHi6BmyT",
+                "title": "lookup_order",
+                "schema": {
+                  "type": "function",
+                  "function": {
+                    "name": "lookup_order",
+                    "description": "Look up an order by id",
+                    "parameters": {
+                      "type": "object",
+                      "properties": {
+                        "orderId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["orderId"]
+                    }
+                  }
+                },
+                "code": "return { ok: true }",
+                "createdAt": "2026-06-01T09:14:00.000Z",
+                "updatedAt": "2026-06-20T14:02:11.000Z"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "CreateCustomToolResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2CustomTool"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create custom tool response",
+        "description": "The created custom tool.",
+        "examples": [
+          {
+            "data": {
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "title": "lookup_order",
+              "schema": {
+                "type": "function",
+                "function": {
+                  "name": "lookup_order",
+                  "description": "Look up an order by id",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "orderId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["orderId"]
+                  }
+                }
+              },
+              "code": "return { ok: true }",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
+            }
+          }
+        ]
+      },
+      "CreateCustomToolRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace in which to create the custom tool."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Display title, unique within the workspace."
+          },
+          "schema": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "function",
+                "description": "Function declaration discriminator."
+              },
+              "function": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Function name presented to the model."
+                  },
+                  "description": {
+                    "description": "Optional explanation of what the function does.",
+                    "type": "string"
+                  },
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "JSON Schema type for the arguments, usually `object`."
+                      },
+                      "properties": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "description": "Caller-defined JSON Schema for one tool argument."
+                        },
+                        "description": "Caller-defined argument schemas keyed by argument name."
+                      },
+                      "required": {
+                        "description": "Names of required arguments.",
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["type", "properties"],
+                    "additionalProperties": {
+                      "description": "Caller-defined extension value preserved by the public API."
+                    },
+                    "description": "JSON Schema describing the arguments accepted by the tool."
+                  }
+                },
+                "required": ["name", "parameters"],
+                "additionalProperties": {
+                  "description": "Caller-defined extension value preserved by the public API."
+                },
+                "description": "OpenAI-style function definition."
+              }
+            },
+            "required": ["type", "function"],
+            "additionalProperties": {
+              "description": "Caller-defined extension value preserved by the public API."
+            },
+            "description": "OpenAI-style function declaration describing the callable tool surface."
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 100000,
+            "description": "Tool implementation executed in the sandboxed function runtime."
+          }
+        },
+        "required": ["workspaceId", "title", "schema", "code"],
+        "additionalProperties": false,
+        "title": "Create custom tool request",
+        "description": "Definition and implementation of a new custom tool.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "title": "lookup_order",
+            "schema": {
+              "type": "function",
+              "function": {
+                "name": "lookup_order",
+                "description": "Look up an order by id",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "orderId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["orderId"]
+                }
+              }
+            },
+            "code": "return { ok: true }"
+          }
+        ]
+      },
+      "GetCustomToolResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2CustomTool"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get custom tool response",
+        "description": "One custom tool.",
+        "examples": [
+          {
+            "data": {
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "title": "lookup_order",
+              "schema": {
+                "type": "function",
+                "function": {
+                  "name": "lookup_order",
+                  "description": "Look up an order by id",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "orderId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["orderId"]
+                  }
+                }
+              },
+              "code": "return { ok: true }",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
+            }
+          }
+        ]
+      },
+      "UpdateCustomToolResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2CustomTool"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update custom tool response",
+        "description": "The updated custom tool.",
+        "examples": [
+          {
+            "data": {
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "title": "lookup_order",
+              "schema": {
+                "type": "function",
+                "function": {
+                  "name": "lookup_order",
+                  "description": "Look up an order by id",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "orderId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["orderId"]
+                  }
+                }
+              },
+              "code": "return { ok: false }",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
+            }
+          }
+        ]
+      },
+      "UpdateCustomToolRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace that owns the custom tool."
+          },
+          "title": {
+            "description": "New display title for the tool.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "schema": {
+            "description": "Replacement function declaration.",
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "function",
+                "description": "Function declaration discriminator."
+              },
+              "function": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Function name presented to the model."
+                  },
+                  "description": {
+                    "description": "Optional explanation of what the function does.",
+                    "type": "string"
+                  },
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "JSON Schema type for the arguments, usually `object`."
+                      },
+                      "properties": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "description": "Caller-defined JSON Schema for one tool argument."
+                        },
+                        "description": "Caller-defined argument schemas keyed by argument name."
+                      },
+                      "required": {
+                        "description": "Names of required arguments.",
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["type", "properties"],
+                    "additionalProperties": {
+                      "description": "Caller-defined extension value preserved by the public API."
+                    },
+                    "description": "JSON Schema describing the arguments accepted by the tool."
+                  }
+                },
+                "required": ["name", "parameters"],
+                "additionalProperties": {
+                  "description": "Caller-defined extension value preserved by the public API."
+                },
+                "description": "OpenAI-style function definition."
+              }
+            },
+            "required": ["type", "function"],
+            "additionalProperties": {
+              "description": "Caller-defined extension value preserved by the public API."
+            }
+          },
+          "code": {
+            "description": "Replacement tool implementation.",
+            "type": "string",
+            "maxLength": 100000
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Update custom tool request",
+        "description": "Custom tool fields to change; at least one editable field is required.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "code": "return { ok: false }"
+          }
+        ]
+      },
+      "V2CustomToolDeleteData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the deleted custom tool."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the custom tool was deleted."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete custom tool data",
+        "description": "Custom tool deletion acknowledgement."
+      },
+      "DeleteCustomToolResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2CustomToolDeleteData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete custom tool response",
+        "description": "Acknowledgement that the custom tool was deleted.",
+        "examples": [
+          {
+            "data": {
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "deleted": true
+            }
+          }
+        ]
+      },
+      "V2Credential": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique credential identifier."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["oauth", "service_account"],
+            "description": "Authenticated connection type."
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Credential display name."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional credential description."
+          },
+          "providerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Integration provider authenticated by this credential."
+          },
+          "accountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Linked account identifier for OAuth credentials."
+          },
+          "hasServiceAccountKey": {
+            "type": "boolean",
+            "description": "Whether a service-account payload is stored. Its contents are never returned."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "member"],
+            "description": "Caller role for the credential."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the credential was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the credential was last updated."
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "displayName",
+          "description",
+          "providerId",
+          "accountId",
+          "hasServiceAccountKey",
+          "role",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Credential",
+        "description": "Public authenticated-connection metadata without secret material."
+      },
+      "ListCredentialsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2Credential"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List credentials response",
+        "description": "Credential metadata visible to the caller.",
+        "examples": [
+          {
+            "data": [
+              {
+                "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                "type": "service_account",
+                "displayName": "Zoom service account",
+                "description": null,
+                "providerId": "zoom-service-account",
+                "accountId": null,
+                "hasServiceAccountKey": true,
+                "role": "admin",
+                "createdAt": "2026-06-01T09:14:00.000Z",
+                "updatedAt": "2026-06-20T14:02:11.000Z"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "V2Secret": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[A-Za-z0-9_]+$",
+            "description": "Secret name containing only letters, numbers, and underscores."
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["workspace", "personal"],
+            "description": "Whether the secret belongs to the workspace or the caller."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "member"],
+            "description": "Caller role for the secret."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the secret was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the secret was last updated."
+          }
+        },
+        "required": ["name", "scope", "role", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "title": "Secret metadata",
+        "description": "Public secret metadata without the stored secret value."
+      },
+      "ListSecretsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2Secret"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List secrets response",
+        "description": "Secret metadata visible to the caller without stored values.",
+        "examples": [
+          {
+            "data": [
+              {
+                "name": "STRIPE_API_KEY",
+                "scope": "workspace",
+                "role": "admin",
+                "createdAt": "2026-06-01T09:14:00.000Z",
+                "updatedAt": "2026-06-20T14:02:11.000Z"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
+      "SetSecretResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Secret"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Set secret response",
+        "description": "Metadata for the created or replaced secret without its value.",
+        "examples": [
+          {
+            "data": {
+              "name": "STRIPE_API_KEY",
+              "scope": "workspace",
+              "role": "admin",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
+            }
+          }
+        ]
+      },
+      "SetSecretRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace in which the secret is available."
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["workspace", "personal"],
+            "description": "Whether the secret belongs to the workspace or the caller."
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536,
+            "description": "Write-only secret value. It is never returned.",
+            "writeOnly": true
+          }
+        },
+        "required": ["workspaceId", "scope", "value"],
+        "additionalProperties": false,
+        "title": "Set secret request",
+        "description": "Ownership scope and write-only value for the secret.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "scope": "workspace",
+            "value": "YOUR_SECRET_VALUE"
+          }
+        ]
+      },
+      "V2SecretDeleteData": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[A-Za-z0-9_]+$",
+            "description": "Secret name containing only letters, numbers, and underscores."
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["workspace", "personal"],
+            "description": "Whether the secret belongs to the workspace or the caller."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the secret was deleted."
+          }
+        },
+        "required": ["name", "scope", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete secret data",
+        "description": "Secret deletion acknowledgement without the stored value."
+      },
+      "DeleteSecretResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2SecretDeleteData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete secret response",
+        "description": "Acknowledgement that the secret was deleted.",
+        "examples": [
+          {
+            "data": {
+              "name": "STRIPE_API_KEY",
+              "scope": "workspace",
+              "deleted": true
+            }
+          }
+        ]
+      }
+    }
+  },
+  "x-generated-by": "scripts/generate-openapi.ts"
+}

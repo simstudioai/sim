@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import type { InternalJsonResponseFinalization } from '@/lib/api/server/routes/internal-json-route'
 import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createDurableSecretProvenanceRegistry,
   type DurableSecretProvenance,
@@ -12,6 +14,7 @@ import {
 } from '@/lib/execution/model-input-provenance'
 import {
   negotiatePrivateToolMetadataResponse,
+  RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
   serializePrivateToolMetadataResponseEnvelope,
 } from '@/lib/execution/private-tool-metadata'
@@ -30,6 +33,21 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 
 function invalidKnowledgeProvenanceResponse(): NextResponse {
   return NextResponse.json({ error: 'Invalid knowledge secret provenance' }, { status: 400 })
+}
+
+function rejectInvalidKnowledgeProvenance(): never {
+  throw new OrchestrationError('validation', 'Invalid knowledge secret provenance')
+}
+
+function finalizeKnowledgeMetadataEnvelope(
+  envelope: ReturnType<typeof serializePrivateToolMetadataResponseEnvelope>
+): InternalJsonResponseFinalization {
+  return {
+    bodyFields: {
+      [RESOLVED_SECRET_PROVENANCE_FIELD]: envelope.body[RESOLVED_SECRET_PROVENANCE_FIELD],
+    },
+    headers: envelope.headers,
+  }
 }
 
 type KnowledgeWriteProvenanceResolution =
@@ -131,30 +149,30 @@ export function resolveKnowledgeDocumentWriteSecretProvenance(options: {
   return { success: true, provenances }
 }
 
-/** Adds private provenance for a raw Knowledge response without changing its functional shape. */
-export async function createKnowledgeProvenanceResponse(options: {
+/** Finalizes private provenance after the functional Knowledge response passes its contract. */
+export async function finalizeKnowledgeProvenanceResponse(options: {
   request: NextRequest
   authType: AuthTypeValue | undefined
   userId: string
   workspaceId?: string
   body: Record<string, unknown>
   provenances: readonly DurableSecretProvenance[]
-}): Promise<NextResponse> {
+}): Promise<InternalJsonResponseFinalization> {
   const { request } = options
   const negotiation = negotiatePrivateToolMetadataResponse(
     request.headers,
     RESOLVED_SECRET_PROVENANCE_METADATA_V1,
     options.authType === AuthType.INTERNAL_JWT
   )
-  if (negotiation.status === 'not-requested') return NextResponse.json(options.body)
-  if (negotiation.status === 'rejected') return invalidKnowledgeProvenanceResponse()
+  if (negotiation.status === 'not-requested') return {}
+  if (negotiation.status === 'rejected') rejectInvalidKnowledgeProvenance()
   const registry = new ResolvedSecretTraceRegistry([], {
     userId: options.userId,
     ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
   })
   for (const provenance of options.provenances) {
     if (provenance.status === 'unknown') {
-      registry.markIncomplete()
+      registry.markIncomplete('durable-provenance-unknown')
       break
     }
     const sourceRegistry = await createDurableSecretProvenanceRegistry(provenance, {
@@ -168,34 +186,34 @@ export async function createKnowledgeProvenanceResponse(options: {
     RESOLVED_SECRET_PROVENANCE_METADATA_V1,
     registry.exportCommittedProvenanceForValue(options.body)
   )
-  return NextResponse.json(envelope.body, { headers: envelope.headers })
+  return finalizeKnowledgeMetadataEnvelope(envelope)
 }
 
 /** Serializes an already-populated request registry as private response metadata. */
-export function createKnowledgeRegistryResponse(options: {
+export function finalizeKnowledgeRegistryResponse(options: {
   request: NextRequest
   authType: AuthTypeValue | undefined
   body: Record<string, unknown>
   registry: ResolvedSecretTraceRegistry
-}): NextResponse {
+}): InternalJsonResponseFinalization {
   const { request } = options
   const negotiation = negotiatePrivateToolMetadataResponse(
     request.headers,
     RESOLVED_SECRET_PROVENANCE_METADATA_V1,
     options.authType === AuthType.INTERNAL_JWT
   )
-  if (negotiation.status === 'not-requested') return NextResponse.json(options.body)
-  if (negotiation.status === 'rejected') return invalidKnowledgeProvenanceResponse()
+  if (negotiation.status === 'not-requested') return {}
+  if (negotiation.status === 'rejected') rejectInvalidKnowledgeProvenance()
   const envelope = serializePrivateToolMetadataResponseEnvelope(
     options.body,
     RESOLVED_SECRET_PROVENANCE_METADATA_V1,
     options.registry.exportCommittedProvenanceForValue(options.body)
   )
-  return NextResponse.json(envelope.body, { headers: envelope.headers })
+  return finalizeKnowledgeMetadataEnvelope(envelope)
 }
 
 /** Emits private response provenance for a bounded exact snapshot of persisted KB rows. */
-export async function createKnowledgePersistedResponse(options: {
+export async function finalizeKnowledgePersistedResponse(options: {
   request: NextRequest
   authType: AuthTypeValue | undefined
   userId: string
@@ -212,15 +230,15 @@ export async function createKnowledgePersistedResponse(options: {
     content: string
     value: unknown
   }[]
-}): Promise<NextResponse> {
+}): Promise<InternalJsonResponseFinalization> {
   const { request } = options
   const negotiation = negotiatePrivateToolMetadataResponse(
     request.headers,
     RESOLVED_SECRET_PROVENANCE_METADATA_V1,
     options.authType === AuthType.INTERNAL_JWT
   )
-  if (negotiation.status === 'not-requested') return NextResponse.json(options.body)
-  if (negotiation.status === 'rejected') return invalidKnowledgeProvenanceResponse()
+  if (negotiation.status === 'not-requested') return {}
+  if (negotiation.status === 'rejected') rejectInvalidKnowledgeProvenance()
 
   const registry = new ResolvedSecretTraceRegistry([], {
     userId: options.userId,
@@ -231,7 +249,7 @@ export async function createKnowledgePersistedResponse(options: {
     documents: options.documents,
     chunks: options.chunks,
   })
-  return createKnowledgeRegistryResponse({
+  return finalizeKnowledgeRegistryResponse({
     request: options.request,
     authType: options.authType,
     body: options.body,

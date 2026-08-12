@@ -22,7 +22,7 @@ import {
 } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
 import type { OAuthProvider } from '@/lib/oauth/types'
-import { parseProvider } from '@/lib/oauth/utils'
+import { parseProvider, providerIdsForService } from '@/lib/oauth/utils'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 
 const OAUTH_POPUP_WINDOW_NAME = 'sim-oauth-connect'
@@ -82,6 +82,39 @@ function isPopupStillOpen(popup: { window: Window } | null): boolean {
   return observePopup(popup) === 'live'
 }
 
+export interface OAuthChipTarget {
+  /** Provider the authorize URL connects; falls back to the tag's own slug. */
+  providerId: string
+  /** Present when the URL re-authorizes an existing credential in place. */
+  reconnectCredentialId?: string
+}
+
+/**
+ * Reads the connect target out of an authorize URL. Shared with the credential
+ * card's recap, which has to look up a row's stored attempt without mounting
+ * the row — the attempt key is derived from exactly these two fields.
+ */
+export function resolveOAuthChipTarget(connectUrl?: string, provider?: string): OAuthChipTarget {
+  if (!connectUrl) return { providerId: provider ?? '' }
+  let url: URL
+  try {
+    url = new URL(connectUrl)
+  } catch {
+    return { providerId: provider ?? '' }
+  }
+  const reconnectCredentialId = url.searchParams.get('credentialId') ?? undefined
+  if (url.pathname === '/api/auth/instagram/authorize') {
+    return { providerId: 'instagram', reconnectCredentialId }
+  }
+  if (url.pathname === '/api/auth/shopify/authorize') {
+    return { providerId: 'shopify', reconnectCredentialId }
+  }
+  if (url.pathname === '/api/auth/trello/authorize') {
+    return { providerId: 'trello', reconnectCredentialId }
+  }
+  return { providerId: url.searchParams.get('providerId') ?? provider ?? '', reconnectCredentialId }
+}
+
 interface UseOAuthChipConnectionParams {
   /** Authorize URL streamed by the agent; provider and reconnect scope are read from it. */
   connectUrl?: string
@@ -138,27 +171,10 @@ export function useOAuthChipConnection({
 
   // A connect URL carrying a credentialId re-authorizes that existing
   // credential in place (reconnect) rather than creating a new one.
-  const reconnectCredentialId = useMemo(() => {
-    if (!connectUrl) return undefined
-    try {
-      return new URL(connectUrl).searchParams.get('credentialId') ?? undefined
-    } catch {
-      return undefined
-    }
-  }, [connectUrl])
-
-  const providerId = useMemo(() => {
-    if (!connectUrl) return provider ?? ''
-    try {
-      const url = new URL(connectUrl)
-      if (url.pathname === '/api/auth/instagram/authorize') return 'instagram'
-      if (url.pathname === '/api/auth/shopify/authorize') return 'shopify'
-      if (url.pathname === '/api/auth/trello/authorize') return 'trello'
-      return url.searchParams.get('providerId') ?? provider ?? ''
-    } catch {
-      return provider ?? ''
-    }
-  }, [connectUrl, provider])
+  const { providerId, reconnectCredentialId } = useMemo(
+    () => resolveOAuthChipTarget(connectUrl, provider),
+    [connectUrl, provider]
+  )
 
   const baseProviderId = parseProvider(providerId as OAuthProvider).baseProvider
   const {
@@ -188,7 +204,15 @@ export function useOAuthChipConnection({
   } | null>(null)
 
   const credentialTarget = useMemo(
-    () => ({ providerId, baseProviderId, credentialId: reconnectCredentialId }),
+    () => ({
+      providerId,
+      baseProviderId,
+      credentialId: reconnectCredentialId,
+      // A credential from an alternate authorization server (Salesforce
+      // sandbox) still connects this chip's service; without these the chip
+      // reads as disconnected and re-prompts a user who is already connected.
+      additionalProviderIds: providerIdsForService(providerId),
+    }),
     [baseProviderId, providerId, reconnectCredentialId]
   )
   const credentialScope = `${workspaceId}:${providerId}:${reconnectCredentialId ?? ''}`
@@ -471,6 +495,7 @@ export function useOAuthChipConnection({
         workspaceId,
         providerId,
         baseProviderId,
+        additionalProviderIds: credentialTarget.additionalProviderIds,
         displayName,
         controlId,
         credentialId: reconnectCredentialId,

@@ -41,6 +41,7 @@ vi.mock('@/lib/core/rate-limiter', () => ({
 }))
 
 import {
+  authenticateRequest,
   checkRateLimit,
   createRateLimitResponse,
   v1ValidationErrorResponse,
@@ -104,6 +105,29 @@ describe('checkRateLimit', () => {
 
     expect(result.allowed).toBe(false)
     expect(result.limit).toBe(0)
+  })
+})
+
+describe('authenticateRequest', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAuthenticateV1Request.mockResolvedValue({
+      authenticated: true,
+      keyType: 'personal',
+    })
+    mockGetSubscription.mockResolvedValue({ plan: 'team' })
+    mockGetRateLimit.mockReturnValue(TEAM_BUCKET)
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: true,
+      remaining: 399,
+      resetAt: new Date('2026-07-28T18:28:48.354Z'),
+    })
+  })
+
+  it('fails fast when an allowed result has no user ID', async () => {
+    await expect(authenticateRequest(request(), 'workflows')).rejects.toThrow(
+      'Allowed public API request is missing a user ID'
+    )
   })
 })
 

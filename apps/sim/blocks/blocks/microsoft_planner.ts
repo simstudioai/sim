@@ -29,6 +29,14 @@ interface MicrosoftPlannerBlockParams {
   [key: string]: string | number | boolean | undefined
 }
 
+/**
+ * Canonical basic/advanced pairs for the card sentences below. Listing both
+ * members is what keeps a sentence working for an advanced-mode user, who has
+ * only the manual field filled.
+ */
+const PLAN_FIELD = ['planSelector', 'planId'] as const
+const READ_TASK_FIELD = ['taskSelector', 'manualReadTaskId'] as const
+
 export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
   type: 'microsoft_planner',
   name: 'Microsoft Planner',
@@ -41,6 +49,75 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
   icon: MicrosoftPlannerIcon,
+  canvasPresentation: {
+    defaultTitle: 'Microsoft Planner',
+    sentences: {
+      byOperation: {
+        read_task: [
+          'Read tasks',
+          { text: ', in plan', field: PLAN_FIELD },
+          { text: ', limited to task', field: READ_TASK_FIELD },
+        ],
+        create_task: [
+          { text: 'Create task', field: 'title', core: true },
+          { text: 'in plan', field: PLAN_FIELD, core: true },
+          { text: ', due', field: 'dueDateTime' },
+        ],
+        update_task: [
+          { text: 'Update task', field: 'updateTaskId', core: true },
+          { text: ', setting title to', field: 'title' },
+          { text: ', due', field: 'dueDateTime' },
+        ],
+        delete_task: [{ text: 'Delete task', field: 'updateTaskId', core: true }],
+        list_plans: ['List plans shared with the signed-in user'],
+        read_plan: [{ text: 'Read plan', field: PLAN_FIELD, core: true }],
+        create_plan: [
+          { text: 'Create plan', field: 'planTitle', core: true },
+          { text: 'under group', field: 'groupId' },
+        ],
+        update_plan: [
+          { text: 'Rename plan', field: PLAN_FIELD, core: true },
+          { text: 'to', field: 'planTitle' },
+        ],
+        get_plan_details: [
+          { text: 'Read category labels and sharing for plan', field: PLAN_FIELD, core: true },
+        ],
+        update_plan_details: [
+          {
+            text: 'Update category labels and sharing for plan',
+            field: PLAN_FIELD,
+            core: true,
+          },
+        ],
+        delete_plan: [{ text: 'Delete plan', field: PLAN_FIELD, core: true }],
+        list_buckets: [{ text: 'List buckets in plan', field: PLAN_FIELD, core: true }],
+        read_bucket: [{ text: 'Read bucket', field: 'bucketIdForRead', core: true }],
+        create_bucket: [
+          { text: 'Create bucket', field: 'name', core: true },
+          { text: 'in plan', field: PLAN_FIELD },
+        ],
+        update_bucket: [
+          { text: 'Rename bucket', field: 'bucketIdForRead', core: true },
+          { text: 'to', field: 'name' },
+        ],
+        delete_bucket: [{ text: 'Delete bucket', field: 'bucketIdForRead', core: true }],
+        get_task_details: [
+          {
+            text: 'Read the checklist and references of task',
+            field: 'updateTaskId',
+            core: true,
+          },
+        ],
+        update_task_details: [
+          {
+            text: 'Update the description and checklist of task',
+            field: 'updateTaskId',
+            core: true,
+          },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -66,6 +143,7 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
         { label: 'Get Task Details', id: 'get_task_details' },
         { label: 'Update Task Details', id: 'update_task_details' },
       ],
+      value: () => 'read_task',
     },
     {
       id: 'credential',

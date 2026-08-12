@@ -5,7 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveCredentialAccessToken } from '@/app/api/auth/oauth/utils'
+import { resolveCredentialAccessToken } from '@/lib/oauth/credential-service'
 import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'
 
 const logger = createLogger('PipedrivePipelinesAPI')

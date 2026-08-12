@@ -17,6 +17,16 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#2F55FF',
   icon: ApiIcon,
+  canvasPresentation: {
+    defaultTitle: 'API',
+    sentences: {
+      default: [
+        { text: 'Send', field: 'method', after: 'request to', core: true },
+        { field: 'url', core: true },
+        { text: ', with body', field: 'body' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'url',

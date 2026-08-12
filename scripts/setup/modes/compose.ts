@@ -13,6 +13,7 @@ import {
   collectSecrets,
   mothershipOverride,
   promptCopilotKey,
+  promptKnowledgeEmbeddings,
   promptLlmKeys,
   promptSecurity,
   promptSignInProviders,
@@ -117,9 +118,13 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   if (copilotKey) values.COPILOT_API_KEY = copilotKey
   Object.assign(values, chatFlagValues(copilotKey))
   Object.assign(values, await promptLlmKeys(detection, !quick))
+  const stagedVars = new Map(root.vars)
+  for (const [key, value] of Object.entries(values)) stagedVars.set(key, value)
+  const embeddings = await promptKnowledgeEmbeddings(stagedVars, { containerized: true })
+  if (embeddings) {
+    stageCapabilitySetupTransition(stagedVars, values, remove, embeddings)
+  }
   if (!quick) {
-    const stagedVars = new Map(root.vars)
-    for (const [key, value] of Object.entries(values)) stagedVars.set(key, value)
     const storage = await promptCapabilitySetup(STORAGE_SETUP, stagedVars, {
       containerized: true,
     })

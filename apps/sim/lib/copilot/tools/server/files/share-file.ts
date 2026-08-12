@@ -1,26 +1,23 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
+import {
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
+import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
 import { ShareFile } from '@/lib/copilot/generated/tool-catalog-v1'
-import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import {
-  getShareForResource,
-  ShareValidationError,
-  upsertFileShare,
-} from '@/lib/public-shares/share-manager'
-import {
-  getWorkspaceFile,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import {
-  PublicFileSharingNotAllowedError,
-  validatePublicFileSharing,
-} from '@/ee/access-control/utils/permission-check'
+  updateWorkspaceFileShare,
+  WorkspaceFileShareNoopError,
+} from '@/lib/workspace-files/application/share-workspace-file'
 
 const logger = createLogger('ShareFileServerTool')
 
@@ -56,8 +53,6 @@ export const shareFileServerTool: BaseServerTool<ShareFileArgs, ShareFileResult>
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
-
     const nested = params.args
     const path = params.path || (nested?.path as string) || ''
     const legacyFileId = params.fileId || (nested?.fileId as string) || ''
@@ -72,86 +67,80 @@ export const shareFileServerTool: BaseServerTool<ShareFileArgs, ShareFileResult>
     const targetRef = path || legacyFileId
     if (!targetRef) return { success: false, message: 'path is required' }
 
-    const existingFile = path
-      ? await resolveWorkspaceFileReference(workspaceId, path)
-      : await getWorkspaceFile(workspaceId, legacyFileId)
+    let existingFile
+    try {
+      existingFile = path
+        ? await resolveCopilotWorkspaceFileReference(context, fileOperations.updateShare, {
+            workspaceId,
+            reference: path,
+          })
+        : (
+            await executeCopilotFileUseCase(
+              context,
+              readWorkspaceFileMetadata,
+              { fileId: legacyFileId, assertedWorkspaceId: workspaceId },
+              { fileId: legacyFileId }
+            )
+          ).file
+    } catch (error) {
+      const classified = asOrchestrationError(error)
+      if (classified?.code !== 'not_found') throw error
+      return { success: false, message: `File not found: ${targetRef}` }
+    }
     if (!existingFile) {
       return { success: false, message: `File not found: ${targetRef}` }
     }
-    const fileId = existingFile.id
-    const isActive = action !== 'unshare'
-    const existingShare = await getShareForResource('file', fileId)
-
-    // Unsharing a file that was never shared (or is already disabled) is a no-op:
-    // never insert an inactive row, emit a FILE_SHARE_DISABLED audit, or return a
-    // link claiming a share was revoked when none existed.
-    if (!isActive && !existingShare?.isActive) {
-      return {
-        success: true,
-        message: `"${existingFile.name}" isn't shared — nothing to unshare.`,
-      }
-    }
-
-    // Enabling a share is gated by the org's access-control policy (both the
-    // master on/off and the per-auth-type allow-list); disabling is always
-    // allowed so users can still un-share after the policy is turned on.
-    if (isActive) {
-      // Validate the auth type that will ACTUALLY be persisted. upsertFileShare
-      // falls back to the existing share's authType when none is passed, so a bare
-      // re-enable must be checked against that stored mode — not 'public' — or a
-      // now-disallowed password/email/sso share could be silently reactivated.
-      const effectiveAuthType = authType ?? existingShare?.authType ?? 'public'
-      try {
-        await validatePublicFileSharing(context.userId, workspaceId, effectiveAuthType)
-      } catch (error) {
-        if (error instanceof PublicFileSharingNotAllowedError) {
-          return { success: false, message: error.message }
-        }
-        throw error
-      }
-    }
-
     assertServerToolNotAborted(context)
-
-    let share
+    const isActive = action !== 'unshare'
     try {
-      share = await upsertFileShare({
+      const result = await executeCopilotFileUseCase(
+        context,
+        updateWorkspaceFileShare,
+        {
+          fileId: existingFile.id,
+          assertedWorkspaceId: workspaceId,
+          isActive,
+          authType,
+          password,
+          allowedEmails,
+          noOpIfInactive: !isActive,
+        },
+        { fileId: existingFile.id }
+      )
+      const share = result.share
+      logger.info(`${isActive ? 'Enabled' : 'Disabled'} share for file via share_file`, {
+        fileId: existingFile.id,
         workspaceId,
-        fileId,
+        authType: share.authType,
         userId: context.userId,
-        isActive,
-        authType,
-        password,
-        allowedEmails,
       })
-    } catch (error) {
-      if (error instanceof ShareValidationError) {
-        return { success: false, message: error.message }
+
+      if (!isActive) {
+        return {
+          success: true,
+          message: `Stopped sharing "${existingFile.name}". The previous link no longer works.`,
+          data: {
+            url: share.url,
+            token: share.token,
+            authType: share.authType,
+            hasPassword: share.hasPassword,
+            isActive: share.isActive,
+          },
+        }
       }
-      throw error
-    }
 
-    logger.info(`${isActive ? 'Enabled' : 'Disabled'} share for file via share_file`, {
-      fileId,
-      workspaceId,
-      authType: share.authType,
-      userId: context.userId,
-    })
+      const authNote =
+        share.authType === 'password'
+          ? ' (password-protected — share the password separately)'
+          : share.authType === 'email'
+            ? ' (restricted to allowed emails via one-time code)'
+            : share.authType === 'sso'
+              ? ' (restricted to allowed emails via SSO)'
+              : ''
 
-    recordAudit({
-      workspaceId,
-      actorId: context.userId,
-      action: isActive ? AuditAction.FILE_SHARED : AuditAction.FILE_SHARE_DISABLED,
-      resourceType: AuditResourceType.FILE,
-      resourceId: fileId,
-      resourceName: existingFile.name,
-      description: `${isActive ? 'Enabled' : 'Disabled'} public share for "${existingFile.name}"`,
-    })
-
-    if (!isActive) {
       return {
         success: true,
-        message: `Stopped sharing "${existingFile.name}". The previous link no longer works.`,
+        message: `Shared "${existingFile.name}"${authNote}: ${share.url}`,
         data: {
           url: share.url,
           token: share.token,
@@ -160,27 +149,17 @@ export const shareFileServerTool: BaseServerTool<ShareFileArgs, ShareFileResult>
           isActive: share.isActive,
         },
       }
-    }
-
-    const authNote =
-      share.authType === 'password'
-        ? ' (password-protected — share the password separately)'
-        : share.authType === 'email'
-          ? ' (restricted to allowed emails via one-time code)'
-          : share.authType === 'sso'
-            ? ' (restricted to allowed emails via SSO)'
-            : ''
-
-    return {
-      success: true,
-      message: `Shared "${existingFile.name}"${authNote}: ${share.url}`,
-      data: {
-        url: share.url,
-        token: share.token,
-        authType: share.authType,
-        hasPassword: share.hasPassword,
-        isActive: share.isActive,
-      },
+    } catch (error) {
+      if (error instanceof WorkspaceFileShareNoopError) {
+        return {
+          success: true,
+          message: `"${existingFile.name}" isn't shared — nothing to unshare.`,
+        }
+      }
+      return {
+        success: false,
+        message: messageForCopilotFileError(error, 'Unable to update file sharing'),
+      }
     }
   },
 }

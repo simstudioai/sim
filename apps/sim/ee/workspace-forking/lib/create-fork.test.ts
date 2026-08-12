@@ -91,7 +91,7 @@ vi.mock('@/lib/workspaces/policy', () => ({
 
 import { createFork } from '@/ee/workspace-forking/lib/create-fork'
 
-const SOURCE = { id: 'src-ws', name: 'Parent' } as never
+const SOURCE = { id: 'src-ws', name: 'Parent', allowPersonalApiKeys: false } as never
 const POLICY = {
   organizationId: null,
   workspaceMode: 'personal',
@@ -207,6 +207,15 @@ describe('createFork storage headroom gate', () => {
           sourceIsParent: true,
         },
       })
+    )
+  })
+
+  it('preserves the source workspace personal API-key policy in the child', async () => {
+    const result = await createFork(forkParams())
+
+    expect(result.workspace.allowPersonalApiKeys).toBe(false)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ allowPersonalApiKeys: false })
     )
   })
 

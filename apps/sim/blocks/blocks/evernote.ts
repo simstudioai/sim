@@ -13,6 +13,44 @@ export const EvernoteBlock: BlockConfig = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: EvernoteIcon,
+  canvasPresentation: {
+    defaultTitle: 'Evernote',
+    sentences: {
+      byOperation: {
+        create_note: [
+          { text: 'Create note', field: 'title', core: true },
+          { text: 'in notebook', field: 'notebookGuid' },
+          { text: ', tagged', field: 'tagNames' },
+        ],
+        get_note: [{ text: 'Read note', field: 'noteGuid', core: true }],
+        update_note: [
+          { text: 'Update note', field: 'noteGuid', core: true },
+          { text: ', renaming to', field: 'updateTitle' },
+          { text: ', tagged', field: 'tagNames' },
+        ],
+        delete_note: [{ text: 'Move note', field: 'noteGuid', core: true, after: 'to the trash' }],
+        copy_note: [
+          { text: 'Copy note', field: 'noteGuid', core: true },
+          { text: 'into notebook', field: 'toNotebookGuid' },
+        ],
+        search_notes: [
+          { text: 'Search notes for', field: 'query', core: true },
+          { text: ', within notebook', field: 'notebookGuid' },
+        ],
+        get_notebook: [{ text: 'Read notebook', field: 'notebookGuid', core: true }],
+        create_notebook: [
+          { text: 'Create notebook', field: 'notebookName', core: true },
+          { text: 'in stack', field: 'stack' },
+        ],
+        list_notebooks: ['List all notebooks'],
+        create_tag: [
+          { text: 'Create tag', field: 'tagName', core: true },
+          { text: 'under parent tag', field: 'parentGuid' },
+        ],
+        list_tags: ['List all tags'],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

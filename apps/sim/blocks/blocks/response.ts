@@ -19,6 +19,15 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   category: 'blocks',
   bgColor: '#2F55FF',
   icon: ResponseIcon,
+  canvasPresentation: {
+    defaultTitle: 'Response',
+    sentences: {
+      default: [
+        { text: 'Return', field: ['builderData', 'data'], core: true },
+        { text: 'with status', field: 'status' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'dataMode',

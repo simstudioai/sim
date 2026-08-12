@@ -19,6 +19,7 @@ export type AbortBackendValue = (typeof AbortBackend)[AbortBackendKey]
 
 export const AbortRedisResult = {
   Error: 'error',
+  Miss: 'miss',
   Ok: 'ok',
   Slow: 'slow',
 } as const

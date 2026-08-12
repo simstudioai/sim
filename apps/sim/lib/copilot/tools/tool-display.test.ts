@@ -462,6 +462,18 @@ describe('getToolDisplayTitle for context management', () => {
   })
 })
 
+describe('getToolStatusDisplayTitle for browser takeover', () => {
+  it('uses a neutral completed title after browser control resumes', () => {
+    expect(
+      getToolStatusDisplayTitle(
+        'Waiting for you: Pick a match in the draw',
+        'success',
+        'browser_request_takeover'
+      )
+    ).toBe('Resumed browser control')
+  })
+})
+
 describe('wait titles', () => {
   // The row is on screen for the whole pause, so a bare "Wait" reads as a
   // stall. The duration is the entire content of this tool.

@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   customPatternSchema,
+  isCanonicalBase64,
   organizationIdSchema,
   piiStagePolicySchema,
   piiStagesSchema,
@@ -11,8 +12,40 @@ import {
   resolvedSecretTraceProvenanceSchema,
   workflowIdSchema,
   workspaceFileIdSchema,
+  workspaceFileNameSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
+
+describe('workspaceFileNameSchema', () => {
+  it('trims and accepts one bounded file name', () => {
+    expect(workspaceFileNameSchema.parse(' report.pdf ')).toBe('report.pdf')
+    expect(workspaceFileNameSchema.safeParse('a'.repeat(255)).success).toBe(true)
+  })
+
+  it.each([undefined, '', '   ', '.', '..', 'folder/report.pdf', 'folder\\report.pdf'])(
+    'rejects invalid file name %j',
+    (name) => {
+      expect(workspaceFileNameSchema.safeParse(name).success).toBe(false)
+    }
+  )
+
+  it('rejects names longer than 255 characters', () => {
+    expect(workspaceFileNameSchema.safeParse('a'.repeat(256)).success).toBe(false)
+  })
+})
+
+describe('isCanonicalBase64', () => {
+  it.each(['', 'TQ==', 'TWE=', 'TWFu', 'AAEC/w=='])('accepts canonical base64 %j', (value) => {
+    expect(isCanonicalBase64(value)).toBe(true)
+  })
+
+  it.each(['TQ', 'TQ=', 'TQ===', 'T=Q=', 'TQ==\n', 'TR==', 'TWF='])(
+    'rejects malformed or non-canonical base64 %j',
+    (value) => {
+      expect(isCanonicalBase64(value)).toBe(false)
+    }
+  )
+})
 
 describe('customPatternSchema', () => {
   it('accepts a well-formed pattern', () => {

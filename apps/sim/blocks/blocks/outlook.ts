@@ -6,6 +6,16 @@ import { normalizeFileInput } from '@/blocks/utils'
 import type { OutlookResponse } from '@/tools/outlook/types'
 import { getTrigger } from '@/triggers'
 
+/**
+ * Canonical basic/advanced pairs referenced by the card sentences below. Every
+ * member has to be listed, because an advanced-mode user has only the manual
+ * field filled and a clause naming just the picker would silently drop.
+ */
+const READ_FOLDER_FIELD = ['folderSelector', 'manualFolder'] as const
+const MOVE_DESTINATION_FIELD = ['destinationFolder', 'manualDestinationFolder'] as const
+const COPY_DESTINATION_FIELD = ['copyDestinationFolder', 'manualCopyDestinationFolder'] as const
+const CALENDAR_FIELD = ['calendarSelector', 'manualCalendarId'] as const
+
 export const OutlookBlock: BlockConfig<OutlookResponse> = {
   type: 'outlook',
   name: 'Outlook',
@@ -19,6 +29,110 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
   triggerAllowed: true,
   bgColor: '#FFFFFF',
   icon: OutlookIcon,
+  canvasPresentation: {
+    defaultTitle: 'Outlook',
+    /*
+     * "filtered by" rather than "in": the folder list is read through
+     * `folderFilterBehavior`, which can invert it to EXCLUDE, so a preposition
+     * asserting membership would make the card state the opposite of what runs.
+     */
+    triggerSentences: {
+      default: ['Run on email', { text: 'filtered by', field: 'folderIds', core: true }],
+    },
+    sentences: {
+      byOperation: {
+        send_outlook: [
+          { text: 'Send', field: 'subject', core: true },
+          { text: 'to', field: 'to', core: true },
+          { text: ', copying', field: 'cc' },
+        ],
+        draft_outlook: [
+          { text: 'Draft', field: 'subject', core: true },
+          { text: 'to', field: 'to', core: true },
+          { text: ', copying', field: 'cc' },
+        ],
+        read_outlook: [
+          {
+            text: 'Read the latest',
+            field: 'maxResults',
+            after: 'emails',
+            core: true,
+          },
+          { text: 'from', field: READ_FOLDER_FIELD },
+        ],
+        search_outlook: [
+          { text: 'Search email for', field: 'searchQuery', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        reply_outlook: [
+          { text: 'Reply to the sender of message', field: 'actionMessageId', core: true },
+          { text: ', with', field: 'comment' },
+        ],
+        reply_all_outlook: [
+          { text: 'Reply to everyone on message', field: 'actionMessageId', core: true },
+          { text: ', with', field: 'comment' },
+        ],
+        forward_outlook: [
+          { text: 'Forward message', field: 'messageId', core: true },
+          { text: 'to', field: 'to' },
+        ],
+        move_outlook: [
+          { text: 'Move message', field: 'moveMessageId', core: true },
+          { text: 'to', field: MOVE_DESTINATION_FIELD },
+        ],
+        copy_outlook: [
+          { text: 'Copy message', field: 'copyMessageId', core: true },
+          { text: 'to', field: COPY_DESTINATION_FIELD },
+        ],
+        mark_read_outlook: [
+          { text: 'Mark message', field: 'actionMessageId', after: 'as read', core: true },
+        ],
+        mark_unread_outlook: [
+          { text: 'Mark message', field: 'actionMessageId', after: 'as unread', core: true },
+        ],
+        update_message_outlook: [
+          { text: 'Tag message', field: 'actionMessageId', core: true },
+          { text: 'with', field: 'categories' },
+          { text: ', flag set to', field: 'flagStatus' },
+        ],
+        delete_outlook: [{ text: 'Delete message', field: 'actionMessageId', core: true }],
+        list_folders_outlook: [
+          'List mail folders',
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        create_folder_outlook: [{ text: 'Create mail folder', field: 'folderName', core: true }],
+        list_attachments_outlook: [
+          { text: 'List attachments on message', field: 'actionMessageId', core: true },
+        ],
+        get_attachment_outlook: [
+          { text: 'Download attachment', field: 'attachmentId', core: true },
+          { text: 'from message', field: 'actionMessageId' },
+        ],
+        list_events_calendar: [
+          'List calendar events',
+          { text: 'in', field: CALENDAR_FIELD },
+          { text: ', from', field: 'calWindowStart' },
+          { text: 'until', field: 'calWindowEnd' },
+        ],
+        get_event_calendar: [{ text: 'Read calendar event', field: 'calEventId', core: true }],
+        create_event_calendar: [
+          { text: 'Create event', field: 'calSubject', core: true },
+          { text: 'in', field: CALENDAR_FIELD },
+          { text: ', starting', field: 'calStartDateTime' },
+        ],
+        update_event_calendar: [
+          { text: 'Update calendar event', field: 'calEventId', core: true },
+          { text: ', renaming it to', field: 'calSubject' },
+          { text: ', starting', field: 'calStartDateTime' },
+        ],
+        delete_event_calendar: [{ text: 'Delete calendar event', field: 'calEventId', core: true }],
+        respond_calendar: [
+          { text: 'Set the invite response for event', field: 'calEventId', core: true },
+          { text: 'to', field: 'calResponseType' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -74,6 +188,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
     {
       id: 'to',
       title: 'To',
+      canvasNoun: 'a recipient',
       type: 'short-input',
       placeholder: 'Recipient email address',
       condition: {

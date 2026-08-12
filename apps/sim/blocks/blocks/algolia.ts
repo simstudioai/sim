@@ -14,6 +14,64 @@ export const AlgoliaBlock: BlockConfig = {
   bgColor: '#003DFF',
   iconColor: '#003DFF',
   icon: AlgoliaIcon,
+  canvasPresentation: {
+    defaultTitle: 'Algolia',
+    sentences: {
+      byOperation: {
+        search: [
+          { text: 'Search', field: 'indexName', core: true },
+          { text: 'for', field: 'query' },
+          { text: ', where', field: 'filters' },
+        ],
+        add_record: [
+          { text: 'Add record', field: 'objectID', core: true },
+          { text: 'to', field: 'indexName', core: true },
+        ],
+        get_record: [
+          { text: 'Fetch record', field: 'objectID', core: true },
+          { text: 'from', field: 'indexName', core: true },
+        ],
+        get_records: [{ text: 'Fetch records in bulk from', field: 'indexName', core: true }],
+        partial_update_record: [
+          { text: 'Update record', field: 'objectID', core: true },
+          { text: 'in', field: 'indexName', core: true },
+          { text: ', setting', field: 'attributes' },
+        ],
+        delete_record: [
+          { text: 'Delete record', field: 'objectID', core: true },
+          { text: 'from', field: 'indexName', core: true },
+        ],
+        browse_records: [
+          { text: 'Browse every record in', field: 'indexName', core: true },
+          { text: ', where', field: 'filters' },
+        ],
+        batch_operations: [
+          { text: 'Run batched record changes on', field: 'indexName', core: true },
+        ],
+        list_indices: ['List all indices'],
+        get_settings: [{ text: 'Read settings of', field: 'indexName', core: true }],
+        update_settings: [{ text: 'Update settings of', field: 'indexName', core: true }],
+        delete_index: [{ text: 'Delete index', field: 'indexName', core: true }],
+        copy_move_index: [
+          { text: 'Copy or move', field: 'indexName', core: true },
+          { text: 'to', field: 'destination' },
+        ],
+        clear_records: [{ text: 'Clear all records from', field: 'indexName', core: true }],
+        delete_by_filter: [
+          { text: 'Delete records from', field: 'indexName', core: true },
+          { text: ', matching', field: 'deleteFilters' },
+        ],
+        get_task_status: [
+          {
+            text: 'Check indexing task',
+            field: 'taskID',
+            core: true,
+          },
+          { text: 'on', field: 'indexName', core: true },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

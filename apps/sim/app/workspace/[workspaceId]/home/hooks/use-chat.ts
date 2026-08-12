@@ -27,7 +27,11 @@ import {
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { onOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
-import { initBrowserAgentTransport, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
+import {
+  cancelActiveBrowserTools,
+  initBrowserAgentTransport,
+  sendBrowserPanelAction,
+} from '@/lib/browser-agent/transport'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
@@ -82,6 +86,7 @@ import { executeTerminalToolOnClient } from '@/lib/copilot/tools/client/terminal
 import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
 import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
+import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
 import {
@@ -91,9 +96,20 @@ import {
   migrateDesktopChatScopes,
   PENDING_CHAT_KEY_PREFIX,
 } from '@/lib/desktop/chat-scope'
+import { sendMothershipMessage } from '@/lib/mothership/events'
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
+import {
+  captureResourceActivityScope,
+  clearResourceActivityScope,
+  clearTrackedResourceActivity,
+  createResourceActivityTracker,
+  excludeActivityOwnedBy,
+  type ResourceActivityTracker,
+  setTrackedBrowserRun,
+  trackTerminalToolCall,
+} from '@/app/workspace/[workspaceId]/home/hooks/resource-activity'
 import {
   applyTurnTerminal,
   createStreamLoopContext,
@@ -134,6 +150,46 @@ import type {
   ToolCallInfo,
 } from '../types'
 
+export interface SendMessageOptions {
+  /**
+   * Message id of a prior attempt this send retries, set when recovering a send
+   * an unmount cleanup withdrew. Reusing it lets the server deduplicate the two
+   * attempts instead of opening a second chat.
+   */
+  resumeUserMessageId?: string
+}
+
+/**
+ * `true` when the send owns the transcript (rendered, or handed to reconnect),
+ * `false` when the caller should restore the queue entry, and the object form
+ * when an unmount cleanup withdrew it — `userMessageId` is what a retry reuses
+ * so the server deduplicates the two attempts.
+ */
+type StartSendMessageResult = boolean | { userMessageId: string }
+
+interface StartSendMessageOptions {
+  /** Awaited before dispatch. Defaults to the hook's in-flight stop, if any. */
+  pendingStop?: Promise<void> | null
+  /** Runs once the optimistic user/assistant pair is in the transcript. */
+  onOptimisticSendApplied?: () => void
+  /** Seed for a queued send that superseded a stopped stream. */
+  queuedSendHandoff?: QueuedSendHandoffSeed
+  /**
+   * Message id of a prior attempt this send retries. Reusing it is what makes
+   * the retry safe: the server deduplicates against that attempt rather than
+   * opening a second chat and billing a second turn.
+   */
+  resumeUserMessageId?: string
+}
+
+/** A send an unmount cleanup withdrew, as handed to the next chat surface. */
+interface WithdrawnSend {
+  content: string
+  fileAttachments?: FileAttachmentForApi[]
+  contexts?: ChatContext[]
+  userMessageId: string
+}
+
 export interface UseChatReturn {
   messages: ChatMessage[]
   isSending: boolean
@@ -145,7 +201,8 @@ export interface UseChatReturn {
   sendMessage: (
     message: string,
     fileAttachments?: FileAttachmentForApi[],
-    contexts?: ChatContext[]
+    contexts?: ChatContext[],
+    options?: SendMessageOptions
   ) => Promise<void>
   stopGeneration: () => Promise<void>
   resources: MothershipResource[]
@@ -1132,7 +1189,7 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
 }
 
 export interface UseChatOptions {
-  onResourceEvent?: () => void
+  onResourceEvent?: (resourceId: string) => void
   apiPath?: string
   stopPath?: string
   workflowId?: string
@@ -1270,8 +1327,8 @@ export function useChat(
   const inFlightResourceAddsRef = useRef<Map<string, Promise<unknown>>>(new Map())
   const reorderNeededAfterFlushRef = useRef(false)
 
-  // Derive the effective active resource ID — auto-selects the last resource when the stored ID is
-  // absent or no longer in the list, avoiding a separate Effect-based state correction loop.
+  // Derive the effective active resource ID for rendering without writing a
+  // passive fallback back into the user's URL selection.
   const effectiveActiveResourceId = useMemo(() => {
     if (resources.length === 0) return null
     if (activeResourceId && resources.some((r) => r.id === activeResourceId))
@@ -1302,6 +1359,7 @@ export function useChat(
     setResources,
     setActiveResourceId,
     activeResourceIdRef,
+    onResourceEventRef,
   })
 
   const upsertChatHistory = useCallback(
@@ -1414,6 +1472,7 @@ export function useChat(
   const activeStreamReturnRecoveryRef = useRef<ActiveStreamRecovery | null>(null)
   const sendingRef = useRef(false)
   const streamGenRef = useRef(0)
+  const resourceActivityTrackerRef = useRef<ResourceActivityTracker | null>(null)
   const streamingContentRef = useRef('')
   const streamingBlocksRef = useRef<ContentBlock[]>([])
   const handledClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
@@ -1603,11 +1662,29 @@ export function useChat(
           : pendingChatKeyRef.current
       chatIdRef.current = chatId
       const resolvedDesktopScopeId = desktopChatScopeId(workspaceId, chatId)
+      const activeActivityTracker = resourceActivityTrackerRef.current
+      if (activeActivityTracker?.generation === streamGenRef.current) {
+        if (wasPending) {
+          // Do not switch writes to the durable bucket until its async native
+          // + renderer migration has completed; pre-populating it makes the
+          // scoped-store migration treat the destination as conflicting.
+          activeActivityTracker.scopeIds.add(resolvedDesktopScopeId)
+        } else {
+          captureResourceActivityScope(activeActivityTracker, resolvedDesktopScopeId)
+        }
+      }
       const migrateDesktopResources = wasPending
         ? migrateDesktopChatScopes(pendingDesktopScopeId, resolvedDesktopScopeId)
         : Promise.resolve()
       void migrateDesktopResources
         .then(() => {
+          if (
+            wasPending &&
+            activeActivityTracker?.generation === streamGenRef.current &&
+            resourceActivityTrackerRef.current === activeActivityTracker
+          ) {
+            captureResourceActivityScope(activeActivityTracker, resolvedDesktopScopeId)
+          }
           // Migration crosses IPC. The user can select another chat while it
           // is in flight, so re-read the live selection before activating;
           // the value captured above is only valid for the synchronous state
@@ -1670,8 +1747,6 @@ export function useChat(
       if (exists) return prev
       return [...prev, resource]
     })
-    setActiveResourceId(resource.id)
-
     // Synthetic result/preview panels are in-memory only. The browser tab
     // metadata is persisted even though its live page remains desktop-owned.
     if (isEphemeralResource(resource)) {
@@ -1799,15 +1874,12 @@ export function useChat(
       }
 
       const meta = getWorkflowById(workspaceId, targetWorkflowId)
-      const wasAdded = addResource({
+      addResource({
         type: 'workflow',
         id: targetWorkflowId,
         title: meta?.name ?? 'Workflow',
       })
-      if (!wasAdded && activeResourceIdRef.current !== targetWorkflowId) {
-        setActiveResourceId(targetWorkflowId)
-      }
-      onResourceEventRef.current?.()
+      onResourceEventRef.current?.(targetWorkflowId)
 
       return targetWorkflowId
     },
@@ -1852,66 +1924,120 @@ export function useChat(
   )
 
   const openBrowserResource = useCallback(() => {
-    const wasAdded = addResource({
+    addResource({
       type: 'browser',
       id: BROWSER_SESSION_RESOURCE_ID,
       title: 'Browser',
     })
-    if (!wasAdded && activeResourceIdRef.current !== BROWSER_SESSION_RESOURCE_ID) {
-      setActiveResourceId(BROWSER_SESSION_RESOURCE_ID)
-    }
-    // Browser actions should always surface the panel, including when its
-    // persisted tab already exists but the viewer is collapsed.
-    onResourceEventRef.current?.()
-  }, [addResource, setActiveResourceId])
+    onResourceEventRef.current?.(BROWSER_SESSION_RESOURCE_ID)
+  }, [addResource])
+
+  const getResourceActivityTracker = useCallback(
+    (generation: number, targetChatId?: string) => {
+      let tracker = resourceActivityTrackerRef.current
+      if (!tracker || tracker.generation !== generation) {
+        const isCurrentGeneration = generation === streamGenRef.current
+        tracker = createResourceActivityTracker(
+          generation,
+          [activeTurnRef.current?.desktopScopeId ?? desktopScopeIdRef.current],
+          {
+            captureExisting: isCurrentGeneration,
+          }
+        )
+        if (isCurrentGeneration) {
+          resourceActivityTrackerRef.current = tracker
+        }
+      }
+      if (targetChatId) {
+        const targetScopeId = desktopChatScopeId(workspaceId, targetChatId)
+        if (
+          tracker.generation === streamGenRef.current &&
+          resourceActivityTrackerRef.current === tracker
+        ) {
+          captureResourceActivityScope(tracker, targetScopeId)
+        } else {
+          tracker.scopeIds.add(targetScopeId)
+          tracker.currentScopeId = targetScopeId
+        }
+      }
+      return tracker
+    },
+    [workspaceId]
+  )
+
+  const clearResourceActivity = useCallback(
+    (tracker: ResourceActivityTracker, captureCurrentScope: boolean) => {
+      const isCurrentBoundary =
+        captureCurrentScope &&
+        tracker.generation === streamGenRef.current &&
+        resourceActivityTrackerRef.current === tracker
+      if (isCurrentBoundary) {
+        captureResourceActivityScope(tracker, desktopScopeIdRef.current)
+        if (chatIdRef.current) {
+          captureResourceActivityScope(tracker, desktopChatScopeId(workspaceId, chatIdRef.current))
+        }
+      }
+      const currentTracker = resourceActivityTrackerRef.current
+      if (!isCurrentBoundary && currentTracker && currentTracker !== tracker) {
+        excludeActivityOwnedBy(tracker, currentTracker)
+      }
+      if (isCurrentBoundary) {
+        // The native tool may outlive an SSE reader or its AbortController.
+        // Fire cancellation without delaying the stream boundary below.
+        void cancelActiveBrowserTools(new Set(tracker.scopeIds))
+      }
+      clearTrackedResourceActivity(tracker, { hardResetActivity: isCurrentBoundary })
+      if (resourceActivityTrackerRef.current === tracker) {
+        resourceActivityTrackerRef.current = null
+      }
+    },
+    [workspaceId]
+  )
 
   const startClientBrowserTool = useCallback(
-    (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>, eventTs?: string) => {
+    (
+      toolCallId: string,
+      toolName: string,
+      toolArgs: Record<string, unknown>,
+      scopeId: string,
+      eventTs?: string,
+      signal?: AbortSignal
+    ) => {
       if (!isBrowserToolName(toolName)) {
         return
       }
       openBrowserResource()
       // Replay/exactly-once guarding lives in executeBrowserToolOnClient
       // (sessionStorage-backed, so reloads cannot re-run an action).
-      executeBrowserToolOnClient(
-        toolCallId,
-        toolName,
-        toolArgs,
-        chatIdRef.current ?? selectedChatIdRef.current ?? desktopScopeIdRef.current,
-        eventTs
-      )
+      executeBrowserToolOnClient(toolCallId, toolName, toolArgs, scopeId, eventTs, signal)
     },
     [openBrowserResource]
   )
 
   const openTerminalResource = useCallback(() => {
-    const wasAdded = addResource({
+    addResource({
       type: 'terminal',
       id: TERMINAL_SESSION_RESOURCE_ID,
       title: 'Terminal',
     })
-    if (!wasAdded && activeResourceIdRef.current !== TERMINAL_SESSION_RESOURCE_ID) {
-      setActiveResourceId(TERMINAL_SESSION_RESOURCE_ID)
-    }
-    // The panel must be visible before a command runs: it is where the user
-    // sees what is about to execute and approves or declines it.
-    onResourceEventRef.current?.()
-  }, [addResource, setActiveResourceId])
+    onResourceEventRef.current?.(TERMINAL_SESSION_RESOURCE_ID)
+  }, [addResource])
 
   const startClientTerminalTool = useCallback(
-    (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>, eventTs?: string) => {
+    (
+      toolCallId: string,
+      toolName: string,
+      toolArgs: Record<string, unknown>,
+      scopeId: string,
+      eventTs?: string
+    ) => {
       if (!isTerminalToolName(toolName)) {
         return
       }
       openTerminalResource()
       // Replay/exactly-once guarding lives in executeTerminalToolOnClient
       // (sessionStorage-backed, so reloads cannot re-run a command).
-      executeTerminalToolOnClient(
-        toolCallId,
-        toolArgs,
-        chatIdRef.current ?? selectedChatIdRef.current ?? desktopScopeIdRef.current,
-        eventTs
-      )
+      executeTerminalToolOnClient(toolCallId, toolArgs, scopeId, eventTs)
     },
     [openTerminalResource]
   )
@@ -2147,6 +2273,15 @@ export function useChat(
       activeStreamId !== locallyTerminalStreamIdRef.current &&
       !isTerminalStreamStatus(chatHistory.streamSnapshot?.status)
 
+    if (
+      !sendingRef.current &&
+      (!activeStreamId || isTerminalStreamStatus(chatHistory.streamSnapshot?.status))
+    ) {
+      const hydratedScopeId = desktopChatScopeId(workspaceId, chatHistory.id)
+      clearResourceActivityScope(hydratedScopeId)
+      void cancelActiveBrowserTools([hydratedScopeId])
+    }
+
     if (!activeStreamId && locallyTerminalStreamIdRef.current) {
       locallyTerminalStreamIdRef.current = undefined
     }
@@ -2327,6 +2462,41 @@ export function useChat(
         shouldContinue?: () => boolean
       }
     ) => {
+      const streamAbortSignal = abortControllerRef.current?.signal
+      const activityTracker = getResourceActivityTracker(
+        expectedGen ?? streamGenRef.current,
+        options?.targetChatId
+      )
+      const activityScopeId = () => activityTracker.currentScopeId
+      const startBrowserAgentRunForStream = (runId: string) => {
+        openBrowserResource()
+        const scopeId = activityScopeId()
+        setTrackedBrowserRun(activityTracker, scopeId, runId, true)
+      }
+      const endBrowserAgentRunForStream = (runId: string) => {
+        const scopeId = activityScopeId()
+        setTrackedBrowserRun(activityTracker, scopeId, runId, false)
+      }
+      const startClientBrowserToolForStream = (
+        toolCallId: string,
+        toolName: string,
+        toolArgs: Record<string, unknown>,
+        eventTs?: string
+      ) => {
+        const scopeId = activityScopeId()
+        startClientBrowserTool(toolCallId, toolName, toolArgs, scopeId, eventTs, streamAbortSignal)
+      }
+      const startClientTerminalToolForStream = (
+        toolCallId: string,
+        toolName: string,
+        toolArgs: Record<string, unknown>,
+        eventTs?: string
+      ) => {
+        const scopeId = activityScopeId()
+        trackTerminalToolCall(activityTracker, scopeId, toolCallId)
+        startClientTerminalTool(toolCallId, toolName, toolArgs, scopeId, eventTs)
+      }
+      const clearStreamResourceActivity = () => clearResourceActivity(activityTracker, true)
       const ctx = createStreamLoopContext({
         workspaceId,
         queryClient,
@@ -2343,8 +2513,11 @@ export function useChat(
         removeResource,
         startClientWorkflowTool,
         startClientLocalFilesystemTool,
-        startClientBrowserTool,
-        startClientTerminalTool,
+        startClientBrowserTool: startClientBrowserToolForStream,
+        startClientTerminalTool: startClientTerminalToolForStream,
+        startBrowserAgentRun: startBrowserAgentRunForStream,
+        endBrowserAgentRun: endBrowserAgentRunForStream,
+        clearBrowserAgentRuns: clearStreamResourceActivity,
         upsertMothershipChatHistory: upsertChatHistory,
         ensureWorkflowInRegistry,
         onPreviewPhase,
@@ -2425,6 +2598,13 @@ export function useChat(
           },
         })
       } finally {
+        // A transport read failure may reconnect this same generation. Keep
+        // its exact resource activity alive until a terminal stream event or
+        // finalize/Stop establishes the real boundary.
+        if (state.sawStreamError) {
+          clearStreamResourceActivity()
+          state.browserAgentRunIds.clear()
+        }
         if (state.sawStreamError && !state.sawCompleteEvent) {
           applyTurnTerminal(state.model, 'error')
           ops.flush()
@@ -2460,6 +2640,9 @@ export function useChat(
       startClientLocalFilesystemTool,
       startClientBrowserTool,
       startClientTerminalTool,
+      getResourceActivityTracker,
+      clearResourceActivity,
+      openBrowserResource,
       adoptResolvedChatId,
       upsertChatHistory,
       onPreviewPhase,
@@ -3345,7 +3528,8 @@ export function useChat(
     (
       message: string,
       fileAttachments?: FileAttachmentForApi[],
-      contexts?: ChatContext[]
+      contexts?: ChatContext[],
+      resumeUserMessageId?: string
     ): QueuedMothershipMessage => {
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
@@ -3365,6 +3549,7 @@ export function useChat(
         content: message,
         fileAttachments,
         contexts,
+        ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
         ...(supersededStreamId || handoffChatId
           ? {
               queuedSendHandoff: {
@@ -3423,6 +3608,10 @@ export function useChat(
         })
       }
       reconcileTerminalPreviewSessions()
+      const completedActivityTracker = resourceActivityTrackerRef.current
+      if (completedActivityTracker?.generation === streamGenRef.current) {
+        clearResourceActivity(completedActivityTracker, true)
+      }
       locallyTerminalStreamIdRef.current =
         streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? undefined
       clearActiveTurn()
@@ -3435,6 +3624,7 @@ export function useChat(
       notifyTurnEnded({ error: isError })
     },
     [
+      clearResourceActivity,
       clearActiveTurn,
       invalidateChatQueries,
       notifyTurnEnded,
@@ -3451,12 +3641,11 @@ export function useChat(
       message: string,
       fileAttachments?: FileAttachmentForApi[],
       contexts?: ChatContext[],
-      pendingStopOverride?: Promise<void> | null,
-      onOptimisticSendApplied?: () => void,
-      queuedSendHandoff?: QueuedSendHandoffSeed
-    ) => {
+      options?: StartSendMessageOptions
+    ): Promise<StartSendMessageResult> => {
       if (!message.trim() || !workspaceId) return false
-      const pendingStop = pendingStopOverride ?? pendingStopPromiseRef.current
+      const { onOptimisticSendApplied, queuedSendHandoff } = options ?? {}
+      const pendingStop = options?.pendingStop ?? pendingStopPromiseRef.current
       const pendingStopStreamId = pendingStop
         ? queuedSendHandoff?.supersededStreamId ||
           locallyTerminalStreamIdRef.current ||
@@ -3465,11 +3654,16 @@ export function useChat(
         : undefined
 
       let consumedByTranscript = false
+      let sendReachedServer = false
+      let sendAbortSignal: AbortSignal | null = null
 
       setError(null)
       setTransportStreaming()
 
-      const userMessageId = queuedSendHandoff?.userMessageId ?? generateId()
+      /* A retry of a withdrawn send reuses its id so the server deduplicates
+         the two attempts; anything else mints a fresh one. */
+      const userMessageId =
+        queuedSendHandoff?.userMessageId ?? options?.resumeUserMessageId ?? generateId()
       const assistantId = getLiveAssistantMessageId(userMessageId)
 
       const storedAttachments: PersistedFileAttachment[] | undefined =
@@ -3697,6 +3891,7 @@ export function useChat(
         }
         const abortController = new AbortController()
         abortControllerRef.current = abortController
+        sendAbortSignal = abortController.signal
 
         const resourceAttachments = buildResourceAttachments(
           resourcesRef.current,
@@ -3725,6 +3920,7 @@ export function useChat(
           }),
           signal: abortController.signal,
         })
+        sendReachedServer = true
 
         // Capture for propagation on side-channel calls + non-React
         // tool-completion callbacks (via trace-context singleton).
@@ -3761,6 +3957,19 @@ export function useChat(
               }
               setError('Previous response is still shutting down; queued message was restored.')
               return false
+            }
+            /* A send deduplicated against an earlier attempt comes back naming
+               the chat that attempt opened. Adopting it here spares a chatless
+               surface the stream-to-chat lookup and puts the user in the right
+               chat before the reconnect below replays it. */
+            const conflictChatId =
+              typeof errorData.chatId === 'string' ? errorData.chatId : undefined
+            if (conflictChatId && !streamTargetChatId) {
+              adoptResolvedChatId(conflictChatId, {
+                replaceHomeHistory: true,
+                invalidateList: true,
+              })
+              streamTargetChatId = conflictChatId
             }
             streamIdRef.current = conflictStreamId
             const succeeded = await retryReconnect({
@@ -3823,7 +4032,28 @@ export function useChat(
           }
         }
       } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return consumedByTranscript
+        /* fetch rejects with the RAW abort reason (here a plain string) when
+           its signal was aborted with abort(reason) — an `err.name` check alone
+           misses those, so abort detection also consults the signal itself. */
+        const sendWasAborted =
+          (err instanceof Error && err.name === 'AbortError') || sendAbortSignal?.aborted === true
+        if (sendWasAborted) {
+          if (sendAbortSignal?.reason === 'unmount:client_cleanup' && !sendReachedServer) {
+            /* A remount ran the unmount cleanup before this send's response
+               arrived — a chat-route `key` change, or StrictMode's dev
+               double-mount. Nothing was rendered from it, so withdraw the
+               optimistic pair and report the message id, which a retry reuses.
+
+               The request itself may well have been accepted: the route never
+               reads `request.signal`, so it runs to completion regardless of
+               the abort. Reusing the id is what makes the retry safe — the
+               server deduplicates it against that turn instead of billing
+               another one. */
+            rollbackOptimisticSend()
+            return { userMessageId }
+          }
+          return consumedByTranscript
+        }
         if (isStreamSchemaValidationError(err)) {
           setError(err.message)
           if (gen !== undefined && streamGenRef.current === gen) {
@@ -3873,8 +4103,39 @@ export function useChat(
       setTransportStreaming,
     ]
   )
+  /**
+   * Hands a send the unmount cleanup withdrew to whatever chat surface comes
+   * next: the live replacement's listener when one is mounted, else a one-shot
+   * stored handoff for the next mount. Both lanes carry `userMessageId`, so
+   * whoever picks it up retries as the same send rather than a new one.
+   */
+  const handOffWithdrawnSend = useCallback(
+    (send: WithdrawnSend) => {
+      if (
+        sendMothershipMessage(send.content, send.contexts, send.fileAttachments, send.userMessageId)
+      ) {
+        return
+      }
+      MothershipHandoffStorage.store(
+        {
+          message: send.content,
+          ...(send.contexts?.length ? { contexts: send.contexts } : {}),
+          ...(send.fileAttachments?.length ? { fileAttachments: send.fileAttachments } : {}),
+          resumeUserMessageId: send.userMessageId,
+        },
+        workspaceId
+      )
+    },
+    [workspaceId]
+  )
+
   const sendMessage = useCallback(
-    async (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
+    async (
+      message: string,
+      fileAttachments?: FileAttachmentForApi[],
+      contexts?: ChatContext[],
+      options?: SendMessageOptions
+    ) => {
       if (!message.trim() || !workspaceId) return
 
       const queueStore = useMothershipQueueStore.getState()
@@ -3901,20 +4162,45 @@ export function useChat(
         queueStore.setEditing(activeChatKey, null)
       }
 
-      if (sendingRef.current) {
-        queueStore.enqueue(activeChatKey, createQueuedMessage(message, fileAttachments, contexts))
+      // An in-flight send drains the queue from `finalize`; a pending stop kicks
+      // the dispatcher itself, since nothing else will once the stop settles.
+      if (sendingRef.current || pendingStopPromiseRef.current) {
+        queueStore.enqueue(
+          activeChatKey,
+          createQueuedMessage(message, fileAttachments, contexts, options?.resumeUserMessageId)
+        )
+        if (pendingStopPromiseRef.current) {
+          void enqueueQueueDispatchRef.current({ type: 'send_head' })
+        }
         return
       }
 
-      if (pendingStopPromiseRef.current) {
-        queueStore.enqueue(activeChatKey, createQueuedMessage(message, fileAttachments, contexts))
-        void enqueueQueueDispatchRef.current({ type: 'send_head' })
+      const result = await startSendMessage(message, fileAttachments, contexts, options)
+      if (typeof result !== 'object') return
+
+      /* An unmount cleanup withdrew the send. A chat-bound key is the stable
+         chat id, so re-queueing under the key this was sent to is the durable
+         retry — and keeps the message in that chat rather than following the
+         user into whichever one they opened next. Only a chatless surface,
+         whose key dies with the mount, goes to the cross-surface lanes. */
+      const withdrawn = {
+        content: message,
+        fileAttachments,
+        contexts,
+        userMessageId: result.userMessageId,
+      }
+      if (activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+        handOffWithdrawnSend(withdrawn)
         return
       }
-
-      await startSendMessage(message, fileAttachments, contexts)
+      useMothershipQueueStore
+        .getState()
+        .enqueue(
+          activeChatKey,
+          createQueuedMessage(message, fileAttachments, contexts, result.userMessageId)
+        )
     },
-    [workspaceId, startSendMessage, createQueuedMessage]
+    [workspaceId, createQueuedMessage, startSendMessage, handOffWithdrawnSend]
   )
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -4083,19 +4369,15 @@ export function useChat(
 
     const claimOwnerId = writeQueuedSendHandoffClaim(handoff.id)
     recoveringQueuedSendHandoffRef.current = { id: handoff.id, ownerId: claimOwnerId }
-    void startSendMessage(
-      handoff.message,
-      handoff.fileAttachments,
-      handoff.contexts,
-      null,
-      undefined,
-      {
+    void startSendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
+      pendingStop: null,
+      queuedSendHandoff: {
         id: handoff.id,
         chatId: handoff.chatId,
         supersededStreamId: handoff.supersededStreamId,
         userMessageId: handoff.userMessageId,
-      }
-    ).finally(() => {
+      },
+    }).finally(() => {
       if (
         recoveringQueuedSendHandoffRef.current?.id === handoff.id &&
         recoveringQueuedSendHandoffRef.current.ownerId === claimOwnerId
@@ -4213,6 +4495,22 @@ export function useChat(
       const stopTraceparentSnapshot = streamTraceparentRef.current ?? initialStopTraceparentSnapshot
 
       locallyTerminalStreamIdRef.current = sid
+      const stopActivityTracker =
+        resourceActivityTrackerRef.current?.generation === streamGenRef.current
+          ? resourceActivityTrackerRef.current
+          : getResourceActivityTracker(streamGenRef.current, activeChatId)
+      captureResourceActivityScope(stopActivityTracker, desktopScopeIdRef.current)
+      if (chatIdRef.current) {
+        captureResourceActivityScope(
+          stopActivityTracker,
+          desktopChatScopeId(workspaceId, chatIdRef.current)
+        )
+      }
+      clearResourceActivity(stopActivityTracker, true)
+
+      // Establish the stream boundary immediately after synchronous activity
+      // settlement. Native cancellation above is deliberately fire-and-forget,
+      // so a slow shell cannot delay the server-side abort below.
       streamGenRef.current++
       clearActiveTurn()
       streamReaderRef.current?.cancel().catch(() => {})
@@ -4408,6 +4706,7 @@ export function useChat(
     },
     [
       cancelActiveWorkflowExecutions,
+      cancelActiveBrowserTools,
       invalidateChatQueries,
       notifyTurnEnded,
       persistPartialResponse,
@@ -4416,7 +4715,9 @@ export function useChat(
       resetEphemeralPreviewState,
       upsertChatHistory,
       adoptResolvedChatId,
+      clearResourceActivity,
       clearActiveTurn,
+      getResourceActivityTracker,
       setTransportIdle,
       workspaceId,
     ]
@@ -4456,12 +4757,23 @@ export function useChat(
         useMothershipQueueStore.getState().remove(dispatchChatKey, msg.id)
       }
 
-      const restoreQueuedMessage = (handoff?: QueuedSendHandoffSeed) => {
+      /* What actually went out. `msg` is the snapshot from when the dispatch was
+         scheduled; the send below uses the re-read live entry, so recovery
+         tracks that rather than assuming the two still match. */
+      let dispatched = msg
+      const restoreQueuedMessage = (
+        handoff?: QueuedSendHandoffSeed,
+        withdrawnUserMessageId?: string
+      ) => {
+        const withdrawnByCleanup = withdrawnUserMessageId !== undefined
         if (!handoff) {
           clearQueuedSendHandoffState(msg.id)
         }
         clearQueuedSendHandoffClaim(msg.id)
-        if (!removedFromQueue || options.epoch !== queueDispatchEpochRef.current) {
+        if (!removedFromQueue) {
+          return
+        }
+        if (options.epoch !== queueDispatchEpochRef.current && !withdrawnByCleanup) {
           return
         }
         // If the user explicitly removed this message during dispatch, honor
@@ -4469,7 +4781,23 @@ export function useChat(
         if (userRemovedDuringDispatchRef.current.delete(msg.id)) {
           return
         }
-        useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, msg)
+        /* A chatless surface regenerates its queue key every mount, so a
+           restore would strand this under the dead instance's key — hand it to
+           the next surface instead. A chat-bound key is the stable chat id, so
+           the queue itself is the durable retry. */
+        if (withdrawnByCleanup && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+          handOffWithdrawnSend({
+            content: dispatched.content,
+            fileAttachments: dispatched.fileAttachments,
+            contexts: dispatched.contexts,
+            userMessageId: withdrawnUserMessageId,
+          })
+          return
+        }
+        useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, {
+          ...dispatched,
+          ...(withdrawnUserMessageId ? { resumeUserMessageId: withdrawnUserMessageId } : {}),
+        })
       }
 
       let activeQueuedSendHandoff: QueuedSendHandoffSeed | undefined =
@@ -4486,18 +4814,28 @@ export function useChat(
         // Re-read live: the user may have applied an in-place edit (`replaceAt`)
         // between dispatch scheduling and this send.
         const liveMsg = queueAtSend[currentIndex]
+        dispatched = liveMsg
         activeQueuedSendHandoff = options.queuedSendHandoff ?? liveMsg.queuedSendHandoff
-        const consumed = await startSendMessage(
+
+        const sendResult = await startSendMessage(
           liveMsg.content,
           liveMsg.fileAttachments,
           liveMsg.contexts,
-          options.pendingStop,
-          removeQueuedMessage,
-          activeQueuedSendHandoff
+          {
+            pendingStop: options.pendingStop,
+            onOptimisticSendApplied: removeQueuedMessage,
+            queuedSendHandoff: activeQueuedSendHandoff,
+            ...(liveMsg.resumeUserMessageId
+              ? { resumeUserMessageId: liveMsg.resumeUserMessageId }
+              : {}),
+          }
         )
 
-        if (!consumed) {
-          restoreQueuedMessage(activeQueuedSendHandoff)
+        if (sendResult !== true) {
+          restoreQueuedMessage(
+            activeQueuedSendHandoff,
+            typeof sendResult === 'object' ? sendResult.userMessageId : undefined
+          )
         }
       } catch {
         restoreQueuedMessage(activeQueuedSendHandoff)
@@ -4507,7 +4845,7 @@ export function useChat(
         userRemovedDuringDispatchRef.current.delete(msg.id)
       }
     },
-    [startSendMessage]
+    [startSendMessage, handOffWithdrawnSend]
   )
 
   const runQueueDispatchLoop = useCallback(async () => {

@@ -41,6 +41,41 @@ export type ResolvedSecretIncompletenessReason =
   | 'value-provenance-filter-incomplete'
   | 'durable-provenance-unknown'
   | 'durable-provenance-malformed'
+  | 'tool-input-not-enumerable'
+  | 'tool-params-transform-failed'
+  | 'mcp-tool-execution-timeout'
+  | 'structural-input-projection-incomplete'
+  | 'structural-input-root-unprojected'
+  | 'mothership-provenance-invalid'
+  | 'mothership-response-unreadable'
+  | 'mothership-provenance-missing'
+  | 'client-tool-seal-absent'
+  | 'client-tool-seal-failed'
+  | 'client-tool-completion-missing'
+  | 'client-tool-completion-deferred'
+  | 'client-tool-completion-unidentified'
+  | 'client-tool-execution-untrusted'
+  | 'client-tool-content-unavailable'
+  | 'knowledge-result-provenance-unavailable'
+  | 'knowledge-response-capacity-exceeded'
+  | 'knowledge-row-missing'
+  | 'knowledge-row-content-mismatch'
+  | 'memory-crossing-capacity-exceeded'
+  | 'table-result-provenance-unavailable'
+  | 'mounted-file-provenance-unavailable'
+  | 'workspace-file-provenance-unknown'
+  | 'file-source-unidentified'
+  | 'table-snapshot-unsafe-for-mount'
+  | 'restored-provenance-untrusted'
+  | 'backfill-checkpoint-absent'
+  | 'backfill-checkpoint-unusable'
+  | 'log-creation-skipped'
+  /**
+   * No production caller uses this, and none should: a refusal reporting it names no guard, which
+   * is the state that made a production latch untraceable. It survives for tests that need a
+   * latched registry and have no guard to name, where a borrowed real reason would read as a claim
+   * about which one tripped. A new caller wanting it wants a new literal instead.
+   */
   | 'unspecified'
 
 /**
@@ -68,6 +103,16 @@ const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
   'value-provenance-untrusted',
   'value-provenance-import-failed',
   'durable-provenance-malformed',
+  'tool-input-not-enumerable',
+  'tool-params-transform-failed',
+  'structural-input-projection-incomplete',
+  'mothership-provenance-invalid',
+  'client-tool-seal-failed',
+  'knowledge-row-missing',
+  'knowledge-row-content-mismatch',
+  'mothership-response-unreadable',
+  'structural-input-root-unprojected',
+  'backfill-checkpoint-unusable',
 ])
 
 /**
@@ -77,7 +122,26 @@ const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
  */
 const BY_DESIGN_INCOMPLETENESS_REASONS = new Set<ResolvedSecretIncompletenessReason>([
   'constructed-incomplete',
+  /** A session that will not persist a log has nothing to vouch for; it fires on every such run. */
+  'log-creation-skipped',
 ])
+
+/**
+ * Sole owner of the report level, shared by every latch that reports one.
+ *
+ * The registry, its input paths, and the accumulator each latch for their own reasons but classify
+ * them identically, and a copy of the split per latch is a copy that can be updated alone — which
+ * would let the same reason be a fault in one place and routine in another.
+ */
+function reportIncompleteness(
+  message: string,
+  reason: ResolvedSecretIncompletenessReason,
+  details: Record<string, unknown>
+): void {
+  if (BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
+  if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, { reason, ...details })
+  else logger.warn(message, { reason, ...details })
+}
 
 /**
  * Origins are caller-supplied strings rather than a closed union, so they carry an explicit bound;
@@ -142,6 +206,15 @@ export type ResolvedSecretModelEgressSnapshot =
   | { complete: true; matches: readonly ResolvedSecretTraceMatch[] }
   | { complete: false }
 
+export type ResolvedSecretModelReferenceResolution<T> =
+  | {
+      complete: true
+      matched: boolean
+      value: T
+      registry: ResolvedSecretTraceRegistry
+    }
+  | { complete: false }
+
 export interface ResolvedSecretTraceProvenanceEntryV1 {
   encryptedValue: string
   name?: string
@@ -188,6 +261,16 @@ type PreparedProvenanceFilterResult =
 /** Extra attribution for a latch: which registry it propagated from, and which importer caused it. */
 interface MarkIncompleteContext {
   source?: ResolvedSecretTraceRegistry
+  /**
+   * Which importer accepted an already-incomplete bundle — only meaningful where several callers
+   * share one guard, as {@link ImportResolvedSecretTraceProvenanceOptions.origin} describes.
+   *
+   * It is not a second way to say what `reason` says. A latch that reaches for an origin because no
+   * reason fits is the signal to add a reason literal instead: `reason` is a closed set that can be
+   * alerted on and aggregated, and splitting the same fact across two fields leaves neither
+   * trustworthy. Passing `'unspecified'` alongside an origin is the shape that produced a
+   * production latch naming no guard at all.
+   */
   origin?: string
 }
 
@@ -562,6 +645,7 @@ export function isResolvedSecretTraceProvenanceV1(
 export class ResolvedSecretTraceProvenanceAccumulator {
   private readonly scope?: ResolvedSecretTraceScopeV1
   private provenance: ResolvedSecretTraceProvenanceV1
+  private reportedGuard = false
 
   constructor(scope?: ResolvedSecretTraceScopeV1) {
     this.scope = scope ? cloneProvenanceScope(scope) : undefined
@@ -615,9 +699,26 @@ export class ResolvedSecretTraceProvenanceAccumulator {
     return true
   }
 
-  /** Marks the invocation incomplete and discards entries that can no longer be trusted. */
-  markIncomplete(): void {
+  /**
+   * Marks the invocation incomplete and discards entries that can no longer be trusted.
+   *
+   * `reason` is required for the same purpose it is on {@link ResolvedSecretTraceRegistry}, and
+   * matters more here: the wire format carries only `complete`, so the consumer that imports this
+   * bundle can only latch with `source-provenance-incomplete` and can never name the guard. This
+   * line is the sole record of which one tripped.
+   *
+   * Only the first guard reports. Later ones restate an invocation that already cannot vouch, and
+   * a caller walking a list of sources would otherwise emit a line per remaining source. A latch
+   * from {@link record} does not report at all: it reflects a bundle whose own registry already
+   * reported, so this would only restate it with less context.
+   */
+  markIncomplete(reason: ResolvedSecretIncompletenessReason): void {
     this.provenance = this.emptyProvenance(false)
+    if (this.reportedGuard) return
+    this.reportedGuard = true
+    reportIncompleteness('Resolved secret provenance accumulator marked incomplete', reason, {
+      scopeWorkspaceId: this.scope?.workspaceId,
+    })
   }
 
   exportProvenance(): ResolvedSecretTraceProvenanceV1 {
@@ -748,6 +849,92 @@ export class ResolvedSecretTraceRegistry {
     if (this.isPermanentlyIncomplete())
       fork.markIncomplete('inherited-incomplete-source', { source: this })
     return fork
+  }
+
+  /**
+   * Rebinds environment placeholders that were actually projected into a model request.
+   *
+   * The model receives `{{NAME}}`, never the plaintext. A later tool argument may carry that
+   * placeholder back verbatim. Only named entries attached to a resolver-recorded projected input
+   * are eligible here, so inventing another workspace variable name does not grant access to it.
+   * The returned registry contains only references used by this tool call.
+   */
+  resolveModelExposedEnvReferences<T>(value: T): ResolvedSecretModelReferenceResolution<T> {
+    if (!this.complete) return { complete: false }
+
+    const projectedValueContains = (candidate: unknown, placeholder: string): boolean => {
+      const pending = [candidate]
+      const visited = new WeakSet<object>()
+      while (pending.length > 0) {
+        const current = pending.pop()
+        if (typeof current === 'string' && current.includes(placeholder)) return true
+        if (current === null || typeof current !== 'object' || visited.has(current)) continue
+        visited.add(current)
+        pending.push(...Object.values(current))
+      }
+      return false
+    }
+
+    const exposedEntriesByName = new Map<string, ActiveSecretEntry>()
+    for (const state of this.resolvedInputPaths.values()) {
+      if (state.projectedValue === undefined) continue
+      for (const entryKey of state.entryKeys) {
+        const entry = this.activeEntries.get(entryKey)
+        if (
+          !entry ||
+          entry.anonymous ||
+          entry.name.length === 0 ||
+          !projectedValueContains(state.projectedValue, `{{${entry.name}}}`)
+        ) {
+          continue
+        }
+        const existing = exposedEntriesByName.get(entry.name)
+        if (existing && existing.plaintext !== entry.plaintext) return { complete: false }
+        exposedEntriesByName.set(entry.name, entry)
+      }
+    }
+
+    const registry = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    let matched = false
+    const resolve = (candidate: unknown, path: string[]): unknown => {
+      if (typeof candidate === 'string') {
+        const usedEntries = new Map<string, ActiveSecretEntry>()
+        const resolved = candidate.replace(/\{\{([^{}]+)\}\}/g, (placeholder, rawName) => {
+          const name = String(rawName).trim()
+          const entry = exposedEntriesByName.get(name)
+          if (!entry) return placeholder
+          usedEntries.set(activeEntryKey(entry), entry)
+          return entry.plaintext
+        })
+        if (usedEntries.size === 0) return candidate
+
+        matched = true
+        for (const entry of usedEntries.values()) {
+          registry.addActiveEntry({ ...entry }, { propagated: true })
+        }
+        registry.bindResolvedInputPathEntries(path, usedEntries.values())
+        registry.recordResolvedInputProjection(path, resolved, candidate)
+        return resolved
+      }
+      if (Array.isArray(candidate)) {
+        return candidate.map((item, index) => resolve(item, [...path, String(index)]))
+      }
+      if (candidate === null || typeof candidate !== 'object') return candidate
+
+      const resolved: Record<string, unknown> = {}
+      for (const [key, child] of Object.entries(candidate)) {
+        resolved[key] = resolve(child, [...path, key])
+      }
+      return resolved
+    }
+
+    const resolvedValue = resolve(value, []) as T
+    return {
+      complete: true,
+      matched,
+      value: resolvedValue,
+      registry,
+    }
   }
 
   /** Merges one settled tool-call registry into the turn-scoped registry. */
@@ -1418,8 +1605,15 @@ export class ResolvedSecretTraceRegistry {
     return !this.complete || this.incompleteInputPaths.size > 0
   }
 
+  /**
+   * `reason` is required. It defaulted to `'unspecified'`, and every caller that took the default
+   * produced a latch naming no guard — which is exactly the state that made a production incident
+   * untraceable for a day. Making omission a compile error is what keeps the reason set honest as
+   * new guards are added; a caller that genuinely has nothing to say passes `'unspecified'` on
+   * purpose, where a reviewer can see it.
+   */
   markIncomplete(
-    reason: ResolvedSecretIncompletenessReason = 'unspecified',
+    reason: ResolvedSecretIncompletenessReason,
     context: MarkIncompleteContext = {}
   ): void {
     if (context.source) this.inheritIncompletenessReasonsFrom(context.source)
@@ -1428,17 +1622,13 @@ export class ResolvedSecretTraceRegistry {
     if (!this.complete) return
     this.complete = false
     this.modelEgressRevision += 1
-    if (this.staged || BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
-    const details = {
-      reason,
+    if (this.staged) return
+    reportIncompleteness('Resolved secret registry marked incomplete', reason, {
       ...(context.origin ? { origin: context.origin } : {}),
       scopeWorkspaceId: this.scope?.workspaceId,
       activeEntryCount: this.activeEntries.size,
       incompleteInputPathCount: this.incompleteInputPaths.size,
-    }
-    const message = 'Resolved secret registry marked incomplete'
-    if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, details)
-    else logger.warn(message, details)
+    })
   }
 
   /**
@@ -1870,7 +2060,7 @@ export class ResolvedSecretTraceRegistry {
 
   private markInputPathIncomplete(
     path: ResolvedSecretInputPath | undefined,
-    reason: ResolvedSecretIncompletenessReason = 'unspecified',
+    reason: ResolvedSecretIncompletenessReason,
     origin?: string
   ): void {
     if (!path || path.length === 0) {
@@ -1883,17 +2073,13 @@ export class ResolvedSecretTraceRegistry {
     if (this.incompleteInputPaths.has(key)) return
     this.incompleteInputPaths.set(key, [...path])
     this.modelEgressRevision += 1
-    if (this.staged || BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
-    const details = {
-      reason,
+    if (this.staged) return
+    reportIncompleteness('Resolved secret input path marked incomplete', reason, {
       ...(origin ? { origin } : {}),
       inputPath: path.join('.'),
       scopeWorkspaceId: this.scope?.workspaceId,
       activeEntryCount: this.activeEntries.size,
-    }
-    const message = 'Resolved secret input path marked incomplete'
-    if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, details)
-    else logger.warn(message, details)
+    })
   }
 
   private copyIncompleteInputPathsTo(

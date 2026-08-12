@@ -146,6 +146,18 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/embeddings',
   bgColor: '#7B4DFF',
   icon: EmbeddingsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Embeddings',
+    sentences: {
+      /* Anchored on `input`: it is the one required field every provider shows.
+         `model` is scoped by a per-provider `condition`, so it carries the
+         clause but cannot be what keeps the sentence on the card. */
+      default: [
+        { text: 'Embed', field: 'input', core: true },
+        { text: 'with', field: 'model' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'input',

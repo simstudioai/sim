@@ -12,8 +12,10 @@ const { mockGetCredentialActorContext, mockGetServiceAccountToken, mockRefreshTo
 
 vi.mock('@/lib/credentials/access', () => ({
   getCredentialActorContext: mockGetCredentialActorContext,
+  canUseCredential: (access: { hasWorkspaceAccess: boolean; member: unknown; isAdmin: boolean }) =>
+    access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin),
 }))
-vi.mock('@/app/api/auth/oauth/utils', () => ({
+vi.mock('@/lib/oauth/credential-service', () => ({
   getServiceAccountToken: mockGetServiceAccountToken,
   refreshTokenIfNeeded: mockRefreshTokenIfNeeded,
 }))

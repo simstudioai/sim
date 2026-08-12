@@ -74,17 +74,19 @@ export const DEFAULT_TABLE_PLAN_LIMITS = {
 
 /**
  * Byte budget at which a **bounded** page (one with an explicit `limit`) is cut
- * short, or `null` when disabled — the default. Opt in with `TABLE_MAX_PAGE_BYTES`.
+ * short. Defaults to the 5MB query-result budget and can be overridden with
+ * `TABLE_MAX_PAGE_BYTES`. Callers must terminate on `nextCursor === null`, not
+ * page fullness, because a byte-limited page may contain fewer rows than requested.
  *
- * Off by default because a short page is only safe for a client that terminates
- * on `nextCursor === null`; a pre-existing v1 pager terminating on
- * `rows.length < limit` would read the cut as end-of-data and silently truncate.
- * Unbounded queries (no `limit`) are unaffected — they always fail fast at
- * `TABLE_LIMITS.MAX_QUERY_RESULT_BYTES` rather than return a partial result.
+ * Unbounded queries (no `limit`) are unaffected by the override — they always
+ * fail fast at `TABLE_LIMITS.MAX_QUERY_RESULT_BYTES` rather than return a partial
+ * result.
  */
-export function getMaxPageBytes(): number | null {
-  const value = envNumber(env.TABLE_MAX_PAGE_BYTES, 0, { min: 0, integer: true })
-  return value > 0 ? value : null
+export function getMaxPageBytes(): number {
+  return envNumber(env.TABLE_MAX_PAGE_BYTES, TABLE_LIMITS.MAX_QUERY_RESULT_BYTES, {
+    min: 1,
+    integer: true,
+  })
 }
 
 /**
@@ -207,7 +209,19 @@ export const FILTER_OPS = [
 
 export const SORT_DIRECTIONS = ['asc', 'desc'] as const
 
-export const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/i
+/**
+ * Identifier rule for table names, column names, and JSONB filter fields:
+ * an ASCII letter or underscore, then letters, digits, or underscores.
+ *
+ * Spelled with an explicit `A-Za-z` class and NO `i` flag on purpose. This
+ * source is published verbatim as a JSON Schema `pattern` in the v2 OpenAPI
+ * documents, and JSON Schema patterns carry no flags — a `/^[a-z_][a-z0-9_]*$/i`
+ * spelling round-trips as the case-SENSITIVE `^[a-z_][a-z0-9_]*$`, so every
+ * generated client would reject names the server accepts (`Sales`,
+ * `subscriptionPlan`). The two spellings match exactly the same strings at
+ * runtime; only the published form differs.
+ */
+export const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 export const USER_TABLE_ROWS_SQL_NAME = 'user_table_rows'
 

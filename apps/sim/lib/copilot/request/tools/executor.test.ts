@@ -119,6 +119,12 @@ describe('toolWatchdogTimeoutMs', () => {
 })
 
 describe('pendingToolWaitBudgetMs', () => {
+  it('does not put a deadline on an executing browser takeover', () => {
+    expect(
+      pendingToolWaitBudgetMs({ name: 'browser_request_takeover', status: 'executing' })
+    ).toBeNull()
+  })
+
   it('waits on a person for as long as the whole turn allows', () => {
     // The 60s default would force-fail a permission prompt while the user was
     // still reading it, resuming Go before they ever answered.
@@ -161,7 +167,7 @@ describe('buildToolExecutionContext', () => {
 
   it('isolates one tool from a sibling secret activation and merges settled provenance', () => {
     const parentRegistry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret', encryptedValue: 'encrypted-secret' },
+      { name: 'TOKEN', plaintext: 'secretvalue', encryptedValue: 'encrypted-secret' },
     ])
     const completeSiblingActivation = parentRegistry.beginPendingActivation()
     const executionContext: ExecutionContext = {
@@ -175,11 +181,11 @@ describe('buildToolExecutionContext', () => {
 
     expect(toolRegistry).not.toBe(parentRegistry)
     expect(toolRegistry?.isComplete()).toBe(true)
-    expect(toolRegistry?.recordResolved('TOKEN', 'secret')).toBe(true)
+    expect(toolRegistry?.recordResolved('TOKEN', 'secretvalue')).toBe(true)
     parentRegistry.mergeToolCallRegistry(toolRegistry!)
     completeSiblingActivation()
     expect(parentRegistry.getActiveMatches()).toEqual([
-      { plaintext: 'secret', replacement: '{{TOKEN}}' },
+      { plaintext: 'secretvalue', replacement: '{{TOKEN}}' },
     ])
   })
 })
@@ -237,7 +243,7 @@ describe('executeToolAndReport provenance isolation', () => {
         _params: Record<string, unknown>,
         toolContext: ExecutionContext
       ) => {
-        toolContext.resolvedSecretTraceRegistry?.markIncomplete()
+        toolContext.resolvedSecretTraceRegistry?.markIncomplete('unspecified')
         return { success: true, output: { value: 'secret-value' } }
       }
     )
@@ -270,7 +276,7 @@ describe('executeToolAndReport provenance isolation', () => {
         _params: Record<string, unknown>,
         toolContext: ExecutionContext
       ) => {
-        toolContext.resolvedSecretTraceRegistry?.markIncomplete()
+        toolContext.resolvedSecretTraceRegistry?.markIncomplete('unspecified')
         throw new Error('secret-value')
       }
     )
@@ -300,7 +306,7 @@ describe('executeToolAndReport provenance isolation', () => {
         _params: Record<string, unknown>,
         toolContext: ExecutionContext
       ) => {
-        toolContext.resolvedSecretTraceRegistry?.markIncomplete()
+        toolContext.resolvedSecretTraceRegistry?.markIncomplete('unspecified')
         abortController.abort()
         return { success: true, output: { value: 'secret-value' } }
       }

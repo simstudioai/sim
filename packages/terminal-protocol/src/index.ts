@@ -19,6 +19,8 @@
  * the source of truth for how those calls travel to the desktop main process.
  */
 
+import { truncate } from '@sim/utils/string'
+
 /** The single tool the model calls; what it does is in `operation`. */
 export const TERMINAL_TOOL_NAME = 'terminal'
 
@@ -292,6 +294,105 @@ export interface TerminalTabState {
   tmuxSession?: string | null
 }
 
+/** Longest program name {@link describeRunningCommand} will return. */
+const MAX_RUNNING_COMMAND_LABEL = 32
+
+/**
+ * Shell words that precede the program rather than being it, so a label reads
+ * `claude` and not `env` or `sudo`.
+ */
+const COMMAND_PREFIX_WORDS = new Set([
+  'command',
+  'doas',
+  'env',
+  'exec',
+  'nice',
+  'nohup',
+  'sudo',
+  'time',
+])
+
+/** `NAME=value`, the other thing that can sit in front of the program. */
+const ENVIRONMENT_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/
+
+/**
+ * The last command in a shell line, ignoring separators inside quotes. A
+ * quote-blind split would cut `claude "a && b"` in half and report `b"` as the
+ * program.
+ */
+function lastCommandSegment(command: string): string {
+  let start = 0
+  let quote: "'" | '"' | null = null
+  for (let index = 0; index < command.length; index++) {
+    const char = command[index]
+    if (quote) {
+      // Only double quotes honor backslash escapes; inside single quotes a
+      // backslash is a literal character and cannot hide the closing quote.
+      if (char === '\\' && quote === '"') index++
+      else if (char === quote) quote = null
+      continue
+    }
+    if (char === "'" || char === '"') {
+      quote = char
+      continue
+    }
+    if (char === '\\') {
+      index++
+      continue
+    }
+    if (char === ';' || char === '&' || char === '|') {
+      if (command[index + 1] === char) index++
+      start = index + 1
+    }
+  }
+  return command.slice(start).trim()
+}
+
+/**
+ * A short name for whatever is holding a terminal's foreground.
+ *
+ * `running` is the literal line the shell was given, and an agent-launched one
+ * runs long: `cd <path> && export PATH=<path> && claude "<the whole prompt>"`
+ * is a single command several hundred characters wide. That is the right thing
+ * to hand an agent and the wrong thing to put in a sentence — a confirmation
+ * built around it stops being a question and becomes a wall of shell. This
+ * keeps the part a person recognizes, the program they are waiting on, and
+ * drops the environment preamble around it.
+ *
+ * Best-effort by construction: the input is a shell line, not a parsed argv,
+ * so a command this cannot read falls back to the line itself, bounded. Use it
+ * for prose about a terminal, never to decide anything.
+ *
+ * @example
+ * describeRunningCommand('cd /repo && export PATH=/bin && claude "fix it"') // 'claude'
+ * describeRunningCommand('sudo /usr/bin/docker compose up')                 // 'docker'
+ */
+export function describeRunningCommand(running: string): string {
+  const line = running.trim()
+  if (!line) return 'a command'
+
+  const segment = lastCommandSegment(line) || line
+  const program = segment
+    .split(/\s+/)
+    .filter(Boolean)
+    .find(
+      (word) =>
+        !ENVIRONMENT_ASSIGNMENT.test(word) &&
+        !COMMAND_PREFIX_WORDS.has(word) &&
+        !word.startsWith('-')
+    )
+
+  const label =
+    (program
+      ? (program
+          .replace(/^['"]|['"]$/g, '')
+          .split('/')
+          .filter(Boolean)
+          .pop() ?? '')
+      : '') || segment
+  return truncate(label, MAX_RUNNING_COMMAND_LABEL, '…')
+}
+
 /** One tmux pane, as reported by the `panes` operation. */
 export interface TerminalPaneState {
   /** tmux target (`session:window.pane`), usable as the `pane` argument. */
@@ -332,6 +433,8 @@ export interface TerminalPanesResult {
 export interface TerminalTabsState {
   tabs: TerminalTabState[]
   activeTerminalId: string | null
+  /** Terminal currently driven by the agent when it differs from the user's visible terminal. */
+  agentActiveTerminalId?: string | null
 }
 
 /** A tab strip crossing the desktop bridge, tagged with its owning chat. */

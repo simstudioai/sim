@@ -11,7 +11,11 @@ import type { BrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import { executeBrowserTool, restoreBrowserScope } from '@/lib/browser-agent/transport'
+import {
+  cancelBrowserTool,
+  executeBrowserTool,
+  restoreBrowserScope,
+} from '@/lib/browser-agent/transport'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { reportClientToolCompletion } from '@/lib/copilot/tools/client/completion'
@@ -166,7 +170,8 @@ export function executeBrowserToolOnClient(
   toolName: BrowserToolName,
   params: Record<string, unknown>,
   scopeId = useBrowserSessionStore.getState().activeScopeId,
-  eventTs?: string
+  eventTs?: string,
+  abortSignal?: AbortSignal
 ): void {
   if (!scopeId) {
     logger.error('Cannot execute browser tool without a chat scope', { toolCallId, toolName })
@@ -182,7 +187,7 @@ export function executeBrowserToolOnClient(
     return
   }
   markExecuted(toolCallId)
-  void doExecuteBrowserTool(toolCallId, toolName, params, scopeId).catch((err) => {
+  void doExecuteBrowserTool(toolCallId, toolName, params, scopeId, abortSignal).catch((err) => {
     logger.error('Unhandled error in client-side browser tool execution', {
       toolCallId,
       toolName,
@@ -200,8 +205,31 @@ async function doExecuteBrowserTool(
   toolCallId: string,
   toolName: BrowserToolName,
   params: Record<string, unknown>,
-  scopeId: string
+  scopeId: string,
+  abortSignal?: AbortSignal
 ): Promise<void> {
+  let cancelled = abortSignal?.aborted === true
+  const cancelNativeTool = async () => {
+    cancelled = true
+    try {
+      await cancelBrowserTool(toolCallId, scopeId, toolName)
+    } catch (error) {
+      logger.warn('Could not cancel native browser tool', {
+        toolCallId,
+        toolName,
+        error: toError(error).message,
+      })
+    }
+  }
+  const onAbort = () => {
+    void cancelNativeTool()
+  }
+  if (cancelled) {
+    void cancelNativeTool()
+  } else {
+    abortSignal?.addEventListener('abort', onAbort, { once: true })
+  }
+
   const needsLivePage = !SESSION_REVIVAL_TOOLS.has(toolName)
   if (needsLivePage && isSessionClosed(scopeId)) {
     try {
@@ -219,6 +247,10 @@ async function doExecuteBrowserTool(
       toolCallId,
       toolName,
     })
+    if (cancelled) {
+      abortSignal?.removeEventListener('abort', onAbort)
+      return
+    }
     await reportClientToolCompletion(
       toolCallId,
       ASYNC_TOOL_CONFIRMATION_STATUS.error,
@@ -230,11 +262,20 @@ async function doExecuteBrowserTool(
         error: toError(reportErr).message,
       })
     })
+    abortSignal?.removeEventListener('abort', onAbort)
+    return
+  }
+  // A restore can outlive the stream that requested it. Do not dispatch the
+  // tool afterward—older shells have no cancellation tombstone to catch a
+  // takeover-done signal that arrived before the takeover itself existed.
+  if (cancelled) {
+    abortSignal?.removeEventListener('abort', onAbort)
     return
   }
   // If the user leaves the page mid-action the awaited result is lost; tell
   // the waiter so the turn fails fast instead of hanging until its timeout.
   const onPageHide = () => {
+    if (cancelled) return
     navigator.sendBeacon(
       COPILOT_CONFIRM_API_PATH,
       new Blob(
@@ -262,8 +303,12 @@ async function doExecuteBrowserTool(
       toolName,
       params,
       timeoutForTool(toolName, params),
-      scopeId
+      scopeId,
+      () => {
+        cancelled = true
+      }
     )
+    if (cancelled) return
     await reportClientToolCompletion(
       toolCallId,
       ASYNC_TOOL_CONFIRMATION_STATUS.success,
@@ -271,6 +316,7 @@ async function doExecuteBrowserTool(
       sanitizeResultForModel(toolName, result)
     )
   } catch (err) {
+    if (cancelled) return
     // The session dying mid-call (e.g. during a takeover) surfaces as a
     // generic timeout; tag it so the model learns the real, terminal cause
     // instead of retrying against a dead session.
@@ -289,6 +335,7 @@ async function doExecuteBrowserTool(
       })
     })
   } finally {
+    abortSignal?.removeEventListener('abort', onAbort)
     if (typeof window !== 'undefined') {
       window.removeEventListener('pagehide', onPageHide)
     }

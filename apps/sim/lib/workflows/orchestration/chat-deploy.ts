@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import type { PrincipalActor } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -7,11 +8,11 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { chatDeploymentPasswordSchema } from '@/lib/api/contracts/chats'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import {
   getWorkflowDeploymentSummary,
   performFullDeploy,
 } from '@/lib/workflows/orchestration/deploy'
-import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatDeployOrchestration')
 
@@ -37,6 +38,12 @@ export interface ChatDeployPayload {
   workspaceId?: string | null
   /** Stable identity for the underlying workflow deployment operation. */
   idempotencyKey?: string
+  actorId?: string
+  actor?: PrincipalActor
+  requestId?: string
+  captureDeploymentAnalytics?: false
+  projectLegacyAudit?: boolean
+  captureLegacyTelemetry?: boolean
 }
 
 export interface PerformChatDeployResult {
@@ -45,6 +52,7 @@ export interface PerformChatDeployResult {
   chatUrl?: string
   deployedAt?: Date | null
   version?: number
+  isUpdate?: boolean
   error?: string
 }
 
@@ -114,9 +122,13 @@ export async function performChatDeploy(
     deployResult = await performFullDeploy({
       workflowId,
       userId,
+      actorId: params.actorId,
+      actor: params.actor,
+      requestId: params.requestId,
       versionDescription: params.versionDescription,
       versionName: params.versionName,
       idempotencyKey: params.idempotencyKey,
+      captureAnalytics: params.captureDeploymentAnalytics,
     })
     if (!deployResult.success) {
       return { success: false, error: deployResult.error || 'Failed to deploy workflow' }
@@ -230,40 +242,42 @@ export async function performChatDeploy(
 
   logger.info(`Chat "${title}" deployed successfully at ${chatUrl}`)
 
-  try {
-    const { PlatformEvents } = await import('@/lib/core/telemetry')
-    PlatformEvents.chatDeployed({
-      chatId,
-      workflowId,
-      authType,
-      hasOutputConfigs: outputConfigs.length > 0,
-    })
-  } catch (_e) {
-    // Telemetry is best-effort
+  if (params.captureLegacyTelemetry !== false) {
+    try {
+      const { PlatformEvents } = await import('@/lib/core/telemetry')
+      PlatformEvents.chatDeployed({
+        chatId,
+        workflowId,
+        authType,
+        hasOutputConfigs: outputConfigs.length > 0,
+      })
+    } catch (_e) {}
   }
 
-  recordAudit({
-    workspaceId: params.workspaceId || null,
-    actorId: userId,
-    action: AuditAction.CHAT_DEPLOYED,
-    resourceType: AuditResourceType.CHAT,
-    resourceId: chatId,
-    resourceName: title,
-    description: `Deployed chat "${title}"`,
-    metadata: {
-      workflowId,
-      identifier,
-      authType,
-      chatUrl,
-      isUpdate: !!existingDeployment,
-      hasOutputConfigs: outputConfigs.length > 0,
-      hasCustomizations: !!(
-        params.customizations?.primaryColor ||
-        params.customizations?.welcomeMessage ||
-        params.customizations?.imageUrl
-      ),
-    },
-  })
+  if (params.projectLegacyAudit !== false) {
+    recordAudit({
+      workspaceId: params.workspaceId || null,
+      actorId: userId,
+      action: AuditAction.CHAT_DEPLOYED,
+      resourceType: AuditResourceType.CHAT,
+      resourceId: chatId,
+      resourceName: title,
+      description: `Deployed chat "${title}"`,
+      metadata: {
+        workflowId,
+        identifier,
+        authType,
+        chatUrl,
+        isUpdate: !!existingDeployment,
+        hasOutputConfigs: outputConfigs.length > 0,
+        hasCustomizations: !!(
+          params.customizations?.primaryColor ||
+          params.customizations?.welcomeMessage ||
+          params.customizations?.imageUrl
+        ),
+      },
+    })
+  }
 
   return {
     success: true,
@@ -271,6 +285,7 @@ export async function performChatDeploy(
     chatUrl,
     deployedAt: deployResult?.deployedAt ?? toDeployedAtDate(deploymentSummary),
     version: deployResult?.version ?? deploymentSummary.activeDeployment?.version,
+    isUpdate: Boolean(existingDeployment),
   }
 }
 
@@ -284,6 +299,7 @@ export interface PerformChatUndeployParams {
   chatId: string
   userId: string
   workspaceId?: string | null
+  projectLegacyAudit?: boolean
 }
 
 export interface PerformChatUndeployResult {
@@ -320,20 +336,22 @@ export async function performChatUndeploy(
 
   logger.info(`Chat "${chatId}" deleted successfully`)
 
-  recordAudit({
-    workspaceId: workspaceId || null,
-    actorId: userId,
-    action: AuditAction.CHAT_DELETED,
-    resourceType: AuditResourceType.CHAT,
-    resourceId: chatId,
-    resourceName: chatRecord.title || chatId,
-    description: `Deleted chat deployment "${chatRecord.title || chatId}"`,
-    metadata: {
-      workflowId: chatRecord.workflowId || undefined,
-      identifier: chatRecord.identifier || undefined,
-      authType: chatRecord.authType || undefined,
-    },
-  })
+  if (params.projectLegacyAudit !== false) {
+    recordAudit({
+      workspaceId: workspaceId || null,
+      actorId: userId,
+      action: AuditAction.CHAT_DELETED,
+      resourceType: AuditResourceType.CHAT,
+      resourceId: chatId,
+      resourceName: chatRecord.title || chatId,
+      description: `Deleted chat deployment "${chatRecord.title || chatId}"`,
+      metadata: {
+        workflowId: chatRecord.workflowId || undefined,
+        identifier: chatRecord.identifier || undefined,
+        authType: chatRecord.authType || undefined,
+      },
+    })
+  }
 
   return { success: true }
 }

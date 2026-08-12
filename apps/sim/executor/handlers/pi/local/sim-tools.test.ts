@@ -320,7 +320,7 @@ describe('buildSimToolSpecs', () => {
       output: { result: 'untrusted output' },
     })
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
     const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
 
     const result = await spec.execute({})

@@ -1,0 +1,3382 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sim API v2 — Knowledge Bases",
+    "description": "Version 2 of the Sim REST API for knowledge bases, document ingestion, resumable uploads, folders, and semantic or tag-based search.",
+    "version": "2.0.0",
+    "contact": {
+      "name": "Sim Support",
+      "email": "help@sim.ai",
+      "url": "https://www.sim.ai"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://www.sim.ai",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Knowledge Bases",
+      "description": "Create and organize knowledge bases, ingest documents, and search indexed content."
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "paths": {
+    "/api/v2/knowledge": {
+      "get": {
+        "operationId": "listKnowledgeBases",
+        "summary": "List Knowledge Bases",
+        "description": "List knowledge bases in a workspace with folder filtering, search, sorting, and the canonical cursor envelope. The bounded workspace set is returned in one page with `nextCursor` always null; there is no second page to fetch. An unknown `folderPath` is a 404. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose knowledge bases should be listed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace whose knowledge bases should be listed."
+            }
+          },
+          {
+            "name": "folderPath",
+            "in": "query",
+            "required": false,
+            "description": "Restrict results to knowledge bases in this folder.",
+            "schema": {
+              "description": "Restrict results to knowledge bases in this folder.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring search on the resource name.",
+            "schema": {
+              "description": "Case-insensitive substring search on the resource name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "createdAt",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of knowledge bases.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeBaseListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createKnowledgeBase",
+        "summary": "Create Knowledge Base",
+        "description": "Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown `folderPath` is a 404. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "tags": ["Knowledge Bases"],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace, name, description, chunking configuration, and folder placement.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKnowledgeBaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created knowledge base.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeBaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}": {
+      "get": {
+        "operationId": "getKnowledgeBase",
+        "summary": "Get Knowledge Base",
+        "description": "Retrieve a knowledge base by identifier. Inaccessible knowledge bases are reported as not found. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the knowledge base."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested knowledge base.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeBaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateKnowledgeBase",
+        "summary": "Update Knowledge Base",
+        "description": "Update a knowledge base name, description, chunking configuration, or folder placement. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace scope and fields to update. At least one mutable field is required.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateKnowledgeBaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated knowledge base.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeBaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteKnowledgeBase",
+        "summary": "Delete Knowledge Base",
+        "description": "Delete a knowledge base and its documents.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the knowledge base."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Knowledge base deletion acknowledgement.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeDeleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/search": {
+      "post": {
+        "operationId": "searchKnowledge",
+        "summary": "Search Knowledge",
+        "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. The request body is capped at 2 MiB; a larger body is a 413.",
+        "tags": ["Knowledge Bases"],
+        "requestBody": {
+          "required": true,
+          "description": "Knowledge bases, query, result limit, retrieval mode, and optional tag filters.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchKnowledgeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Matching document chunks ordered by relevance.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/documents": {
+      "get": {
+        "operationId": "listKnowledgeDocuments",
+        "summary": "List Documents",
+        "description": "List documents in a knowledge base with filename search, state filtering, sorting, and opaque cursor pagination.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the knowledge base."
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum documents to return, between 1 and 100.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum documents to return, between 1 and 100.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive filename search.",
+            "schema": {
+              "description": "Case-insensitive filename search.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "enabledFilter",
+            "in": "query",
+            "required": false,
+            "description": "Filter by whether documents are enabled for search.",
+            "schema": {
+              "default": "all",
+              "description": "Filter by whether documents are enabled for search.",
+              "type": "string",
+              "enum": ["all", "enabled", "disabled"]
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Document field used to sort results.",
+            "schema": {
+              "default": "uploadedAt",
+              "description": "Document field used to sort results.",
+              "type": "string",
+              "enum": [
+                "filename",
+                "fileSize",
+                "tokenCount",
+                "chunkCount",
+                "uploadedAt",
+                "processingStatus",
+                "enabled"
+              ]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "desc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor returned by the previous page.",
+            "schema": {
+              "description": "Opaque cursor returned by the previous page.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of knowledge documents.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeDocumentListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "uploadKnowledgeDocument",
+        "summary": "Upload Document",
+        "description": "Upload one document as multipart form data. Processing continues asynchronously after the document is accepted.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the knowledge base."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Multipart form containing the document file.",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadKnowledgeDocumentForm"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The accepted document queued for processing.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeDocumentSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/documents/uploads": {
+      "post": {
+        "operationId": "createKnowledgeDocumentUpload",
+        "summary": "Create Document Upload",
+        "description": "Create a resumable upload session and receive direct PUT or multipart transfer instructions.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Document metadata used to authorize and initialize the upload.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKnowledgeDocumentUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created upload session and transfer instructions.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2CreateKnowledgeDocumentUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/documents/uploads/{uploadId}": {
+      "delete": {
+        "operationId": "abortKnowledgeDocumentUpload",
+        "summary": "Abort Document Upload",
+        "description": "Abort an incomplete upload and discard provider-side multipart state.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "description": "Upload session identifier returned when the upload was created.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Upload session identifier returned when the upload was created."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the knowledge base."
+            }
+          },
+          {
+            "name": "upload-token",
+            "in": "header",
+            "required": true,
+            "description": "Signed upload control token returned when the upload session was created.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Signed upload control token returned when the upload session was created."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The aborted upload session.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeDocumentUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/documents/uploads/{uploadId}/parts": {
+      "post": {
+        "operationId": "createKnowledgeDocumentUploadPartUrls",
+        "summary": "Create Document Upload Part URLs",
+        "description": "Issue short-lived signed PUT URLs for up to 100 multipart part numbers.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "description": "Upload session identifier returned when the upload was created.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Upload session identifier returned when the upload was created."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the knowledge base."
+            }
+          },
+          {
+            "name": "upload-token",
+            "in": "header",
+            "required": true,
+            "description": "Signed upload control token returned when the upload session was created.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Signed upload control token returned when the upload session was created."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Multipart part numbers for which signed URLs should be created.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKnowledgeDocumentUploadPartUrlsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed URLs for the requested upload parts.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeDocumentUploadPartUrlsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/documents/uploads/{uploadId}/complete": {
+      "post": {
+        "operationId": "completeKnowledgeDocumentUpload",
+        "summary": "Complete Document Upload",
+        "description": "Verify a direct upload or assemble multipart parts, create the knowledge document, and queue asynchronous processing.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "uploadId",
+            "in": "path",
+            "required": true,
+            "description": "Upload session identifier returned when the upload was created.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Upload session identifier returned when the upload was created."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the knowledge base."
+            }
+          },
+          {
+            "name": "upload-token",
+            "in": "header",
+            "required": true,
+            "description": "Signed upload control token returned when the upload session was created.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Signed upload control token returned when the upload session was created."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The completed upload and queued document.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeDocumentUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/{id}/documents/{documentId}": {
+      "get": {
+        "operationId": "getKnowledgeDocument",
+        "summary": "Get Document",
+        "description": "Retrieve document detail, processing state, and connector provenance.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge document identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge document identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the knowledge base."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested knowledge document.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeDocumentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteKnowledgeDocument",
+        "summary": "Delete Document",
+        "description": "Remove one document from a knowledge base. What that means depends on the document. A directly uploaded document is deleted outright along with its indexed chunks. A connector-backed document is instead excluded: its row survives, marked excluded and disabled so it stops being searchable and a later connector sync does not re-add it, and its embeddings are not deleted. Either way the document no longer appears in listings or search results.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge document identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge document identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the knowledge base."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Knowledge document deletion acknowledgement.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeDeleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/knowledge/folders": {
+      "get": {
+        "operationId": "listKnowledgeFolders",
+        "summary": "List Folders",
+        "description": "List folders in the knowledge-base folder tree with filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace whose folders should be listed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace whose folders should be listed."
+            }
+          },
+          {
+            "name": "parentPath",
+            "in": "query",
+            "required": false,
+            "description": "Restrict results to direct children of this parent path.",
+            "schema": {
+              "description": "Restrict results to direct children of this parent path.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the folder name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the folder name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "description": "Field used to sort the result.",
+            "schema": {
+              "default": "name",
+              "description": "Field used to sort the result.",
+              "type": "string",
+              "enum": ["name", "createdAt", "updatedAt"]
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "description": "Sort direction.",
+              "type": "string",
+              "enum": ["asc", "desc"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of knowledge-base folders.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeFolderListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createKnowledgeFolder",
+        "summary": "Create Folder",
+        "description": "Create a folder in the knowledge-base folder tree. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "tags": ["Knowledge Bases"],
+        "requestBody": {
+          "required": true,
+          "description": "Workspace and canonical path for a new knowledge-base folder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKnowledgeFolderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created knowledge-base folder.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeFolderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "relocateKnowledgeFolder",
+        "summary": "Rename or Move Folder",
+        "description": "Rename or move a folder and atomically rewrite descendant paths. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "tags": ["Knowledge Bases"],
+        "requestBody": {
+          "required": true,
+          "description": "Current and destination canonical paths for a knowledge-base folder.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelocateKnowledgeFolderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The relocated knowledge-base folder.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeFolderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteKnowledgeFolder",
+        "summary": "Delete Folder",
+        "description": "Delete a folder, optionally including nested folders and knowledge bases.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace containing the folder.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace containing the folder."
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "description": "Path of the folder to delete.",
+            "schema": {
+              "description": "Path of the folder to delete.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "recursive",
+            "in": "query",
+            "required": false,
+            "description": "Delete nested files and folders when true.",
+            "schema": {
+              "description": "Delete nested files and folders when true.",
+              "default": "false",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folder deletion acknowledgement and deleted item counts.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2DeleteKnowledgeFolderResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
+      }
+    },
+    "headers": {
+      "X-RateLimit-Limit": {
+        "description": "Maximum requests allowed in the current window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Rate limit",
+          "description": "Maximum requests allowed in the current window."
+        }
+      },
+      "X-RateLimit-Remaining": {
+        "description": "Requests remaining in the current window.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Rate limit remaining",
+          "description": "Requests remaining in the current window."
+        }
+      },
+      "X-RateLimit-Reset": {
+        "description": "ISO 8601 timestamp when the current rate-limit window resets.",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+          "title": "Rate limit reset",
+          "description": "ISO 8601 timestamp when the current rate-limit window resets."
+        }
+      },
+      "Retry-After": {
+        "description": "Seconds to wait before retrying a rate-limited request.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "title": "Retry after",
+          "description": "Seconds to wait before retrying a rate-limited request."
+        }
+      },
+      "X-Run-Id": {
+        "description": "Identifier assigned to the workflow run.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Run identifier",
+          "description": "Identifier assigned to the workflow run."
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request is invalid.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "The API key is missing or invalid.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "UsageLimitExceeded": {
+        "description": "The workspace has exceeded its usage or billing limits.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The caller lacks access to the resource.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested resource was not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The request conflicts with current resource state.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "RunIdConflict": {
+        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "headers": {
+          "X-Run-Id": {
+            "$ref": "#/components/headers/X-Run-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Gone": {
+        "description": "The requested generated resource has expired.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "The request uses an unsupported media type.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Locked": {
+        "description": "The resource is locked and cannot be modified.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "The caller exceeded the request rate limit.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "ClientClosedRequest": {
+        "description": "The client closed the connection before the response was produced.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "An unexpected server error occurred.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "A required service is temporarily unavailable.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "V2Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable error code."
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation of the error."
+              },
+              "details": {
+                "description": "Optional structured error details."
+              }
+            },
+            "required": ["code", "message"],
+            "additionalProperties": false,
+            "description": "Canonical error details."
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false,
+        "title": "v2 error response",
+        "description": "Canonical error envelope returned by the public v2 API.",
+        "examples": [
+          {
+            "error": {
+              "code": "BAD_REQUEST",
+              "message": "The request is invalid."
+            }
+          }
+        ]
+      },
+      "V2KnowledgeBase": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique knowledge base identifier.",
+            "examples": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"]
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable knowledge base name.",
+            "examples": ["Product Documentation"]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Knowledge base description, or null when none is set.",
+            "examples": ["All product documentation and guides"]
+          },
+          "tokenCount": {
+            "type": "number",
+            "description": "Total tokens across indexed documents.",
+            "examples": [48213]
+          },
+          "embeddingModel": {
+            "type": "string",
+            "description": "Embedding model used to index documents.",
+            "examples": ["text-embedding-3-small"]
+          },
+          "embeddingDimension": {
+            "type": "number",
+            "description": "Dimensionality of the embedding vectors.",
+            "examples": [1536]
+          },
+          "chunkingConfig": {
+            "$ref": "#/components/schemas/V2KnowledgeChunkingConfig"
+          },
+          "docCount": {
+            "description": "Number of documents in the knowledge base.",
+            "examples": [12],
+            "type": "number"
+          },
+          "connectorTypes": {
+            "description": "External connector types that have synced documents into the knowledge base.",
+            "examples": [["notion", "google_drive"]],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the knowledge base was created.",
+            "format": "date-time",
+            "examples": ["2025-01-10T09:00:00Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the knowledge base was last modified.",
+            "format": "date-time",
+            "examples": ["2025-06-18T16:45:00Z"]
+          },
+          "ownerEmail": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "description": "Current email address of the knowledge base owner.",
+            "examples": ["owner@example.com"]
+          },
+          "folderPath": {
+            "type": "string",
+            "description": "Canonical containing-folder path; `/` is the workspace root.",
+            "examples": ["/Product"]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "tokenCount",
+          "embeddingModel",
+          "embeddingDimension",
+          "chunkingConfig",
+          "createdAt",
+          "updatedAt",
+          "ownerEmail",
+          "folderPath"
+        ],
+        "additionalProperties": false,
+        "title": "Knowledge base",
+        "description": "A collection of documents indexed for vector and tag search."
+      },
+      "V2KnowledgeChunkingConfig": {
+        "type": "object",
+        "properties": {
+          "maxSize": {
+            "type": "number",
+            "description": "Maximum chunk size in tokens.",
+            "examples": [1024]
+          },
+          "minSize": {
+            "type": "number",
+            "description": "Minimum chunk size in characters.",
+            "examples": [100]
+          },
+          "overlap": {
+            "type": "number",
+            "description": "Number of overlapping characters between adjacent chunks.",
+            "examples": [200]
+          },
+          "strategy": {
+            "description": "Chunking strategy applied during document processing.",
+            "type": "string",
+            "enum": ["auto", "text", "regex", "recursive", "sentence", "token"]
+          },
+          "strategyOptions": {
+            "description": "Strategy-specific tuning options.",
+            "type": "object",
+            "properties": {
+              "pattern": {
+                "description": "Regular expression used by the regex chunking strategy.",
+                "type": "string",
+                "maxLength": 500
+              },
+              "separators": {
+                "description": "Ordered separators used to split content into chunks.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "recipe": {
+                "description": "Content-aware recipe used by the automatic chunking strategy.",
+                "type": "string",
+                "enum": ["plain", "markdown", "code"]
+              },
+              "strictBoundaries": {
+                "description": "Whether regex matches must form strict chunk boundaries.",
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["maxSize", "minSize", "overlap"],
+        "additionalProperties": {
+          "description": "Additional forward-compatible chunking configuration property."
+        },
+        "title": "Knowledge chunking configuration",
+        "description": "How documents in a knowledge base are split into chunks before embedding."
+      },
+      "V2KnowledgeBaseListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2KnowledgeBase"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Knowledge base list response",
+        "description": "A cursor-paginated page of knowledge bases."
+      },
+      "V2KnowledgeBaseResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeBase"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge base response",
+        "description": "A single knowledge base."
+      },
+      "V2KnowledgeChunkingConfigInput": {
+        "type": "object",
+        "properties": {
+          "maxSize": {
+            "default": 1024,
+            "description": "Maximum chunk size in tokens.",
+            "examples": [1024],
+            "type": "number",
+            "minimum": 100,
+            "maximum": 4000
+          },
+          "minSize": {
+            "default": 100,
+            "description": "Minimum chunk size in characters.",
+            "examples": [100],
+            "type": "number",
+            "minimum": 1,
+            "maximum": 2000
+          },
+          "overlap": {
+            "default": 200,
+            "description": "Number of overlapping characters between adjacent chunks.",
+            "examples": [200],
+            "type": "number",
+            "minimum": 0,
+            "maximum": 500
+          }
+        },
+        "title": "Knowledge chunking configuration input",
+        "description": "Chunking configuration applied when processing documents."
+      },
+      "CreateKnowledgeBaseRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace in which to create the knowledge base."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Human-readable knowledge base name.",
+            "examples": ["Product Documentation"]
+          },
+          "description": {
+            "description": "Optional knowledge base description.",
+            "examples": ["All product documentation and guides"],
+            "type": "string",
+            "maxLength": 10000
+          },
+          "chunkingConfig": {
+            "default": {
+              "maxSize": 1024,
+              "minSize": 100,
+              "overlap": 200
+            },
+            "description": "Chunking configuration; defaults are applied when omitted.",
+            "$ref": "#/components/schemas/V2KnowledgeChunkingConfigInput"
+          },
+          "folderPath": {
+            "description": "Containing folder path; omission creates the knowledge base at the root.",
+            "type": "string"
+          }
+        },
+        "required": ["workspaceId", "name"],
+        "additionalProperties": false,
+        "title": "Create knowledge base request",
+        "description": "Workspace, name, description, chunking configuration, and folder placement."
+      },
+      "UpdateKnowledgeBaseRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace that owns the knowledge base."
+          },
+          "name": {
+            "description": "New knowledge base name.",
+            "examples": ["Updated Product Documentation"],
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "description": "New knowledge base description.",
+            "examples": ["Refreshed product documentation and guides"],
+            "type": "string",
+            "maxLength": 10000
+          },
+          "chunkingConfig": {
+            "description": "New document chunking configuration.",
+            "$ref": "#/components/schemas/V2KnowledgeChunkingConfigInput"
+          },
+          "folderPath": {
+            "description": "New containing-folder path.",
+            "type": "string"
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Update knowledge base request",
+        "description": "Workspace scope and fields to update. At least one mutable field is required."
+      },
+      "V2KnowledgeDeleteData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the deleted resource.",
+            "examples": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"]
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Confirms that the resource was deleted."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Knowledge deletion data",
+        "description": "Acknowledgement for a deleted knowledge base or document."
+      },
+      "V2KnowledgeDeleteResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeDeleteData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge deletion response",
+        "description": "Deletion acknowledgement containing the removed resource identifier."
+      },
+      "V2KnowledgeSearchResult": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "Identifier of the document containing the matching chunk.",
+            "examples": ["b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12"]
+          },
+          "documentName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Filename of the source document, or null when unavailable.",
+            "examples": ["getting-started.pdf"]
+          },
+          "sourceUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Original source URL, or null for a directly uploaded document."
+          },
+          "content": {
+            "type": "string",
+            "description": "Text content of the matching chunk.",
+            "examples": ["To reset your password, open Settings and choose Security."]
+          },
+          "chunkIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Zero-based chunk index within the document.",
+            "examples": [3]
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "User-defined string, number, boolean, or date tag value."
+            },
+            "description": "Document tag values keyed by tag display name.",
+            "examples": [
+              {
+                "category": "billing",
+                "priority": 2
+              }
+            ]
+          },
+          "similarity": {
+            "type": "number",
+            "description": "Similarity score for vector search; tag-only matches use 1.",
+            "examples": [0.8423]
+          }
+        },
+        "required": [
+          "documentId",
+          "documentName",
+          "sourceUrl",
+          "content",
+          "chunkIndex",
+          "metadata",
+          "similarity"
+        ],
+        "additionalProperties": false,
+        "title": "Knowledge search result",
+        "description": "A matching document chunk returned by knowledge search."
+      },
+      "V2KnowledgeSearchData": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2KnowledgeSearchResult"
+            },
+            "description": "Matching chunks ordered by relevance."
+          },
+          "query": {
+            "type": "string",
+            "description": "Executed query, or an empty string for tag-only search.",
+            "examples": ["How do I reset my password?"]
+          },
+          "knowledgeBaseIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Knowledge base identifiers that were searched.",
+            "examples": [["7c9e6679-7425-40de-944b-e07fc1f90ae7"]]
+          },
+          "topK": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Maximum number of results requested.",
+            "examples": [10]
+          },
+          "totalResults": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of results returned.",
+            "examples": [4]
+          }
+        },
+        "required": ["results", "query", "knowledgeBaseIds", "topK", "totalResults"],
+        "additionalProperties": false,
+        "title": "Knowledge search data",
+        "description": "Results and execution context for a knowledge search."
+      },
+      "V2KnowledgeSearchResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeSearchData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge search response",
+        "description": "Matching chunks and search execution context."
+      },
+      "V2KnowledgeSearchTagFilter": {
+        "type": "object",
+        "properties": {
+          "tagName": {
+            "type": "string",
+            "description": "Display name of the tag to filter.",
+            "examples": ["category"]
+          },
+          "fieldType": {
+            "description": "Tag field type.",
+            "type": "string",
+            "enum": ["text", "number", "date", "boolean"]
+          },
+          "operator": {
+            "default": "eq",
+            "description": "Comparison operator; valid operators depend on the field type.",
+            "examples": ["eq"],
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "description": "Tag value to compare against.",
+            "examples": ["billing"]
+          },
+          "valueTo": {
+            "description": "Upper bound for the `between` operator.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          }
+        },
+        "required": ["tagName", "value"],
+        "title": "Knowledge search tag filter",
+        "description": "A structured tag filter applied to knowledge search."
+      },
+      "SearchKnowledgeRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace that owns the knowledge bases."
+          },
+          "knowledgeBaseIds": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            ],
+            "description": "One knowledge base identifier or an array of up to 20 identifiers.",
+            "examples": [["7c9e6679-7425-40de-944b-e07fc1f90ae7"]]
+          },
+          "query": {
+            "description": "Natural-language query; required when tag filters are omitted.",
+            "examples": ["How do I reset my password?"],
+            "type": "string"
+          },
+          "topK": {
+            "default": 10,
+            "description": "Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "tagFilters": {
+            "description": "Structured tag filters. Supported across multiple knowledge bases, but each filtered tag must resolve to the same slot and field type in every knowledge base selected; a tag missing from one of them, or defined inconsistently across them, is rejected and those knowledge bases must be searched separately. With a single knowledge base, an unknown tag name is simply ignored.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2KnowledgeSearchTagFilter"
+            }
+          },
+          "searchMode": {
+            "description": "Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.",
+            "default": "vector",
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["vector", "hybrid"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["workspaceId", "knowledgeBaseIds"],
+        "title": "Search knowledge request",
+        "description": "Knowledge bases, query, result limit, retrieval mode, and optional tag filters."
+      },
+      "V2KnowledgeDocumentSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique document identifier.",
+            "examples": ["b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12"]
+          },
+          "knowledgeBaseId": {
+            "type": "string",
+            "description": "Knowledge base to which the document belongs.",
+            "examples": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"]
+          },
+          "filename": {
+            "type": "string",
+            "description": "Original filename of the uploaded document.",
+            "examples": ["getting-started.pdf"]
+          },
+          "fileSize": {
+            "type": "number",
+            "description": "File size in bytes.",
+            "examples": [248913]
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type of the document file.",
+            "examples": ["application/pdf"]
+          },
+          "processingStatus": {
+            "type": "string",
+            "enum": ["pending", "processing", "completed", "failed"],
+            "description": "Current document processing state.",
+            "examples": ["completed"]
+          },
+          "chunkCount": {
+            "type": "number",
+            "description": "Number of indexed chunks; zero until processing completes.",
+            "examples": [24]
+          },
+          "tokenCount": {
+            "type": "number",
+            "description": "Total tokens extracted from the document.",
+            "examples": [8123]
+          },
+          "characterCount": {
+            "type": "number",
+            "description": "Total characters extracted from the document.",
+            "examples": [41205]
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the document is enabled for search.",
+            "examples": [true]
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the document was uploaded, or null.",
+            "format": "date-time",
+            "examples": ["2025-06-18T16:45:00Z"]
+          }
+        },
+        "required": [
+          "id",
+          "knowledgeBaseId",
+          "filename",
+          "fileSize",
+          "mimeType",
+          "processingStatus",
+          "chunkCount",
+          "tokenCount",
+          "characterCount",
+          "enabled",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "title": "Knowledge document summary",
+        "description": "Summary returned by document lists and upload acknowledgements."
+      },
+      "V2KnowledgeDocumentListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2KnowledgeDocumentSummary"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Knowledge document list response",
+        "description": "A cursor-paginated page of knowledge documents."
+      },
+      "V2KnowledgeDocumentSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeDocumentSummary"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge document summary response",
+        "description": "An accepted knowledge document summary."
+      },
+      "UploadKnowledgeDocumentForm": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "contentEncoding": "binary",
+            "maxLength": 104857600,
+            "description": "Document file to upload; the maximum size is 100 MB."
+          }
+        },
+        "required": ["file"],
+        "additionalProperties": {
+          "description": "Additional multipart form fields are ignored."
+        },
+        "title": "Upload knowledge document form",
+        "description": "Multipart form containing the document file."
+      },
+      "V2KnowledgeDocumentUpload": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Upload session identifier."
+          },
+          "knowledgeBaseId": {
+            "type": "string",
+            "description": "Knowledge base that will own the document."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "uploading",
+              "completing",
+              "finalizing",
+              "completed",
+              "failed",
+              "aborting",
+              "aborted",
+              "expired"
+            ],
+            "description": "Current upload-session state."
+          },
+          "name": {
+            "type": "string",
+            "description": "Filename recorded on the knowledge document."
+          },
+          "contentType": {
+            "type": "string",
+            "description": "MIME type declared for the document."
+          },
+          "size": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Exact file size in bytes."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 upload-session expiration time."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Terminal upload error, or null when none occurred."
+          },
+          "document": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/V2KnowledgeDocumentSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Queued document after completion, or null before completion."
+          }
+        },
+        "required": [
+          "id",
+          "knowledgeBaseId",
+          "status",
+          "name",
+          "contentType",
+          "size",
+          "expiresAt",
+          "error",
+          "document"
+        ],
+        "additionalProperties": false,
+        "title": "Knowledge document upload",
+        "description": "State of a resumable knowledge-document upload session."
+      },
+      "V2KnowledgeUploadTransfer": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/V2PutUploadTransfer"
+          },
+          {
+            "$ref": "#/components/schemas/V2MultipartUploadTransfer"
+          }
+        ],
+        "description": "Provider transfer strategy for a knowledge document upload.",
+        "title": "Knowledge upload transfer"
+      },
+      "V2PutUploadTransfer": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "const": "put",
+            "description": "Upload strategy discriminator."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Signed URL to which the file bytes are uploaded."
+          },
+          "headers": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Headers that must be included with the upload request."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 expiration time for this signed URL. This is the URL's own expiry and is normally earlier than the upload session's expiresAt: the session stays open for later part, status, completion, and abort requests, but the bytes must be uploaded before this time. Once it passes, the storage provider rejects the upload and a new upload session must be created."
+          }
+        },
+        "required": ["method", "url", "headers", "expiresAt"],
+        "additionalProperties": false,
+        "title": "Direct upload transfer",
+        "description": "Instructions for uploading bytes to one signed URL."
+      },
+      "V2MultipartUploadTransfer": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "const": "multipart",
+            "description": "Upload strategy discriminator."
+          },
+          "partSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Required size of each non-final part in bytes."
+          },
+          "partCount": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 640,
+            "description": "Total number of upload parts."
+          }
+        },
+        "required": ["method", "partSize", "partCount"],
+        "additionalProperties": false,
+        "title": "Multipart upload transfer",
+        "description": "Instructions for splitting bytes into a multipart upload."
+      },
+      "V2CreateKnowledgeDocumentUploadData": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/V2KnowledgeDocumentUpload"
+          },
+          "uploadToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Signed control token required by subsequent upload-session requests."
+          },
+          "transfer": {
+            "$ref": "#/components/schemas/V2KnowledgeUploadTransfer"
+          }
+        },
+        "required": ["session", "uploadToken", "transfer"],
+        "additionalProperties": false,
+        "title": "Create knowledge document upload data",
+        "description": "Upload session, signed control token, and transfer instructions."
+      },
+      "V2CreateKnowledgeDocumentUploadResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2CreateKnowledgeDocumentUploadData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create knowledge document upload response",
+        "description": "Upload session, signed control token, and transfer instructions."
+      },
+      "CreateKnowledgeDocumentUploadRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace that owns the knowledge base."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Filename recorded on the knowledge document.",
+            "examples": ["getting-started.pdf"]
+          },
+          "contentType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Supported MIME type for the document.",
+            "examples": ["application/pdf"]
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 104857600,
+            "description": "Exact file size in bytes.",
+            "examples": [248913]
+          },
+          "tag1": {
+            "description": "Value for tag slot 1.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag2": {
+            "description": "Value for tag slot 2.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag3": {
+            "description": "Value for tag slot 3.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag4": {
+            "description": "Value for tag slot 4.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag5": {
+            "description": "Value for tag slot 5.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag6": {
+            "description": "Value for tag slot 6.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag7": {
+            "description": "Value for tag slot 7.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "processingOptions": {
+            "description": "Optional processing recipe and language.",
+            "type": "object",
+            "properties": {
+              "recipe": {
+                "description": "Optional document processing recipe.",
+                "type": "string",
+                "maxLength": 255
+              },
+              "lang": {
+                "description": "Optional document language code.",
+                "type": "string",
+                "maxLength": 35
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["workspaceId", "name", "contentType", "size"],
+        "additionalProperties": false,
+        "title": "Create knowledge document upload request",
+        "description": "Document metadata used to authorize and initialize the upload.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "name": "getting-started.pdf",
+            "contentType": "application/pdf",
+            "size": 248913
+          }
+        ]
+      },
+      "V2KnowledgeDocumentUploadResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeDocumentUpload"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge document upload response",
+        "description": "Current state of a knowledge document upload session."
+      },
+      "V2UploadPartUrl": {
+        "type": "object",
+        "properties": {
+          "partNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "Multipart part number."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Signed URL for this upload part."
+          },
+          "headers": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Headers that must be included with the part upload."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 expiration time for the signed URL."
+          }
+        },
+        "required": ["partNumber", "url", "headers", "expiresAt"],
+        "additionalProperties": false,
+        "title": "Upload part URL",
+        "description": "A signed URL and required headers for one multipart upload part."
+      },
+      "V2PartUrlsData": {
+        "type": "object",
+        "properties": {
+          "parts": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2UploadPartUrl"
+            },
+            "description": "Signed URLs for requested parts."
+          }
+        },
+        "required": ["parts"],
+        "additionalProperties": false,
+        "title": "Upload part URLs",
+        "description": "Signed transfer URLs for the requested multipart upload parts."
+      },
+      "V2KnowledgeDocumentUploadPartUrlsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2PartUrlsData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge document upload part URLs response",
+        "description": "Signed provider URLs for requested multipart parts."
+      },
+      "CreateKnowledgeDocumentUploadPartUrlsRequest": {
+        "type": "object",
+        "properties": {
+          "partNumbers": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "description": "Multipart part numbers for which signed URLs should be created."
+          }
+        },
+        "required": ["partNumbers"],
+        "additionalProperties": false,
+        "title": "Create upload part URLs request",
+        "description": "Multipart part numbers for which signed URLs should be created.",
+        "examples": [
+          {
+            "partNumbers": [1, 2, 3]
+          }
+        ]
+      },
+      "V2KnowledgeDocument": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique document identifier.",
+            "examples": ["b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12"]
+          },
+          "knowledgeBaseId": {
+            "type": "string",
+            "description": "Knowledge base to which the document belongs.",
+            "examples": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"]
+          },
+          "filename": {
+            "type": "string",
+            "description": "Original filename of the uploaded document.",
+            "examples": ["getting-started.pdf"]
+          },
+          "fileSize": {
+            "type": "number",
+            "description": "File size in bytes.",
+            "examples": [248913]
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type of the document file.",
+            "examples": ["application/pdf"]
+          },
+          "processingStatus": {
+            "type": "string",
+            "enum": ["pending", "processing", "completed", "failed"],
+            "description": "Current document processing state.",
+            "examples": ["completed"]
+          },
+          "chunkCount": {
+            "type": "number",
+            "description": "Number of indexed chunks; zero until processing completes.",
+            "examples": [24]
+          },
+          "tokenCount": {
+            "type": "number",
+            "description": "Total tokens extracted from the document.",
+            "examples": [8123]
+          },
+          "characterCount": {
+            "type": "number",
+            "description": "Total characters extracted from the document.",
+            "examples": [41205]
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the document is enabled for search.",
+            "examples": [true]
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the document was uploaded, or null.",
+            "format": "date-time",
+            "examples": ["2025-06-18T16:45:00Z"]
+          },
+          "processingError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Processing error message, or null when processing has not failed."
+          },
+          "processingStartedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when processing started, or null.",
+            "format": "date-time",
+            "examples": ["2025-06-18T16:45:05Z"]
+          },
+          "processingCompletedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when processing completed, or null.",
+            "format": "date-time",
+            "examples": ["2025-06-18T16:45:42Z"]
+          },
+          "connectorId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Connector identifier for a synced document, or null for a direct upload."
+          },
+          "connectorType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Connector type for a synced document, or null for a direct upload."
+          },
+          "sourceUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Original source URL for a synced document, or null for a direct upload."
+          }
+        },
+        "required": [
+          "id",
+          "knowledgeBaseId",
+          "filename",
+          "fileSize",
+          "mimeType",
+          "processingStatus",
+          "chunkCount",
+          "tokenCount",
+          "characterCount",
+          "enabled",
+          "createdAt",
+          "processingError",
+          "processingStartedAt",
+          "processingCompletedAt",
+          "connectorId",
+          "connectorType",
+          "sourceUrl"
+        ],
+        "additionalProperties": false,
+        "title": "Knowledge document",
+        "description": "Full document detail including processing state and connector provenance."
+      },
+      "V2KnowledgeDocumentResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeDocument"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge document response",
+        "description": "Full knowledge document detail."
+      },
+      "V2Folder": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Folder name."
+          },
+          "path": {
+            "type": "string",
+            "description": "Canonical folder path used as the public folder identifier."
+          },
+          "parentPath": {
+            "type": "string",
+            "description": "Canonical parent path; `/` is the root."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the folder was created.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the folder was last updated.",
+            "format": "date-time"
+          }
+        },
+        "required": ["name", "path", "parentPath", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "title": "Folder",
+        "description": "A canonical workspace folder."
+      },
+      "V2KnowledgeFolderListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2Folder"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Knowledge folder list response",
+        "description": "A cursor-paginated page of knowledge-base folders."
+      },
+      "V2KnowledgeFolderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Folder"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Knowledge folder response",
+        "description": "A single knowledge-base folder."
+      },
+      "CreateKnowledgeFolderRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace in which to create the folder."
+          },
+          "path": {
+            "description": "Path of the folder to create.",
+            "type": "string"
+          }
+        },
+        "required": ["workspaceId", "path"],
+        "additionalProperties": false,
+        "title": "Create knowledge folder request",
+        "description": "Workspace and canonical path for a new knowledge-base folder."
+      },
+      "RelocateKnowledgeFolderRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace containing the folder."
+          },
+          "path": {
+            "description": "Current folder path.",
+            "type": "string"
+          },
+          "destinationPath": {
+            "description": "New full path for the folder and its descendants.",
+            "type": "string"
+          }
+        },
+        "required": ["workspaceId", "path", "destinationPath"],
+        "additionalProperties": false,
+        "title": "Relocate knowledge folder request",
+        "description": "Current and destination canonical paths for a knowledge-base folder."
+      },
+      "V2DeleteKnowledgeFolderData": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Canonical path of the deleted folder."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Confirms that the folder was deleted."
+          },
+          "deletedItems": {
+            "type": "object",
+            "properties": {
+              "folders": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Number of deleted folders."
+              },
+              "knowledgeBases": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Number of deleted knowledge bases."
+              }
+            },
+            "required": ["folders", "knowledgeBases"],
+            "additionalProperties": false,
+            "description": "Counts of deleted resources."
+          }
+        },
+        "required": ["path", "deleted", "deletedItems"],
+        "additionalProperties": false,
+        "title": "Delete knowledge folder data",
+        "description": "Folder deletion acknowledgement and deleted-resource counts."
+      },
+      "V2DeleteKnowledgeFolderResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2DeleteKnowledgeFolderData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Delete knowledge folder response",
+        "description": "Folder deletion acknowledgement and deleted-resource counts."
+      }
+    }
+  },
+  "x-generated-by": "scripts/generate-openapi.ts"
+}

@@ -14,6 +14,95 @@ export const AgentMailBlock: BlockConfig = {
   bgColor: '#000000',
   icon: AgentMailIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'AgentMail',
+    sentences: {
+      byOperation: {
+        send_message: [
+          { text: 'Send', field: 'subject', core: true },
+          { text: 'to', field: 'to', core: true },
+        ],
+        reply_message: [
+          { text: 'Reply to message', field: 'replyMessageId', core: true },
+          { text: ', from inbox', field: 'inboxId' },
+        ],
+        forward_message: [
+          { text: 'Forward message', field: 'forwardMessageId', core: true },
+          { text: 'to', field: 'to' },
+        ],
+        list_threads: [
+          { text: 'List threads in inbox', field: 'inboxId', core: true },
+          { text: ', labeled', field: 'labels' },
+          { text: ', up to', field: 'limit', after: 'threads' },
+        ],
+        get_thread: [
+          { text: 'Fetch thread', field: 'threadId', core: true },
+          { text: 'from inbox', field: 'inboxId' },
+        ],
+        update_thread: [
+          { text: 'Relabel thread', field: 'threadId', core: true },
+          { text: ', adding', field: 'addLabels' },
+          { text: ', removing', field: 'removeLabels' },
+        ],
+        delete_thread: [
+          { text: 'Delete thread', field: 'threadId', core: true },
+          { text: 'from inbox', field: 'inboxId' },
+        ],
+        list_messages: [
+          { text: 'List messages in inbox', field: 'inboxId', core: true },
+          { text: ', up to', field: 'limit', after: 'messages' },
+        ],
+        get_message: [
+          { text: 'Fetch message', field: 'messageId', core: true },
+          { text: 'from inbox', field: 'inboxId' },
+        ],
+        update_message: [
+          { text: 'Relabel message', field: 'updateMessageId', core: true },
+          { text: ', adding', field: 'msgAddLabels' },
+          { text: ', removing', field: 'msgRemoveLabels' },
+        ],
+        create_draft: [
+          { text: 'Draft', field: 'subject', core: true },
+          { text: 'to', field: 'to' },
+          { text: ', scheduled for', field: 'sendAt' },
+        ],
+        list_drafts: [
+          { text: 'List drafts in inbox', field: 'inboxId', core: true },
+          { text: ', up to', field: 'limit', after: 'drafts' },
+        ],
+        get_draft: [
+          { text: 'Fetch draft', field: 'draftId', core: true },
+          { text: 'from inbox', field: 'inboxId' },
+        ],
+        update_draft: [
+          { text: 'Update draft', field: 'draftId', core: true },
+          { text: ', setting subject to', field: 'subject' },
+          { text: ', scheduled for', field: 'sendAt' },
+        ],
+        delete_draft: [
+          { text: 'Delete draft', field: 'draftId', core: true },
+          { text: 'from inbox', field: 'inboxId' },
+        ],
+        send_draft: [
+          { text: 'Send draft', field: 'draftId', core: true },
+          { text: 'from inbox', field: 'inboxId' },
+        ],
+        create_inbox: [
+          'Create an email inbox',
+          { text: 'with username', field: 'username' },
+          { text: 'on', field: 'domain' },
+          { text: ', named', field: 'displayName' },
+        ],
+        list_inboxes: ['List inboxes', { text: ', up to', field: 'limit', after: 'at a time' }],
+        get_inbox: [{ text: 'Fetch inbox', field: 'inboxIdParam', core: true }],
+        update_inbox: [
+          { text: 'Rename inbox', field: 'inboxIdParam', core: true },
+          { text: 'to', field: 'displayName' },
+        ],
+        delete_inbox: [{ text: 'Delete inbox', field: 'inboxIdParam', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -106,6 +195,7 @@ export const AgentMailBlock: BlockConfig = {
     {
       id: 'to',
       title: 'To',
+      canvasNoun: 'a recipient',
       type: 'short-input',
       placeholder: 'recipient@example.com',
       condition: {
@@ -185,6 +275,7 @@ export const AgentMailBlock: BlockConfig = {
     {
       id: 'replyMessageId',
       title: 'Message ID to Reply To',
+      canvasNoun: 'a message ID',
       type: 'short-input',
       placeholder: 'Message ID',
       condition: { field: 'operation', value: 'reply_message' },
@@ -261,6 +352,7 @@ export const AgentMailBlock: BlockConfig = {
     {
       id: 'forwardMessageId',
       title: 'Message ID to Forward',
+      canvasNoun: 'a message ID',
       type: 'short-input',
       placeholder: 'Message ID',
       condition: { field: 'operation', value: 'forward_message' },

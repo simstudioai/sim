@@ -155,6 +155,9 @@ const BODY_OPS = [
   'sap_concur_upload_exchange_rates',
 ]
 
+/** Canonical receipt pair: basic upload, advanced file reference. */
+const RECEIPT_FIELD = ['receiptFile', 'receiptFileRef'] as const
+
 export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
   type: 'sap_concur',
   name: 'SAP Concur',
@@ -167,6 +170,257 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
   icon: SapConcurIcon,
+  canvasPresentation: {
+    defaultTitle: 'SAP Concur',
+    sentences: {
+      byOperation: {
+        sap_concur_list_expense_reports: [
+          'List expense reports',
+          { text: ', for', field: 'expenseReportUser' },
+          { text: ', with approval status', field: 'approvalStatusCode' },
+        ],
+        sap_concur_get_expense_report: [
+          { text: 'Read expense report', field: 'reportId', core: true },
+        ],
+        sap_concur_create_expense_report: [
+          { text: 'Create an expense report for user', field: 'userId', core: true },
+          { text: ', with', field: 'body' },
+        ],
+        sap_concur_update_expense_report: [
+          { text: 'Update expense report', field: 'reportId', core: true },
+          { text: ', setting', field: 'body' },
+        ],
+        sap_concur_delete_expense_report: [
+          { text: 'Delete expense report', field: 'reportId', core: true },
+        ],
+        sap_concur_submit_expense_report: [
+          { text: 'Submit expense report', field: 'reportId', core: true },
+          { text: 'for user', field: 'userId' },
+        ],
+        sap_concur_recall_expense_report: [
+          { text: 'Recall submitted expense report', field: 'reportId', core: true },
+        ],
+        sap_concur_approve_expense_report: [
+          { text: 'Approve expense report', field: 'reportId', core: true },
+        ],
+        sap_concur_send_back_expense_report: [
+          {
+            text: 'Return expense report',
+            field: 'reportId',
+            after: 'to the employee',
+            core: true,
+          },
+        ],
+        sap_concur_list_reports_to_approve: [
+          'List expense reports awaiting approval',
+          { text: ', sorted by', field: 'reportsToApproveSort' },
+        ],
+        sap_concur_list_expenses: [
+          { text: 'List expenses on report', field: 'reportId', core: true },
+        ],
+        sap_concur_get_expense: [
+          { text: 'Read expense', field: 'expenseId', core: true },
+          { text: 'on report', field: 'reportId' },
+        ],
+        sap_concur_update_expense: [
+          { text: 'Update expense', field: 'expenseId', core: true },
+          { text: 'on report', field: 'reportId' },
+          { text: ', setting', field: 'body' },
+        ],
+        sap_concur_delete_expense: [
+          { text: 'Delete expense', field: 'expenseId', core: true },
+          { text: 'from report', field: 'reportId' },
+        ],
+        sap_concur_get_itemizations: [
+          { text: 'List itemizations of expense', field: 'expenseId', core: true },
+          { text: 'on report', field: 'reportId' },
+        ],
+        sap_concur_list_allocations: [
+          { text: 'List allocations on expense', field: 'expenseId', core: true },
+          { text: 'of report', field: 'reportId' },
+        ],
+        sap_concur_get_allocation: [
+          { text: 'Read allocation', field: 'allocationId', core: true },
+          { text: 'on report', field: 'reportId' },
+        ],
+        sap_concur_update_allocation: [
+          { text: 'Update allocation', field: 'allocationId', core: true },
+          { text: 'on report', field: 'reportId' },
+          { text: ', setting', field: 'body' },
+        ],
+        sap_concur_list_attendee_associations: [
+          { text: 'List attendees on expense', field: 'expenseId', core: true },
+          { text: 'of report', field: 'reportId' },
+        ],
+        sap_concur_associate_attendees: [
+          { text: 'Attach attendees to expense', field: 'expenseId', core: true },
+          { text: 'on report', field: 'reportId' },
+        ],
+        sap_concur_remove_all_attendees: [
+          { text: 'Remove every attendee from expense', field: 'expenseId', core: true },
+          { text: 'on report', field: 'reportId' },
+        ],
+        sap_concur_list_report_comments: [
+          { text: 'List comments on report', field: 'reportId', core: true },
+        ],
+        sap_concur_create_report_comment: [
+          { text: 'Comment', field: 'comment', core: true },
+          { text: 'on report', field: 'reportId', core: true },
+        ],
+        sap_concur_list_exceptions: [
+          { text: 'List policy exceptions on report', field: 'reportId', core: true },
+        ],
+        sap_concur_create_quick_expense: [
+          { text: 'Create a quick expense for user', field: 'userId', core: true },
+          { text: ', with', field: 'body' },
+        ],
+        sap_concur_create_quick_expense_with_image: [
+          { text: 'Create a quick expense from receipt', field: RECEIPT_FIELD, core: true },
+          { text: ', for user', field: 'userId' },
+        ],
+        sap_concur_list_receipts: [{ text: 'List receipts for user', field: 'userId', core: true }],
+        sap_concur_get_receipt: [{ text: 'Read receipt', field: 'receiptId', core: true }],
+        sap_concur_get_receipt_status: [
+          { text: 'Read the processing status of receipt', field: 'receiptId', core: true },
+        ],
+        sap_concur_upload_receipt_image: [
+          { text: 'Upload receipt image', field: RECEIPT_FIELD, core: true },
+          { text: 'for user', field: 'userId' },
+        ],
+        sap_concur_list_travel_requests: [
+          'List travel requests',
+          { text: ', for user', field: 'travelRequestUserId' },
+          { text: ', in the', field: 'view', after: 'view' },
+        ],
+        sap_concur_get_travel_request: [
+          { text: 'Read travel request', field: 'requestUuid', core: true },
+        ],
+        sap_concur_create_travel_request: [
+          'Create a travel request',
+          { text: ', for user', field: 'travelRequestUserId' },
+          { text: ', with', field: 'body' },
+        ],
+        sap_concur_update_travel_request: [
+          { text: 'Update travel request', field: 'requestUuid', core: true },
+          { text: ', setting', field: 'body' },
+        ],
+        sap_concur_delete_travel_request: [
+          { text: 'Delete travel request', field: 'requestUuid', core: true },
+        ],
+        sap_concur_move_travel_request: [
+          { text: 'Run workflow action', field: 'action', core: true },
+          { text: 'on travel request', field: 'requestUuid', core: true },
+        ],
+        sap_concur_list_travel_request_comments: [
+          { text: 'List comments on travel request', field: 'requestUuid', core: true },
+        ],
+        sap_concur_get_request_cash_advance: [
+          { text: 'Read travel request cash advance', field: 'cashAdvanceUuid', core: true },
+        ],
+        sap_concur_create_expected_expense: [
+          {
+            text: 'Add an expected expense to travel request',
+            field: 'requestUuid',
+            core: true,
+          },
+          { text: ', with', field: 'body' },
+        ],
+        sap_concur_list_expected_expenses: [
+          {
+            text: 'List expected expenses on travel request',
+            field: 'requestUuid',
+            core: true,
+          },
+        ],
+        sap_concur_get_expected_expense: [
+          { text: 'Read expected expense', field: 'expenseUuid', core: true },
+        ],
+        sap_concur_update_expected_expense: [
+          { text: 'Update expected expense', field: 'expenseUuid', core: true },
+          { text: ', setting', field: 'body' },
+        ],
+        sap_concur_delete_expected_expense: [
+          { text: 'Delete expected expense', field: 'expenseUuid', core: true },
+        ],
+        sap_concur_create_cash_advance: [
+          'Create a cash advance',
+          { text: ', with', field: 'body' },
+        ],
+        sap_concur_get_cash_advance: [
+          { text: 'Read cash advance', field: 'cashAdvanceId', core: true },
+        ],
+        sap_concur_issue_cash_advance: [
+          { text: 'Issue cash advance', field: 'cashAdvanceId', core: true },
+        ],
+        sap_concur_list_itineraries: [
+          'List trips',
+          { text: ', from', field: 'startDate' },
+          { text: ', through', field: 'endDate' },
+        ],
+        sap_concur_get_itinerary: [{ text: 'Read trip', field: 'tripId', core: true }],
+        sap_concur_list_users: [
+          {
+            text: 'List',
+            field: 'count',
+            after: 'user identities',
+            core: true,
+          },
+          { text: ', returning', field: 'attributes' },
+        ],
+        sap_concur_get_user: [{ text: 'Read user', field: 'userUuid', core: true }],
+        sap_concur_create_user: ['Create a user identity', { text: ', with', field: 'body' }],
+        sap_concur_update_user: [
+          { text: 'Update user', field: 'userUuid', core: true },
+          { text: ', setting', field: 'body' },
+        ],
+        sap_concur_delete_user: [{ text: 'Delete user', field: 'userUuid', core: true }],
+        sap_concur_search_users: ['Search users', { text: ', matching', field: 'body' }],
+        sap_concur_list_lists: ['List custom lists', { text: ', sorted by', field: 'sortBy' }],
+        sap_concur_get_list: [{ text: 'Read custom list', field: 'listId', core: true }],
+        sap_concur_list_list_items: [
+          { text: 'List items in custom list', field: 'listId', core: true },
+          { text: ', sorted by', field: 'sortBy' },
+        ],
+        sap_concur_get_list_item: [{ text: 'Read list item', field: 'itemId', core: true }],
+        sap_concur_create_list_item: ['Create a list item', { text: ', with', field: 'body' }],
+        sap_concur_update_list_item: [
+          { text: 'Update list item', field: 'itemId', core: true },
+          { text: ', setting', field: 'body' },
+        ],
+        sap_concur_delete_list_item: [{ text: 'Delete list item', field: 'itemId', core: true }],
+        sap_concur_list_budgets: [
+          'List budget item headers',
+          { text: ', starting at', field: 'offset' },
+        ],
+        sap_concur_get_budget: [{ text: 'Read budget item header', field: 'budgetId', core: true }],
+        sap_concur_list_budget_categories: ['List budget categories'],
+        sap_concur_upload_exchange_rates: [
+          'Upload custom exchange rates',
+          { text: ', from', field: 'body' },
+        ],
+        sap_concur_create_purchase_request: [
+          'Create a purchase request',
+          { text: ', with', field: 'body' },
+        ],
+        sap_concur_get_purchase_request: [
+          { text: 'Read purchase request', field: 'purchaseRequestId', core: true },
+        ],
+        sap_concur_get_travel_profile: [
+          'Read a travel profile',
+          { text: ', for user', field: 'useridValue' },
+        ],
+        sap_concur_list_travel_profiles_summary: [
+          'List travel profile summaries',
+          { text: ', modified since', field: 'lastModifiedDate' },
+        ],
+        sap_concur_search_locations: [
+          'Search locations',
+          { text: ', matching', field: 'searchText' },
+          { text: ', in country', field: 'countryCode' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -886,6 +1140,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
     {
       id: 'count',
       title: 'Count',
+      canvasNoun: 'how many',
       type: 'short-input',
       placeholder: '100',
       condition: { field: 'operation', value: 'sap_concur_list_users' },

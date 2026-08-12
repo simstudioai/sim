@@ -64,6 +64,8 @@ function ensureDomForTipTap(): void {
   // temporal dead zone ("Cannot access 'window' before initialization").
   const { JSDOM } = require('jsdom') as typeof import('jsdom')
   const { window: jsdomWindow } = new JSDOM('<!doctype html><html><body></body></html>')
+  // double-cast-allowed: assigning the jsdom shims onto the global needs an
+  // index-signature view of `globalThis`, whose declared type has none.
   const g = globalThis as unknown as Record<string, unknown>
   g.window = jsdomWindow
   g.document = jsdomWindow.document

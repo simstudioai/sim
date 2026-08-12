@@ -86,6 +86,16 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: 'var(--brand)',
   icon: AgentIcon,
+  canvasPresentation: {
+    defaultTitle: 'Agent',
+    sentences: {
+      default: [
+        { text: 'Prompt', field: 'model', core: true },
+        { text: 'with', field: 'messages' },
+        { text: ', using', field: 'tools' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'messages',

@@ -319,7 +319,7 @@ export function useTableEventStream({
         // Keep the tray's export list fresh between its polls.
         void queryClient.invalidateQueries({ queryKey: tableKeys.exportJobs(workspaceId) })
         if (status === 'ready' && jobId && consumeInitiatedExport(jobId)) {
-          void downloadExportResult(workspaceId, tableId, jobId)
+          void downloadExportResult(workspaceId, jobId)
             .then(() => toast.success('Export ready — downloading'))
             .catch((err) => {
               logger.error('Export download failed', { tableId, jobId, err })

@@ -214,6 +214,13 @@ export function WorkspaceChrome({
     return getDesktopBridge()?.onCommand?.((command) => {
       if (command === 'toggle-sidebar') {
         useSidebarStore.getState().toggleCollapsed()
+        return
+      }
+      // The shell's View > Search claims `Mod+K` before the renderer sees it, so
+      // this must mirror the `open-search` global command — a toggle, not an open.
+      if (command === 'open-search') {
+        const searchModal = useSearchModalStore.getState()
+        searchModal.setOpen(!searchModal.isOpen)
       }
     })
   }, [])

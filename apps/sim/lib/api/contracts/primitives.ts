@@ -13,24 +13,34 @@ const resolvedSecretTraceProvenanceEntrySchema = z
     encryptedValue: z
       .string()
       .min(1)
-      .max(8 * 1024 * 1024),
-    name: z.string().min(1).max(1024).optional(),
+      .max(8 * 1024 * 1024)
+      .describe('Encrypted secret value carried across the trusted execution boundary.'),
+    name: z.string().min(1).max(1024).optional().describe('Optional source secret name.'),
   })
   .strict()
 
 /** Private, encrypted provenance carried only across authenticated Sim model-input boundaries. */
 export const resolvedSecretTraceProvenanceSchema = z
   .object({
-    version: z.literal(1),
-    complete: z.boolean(),
-    entries: z.array(resolvedSecretTraceProvenanceEntrySchema).max(10_000),
+    version: z.literal(1).describe('Secret provenance format version.'),
+    complete: z.boolean().describe('Whether the provenance trace is complete.'),
+    entries: z
+      .array(resolvedSecretTraceProvenanceEntrySchema)
+      .max(10_000)
+      .describe('Encrypted secret provenance entries.'),
     scope: z
       .object({
-        userId: z.string().min(1).max(1024),
-        workspaceId: z.string().min(1).max(1024).optional(),
+        userId: z.string().min(1).max(1024).describe('User scope for the encrypted provenance.'),
+        workspaceId: z
+          .string()
+          .min(1)
+          .max(1024)
+          .optional()
+          .describe('Optional workspace scope for the encrypted provenance.'),
       })
       .strict()
-      .optional(),
+      .optional()
+      .describe('Authorization scope bound to the encrypted provenance.'),
   })
   .strict()
   .superRefine((provenance, ctx) => {
@@ -59,18 +69,21 @@ export const resolvedSecretTraceProvenanceSchema = z
 /** Per-selection encrypted provenance for durable internal persistence boundaries. */
 export const privateSecretProvenanceBundleSchema = z
   .object({
-    version: z.literal(1),
-    complete: z.boolean(),
+    version: z.literal(1).describe('Private provenance bundle format version.'),
+    complete: z.boolean().describe('Whether the private provenance bundle is complete.'),
     selections: z
       .array(
         z
           .object({
-            key: z.string().min(1).max(4096),
-            provenance: resolvedSecretTraceProvenanceSchema,
+            key: z.string().min(1).max(4096).describe('Selection key carrying provenance.'),
+            provenance: resolvedSecretTraceProvenanceSchema.describe(
+              'Encrypted provenance for this selection.'
+            ),
           })
           .strict()
       )
-      .max(10_000),
+      .max(10_000)
+      .describe('Selections and their encrypted provenance.'),
   })
   .strict()
   .superRefine((bundle, ctx) => {
@@ -123,6 +136,50 @@ export function flattenFieldErrors<TFields extends string>(
 export const noInputSchema = z.object({}).strict()
 export type NoInput = z.output<typeof noInputSchema>
 
+/**
+ * Accepts canonical RFC 4648 base64, including the empty encoding used for a
+ * zero-byte file. Padding is required when the final quantum is incomplete,
+ * and non-zero unused pad bits are rejected.
+ */
+export function isCanonicalBase64(value: string): boolean {
+  if (value.length === 0) return true
+  if (value.length % 4 !== 0) return false
+
+  let contentLength = value.length
+  while (contentLength > 0 && value.charCodeAt(contentLength - 1) === 61) {
+    contentLength -= 1
+  }
+
+  const paddingLength = value.length - contentLength
+  if (paddingLength > 2) return false
+  if (paddingLength === 1 && contentLength % 4 !== 3) return false
+  if (paddingLength === 2 && contentLength % 4 !== 2) return false
+
+  let finalSextet = 0
+  for (let index = 0; index < contentLength; index += 1) {
+    const code = value.charCodeAt(index)
+    const sextet =
+      code >= 65 && code <= 90
+        ? code - 65
+        : code >= 97 && code <= 122
+          ? code - 71
+          : code >= 48 && code <= 57
+            ? code + 4
+            : code === 43
+              ? 62
+              : code === 47
+                ? 63
+                : -1
+
+    if (sextet === -1) return false
+    finalSextet = sextet
+  }
+
+  if (paddingLength === 1 && (finalSextet & 0b11) !== 0) return false
+  if (paddingLength === 2 && (finalSextet & 0b1111) !== 0) return false
+  return true
+}
+
 export const jobIdParamsSchema = z.object({
   jobId: z.string().min(1),
 })
@@ -153,7 +210,23 @@ export function requiredFieldSchema(message: string) {
 }
 
 /** Non-empty `workspaceId` field with a stable, human-readable message. */
-export const workspaceIdSchema = requiredFieldSchema('Workspace ID is required')
+export const workspaceIdSchema = requiredFieldSchema('Workspace ID is required').describe(
+  'Unique workspace identifier.'
+)
+
+/**
+ * A single workspace-file name, not a path. Folder placement is carried by a
+ * separate folder id or path field, so separators and dot segments are invalid.
+ */
+export const workspaceFileNameSchema = z
+  .string({ error: 'Name is required' })
+  .trim()
+  .min(1, 'Name is required')
+  .max(255, 'Name is too long')
+  .refine(
+    (name) => name !== '.' && name !== '..' && !name.includes('/') && !name.includes('\\'),
+    'Name cannot contain path separators or dot segments'
+  )
 
 /** Non-empty `organizationId` field with a stable, human-readable message. */
 export const organizationIdSchema = requiredFieldSchema('Organization ID is required')

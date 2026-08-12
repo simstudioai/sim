@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/blocks', () => ({
   getBlock: vi.fn().mockReturnValue(null),
@@ -17,11 +17,13 @@ vi.mock('@/stores/constants', () => ({
   TERMINAL_BLOCK_COLUMN_WIDTH: { MIN: 120, DEFAULT: 200, MAX: 400 },
 }))
 
+import { getBlock } from '@/blocks'
 import type { ConsoleEntry } from '@/stores/terminal'
 import {
   buildEntryTree,
   type EntryNode,
   flattenVisibleExecutionRows,
+  getEntryAccentType,
   groupEntriesByExecution,
 } from './utils'
 
@@ -854,5 +856,51 @@ describe('flattenVisibleExecutionRows', () => {
     expect(rowsExpanded).toHaveLength(2)
     expect(rowsExpanded[1].node?.entry.id).toBe('child')
     expect(rowsExpanded[1].depth).toBe(1)
+  })
+})
+
+describe('getEntryAccentType', () => {
+  const mockedGetBlock = vi.mocked(getBlock)
+
+  afterEach(() => {
+    mockedGetBlock.mockReturnValue(null as never)
+  })
+
+  function withCategory(category: string) {
+    mockedGetBlock.mockReturnValue({ category } as never)
+  }
+
+  it('accents a core block by its type, mapped or not', () => {
+    withCategory('blocks')
+    expect(getEntryAccentType('agent')).toBe('agent')
+    /*
+     * An unmapped core block still takes the accent path and lands on `neutral`,
+     * which is exactly what the block toolbar does for a newly added one — the
+     * two surfaces must not disagree while the role map catches up.
+     */
+    expect(getEntryAccentType('brand_new_core_block')).toBe('brand_new_core_block')
+  })
+
+  it('accents a non-core block only when it carries a canvas role', () => {
+    withCategory('tools')
+    expect(getEntryAccentType('table')).toBe('table')
+    // A role-less integration keeps its own provider colour instead.
+    expect(getEntryAccentType('gmail')).toBeUndefined()
+
+    withCategory('triggers')
+    expect(getEntryAccentType('schedule')).toBe('schedule')
+    expect(getEntryAccentType('some_vendor_trigger')).toBeUndefined()
+  })
+
+  it('accents subflows, which carry a role but no registry config', () => {
+    expect(getEntryAccentType('loop')).toBe('loop')
+    expect(getEntryAccentType('parallel')).toBe('parallel')
+    expect(getEntryAccentType('workflow')).toBe('workflow')
+  })
+
+  it('leaves the terminal-synthesized run rows on their own status fill', () => {
+    expect(getEntryAccentType('error')).toBeUndefined()
+    expect(getEntryAccentType('validation')).toBeUndefined()
+    expect(getEntryAccentType('cancelled')).toBeUndefined()
   })
 })

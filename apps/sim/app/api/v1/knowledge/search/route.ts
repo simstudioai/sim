@@ -9,15 +9,15 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
-import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
-import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
-import type { StructuredFilter } from '@/lib/knowledge/types'
 import {
   executeKnowledgeSearch,
   generateSearchEmbedding,
   getDocumentMetadataByIds,
   type SearchResult,
-} from '@/app/api/knowledge/search/utils'
+} from '@/lib/knowledge/search/queries'
+import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
+import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
+import type { StructuredFilter } from '@/lib/knowledge/types'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
 import { handleError } from '@/app/api/v1/knowledge/utils'
 import {

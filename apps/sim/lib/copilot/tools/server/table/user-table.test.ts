@@ -3,6 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { TableDefinition } from '@/lib/table'
 
 const {
@@ -22,10 +23,16 @@ const {
   mockReleaseJobClaim,
   mockQueryRows,
   mockDeleteRowsByFilter,
+  mockDeleteColumns,
   mockUpdateRowsByFilter,
   mockRunTableImport,
   mockRunTableDelete,
   mockRunTableUpdate,
+  mockExecuteCopilotFileUseCase,
+  mockExecuteCopilotWorkflowUseCase,
+  mockLoadWorkspaceFileContext,
+  mockLoadTableRowSecretProvenance,
+  mockResolveWorkflowContext,
   fakeEnrichment,
 } = vi.hoisted(() => ({
   mockUpdateColumnType: vi.fn(),
@@ -44,10 +51,16 @@ const {
   mockReleaseJobClaim: vi.fn(),
   mockQueryRows: vi.fn(),
   mockDeleteRowsByFilter: vi.fn(),
+  mockDeleteColumns: vi.fn(),
   mockUpdateRowsByFilter: vi.fn(),
   mockRunTableImport: vi.fn(),
   mockRunTableDelete: vi.fn(),
   mockRunTableUpdate: vi.fn(),
+  mockExecuteCopilotFileUseCase: vi.fn(),
+  mockExecuteCopilotWorkflowUseCase: vi.fn(),
+  mockLoadWorkspaceFileContext: vi.fn(),
+  mockLoadTableRowSecretProvenance: vi.fn(),
+  mockResolveWorkflowContext: vi.fn(),
   fakeEnrichment: {
     id: 'work-email',
     name: 'Work Email',
@@ -68,8 +81,90 @@ vi.mock('@sim/utils/id', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
+  resolveWorkspaceFileReference: async (workspaceId: string, reference: string) => {
+    const file = await mockResolveWorkspaceFileReference(workspaceId, reference)
+    return file ? { ...file, workspaceId: file.workspaceId ?? workspaceId } : null
+  },
   fetchWorkspaceFileBuffer: mockDownloadWorkspaceFile,
+  loadActiveWorkspaceFileContext: mockLoadWorkspaceFileContext,
+}))
+vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
+  readWorkspaceFileContent: {
+    execute: async () => ({ content: await mockDownloadWorkspaceFile() }),
+  },
+}))
+vi.mock('@/lib/copilot/auth/file-delegation', () => ({
+  resolveCopilotFilePrincipal: vi.fn(() => ({
+    kind: 'delegated',
+    serviceId: 'copilot',
+    subjectUserId: 'user-1',
+    workspaceId: 'workspace-1',
+    delegationId: 'test-tool',
+    audience: 'sim:workspace-files',
+    issuedAt: new Date(0),
+    expiresAt: new Date(Date.now() + 60_000),
+  })),
+}))
+
+vi.mock('@/lib/copilot/auth/table-delegation', () => ({
+  messageForCopilotTableError: (error: unknown) => {
+    const classified = error as { code?: string; message?: string }
+    return classified.code && classified.code !== 'internal'
+      ? (classified.message ?? 'Table operation failed')
+      : 'Table operation failed'
+  },
+}))
+
+vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
+  executeCopilotFileUseCase: mockExecuteCopilotFileUseCase,
+}))
+
+vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
+  executeCopilotResolveWorkflowOutputs: mockExecuteCopilotWorkflowUseCase,
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: (actual: string | null, required: string) => {
+    const rank = { read: 1, write: 2, admin: 3 } as const
+    return (
+      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
+    )
+  },
+  resolveEffectiveWorkspacePermission: vi.fn().mockResolvedValue('write'),
+}))
+
+vi.mock('@/lib/table/application/context', () => ({
+  resolveActiveTableContext: async (input: { tableId: string; assertedWorkspaceId?: string }) => {
+    const table = await mockGetTableById(input.tableId)
+    if (!table || (input.assertedWorkspaceId && table.workspaceId !== input.assertedWorkspaceId)) {
+      throw Object.assign(new Error('Table not found'), { code: 'not_found' })
+    }
+    if (table.archivedAt) {
+      throw Object.assign(new Error('Table is archived'), { code: 'conflict' })
+    }
+    return {
+      tableId: table.id,
+      table,
+      workspaceId: table.workspaceId,
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'user-1',
+    }
+  },
+  resolveTableWorkspaceContext: async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: null,
+    allowPersonalApiKeys: true,
+    billedAccountUserId: 'user-1',
+  }),
+}))
+
+vi.mock('@/lib/table/application/folder-paths', () => ({
+  resolveTableFolderPath: async () => ({
+    folderId: null,
+    index: { idByPath: new Map(), pathById: new Map() },
+  }),
+  tableFolderPathForId: () => '/',
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
@@ -99,7 +194,7 @@ vi.mock('@/lib/table/workflow-groups/service', () => ({
 vi.mock('@/lib/table/columns/service', () => ({
   addTableColumn: vi.fn(),
   deleteColumn: vi.fn(),
-  deleteColumns: vi.fn(),
+  deleteColumns: mockDeleteColumns,
   renameColumn: vi.fn(),
   updateColumnConstraints: vi.fn(),
   updateColumnType: mockUpdateColumnType,
@@ -120,9 +215,19 @@ vi.mock('@/lib/table/rows/service', () => ({
   updateRowsByFilter: mockUpdateRowsByFilter,
 }))
 
+vi.mock('@/lib/table/rows/secret-provenance', () => ({
+  createExactEmptyTableRowSecretProvenance: (data: Record<string, unknown>) => ({
+    complete: true,
+    columns: Object.fromEntries(
+      Object.keys(data).map((columnId) => [columnId, { version: 1, complete: true, entries: [] }])
+    ),
+  }),
+  loadTableRowSecretProvenance: mockLoadTableRowSecretProvenance,
+}))
+
 vi.mock('@/lib/table/jobs/service', () => ({
-  markTableJobRunning: mockMarkTableJobRunning,
-  releaseJobClaim: mockReleaseJobClaim,
+  markTableJobRunningInWorkspace: mockMarkTableJobRunning,
+  releaseJobClaimInWorkspace: mockReleaseJobClaim,
 }))
 
 vi.mock('@/lib/table/import-runner', () => ({
@@ -143,11 +248,78 @@ vi.mock('@/lib/table/billing', () => ({
   getWorkspaceTableLimits: mockGetWorkspaceTableLimits,
 }))
 
-import {
-  normalizeSelectOptionsInput,
-  userTableServerTool,
-} from '@/lib/copilot/tools/server/table/user-table'
+vi.mock('@/lib/workflows/application/context', () => ({
+  resolveActiveWorkflowApplicationContext: mockResolveWorkflowContext,
+}))
+
+vi.mock('@/lib/workflows/application/resolve-workflow-outputs', () => ({
+  loadResolvedWorkflowOutputs: async () => mockExecuteCopilotWorkflowUseCase(),
+  resolveWorkflowOutputs: { operation: { id: 'workflows.read' } },
+}))
+
+import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
 import { encodeCursor } from '@/lib/table/rows/cursor'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+beforeEach(() => {
+  mockLoadWorkspaceFileContext.mockResolvedValue({ workspaceId: 'workspace-1' })
+  mockLoadTableRowSecretProvenance.mockResolvedValue({
+    version: 1,
+    complete: true,
+    entries: [],
+    scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+  })
+  mockResolveWorkflowContext.mockImplementation(
+    async ({
+      workflowId,
+      assertedWorkspaceId,
+    }: {
+      workflowId: string
+      assertedWorkspaceId: string
+    }) => ({
+      workflowId,
+      workspaceId: assertedWorkspaceId,
+    })
+  )
+  mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
+    workflowId: 'workflow-1',
+    outputs: [
+      {
+        blockId: 'block-1',
+        blockName: 'Agent',
+        blockType: 'agent',
+        path: 'content',
+        leafType: 'string',
+      },
+    ],
+    executionOrderByBlockId: { 'block-1': 1 },
+  })
+  mockExecuteCopilotFileUseCase.mockImplementation(
+    async (_context: unknown, _useCase: unknown, input: Record<string, unknown>) => {
+      const workspaceId = String(input.workspaceId)
+      const reference = String(input.reference)
+      const file = await mockResolveWorkspaceFileReference(workspaceId, reference)
+      if (!file) throw new OrchestrationError('not_found', 'File not found')
+      const provenance = await mockGetBoundWorkspaceFileSecretProvenance(workspaceId, {
+        fileId: file.id,
+        key: file.key,
+        context: 'workspace',
+      })
+      if (provenance.status !== 'exact' || provenance.entries.length > 0) {
+        throw new OrchestrationError(
+          'validation',
+          `Cannot import "${reference}": the file cannot be verified as free of resolved secrets.`
+        )
+      }
+      return {
+        file: { ...file, workspaceId },
+        ...(input.maxBytes === undefined
+          ? {}
+          : { content: await mockDownloadWorkspaceFile(file, { maxBytes: input.maxBytes }) }),
+      }
+    }
+  )
+})
 
 function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
   return {
@@ -172,65 +344,20 @@ function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
   }
 }
 
+function buildToolContext() {
+  return {
+    userId: 'user-1',
+    workspaceId: 'workspace-1',
+    toolCallId: 'tool-call-1',
+    copilotToolExecution: true,
+  } as const
+}
+
 /** Lets a runDetached microtask chain run before asserting on the work it dispatched. */
 async function flushDetached(): Promise<void> {
   await Promise.resolve()
   await Promise.resolve()
 }
-
-describe('normalizeSelectOptionsInput', () => {
-  it('generates a stable id for a bare-name string option', () => {
-    const [opt] = normalizeSelectOptionsInput(['Open']) ?? []
-    expect(opt.name).toBe('Open')
-    expect(typeof opt.id).toBe('string')
-    expect(opt.id.length).toBeGreaterThan(0)
-  })
-
-  it('generates an id for an object option without one', () => {
-    const [opt] = normalizeSelectOptionsInput([{ name: 'Closed' }]) ?? []
-    expect(opt.name).toBe('Closed')
-    expect(opt.id.length).toBeGreaterThan(0)
-  })
-
-  it('preserves an explicitly supplied id', () => {
-    const result = normalizeSelectOptionsInput([{ id: 'opt_keep', name: 'Open' }])
-    expect(result).toEqual([{ id: 'opt_keep', name: 'Open' }])
-  })
-
-  it('reuses the id of an existing option with the same name', () => {
-    // The agent re-sends options as bare names on every edit. Minting fresh ids
-    // would orphan every cell holding them — silently clearing the column.
-    const existing = [
-      { id: 'opt_low', name: 'Low' },
-      { id: 'opt_high', name: 'High' },
-    ]
-    const result = normalizeSelectOptionsInput(['Low', 'Medium', 'High'], existing) ?? []
-
-    expect(result[0]).toEqual({ id: 'opt_low', name: 'Low' })
-    expect(result[2]).toEqual({ id: 'opt_high', name: 'High' })
-    // Only the genuinely new option gets a fresh id.
-    expect(result[1].name).toBe('Medium')
-    expect(result[1].id).not.toBe('opt_low')
-    expect(result[1].id).not.toBe('opt_high')
-  })
-
-  it('matches an existing option name case-insensitively', () => {
-    const result = normalizeSelectOptionsInput(['open'], [{ id: 'opt_open', name: 'Open' }]) ?? []
-    expect(result[0].id).toBe('opt_open')
-    expect(result[0].name).toBe('open')
-  })
-
-  it('mints a fresh id when there is no existing column to match against', () => {
-    const result = normalizeSelectOptionsInput(['Open']) ?? []
-    expect(result[0].id.length).toBeGreaterThan(0)
-    expect(result[0].name).toBe('Open')
-  })
-
-  it('returns undefined for a non-array (validation rejects it downstream)', () => {
-    expect(normalizeSelectOptionsInput(undefined)).toBeUndefined()
-    expect(normalizeSelectOptionsInput('Open')).toBeUndefined()
-  })
-})
 
 describe('userTableServerTool.import_file', () => {
   beforeEach(() => {
@@ -246,7 +373,7 @@ describe('userTableServerTool.import_file', () => {
     mockDownloadWorkspaceFile.mockResolvedValue(Buffer.from('name,age\nAlice,30\nBob,40'))
     mockGetTableById.mockResolvedValue(buildTable())
     mockMarkTableJobRunning.mockResolvedValue(true)
-    mockReleaseJobClaim.mockResolvedValue(undefined)
+    mockReleaseJobClaim.mockResolvedValue(true)
     mockBatchInsertRows.mockImplementation(async (data: { rows: unknown[] }) =>
       data.rows.map((_, i) => ({ id: `row_${i}` }))
     )
@@ -259,7 +386,7 @@ describe('userTableServerTool.import_file', () => {
         operation: 'import_file',
         args: { tableId: 'tbl_1', fileId: 'file-1' },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
@@ -281,7 +408,7 @@ describe('userTableServerTool.import_file', () => {
         operation: 'import_file',
         args: { tableId: 'tbl_1', fileId: 'file-1', mode: 'replace' },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
@@ -324,7 +451,7 @@ describe('userTableServerTool.import_file', () => {
           mapping: { 'Full Name': 'name', Years: 'age' },
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
@@ -341,7 +468,7 @@ describe('userTableServerTool.import_file', () => {
         operation: 'import_file',
         args: { tableId: 'tbl_1', fileId: 'file-1', mode: 'merge' },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     expect(result.success).toBe(false)
     expect(result.message).toMatch(/Invalid mode/)
@@ -355,7 +482,7 @@ describe('userTableServerTool.import_file', () => {
         operation: 'import_file',
         args: { tableId: 'tbl_1', fileId: 'file-1' },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     expect(result.success).toBe(false)
     expect(result.message).toMatch(/archived/i)
@@ -368,7 +495,7 @@ describe('userTableServerTool.import_file', () => {
         operation: 'import_file',
         args: { tableId: 'tbl_1', fileId: 'file-1' },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     expect(result.success).toBe(false)
     expect(result.message).toMatch(/not found/i)
@@ -382,7 +509,7 @@ describe('userTableServerTool.import_file', () => {
         operation: 'import_file',
         args: { tableId: 'tbl_1', fileId: 'file-1' },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     expect(result.success).toBe(false)
     expect(result.message).toMatch(/missing required columns/i)
@@ -392,14 +519,20 @@ describe('userTableServerTool.import_file', () => {
   it('claims and releases the table job slot around an inline import', async () => {
     const result = await userTableServerTool.execute(
       { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1' } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
-    expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', expect.any(String), 'import')
+    expect(mockMarkTableJobRunning).toHaveBeenCalledWith(
+      'tbl_1',
+      'workspace-1',
+      expect.any(String),
+      'import'
+    )
     expect(mockReleaseJobClaim).toHaveBeenCalledWith(
       'tbl_1',
-      mockMarkTableJobRunning.mock.calls[0][1]
+      'workspace-1',
+      mockMarkTableJobRunning.mock.calls[0][2]
     )
   })
 
@@ -407,7 +540,7 @@ describe('userTableServerTool.import_file', () => {
     mockMarkTableJobRunning.mockResolvedValueOnce(false)
     const result = await userTableServerTool.execute(
       { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1' } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(false)
@@ -427,14 +560,19 @@ describe('userTableServerTool.import_file', () => {
 
     const result = await userTableServerTool.execute(
       { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1', mode: 'replace' } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     await flushDetached()
 
     expect(result.success).toBe(true)
     expect(result.data?.jobId).toBeDefined()
     expect(result.message).toMatch(/background/i)
-    expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', expect.any(String), 'import')
+    expect(mockMarkTableJobRunning).toHaveBeenCalledWith(
+      'tbl_1',
+      'workspace-1',
+      expect.any(String),
+      'import'
+    )
     expect(mockBatchInsertRows).not.toHaveBeenCalled()
     expect(mockReplaceTableRows).not.toHaveBeenCalled()
     expect(mockDownloadWorkspaceFile).not.toHaveBeenCalled()
@@ -456,7 +594,7 @@ describe('userTableServerTool.import_file', () => {
 
     const result = await userTableServerTool.execute(
       { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1' } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(false)
@@ -474,7 +612,7 @@ describe('userTableServerTool.import_file', () => {
         operation: 'import_file',
         args: { tableId: 'tbl_1', fileId: 'uploads/people.csv' },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(false)
@@ -490,7 +628,7 @@ describe('userTableServerTool.import_file', () => {
         operation: 'import_file',
         args: { tableId: 'tbl_1', fileId: 'files/typo.csv' },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(false)
@@ -499,6 +637,7 @@ describe('userTableServerTool.import_file', () => {
 
   it('rejects a background import while another job holds the table slot', async () => {
     mockResolveWorkspaceFileReference.mockResolvedValueOnce({
+      id: 'file-1',
       name: 'big.csv',
       type: 'text/csv',
       key: 'workspace/workspace-1/big.csv',
@@ -508,7 +647,7 @@ describe('userTableServerTool.import_file', () => {
 
     const result = await userTableServerTool.execute(
       { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1' } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     await flushDetached()
 
@@ -541,7 +680,7 @@ describe('userTableServerTool.create_from_file', () => {
   it('stamps the workspace plan limits on the created table', async () => {
     const result = await userTableServerTool.execute(
       { operation: 'create_from_file', args: { fileId: 'file-1' } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
@@ -557,7 +696,7 @@ describe('userTableServerTool.create_from_file', () => {
 
     const result = await userTableServerTool.execute(
       { operation: 'create_from_file', args: { fileId: 'file-1' } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
@@ -569,18 +708,18 @@ describe('userTableServerTool.create_from_file', () => {
     expect(mockDeleteTable).not.toHaveBeenCalled()
   })
 
-  it('rolls back the created table and reports the reason when row insertion fails', async () => {
+  it('rolls back the created table and safely conceals unknown insertion failures', async () => {
     mockBatchInsertRows.mockRejectedValueOnce(new Error('Row 2: Column "email" must be unique'))
 
     const result = await userTableServerTool.execute(
       { operation: 'create_from_file', args: { fileId: 'file-1' } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(false)
     expect(mockDeleteTable).toHaveBeenCalledWith('tbl_new', expect.any(String))
-    expect(result.message).toMatch(/rolled back/i)
-    expect(result.message).toMatch(/must be unique/i)
+    expect(result.message).toBe('Operation failed: Table operation failed')
+    expect(result.message).not.toMatch(/must be unique/i)
   })
 
   it('creates a placeholder table and dispatches a background import for large CSV files', async () => {
@@ -594,7 +733,7 @@ describe('userTableServerTool.create_from_file', () => {
 
     const result = await userTableServerTool.execute(
       { operation: 'create_from_file', args: { fileId: 'file-1' } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     await flushDetached()
 
@@ -623,7 +762,7 @@ describe('userTableServerTool.create_from_file', () => {
 
     const result = await userTableServerTool.execute(
       { operation: 'create_from_file', args: { fileId: 'file-1' } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(false)
@@ -649,13 +788,103 @@ describe('userTableServerTool.create', () => {
           schema: { columns: [{ name: 'name', type: 'string', required: true }] },
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
     expect(mockGetWorkspaceTableLimits).toHaveBeenCalledWith('workspace-1')
     const createArgs = mockCreateTable.mock.calls[0][0] as { maxTables: number }
     expect(createArgs.maxTables).toBe(3)
+  })
+})
+
+describe('userTableServerTool.delete_column', () => {
+  it('presents the authoritative canonical deletion for aliases and duplicates', async () => {
+    const current = buildTable({
+      schema: {
+        columns: [
+          { id: 'column-name', name: 'name', type: 'string' },
+          { id: 'column-age', name: 'age', type: 'number' },
+        ],
+      },
+    })
+    mockGetTableById.mockResolvedValue(current)
+    mockDeleteColumns.mockResolvedValue({
+      ...current,
+      schema: { columns: [{ id: 'column-name', name: 'name', type: 'string' }] },
+    })
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'delete_column',
+        args: {
+          tableId: 'tbl_1',
+          columnNames: ['age', 'column-age', 'AGE'],
+        },
+      },
+      buildToolContext()
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.message).toBe('Deleted 1 column: age')
+    expect(mockDeleteColumns).toHaveBeenCalledWith(
+      { tableId: 'tbl_1', columnNames: ['age', 'column-age', 'AGE'] },
+      expect.any(String),
+      { expectedWorkspaceId: 'workspace-1' }
+    )
+  })
+})
+
+describe('userTableServerTool workflow scope', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(buildTable())
+    mockAddWorkflowGroup.mockImplementation(
+      async ({ group, outputColumns }: { group: unknown; outputColumns: unknown[] }) =>
+        buildTable({
+          schema: {
+            columns: outputColumns,
+            workflowGroups: [group],
+          } as never,
+        })
+    )
+  })
+
+  it('conceals a cross-workspace workflow id before persisting a group', async () => {
+    mockResolveWorkflowContext.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Workflow not found')
+    )
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'add_workflow_group',
+        args: {
+          tableId: 'tbl_1',
+          workflowId: 'workflow-cross-workspace',
+          outputs: [{ blockId: 'block-1', path: 'content' }],
+        },
+      },
+      buildToolContext()
+    )
+
+    expect(result).toEqual({ success: false, message: 'Operation failed: Workflow not found' })
+    expect(mockResolveWorkflowContext).toHaveBeenCalledWith({
+      workflowId: 'workflow-cross-workspace',
+      assertedWorkspaceId: 'workspace-1',
+    })
+    expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
+  })
+
+  it('conceals unknown application failures from tool output', async () => {
+    mockQueryRows.mockRejectedValueOnce(new Error('database host unavailable'))
+
+    const result = await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1' } },
+      buildToolContext()
+    )
+
+    expect(result).toEqual({ success: false, message: 'Operation failed: Table operation failed' })
+    expect(result.message).not.toContain('database host unavailable')
   })
 })
 
@@ -667,7 +896,7 @@ describe('userTableServerTool.list_enrichments', () => {
   it('returns the enrichment catalog metadata', async () => {
     const result = await userTableServerTool.execute(
       { operation: 'list_enrichments', args: {} },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
@@ -699,7 +928,15 @@ describe('userTableServerTool.add_enrichment', () => {
         },
       })
     )
-    mockAddWorkflowGroup.mockResolvedValue(buildTable())
+    mockAddWorkflowGroup.mockImplementation(
+      async ({ group, outputColumns }: { group: unknown; outputColumns: unknown[] }) =>
+        buildTable({
+          schema: {
+            columns: outputColumns,
+            workflowGroups: [group],
+          } as never,
+        })
+    )
   })
 
   it('creates an enrichment group with mapped inputs and derived output columns', async () => {
@@ -715,7 +952,7 @@ describe('userTableServerTool.add_enrichment', () => {
           ],
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
@@ -760,7 +997,7 @@ describe('userTableServerTool.add_enrichment', () => {
           autoRun: true,
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
@@ -776,7 +1013,7 @@ describe('userTableServerTool.add_enrichment', () => {
         operation: 'add_enrichment',
         args: { tableId: 'tbl_1', enrichmentId: 'nope', inputMappings: [] },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(false)
@@ -794,7 +1031,7 @@ describe('userTableServerTool.add_enrichment', () => {
           inputMappings: [{ inputName: 'fullName', columnName: 'name' }],
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(false)
@@ -815,7 +1052,7 @@ describe('userTableServerTool.add_enrichment', () => {
           ],
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(false)
@@ -847,26 +1084,52 @@ describe('userTableServerTool.query_rows', () => {
     })
   })
 
-  it('passes an explicit limit through unchanged (no row cap)', async () => {
+  it('rejects an explicit limit above the Copilot page cap before any DB call', async () => {
     const result = await userTableServerTool.execute(
       { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 100000 } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
-    expect(result.success).toBe(true)
-    const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
-    expect(options.limit).toBe(100000)
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('Limit cannot exceed 1000')
+    expect(mockGetTableById).not.toHaveBeenCalled()
+    expect(mockQueryRows).not.toHaveBeenCalled()
   })
 
-  it('omits the limit so queryRows returns every matching row', async () => {
+  it('defaults an omitted Copilot page limit to the surface maximum', async () => {
     const result = await userTableServerTool.execute(
       { operation: 'query_rows', args: { tableId: 'tbl_1' } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
     const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
-    expect(options.limit).toBeUndefined()
+    expect(options.limit).toBe(1000)
+  })
+
+  it('imports application-owned persisted provenance into the tool trace registry', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const importProvenance = vi.spyOn(registry, 'importCrossingProvenance')
+
+    const result = await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 2 } },
+      { ...buildToolContext(), resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockLoadTableRowSecretProvenance).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ id: 'row_1' })]),
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    expect(importProvenance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: 1,
+        complete: true,
+        scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+      }),
+      expect.arrayContaining([{ name: 'r1' }]),
+      { trusted: true }
+    )
   })
 
   it('normalizes a root condition before querying', async () => {
@@ -875,7 +1138,7 @@ describe('userTableServerTool.query_rows', () => {
         operation: 'query_rows',
         args: { tableId: 'tbl_1', filter: { field: 'name', op: 'eq', value: 'r1' } },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
@@ -892,7 +1155,7 @@ describe('userTableServerTool.query_rows', () => {
     })
     const result = await userTableServerTool.execute(
       { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 2, cursor } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
@@ -914,7 +1177,7 @@ describe('userTableServerTool.query_rows', () => {
     })
     const result = await userTableServerTool.execute(
       { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 2 } },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.message).toContain('more available')
@@ -933,7 +1196,7 @@ describe('userTableServerTool.query_rows', () => {
         operation: 'query_rows',
         args: { tableId: 'tbl_1', cursor, order: [{ field: 'name', direction: 'desc' }] },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(false)
@@ -975,7 +1238,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
           limit: 5000,
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     await flushDetached()
 
@@ -983,7 +1246,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     // target = min(limit 5000, matchCount 20000) = 5000, above the inline cap → background.
     expect(result.data?.doomedCount).toBe(5000)
     expect(mockDeleteRowsByFilter).not.toHaveBeenCalled()
-    const [, , type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    const [, , , type, payload] = mockMarkTableJobRunning.mock.calls[0]
     expect(type).toBe('delete')
     // Bounded delete carries maxRows and omits doomedCount so the mask is skipped and the count
     // isn't double-subtracted.
@@ -998,14 +1261,19 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
         operation: 'delete_rows_by_filter',
         args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
     expect(result.data?.affectedCount).toBe(5)
     expect(mockDeleteRowsByFilter).toHaveBeenCalledTimes(1)
     // Inline delete still claims (and releases) the table's write-job slot.
-    expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', expect.any(String), 'delete')
+    expect(mockMarkTableJobRunning).toHaveBeenCalledWith(
+      'tbl_1',
+      'workspace-1',
+      expect.any(String),
+      'delete'
+    )
     expect(mockReleaseJobClaim).toHaveBeenCalled()
   })
 
@@ -1015,7 +1283,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
         operation: 'delete_rows_by_filter',
         args: { tableId: 'tbl_1', filter: { field: 'name', op: 'eq', value: 'x' } },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
@@ -1034,7 +1302,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
           limit: 100,
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(false)
@@ -1056,7 +1324,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
         operation: 'delete_rows_by_filter',
         args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     await flushDetached()
 
@@ -1064,8 +1332,9 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     expect(result.data?.jobId).toBeDefined()
     expect(result.data?.doomedCount).toBe(20000)
     expect(mockDeleteRowsByFilter).not.toHaveBeenCalled()
-    const [tableId, jobId, type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    const [tableId, workspaceId, jobId, type, payload] = mockMarkTableJobRunning.mock.calls[0]
     expect(tableId).toBe('tbl_1')
+    expect(workspaceId).toBe('workspace-1')
     expect(type).toBe('delete')
     expect(payload).toMatchObject({ doomedCount: 20000, cutoff: expect.any(String) })
     // Unbounded delete masks the whole set — no maxRows cap.
@@ -1094,7 +1363,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
         operation: 'delete_rows_by_filter',
         args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(false)
@@ -1113,7 +1382,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
           limit: 100,
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
@@ -1149,7 +1418,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
           limit: 5000,
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     await flushDetached()
 
@@ -1157,7 +1426,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     // target = min(limit 5000, matchCount 20000) = 5000, above the inline cap → background.
     expect(result.data?.affectedCount).toBe(5000)
     expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
-    const [, , type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    const [, , , type, payload] = mockMarkTableJobRunning.mock.calls[0]
     expect(type).toBe('update')
     expect(payload).toMatchObject({ affectedCount: 5000, maxRows: 5000 })
     expect(mockRunTableUpdate.mock.calls[0][0]).toMatchObject({ maxRows: 5000 })
@@ -1173,7 +1442,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
           data: { age: 1 },
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     expect(result.success).toBe(true)
     expect(result.data?.affectedCount).toBe(5)
@@ -1191,7 +1460,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
           data: { age: 1 },
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
 
     expect(result.success).toBe(true)
@@ -1215,7 +1484,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
           data: { age: 1 },
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     await flushDetached()
 
@@ -1223,8 +1492,9 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     expect(result.data?.jobId).toBeDefined()
     expect(result.data?.affectedCount).toBe(20000)
     expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
-    const [tableId, jobId, type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    const [tableId, workspaceId, jobId, type, payload] = mockMarkTableJobRunning.mock.calls[0]
     expect(tableId).toBe('tbl_1')
+    expect(workspaceId).toBe('workspace-1')
     expect(type).toBe('update')
     expect(payload).toMatchObject({
       affectedCount: 20000,
@@ -1255,7 +1525,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
           data: { email: 'y' },
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     expect(result.success).toBe(true)
     expect(mockQueryRows).not.toHaveBeenCalled()
@@ -1281,7 +1551,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
           data: { age: 1 },
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     expect(result.success).toBe(false)
     expect(result.message).toMatch(/job is already in progress/i)
@@ -1300,7 +1570,7 @@ describe('userTableServerTool.update_rows_by_filter', () => {
           limit: 100,
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      buildToolContext()
     )
     expect(result.success).toBe(true)
     expect(mockQueryRows).not.toHaveBeenCalled()
@@ -1342,7 +1612,7 @@ describe('userTableServerTool.update_column — select routing', () => {
           options: ['Open', 'Closed'],
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' } as never
+      buildToolContext()
     )
 
     expect(mockUpdateColumnType).not.toHaveBeenCalled()
@@ -1358,7 +1628,7 @@ describe('userTableServerTool.update_column — select routing', () => {
         operation: 'update_column',
         args: { tableId: 'tbl_1', columnName: 'status', newType: 'string' },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' } as never
+      buildToolContext()
     )
 
     expect(mockUpdateColumnType).toHaveBeenCalledTimes(1)
@@ -1371,12 +1641,31 @@ describe('userTableServerTool.update_column — select routing', () => {
         operation: 'update_column',
         args: { tableId: 'tbl_1', columnName: 'status', multiple: true },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' } as never
+      buildToolContext()
     )
 
     expect(mockUpdateColumnOptions).toHaveBeenCalledTimes(1)
     const arg = mockUpdateColumnOptions.mock.calls[0][0]
     expect(arg.multiple).toBe(true)
     expect(arg.options).toEqual([{ id: 'opt_open', name: 'Open' }])
+  })
+})
+
+describe('userTableServerTool.delete bounds', () => {
+  it('rejects an unbounded multi-table delete before invoking an application use case', async () => {
+    vi.clearAllMocks()
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'delete',
+        args: { tableIds: Array.from({ length: 101 }, (_, index) => `table-${index}`) },
+      },
+      buildToolContext()
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message: 'Cannot delete more than 100 tables at once',
+    })
+    expect(mockGetTableById).not.toHaveBeenCalled()
   })
 })

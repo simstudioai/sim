@@ -9,6 +9,7 @@ import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
@@ -21,22 +22,12 @@ export type UsageLogCategory = 'model' | 'fixed' | 'tool'
 /**
  * Usage log source types
  */
-export type UsageLogSource =
-  | 'workflow'
-  | 'wand'
-  | 'copilot'
-  | 'workspace-chat'
-  | 'mcp_copilot'
-  | 'mothership_block'
-  | 'knowledge-base'
-  | 'voice-input'
-  | 'enrichment'
-  | 'voice-output'
+export type UsageLogSource = InternalUsageLogSource
 
 /**
- * usage_log sources that make up the "copilot" cost breakdown shown in billing
- * summaries: the copilot agent, mothership/workspace chat, MCP copilot, and
- * mothership blocks. Mirrors the source set billed via /api/billing/update-cost.
+ * Internal usage_log sources that make up the Sim Chat-family cost breakdown
+ * used by legacy billing summaries. Mirrors the source set billed via
+ * /api/billing/update-cost.
  */
 export const COPILOT_USAGE_SOURCES: UsageLogSource[] = [
   'copilot',
@@ -616,15 +607,27 @@ export async function recordCumulativeUsage(
 }
 
 interface UsageLogFilter {
-  source?: UsageLogSource
+  source?: UsageLogSource | UsageLogSource[]
   workspaceId?: string
   startDate?: Date
   endDate?: Date
 }
 
-function buildUsageLogConditions(userId: string, filter: UsageLogFilter) {
-  const conditions = [eq(usageLog.userId, userId)]
-  if (filter.source) conditions.push(eq(usageLog.source, filter.source))
+type UsageLogScope = { kind: 'user'; userId: string } | { kind: 'workspace'; workspaceId: string }
+
+function buildUsageLogConditions(scope: UsageLogScope, filter: UsageLogFilter) {
+  const conditions = [
+    scope.kind === 'user'
+      ? eq(usageLog.userId, scope.userId)
+      : eq(usageLog.workspaceId, scope.workspaceId),
+  ]
+  if (filter.source) {
+    conditions.push(
+      Array.isArray(filter.source)
+        ? inArray(usageLog.source, filter.source)
+        : eq(usageLog.source, filter.source)
+    )
+  }
   if (filter.workspaceId) conditions.push(eq(usageLog.workspaceId, filter.workspaceId))
   if (filter.startDate) conditions.push(gte(usageLog.createdAt, filter.startDate))
   if (filter.endDate) conditions.push(lte(usageLog.createdAt, filter.endDate))
@@ -646,7 +649,7 @@ export async function getUsageCreditsByLogId(
   const rows = await dbReplica
     .select({ id: usageLog.id, cost: usageLog.cost })
     .from(usageLog)
-    .where(and(...buildUsageLogConditions(userId, filter)))
+    .where(and(...buildUsageLogConditions({ kind: 'user', userId }, filter)))
     .orderBy(desc(usageLog.createdAt), desc(usageLog.id))
 
   return apportionCredits(
@@ -659,7 +662,7 @@ export async function getUsageCreditsByLogId(
  */
 export interface GetUsageLogsOptions {
   /** Filter by source */
-  source?: UsageLogSource
+  source?: UsageLogSource | UsageLogSource[]
   /** Filter by workspace */
   workspaceId?: string
   /** Start date (inclusive) */
@@ -712,7 +715,7 @@ export interface UsageLogsResult {
   /** `{ totalCost: 0, bySource: {} }` when `includeSummary` is `false`. */
   summary: {
     totalCost: number
-    bySource: Record<string, number>
+    bySource: Partial<Record<UsageLogSource, number>>
   }
   pagination: {
     nextCursor?: string
@@ -721,10 +724,10 @@ export interface UsageLogsResult {
 }
 
 /**
- * Get usage logs for a user with optional filtering and pagination
+ * Gets one bounded usage-log page for an explicit actor or workspace scope.
  */
-export async function getUserUsageLogs(
-  userId: string,
+async function getUsageLogs(
+  scope: UsageLogScope,
   options: GetUsageLogsOptions = {}
 ): Promise<UsageLogsResult> {
   const {
@@ -739,7 +742,7 @@ export async function getUserUsageLogs(
   } = options
 
   try {
-    const conditions = buildUsageLogConditions(userId, { source, workspaceId, startDate, endDate })
+    const conditions = buildUsageLogConditions(scope, { source, workspaceId, startDate, endDate })
 
     if (cursor) {
       let resolvedCursorCreatedAt = cursorCreatedAt
@@ -806,7 +809,7 @@ export async function getUserUsageLogs(
     let totalCost = 0
 
     if (includeSummary) {
-      const summaryConditions = buildUsageLogConditions(userId, {
+      const summaryConditions = buildUsageLogConditions(scope, {
         source,
         workspaceId,
         startDate,
@@ -844,9 +847,25 @@ export async function getUserUsageLogs(
   } catch (error) {
     logger.error('Failed to get usage logs', {
       error: toError(error).message,
-      userId,
+      scope,
       options,
     })
     throw error
   }
+}
+
+/** Gets usage logs whose actor is the selected user. */
+export function getUserUsageLogs(
+  userId: string,
+  options: GetUsageLogsOptions = {}
+): Promise<UsageLogsResult> {
+  return getUsageLogs({ kind: 'user', userId }, options)
+}
+
+/** Gets usage logs attributed to the selected workspace, regardless of actor. */
+export function getWorkspaceUsageLogs(
+  workspaceId: string,
+  options: Omit<GetUsageLogsOptions, 'workspaceId'> = {}
+): Promise<UsageLogsResult> {
+  return getUsageLogs({ kind: 'workspace', workspaceId }, options)
 }

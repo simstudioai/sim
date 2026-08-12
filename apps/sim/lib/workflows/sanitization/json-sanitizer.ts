@@ -1,9 +1,16 @@
 import { isRecordLike, sortObjectKeysDeep } from '@sim/utils/object'
+import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
 import { getBlock } from '@/blocks/registry'
-import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
+import type {
+  BlockRetryConfig,
+  BlockState,
+  Loop,
+  Parallel,
+  WorkflowState,
+} from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
 import { blockAdvertisesWebhookUrl } from '@/triggers/webhook-url'
@@ -30,6 +37,8 @@ interface CopilotBlockState {
   nestedNodes?: Record<string, CopilotBlockState>
   enabled: boolean
   advancedMode?: boolean
+  errorEnabled?: boolean
+  retry?: BlockRetryConfig
   triggerMode?: boolean
 }
 
@@ -477,7 +486,7 @@ function extractConnectionsForBlock(
 
   // Group by source handle (converting to simple format)
   for (const edge of outgoingEdges) {
-    let handle = edge.sourceHandle || 'source'
+    let handle = normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) || 'source'
 
     // Convert internal UUID handles to simple format (if, else-if-0, route-0, etc.)
     handle = convertToSimpleHandle(handle, blockId, block)
@@ -606,6 +615,8 @@ export function sanitizeForCopilot(
     if (connections) result.connections = connections
     if (Object.keys(nestedNodes).length > 0) result.nestedNodes = nestedNodes
     if (block.advancedMode !== undefined) result.advancedMode = block.advancedMode
+    if (block.errorEnabled !== undefined) result.errorEnabled = block.errorEnabled
+    if (block.retry !== undefined) result.retry = block.retry
     if (block.triggerMode !== undefined) result.triggerMode = block.triggerMode
 
     // Note: outputs, position, height, layout, horizontalHandles are intentionally excluded
@@ -651,6 +662,7 @@ export function sanitizeForExport(state: WorkflowState): ExportWorkflowState {
   // Use unified sanitization with env var preservation for export
   const sanitizedState = sanitizeWorkflowForSharing(fullState, {
     preserveEnvVars: true, // Keep {{ENV_VAR}} references in exported workflows
+    redactOpaqueCredentialInputs: true,
   }) as ExportWorkflowState['state']
 
   return {

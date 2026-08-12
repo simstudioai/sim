@@ -539,7 +539,7 @@ async function executeWorkflowCoreImpl(
       scope: { userId: personalEnvUserId, workspaceId: providedWorkspaceId },
     })
     if (restoredState && !restoreTrusted) {
-      resolvedSecretTraceRegistry.markIncomplete()
+      resolvedSecretTraceRegistry.markIncomplete('restored-provenance-untrusted')
     }
     if (options.trustedInitialResolvedSecretTraceProvenance !== undefined) {
       await resolvedSecretTraceRegistry.importProvenance(

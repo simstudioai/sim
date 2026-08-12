@@ -34,11 +34,35 @@ In Sim, the Agiloft integration enables your agents to manage contracts and reco
 
 ## Usage Instructions
 
-Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.
+Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, record locking, and running action buttons across any table in your knowledge base.
 
 
 
 ## Actions
+
+### Agiloft Async Status
+
+Check whether an asynchronous Agiloft call, such as a run action button, has completed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table the asynchronous call was made against |
+| `callbackId` | string | Yes | Callback ID returned by the asynchronous call, e.g. from Run Action Button |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `callbackId` | string | Callback ID that was checked |
+| `statusCode` | number | Raw status code Agiloft returned |
+| `status` | string | completed, queued, in_progress, failed, or unknown_callback |
+| `complete` | boolean | True when the operation has finished, whether it succeeded or failed |
 
 ### Agiloft Attach File
 
@@ -55,8 +79,9 @@ Attach a file to a field in an Agiloft record.
 | `table` | string | Yes | Table name \(e.g., "contracts"\) |
 | `recordId` | string | Yes | ID of the record to attach the file to |
 | `fieldName` | string | Yes | Name of the attachment field |
-| `file` | file | No | File to attach |
+| `file` | file | Yes | File to attach |
 | `fileName` | string | No | Name to assign to the file \(defaults to original file name\) |
+| `overwrite` | boolean | No | Replace the contents of the field instead of adding another file to it |
 
 #### Output
 
@@ -129,6 +154,8 @@ Delete a record from an Agiloft table.
 | `password` | string | Yes | Agiloft password |
 | `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |
 | `recordId` | string | Yes | ID of the record to delete |
+| `substituteIds` | string | No | Comma-separated IDs of records that adopt the dependants of the deleted record. Read only when the delete rule is REPLACE_WITH_ANOTHER. |
+| `deleteRule` | string | No | How to treat records that depend on this one: ERROR_IF_DEPENDANTS \(default — fails rather than cascading\), APPLY_DELETE_WHERE_POSSIBLE, DELETE_WHERE_POSSIBLE_OTHERWISE_UNLINK, APPLY_UNLINK, UNLINK_WHERE_POSSIBLE_OTHERWISE_DELETE, or REPLACE_WITH_ANOTHER |
 
 #### Output
 
@@ -159,6 +186,42 @@ Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHER
 | --------- | ---- | ----------- |
 | `choiceLineId` | number | Internal numeric line ID of the choice value |
 
+### Agiloft List Tables
+
+List the tables and fields in an Agiloft knowledge base, to discover the logical names other operations need.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | No | Logical name of a single table to describe \(e.g., "contacts"\). Leave empty to list every table in the knowledge base. |
+| `includeLinkedInfo` | boolean | No | Include the source table and column behind each linked field |
+| `skipColumnsInfo` | boolean | No | Return table names only, omitting field details, for a much smaller response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tables` | array | Tables in the knowledge base with their fields |
+|   ↳ `label` | string | Display name of the table |
+|   ↳ `logicalName` | string | Logical table name, as other Agiloft operations expect it |
+|   ↳ `fields` | array | Fields on the table |
+|     ↳ `columnName` | string | Logical field name |
+|     ↳ `columnLabel` | string | Display label |
+|     ↳ `columnType` | string | SQL column type |
+|     ↳ `columnTypeDomain` | string | Agiloft field type |
+|     ↳ `required` | boolean | Whether the field is mandatory |
+|     ↳ `isLinked` | boolean | Whether the field is a linked field |
+|     ↳ `linkedInfo` | array | Source table and column, when linked-field details were requested |
+|       ↳ `linkedTable` | string | Source table |
+|       ↳ `linkedColumn` | string | Source column |
+|     ↳ `textFieldType` | string | Content type for text fields, e.g. text/plain |
+| `totalCount` | number | Number of tables returned |
+
 ### Agiloft Lock Record
 
 Lock, unlock, or check the lock status of an Agiloft record.
@@ -174,15 +237,42 @@ Lock, unlock, or check the lock status of an Agiloft record.
 | `table` | string | Yes | Table name \(e.g., "contracts"\) |
 | `recordId` | string | Yes | ID of the record to lock, unlock, or check |
 | `lockAction` | string | Yes | Action to perform: "lock", "unlock", or "check" |
+| `force` | boolean | No | Unlock only: release a lock held by another user. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Record ID |
-| `lockStatus` | string | Lock status \(e.g., "LOCKED", "UNLOCKED"\) |
+| `tableId` | number | Numeric system identifier of the table holding the record |
+| `lockStatus` | string | Lock status: "LOCKED" when the record is held, "NO_LOCK" when it is free |
 | `lockedBy` | string | Username of the user who locked the record |
 | `lockExpiresInMinutes` | number | Minutes until the lock expires |
+
+### Agiloft Natural Language Search
+
+Search Agiloft records by describing what you want in plain language, such as "active NDAs submitted last month".
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `nlpQuery` | string | Yes | The request in plain language, e.g. "Show me open, high-priority contracts". Structured field filters are not accepted — use Search Records for those. |
+| `fields` | string | Yes | Comma-separated field names to return, e.g. "id, contract_title1, company_name" |
+| `page` | string | No | Page number, starting from 0 |
+| `limit` | string | No | Records per page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Matching records with the requested field values |
+| `totalCount` | number | Number of records in this response |
+| `truncated` | boolean | True when more records were returned upstream than this call reports |
 
 ### Agiloft Read Record
 
@@ -255,9 +345,9 @@ Download an attached file from an Agiloft record field.
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded attachment file |
 
-### Agiloft Saved Search
+### Agiloft Run Action Button
 
-List saved searches defined for an Agiloft table.
+Run an action button on an Agiloft record, such as an approval or send-for-signature step.
 
 #### Input
 
@@ -267,17 +357,41 @@ List saved searches defined for an Agiloft table.
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
-| `table` | string | Yes | Table name to list saved searches for \(e.g., "contracts"\) |
+| `table` | string | Yes | Table name \(e.g., "contracts", "case"\) |
+| `recordId` | string | Yes | ID of the record to run the action button on |
+| `actionButtonField` | string | Yes | Logical name of the field holding the action button \(e.g., "ab_field"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `searches` | array | List of saved searches for the table |
-|   ↳ `name` | string | Saved search name |
-|   ↳ `label` | string | Saved search display label |
-|   ↳ `id` | number | Saved search database identifier |
+| `recordId` | string | ID of the record the action button was run on |
+| `callbackId` | string | Callback identifier for the asynchronous run, which Agiloft returns as EWCALLBACK_ID |
+
+### Agiloft Saved Search
+
+List the saved searches defined for an Agiloft table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Logical table name to list saved searches for \(e.g., "contract"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `searches` | array | Saved searches defined on the table |
+|   ↳ `name` | string | Internal saved search name |
+|   ↳ `label` | string | Display label, as used by Search Records |
+|   ↳ `id` | number | Saved search identifier in the Agiloft database |
 |   ↳ `description` | string | Saved search description |
+| `totalCount` | number | Number of saved searches returned |
 
 ### Agiloft Search Records
 
@@ -292,19 +406,21 @@ Search for records in an Agiloft table using a query.
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
 | `table` | string | Yes | Table name to search in \(e.g., "contracts", "contacts.employees"\) |
-| `query` | string | Yes | Search query using Agiloft query syntax \(e.g., "status=\'Active\'" or "company_name~=\'Acme\'"\) |
+| `query` | string | No | Ad hoc EWSearch query. Combine conditions with && \(and\) or \|\| \(or\) and quote every value — e.g. \"summary~='test'&&priority='High'\". Required unless a saved search is given. |
+| `search` | string | No | Label of a saved search defined on the table \(e.g., "C: Status is Closed"\). Can be combined with a query to narrow it further. |
 | `fields` | string | No | Comma-separated list of field names to include in the results |
 | `page` | string | No | Page number for paginated results \(starting from 0\) |
-| `limit` | string | No | Maximum number of records to return per page |
+| `limit` | string | No | Maximum number of records to return per page. Agiloft treats 0 as "all records", so leave it unset or use a positive value to keep result sizes bounded. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `truncated` | boolean | True when more records were returned upstream than this call reports |
 | `records` | json | Array of matching records with their field values |
-| `totalCount` | number | Total number of matching records |
-| `page` | number | Current page number |
-| `limit` | number | Records per page |
+| `totalCount` | number | Number of records in this response. Not a total match count — compare with `truncated`. |
+| `page` | number | Page number that was requested \(0-based\) |
+| `limit` | number | Page size that was requested; 0 when no limit was sent and Agiloft chose one |
 
 ### Agiloft Select Records
 
@@ -319,14 +435,15 @@ Select record IDs matching a SQL WHERE clause from an Agiloft table.
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
 | `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |
-| `where` | string | Yes | SQL WHERE clause using database column names \(e.g., "summary like \'%new%\'" or "assigned_person=\'John Doe\'"\) |
+| `where` | string | Yes | SQL WHERE clause using database column names \(e.g., "summary like \'%new%\'" or "assigned_person=\'John Doe\'"\). EWSelect has no page size and returns every matching ID, so append a database limit such as "limit 0,200" to bound the result. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `truncated` | boolean | True when more IDs matched than this call reports |
 | `recordIds` | array | Array of record IDs matching the query |
-| `totalCount` | number | Total number of matching records |
+| `totalCount` | number | Number of IDs in this response — compare with `truncated` |
 
 ### Agiloft Update Record
 
@@ -350,5 +467,30 @@ Update an existing record in an Agiloft table.
 | --------- | ---- | ----------- |
 | `id` | string | ID of the updated record |
 | `fields` | json | Updated field values of the record |
+
+### Agiloft Upsert Record
+
+Create an Agiloft record, or update it when a record already matches the given fields.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |
+| `match` | string | Yes | Field used to find an existing record \(e.g., "ext_id"\). Pick something that identifies a record uniquely — if more than one record matches, Agiloft writes nothing and returns a conflict. |
+| `async` | boolean | No | Queue the write instead of waiting for it. Returns a callback ID instead of a record ID; pass that to Async Status to poll the result. |
+| `data` | string | Yes | Field values as a JSON object. On create these populate the new record; on update only the supplied fields change. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the created or updated record |
+| `created` | boolean | True when a new record was created, false when an existing one was updated |
+| `callbackId` | string | Returned for a queued upsert; pass it to Async Status to poll the result |
 
 

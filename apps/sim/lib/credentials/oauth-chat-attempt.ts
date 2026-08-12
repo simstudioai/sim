@@ -24,6 +24,13 @@ export interface OAuthCredentialTarget {
   providerId: string
   baseProviderId: string
   credentialId?: string
+  /**
+   * Alternate authorization servers whose credentials authenticate this same
+   * service (`salesforce-sandbox`). Supplied by the caller rather than resolved
+   * here so this module stays free of the OAuth provider registry, which would
+   * otherwise pull icon components into the chat bundle.
+   */
+  additionalProviderIds?: readonly string[]
 }
 
 export interface OAuthCredentialBaseline {
@@ -36,6 +43,15 @@ export interface OAuthChatAttempt {
   workspaceId: string
   providerId: string
   baseProviderId: string
+  /**
+   * See {@link OAuthCredentialTarget.additionalProviderIds}. Persisted on the
+   * attempt because the post-connect verification leg re-reads the stored
+   * attempt rather than the live target — without it, a credential from an
+   * alternate authorization server would not register as "connected".
+   * Absent on attempts written before this existed; those simply match as they
+   * did, and attempts expire after {@link OAUTH_CHAT_ATTEMPT_MAX_AGE_MS}.
+   */
+  additionalProviderIds?: readonly string[]
   displayName: string
   controlId: string
   credentialId?: string
@@ -49,6 +65,8 @@ interface CreateOAuthChatAttemptInput {
   workspaceId: string
   providerId: string
   baseProviderId: string
+  /** See {@link OAuthCredentialTarget.additionalProviderIds}. */
+  additionalProviderIds?: readonly string[]
   displayName: string
   controlId: string
   credentialId?: string
@@ -65,7 +83,10 @@ function credentialsForTarget(
   }
   return credentials.filter(
     (credential) =>
-      credential.providerId === target.providerId || credential.providerId === target.baseProviderId
+      credential.providerId === target.providerId ||
+      credential.providerId === target.baseProviderId ||
+      (credential.providerId !== null &&
+        (target.additionalProviderIds?.includes(credential.providerId) ?? false))
   )
 }
 

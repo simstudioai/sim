@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockAllocateUniqueWorkspaceFileName,
+  mockAdmitCreateWorkspaceFile,
   mockCheckStorageQuotaForBillingContext,
   mockDecompress,
   mockFetchBuffer,
@@ -17,9 +18,11 @@ const {
   mockHeadObject,
   mockIncrementStorageUsageForBillingContextInTx,
   mockMaybeNotifyStorageLimitForBillingContext,
+  mockReadWorkspaceFileMetadata,
   mockResolveStorageBillingContext,
 } = vi.hoisted(() => ({
   mockAllocateUniqueWorkspaceFileName: vi.fn(),
+  mockAdmitCreateWorkspaceFile: vi.fn(),
   mockCheckStorageQuotaForBillingContext: vi.fn(),
   mockDecompress: vi.fn(),
   mockFetchBuffer: vi.fn(),
@@ -31,6 +34,7 @@ const {
   mockHeadObject: vi.fn(),
   mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
   mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
+  mockReadWorkspaceFileMetadata: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
 }))
 
@@ -50,6 +54,14 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   allocateUniqueWorkspaceFileName: mockAllocateUniqueWorkspaceFileName,
   fetchWorkspaceFileBuffer: mockFetchBuffer,
   getWorkspaceFile: mockGetWorkspaceFile,
+}))
+
+vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
+  readWorkspaceFileMetadata: { execute: mockReadWorkspaceFileMetadata },
+}))
+
+vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
+  admitCreateWorkspaceFile: mockAdmitCreateWorkspaceFile,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
@@ -119,7 +131,21 @@ const context = {
   workspaceId: 'ws-1',
   userId: 'user-1',
   workflowId: 'wf-1',
+  copilotToolExecution: true,
+  toolCallId: 'materialize-file-test',
 } as ExecutionContext
+
+mockReadWorkspaceFileMetadata.mockImplementation(
+  async ({ input }: { input: { fileId: string; assertedWorkspaceId?: string } }) => ({
+    file: await mockGetWorkspaceFile(
+      input.assertedWorkspaceId ?? context.workspaceId,
+      input.fileId,
+      {
+        throwOnError: true,
+      }
+    ),
+  })
+)
 
 const STORAGE_CONTEXT = {
   workspaceId: 'ws-1',
@@ -128,6 +154,9 @@ const STORAGE_CONTEXT = {
   plan: 'team_25000',
   customStorageLimitGB: null,
 }
+
+const POSTGRES_INT4_MAX = 2_147_483_647
+const OVERSIZED_BYTES = 3 * 1024 * 1024 * 1024
 
 const mothershipRow = {
   id: 'file-1',
@@ -156,9 +185,12 @@ describe('executeMaterializeFile - workspace write gate', () => {
     'refuses %s without workspace write access and touches no upload',
     async (operation) => {
       const { ensureWorkspaceAccess } = await import('@/lib/copilot/tools/handlers/access')
-      vi.mocked(ensureWorkspaceAccess).mockRejectedValueOnce(
-        new Error('Write access required for this workspace')
-      )
+      const denial = new Error('Write access required for this workspace')
+      if (operation === 'import') {
+        vi.mocked(ensureWorkspaceAccess).mockRejectedValueOnce(denial)
+      } else {
+        mockAdmitCreateWorkspaceFile.mockRejectedValueOnce(denial)
+      }
 
       const result = await executeMaterializeFile({ fileNames: ['a.json'], operation }, context)
 
@@ -169,10 +201,12 @@ describe('executeMaterializeFile - workspace write gate', () => {
   )
 
   it('requires write, not merely read, access', async () => {
-    const { ensureWorkspaceAccess } = await import('@/lib/copilot/tools/handlers/access')
     await executeMaterializeFile({ fileNames: ['a.json'], operation: 'save' }, context)
 
-    expect(ensureWorkspaceAccess).toHaveBeenCalledWith(context.workspaceId, context.userId, 'write')
+    expect(mockAdmitCreateWorkspaceFile).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'delegated', subjectUserId: context.userId }),
+      context.workspaceId
+    )
   })
 })
 
@@ -305,6 +339,58 @@ describe('executeMaterializeFile - save storage transition', () => {
     expect(mockMaybeNotifyStorageLimitForBillingContext).toHaveBeenCalledWith(
       STORAGE_CONTEXT,
       1_250
+    )
+  })
+
+  it('writes an int4-representable legacy size and the exact byte count above the int4 ceiling', async () => {
+    // A row above the int4 ceiling must not be written raw to `size`: Postgres
+    // raises 22003 and the save becomes unrecoverable.
+    mockHeadObject.mockResolvedValue({ size: OVERSIZED_BYTES, contentType: 'text/plain' })
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['report.txt'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    const [updateSet] = dbChainMockFns.set.mock.calls.at(-1) as [Record<string, unknown>]
+    expect(updateSet.size).toBe(POSTGRES_INT4_MAX)
+    expect(updateSet.sizeBytes).toBe(OVERSIZED_BYTES)
+    expect(mockCheckStorageQuotaForBillingContext).toHaveBeenCalledWith(
+      STORAGE_CONTEXT,
+      OVERSIZED_BYTES
+    )
+    expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      STORAGE_CONTEXT,
+      OVERSIZED_BYTES
+    )
+  })
+
+  it('falls back to the exact stored byte count, not the clamped legacy size', async () => {
+    // Without cloud storage a missing object does not short-circuit, so the row is
+    // the only size source — and its `size` is already clamped.
+    mockHeadObject.mockResolvedValue(null)
+    mockHasCloudStorage.mockReturnValue(false)
+    mockFindUpload.mockResolvedValue({
+      ...mothershipRow,
+      size: POSTGRES_INT4_MAX,
+      sizeBytes: OVERSIZED_BYTES,
+    })
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['report.txt'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    const [updateSet] = dbChainMockFns.set.mock.calls.at(-1) as [Record<string, unknown>]
+    expect(updateSet.sizeBytes).toBe(OVERSIZED_BYTES)
+    expect(updateSet.size).toBe(POSTGRES_INT4_MAX)
+    expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      STORAGE_CONTEXT,
+      OVERSIZED_BYTES
     )
   })
 
@@ -578,7 +664,11 @@ describe('executeMaterializeFile - extract operation', () => {
       expect.any(Buffer),
       expect.objectContaining({
         workspaceId: 'ws-1',
-        userId: 'user-1',
+        principal: expect.objectContaining({
+          kind: 'delegated',
+          subjectUserId: 'user-1',
+          workspaceId: 'ws-1',
+        }),
         rootFolderSegments: ['bundle'],
         skipNoiseEntries: true,
         secretProvenance: { status: 'exact', entries: [] },

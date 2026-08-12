@@ -29,6 +29,16 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
   category: 'blocks',
   bgColor: '#802FDE',
   icon: Blimp,
+  canvasPresentation: {
+    defaultTitle: 'Sim Chat',
+    sentences: {
+      default: [
+        { text: 'Ask', field: 'prompt', core: true },
+        { text: ', with', field: ['attachmentFiles', 'fileReferences'], after: 'attached' },
+        { text: ', using', field: 'tools' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'prompt',

@@ -71,18 +71,16 @@ function hostnameOf(origin: string): string | null {
 /**
  * Builds the omnibox's corpus from what the browser already knows.
  *
- * Three sources, each of which exists for a reason of its own: hosts with a
- * saved password, hosts this browser has been to that still hold a cookie, and
- * hosts brought over from the browser the user imported from. None of them is
- * a log of where this browser has been — it keeps no history, and an agent
- * drives it, so a visit log would blend the agent's browsing into the user's
- * suggestions and the user's into the agent's reach.
+ * Two sources admit a host: a top-level visit in this browser that still has
+ * session evidence, or positive aggregate visit evidence imported from the
+ * user's other browser. Saved credentials can promote and decorate an admitted
+ * host, but cannot create a suggestion by themselves: owning a password is not
+ * evidence that someone chose to visit the site.
  *
- * The imported source is the reason the list is not almost empty on a fresh
- * install, and it is admitted at the weakest tier: hosts nobody has signed into
- * here can be offered without displacing the ones somebody has. A host found in
- * more than one source appears once, at its strongest tier, keeping whichever
- * favicon and whichever timestamp is the more useful of the two.
+ * This remains an aggregate directory rather than a history log: no page URL,
+ * visit timestamp, or sequence is retained. A host found in more than one
+ * source appears once, at its strongest tier, keeping whichever favicon and
+ * whichever timestamp is the more useful of the two.
  */
 export function mergeSuggestionSources(
   sessions: readonly BrowserKnownSession[],
@@ -91,6 +89,12 @@ export function mergeSuggestionSources(
 ): UrlSuggestion[] {
   const byHostname = new Map<string, UrlSuggestion>()
   const known = new Map(sites.map((site) => [site.hostname, site]))
+  const visitedHosts = new Set(sessions.map((session) => session.hostname))
+  for (const site of sites) {
+    if (typeof site.visits === 'number' && Number.isFinite(site.visits) && site.visits > 0) {
+      visitedHosts.add(site.hostname)
+    }
+  }
 
   const record = (hostname: string, tier: SuggestionTier, seenAt: number, icon?: string) => {
     const existing = byHostname.get(hostname)
@@ -114,7 +118,7 @@ export function mergeSuggestionSources(
 
   for (const credential of credentials) {
     const hostname = hostnameOf(credential.origin)
-    if (!hostname) continue
+    if (!hostname || !visitedHosts.has(hostname)) continue
     record(
       hostname,
       SUGGESTION_TIER.ACCOUNT,
@@ -135,7 +139,9 @@ export function mergeSuggestionSources(
   // Last, so a host with real evidence keeps the tier and timestamp that
   // evidence earned it rather than being flattened to the moment of the import.
   for (const site of sites) {
-    if (!site.hostname || byHostname.has(site.hostname)) continue
+    if (!site.hostname || !visitedHosts.has(site.hostname) || byHostname.has(site.hostname)) {
+      continue
+    }
     byHostname.set(site.hostname, {
       hostname: site.hostname,
       url: `https://${site.hostname}`,
@@ -242,10 +248,8 @@ function bestMatch(suggestion: UrlSuggestion, query: string): { matched: boolean
 /**
  * Where the arrow keys land next.
  *
- * Nothing is highlighted until the user actually arrows into the list, so
- * Enter keeps meaning "go to what I typed" rather than silently redirecting to
- * a suggestion. Both ends wrap, and Up from that neutral state enters at the
- * bottom.
+ * Both ends wrap. A null selection enters at the first row with Down and the
+ * final row with Up, which also keeps this helper safe while results change.
  */
 export function moveActiveIndex(
   current: number | null,

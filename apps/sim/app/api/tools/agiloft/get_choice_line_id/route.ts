@@ -6,9 +6,10 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { parseEwRest } from '@/tools/agiloft/ewrest'
 import type { AgiloftGetChoiceLineIdResponse } from '@/tools/agiloft/types'
-import { buildGetChoiceLineIdUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import { buildGetChoiceLineIdUrl, describeAgiloftError } from '@/tools/agiloft/utils'
+import { executeEwRequest } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,40 +52,34 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const result = await executeAgiloftRequest<AgiloftGetChoiceLineIdResponse>(
+    const result = await executeEwRequest<AgiloftGetChoiceLineIdResponse>(
       params,
       (base) => ({
         url: buildGetChoiceLineIdUrl(base, params),
         method: 'GET',
-        headers: { Accept: 'application/json' },
       }),
       async (response) => {
+        const body = await response.text()
+
         if (!response.ok) {
-          const errorText = await response.text()
           return {
             success: false,
             output: { choiceLineId: null },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
+            error: `Agiloft error ${response.status}: ${describeAgiloftError(body)}`,
           }
         }
 
-        const data = (await response.json()) as Record<string, unknown>
-        const result = data.result ?? data
-        let choiceLineId: number | null = null
+        /** Documented response: EWREST_choiceLineId = '1'; */
+        const raw = parseEwRest(body).get('choiceLineId')
+        const parsedId = Number(raw)
+        const choiceLineId =
+          raw !== undefined && raw.trim() !== '' && Number.isFinite(parsedId) ? parsedId : null
 
-        if (typeof result === 'number') {
-          choiceLineId = result
-        } else if (typeof result === 'string') {
-          const parsed = Number(result)
-          choiceLineId = Number.isFinite(parsed) ? parsed : null
-        } else if (typeof result === 'object' && result !== null) {
-          const obj = result as Record<string, unknown>
-          const idVal = obj.id ?? obj.choiceLineId ?? obj.lineId
-          if (typeof idVal === 'number') {
-            choiceLineId = idVal
-          } else if (typeof idVal === 'string') {
-            const parsed = Number(idVal)
-            choiceLineId = Number.isFinite(parsed) ? parsed : null
+        if (raw === undefined) {
+          return {
+            success: false,
+            output: { choiceLineId: null },
+            error: `Agiloft did not return a choice line ID for "${params.value}" in field "${params.fieldName}": ${body.trim() || '(empty response)'}`,
           }
         }
 
@@ -92,14 +87,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           return {
             success: false,
             output: { choiceLineId: null },
-            error: `No choice line ID found for value "${params.value}" in field "${params.fieldName}"`,
+            error: `Agiloft returned a non-numeric choice line ID for "${params.value}" in field "${params.fieldName}": "${raw}"`,
           }
         }
 
-        return {
-          success: data.success !== false,
-          output: { choiceLineId },
-        }
+        return { success: true, output: { choiceLineId } }
       }
     )
 
