@@ -16,7 +16,7 @@ import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
 import { ResponseSection } from '@/components/ui/response-section'
 import { i18n } from '@/lib/i18n'
-import { getApiSpecContent, openapi } from '@/lib/openapi'
+import { getApiSpecContent, getAuthenticatedCodeSamples, openapi } from '@/lib/openapi'
 import { type PageData, source } from '@/lib/source'
 import { DOCS_BASE_URL } from '@/lib/urls'
 
@@ -71,6 +71,7 @@ function stripLocalePrefix(url: string, lang: string): string {
 
 const APIPage = createAPIPage(openapi, {
   playground: { enabled: false },
+  generateCodeSamples: getAuthenticatedCodeSamples,
   client: {
     operation: { APIExampleSelector },
   },
