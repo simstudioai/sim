@@ -4,11 +4,11 @@ import {
   ERROR_RESPONSES,
   type ErrorResponseId,
   RATE_LIMIT_HEADERS,
+  RESOURCE_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
-  WORKSPACE_ERRORS,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   defineOpenApiDocument,
@@ -96,7 +96,7 @@ const routes = [
       summary: 'List Logs',
       description:
         'List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. This list predates the shared sort convention: it has no `sortBy` (the sort column is fixed to execution start time) and spells the direction `order` rather than `sortOrder`. Trace spans are stored separately from the log row and are pruned on their own retention schedule: `includeTraceSpans=true` on a run whose stored spans have aged out returns `traceSpans: []` rather than an error, so an empty array does not mean the run recorded no spans.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'A page of execution logs matching the filters.' },
     }),
     {
@@ -122,7 +122,7 @@ const routes = [
       summary: 'Get Log',
       description:
         'Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. The returned `workflowState` snapshot has credential values redacted: OAuth credential references and secret (`password`) sub-block values are null, while `{{VAR}}` environment-variable references are preserved so consecutive snapshots stay diffable. Trace spans are stored separately from the log row and are pruned on their own retention schedule: a run whose stored spans have aged out returns `traceSpans: []` rather than an error, so an empty array does not mean the run recorded no spans.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The requested diagnostic log representation.' },
     }),
     {

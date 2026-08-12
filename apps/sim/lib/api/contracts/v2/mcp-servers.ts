@@ -172,9 +172,11 @@ export const v2McpServerParamsSchema = z.object({
 })
 export type V2McpServerParams = z.output<typeof v2McpServerParamsSchema>
 
-export const v2McpServerWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the MCP server.'),
-})
+export const v2McpServerWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the MCP server.'),
+  })
+  .strict()
 export type V2McpServerWorkspaceQuery = z.output<typeof v2McpServerWorkspaceQuerySchema>
 
 export const v2McpServerSortFields = ['name', 'createdAt', 'updatedAt'] as const
@@ -288,7 +290,18 @@ export type V2UpdateMcpServerBody = z.input<typeof v2UpdateMcpServerBodySchema>
  * declaration gives an OpenAI function's `parameters`. `type` can be pinned to
  * the literal because the MCP SDK's own `ListToolsResult` schema already rejects
  * a tool whose `inputSchema.type` is anything else, so a server cannot make this
- * response fail its own validation.
+ * response fail its own validation. `properties` and `required` are pinned on
+ * the same ground, and the SDK is the stricter of the two on `properties`.
+ *
+ * The rule that keeps this safe is that a key may only be declared here when the
+ * SDK declares it at least as tightly. `description` may not: the SDK's
+ * `ToolSchema.inputSchema` does not declare it at all, so its own
+ * `.catchall(z.unknown())` admits any value — including the JSON `null` a Python
+ * server emits for an absent description. Declaring it `z.string().optional()`
+ * made the builder's outbound `.parse()` throw on a payload the protocol
+ * permits, and discovery answered a bare 500. It is left to the `catchall`
+ * below, which publishes as `additionalProperties` and passes the value through
+ * untouched.
  */
 const v2McpToolInputSchema = z
   .object({
@@ -303,7 +316,6 @@ const v2McpToolInputSchema = z
       .array(z.string().describe('Name of a required argument.'))
       .optional()
       .describe('Names of the arguments the tool requires.'),
-    description: z.string().optional().describe('Description of the argument object.'),
   })
   .catchall(z.unknown().describe('Additional JSON Schema keyword reported by the server.'))
   .describe("JSON Schema for the tool's arguments, as reported by the server.")

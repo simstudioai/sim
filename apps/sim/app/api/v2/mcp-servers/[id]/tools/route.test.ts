@@ -36,7 +36,11 @@ vi.mock('@/lib/mcp/application/use-cases', () => ({
 }))
 
 import { WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
-import { McpConnectionError, McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
+import {
+  McpConnectionError,
+  McpOauthAuthorizationRequiredError,
+  McpServerCooldownError,
+} from '@/lib/mcp/types'
 import { GET } from '@/app/api/v2/mcp-servers/[id]/tools/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -171,6 +175,63 @@ describe('/api/v2/mcp-servers/[id]/tools', () => {
 
     expect(response.status).toBe(500)
     expect(body.error.code).toBe('INTERNAL_ERROR')
+  })
+
+  /**
+   * `inputSchema` below the `object` wrapper is authored by the third-party
+   * server, and the MCP SDK's own `ToolSchema` does not declare `description`
+   * there — its `.catchall(z.unknown())` lets any value through, so a server
+   * serializing an absent description as JSON `null` (what a Python `None`
+   * produces) reaches Sim unvalidated. Declaring the key more tightly than the
+   * upstream schema does made the builder's outbound `.parse()` throw, and
+   * discovery answered a bare 500 for a payload the protocol permits.
+   */
+  it('publishes a tool whose server reported a non-string inputSchema description', async () => {
+    mocks.discover.mockResolvedValueOnce({
+      tools: [
+        {
+          ...TOOL,
+          inputSchema: { type: 'object' as const, description: null, properties: {} },
+        },
+      ],
+    })
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data[0].inputSchema).toEqual({
+      type: 'object',
+      description: null,
+      properties: {},
+    })
+  })
+
+  /**
+   * The 503 wording used to be selected by searching the error message for
+   * `cooldown`. `McpConnectionError` interpolates the server's display name into
+   * that message, so a server the caller happened to name after the word
+   * borrowed the negative-cache wording and told them to wait out a cooldown
+   * that was never entered.
+   */
+  it('does not read cooldown wording out of a server display name', async () => {
+    mocks.discover.mockRejectedValueOnce(new McpConnectionError('ECONNREFUSED', 'Cooldown Docs'))
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(body.error.message).toBe('The MCP server could not be reached')
+  })
+
+  it('reports a server inside the discovery cooldown with its own wording', async () => {
+    mocks.discover.mockRejectedValueOnce(new McpServerCooldownError(SERVER_ID))
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(body.error.message).toBe('The MCP server recently failed and is in cooldown')
   })
 
   it('rejects a workspace API key, which cannot supply the caller`s OAuth grant', async () => {

@@ -130,6 +130,25 @@ describe('/api/v2/custom-tools/[id]', () => {
     })
   })
 
+  /**
+   * Every list in this family rejects a query param it does not implement, so
+   * the single-resource reads must too. A caller who mistypes a flag otherwise
+   * gets a 200 that silently ignored it, which reads as confirmation the flag
+   * exists and does nothing.
+   */
+  it('rejects a query param it does not implement', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/custom-tools/${tool.id}?workspaceId=${WORKSPACE_ID}&includeCodes=true`,
+        { method: 'GET', headers: { 'x-api-key': 'key' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.get).not.toHaveBeenCalled()
+  })
+
   it('updates a custom tool through its semantic update operation', async () => {
     const response = await PATCH(
       request('PATCH', { workspaceId: WORKSPACE_ID, code: 'return 2' }),

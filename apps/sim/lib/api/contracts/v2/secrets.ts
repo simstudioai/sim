@@ -88,10 +88,12 @@ export const v2SetSecretBodySchema = z
   .strict()
 export type V2SetSecretBody = z.input<typeof v2SetSecretBodySchema>
 
-export const v2DeleteSecretQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace in which the secret is available.'),
-  scope: v2SecretScopeSchema,
-})
+export const v2DeleteSecretQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace in which the secret is available.'),
+    scope: v2SecretScopeSchema,
+  })
+  .strict()
 export type V2DeleteSecretQuery = z.output<typeof v2DeleteSecretQuerySchema>
 
 /**

@@ -98,6 +98,35 @@ describe('MCP server refresh route', () => {
     )
   })
 
+  /**
+   * `updatedAt` means "when the server's configuration last changed" and is one
+   * of the public list's keyset sorts, so a refresh must not stamp it. The
+   * service's discovery status write already holds that invariant; this route
+   * writes the same row from the UI's refresh button, and stamping it here moves
+   * the row to the head of `sortBy=updatedAt` under an in-flight v2 page, which
+   * duplicates some servers across pages and skips others. Liveness is published
+   * through `lastToolsRefresh`, `lastConnected`, and `lastError`.
+   */
+  it('records the refresh without stamping updatedAt', async () => {
+    mockDiscoverServerTools.mockResolvedValueOnce([])
+
+    const request = new Request('http://localhost/api/mcp/servers/server-1/refresh', {
+      method: 'POST',
+    }) as NextRequest
+    await POST(request, { params: Promise.resolve({ id: 'server-1' }) })
+
+    const refreshWrites = dbChainMockFns.set.mock.calls.filter(
+      ([values]) => (values as Record<string, unknown>)?.lastToolsRefresh !== undefined
+    )
+    expect(refreshWrites.length).toBeGreaterThan(0)
+    for (const [values] of refreshWrites) {
+      expect(
+        (values as Record<string, unknown>).updatedAt,
+        'the refresh route stamped updatedAt, corrupting the updatedAt keyset page'
+      ).toBeUndefined()
+    }
+  })
+
   it('reports the discovery failure when status persistence leaves a stale connected row', async () => {
     const reflectedSecret = 'Bearer reflected-static-token'
     mockDiscoverServerTools.mockRejectedValueOnce(
