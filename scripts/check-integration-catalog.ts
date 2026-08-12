@@ -104,9 +104,11 @@ const VENDOR_DOCS_INTEGRATIONS: ReadonlySet<string> = new Set([
  */
 function verifyDocsLinks(blocks: readonly BlockConfig[]): void {
   const issues: string[] = []
+  const vendorLinked = new Set<string>()
   for (const block of blocks) {
     const docsLink = block.docsLink ?? defaultIntegrationDocsUrl(block.type)
     if (!docsLink.startsWith(DOCS_ORIGIN)) {
+      vendorLinked.add(block.type)
       if (!VENDOR_DOCS_INTEGRATIONS.has(block.type)) {
         issues.push(
           `"${block.type}" docsLink points outside ${DOCS_ORIGIN} (${docsLink}) — add it to VENDOR_DOCS_INTEGRATIONS if that is intentional`
@@ -119,12 +121,10 @@ function verifyDocsLinks(blocks: readonly BlockConfig[]): void {
       issues.push(`"${block.type}" docsLink 404s — no docs page at en/${page}.mdx (${docsLink})`)
     }
   }
-  const staleAllowlist = [...VENDOR_DOCS_INTEGRATIONS].filter(
-    (type) =>
-      !blocks.some((block) => block.type === type && !block.docsLink?.startsWith(DOCS_ORIGIN))
-  )
-  for (const type of staleAllowlist) {
-    issues.push(`"${type}" is in VENDOR_DOCS_INTEGRATIONS but no longer links to vendor docs`)
+  for (const type of VENDOR_DOCS_INTEGRATIONS) {
+    if (!vendorLinked.has(type)) {
+      issues.push(`"${type}" is in VENDOR_DOCS_INTEGRATIONS but no longer links to vendor docs`)
+    }
   }
   if (issues.length > 0) {
     throw new Error(
