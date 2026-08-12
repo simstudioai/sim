@@ -1,5 +1,5 @@
+import { describeRunningCommand } from '@sim/terminal-protocol'
 import { describe, expect, it } from 'vitest'
-import { describeRunningCommand } from './index'
 
 describe('describeRunningCommand', () => {
   it('names the program of a bare command', () => {
