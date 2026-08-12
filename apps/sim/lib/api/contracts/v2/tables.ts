@@ -375,10 +375,13 @@ const v2TableColumnInputShape = {
  * Public column input.
  *
  * `required` round-trips: it is emitted on every column read, accepted here, and
- * accepted on the update body below. Setting it on a column whose existing rows
- * have null, missing, or empty cells is rejected by the domain with a 400 naming
- * the offending row count, so the flag can never be turned on over data that
- * would violate it.
+ * accepted on the update body below.
+ *
+ * The two write paths enforce it differently, matching v1. Turning it ON via
+ * update is rejected with a 400 naming the count of rows that hold null,
+ * missing, or empty cells. Add-column applies the flag as given without
+ * inspecting existing rows — the same shape `unique` already had on this
+ * surface — so a column added as required only constrains later writes.
  */
 export const v2TableColumnInputSchema = z
   .object(v2TableColumnInputShape)
@@ -711,6 +714,10 @@ export const v2ListTableRowsContract = defineRouteContract({
  * `.strict()` earns its place here more than anywhere else on this surface: v1
  * named its row filter `filter`, and while this body tolerated unknown keys that
  * request was answered with 200 and a fully unfiltered page.
+ *
+ * It binds the top level only: the shared `sortSpecSchema` elements still strip
+ * unknown keys, so an unsupported per-sort option is silently dropped rather
+ * than rejected. Fixing that belongs with the shared schema.
  */
 export const v2QueryRowsBodySchema = z
   .object({
@@ -830,10 +837,18 @@ export const v2BatchInsertTableRowsBodySchema = v1BatchInsertTableRowsBodySchema
   })
   .strict()
 
-export const v2CreateTableRowsBodySchema = z.union([
-  v2BatchInsertTableRowsBodySchema,
-  v2InsertTableRowBodySchema,
-])
+/**
+ * A union surfaces `invalid_union` as its first issue, whose default message is
+ * the unactionable `Invalid input` — so the shapes are named here. The per-member
+ * failures still ride along in `details`.
+ */
+export const v2CreateTableRowsBodySchema = z.union(
+  [v2BatchInsertTableRowsBodySchema, v2InsertTableRowBodySchema],
+  {
+    error:
+      'Row insert body must be either { rows: [...] } for a batch insert or { data: {...} } for a single row',
+  }
+)
 
 export const v2CreateTableRowsContract = defineRouteContract({
   method: 'POST',
@@ -1075,7 +1090,13 @@ export const v2ListTableViewsContract = defineRouteContract({
   },
 })
 
-/** First-party view bodies narrowed to `.strict()` for the public surface. */
+/**
+ * First-party view bodies narrowed to `.strict()` for the public surface.
+ *
+ * `.strict()` binds the top level only. The nested `config` object is the
+ * first-party table-metadata shape and still strips unknown keys; tightening it
+ * belongs with that shared schema, not here.
+ */
 export const v2CreateTableViewBodySchema = createTableViewBodySchema.strict()
 export type V2CreateTableViewBody = z.input<typeof v2CreateTableViewBodySchema>
 

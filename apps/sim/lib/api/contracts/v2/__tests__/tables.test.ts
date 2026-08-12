@@ -7,12 +7,14 @@ import {
   v2CreateTableBodySchema,
   v2CreateTableColumnBodySchema,
   v2CreateTableImportBodySchema,
+  v2CreateTableRowsBodySchema,
   v2CsvImportCreateColumnsSchema,
   v2CsvImportMappingSchema,
   v2QueryRowsBodySchema,
   v2TableUploadImportSourceSchema,
   v2UpdateTableColumnBodySchema,
 } from '@/lib/api/contracts/v2/tables'
+import { getValidationErrorMessage } from '@/lib/api/server/validation'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { CSV_DURABLE_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 
@@ -70,10 +72,15 @@ describe('v2 table column contracts', () => {
   })
 })
 
+interface SchemaLike {
+  safeParse: (value: unknown) => z.ZodSafeParseResult<unknown>
+  def?: { type?: unknown; options?: unknown }
+}
+
 interface BodyBearingContract {
   method: string
   path: string
-  body: { safeParse: (value: unknown) => z.ZodSafeParseResult<unknown> }
+  body: SchemaLike
 }
 
 function isBodyBearingContract(value: unknown): value is BodyBearingContract {
@@ -102,19 +109,69 @@ function issueCodes(issues: readonly z.core.$ZodIssue[]): string[] {
   ])
 }
 
+/**
+ * Flattens a union body into the schemas that actually enforce strictness.
+ *
+ * Asserting against the union itself is not enough: one strict member satisfies
+ * "some issue in the tree is `unrecognized_keys`", so a sibling member that
+ * stopped being strict would still sweep green. Each member is swept on its own
+ * so exactly the regressed member fails.
+ */
+function strictnessTargets(schema: SchemaLike): SchemaLike[] {
+  const options = schema.def?.type === 'union' ? schema.def.options : undefined
+  if (!Array.isArray(options)) return [schema]
+  return options.flatMap((option) => strictnessTargets(option as SchemaLike))
+}
+
 describe('v2 table request bodies', () => {
   const contracts = Object.entries(tableContracts)
     .filter((entry): entry is [string, BodyBearingContract] => isBodyBearingContract(entry[1]))
     .map(([name, contract]) => [`${contract.method} ${contract.path} (${name})`, contract] as const)
 
+  const bodySchemas = contracts.flatMap(([label, contract]) => {
+    const targets = strictnessTargets(contract.body)
+    return targets.length === 1
+      ? [[label, targets[0]] as const]
+      : targets.map((target, index) => [`${label} union member ${index}`, target] as const)
+  })
+
   it('covers every table contract that accepts a body', () => {
     expect(contracts.length).toBeGreaterThan(20)
   })
 
-  it.each(contracts)('rejects an unrecognized key on %s', (_label, contract) => {
-    const result = contract.body.safeParse({ notAContractField: true })
+  /**
+   * Guards the sweep itself: if the rows body stopped expanding into its two
+   * members, every case below would collapse back to the vacuous union
+   * assertion without any test turning red.
+   */
+  it('sweeps each member of the union-bodied rows contract separately', () => {
+    expect(strictnessTargets(v2CreateTableRowsBodySchema)).toHaveLength(2)
+    expect(bodySchemas.length).toBeGreaterThan(contracts.length)
+  })
+
+  it.each(bodySchemas)('rejects an unrecognized key on %s', (_label, schema) => {
+    const result = schema.safeParse({ notAContractField: true })
 
     expect(result.success).toBe(false)
+    expect(issueCodes(result.error?.issues ?? [])).toContain('unrecognized_keys')
+  })
+
+  /**
+   * A union's first issue is `invalid_union`, and its default message —
+   * `Invalid input` — is what the 400 body surfaces. The v2 conventions name
+   * that exact string as failing the "errors must be actionable" rule.
+   */
+  it('names both accepted shapes when the rows body matches neither', () => {
+    const result = v2CreateTableRowsBodySchema.safeParse({
+      workspaceId: WORKSPACE_ID,
+      data: { name: 'ada' },
+      bogus: 1,
+    })
+
+    expect(result.success).toBe(false)
+    expect(getValidationErrorMessage(result.error as z.ZodError)).toBe(
+      'Row insert body must be either { rows: [...] } for a batch insert or { data: {...} } for a single row'
+    )
     expect(issueCodes(result.error?.issues ?? [])).toContain('unrecognized_keys')
   })
 
