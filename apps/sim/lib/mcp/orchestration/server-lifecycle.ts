@@ -89,6 +89,12 @@ export interface PerformMcpServerResult {
   serverId?: string
   server?: typeof mcpServers.$inferSelect
   updated?: boolean
+  /**
+   * Whether an `updated` result brought a soft-deleted row back rather than
+   * rewriting a live one. The two need different audit actions: a revival is an
+   * addition, a rewrite is an update.
+   */
+  revived?: boolean
   authType?: McpAuthType
   configurationChanged?: boolean
   /**
@@ -204,11 +210,12 @@ export async function createMcpServer(
 
       if (shouldClearOauth) await revokeMcpOauthTokens(serverId, params.workspaceId)
 
+      let updatedFields: string[] = []
       await db.transaction(async (tx) => {
         if (shouldClearOauth) {
           await tx.delete(mcpServerOauth).where(eq(mcpServerOauth.mcpServerId, serverId))
         }
-        const updateValues: Record<string, unknown> = {
+        const updateValues: Partial<typeof mcpServers.$inferInsert> = {
           name: params.name,
           description: params.description,
           transport,
@@ -238,6 +245,7 @@ export async function createMcpServer(
         if (params.oauthClientSecretProvided) {
           updateValues.oauthClientSecret = oauthClientSecretEncrypted
         }
+        updatedFields = Object.keys(updateValues).filter((key) => key !== 'updatedAt')
         await tx.update(mcpServers).set(updateValues).where(eq(mcpServers.id, serverId))
       })
 
@@ -247,7 +255,15 @@ export async function createMcpServer(
         .where(and(eq(mcpServers.id, serverId), eq(mcpServers.workspaceId, params.workspaceId)))
         .limit(1)
       if (!server) throw new Error(`MCP server ${serverId} missing after a successful update`)
-      return { success: true, serverId, server, updated: true, authType: resolvedAuthType }
+      return {
+        success: true,
+        serverId,
+        server,
+        updated: true,
+        revived: isRevival,
+        updatedFields,
+        authType: resolvedAuthType,
+      }
     }
 
     await db.insert(mcpServers).values({
@@ -447,8 +463,8 @@ export async function performCreateMcpServer(
       workspaceId: params.workspaceId,
       result,
     })
+    const source = legacySource(params.source)
     if (!result.updated) {
-      const source = legacySource(params.source)
       captureServerEvent(
         params.userId,
         'mcp_server_connected',
@@ -463,27 +479,36 @@ export async function performCreateMcpServer(
           setOnce: { first_mcp_connected_at: new Date().toISOString() },
         }
       )
-      recordAudit({
-        workspaceId: params.workspaceId,
-        actorId: params.userId,
-        actorName: params.actorName ?? undefined,
-        actorEmail: params.actorEmail ?? undefined,
-        action: AuditAction.MCP_SERVER_ADDED,
-        resourceType: AuditResourceType.MCP_SERVER,
-        resourceId: result.server.id,
-        resourceName: result.server.name,
-        description: `Added MCP server "${result.server.name}"`,
-        metadata: {
-          serverName: result.server.name,
-          transport: result.server.transport,
-          url: result.server.url,
-          timeout: result.server.timeout,
-          retries: result.server.retries,
-          source,
-        },
-        request: params.request,
-      })
     }
+
+    /**
+     * Registering a URL that already exists rewrites the live row — headers, the
+     * URL's query string, transport, enabled — so it is an update, not an
+     * addition. Reviving a soft-deleted row is still an addition. Auditing only
+     * the insert left both cases with no trace at all.
+     */
+    const isRewrite = result.updated === true && !result.revived
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      actorName: params.actorName ?? undefined,
+      actorEmail: params.actorEmail ?? undefined,
+      action: isRewrite ? AuditAction.MCP_SERVER_UPDATED : AuditAction.MCP_SERVER_ADDED,
+      resourceType: AuditResourceType.MCP_SERVER,
+      resourceId: result.server.id,
+      resourceName: result.server.name,
+      description: `${isRewrite ? 'Updated' : 'Added'} MCP server "${result.server.name}"`,
+      metadata: {
+        serverName: result.server.name,
+        transport: result.server.transport,
+        url: result.server.url,
+        timeout: result.server.timeout,
+        retries: result.server.retries,
+        source,
+        ...(isRewrite ? { updatedFields: result.updatedFields ?? [] } : {}),
+      },
+      request: params.request,
+    })
     return result
   } catch (error) {
     logger.error('Failed to register MCP server', { error })
