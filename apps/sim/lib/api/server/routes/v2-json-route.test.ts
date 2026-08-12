@@ -116,11 +116,12 @@ function createHandler(overrides: HandlerOverrides = {}) {
   })
 }
 
-function request(body: unknown = { value: 'ok' }): NextRequest {
+function request(body: unknown = { value: 'ok' }, signal?: AbortSignal): NextRequest {
   return new NextRequest('http://localhost/api/v2/widgets', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
     body: JSON.stringify(body),
+    signal,
   })
 }
 
@@ -392,6 +393,25 @@ describe('defineV2JsonRoute', () => {
       error: { code: 'LOCKED', message: 'Resource is locked' },
     })
     expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(response.headers.get('X-RateLimit-Remaining')).toBe('99')
+  })
+
+  it('renders a client disconnect through the v2 cancellation envelope', async () => {
+    const controller = new AbortController()
+    const response = await createHandler({
+      execute: async () => {
+        controller.abort()
+        throw Object.assign(new Error('Premature close'), {
+          code: 'ERR_STREAM_PREMATURE_CLOSE',
+        })
+      },
+    })(request(undefined, controller.signal))
+
+    expect(response.status).toBe(499)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'CLIENT_CLOSED_REQUEST', message: 'Client cancelled request' },
+    })
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     expect(response.headers.get('X-RateLimit-Remaining')).toBe('99')
   })
 

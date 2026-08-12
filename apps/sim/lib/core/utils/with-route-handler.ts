@@ -25,6 +25,7 @@ interface RouteHandlerTypedErrorContext {
 }
 
 interface RouteHandlerOptions {
+  clientAbortResponse?: (context: RouteHandlerErrorContext) => NextResponse | Response
   typedErrorResponse?: (context: RouteHandlerTypedErrorContext) => NextResponse | Response
   unhandledErrorResponse?: (context: RouteHandlerErrorContext) => NextResponse | Response
 }
@@ -78,7 +79,9 @@ function applyResponseHeaders(
  * - Generates a unique request ID and stores it in AsyncLocalStorage so every
  *   logger in the request lifecycle automatically includes it
  * - Logs all 4xx and 5xx responses with method, path, status, duration
+ * - Classifies errors after a client disconnect as a normal 499 cancellation
  * - Catches unhandled errors, logs them, and returns a 500 with the request ID
+ * - Supports a route-family-specific client-abort response envelope
  * - Supports a route-family-specific unhandled-error response envelope
  * - Attaches `x-request-id`, plus the rate-limit headers when the route
  *   recorded a snapshot for the request
@@ -101,6 +104,15 @@ export function withRouteHandler<T>(
       } catch (error) {
         const duration = Date.now() - startTime
         const message = getErrorMessage(error, 'Unknown error')
+        if (request.signal.aborted) {
+          logger.info('Client closed request', { duration, status: 499 })
+          response = options.clientAbortResponse
+            ? options.clientAbortResponse({ error, requestId })
+            : new Response(null, { status: 499 })
+          applyResponseHeaders(response, request, requestId)
+          return response
+        }
+
         const typedError = readTypedError(error)
         if (typedError) {
           const typedStatus = typedError.statusCode
