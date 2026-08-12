@@ -648,10 +648,10 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum documents to return, between 1 and 100.",
+            "description": "Maximum documents to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
             "schema": {
               "default": 50,
-              "description": "Maximum documents to return, between 1 and 100.",
+              "description": "Maximum documents to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100
@@ -661,10 +661,12 @@
             "name": "search",
             "in": "query",
             "required": false,
-            "description": "Case-insensitive filename search.",
+            "description": "Case-insensitive substring match against the document filename.",
             "schema": {
-              "description": "Case-insensitive filename search.",
-              "type": "string"
+              "description": "Case-insensitive substring match against the document filename.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             }
           },
           {
@@ -843,6 +845,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1236,6 +1241,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1511,6 +1519,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2818,6 +2829,7 @@
           }
         },
         "required": ["workspaceId", "knowledgeBaseIds"],
+        "additionalProperties": false,
         "title": "Search knowledge request",
         "description": "Knowledge bases, query, result limit, retrieval mode, and optional tag filters."
       },

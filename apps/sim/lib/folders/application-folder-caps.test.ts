@@ -8,7 +8,9 @@ const mocks = vi.hoisted(() => ({
   listTables: vi.fn(),
   listWorkflows: vi.fn(),
   loadFolderIndex: vi.fn(),
+  queryWorkspaceFiles: vi.fn(),
   resolvePermission: vi.fn(),
+  resolveWorkspaceFileWorkspace: vi.fn(),
   resolveTableWorkspace: vi.fn(),
   resolveWorkflowWorkspace: vi.fn(),
 }))
@@ -43,12 +45,19 @@ vi.mock('@/lib/table', () => ({
   updateTableDescription: vi.fn(),
 }))
 vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: vi.fn() }))
+vi.mock('@/lib/uploads/contexts/workspace', () => ({
+  listWorkspaceFiles: vi.fn(),
+  loadActiveWorkspaceContext: mocks.resolveWorkspaceFileWorkspace,
+  queryWorkspaceFiles: mocks.queryWorkspaceFiles,
+}))
+vi.mock('@/lib/public-shares/share-manager', () => ({ getWorkspaceShares: vi.fn() }))
 
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { listTableFoldersUseCase } from '@/lib/table/application/folders'
 import { listTablesUseCase } from '@/lib/table/application/tables'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { listWorkflowFolders } from '@/lib/workflows/application/workflow-folders'
+import { queryWorkspaceFilePage } from '@/lib/workspace-files/application/list-workspace-files'
 
 const context = {
   workspaceId: 'workspace-1',
@@ -73,6 +82,8 @@ describe('workflow and table application folder caps', () => {
     mocks.listFolderRows.mockResolvedValue([])
     mocks.listWorkflows.mockResolvedValue({ data: [], nextCursorKeys: null })
     mocks.listTables.mockResolvedValue({ tables: [], nextKeys: null })
+    mocks.resolveWorkspaceFileWorkspace.mockResolvedValue(context)
+    mocks.queryWorkspaceFiles.mockResolvedValue({ files: [], nextKeys: null })
   })
 
   it.each([
@@ -137,6 +148,20 @@ describe('workflow and table application folder caps', () => {
             sortBy: 'name',
             sortOrder: 'asc',
             limit: 25,
+          },
+        }),
+    ],
+    [
+      'file',
+      () =>
+        queryWorkspaceFilePage.execute({
+          principal,
+          input: {
+            workspaceId: context.workspaceId,
+            sortBy: 'name',
+            sortOrder: 'asc',
+            limit: 25,
+            cursorSort: 'name:asc',
           },
         }),
     ],

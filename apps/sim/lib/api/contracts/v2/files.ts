@@ -171,9 +171,11 @@ export const v2CreateFileUploadBodySchema = z
   .strict()
 export type V2CreateFileUploadBody = z.input<typeof v2CreateFileUploadBodySchema>
 
-export const v2FileUploadWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the upload session.'),
-})
+export const v2FileUploadWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the upload session.'),
+  })
+  .strict()
 export type V2FileUploadWorkspaceQuery = z.output<typeof v2FileUploadWorkspaceQuerySchema>
 
 export const v2FileUploadSchema = z
@@ -322,9 +324,11 @@ export const v2ListFilesQuerySchema = z
 export type V2ListFilesQuery = z.output<typeof v2ListFilesQuerySchema>
 
 /** Download/delete both target a single file within a workspace-scoped query. */
-export const v2FileWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
-})
+export const v2FileWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+  })
+  .strict()
 
 export type V2FileWorkspaceQuery = z.output<typeof v2FileWorkspaceQuerySchema>
 

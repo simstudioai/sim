@@ -1,5 +1,6 @@
 import type { CursorKey } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
@@ -53,7 +54,17 @@ export const queryWorkspaceFilePage = defineAuthorizedWorkspaceFileUseCase({
   resolveContext: ({ input }: { input: QueryWorkspaceFilePageInput }) =>
     resolveListWorkspaceFileContext(input.workspaceId),
   async execute({ input, context }) {
-    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'file')
+    /**
+     * Capped the way the workflow, table, and knowledge lists cap theirs. A
+     * truncated index does not fail — it silently loses paths, and the only
+     * consumer here is the `folderPath` filter, so a real folder outside the
+     * read rows resolves to `undefined` and the caller gets "Folder not found"
+     * for a folder that exists. The cap turns that into the same 413 the
+     * sibling lists answer.
+     */
+    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'file', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     const folderId =
       input.folderPath === undefined
         ? undefined
