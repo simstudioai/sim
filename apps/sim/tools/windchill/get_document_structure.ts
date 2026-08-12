@@ -47,6 +47,12 @@ export const windchillGetDocumentStructureTool: ToolConfig<WindchillParams, Wind
       visibility: 'user-or-llm',
       description: 'Document structure expansion depth, from 1 to 3',
     },
+    nextLink: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Verified @odata.nextLink from a previous structure response',
+    },
   },
   request: {
     url: (params) => buildWindchillReadUrl('windchill_get_document_structure', params),

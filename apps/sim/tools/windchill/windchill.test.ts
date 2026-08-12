@@ -18,6 +18,7 @@ import {
   normalizeWindchillReadOutput,
   resolveWindchillNextLink,
   sanitizeWindchillError,
+  transformWindchillDirectRead,
 } from '@/tools/windchill/utils'
 
 const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
@@ -58,15 +59,17 @@ function mockResponse({
   status = 200,
   cookies = [],
   contentType = 'application/json',
+  rawBody,
 }: {
   body?: unknown
   status?: number
   cookies?: string[]
   contentType?: string
+  rawBody?: string
 }) {
   const headers = new Headers({ 'content-type': contentType })
   Object.defineProperty(headers, 'getSetCookie', { value: () => cookies })
-  const text = body === undefined ? '' : JSON.stringify(body)
+  const text = rawBody ?? (body === undefined ? '' : JSON.stringify(body))
   return {
     ok: status >= 200 && status < 300,
     status,
@@ -181,6 +184,19 @@ describe('Windchill tools', () => {
     expect(() =>
       resolveWindchillNextLink(BASE_URL, 'https://windchill.example.com/unrelated')
     ).toThrow('configured service root')
+
+    const attachmentNext = `${BASE_URL}/DocMgmt/Documents('${encodeURIComponent(
+      'OR:wt.doc.WTDocument:1'
+    )}')/Attachments?%24skiptoken=25`
+    expect(
+      buildWindchillReadUrl('windchill_list_attachments', {
+        baseUrl: BASE_URL,
+        username: 'user',
+        password: 'not-a-real-password',
+        documentOid: 'OR:wt.doc.WTDocument:1',
+        nextLink: attachmentNext,
+      })
+    ).toBe(attachmentNext)
   })
 
   it('normalizes documented document fields and pagination', () => {
@@ -193,7 +209,7 @@ describe('Windchill tools', () => {
             ID: 'OR:wt.doc.WTDocument:1',
             Name: 'Specification',
             Number: 'DOC-001',
-            State: 'RELEASED',
+            State: { Value: 'RELEASED', Display: 'Released' },
             VersionID: 'A',
             Version: 'A.2',
             Latest: true,
@@ -212,6 +228,7 @@ describe('Windchill tools', () => {
           title: null,
           description: null,
           state: 'RELEASED',
+          stateDisplay: 'Released',
           versionId: 'A',
           revision: null,
           version: 'A.2',
@@ -227,6 +244,7 @@ describe('Windchill tools', () => {
           title: null,
           description: null,
           state: null,
+          stateDisplay: null,
           versionId: null,
           revision: null,
           version: null,
@@ -247,6 +265,7 @@ describe('Windchill tools', () => {
   it('normalizes structure, lifecycle, and content response shapes', () => {
     expect(
       normalizeWindchillReadOutput('windchill_get_document_structure', {
+        '@odata.nextLink': `${BASE_URL}/DocMgmt/DocUsageLinks?%24skiptoken=25`,
         value: [
           {
             ID: 'OR:wt.doc.WTDocumentUsageLink:1',
@@ -279,6 +298,17 @@ describe('Windchill tools', () => {
     })
 
     expect(
+      normalizeWindchillReadOutput('windchill_get_document_structure', {
+        '@odata.nextLink': `${BASE_URL}/DocMgmt/DocUsageLinks?%24skiptoken=25`,
+        value: [{ ID: 'OR:wt.doc.WTDocumentUsageLink:1' }],
+      }).pageInfo
+    ).toEqual({
+      count: 1,
+      totalCount: null,
+      nextLink: `${BASE_URL}/DocMgmt/DocUsageLinks?%24skiptoken=25`,
+    })
+
+    expect(
       normalizeWindchillReadOutput('windchill_get_valid_state_transitions', {
         value: [{ Value: 'RELEASED', Display: 'Released' }],
       }).states
@@ -286,6 +316,8 @@ describe('Windchill tools', () => {
 
     expect(
       normalizeWindchillReadOutput('windchill_list_attachments', {
+        '@odata.count': 2,
+        '@odata.nextLink': `${BASE_URL}/DocMgmt/Attachments?%24skiptoken=2`,
         value: [
           {
             ID: 'OR:wt.content.ApplicationData:1',
@@ -293,18 +325,57 @@ describe('Windchill tools', () => {
             MimeType: 'application/pdf',
             FileSize: '42',
           },
+          {
+            ID: 'OR:wt.content.URLData:2',
+            '@odata.type': '#PTC.DocMgmt.URLData',
+            DisplayName: 'PTC website',
+            UrlLocation: 'https://www.ptc.com',
+          },
         ],
-      }).attachments
-    ).toEqual([
-      {
-        id: 'OR:wt.content.ApplicationData:1',
-        fileName: 'drawing.pdf',
-        description: null,
-        format: null,
-        mimeType: 'application/pdf',
-        fileSize: 42,
+      })
+    ).toEqual({
+      operation: 'windchill_list_attachments',
+      attachments: [
+        {
+          id: 'OR:wt.content.ApplicationData:1',
+          fileName: 'drawing.pdf',
+          description: null,
+          format: null,
+          mimeType: 'application/pdf',
+          fileSize: 42,
+          contentType: null,
+          displayName: null,
+          urlLocation: null,
+          externalLocation: null,
+        },
+        {
+          id: 'OR:wt.content.URLData:2',
+          fileName: null,
+          description: null,
+          format: null,
+          mimeType: null,
+          fileSize: null,
+          contentType: '#PTC.DocMgmt.URLData',
+          displayName: 'PTC website',
+          urlLocation: 'https://www.ptc.com',
+          externalLocation: null,
+        },
+      ],
+      pageInfo: {
+        count: 2,
+        totalCount: 2,
+        nextLink: `${BASE_URL}/DocMgmt/Attachments?%24skiptoken=2`,
       },
-    ])
+    })
+  })
+
+  it('rejects malformed JSON from successful direct reads', async () => {
+    await expect(
+      transformWindchillDirectRead(
+        'windchill_get_document',
+        new Response('<html>not json</html>', { status: 200 })
+      )
+    ).rejects.toThrow('Windchill returned invalid JSON with status 200')
   })
 
   it('carries the CSRF nonce and session cookie into a mutation', async () => {
@@ -423,12 +494,37 @@ describe('Windchill tools', () => {
     })
   })
 
-  it('redacts provider URLs, nonce values, and Basic credentials from errors', () => {
+  it('rejects malformed JSON from successful mutation responses', async () => {
+    mockSecureFetchWithValidation
+      .mockResolvedValueOnce(
+        mockResponse({ body: { NonceKey: 'CSRF_NONCE', NonceValue: 'nonce-value' } })
+      )
+      .mockResolvedValueOnce(mockResponse({ rawBody: '<html>not json</html>' }))
+
+    const params = {
+      baseUrl: BASE_URL,
+      username: 'windchill-user',
+      password: 'not-a-real-password',
+    }
+    const session = await createWindchillSession(params)
+
+    await expect(
+      windchillMutationRequest({
+        params,
+        session,
+        url: `${BASE_URL}/DocMgmt/Documents`,
+        method: 'POST',
+        body: { Name: 'Specification' },
+      })
+    ).rejects.toThrow('Windchill returned invalid JSON with status 200')
+  })
+
+  it('preserves diagnostic URL paths while redacting query secrets and credentials', () => {
     expect(
       sanitizeWindchillError(
         'POST https://replica.example.com/signed?token=secret CSRF_NONCE=nonce Basic dXNlcjpwYXNz'
       )
-    ).toBe('POST [redacted URL] [redacted nonce] Basic [redacted]')
+    ).toBe('POST https://replica.example.com/signed [redacted nonce] Basic [redacted]')
   })
 })
 
@@ -447,6 +543,16 @@ describe('Windchill block', () => {
     expect(WindchillBlock.inputs).not.toHaveProperty('expand')
     expect(WINDCHILL_TOOLS_BY_ID.get('windchill_update_document')?.params.attributes.required).toBe(
       true
+    )
+    for (const operation of [
+      'windchill_list_documents',
+      'windchill_get_document_structure',
+      'windchill_list_attachments',
+    ]) {
+      expect(WINDCHILL_TOOLS_BY_ID.get(operation)?.outputs).toHaveProperty('pageInfo')
+    }
+    expect(WINDCHILL_TOOLS_BY_ID.get('windchill_get_document')?.outputs).toHaveProperty(
+      'document.properties.stateDisplay'
     )
   })
 

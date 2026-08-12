@@ -386,7 +386,7 @@ async function loadUploadFiles(
     if (denied) return denied
     try {
       const servable = await downloadServableFileFromStorage(userFile, requestId, logger, {
-        maxBytes: MAX_FILE_SIZE,
+        maxBytes: MAX_FILE_SIZE - actualTotal,
       })
       actualTotal += servable.buffer.length
       if (actualTotal > MAX_FILE_SIZE) {
@@ -401,7 +401,10 @@ async function loadUploadFiles(
     } catch (error) {
       const notReady = docNotReadyResponse(error)
       if (notReady) return notReady
-      return failureResponse(getErrorMessage(error, 'Failed to read uploaded file'), 400)
+      return failureResponse(
+        getErrorMessage(error, 'Failed to read uploaded file'),
+        isPayloadSizeLimitError(error) ? 413 : 400
+      )
     }
   }
   return files

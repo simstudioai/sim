@@ -41,6 +41,12 @@ export const windchillListAttachmentsTool: ToolConfig<WindchillParams, Windchill
       visibility: 'user-or-llm',
       description: 'WT.Document OID, for example OR:wt.doc.WTDocument:48796581',
     },
+    nextLink: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Verified @odata.nextLink from a previous attachment response',
+    },
   },
   request: {
     url: (params) => buildWindchillReadUrl('windchill_list_attachments', params),

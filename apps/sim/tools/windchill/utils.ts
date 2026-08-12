@@ -4,6 +4,7 @@ import {
   type WindchillOperationResponse,
   windchillOperationResponseSchema,
 } from '@/lib/api/contracts/tools/windchill'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import type {
   WindchillContent,
   WindchillDocument,
@@ -35,13 +36,16 @@ function booleanValue(record: Record<string, unknown>, key: string): boolean | n
 
 export function normalizeWindchillDocument(value: unknown): WindchillDocument | null {
   if (!isRecordLike(value)) return null
+  const state = value.State
   return {
     id: stringValue(value, 'ID'),
     name: stringValue(value, 'Name'),
     number: stringValue(value, 'Number'),
     title: stringValue(value, 'Title'),
     description: stringValue(value, 'Description'),
-    state: stringValue(value, 'State'),
+    state:
+      (isRecordLike(state) ? stringValue(state, 'Value') : null) ?? stringValue(value, 'State'),
+    stateDisplay: isRecordLike(state) ? stringValue(state, 'Display') : null,
     versionId: stringValue(value, 'VersionID'),
     revision: stringValue(value, 'Revision'),
     version: stringValue(value, 'Version'),
@@ -61,12 +65,16 @@ export function normalizeWindchillContent(value: unknown): WindchillContent | nu
     format: stringValue(value, 'Format'),
     mimeType: stringValue(value, 'MimeType'),
     fileSize: numberValue(value, 'FileSize'),
+    contentType: stringValue(value, '@odata.type'),
+    displayName: stringValue(value, 'DisplayName'),
+    urlLocation: stringValue(value, 'UrlLocation'),
+    externalLocation: stringValue(value, 'ExternalLocation'),
   }
 }
 
 export function sanitizeWindchillError(message: string): string {
   return message
-    .replace(/https?:\/\/\S+/gi, '[redacted URL]')
+    .replace(/https?:\/\/[^\s"'<>]+/gi, (url) => sanitizeUrlForLog(url, 512))
     .replace(/\b(?:CSRF_NONCE|NonceValue|NonceKey)\b\s*[:=]\s*\S+/gi, '[redacted nonce]')
     .replace(/\bBasic\s+[A-Za-z0-9+/=]+/gi, 'Basic [redacted]')
     .slice(0, 4096)
@@ -217,8 +225,15 @@ export function buildWindchillReadUrl(
   params: WindchillParams
 ): string {
   const root = normalizeServiceRoot(params.baseUrl)
+  if (
+    params.nextLink &&
+    (operation === 'windchill_list_documents' ||
+      operation === 'windchill_get_document_structure' ||
+      operation === 'windchill_list_attachments')
+  ) {
+    return resolveWindchillNextLink(root, params.nextLink)
+  }
   if (operation === 'windchill_list_documents') {
-    if (params.nextLink) return resolveWindchillNextLink(root, params.nextLink)
     const url = new URL(`${root}/DocMgmt/Documents`)
     if (params.select) url.searchParams.set('$select', normalizedSelect(params.select))
     if (params.filter) url.searchParams.set('$filter', params.filter.trim())
@@ -272,7 +287,7 @@ export function normalizeWindchillReadOutput(
     const structure = collection(value)
       .map((link) => normalizeUsageLink(link))
       .filter((link): link is WindchillDocumentUsageLink => link !== null)
-    return { operation, structure }
+    return { operation, structure, pageInfo: windchillPageInfo(value, structure.length) }
   }
   if (operation === 'windchill_get_valid_state_transitions') {
     const states = collection(value)
@@ -288,7 +303,7 @@ export function normalizeWindchillReadOutput(
     const attachments = collection(value)
       .map(normalizeWindchillContent)
       .filter((content): content is WindchillContent => content !== null)
-    return { operation, attachments }
+    return { operation, attachments, pageInfo: windchillPageInfo(value, attachments.length) }
   }
   throw new Error(`Operation ${operation} does not have a direct-read response transform`)
 }
@@ -327,7 +342,15 @@ export async function transformWindchillDirectRead(
   operation: WindchillOperation,
   response: Response
 ): Promise<WindchillResponse> {
-  const data = await response.json().catch(() => null)
+  let data: unknown
+  try {
+    data = await response.json()
+  } catch {
+    if (response.ok) {
+      throw new Error(`Windchill returned invalid JSON with status ${response.status}`)
+    }
+    data = null
+  }
   if (!response.ok) {
     throw new Error(
       sanitizeWindchillError(

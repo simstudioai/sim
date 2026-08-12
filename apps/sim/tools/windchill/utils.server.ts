@@ -47,13 +47,15 @@ function cookieHeader(response: SecureFetchResponse): string | null {
   return cookies.length > 0 ? cookies.join('; ') : null
 }
 
-async function responseBody(response: SecureFetchResponse): Promise<unknown> {
+async function responseBody(
+  response: SecureFetchResponse
+): Promise<{ data: unknown; invalidJson: boolean }> {
   const text = await response.text()
-  if (!text.trim()) return null
+  if (!text.trim()) return { data: null, invalidJson: false }
   try {
-    return JSON.parse(text) as unknown
+    return { data: JSON.parse(text) as unknown, invalidJson: false }
   } catch {
-    return text
+    return { data: text, invalidJson: true }
   }
 }
 
@@ -78,11 +80,17 @@ function providerMessage(data: unknown, response: SecureFetchResponse): string {
 }
 
 async function checkedBody(response: SecureFetchResponse): Promise<unknown> {
-  const data = await responseBody(response)
+  const { data, invalidJson } = await responseBody(response)
   if (!response.ok) {
     throw new WindchillProviderError(
       sanitizeWindchillError(providerMessage(data, response)),
       response.status
+    )
+  }
+  if (invalidJson) {
+    throw new WindchillProviderError(
+      `Windchill returned invalid JSON with status ${response.status}`,
+      502
     )
   }
   return data

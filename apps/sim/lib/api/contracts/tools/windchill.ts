@@ -282,6 +282,7 @@ const documentSchema = z.object({
   title: nullableText,
   description: nullableText,
   state: nullableText,
+  stateDisplay: nullableText,
   versionId: nullableText,
   revision: nullableText,
   version: nullableText,

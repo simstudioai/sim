@@ -7,7 +7,8 @@ export const WINDCHILL_DOCUMENT_PROPERTIES = {
   number: { type: 'string', description: 'Document number', nullable: true },
   title: { type: 'string', description: 'Document title', nullable: true },
   description: { type: 'string', description: 'Document description', nullable: true },
-  state: { type: 'string', description: 'Life cycle state', nullable: true },
+  state: { type: 'string', description: 'Internal life cycle state value', nullable: true },
+  stateDisplay: { type: 'string', description: 'Displayed life cycle state value', nullable: true },
   versionId: { type: 'string', description: 'Version identifier', nullable: true },
   revision: { type: 'string', description: 'Revision identifier', nullable: true },
   version: { type: 'string', description: 'Version and iteration', nullable: true },
@@ -24,6 +25,14 @@ export const WINDCHILL_CONTENT_PROPERTIES = {
   format: { type: 'string', description: 'Windchill content format', nullable: true },
   mimeType: { type: 'string', description: 'Content MIME type', nullable: true },
   fileSize: { type: 'number', description: 'Content size in bytes', nullable: true },
+  contentType: {
+    type: 'string',
+    description: 'Windchill OData content entity type',
+    nullable: true,
+  },
+  displayName: { type: 'string', description: 'Displayed content name', nullable: true },
+  urlLocation: { type: 'string', description: 'URL-data location', nullable: true },
+  externalLocation: { type: 'string', description: 'External-storage location', nullable: true },
 } as const satisfies Record<string, ToolOutputProperty>
 
 export const WINDCHILL_DOCUMENT_OUTPUTS = {
@@ -47,9 +56,13 @@ export const WINDCHILL_LIST_DOCUMENTS_OUTPUTS = {
     type: 'object',
     description: 'OData pagination information',
     properties: {
-      count: { type: 'number', description: 'Number of documents in this page' },
-      totalCount: { type: 'number', description: 'Total matching documents', nullable: true },
-      nextLink: { type: 'string', description: 'URL for the next page', nullable: true },
+      count: { type: 'number', description: 'Number of items returned in this page' },
+      totalCount: { type: 'number', description: 'Total matching items', nullable: true },
+      nextLink: {
+        type: 'string',
+        description: 'URL returned by Windchill for the next page',
+        nullable: true,
+      },
     },
   },
 } as const satisfies Record<string, ToolOutputProperty>
@@ -88,6 +101,19 @@ export const WINDCHILL_STRUCTURE_OUTPUTS = {
     description: 'Document usage links, including recursively expanded child links',
     items: WINDCHILL_USAGE_LINK_OUTPUT,
   },
+  pageInfo: {
+    type: 'object',
+    description: 'OData pagination information',
+    properties: {
+      count: { type: 'number', description: 'Number of items returned in this page' },
+      totalCount: { type: 'number', description: 'Total matching items', nullable: true },
+      nextLink: {
+        type: 'string',
+        description: 'URL returned by Windchill for the next page',
+        nullable: true,
+      },
+    },
+  },
 } as const satisfies Record<string, ToolOutputProperty>
 
 export const WINDCHILL_STATE_OUTPUTS = {
@@ -121,6 +147,19 @@ export const WINDCHILL_ATTACHMENTS_OUTPUTS = {
     type: 'array',
     description: 'Document attachments',
     items: { type: 'object', properties: WINDCHILL_CONTENT_PROPERTIES },
+  },
+  pageInfo: {
+    type: 'object',
+    description: 'OData pagination information',
+    properties: {
+      count: { type: 'number', description: 'Number of items returned in this page' },
+      totalCount: { type: 'number', description: 'Total matching items', nullable: true },
+      nextLink: {
+        type: 'string',
+        description: 'URL returned by Windchill for the next page',
+        nullable: true,
+      },
+    },
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -213,6 +252,7 @@ export interface WindchillDocument {
   title: string | null
   description: string | null
   state: string | null
+  stateDisplay: string | null
   versionId: string | null
   revision: string | null
   version: string | null
@@ -229,6 +269,10 @@ export interface WindchillContent {
   format: string | null
   mimeType: string | null
   fileSize: number | null
+  contentType: string | null
+  displayName: string | null
+  urlLocation: string | null
+  externalLocation: string | null
 }
 
 export interface WindchillStateTransition {

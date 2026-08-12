@@ -107,7 +107,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
         windchill_list_documents: [
           'List documents',
           { text: 'matching', field: 'filter' },
-          { text: ', up to', field: 'top', after: 'per page' },
+          { text: ', up to', field: 'top', after: 'documents' },
         ],
         windchill_get_document: [{ text: 'Get document', field: 'documentOid', core: true }],
         windchill_get_document_structure: [
@@ -530,7 +530,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
       id: 'filter',
       title: 'Filter',
       type: 'short-input',
-      placeholder: "State eq 'RELEASED'",
+      placeholder: "State/Value eq 'RELEASED'",
       condition: { field: 'operation', value: 'windchill_list_documents' },
       mode: 'advanced',
       wandConfig: {
@@ -558,7 +558,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
     },
     {
       id: 'top',
-      title: 'Page Size',
+      title: 'Maximum Results',
       type: 'short-input',
       placeholder: '100',
       condition: { field: 'operation', value: 'windchill_list_documents' },
@@ -599,7 +599,14 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
       title: 'Next Page URL',
       type: 'short-input',
       placeholder: '@odata.nextLink from the previous result',
-      condition: { field: 'operation', value: 'windchill_list_documents' },
+      condition: {
+        field: 'operation',
+        value: [
+          'windchill_list_documents',
+          'windchill_get_document_structure',
+          'windchill_list_attachments',
+        ],
+      },
       mode: 'advanced',
     },
     {
@@ -776,7 +783,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
     select: { type: 'string', description: 'Comma-separated normalized document fields' },
     filter: { type: 'string', description: 'OData filter expression' },
     orderBy: { type: 'string', description: 'OData order-by expression' },
-    top: { type: 'number', description: 'OData page size' },
+    top: { type: 'number', description: 'OData maximum result count ($top)' },
     skip: { type: 'number', description: 'OData result offset' },
     count: { type: 'boolean', description: 'Whether to include the OData count' },
     latestVersion: { type: 'boolean', description: 'Whether to return only latest versions' },
@@ -788,13 +795,36 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
   },
   outputs: {
     operation: { type: 'string', description: 'Windchill operation that was executed' },
-    document: { type: 'json', description: 'Windchill document' },
-    documents: { type: 'json', description: 'Windchill documents' },
-    structure: { type: 'json', description: 'Document structure links' },
-    states: { type: 'json', description: 'Valid lifecycle states' },
-    content: { type: 'json', description: 'Primary-content metadata' },
-    attachments: { type: 'json', description: 'Attachment metadata' },
-    pageInfo: { type: 'json', description: 'OData pagination information' },
+    document: {
+      type: 'json',
+      description:
+        'Normalized document fields: id, name, number, title, description, state, stateDisplay, versionId, revision, version, latest, checkoutState, folderName, and folderLocation',
+    },
+    documents: {
+      type: 'json',
+      description: 'Array of normalized documents with the same fields as document',
+    },
+    structure: {
+      type: 'json',
+      description: 'Array of usage links containing id, parent, child, and recursive children',
+    },
+    states: {
+      type: 'json',
+      description: 'Array of valid lifecycle states containing value and display',
+    },
+    content: {
+      type: 'json',
+      description:
+        'Primary-content metadata including identifiers, file metadata, OData content type, display name, URL location, and external-storage location',
+    },
+    attachments: {
+      type: 'json',
+      description: 'Array of attachment records with the same fields as content',
+    },
+    pageInfo: {
+      type: 'json',
+      description: 'OData page information containing count, totalCount, and nextLink',
+    },
     affectedIds: { type: 'array', description: 'Affected document identifiers' },
     uploadedFileNames: { type: 'array', description: 'Uploaded file names' },
     file: { type: 'file', description: 'Downloaded file' },
@@ -877,7 +907,7 @@ export const WindchillBlockMeta = {
       description:
         'Find current Windchill documents with bounded filters, selected fields, and pagination.',
       content:
-        '# Find Latest Controlled Documents\n\nLocate the current Windchill documents that match a business or lifecycle condition without loading an unbounded result set.\n\n## Steps\n1. Use List Documents with an OData filter, a page size no larger than 200, and Latest Version Only enabled.\n2. Select only the normalized fields needed for the request, such as ID, Number, Name, Version, State, and FolderLocation.\n3. If more results are needed, follow the returned nextLink one page at a time until the requested scope is satisfied.\n4. Use Get Document for any item that needs a focused follow-up check.\n\n## Output\nReturn the matching document OIDs, numbers, names, versions, lifecycle states, and the next-page URL when more results remain.',
+        '# Find Latest Controlled Documents\n\nLocate the current Windchill documents that match a business or lifecycle condition without loading an unbounded result set.\n\n## Steps\n1. Use List Documents with an OData filter, a maximum result count no larger than 200, and Latest Version Only enabled.\n2. Select only the normalized fields needed for the request, such as ID, Number, Name, Version, State, and FolderLocation.\n3. If more results are needed, follow the returned nextLink one page at a time until the requested scope is satisfied.\n4. Use Get Document for any item that needs a focused follow-up check.\n\n## Output\nReturn the matching document OIDs, numbers, names, versions, lifecycle states, and the next-page URL when more results remain.',
     },
     {
       name: 'release-controlled-document',
