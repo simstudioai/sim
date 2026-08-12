@@ -147,6 +147,21 @@ function createStreamingContext(): StreamingContext {
   }
 }
 
+/**
+ * The turn-scoped execution context exactly as the chat lifecycle builds it: no
+ * `toolCallId`, because that identity only exists per dispatched tool call. The
+ * file preview adapter has to take it from the frame it is processing.
+ */
+function turnScopedExecContext(): ExecutionContext {
+  return {
+    userId: 'user-1',
+    workflowId: 'workflow-1',
+    workspaceId: 'workspace-1',
+    messageId: 'msg-1',
+    copilotToolExecution: true,
+  }
+}
+
 describe('copilot go stream helpers', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
@@ -301,14 +316,7 @@ describe('copilot go stream helpers', () => {
 
     const onEvent = vi.fn()
     const context = createStreamingContext()
-    const execContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-1',
-      messageId: 'msg-1',
-      copilotToolExecution: true,
-      toolCallId: 'stream-tool-1',
-    }
+    const execContext = turnScopedExecContext()
 
     await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
       onEvent,
@@ -432,14 +440,7 @@ describe('copilot go stream helpers', () => {
 
     const onEvent = vi.fn()
     const context = createStreamingContext()
-    const execContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-1',
-      messageId: 'msg-1',
-      copilotToolExecution: true,
-      toolCallId: 'stream-tool-2',
-    }
+    const execContext = turnScopedExecContext()
 
     await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
       onEvent,
