@@ -4,6 +4,7 @@ import { getPostgresErrorCode } from '@sim/utils/errors'
 import type { ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { mcpServerDelegationPolicy } from '@/lib/mcp/application/authorization'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
@@ -176,25 +177,32 @@ async function saveMcpServer(args: {
   return requireSuccessfulResult(result, 'Failed to register MCP server')
 }
 
+/**
+ * A registration is an addition when it inserts a row or revives a soft-deleted
+ * one, and an update when it rewrites a live row — which `registerMcpServer`
+ * allows, repointing headers and the URL's query string. Auditing only the
+ * insert left both upsert outcomes unrecorded.
+ */
 function createAudit(
   input: SaveMcpServerInput,
   result: PerformMcpServerResult & { server: McpServerRow }
 ) {
-  if (result.updated) return []
+  const isRewrite = result.updated === true && !result.revived
   return [
     {
-      action: AuditAction.MCP_SERVER_ADDED,
+      action: isRewrite ? AuditAction.MCP_SERVER_UPDATED : AuditAction.MCP_SERVER_ADDED,
       resourceType: AuditResourceType.MCP_SERVER,
       resourceId: result.server.id,
       resourceName: result.server.name,
-      description: `Added MCP server "${result.server.name}"`,
+      description: `${isRewrite ? 'Updated' : 'Added'} MCP server "${result.server.name}"`,
       metadata: {
         serverName: result.server.name,
         transport: result.server.transport,
-        url: result.server.url,
+        url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
         timeout: result.server.timeout,
         retries: result.server.retries,
         source: input.source,
+        ...(isRewrite ? { updatedFields: result.updatedFields ?? [] } : {}),
       },
     },
   ]
@@ -314,7 +322,7 @@ function updateAudit(
     metadata: {
       serverName: result.server.name,
       transport: result.server.transport,
-      url: result.server.url,
+      url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
       updatedFields: result.updatedFields ?? [],
       source: input.source,
     },
@@ -382,7 +390,7 @@ export const deleteMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
     metadata: {
       serverName: result.server.name,
       transport: result.server.transport,
-      url: result.server.url,
+      url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
       source: input.source,
     },
   }),
