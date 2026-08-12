@@ -3,12 +3,7 @@ import {
   v2GetMcpServerContract,
   v2UpdateMcpServerContract,
 } from '@/lib/api/contracts/v2/mcp-servers'
-import {
-  createV2ResourceConcealmentPolicy,
-  defineV2JsonRoute,
-  v2ApiKeyAuth,
-  v2RateLimits,
-} from '@/lib/api/server/routes'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
   deleteMcpServerUseCase,
@@ -16,14 +11,10 @@ import {
   updateMcpServerUseCase,
 } from '@/lib/mcp/application/use-cases'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { toV2McpServer } from '@/app/api/v2/mcp-servers/utils'
+import { mcpServerResourceErrorPolicy, toV2McpServer } from '@/app/api/v2/mcp-servers/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-const mcpServerResourceErrorPolicy = createV2ResourceConcealmentPolicy({
-  notFoundMessage: 'MCP server not found',
-})
 
 /** GET /api/v2/mcp-servers/[id] — Fetch a single MCP server. */
 export const GET = defineV2JsonRoute({

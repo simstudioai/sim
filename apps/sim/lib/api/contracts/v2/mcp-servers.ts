@@ -1,10 +1,15 @@
 import { z } from 'zod'
 import { mcpAuthTypeSchema, mcpServerSchema, mcpTransportSchema } from '@/lib/api/contracts/mcp'
-import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  nonEmptyIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
   v2DataResponse,
+  v2PaginationFields,
   v2SearchSchema,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
@@ -163,7 +168,7 @@ export const v2McpServerDeleteDataSchema = z
 export type V2McpServerDeleteData = z.output<typeof v2McpServerDeleteDataSchema>
 
 export const v2McpServerParamsSchema = z.object({
-  id: nonEmptyIdSchema.describe('MCP server to retrieve, update, or delete.'),
+  id: nonEmptyIdSchema.describe('MCP server the operation acts on.'),
 })
 export type V2McpServerParams = z.output<typeof v2McpServerParamsSchema>
 
@@ -180,6 +185,7 @@ export const v2ListMcpServersQuerySchema = v2McpServerWorkspaceQuerySchema
   .extend({
     search: v2SearchSchema.describe('Case-insensitive substring match against the server name.'),
     ...v2SortFields(v2McpServerSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+    ...v2PaginationFields({ description: 'Maximum MCP servers to return per page.' }),
   })
   .strict()
 
@@ -274,9 +280,68 @@ export const v2UpdateMcpServerBodySchema = v2CreateMcpServerBodySchema
 export type V2UpdateMcpServerBody = z.input<typeof v2UpdateMcpServerBodySchema>
 
 /**
- * MCP server list. The per-workspace set is small and bounded, so the full set
- * is returned as a single page (`nextCursor` is always `null`); the canonical
- * cursor envelope keeps the v2 list surface uniform.
+ * A tool's argument schema, as the MCP server reports it.
+ *
+ * Everything below the `object` wrapper is authored by the third-party server,
+ * so it is published open (`catchall`) and passed through rather than
+ * re-validated keyword by keyword — the same treatment the v2 custom-tool
+ * declaration gives an OpenAI function's `parameters`. `type` can be pinned to
+ * the literal because the MCP SDK's own `ListToolsResult` schema already rejects
+ * a tool whose `inputSchema.type` is anything else, so a server cannot make this
+ * response fail its own validation.
+ */
+const v2McpToolInputSchema = z
+  .object({
+    type: z
+      .literal('object')
+      .describe('JSON Schema type of the argument object. MCP requires `object`.'),
+    properties: z
+      .record(z.string(), z.unknown().describe('Server-defined JSON Schema for one tool argument.'))
+      .optional()
+      .describe('Argument schemas keyed by argument name.'),
+    required: z
+      .array(z.string().describe('Name of a required argument.'))
+      .optional()
+      .describe('Names of the arguments the tool requires.'),
+    description: z.string().optional().describe('Description of the argument object.'),
+  })
+  .catchall(z.unknown().describe('Additional JSON Schema keyword reported by the server.'))
+  .describe("JSON Schema for the tool's arguments, as reported by the server.")
+
+/** One tool exposed by a registered MCP server. */
+export const v2McpToolSchema = z
+  .object({
+    name: z.string().describe('Tool name, as the MCP server reports it.'),
+    description: z.string().optional().describe('Tool description reported by the server.'),
+    inputSchema: v2McpToolInputSchema,
+    serverId: z.string().describe('Identifier of the MCP server exposing the tool.'),
+    serverName: z.string().describe('Display name of the MCP server exposing the tool.'),
+  })
+  .meta({
+    id: 'V2McpTool',
+    title: 'MCP tool',
+    description: 'A tool exposed by a registered MCP server.',
+  })
+export type V2McpTool = z.output<typeof v2McpToolSchema>
+
+export const v2ListMcpServerToolsQuerySchema = v2McpServerWorkspaceQuerySchema
+  .extend({
+    refresh: booleanQueryFlagSchema
+      .optional()
+      .default(false)
+      .describe(
+        'Bypass the cached tool list and reconnect to the server. Slower, and the only way to pick up a tool added since the last refresh.'
+      ),
+  })
+  .strict()
+export type V2ListMcpServerToolsQuery = z.output<typeof v2ListMcpServerToolsQuerySchema>
+
+/**
+ * MCP server list, keyset-paginated over the active sort.
+ *
+ * Nothing caps how many servers a workspace may register, so the original
+ * single-page shape was the one unbounded list on the v2 surface. Callers that
+ * relied on reading every server from one response must now follow `nextCursor`.
  */
 export const v2ListMcpServersContract = defineRouteContract({
   method: 'GET',
@@ -329,5 +394,22 @@ export const v2DeleteMcpServerContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2McpServerDeleteDataSchema),
+  },
+})
+
+/**
+ * One server's tool inventory, returned as a single page (`nextCursor` is always
+ * `null`). Unlike the server list, this set is bounded by construction: tool
+ * discovery stops at 1,000 tools and 5 MB of tool payload per server no matter
+ * what the upstream server reports, so there is no page for a cursor to name.
+ */
+export const v2ListMcpServerToolsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/mcp-servers/[id]/tools',
+  params: v2McpServerParamsSchema,
+  query: v2ListMcpServerToolsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2McpToolSchema),
   },
 })
