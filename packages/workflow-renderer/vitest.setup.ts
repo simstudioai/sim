@@ -1,3 +1,11 @@
+declare global {
+  /**
+   * React reads this to decide whether `act` is supported. It is not one of the
+   * ambient globals, so it has to be declared before it can be assigned.
+   */
+  var IS_REACT_ACT_ENVIRONMENT: boolean
+}
+
 /**
  * jest-dom only registers DOM matchers (`toHaveStyle`, `toHaveClass`, …), so it is
  * dead weight outside a DOM environment. This package's mount tests opt into jsdom
@@ -6,11 +14,10 @@
 if (typeof document !== 'undefined') {
   await import('@testing-library/jest-dom/vitest')
   /*
-   * React only treats `act` as supported when it can see this flag, and without
-   * it every render in the mount tests logs "The current testing environment is
-   * not configured to support act(...)". The warning is noise here — the tests
-   * already wrap their renders — but it buries real output, and React does not
-   * flush effects the way the tests assume until the flag is set.
+   * Without this React treats `act` as unsupported, and every render in the
+   * mount tests logs "The current testing environment is not configured to
+   * support act(...)" — around forty lines a run, which buries the output that
+   * matters when one of them fails.
    */
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
 }
