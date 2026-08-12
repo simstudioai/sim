@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
+import type { BlockState } from '@sim/workflow-types/workflow'
 import { useReactFlow } from 'reactflow'
 import { getBlockMetrics } from '@/lib/workflows/autolayout/utils'
 import {
@@ -14,7 +15,7 @@ const logger = createLogger('NodeUtilities')
 /**
  * Hook providing utilities for node position, hierarchy, and dimension calculations
  */
-export function useNodeUtilities(blocks: Record<string, any>) {
+export function useNodeUtilities(blocks: Record<string, BlockState>) {
   const { getNodes } = useReactFlow()
 
   /**
@@ -140,8 +141,20 @@ export function useNodeUtilities(blocks: Record<string, any>) {
   )
 
   /**
-   * Gets the absolute position of a node (accounting for nested parents).
-   * For nodes inside containers, accounts for header and padding offsets.
+   * Gets the absolute position of a node, walking up its parent chain.
+   *
+   * A child's position is relative to its container's own origin — React Flow
+   * places it at the parent's origin plus its position, and
+   * `clampPositionToContainer` is what holds it clear of the chrome, flooring it
+   * at `LEFT_PADDING` and `HEADER_HEIGHT + TOP_PADDING`. The container's header
+   * and padding are therefore already inside the child's coordinates, and
+   * adding them again here counted them twice: a nested node reported 16px
+   * right and 66px below where it actually is.
+   *
+   * That is why callers wanting a relative position had to subtract the same
+   * three constants straight back off, and why `positionAbsolute` — React
+   * Flow's own answer, which carries no offset — disagreed with this one.
+   *
    * @param nodeId ID of the node to check
    * @returns Absolute position coordinates {x, y}
    */
@@ -168,9 +181,10 @@ export function useNodeUtilities(blocks: Record<string, any>) {
       }
 
       const visited = new Set<string>()
-      let currentId = nodeId
-      while (currentId && blocks?.[currentId]?.data?.parentId) {
-        const currentParentId = blocks[currentId].data.parentId
+      let currentId: string | undefined = nodeId
+      while (currentId) {
+        const currentParentId: string | undefined = blocks[currentId]?.data?.parentId
+        if (!currentParentId) break
         if (visited.has(currentParentId)) {
           logger.error('Circular parent reference detected', {
             nodeId,
@@ -184,13 +198,9 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
       const parentPos = getNodeAbsolutePosition(parentId)
 
-      const headerHeight = 50
-      const leftPadding = 16
-      const topPadding = 16
-
       return {
-        x: parentPos.x + leftPadding + node.position.x,
-        y: parentPos.y + headerHeight + topPadding + node.position.y,
+        x: parentPos.x + node.position.x,
+        y: parentPos.y + node.position.y,
       }
     },
     [getNodes, blocks]
