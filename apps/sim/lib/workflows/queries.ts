@@ -138,12 +138,22 @@ export async function listWorkspaceWorkflows(input: ListWorkspaceWorkflowsInput)
  * the editor route and public metadata route derive their own response from
  * this read rather than issuing independent block/workflow queries.
  */
-export async function loadWorkflowReadSnapshot(workflowId: string) {
+export async function loadWorkflowReadSnapshot(workflowId: string, workspaceId: string) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
     const [normalizedData, [workflowRecord]] = await Promise.all([
       loadWorkflowFromNormalizedTables(workflowId, tx),
-      tx.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1),
+      tx
+        .select()
+        .from(workflow)
+        .where(
+          and(
+            eq(workflow.id, workflowId),
+            eq(workflow.workspaceId, workspaceId),
+            isNull(workflow.archivedAt)
+          )
+        )
+        .limit(1),
     ])
     return { normalizedData, workflowRecord: workflowRecord ?? null }
   })
