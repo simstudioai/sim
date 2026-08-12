@@ -26,7 +26,6 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { KnowledgeDocumentUnsupportedMediaTypeError } from '@/lib/knowledge/application/upload-sessions'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { serializeDate } from '@/app/api/v1/knowledge/utils'
@@ -138,20 +137,12 @@ export const POST = defineV2BodyLifecycleRoute({
     })
     return { file: rawFile, buffer, contentType }
   },
-  transfer: ({ admission, body }) =>
-    uploadWorkspaceFile(
-      admission.workspaceId,
-      admission.storageActorUserId,
-      body.buffer,
-      body.file.name,
-      body.contentType
-    ),
-  mapInput: ({ parsed, body, transfer }) => ({
+  mapInput: ({ parsed, body }) => ({
     knowledgeBaseId: parsed.params.id,
     assertedWorkspaceId: parsed.query.workspaceId,
-    document: {
+    file: {
+      buffer: body.buffer,
       filename: body.file.name,
-      fileUrl: transfer.url,
       fileSize: body.file.size,
       mimeType: body.contentType,
     },

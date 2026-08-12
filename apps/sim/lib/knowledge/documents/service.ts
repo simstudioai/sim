@@ -64,6 +64,7 @@ import {
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
   createDocumentProcessingPayload,
@@ -1860,7 +1861,13 @@ export async function createSingleDocument(
   uploadedBy: string | null = null,
   documentId = generateId(),
   secretProvenance?: KnowledgeDocumentWriteSecretProvenance,
-  options?: { expectedWorkspaceId?: string }
+  options?: {
+    expectedWorkspaceId?: string
+    processing?: {
+      processingOptions: ProcessingOptions
+      billingAttribution: BillingAttributionSnapshot
+    }
+  }
 ): Promise<{
   id: string
   knowledgeBaseId: string
@@ -2057,6 +2064,15 @@ export async function createSingleDocument(
       .update(knowledgeBase)
       .set({ updatedAt: now })
       .where(eq(knowledgeBase.id, knowledgeBaseId))
+
+    if (options?.processing) {
+      await enqueueKnowledgeDocumentProcessing(tx, {
+        knowledgeBaseId,
+        documentId,
+        processingOptions: options.processing.processingOptions,
+        billingAttribution: options.processing.billingAttribution,
+      })
+    }
 
     return storageNotification
   })

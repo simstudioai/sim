@@ -17,7 +17,6 @@ const {
   mockUploadDocument,
   mockReadFormData,
   mockReadFile,
-  mockUploadWorkspaceFile,
   mockPlatformUploaded,
   mockCapture,
   mockIsPayloadSizeLimitError,
@@ -26,7 +25,6 @@ const {
   mockUploadDocument: vi.fn(),
   mockReadFormData: vi.fn(),
   mockReadFile: vi.fn(),
-  mockUploadWorkspaceFile: vi.fn(),
   mockPlatformUploaded: vi.fn(),
   mockCapture: vi.fn(),
   mockIsPayloadSizeLimitError: vi.fn(),
@@ -56,10 +54,6 @@ vi.mock('@/lib/core/utils/stream-limits', () => ({
   isPayloadSizeLimitError: mockIsPayloadSizeLimitError,
   readFormDataWithLimit: mockReadFormData,
   readFileToBufferWithLimit: mockReadFile,
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  uploadWorkspaceFile: mockUploadWorkspaceFile,
 }))
 
 vi.mock('@/lib/core/telemetry', () => ({
@@ -102,13 +96,11 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
       knowledgeBaseId: 'kb-1',
       knowledgeBaseName: 'Support docs',
       workspaceId: WORKSPACE_ID,
-      storageActorUserId: 'user-1',
     })
     const formData = new FormData()
     formData.set('file', new File(['hello'], 'support.txt', { type: 'text/plain' }))
     mockReadFormData.mockResolvedValue(formData)
     mockReadFile.mockResolvedValue(Buffer.from('hello'))
-    mockUploadWorkspaceFile.mockResolvedValue({ url: 's3://workspace/support.txt' })
     mockUploadDocument.mockResolvedValue({
       created: true,
       document: {
@@ -141,21 +133,14 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
       input: { knowledgeBaseId: 'kb-1', assertedWorkspaceId: WORKSPACE_ID },
       request,
     })
-    expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
-      WORKSPACE_ID,
-      'user-1',
-      Buffer.from('hello'),
-      'support.txt',
-      'text/plain'
-    )
     expect(mockUploadDocument).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
         knowledgeBaseId: 'kb-1',
         assertedWorkspaceId: WORKSPACE_ID,
-        document: {
+        file: {
+          buffer: Buffer.from('hello'),
           filename: 'support.txt',
-          fileUrl: 's3://workspace/support.txt',
           fileSize: 5,
           mimeType: 'text/plain',
         },
@@ -194,7 +179,6 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
       error: { code: 'USAGE_LIMIT_EXCEEDED', message: 'Upgrade required' },
     })
     expect(mockReadFormData).not.toHaveBeenCalled()
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
     expect(mockUploadDocument).not.toHaveBeenCalled()
   })
 
@@ -214,7 +198,7 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
     expect(mockCapture).not.toHaveBeenCalled()
   })
 
-  it('preserves the malformed multipart envelope without transferring storage', async () => {
+  it('preserves the malformed multipart envelope without entering the upload operation', async () => {
     mockReadFormData.mockRejectedValueOnce(new Error('multipart boundary missing'))
 
     const response = await POST(buildRequest(), { params: Promise.resolve({ id: 'kb-1' }) })
@@ -223,12 +207,11 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
     expect(await response.json()).toEqual({
       error: { code: 'BAD_REQUEST', message: 'Request body must be valid multipart form data' },
     })
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
     expect(mockUploadDocument).not.toHaveBeenCalled()
     expect(mockPlatformUploaded).not.toHaveBeenCalled()
   })
 
-  it('preserves bounded multipart rejection and stops before storage transfer', async () => {
+  it('preserves bounded multipart rejection and stops before the upload operation', async () => {
     const error = new Error('knowledge document upload body exceeds maximum size')
     mockReadFormData.mockRejectedValueOnce(error)
     mockIsPayloadSizeLimitError.mockImplementation((candidate: unknown) => candidate === error)
@@ -239,11 +222,10 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
     expect(await response.json()).toEqual({
       error: { code: 'PAYLOAD_TOO_LARGE', message: error.message },
     })
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
     expect(mockUploadDocument).not.toHaveBeenCalled()
   })
 
-  it('requires a file form field before storage transfer', async () => {
+  it('requires a file form field before the upload operation', async () => {
     mockReadFormData.mockResolvedValueOnce(new FormData())
 
     const response = await POST(buildRequest(), { params: Promise.resolve({ id: 'kb-1' }) })
@@ -252,7 +234,7 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
     expect(await response.json()).toEqual({
       error: { code: 'BAD_REQUEST', message: 'file form field is required' },
     })
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockUploadDocument).not.toHaveBeenCalled()
   })
 
   it('preserves the exact file-size rejection before reading file bytes', async () => {
@@ -269,7 +251,7 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
       error: { code: 'PAYLOAD_TOO_LARGE', message: 'File size exceeds 100MB limit (100.00MB)' },
     })
     expect(mockReadFile).not.toHaveBeenCalled()
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockUploadDocument).not.toHaveBeenCalled()
   })
 
   it('preserves unsupported file-type validation before reading file bytes', async () => {
@@ -286,11 +268,11 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
       error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: expectedMessage },
     })
     expect(mockReadFile).not.toHaveBeenCalled()
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockUploadDocument).not.toHaveBeenCalled()
   })
 
-  it('does not register or emit effects when storage transfer fails', async () => {
-    mockUploadWorkspaceFile.mockRejectedValueOnce(new Error('storage unavailable'))
+  it('does not emit effects when the upload operation fails', async () => {
+    mockUploadDocument.mockRejectedValueOnce(new Error('storage unavailable'))
 
     const response = await POST(buildRequest(), { params: Promise.resolve({ id: 'kb-1' }) })
 
@@ -298,12 +280,12 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
     expect(await response.json()).toEqual({
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
     })
-    expect(mockUploadDocument).not.toHaveBeenCalled()
+    expect(mockUploadDocument).toHaveBeenCalledOnce()
     expect(mockPlatformUploaded).not.toHaveBeenCalled()
     expect(mockCapture).not.toHaveBeenCalled()
   })
 
-  it('preserves application authorization errors after storage transfer', async () => {
+  it('preserves final application authorization errors', async () => {
     mockUploadDocument.mockRejectedValueOnce(
       new OrchestrationError('forbidden', 'Insufficient workspace permissions')
     )
@@ -314,7 +296,7 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
     expect(await response.json()).toEqual({
       error: { code: 'FORBIDDEN', message: 'Insufficient workspace permissions' },
     })
-    expect(mockUploadWorkspaceFile).toHaveBeenCalledOnce()
+    expect(mockUploadDocument).toHaveBeenCalledOnce()
     expect(mockPlatformUploaded).not.toHaveBeenCalled()
     expect(mockCapture).not.toHaveBeenCalled()
   })

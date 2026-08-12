@@ -39,7 +39,6 @@ import {
   bulkDocumentOperationByFilter,
   createDocumentRecords,
   createSingleDocument,
-  type DocumentData,
   deleteDocument,
   deleteKnowledgeDocumentInKnowledgeBase,
   getDocuments,
@@ -57,6 +56,9 @@ import {
   performUploadKnowledgeDocuments,
 } from '@/lib/knowledge/orchestration/documents'
 import type { KnowledgeDocumentWriteSecretProvenance } from '@/lib/knowledge/secret-provenance'
+import { StorageService } from '@/lib/uploads'
+import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
+import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 
@@ -101,7 +103,12 @@ export interface KnowledgeDocumentInput {
 }
 
 export interface UploadKnowledgeDocumentInput extends UploadKnowledgeDocumentAdmissionInput {
-  document: KnowledgeDocumentInput
+  file: {
+    buffer: Buffer
+    filename: string
+    fileSize: number
+    mimeType: string
+  }
   processingOptions?: ProcessingOptions
   startProcessing?: boolean
   /** Code-defined admission state; HTTP/model payloads must never populate it. */
@@ -241,7 +248,6 @@ export const admitKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
       knowledgeBaseId: context.knowledgeBaseId,
       knowledgeBaseName: context.knowledgeBase.name,
       workspaceId: context.workspaceId,
-      storageActorUserId: resolveKnowledgeAttributedUserId(principal, context),
     }
   },
 })
@@ -251,16 +257,19 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: UploadKnowledgeDocumentInput }) =>
     resolveActiveKnowledgeBaseContext(input),
   async execute({ principal, input, context }) {
-    if (input.document.fileSize < 0 || input.document.fileSize > MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE) {
+    if (input.file.fileSize < 0 || input.file.fileSize > MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE) {
       throw new OrchestrationError(
         'payload_too_large',
         'Knowledge document exceeds the 100MB limit'
       )
     }
-    const fileTypeError = validateFileType(input.document.filename, input.document.mimeType)
+    if (input.file.fileSize !== input.file.buffer.byteLength) {
+      throw new Error('Knowledge document upload size does not match its buffered bytes')
+    }
+    const fileTypeError = validateFileType(input.file.filename, input.file.mimeType)
     if (fileTypeError) throw new OrchestrationError('validation', fileTypeError.message)
-    const billingAttribution = await resolveKnowledgeBillingAttribution(principal, context)
     if (input.usageAdmission !== 'pre_admitted') {
+      const billingAttribution = await resolveKnowledgeBillingAttribution(principal, context)
       const usage = await checkAttributedUsageLimits(billingAttribution)
       if (usage.isExceeded) {
         throw new KnowledgeUsageLimitExceededError(
@@ -269,32 +278,71 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       }
     }
     const requestId = generateRequestId()
-    const uploadedBy = resolveKnowledgeAttributedUserId(principal, context)
+    const storageActorUserId = resolveKnowledgeAttributedUserId(principal, context)
+    const storageKey = generateKnowledgeBaseFileKey(input.file.filename)
+    await recordKnowledgeBaseFileOwnership({
+      key: storageKey,
+      userId: storageActorUserId,
+      workspaceId: context.workspaceId,
+      originalName: input.file.filename,
+      contentType: input.file.mimeType,
+      size: input.file.fileSize,
+    })
+    const storedFile = await StorageService.uploadFile({
+      file: input.file.buffer,
+      fileName: input.file.filename,
+      contentType: input.file.mimeType,
+      context: 'knowledge-base',
+      customKey: storageKey,
+      preserveKey: true,
+      persistMetadata: false,
+    })
+    if (storedFile.key !== storageKey || storedFile.size !== input.file.fileSize) {
+      throw new Error('Knowledge document storage did not preserve the admitted file identity')
+    }
+    if (storedFile.path.includes('?')) {
+      throw new Error('Knowledge document storage returned a path with an unexpected query')
+    }
+
+    const registrationContext = await resolveActiveKnowledgeBaseContext(input)
+    await authorizeWorkspaceOperation(
+      principal,
+      knowledgeOperations.uploadDocument,
+      registrationContext,
+      {
+        delegation: knowledgeDelegationPolicy,
+      }
+    )
+    const billingAttribution = await resolveKnowledgeBillingAttribution(
+      principal,
+      registrationContext
+    )
+    const uploadedBy = resolveKnowledgeAttributedUserId(principal, registrationContext)
+    const documentInput: KnowledgeDocumentInput = {
+      filename: input.file.filename,
+      fileUrl: `${storedFile.path}?context=knowledge-base`,
+      fileSize: input.file.fileSize,
+      mimeType: input.file.mimeType,
+    }
     const document = await createSingleDocument(
-      input.document,
-      context.knowledgeBaseId,
+      documentInput,
+      registrationContext.knowledgeBaseId,
       requestId,
       uploadedBy,
       undefined,
       undefined,
-      { expectedWorkspaceId: context.workspaceId }
-    )
-    if (input.startProcessing !== false) {
-      const processingDocument: DocumentData = {
-        documentId: document.id,
-        filename: document.filename,
-        fileUrl: document.fileUrl,
-        fileSize: document.fileSize,
-        mimeType: document.mimeType,
+      {
+        expectedWorkspaceId: registrationContext.workspaceId,
+        ...(input.startProcessing !== false
+          ? {
+              processing: {
+                processingOptions: input.processingOptions ?? {},
+                billingAttribution,
+              },
+            }
+          : {}),
       }
-      await processDocumentsWithQueue(
-        [processingDocument],
-        context.knowledgeBaseId,
-        input.processingOptions ?? {},
-        requestId,
-        billingAttribution
-      )
-    }
+    )
     return { document, created: true as const }
   },
   projectAudit: ({ input, context, result }) => ({
