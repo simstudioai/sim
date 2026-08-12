@@ -1,3 +1,4 @@
+import type { SessionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -6,33 +7,80 @@ import {
   upsertSkillsContract,
 } from '@/lib/api/contracts'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { InternalUnauthenticatedError, internalSessionAuth } from '@/lib/api/server/routes'
+import {
+  asOrchestrationError,
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
-  performCreateSkill,
-  performDeleteSkill,
-  performUpdateSkill,
-  statusForSkillOrchestrationError,
-} from '@/lib/skills/orchestration'
+  createSkillUseCase,
+  deleteSkillUseCase,
+  listAvailableSkillsUseCase,
+  updateSkillUseCase,
+} from '@/lib/skills/application/use-cases'
+import type { SkillWriteSource } from '@/lib/skills/orchestration'
 import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
-import { listSkillsForUser } from '@/lib/workflows/skills/operations'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('SkillsAPI')
+
+/**
+ * This surface authenticates, parses, presents, and emits analytics. Every
+ * authorization decision and the semantic audit entry belong to the skill
+ * application use cases, which the v2 routes and copilot call as well.
+ *
+ * Only an interactive session can reach it: the skill operations model human
+ * principals (session, personal API key, copilot delegation), and the legacy
+ * internal executor JWT this route previously accepted has no principal that
+ * those policies can express.
+ */
+async function authenticatePrincipal(): Promise<SessionPrincipal | null> {
+  try {
+    return await internalSessionAuth.authenticate()
+  } catch (error) {
+    if (error instanceof InternalUnauthenticatedError) return null
+    throw error
+  }
+}
+
+const unauthorized = () => NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+/** Projects a classified use-case failure onto this surface's error body. */
+function orchestrationErrorResponse(error: unknown, fallback: string): NextResponse | null {
+  const classified = asOrchestrationError(error)
+  if (!classified) return null
+  return NextResponse.json(
+    {
+      error: messageForOrchestrationError(
+        { error: classified.message, errorCode: classified.code },
+        fallback
+      ),
+    },
+    { status: statusForOrchestrationError(classified.code) }
+  )
+}
+
+interface SkillListRow {
+  id: string
+}
+
+const withReadOnly = <T extends SkillListRow>(skills: T[]) =>
+  skills.map((s) => ({ ...s, readOnly: isBuiltinSkillId(s.id) }))
 
 /** GET - Fetch all skills for a workspace */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success || !authResult.userId) {
+    const principal = await authenticatePrincipal()
+    if (!principal) {
       logger.warn(`[${requestId}] Unauthorized skills access attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return unauthorized()
     }
 
-    const userId = authResult.userId
     const query = listSkillsQuerySchema.safeParse(
       Object.fromEntries(request.nextUrl.searchParams.entries())
     )
@@ -43,19 +91,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         { status: 400 }
       )
     }
-    const { workspaceId } = query.data
 
-    const workspaceAccess = await checkWorkspaceAccess(workspaceId, userId)
-    if (!workspaceAccess.hasAccess) {
-      logger.warn(`[${requestId}] User ${userId} does not have access to workspace ${workspaceId}`)
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
+    const { skills } = await listAvailableSkillsUseCase.execute({
+      principal,
+      input: { workspaceId: query.data.workspaceId },
+      request,
+    })
 
-    const result = await listSkillsForUser({ workspaceId, userId, workspaceAccess })
-    const data = result.map((s) => ({ ...s, readOnly: isBuiltinSkillId(s.id) }))
-
-    return NextResponse.json({ data }, { status: 200 })
+    return NextResponse.json({ data: withReadOnly(skills) }, { status: 200 })
   } catch (error) {
+    const projected = orchestrationErrorResponse(error, 'Failed to fetch skills')
+    if (projected) return projected
     logger.error(`[${requestId}] Error fetching skills:`, error)
     return NextResponse.json({ error: 'Failed to fetch skills' }, { status: 500 })
   }
@@ -66,13 +112,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
-    if (!authResult.success || !authResult.userId) {
+    const principal = await authenticatePrincipal()
+    if (!principal) {
       logger.warn(`[${requestId}] Unauthorized skills update attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return unauthorized()
     }
-
-    const userId = authResult.userId
 
     const parsed = await parseRequest(
       upsertSkillsContract,
@@ -89,82 +133,56 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const { skills, workspaceId, source } = parsed.data.body
 
-    const workspaceAccess = await checkWorkspaceAccess(workspaceId, userId)
-    if (!workspaceAccess.hasAccess) {
-      logger.warn(`[${requestId}] User ${userId} does not have access to workspace ${workspaceId}`)
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
-
     /**
-     * Each item is applied through the skill orchestration, which owns the
-     * built-in guard, the field limits, the per-skill editor check, and the
-     * audit. Creating still requires workspace write; editing an existing skill
-     * is gated per skill inside `performUpdateSkill`.
-     *
      * The batch is applied item by item rather than in one transaction: this
-     * endpoint's callers submit a single skill, and one shared authority for the
-     * rules is worth more than atomicity across a batch nobody sends.
+     * endpoint's callers submit a single skill, and one shared authority for
+     * the rules is worth more than atomicity across a batch nobody sends.
      */
-    const actor = {
-      actorName: authResult.userName,
-      actorEmail: authResult.userEmail,
-      source,
-      request: req,
-    }
-
     for (const item of skills) {
       if (item.id) {
-        const result = await performUpdateSkill({
-          workspaceId,
-          userId,
-          skillId: item.id,
-          name: item.name,
-          description: item.description,
-          content: item.content,
-          ...actor,
-        })
-        if (!result.success) {
-          logger.warn(`[${requestId}] Skill update rejected`, {
+        const { skill } = await updateSkillUseCase.execute({
+          principal,
+          input: {
+            workspaceId,
             skillId: item.id,
-            errorCode: result.errorCode,
-          })
-          return NextResponse.json(
-            { error: result.error ?? 'Failed to update skill' },
-            { status: statusForSkillOrchestrationError(result.errorCode) }
-          )
-        }
+            name: item.name,
+            description: item.description,
+            content: item.content,
+            source,
+          },
+          request: req,
+        })
+        captureSkillEvent('skill_updated', principal.userId, workspaceId, source, skill)
         continue
       }
 
-      if (!workspaceAccess.canWrite) {
-        logger.warn(
-          `[${requestId}] User ${userId} does not have write permission for workspace ${workspaceId}`
-        )
-        return NextResponse.json({ error: 'Write permission required' }, { status: 403 })
-      }
-
-      const result = await performCreateSkill({
-        workspaceId,
-        userId,
-        name: item.name!,
-        description: item.description!,
-        content: item.content!,
-        ...actor,
+      const { skill } = await createSkillUseCase.execute({
+        principal,
+        input: {
+          workspaceId,
+          name: item.name!,
+          description: item.description!,
+          content: item.content!,
+          source,
+        },
+        request: req,
       })
-      if (!result.success) {
-        logger.warn(`[${requestId}] Skill create rejected`, { errorCode: result.errorCode })
-        return NextResponse.json(
-          { error: result.error ?? 'Failed to create skill' },
-          { status: statusForSkillOrchestrationError(result.errorCode) }
-        )
-      }
+      captureSkillEvent('skill_created', principal.userId, workspaceId, source, skill)
     }
 
-    const resultSkills = await listSkillsForUser({ workspaceId, userId, workspaceAccess })
-    const data = resultSkills.map((s) => ({ ...s, readOnly: isBuiltinSkillId(s.id) }))
+    const { skills: resultSkills } = await listAvailableSkillsUseCase.execute({
+      principal,
+      input: { workspaceId },
+      request: req,
+    })
 
-    return NextResponse.json({ success: true, data })
+    return NextResponse.json({ success: true, data: withReadOnly(resultSkills) })
   } catch (error) {
+    const projected = orchestrationErrorResponse(error, 'Failed to update skills')
+    if (projected) {
+      logger.warn(`[${requestId}] Skill write rejected`, { status: projected.status })
+      return projected
+    }
     logger.error(`[${requestId}] Error updating skills`, error)
     return NextResponse.json({ error: 'Failed to update skills' }, { status: 500 })
   }
@@ -175,13 +193,12 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!authResult.success || !authResult.userId) {
+    const principal = await authenticatePrincipal()
+    if (!principal) {
       logger.warn(`[${requestId}] Unauthorized skill deletion attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return unauthorized()
     }
 
-    const userId = authResult.userId
     const query = deleteSkillQuerySchema.safeParse(
       Object.fromEntries(request.nextUrl.searchParams.entries())
     )
@@ -194,30 +211,47 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
     }
     const { id: skillId, workspaceId, source } = query.data
 
-    const result = await performDeleteSkill({
-      workspaceId,
-      userId,
-      skillId,
-      actorName: authResult.userName,
-      actorEmail: authResult.userEmail,
-      source,
+    const { skill } = await deleteSkillUseCase.execute({
+      principal,
+      input: { workspaceId, skillId, source },
       request,
     })
-    if (!result.success) {
-      logger.warn(`[${requestId}] Skill delete rejected`, {
-        skillId,
-        errorCode: result.errorCode,
-      })
-      return NextResponse.json(
-        { error: result.error ?? 'Failed to delete skill' },
-        { status: statusForSkillOrchestrationError(result.errorCode) }
-      )
-    }
+
+    captureServerEvent(
+      principal.userId,
+      'skill_deleted',
+      { skill_id: skill.id, workspace_id: workspaceId, source },
+      { groups: { workspace: workspaceId } }
+    )
 
     logger.info(`[${requestId}] Deleted skill: ${skillId}`)
     return NextResponse.json({ success: true })
   } catch (error) {
+    const projected = orchestrationErrorResponse(error, 'Failed to delete skill')
+    if (projected) {
+      logger.warn(`[${requestId}] Skill delete rejected`, { status: projected.status })
+      return projected
+    }
     logger.error(`[${requestId}] Error deleting skill:`, error)
     return NextResponse.json({ error: 'Failed to delete skill' }, { status: 500 })
   }
 })
+
+/**
+ * Analytics stays on the surface, as it does on the v2 routes: the use case
+ * owns audit, each adapter owns its own product telemetry.
+ */
+function captureSkillEvent(
+  event: 'skill_created' | 'skill_updated',
+  userId: string,
+  workspaceId: string,
+  source: SkillWriteSource | undefined,
+  skill: { id: string; name: string }
+): void {
+  captureServerEvent(
+    userId,
+    event,
+    { skill_id: skill.id, skill_name: skill.name, workspace_id: workspaceId, source },
+    { groups: { workspace: workspaceId } }
+  )
+}
