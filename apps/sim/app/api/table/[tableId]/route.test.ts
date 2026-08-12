@@ -164,14 +164,18 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
 })
 
 /**
- * Pins the auth mode this route's executor caller is built against.
+ * Pins which auth path this route hands a Bearer token to.
  *
  * `fetchTableSchema` in `@/tools/schema-enrichers` reaches this route with a legacy
- * `type: 'internal'` token from the deprecated `buildAuthHeaders`. That token is only
- * accepted while GET authenticates through `checkSessionOrInternalAuth`; the delegation
- * policy the sibling table routes use rejects it outright. Migrating this route without
- * moving that caller to `buildExecutorDelegationHeaders` in the same change breaks every
- * table tool attached to an Agent block, so this assertion fails first and says so.
+ * `type: 'internal'` token from the deprecated `buildAuthHeaders`. Only
+ * `checkSessionOrInternalAuth` accepts that token; the delegation policy the sibling
+ * table routes use rejects it outright. Migrating this route without moving that caller
+ * to `buildExecutorDelegationHeaders` in the same change breaks every table tool on an
+ * Agent block, so this fails first and names the caller.
+ *
+ * Scope: this pins the *route's* choice of verifier. That the legacy token is actually
+ * valid for that verifier — and rejected by the delegation one — is pinned separately in
+ * `@/lib/auth/internal.test.ts`. Both halves are needed; neither implies the other.
  */
 describe('GET /api/table/[tableId] executor auth pairing', () => {
   beforeEach(() => {
@@ -185,13 +189,20 @@ describe('GET /api/table/[tableId] executor auth pairing', () => {
     mockGetLimits.mockResolvedValue({ maxRowsPerTable: 1000 })
   })
 
-  it('authenticates a legacy internal token, which is what fetchTableSchema sends', async () => {
-    const response = await GET(
-      new NextRequest('http://localhost:3000/api/table/tbl_1?workspaceId=workspace-1'),
-      routeContext
-    )
+  it('routes a Bearer token to the legacy verifier fetchTableSchema mints for', async () => {
+    const request = new NextRequest('http://localhost:3000/api/table/tbl_1?workspaceId=workspace-1')
+    request.headers.set('authorization', 'Bearer legacy-internal-token')
+
+    const response = await GET(request, routeContext)
 
     expect(response.status).toBe(200)
-    expect(hybridAuthMockFns.mockCheckSessionOrInternalAuth).toHaveBeenCalled()
+    expect(hybridAuthMockFns.mockCheckSessionOrInternalAuth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({ get: expect.any(Function) }),
+      }),
+      expect.anything()
+    )
+    const [forwarded] = hybridAuthMockFns.mockCheckSessionOrInternalAuth.mock.calls[0]
+    expect(forwarded.headers.get('authorization')).toBe('Bearer legacy-internal-token')
   })
 })
