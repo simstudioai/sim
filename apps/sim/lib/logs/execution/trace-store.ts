@@ -296,12 +296,11 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
 
   const executionState = readRecord(materialized.executionState)
   const blockStates = readRecord(executionState?.blockStates)
+  const displaySource = displayData as FunctionalExecutionDataSource
   if (!blockStates) {
     return {
       executionData: displayData,
-      blockOutputs: collectFunctionalBlockOutputs(
-        displayData as FunctionalExecutionDataSource | undefined
-      ),
+      blockOutputs: collectFunctionalBlockOutputs(displaySource),
     }
   }
 
@@ -310,13 +309,14 @@ export async function materializeExecutionDataForDisplayWithBlockOutputs(
       executionState?.[RESOLVED_SECRET_PROVENANCE_KEY],
     'traceStore.blockOutputRunProvenance'
   )
-  const blockOutputs = new Map<string, unknown>()
+  const blockOutputs = collectFunctionalBlockOutputs({ traceSpans: displaySource.traceSpans })
   const projectionStore = createReadOnlyProjectionStore(context)
 
   for (const blockId of new Set(blockIds)) {
     const blockState = readRecord(blockStates[blockId])
     if (!blockState || blockState.output === undefined) continue
 
+    blockOutputs.delete(blockId)
     const hasExactProvenance = Object.hasOwn(blockState, RESOLVED_SECRET_PROVENANCE_KEY)
     const registry = hasExactProvenance
       ? await importResolvedSecretTraceRegistry(

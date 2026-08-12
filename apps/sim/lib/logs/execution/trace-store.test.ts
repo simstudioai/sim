@@ -136,10 +136,66 @@ describe('projectExecutionDataForDisplay', () => {
     expect(JSON.stringify([...materialized.blockOutputs])).not.toContain('12345678')
   })
 
+  it('falls back to projected trace output for a requested block missing from partial state', async () => {
+    const emptyProvenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    }
+    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
+      {
+        secretProjectionVersion: SECRET_PROJECTION_VERSION,
+        traceSpans: [
+          {
+            id: 'span-1',
+            blockId: 'trace-only',
+            name: 'Trace-only block',
+            type: 'function',
+            duration: 1,
+            startTime: '2026-08-11T00:00:00.000Z',
+            endTime: '2026-08-11T00:00:00.001Z',
+            output: { result: 'trace-output' },
+          },
+        ],
+        executionState: {
+          resolvedSecretTraceProvenance: emptyProvenance,
+          blockStates: {
+            'state-only': {
+              output: { result: 'state-output' },
+              resolvedSecretTraceProvenance: emptyProvenance,
+            },
+          },
+        },
+      },
+      CONTEXT,
+      ['state-only', 'trace-only']
+    )
+
+    expect(materialized.blockOutputs).toEqual(
+      new Map([
+        ['trace-only', { result: 'trace-output' }],
+        ['state-only', { result: 'state-output' }],
+      ])
+    )
+  })
+
   it('omits state-only block outputs that lack usable secret provenance', async () => {
     const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
       {
         secretProjectionVersion: SECRET_PROJECTION_VERSION,
+        traceSpans: [
+          {
+            id: 'span-1',
+            blockId: 'function-1',
+            name: 'Function 1',
+            type: 'function',
+            duration: 1,
+            startTime: '2026-08-11T00:00:00.000Z',
+            endTime: '2026-08-11T00:00:00.001Z',
+            output: { token: 'trace-fallback' },
+          },
+        ],
         executionState: {
           blockStates: {
             'function-1': { output: { token: 'unproven-secret' } },
