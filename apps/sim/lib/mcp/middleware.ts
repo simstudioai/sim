@@ -24,7 +24,6 @@ export interface McpAuthContext {
   userEmail?: string | null
   authType?: AuthTypeValue
   workspaceId: string
-  canWrite: boolean
   requestId: string
   /**
    * The caller's resolved workspace permission, which satisfies but may exceed
@@ -203,7 +202,6 @@ async function validateMcpAuth(
         userEmail: auth.userEmail,
         authType: auth.authType,
         workspaceId,
-        canWrite: permissionSatisfies(userPermissions as PermissionType, 'write'),
         requestId,
         permission: userPermissions,
       },

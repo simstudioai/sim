@@ -3,6 +3,7 @@ import {
   defineAuthorizedWorkspaceUseCase,
   type OperationUseCase,
   type PrincipalForOperation,
+  recordProjectedUseCaseAuditEntries,
   requireAllowedWorkspacePrincipal,
   type WorkspaceOperation,
   type WorkspaceUseCaseAuditEntry,
@@ -131,7 +132,21 @@ export function defineAuthorizedKnowledgeUseCase<
         }
         const executionContext = { principal, input, context, request }
         const result = await definition.execute(executionContext)
-        await definition.afterSuccess?.({ ...executionContext, result })
+        const resultContext = { ...executionContext, result }
+        const projectedAudit = definition.projectAudit?.(resultContext)
+        if (projectedAudit !== undefined) {
+          const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
+          if (auditEntries.length > 0) {
+            recordProjectedUseCaseAuditEntries(
+              definition.operation,
+              context.workspaceId,
+              principal,
+              request,
+              auditEntries
+            )
+          }
+        }
+        await definition.afterSuccess?.(resultContext)
         return result
       }
 

@@ -195,6 +195,37 @@ describe('knowledge document application use cases', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
+  it('projects mutation audit entries for an owning legacy personal principal', async () => {
+    mocks.resolveDocument.mockResolvedValueOnce({
+      workspaceId: undefined,
+      legacyPersonalOwnerUserId: 'user-1',
+      knowledgeBaseId: 'legacy-knowledge',
+      knowledgeBase: { id: 'legacy-knowledge', name: 'Personal docs', userId: 'user-1' },
+      documentId: document.id,
+      document: { ...document, knowledgeBaseId: 'legacy-knowledge' },
+    })
+
+    await deleteKnowledgeDocument.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { knowledgeBaseId: 'legacy-knowledge', documentId: document.id, source: 'legacy' },
+    })
+
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: undefined,
+        actorId: 'user-1',
+        action: 'document.deleted',
+        resourceId: document.id,
+        metadata: expect.objectContaining({
+          operation: 'knowledge.documents.delete',
+          knowledgeBaseId: 'legacy-knowledge',
+          actor: { kind: 'session', userId: 'user-1' },
+        }),
+      })
+    )
+  })
+
   it('conceals legacy personal documents from a non-owner', async () => {
     mocks.resolveKnowledgeBase.mockResolvedValueOnce({
       workspaceId: undefined,

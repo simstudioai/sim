@@ -3,6 +3,7 @@ export {
   type AuthorizedWorkspaceUseCaseDefinition,
   type AuthorizedWorkspaceUseCaseResultContext,
   defineAuthorizedWorkspaceUseCase,
+  recordProjectedUseCaseAuditEntries,
   type WorkspaceUseCaseAuditEntry,
 } from '@/lib/core/application/authorized-workspace-use-case'
 export type {
