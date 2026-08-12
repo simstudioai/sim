@@ -23,8 +23,10 @@ export const WORDMARK_PATHS: readonly string[] = [
  * below (18px ink against 14px chip labels). Email body copy is 16px, so the
  * mark stands 20px tall; the width follows the view box. Both dimensions are
  * pinned because email clients do no responsive image selection.
+ *
+ * The header renders `public/brand/color/email/wordmark.png` rather than these
+ * paths, because email clients strip inline SVG. That file is these outlines
+ * filled with the email palette's `textBody`, rasterized at 4x so the mark
+ * stays crisp on retina and this box can be retuned without re-exporting it.
  */
 export const EMAIL_WORDMARK_SIZE = { width: 42, height: 20 } as const
-
-/** Retina factor the email raster is generated at. */
-export const EMAIL_WORDMARK_SCALE = 4

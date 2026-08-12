@@ -4,12 +4,10 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import {
-  EMAIL_WORDMARK_SCALE,
-  EMAIL_WORDMARK_SIZE,
-  WORDMARK_PATHS,
-  WORDMARK_VIEW_BOX,
-} from '@/lib/branding/wordmark'
+import { EMAIL_WORDMARK_SIZE, WORDMARK_PATHS, WORDMARK_VIEW_BOX } from '@/lib/branding/wordmark'
+
+/** Email clients do no responsive image selection, so the asset carries retina detail itself. */
+const MIN_RETINA_SCALE = 2
 
 const WORDMARK_PNG = path.join(
   import.meta.dirname,
@@ -29,11 +27,17 @@ function readPngSize(file: string): { width: number; height: number } {
 }
 
 describe('email wordmark asset', () => {
-  it('is committed at the scale the email header renders it', () => {
-    expect(readPngSize(WORDMARK_PNG)).toEqual({
-      width: EMAIL_WORDMARK_SIZE.width * EMAIL_WORDMARK_SCALE,
-      height: EMAIL_WORDMARK_SIZE.height * EMAIL_WORDMARK_SCALE,
-    })
+  it('out-resolves the box the email header renders it in', () => {
+    const { width, height } = readPngSize(WORDMARK_PNG)
+    expect(width).toBeGreaterThanOrEqual(EMAIL_WORDMARK_SIZE.width * MIN_RETINA_SCALE)
+    expect(height).toBeGreaterThanOrEqual(EMAIL_WORDMARK_SIZE.height * MIN_RETINA_SCALE)
+  })
+
+  it('is committed at the aspect ratio the header displays it at', () => {
+    const { width, height } = readPngSize(WORDMARK_PNG)
+    const assetAspect = width / height
+    const boxAspect = EMAIL_WORDMARK_SIZE.width / EMAIL_WORDMARK_SIZE.height
+    expect(Math.abs(assetAspect - boxAspect) / boxAspect).toBeLessThan(0.01)
   })
 
   it('renders the mark at the brand outlines aspect ratio, within a rounding pixel', () => {
