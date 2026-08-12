@@ -17,6 +17,7 @@ import {
   buildRetrieveAttachmentUrl,
   buildSavedSearchUrl,
   buildSelectRecordsUrl,
+  buildUpsertRecordBody,
   describeAgiloftError,
   ewCredentialBody,
   parseFieldList,
@@ -248,6 +249,20 @@ describe('EWCreate', () => {
   it('refuses an object value rather than writing [object Object] into the record', () => {
     expect(() => buildCreateRecordBody(baseParams, { nested: { a: 1 } })).toThrow(TypeError)
   })
+
+  /**
+   * A raw `&` or `=` inside a value would otherwise split the body into extra
+   * pairs, writing attacker-chosen fields onto the record.
+   */
+  it('escapes separators in a value so it cannot open a second field', () => {
+    const sent = new URLSearchParams(
+      buildCreateRecordBody(baseParams, { note: 'a&$table=other=b' })
+    )
+
+    expect(sent.get('note')).toBe('a&$table=other=b')
+    expect(sent.get('$table')).toBe('contract')
+    expect(sent.getAll('$table')).toHaveLength(1)
+  })
 })
 
 describe('EWNLPSearch', () => {
@@ -282,6 +297,18 @@ describe('EWNLPSearch', () => {
     expect(sent.getAll('field')).toEqual(['id', 'contract_title1'])
   })
 
+  /**
+   * The contract only requires a non-empty string, so a list of separators
+   * reaches here. Sending an empty `field` pair would ask Agiloft for a field
+   * with no name.
+   */
+  it('sends no field pair when the list holds nothing but separators', () => {
+    const sent = new URLSearchParams(buildNlpSearchBody({ ...nlpParams, fields: ' , , ' }))
+
+    expect(sent.getAll('field')).toEqual([])
+    expect(sent.get('nlp_query')).toBe('Active NDAs submitted last month')
+  })
+
   it('omits pagination when it was not requested', () => {
     const sent = new URLSearchParams(buildNlpSearchBody(nlpParams))
     expect(sent.has('page')).toBe(false)
@@ -292,5 +319,28 @@ describe('EWNLPSearch', () => {
     const sent = new URLSearchParams(buildNlpSearchBody({ ...nlpParams, page: '2', limit: '25' }))
     expect(sent.get('page')).toBe('2')
     expect(sent.get('limit')).toBe('25')
+  })
+})
+
+describe('multi-value field encoding', () => {
+  /**
+   * An object nested in a multi-value field is as unencodable as a bare one.
+   * String()-ing it would write "[object Object]" into the record and report
+   * success, which is worse than refusing the call.
+   */
+  it('refuses an object inside an array rather than writing [object Object]', () => {
+    expect(() => buildCreateRecordBody(baseParams, { contactMethod: ['phone', { a: 1 }] })).toThrow(
+      TypeError
+    )
+    expect(() =>
+      buildUpsertRecordBody({ ...baseParams, match: 'id' }, { contactMethod: ['phone', { a: 1 }] })
+    ).toThrow(TypeError)
+  })
+
+  it('keeps encoding scalar array entries after the guard', () => {
+    const sent = new URLSearchParams(
+      buildCreateRecordBody(baseParams, { contactMethod: ['phone', 42, true] })
+    )
+    expect(sent.getAll('contactMethod')).toEqual(['phone', '42', 'true'])
   })
 })

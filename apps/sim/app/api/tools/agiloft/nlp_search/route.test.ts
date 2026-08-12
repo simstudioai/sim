@@ -161,6 +161,21 @@ describe('EWNLPSearch response', () => {
     expect(data.error).toContain('One has to specify $login, $password')
   })
 
+  it('reports a search that matched nothing as an empty success, not a failure', async () => {
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      res({ json: { success: true, message: '', result: [] } })
+    )
+
+    const response = await POST(createMockRequest('POST', baseBody))
+    const data = (await response.json()) as {
+      success: boolean
+      output: { records: unknown[]; totalCount: number; truncated: boolean }
+    }
+
+    expect(data.success).toBe(true)
+    expect(data.output).toEqual({ records: [], totalCount: 0, truncated: false })
+  })
+
   it('caps the records it returns and reports the result as truncated', async () => {
     inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
       res({

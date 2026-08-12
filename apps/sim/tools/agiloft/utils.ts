@@ -239,6 +239,22 @@ export function encodeEwFormBody(fields: Array<[string, string]>): string {
  * string. Objects have no documented encoding at all, and String()-ing one
  * silently writes "[object Object]" into the record.
  */
+/**
+ * Renders one field value, refusing anything Agiloft has no encoding for.
+ *
+ * Applied to array entries as well as bare values: an object nested in a
+ * multi-value field is just as unencodable as a bare one, and `String()` would
+ * quietly write "[object Object]" into the record instead of failing.
+ */
+function encodeFieldValue(field: string, value: unknown): string {
+  if (typeof value === 'object') {
+    throw new TypeError(
+      `Field "${field}" is an object, which Agiloft has no encoding for. Use a string, a number, or an array of values.`
+    )
+  }
+  return String(value)
+}
+
 function pushRecordFields(fields: Array<[string, string]>, data: Record<string, unknown>): void {
   for (const [field, value] of Object.entries(data)) {
     if (value === undefined || value === null) continue
@@ -246,18 +262,12 @@ function pushRecordFields(fields: Array<[string, string]>, data: Record<string, 
     if (Array.isArray(value)) {
       for (const entry of value) {
         if (entry === undefined || entry === null) continue
-        fields.push([field, String(entry)])
+        fields.push([field, encodeFieldValue(field, entry)])
       }
       continue
     }
 
-    if (typeof value === 'object') {
-      throw new TypeError(
-        `Field "${field}" is an object, which Agiloft has no encoding for. Use a string, a number, or an array of values.`
-      )
-    }
-
-    fields.push([field, String(value)])
+    fields.push([field, encodeFieldValue(field, value)])
   }
 }
 

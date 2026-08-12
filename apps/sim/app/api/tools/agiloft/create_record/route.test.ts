@@ -238,6 +238,39 @@ describe('EWCreate', () => {
     expect(data.error).toContain('the record may exist')
     expect(data.error).toContain('retrying creates a second record')
   })
+
+  it('rejects a data parameter that is not JSON without calling Agiloft', async () => {
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: 'title = X' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('must be a JSON object of field names to values')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A JSON array parses fine but has no field names, so it would post a body
+   * carrying nothing but credentials and create an empty record.
+   */
+  it('rejects valid JSON that is not an object of field names', async () => {
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '["a","b"]' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('must be a JSON object of field names to values')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it('refuses an object field value rather than writing [object Object]', async () => {
+    const response = await POST(
+      createMockRequest('POST', { ...baseBody, data: '{"nested":{"a":1}}' })
+    )
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('has no encoding for')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
 })
 
 describe('field projection', () => {
