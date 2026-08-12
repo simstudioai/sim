@@ -168,7 +168,7 @@ export const v2McpServerDeleteDataSchema = z
 export type V2McpServerDeleteData = z.output<typeof v2McpServerDeleteDataSchema>
 
 export const v2McpServerParamsSchema = z.object({
-  id: nonEmptyIdSchema.describe('MCP server to retrieve, update, or delete.'),
+  id: nonEmptyIdSchema.describe('MCP server the operation acts on.'),
 })
 export type V2McpServerParams = z.output<typeof v2McpServerParamsSchema>
 

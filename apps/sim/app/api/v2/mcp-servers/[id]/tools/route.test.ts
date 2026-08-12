@@ -49,6 +49,7 @@ vi.mock('@/lib/mcp/application/use-cases', () => ({
   },
 }))
 
+import { WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
 import { McpConnectionError, McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
 import { GET } from '@/app/api/v2/mcp-servers/[id]/tools/route'
 
@@ -140,7 +141,7 @@ describe('/api/v2/mcp-servers/[id]/tools', () => {
     expect(JSON.stringify(body)).not.toContain('ECONNREFUSED')
   })
 
-  it('reports a stale OAuth grant as 401 so the caller reauthorizes', async () => {
+  it('reports a stale OAuth grant as a 409 a client can branch on, never as a Sim credential failure', async () => {
     mocks.discover.mockRejectedValueOnce(
       new McpOauthAuthorizationRequiredError(SERVER_ID, 'Docs server')
     )
@@ -148,8 +149,42 @@ describe('/api/v2/mcp-servers/[id]/tools', () => {
     const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
     const body = await response.json()
 
-    expect(response.status).toBe(401)
-    expect(body.error.code).toBe('UNAUTHORIZED')
+    expect(response.status).toBe(409)
+    expect(body.error.code).toBe('CONFLICT')
+    expect(body.error.details).toEqual({ code: 'MCP_SERVER_REAUTHORIZATION_REQUIRED' })
+  })
+
+  it('does not blame the caller for an upstream protocol fault', async () => {
+    mocks.discover.mockRejectedValueOnce(new Error('MCP error -32602: Invalid params'))
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body.error.code).toBe('INTERNAL_ERROR')
+    expect(JSON.stringify(body)).not.toContain('Invalid params')
+  })
+
+  it('does not report a Sim-side response-schema defect as the caller`s bad request', async () => {
+    mocks.discover.mockResolvedValueOnce({
+      tools: [{ ...TOOL, inputSchema: { ...TOOL.inputSchema, type: 'string' } }],
+    })
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body.error.code).toBe('INTERNAL_ERROR')
+  })
+
+  it('rejects a workspace API key, which cannot supply the caller`s OAuth grant', async () => {
+    mocks.discover.mockRejectedValueOnce(new WorkspaceApiKeyAuthorizationError())
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(body.error.code).toBe('FORBIDDEN')
   })
 
   it('authenticates before parsing', async () => {

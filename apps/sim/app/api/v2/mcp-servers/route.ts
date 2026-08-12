@@ -25,7 +25,11 @@ export const GET = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
   mapInput: ({ query }) => ({
-    ...query,
+    workspaceId: query.workspaceId,
+    search: query.search,
+    sortBy: query.sortBy,
+    sortOrder: query.sortOrder,
+    limit: query.limit,
     cursorKeys: readSortedCursor(query.cursor, query.sortBy, query.sortOrder),
   }),
   useCase: listMcpServersUseCase,
