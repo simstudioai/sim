@@ -2,6 +2,22 @@
 
 The official Python SDK for [Sim](https://sim.ai), allowing you to execute workflows programmatically from your Python applications.
 
+## Server compatibility
+
+`0.2.x` talks to the v2 API and has no fallback to the older endpoints, so it requires a Sim deployment that serves `POST /api/v2/workflows/{id}/execute`. That surface is newer than the endpoints `0.1.x` used, and a deployment can also have it switched off — a self-hosted build serves `/api/v2` only when the operator enables `V2_API`. Where it is unavailable every v2 route answers 404, so `execute_workflow` raises `SimStudioError('HTTP 404: Not Found')` — enable or upgrade the v2 API on the server, or pin `simstudio-sdk<0.2`, which keeps using `/api/workflows/{id}/execute` and `/api/jobs/{id}`.
+
+## Upgrading from 0.1.x to 0.2.0
+
+`0.2.0` is a breaking release.
+
+- **Requests move to `/api/v2`.** `execute_workflow` posts to `/api/v2/workflows/{workflow_id}/execute`, sends the workflow input nested under `input`, and carries `async` / `executionTimeoutSeconds` in the body instead of the `X-Execution-Mode` and `X-Execution-Timeout-Seconds` headers.
+- **`AsyncExecutionResult.job_id` is now `run_id`,** and `execution_id` has been removed from that dataclass. Replace `result.job_id` with `result.run_id`.
+- **`get_job_status(job_id)` is legacy.** It still calls `/api/jobs/{job_id}` and only resolves IDs from a `0.1.x` async execution. For runs started by `0.2.x`, use `get_workflow_run(workflow_id, run_id)`, which reads `/api/v2/workflows/{workflow_id}/runs/{run_id}`.
+- **`WorkflowExecutionResult.success` is derived from the run status** rather than read from the response body, and is `True` only for `completed` and `paused` runs — so a run cancelled while it was in flight now reports `success=False`, as it did before the v2 migration. The new `WorkflowExecutionResult.status` field carries the server's terminal status (`'completed'`, `'failed'`, `'paused'` or `'cancelled'`), which is how you tell a cancelled run from a failed one.
+- **`metadata` is now built by the SDK,** with the keys `duration`, `runId`, `startTime` and `endTime`. The v2 response carries no execution logs or trace spans, so `logs` and `trace_spans` are always `None`; the pre-v2 `metadata['executionId']` is now `metadata['runId']`.
+
+Note one deliberate difference from the TypeScript SDK: a failed synchronous run *throws* there, but here it returns normally with `error` set and `status='failed'`.
+
 ## Installation
 
 ```bash
@@ -245,7 +261,10 @@ class WorkflowExecutionResult:
     metadata: Optional[Dict[str, Any]] = None
     trace_spans: Optional[list] = None
     total_duration: Optional[float] = None
+    status: Optional[str] = None
 ```
+
+`success` is `True` only for the `completed` and `paused` statuses. `status` carries the server's terminal status verbatim, so a cancelled run (`success=False`, `error=None`) is distinguishable from a failed one.
 
 ### WorkflowStatus
 
