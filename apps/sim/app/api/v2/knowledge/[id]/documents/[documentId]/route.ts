@@ -1,4 +1,6 @@
 import {
+  V2_WRITABLE_TAG_SLOTS,
+  type V2UpdateKnowledgeDocumentBody,
   v2DeleteKnowledgeDocumentContract,
   v2GetKnowledgeDocumentContract,
   v2UpdateKnowledgeDocumentContract,
@@ -8,6 +10,7 @@ import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import {
   deleteKnowledgeDocument,
   readKnowledgeDocument,
+  type UpdateKnowledgeDocumentInput,
   updateKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -21,6 +24,35 @@ import {
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+type V2DocumentUpdates = Omit<V2UpdateKnowledgeDocumentBody, 'workspaceId' | 'retryProcessing'>
+
+type UpdateKnowledgeDocumentUpdates = NonNullable<UpdateKnowledgeDocumentInput['updates']>
+
+/**
+ * Serializes the typed tag slots for the document writer.
+ *
+ * The wire takes each slot in its natural JSON type — a number for a number
+ * slot, `true`/`false` for a boolean one — because that is how a document read
+ * projects them. The writer's `convertTagValue` takes strings and parses back to
+ * the storage column's type, so the boundary hands it the canonical spelling.
+ * The contract has already rejected anything those parsers would answer `null`
+ * for, so nothing reaches storage silently cleared.
+ */
+function toTagSlotUpdates(updates: V2DocumentUpdates): UpdateKnowledgeDocumentUpdates {
+  const { filename, enabled, ...slots } = updates
+  const serialized: Record<string, string> = {}
+  for (const slot of V2_WRITABLE_TAG_SLOTS) {
+    const value = slots[slot]
+    if (value === undefined) continue
+    serialized[slot] = typeof value === 'string' ? value : String(value)
+  }
+  return {
+    ...(filename === undefined ? {} : { filename }),
+    ...(enabled === undefined ? {} : { enabled }),
+    ...serialized,
+  }
+}
 
 /** GET /api/v2/knowledge/[id]/documents/[documentId] — Get document details. */
 export const GET = defineV2JsonRoute({
@@ -71,7 +103,7 @@ export const PATCH = defineV2JsonRoute({
       knowledgeBaseId: params.id,
       documentId: params.documentId,
       assertedWorkspaceId: workspaceId,
-      ...(retryProcessing ? { retryProcessing } : { updates }),
+      ...(retryProcessing ? { retryProcessing } : { updates: toTagSlotUpdates(updates) }),
       source: 'api',
     }
   },

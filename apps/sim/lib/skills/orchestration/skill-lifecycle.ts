@@ -7,7 +7,7 @@ import {
   skillDescriptionSchema,
   skillNameSchema,
 } from '@/lib/api/contracts/skills'
-import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
+import { ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { getSkillActorContext } from '@/lib/skills/access'
 import { getBuiltinSkillByName, isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'

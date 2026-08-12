@@ -27,6 +27,7 @@ import {
   ERROR_RESPONSES,
   type ErrorResponseId,
   FOLDER_TREE_TOO_LARGE,
+  FULL_SET_LIST,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
@@ -34,6 +35,7 @@ import {
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
+  WORKSPACE_API_KEY_DENIED,
   WORKSPACE_ERRORS,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
@@ -241,8 +243,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'listKnowledgeTags',
       summary: 'List Tags',
-      description:
-        "List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Display names are what tag filters and the tag values on document reads use; slots are what document writes set (`tag1`..`tag7`). The vocabulary is bounded by the fixed slot table, so the whole set is returned in one response and `nextCursor` is always null.",
+      description: `List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Display names are what tag filters and the tag values on document reads use; slots are what document writes set. Every slot listed here is writable, in its declared type: \`tag1\`..\`tag7\` take a string, \`number1\`..\`number5\` a number, \`date1\`..\`date2\` a \`YYYY-MM-DD\` string, and \`boolean1\`..\`boolean3\` a boolean. The vocabulary is bounded by the fixed slot table. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The knowledge base tag vocabulary.' },
     }),
@@ -303,8 +304,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'bulkUpdateKnowledgeDocuments',
       summary: 'Bulk Enable or Disable Documents',
-      description:
-        'Enable or disable many documents in one request, either by identifier (up to 100) or, with `selectAll`, every document in the knowledge base optionally narrowed by `enabledFilter`. Disabling keeps a document indexed but excludes it from search. Bulk delete is deliberately not offered: the bulk path records no audit entries, so deletions go through `DELETE /api/v2/knowledge/{id}/documents/{documentId}`, which audits each one.',
+      description: `Enable or disable many documents in one request, either by identifier (up to 100) or, with \`selectAll\`, every document in the knowledge base optionally narrowed by \`enabledFilter\`. Disabling keeps a document indexed but excludes it from search. Bulk delete is deliberately not offered: the bulk path records no audit entries, so deletions go through \`DELETE /api/v2/knowledge/{id}/documents/{documentId}\`, which audits each one. An identifier request echoes the documents it changed in \`documentIds\`; a \`selectAll\` request omits that field because the selection is unbounded, and reports \`updatedCount\` alone. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The number and identifiers of the documents that changed.' },
     }),
@@ -578,8 +578,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'updateKnowledgeDocument',
       summary: 'Update Document',
-      description:
-        'Rename a document, enable or disable it for search, set its tag slots, or requeue it for processing. Absent fields are unchanged. Only caller-owned fields are accepted: derived indexing state (`chunkCount`, `tokenCount`, `characterCount`, `processingStatus`, `processingError`) is written by the processing pipeline and cannot be asserted here. `retryProcessing: true` re-queues a failed or stuck document and must be sent on its own — it runs instead of, not alongside, the field updates — and it answers with a queue acknowledgement rather than the document. Otherwise the updated document is returned; it omits the connector provenance the detail read carries, so re-read with GET when that is needed.',
+      description: `Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. A tag slot takes its declared type — a string for \`tag1\`..\`tag7\`, a number for \`number1\`..\`number5\`, a \`YYYY-MM-DD\` string for \`date1\`..\`date2\`, a boolean for \`boolean1\`..\`boolean3\` — and a value that is not valid for the slot is a \`400\` rather than a silently cleared tag. Resolve a display name to its slot with \`GET /api/v2/knowledge/{id}/tags\`. Absent fields are unchanged. Only caller-owned fields are accepted: derived indexing state (\`chunkCount\`, \`tokenCount\`, \`characterCount\`, \`processingStatus\`, \`processingError\`) is written by the processing pipeline and cannot be asserted here. \`retryProcessing: true\` re-queues a failed or stuck document and must be sent on its own — it runs instead of, not alongside, the field updates — and it answers with a queue acknowledgement rather than the document. Otherwise the updated document is returned; it omits the connector provenance the detail read carries, so re-read with GET when that is needed. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The updated document, or the requeue acknowledgement.' },
     }),
@@ -641,7 +640,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'listKnowledgeFolders',
       summary: 'List Folders',
-      description: `List folders in the knowledge-base folder tree with filtering and sorting. The bounded set is returned in one page with \`nextCursor\` always null; there is no second page to fetch. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List folders in the knowledge-base folder tree with filtering and sorting. ${FULL_SET_LIST} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of knowledge-base folders.' },
     }),

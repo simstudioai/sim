@@ -38,5 +38,20 @@ export const POST = defineV2JsonRoute({
     rerankerInputCount: body.rerankerInputCount,
   }),
   useCase: searchKnowledge,
-  present: (result) => ({ data: result }),
+  /**
+   * Projected field by field rather than spread. The use-case result also
+   * carries `userId`, `workspaceId`, a `cost` breakdown with pricing internals,
+   * and a live resolved-secret trace registry; only Zod's default key-stripping
+   * keeps them off the wire today, so a single loosened or opaque field in the
+   * response schema would ship them.
+   */
+  present: (result) => ({
+    data: {
+      results: result.results,
+      query: result.query,
+      knowledgeBaseIds: result.knowledgeBaseIds,
+      topK: result.topK,
+      totalResults: result.totalResults,
+    },
+  }),
 })

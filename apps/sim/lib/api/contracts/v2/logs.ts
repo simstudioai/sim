@@ -9,6 +9,7 @@ import {
   v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2PaginationFields,
+  v2RunWindowBoundSchema,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
@@ -194,22 +195,6 @@ export const v2LogParamsSchema = z.object({
     .describe('The unique run identifier shared by lifecycle and diagnostic resources.'),
 })
 
-/**
- * The window bounds are constructed into `Date`s by the route and reach the query as
- * bound timestamps, so an unparseable value would arrive as an `Invalid Date` and fail
- * inside the driver's timestamp mapper — a caller-reachable 500. Validating the format
- * here is what keeps that a 400, and the accepted form is deliberately identical to the
- * sibling run list (`v2ListWorkflowRunsQuerySchema`) so the same timestamp works on both
- * collections. That form is UTC-only: a date without a time (`2026-08-06`) and an
- * offset-bearing timestamp (`2026-08-06T00:00:00+02:00`) are both rejected, so the
- * descriptions say "UTC ISO 8601" rather than the broader "ISO 8601" they would
- * otherwise overpromise.
- */
-const V2_LOG_START_DATE_DESCRIPTION =
-  'Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.'
-const V2_LOG_END_DATE_DESCRIPTION =
-  'Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.'
-
 export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
   .omit({ executionId: true, folderIds: true })
   .extend({
@@ -217,18 +202,8 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     workflowIds: z.string().describe('Comma-separated workflow identifiers to include.').optional(),
     triggers: z.string().describe('Comma-separated trigger types to include.').optional(),
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
-    startDate: z
-      .string()
-      .datetime({
-        error: 'startDate must be a UTC ISO 8601 timestamp, e.g. 2026-08-06T00:00:00Z',
-      })
-      .describe(V2_LOG_START_DATE_DESCRIPTION)
-      .optional(),
-    endDate: z
-      .string()
-      .datetime({ error: 'endDate must be a UTC ISO 8601 timestamp, e.g. 2026-08-06T00:00:00Z' })
-      .describe(V2_LOG_END_DATE_DESCRIPTION)
-      .optional(),
+    startDate: v2RunWindowBoundSchema('startDate').optional(),
+    endDate: v2RunWindowBoundSchema('endDate').optional(),
     runId: z
       .string()
       .min(1, 'runId cannot be empty')

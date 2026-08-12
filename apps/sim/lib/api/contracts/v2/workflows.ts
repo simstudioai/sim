@@ -27,6 +27,7 @@ import {
   v2ListFoldersQuerySchema,
   v2PaginationFields,
   v2RelocateFolderBodySchema,
+  v2RunWindowBoundSchema,
   v2SearchSchema,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
@@ -1042,16 +1043,8 @@ export const v2ListWorkflowRunsQuerySchema = z
       .min(1, 'trigger cannot be empty')
       .optional()
       .describe('Filter by trigger type.'),
-    startDate: z
-      .string()
-      .datetime()
-      .optional()
-      .describe('Include runs started at or after this ISO 8601 timestamp.'),
-    endDate: z
-      .string()
-      .datetime()
-      .optional()
-      .describe('Include runs started at or before this ISO 8601 timestamp.'),
+    startDate: v2RunWindowBoundSchema('startDate').optional(),
+    endDate: v2RunWindowBoundSchema('endDate').optional(),
     ...v2PaginationFields({ description: 'Maximum workflow runs to return per page.' }),
     /**
      * Deliberate deviation from the v2 `sortBy` + `sortOrder` convention. Runs

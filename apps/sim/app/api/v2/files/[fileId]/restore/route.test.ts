@@ -1,16 +1,21 @@
 /**
  * @vitest-environment node
  */
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticateV2ApiKey: vi.fn(),
-  checkRateLimitDirect: vi.fn(),
-  checkRateLimitDirectOrThrow: vi.fn(),
   restoreFile: vi.fn(),
   getUserEmailsByIds: vi.fn(),
-  gate: vi.fn(),
 }))
 
 vi.mock('@/lib/workspace-files/application/restore-workspace-file', () => ({
@@ -20,20 +25,9 @@ vi.mock('@/lib/workspace-files/application/restore-workspace-file', () => ({
   },
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mocks.checkRateLimitDirect
-    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
-  },
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/users/queries', () => ({
   getUserEmailsByIds: mocks.getUserEmailsByIds,
@@ -90,18 +84,10 @@ function post(body: unknown) {
 describe('POST /api/v2/files/[fileId]/restore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticateV2ApiKey.mockResolvedValue(auth)
-    mocks.gate.mockResolvedValue(null)
-    mocks.checkRateLimitDirect.mockResolvedValue({
-      allowed: true,
-      remaining: 599,
-      resetAt: new Date('2026-08-07T01:00:00.000Z'),
-    })
-    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
-      allowed: true,
-      remaining: 99,
-      resetAt: new Date('2026-08-07T01:00:00.000Z'),
-    })
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.restoreFile.mockResolvedValue({ restored: true, file: RESTORED_FILE })
     mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
@@ -154,8 +140,17 @@ describe('POST /api/v2/files/[fileId]/restore', () => {
     const response = await post({})
 
     expect(response.status).toBe(400)
-    expect(mocks.authenticateV2ApiKey).toHaveBeenCalled()
-    expect(mocks.checkRateLimitDirectOrThrow).toHaveBeenCalledTimes(2)
+    expect(v2RouteMocks.authenticate).toHaveBeenCalled()
+    expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
     expect(mocks.restoreFile).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unauthenticated request', async () => {
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await post({ workspaceId: WORKSPACE_ID })
+
+    expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

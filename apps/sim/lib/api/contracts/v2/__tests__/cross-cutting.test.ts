@@ -7,10 +7,7 @@ import { v2ListAuditLogsContract } from '@/lib/api/contracts/v2/audit-logs'
 import { ERROR_RESPONSES } from '@/lib/api/contracts/v2/openapi/shared'
 import { v2CreateTableViewContract, v2QueryRowsBodySchema } from '@/lib/api/contracts/v2/tables'
 import { v2GetWorkflowRunContract } from '@/lib/api/contracts/v2/workflows'
-import {
-  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
-  FORBIDDEN_DETAIL_CODES,
-} from '@/lib/core/application/forbidden'
+import { FORBIDDEN_DETAIL_CODE_DESCRIPTIONS, FORBIDDEN_DETAIL_CODES } from '@/lib/core/application'
 
 /**
  * The cross-cutting promises that no single resource family owns, and that

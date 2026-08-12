@@ -317,6 +317,7 @@ export const v2McpToolSchema = z
     serverId: z.string().describe('Identifier of the MCP server exposing the tool.'),
     serverName: z.string().describe('Display name of the MCP server exposing the tool.'),
   })
+  .strict()
   .meta({
     id: 'V2McpTool',
     title: 'MCP tool',

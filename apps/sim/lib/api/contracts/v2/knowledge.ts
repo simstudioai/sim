@@ -1052,6 +1052,75 @@ const v2UpdateKnowledgeDocumentTagSlotSchema = z
   .max(1000, 'Tag values cannot exceed 1000 characters')
 
 /**
+ * Number, date and boolean tag slots take their natural JSON type, mirroring
+ * how a document read projects them. The storage columns are typed
+ * (`double precision`, `timestamp`, `boolean`), so accepting a loose string
+ * here would push a malformed value onto a parser that answers `null` — the
+ * caller would get 200 and a silently cleared tag instead of a 400 naming the
+ * field.
+ */
+const v2UpdateKnowledgeDocumentNumberSlotSchema = z
+  .number()
+  .finite('Number tag values must be a finite number')
+
+const v2UpdateKnowledgeDocumentDateSlotSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date tag values must be formatted YYYY-MM-DD')
+  .refine((value) => {
+    const [year, month, day] = value.split('-').map(Number)
+    const date = new Date(year, month - 1, day)
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+  }, 'Date tag values must be a real calendar date')
+
+const v2UpdateKnowledgeDocumentBooleanSlotSchema = z.boolean()
+
+/** The typed tag slots, declared once so the body and its mutex refine agree. */
+const v2UpdateKnowledgeDocumentTagSlotFields = {
+  tag1: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 1.'),
+  tag2: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 2.'),
+  tag3: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 3.'),
+  tag4: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 4.'),
+  tag5: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 5.'),
+  tag6: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 6.'),
+  tag7: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 7.'),
+  number1: v2UpdateKnowledgeDocumentNumberSlotSchema
+    .optional()
+    .describe('New value for number tag slot 1.'),
+  number2: v2UpdateKnowledgeDocumentNumberSlotSchema
+    .optional()
+    .describe('New value for number tag slot 2.'),
+  number3: v2UpdateKnowledgeDocumentNumberSlotSchema
+    .optional()
+    .describe('New value for number tag slot 3.'),
+  number4: v2UpdateKnowledgeDocumentNumberSlotSchema
+    .optional()
+    .describe('New value for number tag slot 4.'),
+  number5: v2UpdateKnowledgeDocumentNumberSlotSchema
+    .optional()
+    .describe('New value for number tag slot 5.'),
+  date1: v2UpdateKnowledgeDocumentDateSlotSchema
+    .optional()
+    .describe('New value for date tag slot 1, formatted YYYY-MM-DD.'),
+  date2: v2UpdateKnowledgeDocumentDateSlotSchema
+    .optional()
+    .describe('New value for date tag slot 2, formatted YYYY-MM-DD.'),
+  boolean1: v2UpdateKnowledgeDocumentBooleanSlotSchema
+    .optional()
+    .describe('New value for boolean tag slot 1.'),
+  boolean2: v2UpdateKnowledgeDocumentBooleanSlotSchema
+    .optional()
+    .describe('New value for boolean tag slot 2.'),
+  boolean3: v2UpdateKnowledgeDocumentBooleanSlotSchema
+    .optional()
+    .describe('New value for boolean tag slot 3.'),
+} as const
+
+/** Every writable tag slot, in the order `TAG_SLOT_CONFIG` declares them. */
+export const V2_WRITABLE_TAG_SLOTS = Object.keys(
+  v2UpdateKnowledgeDocumentTagSlotFields
+) as ReadonlyArray<keyof typeof v2UpdateKnowledgeDocumentTagSlotFields>
+
+/**
  * Document update body.
  *
  * Only the fields a caller owns are accepted. Derived indexing state
@@ -1079,13 +1148,7 @@ export const v2UpdateKnowledgeDocumentBodySchema = z
       .boolean()
       .optional()
       .describe('Whether the document participates in search. Disabling keeps it indexed.'),
-    tag1: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 1.'),
-    tag2: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 2.'),
-    tag3: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 3.'),
-    tag4: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 4.'),
-    tag5: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 5.'),
-    tag6: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 6.'),
-    tag7: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 7.'),
+    ...v2UpdateKnowledgeDocumentTagSlotFields,
     retryProcessing: z
       .literal(true)
       .optional()
@@ -1095,9 +1158,9 @@ export const v2UpdateKnowledgeDocumentBodySchema = z
   })
   .strict()
   .superRefine((body, ctx) => {
-    const mutatedFields = (
-      ['filename', 'enabled', 'tag1', 'tag2', 'tag3', 'tag4', 'tag5', 'tag6', 'tag7'] as const
-    ).filter((field) => body[field] !== undefined)
+    const mutatedFields = (['filename', 'enabled', ...V2_WRITABLE_TAG_SLOTS] as const).filter(
+      (field) => body[field] !== undefined
+    )
     if (body.retryProcessing && mutatedFields.length > 0) {
       ctx.addIssue({
         code: 'custom',
@@ -1239,7 +1302,11 @@ export const v2BulkKnowledgeDocumentsDataSchema = z
       .meta({ examples: [42] }),
     documentIds: z
       .array(z.string())
-      .describe('Identifiers of the documents the operation changed.'),
+      .optional()
+      .describe(
+        'Identifiers of the documents the operation changed. Present only for an explicit `documentIds` request, which is bounded to ' +
+          `${MAX_V2_BULK_KNOWLEDGE_DOCUMENTS} documents; a \`selectAll\` request omits it because the selection is unbounded, and reports \`updatedCount\` instead.`
+      ),
   })
   .strict()
   .meta({

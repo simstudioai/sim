@@ -888,6 +888,13 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       operation: input.operation,
       successCount: result.successCount,
       updatedDocuments: result.updatedDocuments,
+      /**
+       * Reported so a surface can tell a bounded selection from an unbounded
+       * one: `documentIds` is capped by the request, `selectAll` is capped by
+       * nothing, and a presenter that echoes the identifiers either way returns
+       * a multi-megabyte array on a large knowledge base.
+       */
+      selectAll: input.selectAll === true,
     }
   },
 })

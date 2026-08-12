@@ -1,14 +1,20 @@
 /**
  * @vitest-environment node
  */
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   abort: vi.fn(),
-  authenticateV2ApiKey: vi.fn(),
-  checkRateLimitDirect: vi.fn(),
-  checkRateLimitDirectOrThrow: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/upload-session/application', () => ({
@@ -18,20 +24,9 @@ vi.mock('@/lib/uploads/upload-session/application', () => ({
   },
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mocks.checkRateLimitDirect
-    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
-  },
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: vi.fn().mockResolvedValue(null) }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/app/api/v2/files/uploads/utils', () => ({
   toV2FileUpload: vi.fn(async () => ({
@@ -78,17 +73,10 @@ function abortRequest() {
 describe('DELETE /api/v2/files/uploads/[uploadId]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticateV2ApiKey.mockResolvedValue(AUTH)
-    mocks.checkRateLimitDirect.mockResolvedValue({
-      allowed: true,
-      remaining: 599,
-      resetAt: new Date('2026-08-04T21:00:00.000Z'),
-    })
-    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
-      allowed: true,
-      remaining: 99,
-      resetAt: new Date('2026-08-04T21:00:00.000Z'),
-    })
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.abort.mockResolvedValue({ id: UPLOAD_ID })
   })
 
@@ -97,6 +85,16 @@ describe('DELETE /api/v2/files/uploads/[uploadId]', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ data: { id: UPLOAD_ID, status: 'aborted' } })
+  })
+
+  it('rejects an unauthenticated request', async () => {
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await DELETE(abortRequest(), context)
+
+    expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
+    expect(mocks.abort).not.toHaveBeenCalled()
   })
 
   it('conceals a cross-tenant reach as a missing upload session', async () => {

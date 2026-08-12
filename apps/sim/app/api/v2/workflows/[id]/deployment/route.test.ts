@@ -1,18 +1,23 @@
 /**
  * @vitest-environment node
  */
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticateV2ApiKey: vi.fn(),
-  checkRateLimitDirect: vi.fn(),
-  checkRateLimitDirectOrThrow: vi.fn(),
   resolvePermission: vi.fn(),
   resolveWorkflowContext: vi.fn(),
   getWorkflowDeploymentSummary: vi.fn(),
   checkNeedsRedeployment: vi.fn(),
-  gate: vi.fn(),
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -37,18 +42,9 @@ vi.mock('@/lib/workflows/orchestration/deploy', () => ({
 vi.mock('@/lib/workflows/deployment-status', () => ({
   checkNeedsRedeployment: mocks.checkNeedsRedeployment,
 }))
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mocks.checkRateLimitDirect
-    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
-  },
-}))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import { GET } from '@/app/api/v2/workflows/[id]/deployment/route'
 
@@ -112,20 +108,12 @@ async function get() {
 describe('GET /api/v2/workflows/[id]/deployment', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticateV2ApiKey.mockResolvedValue(auth)
-    mocks.gate.mockResolvedValue(null)
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
-    mocks.checkRateLimitDirect.mockResolvedValue({
-      allowed: true,
-      remaining: 599,
-      resetAt: new Date('2026-08-01T01:00:00.000Z'),
-    })
-    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
-      allowed: true,
-      remaining: 99,
-      resetAt: new Date('2026-08-01T01:00:00.000Z'),
-    })
     mocks.getWorkflowDeploymentSummary.mockResolvedValue({
       activeDeployment,
       latestDeploymentAttempt,
@@ -206,5 +194,14 @@ describe('GET /api/v2/workflows/[id]/deployment', () => {
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
     expect(mocks.getWorkflowDeploymentSummary).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unauthenticated request', async () => {
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await get()
+
+    expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

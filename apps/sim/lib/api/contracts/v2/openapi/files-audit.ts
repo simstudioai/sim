@@ -26,6 +26,7 @@ import {
   documentedSchema,
   ERROR_RESPONSES,
   type ErrorResponseId,
+  FULL_SET_LIST,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
@@ -722,8 +723,7 @@ const routes = [
     filesOperation({
       operationId: 'listFilesFolders',
       summary: 'List Folders',
-      description:
-        'List workspace file folders with optional parent-path filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
+      description: `List workspace file folders with optional parent-path filtering and sorting. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Workspace file folders.' },
     }),

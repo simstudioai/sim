@@ -766,6 +766,7 @@ export const v2QueryRowsCountDataSchema = z
       .nonnegative()
       .describe('Number of rows matching the predicate across the entire table.'),
   })
+  .strict()
   .meta({
     id: 'V2QueryRowsCountData',
     title: 'Query rows count data',

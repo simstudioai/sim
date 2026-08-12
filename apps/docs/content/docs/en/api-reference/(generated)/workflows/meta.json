@@ -9,7 +9,7 @@
     "getWorkflowVersionV2",
     "exportWorkflow",
     "importWorkflow",
-    "getWorkflowDeploymentV2",
+    "getWorkflowDeployment",
     "deployWorkflow",
     "undeployWorkflow",
     "rollbackWorkflow",

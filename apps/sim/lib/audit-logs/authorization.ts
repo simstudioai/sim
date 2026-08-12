@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
-import type { ForbiddenDetailCode } from '@/lib/core/application/forbidden'
+import type { ForbiddenDetailCode } from '@/lib/core/application'
 import { isAuditLogsEnabled, isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('AuditLogAuthorization')

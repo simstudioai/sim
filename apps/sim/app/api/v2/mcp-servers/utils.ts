@@ -1,7 +1,6 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { McpError as McpSdkError } from '@modelcontextprotocol/sdk/types.js'
-import type { NextResponse } from 'next/server'
 import { type V2McpServer, v2McpServerSchema } from '@/lib/api/contracts/v2/mcp-servers'
 import { createV2ResourceConcealmentPolicy, type V2ErrorPolicy } from '@/lib/api/server/routes'
 import { isTimeoutError } from '@/lib/core/execution-limits'
@@ -30,29 +29,6 @@ export function toV2McpServer(row: McpServerRow): V2McpServer {
     ...projectMcpHeaders(row.headers),
     hasOauthClientSecret: Boolean(row.oauthClientSecret),
   })
-}
-
-/**
- * Renders an MCP orchestration failure in the v2 error envelope.
- *
- * `forbidden` is the domain-allowlist / SSRF rejection and keeps its 403.
- * `bad_gateway` is a DNS failure on the caller-supplied hostname — the caller's
- * input is at fault, so it surfaces as a 400 rather than implying a Sim outage.
- */
-export function v2McpOrchestrationError(
-  errorCode: string | undefined,
-  message: string
-): NextResponse {
-  switch (errorCode) {
-    case 'not_found':
-      return v2Error('NOT_FOUND', 'MCP server not found')
-    case 'forbidden':
-      return v2Error('FORBIDDEN', message)
-    case 'bad_gateway':
-      return v2Error('BAD_REQUEST', message)
-    default:
-      return v2Error('INTERNAL_ERROR', 'Internal server error')
-  }
 }
 
 export const mcpServerResourceErrorPolicy = createV2ResourceConcealmentPolicy({

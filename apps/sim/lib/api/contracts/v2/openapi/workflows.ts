@@ -3,6 +3,7 @@ import {
   ERROR_RESPONSES,
   type ErrorResponseId,
   FOLDER_TREE_TOO_LARGE,
+  FULL_SET_LIST,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   V2_API_KEY_SECURITY,
@@ -329,7 +330,7 @@ const routes = [
   defineOpenApiRoute(
     v2GetWorkflowDeploymentContract,
     workflowOperation({
-      operationId: 'getWorkflowDeploymentV2',
+      operationId: 'getWorkflowDeployment',
       summary: 'Get Workflow Deployment',
       description:
         'Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only place `needsRedeployment` is published — the deploy, undeploy, and rollback responses cannot carry it, because they answer at the moment the draft and the live version are equal.',
@@ -744,8 +745,7 @@ const routes = [
     workflowOperation({
       operationId: 'listWorkflowsFolders',
       summary: 'List Workflow Folders',
-      description:
-        'List canonical workflow folders in a workspace. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
+      description: `List canonical workflow folders in a workspace. ${FULL_SET_LIST}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: jsonSuccess('A list of workflow folders.'),
     }),

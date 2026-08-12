@@ -3,7 +3,7 @@ import type { ZodError } from 'zod'
 import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
 import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
-import { forbiddenErrorDetails } from '@/lib/core/application/forbidden'
+import { forbiddenErrorDetails } from '@/lib/core/application'
 import {
   asOrchestrationError,
   OrchestrationError,

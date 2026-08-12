@@ -200,6 +200,35 @@ describe('PATCH /api/v2/knowledge/[id]/documents', () => {
         { id: 'doc-1', enabled: false },
         { id: 'doc-2', enabled: false },
       ],
+      selectAll: false,
+    })
+  })
+
+  /**
+   * `documentIds` is bounded by the request; `selectAll` is bounded by nothing.
+   * Echoing the identifiers for a knowledge base of 100k documents is a
+   * multi-megabyte array the caller never asked for, materialized and then
+   * element-wise validated by the response schema.
+   */
+  it('omits the identifier echo for an unbounded selectAll update', async () => {
+    mockBulkUpdate.mockResolvedValueOnce({
+      operation: 'disable',
+      successCount: 100_000,
+      updatedDocuments: Array.from({ length: 100_000 }, (_, index) => ({
+        id: `doc-${index}`,
+        enabled: false,
+      })),
+      selectAll: true,
+    })
+
+    const response = await PATCH(
+      buildPatchRequest({ workspaceId: WORKSPACE_ID, operation: 'disable', selectAll: true }),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      data: { operation: 'disable', updatedCount: 100_000 },
     })
   })
 

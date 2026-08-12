@@ -5,10 +5,7 @@ import type {
   OpenApiHeader,
   OpenApiSecurityScheme,
 } from '@/lib/api/openapi/types'
-import {
-  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
-  FORBIDDEN_DETAIL_CODES,
-} from '@/lib/core/application/forbidden'
+import { FORBIDDEN_DETAIL_CODE_DESCRIPTIONS, FORBIDDEN_DETAIL_CODES } from '@/lib/core/application'
 
 export const RATE_LIMIT_HEADERS = [
   'X-RateLimit-Limit',
@@ -150,6 +147,17 @@ export const V2_API_KEY_SECURITY_SCHEMES = {
  */
 export const FOLDER_TREE_TOO_LARGE =
   'A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.'
+
+/**
+ * Appended to a list whose result set is bounded by construction, so it answers
+ * in one page.
+ *
+ * Every v2 list returns `{ data, nextCursor }`, so a caller cannot tell a
+ * single-page list from a paged one by shape alone. Saying so once keeps the six
+ * such operations from drifting into six paraphrases of the same promise.
+ */
+export const FULL_SET_LIST =
+  'The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.'
 
 /**
  * Appended to an operation whose semantic operation sets `workspaceApiKey: 'deny'`.

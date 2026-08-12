@@ -122,7 +122,13 @@ const STORED_VIEW_CONFIG_KEYS = [
 export function normalizeStoredViewConfig(raw: Record<string, unknown>): TableViewConfig {
   const picked: Record<string, unknown> = {}
   for (const key of STORED_VIEW_CONFIG_KEYS) {
-    if (raw[key] !== undefined) picked[key] = raw[key]
+    /**
+     * `!= null`, not `!== undefined`: `table_views.config` is schemaless JSONB,
+     * so a legacy row storing `{"columnOrder": null}` would otherwise survive
+     * the pick and fail the declared response schema — turning a read into a
+     * 500. An absent key and an explicitly null one mean the same thing here.
+     */
+    if (raw[key] != null) picked[key] = raw[key]
   }
   const config = picked as TableViewConfig
   const filter = raw.filter as Record<string, unknown> | null | undefined
