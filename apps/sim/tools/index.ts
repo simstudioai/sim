@@ -1789,6 +1789,11 @@ async function executeToolImplementation(
           abortSignal: effectiveSignal,
           resolvedSecretTraceRegistry,
           executorDelegationOrigin: executionContext?.executorDelegationOrigin,
+          // Trusted `executionContext`, never `_context` — that bag spreads
+          // model-reachable `contextParams._context` first, so a model could otherwise
+          // inject its own env map or disable redaction.
+          environmentVariables: executionContext?.environmentVariables ?? {},
+          piiBlockOutputRedaction: executionContext?.piiBlockOutputRedaction,
         }
       )
       const endTime = new Date()

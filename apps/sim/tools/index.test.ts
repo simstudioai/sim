@@ -1519,6 +1519,56 @@ describe('executeTool Function', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
+  it("hands the in-process runner the invoking run's env and redaction policy", async () => {
+    mockRunWorkflowTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+    const piiBlockOutputRedaction = {
+      enabled: true,
+      entityTypes: ['EMAIL_ADDRESS'],
+      language: 'en',
+    }
+
+    await executeTool(
+      'workflow_executor_child-workflow',
+      {
+        workflowId: 'child-workflow',
+        _context: { environmentVariables: { MY_API_KEY: 'model-injected' } },
+      },
+      {
+        executionContext: createToolExecutionContext({
+          environmentVariables: { MY_API_KEY: 'parent-secret' },
+          piiBlockOutputRedaction,
+        }),
+      }
+    )
+
+    expect(mockRunWorkflowTool).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        environmentVariables: { MY_API_KEY: 'parent-secret' },
+        piiBlockOutputRedaction,
+      })
+    )
+  })
+
+  it('leaves the custom-block runner without the consumer redaction policy', async () => {
+    mockRunCustomBlockTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+
+    await executeTool(
+      'deployed_block_executor_custom_block_123',
+      { blockType: 'custom_block_123' },
+      {
+        executionContext: createToolExecutionContext({
+          environmentVariables: { MY_API_KEY: 'consumer-secret' },
+          piiBlockOutputRedaction: { enabled: true, entityTypes: [], language: 'en' },
+        }),
+      }
+    )
+
+    const options = mockRunCustomBlockTool.mock.calls[0]?.[1] as Record<string, unknown>
+    expect(options).not.toHaveProperty('environmentVariables')
+    expect(options).not.toHaveProperty('piiBlockOutputRedaction')
+  })
+
   it('overwrites custom-block tool context with the trusted workflow scope', async () => {
     const executionContext = createToolExecutionContext({
       userId: 'trusted-user',

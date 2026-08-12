@@ -4,6 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
 import type { TraceSpan } from '@/lib/logs/types'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
+import type { PiiBlockOutputRedaction } from '@/executor/execution/types'
 import {
   buildCustomBlockExecutionContext,
   type CustomBlockExecutorContext,
@@ -47,14 +48,21 @@ interface WorkflowToolParams {
  * On failure the result carries the structured error + the child executionId
  * in `output` so parent workflows can route on `error.code` and report a
  * reproducible handle to the workflow's provider.
+ *
+ * The child runs under the invoking run's environment variables and block-output
+ * redaction policy, matching the canvas workflow block — `workflow-handler.ts`
+ * keeps both from the parent context on the non-custom branch. The handler's
+ * same-workspace assert bounds that forwarding to a single workspace.
  */
 export async function runWorkflowTool(
   params: WorkflowToolParams,
   options: {
+    environmentVariables: Record<string, string>
     abortSignal?: AbortSignal
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
     executorDelegationOrigin?: ExecutorDelegationOrigin
-  } = {}
+    piiBlockOutputRedaction?: PiiBlockOutputRedaction
+  }
 ): Promise<ToolResponse> {
   if (!params.workflowId) {
     return { success: false, output: {}, error: 'Missing workflowId' }
