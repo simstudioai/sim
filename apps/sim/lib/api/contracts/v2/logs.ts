@@ -264,9 +264,20 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       outOfRange: 'clamp',
       description: 'Maximum log entries per page.',
     }),
+    /**
+     * Deliberate deviation from the v2 `sortBy` + `sortOrder` convention, and
+     * the same one `GET /workflows/{id}/runs` makes for the same reason: logs
+     * have exactly one sortable column (execution start time), so there is no
+     * `sortBy` to pair with. `order` is the published name and renaming it
+     * would break every caller, while accepting `sortOrder` as an alias would
+     * add a second spelling of one thing with undefined precedence when both
+     * arrive — so the split is documented rather than papered over.
+     */
     order: z
       .enum(['desc', 'asc'])
-      .describe('Sort order by execution start time.')
+      .describe(
+        'Sort direction by execution start time. This operation deviates from the v2 `sortBy` + `sortOrder` convention: logs are sortable only by start time, so the direction is carried by this single `order` param and `sortBy`/`sortOrder` are not accepted.'
+      )
       .optional()
       .default('desc'),
     folderPaths: z

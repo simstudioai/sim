@@ -226,7 +226,11 @@ describe('v2 single-file routes', () => {
 
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({
-      error: { code: 'FORBIDDEN', message: 'Insufficient workspace permissions' },
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Insufficient workspace permissions',
+        details: { code: 'INSUFFICIENT_WORKSPACE_ROLE' },
+      },
     })
   })
 

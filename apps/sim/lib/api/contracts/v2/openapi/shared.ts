@@ -5,6 +5,10 @@ import type {
   OpenApiHeader,
   OpenApiSecurityScheme,
 } from '@/lib/api/openapi/types'
+import {
+  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
+  FORBIDDEN_DETAIL_CODES,
+} from '@/lib/core/application/forbidden'
 
 export const RATE_LIMIT_HEADERS = [
   'X-RateLimit-Limit',
@@ -21,6 +25,22 @@ export const WORKSPACE_ERRORS = [
   'ServiceUnavailable',
 ] as const
 
+/**
+ * The 403 description, assembled from the closed cause set rather than written
+ * out, so a new code is published the moment it exists.
+ *
+ * Four remedies hide behind one status — raise a role, switch key kind,
+ * re-point a workspace key, change the plan — and prose is not branchable, so
+ * every 403 names its cause in `error.details.code`.
+ */
+const FORBIDDEN_DESCRIPTION = [
+  'The caller lacks the rights this operation requires. `error.details.code` names the cause, drawn from a closed set:',
+  ...FORBIDDEN_DETAIL_CODES.map(
+    (code) => `- \`${code}\` — ${FORBIDDEN_DETAIL_CODE_DESCRIPTIONS[code]}`
+  ),
+  'A resource in a workspace the caller cannot reach at all answers `404`, not `403`, so absence and denial are indistinguishable to a caller who was never entitled to tell them apart.',
+].join('\n')
+
 export const ERROR_RESPONSES = {
   BadRequest: { status: 400, description: 'The request is invalid.' },
   Unauthorized: { status: 401, description: 'The API key is missing or invalid.' },
@@ -28,7 +48,7 @@ export const ERROR_RESPONSES = {
     status: 402,
     description: 'The workspace has exceeded its usage or billing limits.',
   },
-  Forbidden: { status: 403, description: 'The caller lacks access to the resource.' },
+  Forbidden: { status: 403, description: FORBIDDEN_DESCRIPTION },
   NotFound: { status: 404, description: 'The requested resource was not found.' },
   Conflict: { status: 409, description: 'The request conflicts with current resource state.' },
   RunIdConflict: {

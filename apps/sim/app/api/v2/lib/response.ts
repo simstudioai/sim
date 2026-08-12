@@ -3,6 +3,7 @@ import type { ZodError } from 'zod'
 import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
 import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
+import { forbiddenErrorDetails } from '@/lib/core/application/forbidden'
 import {
   asOrchestrationError,
   OrchestrationError,
@@ -392,9 +393,19 @@ export function v2ErrorForOrchestration(
  * Renders a thrown domain failure in the v2 envelope, or `null` when the error
  * carries no classification and the caller should log it and return its own
  * generic 500. The v2 counterpart of `orchestrationErrorResponse`.
+ *
+ * A refusal that names its cause carries it through as `error.details.code`.
+ * That projection lives here, on the one function every v2 error policy
+ * ultimately falls through to, rather than at each throw site — a route cannot
+ * then forget it, and the code cannot be attached to a status other than the
+ * one its failure class maps to.
  */
 export function v2CaughtOrchestrationError(error: unknown): NextResponse | null {
   const classified = asOrchestrationError(error)
   if (!classified) return null
-  return v2ErrorForOrchestration(classified.code, classified.message)
+  return v2ErrorForOrchestration(
+    classified.code,
+    classified.message,
+    forbiddenErrorDetails(classified)
+  )
 }

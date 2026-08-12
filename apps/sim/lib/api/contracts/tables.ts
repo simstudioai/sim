@@ -551,13 +551,23 @@ export const predicateInputSchema = predicateBoundarySchema
     'Recursive predicate condition or group, normalized to a grouped predicate after validation.'
   ) as z.ZodType<TablePredicate, PredicateNode>
 
-/** v2 sort wire format: an ordered list of `{ field, direction }`. */
+/**
+ * v2 sort wire format: an ordered list of `{ field, direction }`.
+ *
+ * The element is `.strict()` because a body's own `.strict()` binds its top
+ * level only. Left open, `sort: [{ field, direction, nulls: 'last' }]` answered
+ * 200 with the `nulls` request silently dropped — a caller asking for
+ * null-ordering got default ordering and no signal. That is the same failure as
+ * the v1-shaped `filter` key returning an unfiltered page, one level down.
+ */
 export const sortSpecSchema: z.ZodType<SortSpec> = z
   .array(
-    z.object({
-      field: z.string().min(1, 'field is required').max(128).describe('Column name to sort by.'),
-      direction: z.enum(SORT_DIRECTIONS).describe('Sort direction for this column.'),
-    })
+    z
+      .object({
+        field: z.string().min(1, 'field is required').max(128).describe('Column name to sort by.'),
+        direction: z.enum(SORT_DIRECTIONS).describe('Sort direction for this column.'),
+      })
+      .strict()
   )
   .max(MAX_SORT_KEYS)
 
@@ -1870,19 +1880,30 @@ export const tableEventStreamContract = defineRouteContract({
  * predicate and sort. Every column reference is a stable column id, so a rename
  * never invalidates a view.
  */
-export const tableViewConfigSchema = tableMetadataSchema.extend({
-  // The v2 predicate/sort grammar — same wire as the query routes, so a saved
-  // view gets the same strictness and depth bounds as a live filter, and its
-  // config can later feed the v2 surfaces without conversion.
-  filter: predicateInputSchema
-    .nullable()
-    .optional()
-    .describe('Saved row predicate, or null when the view is unfiltered.'),
-  sort: sortSpecSchema
-    .nullable()
-    .optional()
-    .describe('Saved ordered sort specification, or null for default ordering.'),
-}) satisfies z.ZodType<TableViewConfig>
+export const tableViewConfigSchema = tableMetadataSchema
+  .extend({
+    // The v2 predicate/sort grammar — same wire as the query routes, so a saved
+    // view gets the same strictness and depth bounds as a live filter, and its
+    // config can later feed the v2 surfaces without conversion.
+    filter: predicateInputSchema
+      .nullable()
+      .optional()
+      .describe('Saved row predicate, or null when the view is unfiltered.'),
+    sort: sortSpecSchema
+      .nullable()
+      .optional()
+      .describe('Saved ordered sort specification, or null for default ordering.'),
+  })
+  /**
+   * `tableMetadataSchema` is not strict — it is also the body and the response
+   * of the column-layout endpoint, which has its own compatibility story — so
+   * extending it inherited the laxness and let a misspelled layout key be
+   * accepted and dropped. Strictness is applied here, where the schema is a
+   * saved-view config. Safe in both directions because
+   * `normalizeStoredViewConfig` projects a stored blob onto exactly these keys
+   * before a read is validated against this schema.
+   */
+  .strict() satisfies z.ZodType<TableViewConfig>
 
 export const tableViewSchema = z.object({
   id: z.string(),

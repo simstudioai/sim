@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
-import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { defineAuthorizedWorkspaceUseCase, ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { mcpServerDelegationPolicy } from '@/lib/mcp/application/authorization'
@@ -66,7 +66,8 @@ function requireSuccessfulResult(
     case 'not_found':
       throw new OrchestrationError('not_found', 'MCP server not found')
     case 'forbidden':
-      throw new OrchestrationError('forbidden', result.error ?? fallback)
+      /** The single MCP refusal: the URL is off the domain allowlist or resolves internally. */
+      throw new ForbiddenOperationError('MCP_SERVER_URL_NOT_ALLOWED', result.error ?? fallback)
     case 'bad_gateway':
       throw new OrchestrationError('validation', result.error ?? fallback)
     case 'conflict':

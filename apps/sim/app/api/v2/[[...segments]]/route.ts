@@ -23,8 +23,8 @@ export const revalidate = 0
  * holds a key — requiring auth first would turn the 404 into a 401 and confirm
  * that the path is special.
  *
- * Next.js only routes a request here when no literal segment matches, so the 77
- * real v2 routes are unaffected. The optional form (`[[...segments]]`) also
+ * Next.js only routes a request here when no literal segment matches, so every
+ * real v2 route file is unaffected, however many there are. The optional form (`[[...segments]]`) also
  * covers bare `/api/v2`. It cannot fix a 405 on a path that *does* have a route
  * file but does not export that verb — Next generates that response itself,
  * before any handler runs.

@@ -1193,9 +1193,17 @@ export const v2GetWorkflowRunContract = defineRouteContract({
   params: v2WorkflowRunParamsSchema,
   query: workflowExecutionStatusQuerySchema
     .extend({
-      includeOutput: workflowExecutionStatusQuerySchema.shape.includeOutput.describe(
-        'Include final and block outputs when true.'
-      ),
+      /**
+       * Declared with the shared boolean flag rather than reused from the
+       * internal shape, which spells it as a `'true'`/`'false'` string enum
+       * while every other v2 boolean query param is a real boolean. The shared
+       * schema still accepts both strings, so `?includeOutput=true` keeps
+       * working identically; it only widens what parses.
+       */
+      includeOutput: booleanQueryFlagSchema
+        .describe('Include final and block outputs when true.')
+        .optional()
+        .default(false),
       selectedOutputs: workflowExecutionStatusQuerySchema.shape.selectedOutputs.describe(
         'Comma-separated block output references to include.'
       ),

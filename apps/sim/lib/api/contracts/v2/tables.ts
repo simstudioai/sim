@@ -715,9 +715,9 @@ export const v2ListTableRowsContract = defineRouteContract({
  * named its row filter `filter`, and while this body tolerated unknown keys that
  * request was answered with 200 and a fully unfiltered page.
  *
- * It binds the top level only: the shared `sortSpecSchema` elements still strip
- * unknown keys, so an unsupported per-sort option is silently dropped rather
- * than rejected. Fixing that belongs with the shared schema.
+ * It binds the top level only, so the shared `sortSpecSchema` element carries
+ * its own `.strict()` — otherwise `sort: [{ field, direction, nulls: 'last' }]`
+ * is answered 200 with the null-ordering request dropped.
  */
 export const v2QueryRowsBodySchema = z
   .object({
@@ -1028,6 +1028,13 @@ export const v2TableViewConfigSchema = tableMetadataSchema
       .optional()
       .describe('Saved ordered sort specification, or null for default ordering.'),
   })
+  /**
+   * `tableMetadataSchema` is not strict, so extending it inherited the laxness
+   * and a misspelled layout key inside `config` was accepted and dropped. Safe
+   * on the read side too: `normalizeStoredViewConfig` projects a stored blob
+   * onto exactly these keys before the response is validated.
+   */
+  .strict()
   .meta({
     id: 'V2TableViewConfig',
     title: 'Table view configuration',

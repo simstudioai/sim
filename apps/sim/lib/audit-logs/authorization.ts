@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import type { ForbiddenDetailCode } from '@/lib/core/application/forbidden'
 import { isAuditLogsEnabled, isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('AuditLogAuthorization')
@@ -13,9 +14,15 @@ export interface EnterpriseAuditContext {
   orgMemberIds: string[]
 }
 
+/**
+ * A refusal names its cause as well as its wording. This resolver distinguishes
+ * four of them — not a member, not an admin, no enterprise plan, audit logging
+ * switched off — and each has a different remedy, so collapsing them into one
+ * status forced callers to match on the message text.
+ */
 export type EnterpriseAuditAccessResult =
   | { success: true; context: EnterpriseAuditContext }
-  | { success: false; status: 403; message: string }
+  | { success: false; status: 403; code: ForbiddenDetailCode; message: string }
 
 /** Resolves transport-neutral enterprise audit-log access for an organization administrator. */
 export async function resolveEnterpriseAuditAccess(
@@ -36,6 +43,7 @@ export async function resolveEnterpriseAuditAccess(
     return {
       success: false,
       status: 403,
+      code: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
       message: targetOrganizationId
         ? 'Not a member of the requested organization'
         : 'Not a member of any organization',
@@ -43,18 +51,29 @@ export async function resolveEnterpriseAuditAccess(
   }
 
   if (membership.role !== 'admin' && membership.role !== 'owner') {
-    return { success: false, status: 403, message: 'Organization admin or owner role required' }
+    return {
+      success: false,
+      status: 403,
+      code: 'ORGANIZATION_ADMIN_REQUIRED',
+      message: 'Organization admin or owner role required',
+    }
   }
 
   if (isBillingEnabled) {
     const billingBlocked = await isOrganizationBillingBlocked(membership.organizationId)
     if (billingBlocked) {
-      return { success: false, status: 403, message: 'Active enterprise subscription required' }
+      return {
+        success: false,
+        status: 403,
+        code: 'ENTERPRISE_PLAN_REQUIRED',
+        message: 'Active enterprise subscription required',
+      }
     }
   } else if (!isAuditLogsEnabled) {
     return {
       success: false,
       status: 403,
+      code: 'AUDIT_LOGS_DISABLED',
       message:
         'Audit logs are disabled. Set ENTERPRISE_ENABLED or AUDIT_LOGS_ENABLED to enable them.',
     }
@@ -81,7 +100,12 @@ export async function resolveEnterpriseAuditAccess(
   ])
 
   if (isBillingEnabled && orgSub.length === 0) {
-    return { success: false, status: 403, message: 'Active enterprise subscription required' }
+    return {
+      success: false,
+      status: 403,
+      code: 'ENTERPRISE_PLAN_REQUIRED',
+      message: 'Active enterprise subscription required',
+    }
   }
 
   const orgMemberIds = orgMembers.map((organizationMember) => organizationMember.userId)
