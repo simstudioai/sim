@@ -37,13 +37,16 @@ export const v2BillingStatusQuerySchema = z.object({
  * and source analytics deliberately live outside this status resource.
  *
  * `credits` and `storage` report the resolved payer's pooled allowances, which
- * are shared across every workspace that payer funds. They are populated only
- * for a caller who may manage that payer's billing: the billed account holder,
- * or an admin of the hosting organization. Billing authority is a property of
- * a person, so an actor-less workspace API key never qualifies. Every other
- * caller reads both as `null` while still seeing the plan, period, and
- * standing that the workspace already surfaces to them — enough to monitor for
- * `limit_exceeded` and `billing_blocked`.
+ * are shared across every workspace and member that payer funds. They are
+ * populated only for a caller who may manage that payer's billing: the billed
+ * account holder, or an admin of the owning organization. Billing authority is
+ * a property of a person, so an actor-less workspace API key never qualifies.
+ * This holds on both scopes — omitting `workspaceId` resolves the payer from
+ * the caller's own subscriptions and organization memberships, and plain
+ * membership is not authority over the organization's pool. Every other caller
+ * reads both as `null` while still seeing the plan, period, and standing of
+ * the payer that funds them — enough to monitor for `limit_exceeded` and
+ * `billing_blocked`.
  */
 export const v2BillingStatusDataSchema = z
   .object({

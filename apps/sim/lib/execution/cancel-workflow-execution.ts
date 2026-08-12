@@ -308,21 +308,40 @@ export async function cancelWorkflowExecution(
     })
   }
 
-  const groupCancellation = workflowGroupWorkspaceId
-    ? await cancelWorkflowGroupExecution({
+  /**
+   * The sidecar transition can fail outright — a lost claim, a serialization
+   * conflict, a connection blip. The stop-the-work effects above have already
+   * fired, so the run is going down regardless and the reservation must not be
+   * stranded; but the cell is left in an unknown state, so the failure is
+   * re-thrown rather than swallowed into a success-shaped result.
+   */
+  let groupCancellation: Awaited<ReturnType<typeof cancelWorkflowGroupExecution>> | null = null
+  if (workflowGroupWorkspaceId) {
+    try {
+      groupCancellation = await cancelWorkflowGroupExecution({
         workspaceId: workflowGroupWorkspaceId,
         workflowId,
         executionId,
       })
-    : null
+    } catch (error) {
+      logger.error('Workflow group execution cancellation failed unexpectedly', {
+        executionId,
+        error,
+      })
+      await releaseSlotForStoppedExecution()
+      throw error
+    }
+  }
 
   /**
    * Both refusals mean the cell claim was lost, never that the run is still
    * going: the sidecar conflicts only on a terminal workflow log or a terminal
-   * cell, and `not_workflow_group` means the log is not a group run at all. The
-   * Redis abort record, queue-job cancel, and in-process abort above already
-   * fired and cannot be taken back, so the reservation is released before the
-   * 409 rather than left to expire.
+   * cell, and `not_workflow_group` means the log is not a group run at all.
+   * Every refusal is a terminal-or-absent state that carries no evidence of
+   * liveness, so nothing is left running to hold the reservation and it is
+   * released before the 409 rather than left to expire. (The Redis abort record
+   * is reversible — see `clearExecutionCancellation` — but a refusal gives no
+   * reason to reverse it.)
    */
   if (groupCancellation?.kind === 'conflict') {
     logger.warn('Workflow group execution could not be cancelled', {

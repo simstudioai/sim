@@ -233,6 +233,47 @@ describe('cancelWorkflowExecution', () => {
     }
   )
 
+  it('releases the reservation and rethrows when the workflow-group cancel fails unexpectedly', async () => {
+    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
+      belongsToWorkflow: true,
+      workflowGroupWorkspaceId: 'workspace-1',
+    })
+    const failure = new Error('Workflow-group cancellation lost its locked workflow-log claim')
+    mockCancelWorkflowGroupExecution.mockRejectedValue(failure)
+
+    await expect(cancelWorkflowExecution(INPUT)).rejects.toBe(failure)
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
+    expect(mockPublishWorkflowGroupCancellationEvent).not.toHaveBeenCalled()
+    expect(mockUpdateSet).not.toHaveBeenCalled()
+  })
+
+  it('keeps the reservation held when an unexpected workflow-group failure follows a paused cancellation', async () => {
+    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
+      belongsToWorkflow: true,
+      workflowGroupWorkspaceId: 'workspace-1',
+    })
+    mockBeginPausedCancellation.mockResolvedValue(true)
+    mockCancelWorkflowGroupExecution.mockRejectedValue(new Error('serialization conflict'))
+
+    await expect(cancelWorkflowExecution(INPUT)).rejects.toThrow('serialization conflict')
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+  })
+
+  it('keeps the reservation held when an unexpected workflow-group failure follows a failed cancellation', async () => {
+    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
+      belongsToWorkflow: true,
+      workflowGroupWorkspaceId: 'workspace-1',
+    })
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: false,
+      reason: 'redis_unavailable',
+    })
+    mockCancelWorkflowGroupExecution.mockRejectedValue(new Error('serialization conflict'))
+
+    await expect(cancelWorkflowExecution(INPUT)).rejects.toThrow('serialization conflict')
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+  })
+
   it('leaves a standalone execution untouched by the workflow-group path', async () => {
     await cancelWorkflowExecution(INPUT)
 

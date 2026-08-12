@@ -25,10 +25,12 @@ const mocks = vi.hoisted(() => ({
   getWorkspaceUsageLogs: vi.fn(),
   recordAudit: vi.fn(),
   canUserManageWorkspaceBilling: vi.fn(),
+  canUserManageBillingEntity: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/workspace-billing-authority', () => ({
   canUserManageWorkspaceBilling: mocks.canUserManageWorkspaceBilling,
+  canUserManageBillingEntity: mocks.canUserManageBillingEntity,
 }))
 
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
@@ -100,6 +102,7 @@ describe('billing application use cases', () => {
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.canUserManageWorkspaceBilling.mockResolvedValue(false)
+    mocks.canUserManageBillingEntity.mockResolvedValue(false)
     mocks.checkUsageStatus.mockResolvedValue({ currentUsage: 1, limit: 10, isExceeded: false })
     mocks.checkAttributedBlocks.mockResolvedValue({ blocked: false })
     mocks.toUsageLimitSubscription.mockReturnValue(null)
@@ -287,6 +290,81 @@ describe('billing application use cases', () => {
 
     expect(result.credits).toEqual({ used: 200, limit: 2_000, remaining: 1_800 })
     expect(result.storage).not.toBeNull()
+  })
+
+  /**
+   * `getHighestPrioritySubscription` resolves an organization subscription from
+   * any `member` row regardless of role, so dropping `workspaceId` must not
+   * hand a plain member the organization-wide pool the workspace branch
+   * withholds.
+   */
+  it('withholds the organization pool from an account caller who cannot manage it', async () => {
+    mocks.getSubscription.mockResolvedValue({ plan: 'team', referenceId: 'organization-1' })
+    mocks.deriveBillingContext.mockReturnValue({
+      billingEntity: { type: 'organization', id: 'organization-1' },
+      billingPeriod: {
+        start: new Date('2026-01-01T00:00:00Z'),
+        end: new Date('2026-02-01T00:00:00Z'),
+      },
+    })
+    mocks.canUserManageBillingEntity.mockResolvedValue(false)
+    mocks.checkBillingBlocked.mockResolvedValue({ blocked: false })
+    mocks.checkBillingEntityBlocked.mockResolvedValue({ blocked: false })
+
+    const result = await getBillingStatus.execute({ principal: personalPrincipal, input: {} })
+
+    expect(result.credits).toBeNull()
+    expect(result.storage).toBeNull()
+    expect(result).toMatchObject({ workspaceId: null, plan: 'team', status: 'active' })
+    expect(mocks.canUserManageBillingEntity).toHaveBeenCalledWith(
+      { type: 'organization', id: 'organization-1' },
+      'user-1'
+    )
+    expect(mocks.getUserStorageUsage).not.toHaveBeenCalled()
+    expect(mocks.getUserStorageLimit).not.toHaveBeenCalled()
+  })
+
+  it('still reports an exceeded organization limit to an account caller who cannot read it', async () => {
+    mocks.getSubscription.mockResolvedValue({ plan: 'team', referenceId: 'organization-1' })
+    mocks.deriveBillingContext.mockReturnValue({
+      billingEntity: { type: 'organization', id: 'organization-1' },
+      billingPeriod: {
+        start: new Date('2026-01-01T00:00:00Z'),
+        end: new Date('2026-02-01T00:00:00Z'),
+      },
+    })
+    mocks.canUserManageBillingEntity.mockResolvedValue(false)
+    mocks.checkBillingBlocked.mockResolvedValue({ blocked: false })
+    mocks.checkBillingEntityBlocked.mockResolvedValue({ blocked: false })
+    mocks.checkUsageStatus.mockResolvedValue({ currentUsage: 40, limit: 10, isExceeded: true })
+
+    const result = await getBillingStatus.execute({ principal: personalPrincipal, input: {} })
+
+    expect(result.status).toBe('limit_exceeded')
+    expect(result.credits).toBeNull()
+  })
+
+  it('projects the organization pool to an account caller who administers it', async () => {
+    mocks.getSubscription.mockResolvedValue({ plan: 'team', referenceId: 'organization-1' })
+    mocks.deriveBillingContext.mockReturnValue({
+      billingEntity: { type: 'organization', id: 'organization-1' },
+      billingPeriod: {
+        start: new Date('2026-01-01T00:00:00Z'),
+        end: new Date('2026-02-01T00:00:00Z'),
+      },
+    })
+    mocks.canUserManageBillingEntity.mockResolvedValue(true)
+    mocks.checkBillingBlocked.mockResolvedValue({ blocked: false })
+    mocks.checkBillingEntityBlocked.mockResolvedValue({ blocked: false })
+
+    const result = await getBillingStatus.execute({ principal: personalPrincipal, input: {} })
+
+    expect(result.credits).toEqual({ used: 200, limit: 2_000, remaining: 1_800 })
+    expect(result.storage).toEqual({
+      usedBytes: 5_242_880,
+      limitBytes: 1_073_741_824,
+      percentUsed: 0.48828125,
+    })
   })
 
   it('uses the personal principal as account authority', async () => {

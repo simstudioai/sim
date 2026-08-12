@@ -11,9 +11,11 @@ import {
   resolveSystemBillingAttribution,
   toUsageLimitSubscription,
 } from '@/lib/billing/core/billing-attribution'
+import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { deriveBillingContext } from '@/lib/billing/core/usage-log'
+import { type BillingEntity, deriveBillingContext } from '@/lib/billing/core/usage-log'
 import {
+  canUserManageBillingEntity,
   canUserManageWorkspaceBilling,
   type WorkspaceBillingAuthorityContext,
 } from '@/lib/billing/core/workspace-billing-authority'
@@ -45,7 +47,8 @@ export interface BillingStorageStatus {
 /**
  * `credits` and `storage` describe the resolved payer's pooled allowances, not
  * the caller's own consumption, so they are only projected to a caller who may
- * manage that payer's billing — see {@link canReadPayerPool}. Every other
+ * manage that payer's billing — see {@link canReadPayerPool} on the workspace
+ * branch and {@link isSelfBillingEntity} on the account branch. Every other
  * caller reads them as `null` while still seeing the plan and standing the
  * workspace UI already shows them.
  */
@@ -105,11 +108,47 @@ async function canReadPayerPool(
   return canUserManageWorkspaceBilling(workspace, principal.userId)
 }
 
+/**
+ * Whether the account-branch caller is themselves the payer.
+ *
+ * Omitting `workspaceId` selects account scope, whose operation policy is
+ * `personal_self`. That reads naturally as "my own billing", and it is —
+ * except that {@link getHighestPrioritySubscription} resolves a subscription
+ * from any `member` row regardless of role, so a plain non-admin member of an
+ * organization lands on the organization's pooled subscription. Credits then
+ * come from the pooled organization usage and storage from the organization's
+ * counter, which is the whole organization's consumption rather than the
+ * caller's own.
+ *
+ * The pool is therefore gated exactly as the workspace branch gates it, rather
+ * than the branch being forced back to the caller's personal subscription:
+ * plan, period, and standing stay resolved from the payer that actually funds
+ * the caller, so a monitor still sees `limit_exceeded` and `billing_blocked`
+ * truthfully, while only the pooled figures require authority over the payer.
+ * A caller with no organization payer is their own payer and keeps reading
+ * their own credits and storage unchanged.
+ */
+function isSelfBillingEntity(billingEntity: Readonly<BillingEntity>, userId: string): boolean {
+  return billingEntity.type === 'user' && billingEntity.id === userId
+}
+
 /** Only invoked once payer-pool disclosure is authorized. */
 async function resolvePayerStorage(workspaceId: string): Promise<BillingStorageStatus> {
   const storageContext = await resolveStorageBillingContext(workspaceId)
   const usedBytes = await getStorageUsageForBillingContext(storageContext)
   return storageStatus(usedBytes, getStorageLimitForBillingContext(storageContext))
+}
+
+/** Only invoked once payer-pool disclosure is authorized. */
+async function resolveAccountStorage(
+  userId: string,
+  subscription: HighestPrioritySubscription
+): Promise<BillingStorageStatus> {
+  const [usedBytes, limitBytes] = await Promise.all([
+    getUserStorageUsage(userId, subscription),
+    getUserStorageLimit(userId, subscription),
+  ])
+  return storageStatus(usedBytes, limitBytes)
 }
 
 export const getBillingStatus = defineAuthorizedBillingReadUseCase({
@@ -143,14 +182,15 @@ export const getBillingStatus = defineAuthorizedBillingReadUseCase({
 
     const subscription = await getHighestPrioritySubscription(scope.userId)
     const { billingEntity, billingPeriod } = deriveBillingContext(scope.userId, subscription)
-    const [usage, actorBlock, payerBlock, storageUsedBytes, storageLimitBytes] = await Promise.all([
+    const isSelfPayer = isSelfBillingEntity(billingEntity, scope.userId)
+    const canViewPayerPool = isSelfPayer
+      ? true
+      : await canUserManageBillingEntity(billingEntity, scope.userId)
+    const [usage, actorBlock, payerBlock, storage] = await Promise.all([
       checkUsageStatus(scope.userId, subscription),
       checkBillingBlocked(scope.userId),
-      billingEntity.type === 'user' && billingEntity.id === scope.userId
-        ? Promise.resolve({ blocked: false })
-        : checkBillingEntityBlocked(billingEntity),
-      getUserStorageUsage(scope.userId, subscription),
-      getUserStorageLimit(scope.userId, subscription),
+      isSelfPayer ? Promise.resolve({ blocked: false }) : checkBillingEntityBlocked(billingEntity),
+      canViewPayerPool ? resolveAccountStorage(scope.userId, subscription) : null,
     ])
     return {
       workspaceId: null,
@@ -165,8 +205,8 @@ export const getBillingStatus = defineAuthorizedBillingReadUseCase({
           : usage.isExceeded
             ? 'limit_exceeded'
             : 'active',
-      credits: creditsStatus(usage),
-      storage: storageStatus(storageUsedBytes, storageLimitBytes),
+      credits: canViewPayerPool ? creditsStatus(usage) : null,
+      storage,
     }
   },
 })
