@@ -6,6 +6,7 @@ import type {
   AgiloftGetChoiceLineIdParams,
   AgiloftListTablesParams,
   AgiloftLockRecordParams,
+  AgiloftNlpSearchParams,
   AgiloftRemoveAttachmentParams,
   AgiloftRetrieveAttachmentParams,
   AgiloftRunActionButtonParams,
@@ -217,29 +218,31 @@ export function buildUpsertRecordUrl(base: string): string {
   return `${base}/ewws/EWUpsert`
 }
 
-export function buildUpsertRecordBody(
-  params: AgiloftUpsertRecordParams,
-  data: Record<string, unknown>
-): string {
-  const fields: Array<[string, string]> = [
-    ['$KB', params.knowledgeBase],
-    ['$table', params.table],
-    ['$login', params.login],
-    ['$password', params.password],
-    ['$lang', AGILOFT_LANG],
-    ['$match', params.match.trim()],
-  ]
+/**
+ * Serializes ordered key/value pairs into an `application/x-www-form-urlencoded`
+ * body, the Content-Type the legacy `/ewws/EW*` operations document as
+ * supported, and the only one EWCreate accepts.
+ *
+ * Pairs rather than an object because Agiloft encodes multi-value fields as the
+ * same key repeated, which an object cannot express.
+ */
+export function encodeEwFormBody(fields: Array<[string, string]>): string {
+  return fields
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&')
+}
 
-  if (params.async) fields.push(['$async', 'true'])
-
+/**
+ * Expands caller-supplied record data into form pairs, appending to `fields`.
+ *
+ * Multi-value fields are encoded as repeated key/value pairs, not as a joined
+ * string. Objects have no documented encoding at all, and String()-ing one
+ * silently writes "[object Object]" into the record.
+ */
+function pushRecordFields(fields: Array<[string, string]>, data: Record<string, unknown>): void {
   for (const [field, value] of Object.entries(data)) {
     if (value === undefined || value === null) continue
 
-    /**
-     * Multi-value fields are encoded as repeated key/value pairs, not as a
-     * joined string. Objects have no documented encoding at all, and
-     * String()-ing one silently writes "[object Object]" into the record.
-     */
     if (Array.isArray(value)) {
       for (const entry of value) {
         if (entry === undefined || entry === null) continue
@@ -256,10 +259,57 @@ export function buildUpsertRecordBody(
 
     fields.push([field, String(value)])
   }
+}
 
-  return fields
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
-    .join('&')
+export function buildUpsertRecordBody(
+  params: AgiloftUpsertRecordParams,
+  data: Record<string, unknown>
+): string {
+  const fields: Array<[string, string]> = [
+    ['$KB', params.knowledgeBase],
+    ['$table', params.table],
+    ['$login', params.login],
+    ['$password', params.password],
+    ['$lang', AGILOFT_LANG],
+    ['$match', params.match.trim()],
+  ]
+
+  if (params.async) fields.push(['$async', 'true'])
+
+  pushRecordFields(fields, data)
+
+  return encodeEwFormBody(fields)
+}
+
+/**
+ * EWCreate is the documented create operation. It answers with the ID of the
+ * new record as an `EWREST_id` assignment, which is the only place that ID is
+ * published. There is no documented JSON create that returns it.
+ *
+ * Every parameter travels in a form-encoded body: EWCreate lists
+ * `application/x-www-form-urlencoded` as its supported Content-Type, it is one
+ * of the operations that accept credentials in the body rather than the query
+ * string, and a body has no request-line length ceiling on the record data.
+ */
+export function buildCreateRecordUrl(base: string): string {
+  return `${base}/ewws/EWCreate`
+}
+
+export function buildCreateRecordBody(
+  params: AgiloftBaseParams,
+  data: Record<string, unknown>
+): string {
+  const fields: Array<[string, string]> = [
+    ['$KB', params.knowledgeBase],
+    ['$table', params.table],
+    ['$login', params.login],
+    ['$password', params.password],
+    ['$lang', AGILOFT_LANG],
+  ]
+
+  pushRecordFields(fields, data)
+
+  return encodeEwFormBody(fields)
 }
 
 export function buildSavedSearchUrl(base: string, params: AgiloftBaseParams): string {
@@ -367,6 +417,42 @@ export const AGILOFT_ASYNC_STATUS: Record<number, { status: string; complete: bo
  */
 export function buildNlpSearchUrl(base: string): string {
   return `${base}/ewws/EWNLPSearch`
+}
+
+/**
+ * Body for EWNLPSearch.
+ *
+ * `$KB`, `$login`, and `$password` are request parameters, not payload keys.
+ * Agiloft documents them under the operation's query parameters and rejects the
+ * call outright when they arrive as members of a JSON object instead:
+ *
+ *   EWWrongDataException ... One has to specify $login, $password parameters
+ *
+ * Form-encoding the whole request satisfies that while keeping the password out
+ * of the URL, access logs, and proxy traces. `field` repeats once per requested
+ * field, matching Agiloft's multi-value encoding.
+ */
+export function buildNlpSearchBody(params: AgiloftNlpSearchParams): string {
+  const fields: Array<[string, string]> = [
+    ['$KB', params.knowledgeBase],
+    ['$login', params.login],
+    ['$password', params.password],
+    ['$lang', AGILOFT_LANG],
+    ['nlp_query', params.nlpQuery.trim()],
+  ]
+
+  for (const field of parseFieldList(params.fields) ?? []) {
+    fields.push(['field', field])
+  }
+
+  /**
+   * EWNLPSearch ignores the table and searches the whole knowledge base, so
+   * pagination is the only bound a caller has on the result size.
+   */
+  if (params.page) fields.push(['page', params.page])
+  if (params.limit) fields.push(['limit', params.limit])
+
+  return encodeEwFormBody(fields)
 }
 
 export function getLockHttpMethod(lockAction: string): HttpMethod {

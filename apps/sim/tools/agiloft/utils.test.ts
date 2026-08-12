@@ -9,7 +9,11 @@ import {
   alrestRecordUrl,
   alrestSearchUrl,
   buildAttachFileUrl,
+  buildCreateRecordBody,
+  buildCreateRecordUrl,
   buildLockRecordUrl,
+  buildNlpSearchBody,
+  buildNlpSearchUrl,
   buildRetrieveAttachmentUrl,
   buildSavedSearchUrl,
   buildSelectRecordsUrl,
@@ -25,7 +29,7 @@ const INSTANCE = 'https://example.agiloft.com'
 
 const baseParams = {
   instanceUrl: INSTANCE,
-  knowledgeBase: 'Russell Investments',
+  knowledgeBase: 'Contract Templates',
   login: 'svc.user',
   password: PLACEHOLDER_PASSWORD,
   table: 'contract',
@@ -35,7 +39,7 @@ const BASE = agiloftAlrestBase(INSTANCE, baseParams.knowledgeBase)
 
 describe('agiloftAlrestBase', () => {
   it('targets the alrest surface that accepts the EWLogin token', () => {
-    expect(BASE).toBe('https://example.agiloft.com/ewws/alrest/Russell%20Investments')
+    expect(BASE).toBe('https://example.agiloft.com/ewws/alrest/Contract%20Templates')
   })
 
   it('encodes the KB name and tolerates a trailing slash on the instance URL', () => {
@@ -205,5 +209,88 @@ describe('attach overwrite', () => {
       'a.pdf'
     )
     expect(off).not.toContain('overwrite')
+  })
+})
+
+describe('EWCreate', () => {
+  it('carries every parameter in the body, keeping credentials out of the URL', () => {
+    const url = buildCreateRecordUrl(INSTANCE)
+    const body = buildCreateRecordBody(baseParams, { contract_title1: 'X' })
+
+    expect(url).toBe('https://example.agiloft.com/ewws/EWCreate')
+    expect(url).not.toContain(PLACEHOLDER_PASSWORD)
+
+    const sent = new URLSearchParams(body)
+    expect(sent.get('$KB')).toBe('Contract Templates')
+    expect(sent.get('$table')).toBe('contract')
+    expect(sent.get('$login')).toBe('svc.user')
+    expect(sent.get('$password')).toBe(PLACEHOLDER_PASSWORD)
+    expect(sent.get('$lang')).toBe('en')
+    expect(sent.get('contract_title1')).toBe('X')
+  })
+
+  it('encodes a multi-value field as repeated pairs', () => {
+    const sent = new URLSearchParams(
+      buildCreateRecordBody(baseParams, { contactMethod: ['phone', 'email'] })
+    )
+    expect(sent.getAll('contactMethod')).toEqual(['phone', 'email'])
+  })
+
+  it('skips null and undefined values rather than writing them as text', () => {
+    const sent = new URLSearchParams(
+      buildCreateRecordBody(baseParams, { a: null, b: undefined, c: 'kept' })
+    )
+    expect(sent.has('a')).toBe(false)
+    expect(sent.has('b')).toBe(false)
+    expect(sent.get('c')).toBe('kept')
+  })
+
+  it('refuses an object value rather than writing [object Object] into the record', () => {
+    expect(() => buildCreateRecordBody(baseParams, { nested: { a: 1 } })).toThrow(TypeError)
+  })
+})
+
+describe('EWNLPSearch', () => {
+  const nlpParams = {
+    instanceUrl: INSTANCE,
+    knowledgeBase: baseParams.knowledgeBase,
+    login: baseParams.login,
+    password: PLACEHOLDER_PASSWORD,
+    nlpQuery: '  Active NDAs submitted last month  ',
+    fields: 'id, contract_title1',
+  }
+
+  /**
+   * Agiloft reads these as request parameters. Sending them as members of a
+   * JSON payload is what makes the endpoint answer "One has to specify $login,
+   * $password parameters".
+   */
+  it('sends the credentials as request parameters, not as payload keys', () => {
+    const sent = new URLSearchParams(buildNlpSearchBody(nlpParams))
+
+    expect(buildNlpSearchUrl(INSTANCE)).toBe('https://example.agiloft.com/ewws/EWNLPSearch')
+    expect(sent.get('$KB')).toBe('Contract Templates')
+    expect(sent.get('$login')).toBe('svc.user')
+    expect(sent.get('$password')).toBe(PLACEHOLDER_PASSWORD)
+    expect(sent.get('$lang')).toBe('en')
+  })
+
+  it('trims the query and repeats field once per requested field', () => {
+    const sent = new URLSearchParams(buildNlpSearchBody(nlpParams))
+
+    expect(sent.get('nlp_query')).toBe('Active NDAs submitted last month')
+    expect(sent.getAll('field')).toEqual(['id', 'contract_title1'])
+  })
+
+  it('omits pagination when it was not requested', () => {
+    const sent = new URLSearchParams(buildNlpSearchBody(nlpParams))
+    expect(sent.has('page')).toBe(false)
+    expect(sent.has('limit')).toBe(false)
+  })
+
+  it('sends pagination when it was requested, since the search spans the whole KB', () => {
+    const sent = new URLSearchParams(buildNlpSearchBody({ ...nlpParams, page: '2', limit: '25' }))
+    expect(sent.get('page')).toBe('2')
+    expect(sent.get('limit')).toBe('25')
   })
 })
