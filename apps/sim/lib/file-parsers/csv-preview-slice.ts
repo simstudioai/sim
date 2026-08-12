@@ -52,6 +52,10 @@ export async function getCsvPreviewSlice({
   signal,
 }: CsvPreviewSliceArgs): Promise<CsvPreviewSlice> {
   const source = await downloadFileStream({ key, context })
+  if (signal?.aborted) {
+    source.destroy()
+    signal.throwIfAborted()
+  }
   const onAbort = () => source.destroy()
   signal?.addEventListener('abort', onAbort, { once: true })
 
