@@ -22,12 +22,14 @@ export interface CorsPolicy {
  *
  * Hand-written rather than derived from the contract registry because this
  * module is edge middleware: importing `lib/api/contracts` would pull Zod and
- * the whole contract tree into the middleware bundle. It is kept honest by
- * `proxy.cors-methods.test.ts`, which sweeps the real contracts and fails if any
- * declares a method missing here — the check that would have caught this list
- * omitting `PATCH` while 17 v2 operations used it.
+ * the whole contract tree into the middleware bundle. Nothing enforces the
+ * correspondence — the per-route `CORS_RULES` entries below are unenforced the
+ * same way — so a contract that introduces a new method must add it here in the
+ * same change. This list previously omitted `PATCH` while 17 v2 operations used
+ * it, so a browser preflight for any of them failed.
  *
- * `HEAD` is included because Next answers it from each route's `GET` handler.
+ * `HEAD` is included because Next answers it from each route's `GET` handler,
+ * which the route builders permit via `methodMatchesContract`.
  */
 const DEFAULT_API_ALLOWED_METHODS = 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS'
 

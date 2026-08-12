@@ -180,10 +180,8 @@ describe('/api/v2/skills', () => {
   })
 
   /**
-   * Next answers a HEAD by invoking this route's own GET export and dropping the
-   * body when it sends. The builder's method guard used to reject that, so every
-   * v2 read replied 500 to a plain HEAD — what health checkers and uptime
-   * monitors send.
+   * The guard itself is unit-tested in `definition.test.ts`; this proves the
+   * pairing end-to-end, on a real v2 read that used to reply 500 to a plain HEAD.
    */
   it('serves HEAD through the GET handler instead of throwing', async () => {
     const response = await GET(request('HEAD', `/api/v2/skills?workspaceId=${WORKSPACE_ID}`))
