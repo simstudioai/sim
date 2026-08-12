@@ -17,6 +17,7 @@ import {
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { DEFAULT_EXECUTION_TIMEOUT_MS, getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import {
@@ -95,6 +96,8 @@ const PRIVATE_SECRET_PROVENANCE_DIRECT_EXECUTION_ERROR_MESSAGE =
   'Private secret provenance is not supported by direct execution'
 const INTERNAL_DATABASE_ERROR_MESSAGE =
   'An internal error occurred while executing the tool. Please try again.'
+const PERMISSION_PREFLIGHT_MAX_ATTEMPTS = 3
+const PERMISSION_PREFLIGHT_RETRY_BACKOFF = { baseMs: 25, maxMs: 100 } as const
 
 function projectToolLogMetadata(
   metadata: Record<string, unknown>,
@@ -109,6 +112,52 @@ function projectToolLogMetadata(
   return projection.safe && isPlainRecord(projection.value)
     ? projection.value
     : { ...structuralFallback, redacted: true }
+}
+
+interface ToolPermissionPreflight {
+  userId: string
+  workspaceId: string
+  toolId: string
+  toolKind?: 'skill' | 'custom' | 'mcp'
+  ctx?: ExecutionContext
+  requestId: string
+  signal?: AbortSignal
+}
+
+async function assertToolPermissionsWithRetry({
+  requestId,
+  signal,
+  ...permission
+}: ToolPermissionPreflight): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await assertPermissionsAllowed(permission)
+      return
+    } catch (error) {
+      const isDatabaseQueryError = Boolean(
+        findCause(error, (cause): cause is DrizzleQueryError => cause instanceof DrizzleQueryError)
+      )
+      if (
+        attempt >= PERMISSION_PREFLIGHT_MAX_ATTEMPTS ||
+        signal?.aborted ||
+        !isDatabaseQueryError ||
+        !isRetryableInfrastructureError(error)
+      ) {
+        throw error
+      }
+
+      const delayMs = backoffWithJitter(attempt, null, PERMISSION_PREFLIGHT_RETRY_BACKOFF)
+      logger.warn(`[${requestId}] Retrying tool permission preflight after database error`, {
+        toolId: permission.toolId,
+        attempt,
+        maxAttempts: PERMISSION_PREFLIGHT_MAX_ATTEMPTS,
+        delayMs,
+        cause: describeError(error),
+      })
+      await sleep(delayMs)
+      signal?.throwIfAborted()
+    }
+  }
 }
 
 interface ToolExecutionScope {
@@ -1537,12 +1586,14 @@ async function executeToolImplementation(
     // Runs for ALL tools (not just kinded ones) so the per-tool `deniedTools`
     // denylist is enforced alongside the existing mcp/custom/skill gates.
     if (scope.userId && scope.workspaceId) {
-      await assertPermissionsAllowed({
+      await assertToolPermissionsWithRetry({
         userId: scope.userId,
         workspaceId: scope.workspaceId,
         toolId: normalizedToolId,
         toolKind,
         ctx: executionContext,
+        requestId,
+        signal: effectiveSignal,
       })
     }
 
@@ -2048,13 +2099,15 @@ async function executeToolImplementation(
         {
           ...(databaseErrorCause
             ? { cause: databaseErrorCause }
-            : { error: normalizedError.message }),
-          stack: error instanceof Error ? error.stack : undefined,
+            : {
+                error: normalizedError.message,
+                stack: error instanceof Error ? error.stack : undefined,
+              }),
         },
         resolvedSecretTraceRegistry,
         {
           errorName: normalizedError.name,
-          hasStack: Boolean(error instanceof Error && error.stack),
+          hasStack: !databaseErrorCause && Boolean(error instanceof Error && error.stack),
           ...(databaseErrorCause ? { cause: databaseErrorCause } : {}),
         },
         structuralOnlyToolLogs
