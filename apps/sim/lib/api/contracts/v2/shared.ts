@@ -70,9 +70,9 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  *   on the surface (`scope`, `folderPath`, `deployedOnly`, `type`, `providerId`,
  *   `resourceType`). No generic filter expression.
  *
- * Every one of these is pushed into SQL, except on `GET /skills` (which merges
- * the static builtin registry into the DB rows, then re-filters and re-sorts the
- * merged array) and `GET /files/folders` (which applies `parentPath` and `search`
+ * Every one of these is pushed into SQL, except on `GET /skills` (which narrows the
+ * static builtin registry with the same search term, merges it into the DB rows,
+ * then re-sorts the merged array) and `GET /files/folders` (which applies `parentPath` and `search`
  * in JS; its sort is pushed into SQL like every other folder list). Both read a
  * full result set to produce a page; neither is a pattern to copy.
  *
@@ -82,10 +82,25 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * not restated here. A full-set list returns `nextCursor: null` on every
  * response — its OpenAPI description says so explicitly, so a caller never
  * writes a pagination loop that can only ever run once.
- * Adding `limit`/`cursor` to a full-set list is additive,
- * but making a `limit` *default* would silently truncate callers that rely on
- * the full set today, so a default page size cannot be introduced without a
- * version bump.
+ *
+ * Every list whose result set grows with workspace content is now paged. What
+ * remains full-set is the folder lists, whose trees are already capped where
+ * they load, plus `GET /mcp-servers`.
+ *
+ * Adding `limit`/`cursor` to a full-set list is additive, but giving it a
+ * *default* `limit` truncates callers reading the whole set today, so it is a
+ * breaking change. Five lists took exactly that change while `v2-api` was off
+ * in production and enabled only for a staging cohort — the window in which it
+ * costs nothing. Once v2 is generally available, moving a shipped full-set list
+ * to a defaulted page size needs a version bump.
+ *
+ * Both cursor schemes are opaque base64-JSON from `app/api/v2/lib/response.ts`,
+ * and which one a list uses is decided by what its read can express rather than
+ * by preference: a keyset (`encodeSortedCursor`) wherever the page comes from
+ * one ordered SQL read, and an offset (`encodeCursor({ offset })`) only where it
+ * cannot — `GET /skills`, which merges the static builtin registry into the DB
+ * rows and re-sorts in JS, and `GET /knowledge/{id}/documents`, whose underlying
+ * query is limit/offset. Prefer the keyset; an offset needs that kind of reason.
  *
  * ## Sort and the opaque cursor
  *
@@ -150,6 +165,112 @@ export const v2CursorListResponse = <T extends z.ZodType>(itemSchema: T) =>
         'Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself.'
       ),
   })
+
+/**
+ * Default and maximum page size for a v2 paged list.
+ *
+ * These are the values the majority of already-paged v2 lists shipped with
+ * (`/workflows`, `/workflows/{id}/versions`, `/workflows/{id}/runs`,
+ * `/workspaces/{id}/members`, `/billing/logs`), so they are what a list adopting
+ * pagination now inherits.
+ */
+export const V2_DEFAULT_PAGE_SIZE = 50
+export const V2_MAX_PAGE_SIZE = 100
+
+/**
+ * How a `limit` outside `1..max` is handled.
+ *
+ * `reject` is the rule for every list: an out-of-range or fractional page size
+ * is a 400 naming the bound. `clamp` exists only for the three lists that
+ * shipped truncating and clamping instead (`/files`, `/logs`, `/tables`) and
+ * published that leniency in their OpenAPI description — flipping them to
+ * `reject` would turn a currently-successful request into an error for callers
+ * already relying on it. New lists must use `reject`; `clamp` is not a pattern
+ * to copy and should be collapsed into `reject` at the next major version.
+ */
+export type V2LimitOutOfRange = 'reject' | 'clamp'
+
+interface V2LimitOptions {
+  max?: number
+  /** Page size applied when the caller omits `limit`. */
+  fallback?: number
+  /** Defaults to `reject`. */
+  outOfRange?: V2LimitOutOfRange
+  /** Overrides the generated `describe()` text. */
+  description?: string
+}
+
+/**
+ * The v2 `limit` param, as one schema so the family cannot drift per route.
+ *
+ * It exists because it already drifted: `GET /api/v2/workflows` was copied from
+ * a sibling and lost its `.int()`, so a fractional `limit` passed validation and
+ * reached Postgres as `LIMIT 2.5`, which is a 500. A caller-supplied query value
+ * must never be able to produce a 500, and the only durable fix is for every
+ * list to derive its bound from one place rather than restating it.
+ *
+ * `z.coerce.number()` is what accepts the query string at all, so JS numeric
+ * parsing applies (`1e2` is 100, `0x10` is 16, surrounding whitespace is
+ * ignored). That leniency is inherited from the coercion, not chosen here; the
+ * bounds below are what actually constrain the value.
+ */
+export function v2LimitSchema(options: V2LimitOptions = {}) {
+  const {
+    max = V2_MAX_PAGE_SIZE,
+    fallback = V2_DEFAULT_PAGE_SIZE,
+    outOfRange = 'reject',
+    description,
+  } = options
+
+  /**
+   * The bounds are appended rather than left to the caller's sentence, so a
+   * per-list `description` cannot drop them from the published parameter — the
+   * numbers a caller needs are the ones this schema actually enforces.
+   */
+  const bounds =
+    outOfRange === 'clamp'
+      ? `Values outside 1–${max} are truncated and clamped into that range rather than rejected. Defaults to ${fallback}.`
+      : `Must be a whole number from 1 to ${max}. Defaults to ${fallback}.`
+  const described = `${description ?? 'Maximum items to return per page.'} ${bounds}`
+
+  const base = z.coerce.number({ error: 'limit must be a number' })
+
+  if (outOfRange === 'clamp') {
+    return base
+      .optional()
+      .default(fallback)
+      .transform((value) => Math.min(Math.max(1, Math.trunc(value)), max))
+      .describe(described)
+      .meta({ type: 'integer', minimum: 1, maximum: max })
+  }
+
+  return base
+    .int('limit must be a whole number')
+    .min(1, 'limit must be at least 1')
+    .max(max, `limit cannot exceed ${max}`)
+    .optional()
+    .default(fallback)
+    .describe(described)
+}
+
+/**
+ * The v2 `cursor` param: the opaque token a previous page returned as
+ * `nextCursor`. Empty is rejected rather than treated as "start over", so a
+ * caller that accidentally forwards an empty string learns about it instead of
+ * looping on page one.
+ */
+export function v2CursorSchema(description = 'Opaque cursor returned by the previous page.') {
+  return z.string().min(1, 'cursor must be a non-empty token').optional().describe(description)
+}
+
+/**
+ * The `limit` + `cursor` pair for a paged v2 list. Spread into a query object;
+ * a list that returns `nextCursor` must accept both, and must actually apply
+ * them.
+ */
+export function v2PaginationFields(options: V2LimitOptions = {}) {
+  return { limit: v2LimitSchema(options), cursor: v2CursorSchema() }
+}
 
 /**
  * The v2 `search` term: a case-insensitive substring match on the resource's

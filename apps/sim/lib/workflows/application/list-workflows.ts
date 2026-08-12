@@ -8,7 +8,6 @@ import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/applic
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { workflowFolderPathForId } from '@/lib/workflows/application/workflow-folders'
 import {
-  InvalidWorkflowListCursorError,
   listWorkspaceWorkflows,
   type WorkflowSortBy,
   type WorkflowSortOrder,
@@ -48,24 +47,16 @@ export const listWorkflows = defineAuthorizedWorkflowUseCase({
       throw new OrchestrationError('not_found', 'Folder not found')
     }
 
-    let page
-    try {
-      page = await listWorkspaceWorkflows({
-        workspaceId: context.workspaceId,
-        folderId,
-        deployedOnly: input.deployedOnly,
-        search: input.search,
-        sortBy: input.sortBy,
-        sortOrder: input.sortOrder,
-        cursorKeys: input.cursorKeys,
-        limit: input.limit,
-      })
-    } catch (error) {
-      if (error instanceof InvalidWorkflowListCursorError) {
-        throw new OrchestrationError('validation', error.message)
-      }
-      throw error
-    }
+    const page = await listWorkspaceWorkflows({
+      workspaceId: context.workspaceId,
+      folderId,
+      deployedOnly: input.deployedOnly,
+      search: input.search,
+      sortBy: input.sortBy,
+      sortOrder: input.sortOrder,
+      cursorKeys: input.cursorKeys,
+      limit: input.limit,
+    })
 
     logger.info('Listed workflows', {
       workspaceId: context.workspaceId,

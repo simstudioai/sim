@@ -409,7 +409,7 @@ const routes = [
       operationId: 'listSkills',
       summary: 'List Skills',
       description:
-        'List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies and uses the standard cursor envelope with `nextCursor` always null, so there is no second page to fetch; fetch one skill to read its content.',
+        'List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.',
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'Skills available in the workspace.' },
     }),
@@ -564,7 +564,7 @@ const routes = [
       operationId: 'listCustomTools',
       summary: 'List Custom Tools',
       description:
-        'List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.',
+        'List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.',
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'Custom tools defined in the workspace.' },
     }),
@@ -720,7 +720,7 @@ const routes = [
       operationId: 'listCredentials',
       summary: 'List Credentials',
       description:
-        'List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed. The bounded set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.',
+        'List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.',
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'Credentials visible to the caller.' },
     }),
@@ -745,7 +745,7 @@ const routes = [
     resourceOperation('Secrets', {
       operationId: 'listSecrets',
       summary: 'List Secrets',
-      description: `List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned. The bounded set uses the standard cursor envelope with \`nextCursor\` always null; there is no second page to fetch. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned. Paginate with \`limit\` and \`cursor\`, stopping when \`nextCursor\` is null. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'Secret metadata visible to the caller.' },
     }),

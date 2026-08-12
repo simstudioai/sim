@@ -2,7 +2,11 @@ import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { usageLogPeriodSchema, usageLogSourceSchema } from '@/lib/api/contracts/user'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2PaginationFields,
+} from '@/lib/api/contracts/v2/shared'
 
 /**
  * v2 billing contracts — separate read-only status and ledger resources.
@@ -141,20 +145,9 @@ export const v2BillingLogsQuerySchema = z
     endDate: parseableDateSchema
       .optional()
       .describe('End of a custom window as a Date-parseable string; defaults to now.'),
-    limit: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .optional()
-      .default(50)
-      .describe('Maximum usage events per page, from 1 to 100.'),
-    cursor: z
-      .string()
-      .min(1, 'cursor must be a non-empty token')
-      .optional()
-      .describe('Opaque cursor returned by the previous page.'),
+    ...v2PaginationFields({ description: 'Maximum usage events per page.' }),
   })
+  .strict()
   .refine((query) => query.period !== 'custom' || query.startDate !== undefined, {
     error: 'startDate is required when period is "custom"',
     path: ['startDate'],

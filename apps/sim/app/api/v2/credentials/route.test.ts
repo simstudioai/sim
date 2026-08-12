@@ -27,6 +27,7 @@ vi.mock('@/lib/credentials/application/list-workspace-credentials', () => ({
   },
 }))
 
+import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
 import { GET } from '@/app/api/v2/credentials/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
@@ -65,7 +66,12 @@ describe('GET /api/v2/credentials', () => {
     v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.execute.mockResolvedValue({ credentials: [credential] })
+    mocks.execute.mockResolvedValue({
+      credentials: [credential],
+      nextCursorKeys: null,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
   })
 
   it('authenticates and charges before validating workspace input', async () => {
@@ -93,6 +99,9 @@ describe('GET /api/v2/credentials', () => {
         search: undefined,
         sortBy: 'createdAt',
         sortOrder: 'desc',
+        limit: V2_DEFAULT_PAGE_SIZE,
+        cursor: undefined,
+        cursorKeys: undefined,
       },
       request,
     })

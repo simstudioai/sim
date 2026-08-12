@@ -46,6 +46,7 @@ vi.mock('@/lib/secrets/application/use-cases', () => ({
   listSecretsUseCase: { operation: { id: 'secrets.list' }, execute: mocks.list },
 }))
 
+import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
 import { GET } from '@/app/api/v2/secrets/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -88,7 +89,13 @@ describe('GET /api/v2/secrets', () => {
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.gate.mockResolvedValue(null)
-    mocks.list.mockResolvedValue({ secrets: [secret], userId: 'user-1' })
+    mocks.list.mockResolvedValue({
+      secrets: [secret],
+      userId: 'user-1',
+      nextCursorKeys: null,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
   })
 
   it('lists secret metadata without exposing values', async () => {
@@ -121,6 +128,9 @@ describe('GET /api/v2/secrets', () => {
         search: undefined,
         sortBy: 'name',
         sortOrder: 'asc',
+        limit: V2_DEFAULT_PAGE_SIZE,
+        cursor: undefined,
+        cursorKeys: undefined,
       },
       request: expect.anything(),
     })

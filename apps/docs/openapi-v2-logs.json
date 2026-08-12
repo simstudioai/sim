@@ -187,21 +187,24 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum log entries per page, clamped to 1–1000.",
+            "description": "Maximum log entries per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
             "schema": {
-              "description": "Maximum log entries per page, clamped to 1–1000.",
-              "default": 100,
-              "type": "number"
+              "description": "Maximum log entries per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
             }
           },
           {
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by a previous page.",
+            "description": "Opaque cursor returned by the previous page.",
             "schema": {
+              "description": "Opaque cursor returned by the previous page.",
               "type": "string",
-              "description": "Opaque cursor returned by a previous page."
+              "minLength": 1
             }
           },
           {

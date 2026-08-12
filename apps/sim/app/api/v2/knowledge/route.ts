@@ -16,7 +16,7 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { toV2KnowledgeBase, toV2KnowledgeBases } from '@/app/api/v2/knowledge/utils'
-import { v2Error } from '@/app/api/v2/lib/response'
+import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -34,11 +34,15 @@ export const GET = defineV2JsonRoute({
     search: query.search,
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
+    limit: query.limit,
+    cursorKeys: readSortedCursor(query.cursor, query.sortBy, query.sortOrder),
   }),
   useCase: listKnowledgeBases,
-  present: async ({ knowledgeBases }) => ({
+  present: async ({ knowledgeBases, nextCursorKeys, sortBy, sortOrder }) => ({
     data: await toV2KnowledgeBases(knowledgeBases),
-    nextCursor: null,
+    nextCursor: nextCursorKeys
+      ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), nextCursorKeys)
+      : null,
   }),
 })
 
@@ -49,9 +53,6 @@ export const POST = defineV2JsonRoute({
   operation: knowledgeOperations.create,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
-  parseOptions: {
-    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
-  },
   mapInput: ({ body }) => ({
     workspaceId: body.workspaceId,
     name: body.name,

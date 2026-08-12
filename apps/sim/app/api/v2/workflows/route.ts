@@ -1,17 +1,15 @@
 import type { V2WorkflowListItem } from '@/lib/api/contracts/v2/workflows'
 import { v2CreateWorkflowContract, v2ListWorkflowsContract } from '@/lib/api/contracts/v2/workflows'
-import { INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
   v2OrchestrationErrorPolicy,
   v2RateLimits,
 } from '@/lib/api/server/routes'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { cursorSortKey, decodeSortedCursor, encodeSortedCursor } from '@/app/api/v2/lib/response'
+import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -22,23 +20,16 @@ export const GET = defineV2JsonRoute({
   operation: workflowOperations.list,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
-  mapInput: ({ query }) => {
-    const sort = cursorSortKey(query.sortBy, query.sortOrder)
-    const decoded = decodeSortedCursor(query.cursor, sort)
-    if (decoded.status === 'invalid') {
-      throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
-    }
-    return {
-      workspaceId: query.workspaceId,
-      folderPath: query.folderPath,
-      deployedOnly: query.deployedOnly,
-      search: query.search,
-      sortBy: query.sortBy,
-      sortOrder: query.sortOrder,
-      cursorKeys: decoded.status === 'ok' ? decoded.keys : undefined,
-      limit: query.limit,
-    }
-  },
+  mapInput: ({ query }) => ({
+    workspaceId: query.workspaceId,
+    folderPath: query.folderPath,
+    deployedOnly: query.deployedOnly,
+    search: query.search,
+    sortBy: query.sortBy,
+    sortOrder: query.sortOrder,
+    cursorKeys: readSortedCursor(query.cursor, query.sortBy, query.sortOrder),
+    limit: query.limit,
+  }),
   useCase: listWorkflows,
   present: ({ workflows, nextCursorKeys, sortBy, sortOrder }) => ({
     data: workflows.map(

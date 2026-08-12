@@ -72,7 +72,6 @@ vi.mock('@/lib/folders/queries', () => ({
 }))
 
 vi.mock('@/lib/workflows/queries', () => ({
-  InvalidWorkflowListCursorError: class InvalidWorkflowListCursorError extends Error {},
   listWorkspaceWorkflows: mocks.listRows,
   loadWorkflowReadSnapshot: mocks.loadSnapshot,
 }))

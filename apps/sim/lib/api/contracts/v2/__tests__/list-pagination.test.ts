@@ -46,9 +46,14 @@ const CONTRACTS_DIR = path.resolve(import.meta.dirname, '..', '..')
 const PAGED_LISTS = [
   'GET /api/v2/audit-logs',
   'GET /api/v2/billing/logs',
+  'GET /api/v2/credentials',
+  'GET /api/v2/custom-tools',
   'GET /api/v2/files',
+  'GET /api/v2/knowledge',
   'GET /api/v2/knowledge/[id]/documents',
   'GET /api/v2/logs',
+  'GET /api/v2/secrets',
+  'GET /api/v2/skills',
   'GET /api/v2/tables',
   'GET /api/v2/tables/[tableId]/rows',
   'POST /api/v2/tables/[tableId]/query',
@@ -61,21 +66,34 @@ const PAGED_LISTS = [
 /**
  * Lists that accept neither param and always return `nextCursor: null`, because
  * the set is small and bounded per workspace or per table.
+ *
+ * Every remaining entry but the MCP server list is a *folder* list, and a folder
+ * tree is already capped where it is loaded
+ * (`MAX_*_FOLDERS_PER_WORKSPACE`) — bounded by construction rather than by a
+ * caller's `limit`.
  */
 const FULL_SET_LISTS = [
-  'GET /api/v2/credentials',
-  'GET /api/v2/custom-tools',
   'GET /api/v2/files/folders',
-  'GET /api/v2/knowledge',
   'GET /api/v2/knowledge/folders',
   'GET /api/v2/mcp-servers',
-  'GET /api/v2/secrets',
-  'GET /api/v2/skills',
   'GET /api/v2/tables/[tableId]/groups',
   'GET /api/v2/tables/[tableId]/views',
   'GET /api/v2/tables/folders',
   'GET /api/v2/workflows/folders',
 ] as const
+
+/**
+ * Lists that deliberately truncate a fractional `limit` instead of rejecting it.
+ *
+ * These three shipped that leniency and published it in their OpenAPI
+ * description, so tightening them would turn a currently-successful request into
+ * an error. Everything else must reject — see the fractional-limit test below.
+ */
+const CLAMPED_LIMIT_LISTS = new Set<string>([
+  'GET /api/v2/files',
+  'GET /api/v2/logs',
+  'GET /api/v2/tables',
+])
 
 interface ContractLike {
   method: string
@@ -201,6 +219,47 @@ function paginationParams(variants: string[][]): { any: string[]; all: string[] 
   }
 }
 
+/**
+ * Whether a schema rejects keys it does not declare, i.e. is `.strict()`.
+ *
+ * This is what separates "this list does not page" from "this list quietly
+ * throws your `limit` away". Zod strips unknown keys by default, so a full-set
+ * list that is not strict answers `?limit=1` with 200 and the entire set — the
+ * caller believes it bounded the response and it did not. Only the outermost
+ * object is inspected; that is where a query's unknown key is caught.
+ */
+function rejectsUnknownKeys(schema: unknown, depth: number = MAX_SCHEMA_DEPTH): boolean | null {
+  if (!schema || depth <= 0) return null
+  const def = (schema as { def?: Record<string, unknown> }).def
+  if (!def) return null
+  if (def.type === 'object') {
+    return (def.catchall as { def?: { type?: string } } | undefined)?.def?.type === 'never'
+  }
+  const inner = def.innerType ?? def.in ?? def.schema
+  return inner ? rejectsUnknownKeys(inner, depth - 1) : null
+}
+
+/**
+ * Whether a fractional `limit` is rejected by whichever slot carries it.
+ *
+ * The other required params are left out on purpose: the schema reports every
+ * failure at once, so it is enough to ask whether one of them is about `limit`.
+ * That keeps this free of per-resource fixtures and lets it run over every list
+ * the sweep finds — which matters, because the one list that still carried the
+ * original `LIMIT 2.5` defect was the one nobody remembered to add to a
+ * hand-written list.
+ */
+function rejectsFractionalLimit(contract: ContractLike): boolean {
+  for (const schema of [contract.query, contract.body]) {
+    if (!schema) continue
+    const result = schema.safeParse({ limit: '1.5' })
+    if (!result.success && result.error.issues.some((issue) => issue.path[0] === 'limit')) {
+      return true
+    }
+  }
+  return false
+}
+
 function listContractFiles(dir: string): string[] {
   const files: string[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
@@ -221,6 +280,10 @@ interface V2ListContract {
   key: string
   name: string
   params: { any: string[]; all: string[] }
+  /** `undefined` when the contract has no `query`; `null` when it could not be introspected. */
+  strictQuery: boolean | null | undefined
+  /** Whether a fractional `limit` draws a validation issue on `limit` itself. */
+  rejectsFractionalLimit: boolean
 }
 
 /**
@@ -245,7 +308,13 @@ async function sweepV2ListContracts(): Promise<V2ListContract[]> {
       const label = `${name} (${key})`
       if (!isListResponse(label, value.response?.schema)) continue
       if (found.has(key)) continue
-      found.set(key, { key, name, params: paginationParams(inputVariants(label, value)) })
+      found.set(key, {
+        key,
+        name,
+        params: paginationParams(inputVariants(label, value)),
+        strictQuery: value.query ? rejectsUnknownKeys(value.query) : undefined,
+        rejectsFractionalLimit: rejectsFractionalLimit(value),
+      })
     }
   }
   return [...found.values()].sort((a, b) => a.key.localeCompare(b.key))
@@ -268,7 +337,7 @@ describe('v2 list pagination split', () => {
 
       expect(
         unclassified,
-        'A new v2 list must be classified in PAGED_LISTS or FULL_SET_LISTS.'
+        'A new v2 list must be classified in PAGED_LISTS or FULL_SET_LISTS. See .agents/skills/v2-api-conventions/SKILL.md.'
       ).toEqual([])
       expect(contracts.map((c) => c.key).sort()).toEqual([...classified].sort())
     },
@@ -282,7 +351,7 @@ describe('v2 list pagination split', () => {
     for (const key of PAGED_LISTS) {
       expect(
         byKey.get(key)?.params.all,
-        `${key} is declared paged, so every input shape it accepts must offer limit and cursor`
+        `${key} is declared paged, so every input shape it accepts must offer limit and cursor. See .agents/skills/v2-api-conventions/SKILL.md.`
       ).toEqual(['limit', 'cursor'])
     }
   })
@@ -294,8 +363,52 @@ describe('v2 list pagination split', () => {
     for (const key of FULL_SET_LISTS) {
       expect(
         byKey.get(key)?.params.any,
-        `${key} returns the full set; adding a defaulted limit to any accepted input shape would truncate existing callers`
+        `${key} returns the full set; adding a defaulted limit to any accepted input shape would truncate existing callers. See .agents/skills/v2-api-conventions/SKILL.md.`
       ).toEqual([])
+    }
+  })
+
+  it('makes every v2 list query reject a param it does not implement', async () => {
+    const contracts = await loadV2ListContracts()
+    const byKey = new Map(contracts.map((c) => [c.key, c]))
+
+    for (const key of [...PAGED_LISTS, ...FULL_SET_LISTS]) {
+      const strictQuery = byKey.get(key)?.strictQuery
+      /**
+       * `undefined` is a list that takes no query at all — `POST .../query`
+       * carries its input in the body. `null` means the walk could not tell,
+       * which must fail rather than pass silently.
+       */
+      if (strictQuery === undefined) continue
+      expect(
+        strictQuery,
+        `${key} must declare its query \`.strict()\`. Zod strips unknown keys by default, so a non-strict list answers ?limit=1 with 200 and the whole set — the caller believes it bounded the response and it did not. See .agents/skills/v2-api-conventions/SKILL.md.`
+      ).toBe(true)
+    }
+  })
+
+  it('never lets a fractional limit reach the query as a fractional LIMIT', async () => {
+    const contracts = await loadV2ListContracts()
+    const byKey = new Map(contracts.map((c) => [c.key, c]))
+
+    for (const key of PAGED_LISTS) {
+      if (CLAMPED_LIMIT_LISTS.has(key)) continue
+      expect(
+        byKey.get(key)?.rejectsFractionalLimit,
+        `${key} accepts a fractional limit, which reaches Postgres as \`LIMIT 2.5\` and answers 500. Build the param from v2PaginationFields. See .agents/skills/v2-api-conventions/SKILL.md.`
+      ).toBe(true)
+    }
+  })
+
+  it('holds the clamping lists to truncation rather than rejection', async () => {
+    const contracts = await loadV2ListContracts()
+    const byKey = new Map(contracts.map((c) => [c.key, c]))
+
+    for (const key of CLAMPED_LIMIT_LISTS) {
+      expect(
+        byKey.get(key)?.rejectsFractionalLimit,
+        `${key} published that it truncates a fractional limit; rejecting it now would break callers relying on that.`
+      ).toBe(false)
     }
   })
 

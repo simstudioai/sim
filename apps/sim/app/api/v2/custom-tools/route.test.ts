@@ -54,6 +54,7 @@ vi.mock('@/lib/custom-tools/application/use-cases', () => ({
   },
 }))
 
+import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
 import { GET, POST } from '@/app/api/v2/custom-tools/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -121,9 +122,10 @@ describe('/api/v2/custom-tools', () => {
       principal: PRINCIPAL,
       input: {
         workspaceId: WORKSPACE_ID,
-        search: undefined,
         sortBy: 'createdAt',
         sortOrder: 'desc',
+        limit: V2_DEFAULT_PAGE_SIZE,
+        cursorKeys: undefined,
       },
       request: expect.anything(),
     })

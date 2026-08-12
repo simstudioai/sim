@@ -4,6 +4,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
   v2DataResponse,
+  v2PaginationFields,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 
@@ -58,15 +59,7 @@ export type V2WorkspaceMember = z.output<typeof v2WorkspaceMemberSchema>
 
 export const v2ListWorkspaceMembersQuerySchema = z
   .object({
-    limit: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .optional()
-      .default(50)
-      .describe('Maximum members to return. Defaults to 50 and cannot exceed 100.'),
-    cursor: z.string().min(1).optional().describe('Opaque cursor returned by the preceding page.'),
+    ...v2PaginationFields({ description: 'Maximum members to return per page.' }),
   })
   .strict()
 export type V2ListWorkspaceMembersQuery = z.output<typeof v2ListWorkspaceMembersQuerySchema>

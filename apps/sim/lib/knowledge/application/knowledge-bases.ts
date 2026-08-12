@@ -4,6 +4,7 @@ import { db } from '@sim/db'
 import { knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { inArray } from 'drizzle-orm'
+import type { CursorKey } from '@/lib/api/list-query'
 import {
   authorizeWorkspaceOperation,
   type OperationUseCase,
@@ -69,6 +70,12 @@ export interface ListKnowledgeBasesInput {
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
   sortOrder?: 'asc' | 'desc'
+  /**
+   * Page size for the public list. Omitted reads the whole workspace set, which
+   * is what the internal catalog caller still wants.
+   */
+  limit?: number
+  cursorKeys?: CursorKey[]
 }
 
 export interface KnowledgeBaseResult {
@@ -78,6 +85,9 @@ export interface KnowledgeBaseResult {
 
 export interface ListKnowledgeBasesResult {
   knowledgeBases: KnowledgeBaseResult[]
+  nextCursorKeys: CursorKey[] | null
+  sortBy: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder: 'asc' | 'desc'
 }
 
 export interface ListArchivedKnowledgeBasesResult {
@@ -218,29 +228,37 @@ async function executeListKnowledgeBases(args: {
   input: ListKnowledgeBasesInput
   context: KnowledgeWorkspaceContext
 }): Promise<ListKnowledgeBasesResult> {
-  const index = await loadActiveFolderPathIndex(
-    args.context.workspaceId,
-    'knowledge_base',
-    undefined,
-    { maxRows: MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE }
-  )
-  const folderId =
+  /**
+   * The folder index renders each row's `folderPath` and the folder filter
+   * resolves the caller's `folderPath` to an id. Neither reads the other, so
+   * they run together rather than adding a serial round-trip to a list route.
+   */
+  const [index, folderId] = await Promise.all([
+    loadActiveFolderPathIndex(args.context.workspaceId, 'knowledge_base', undefined, {
+      maxRows: MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE,
+    }),
     args.input.folderPath === undefined
       ? undefined
-      : await resolveKnowledgeFolderPath(args.context.workspaceId, args.input.folderPath).then(
+      : resolveKnowledgeFolderPath(args.context.workspaceId, args.input.folderPath).then(
           (resolved) => resolved.folderId
-        )
-  const rows = await getWorkspaceKnowledgeBases(args.context.workspaceId, 'active', {
+        ),
+  ])
+  const page = await getWorkspaceKnowledgeBases(args.context.workspaceId, 'active', {
     folderId,
     search: args.input.search,
     sortBy: args.input.sortBy,
     sortOrder: args.input.sortOrder,
+    limit: args.input.limit,
+    cursorKeys: args.input.cursorKeys,
   })
   return {
-    knowledgeBases: rows.map((knowledgeBase) => ({
+    knowledgeBases: page.data.map((knowledgeBase) => ({
       knowledgeBase,
       folderPath: knowledgeFolderPathForId(index, knowledgeBase.folderId),
     })),
+    nextCursorKeys: page.nextCursorKeys,
+    sortBy: args.input.sortBy ?? 'createdAt',
+    sortOrder: args.input.sortOrder ?? 'asc',
   }
 }
 
@@ -397,7 +415,7 @@ export const listArchivedKnowledgeBases = defineAuthorizedKnowledgeUseCase({
     resolveKnowledgeWorkspaceContext(input),
   async execute({ context }): Promise<ListArchivedKnowledgeBasesResult> {
     return {
-      knowledgeBases: await getWorkspaceKnowledgeBases(context.workspaceId, 'archived'),
+      knowledgeBases: (await getWorkspaceKnowledgeBases(context.workspaceId, 'archived')).data,
     }
   },
 })

@@ -29,7 +29,7 @@ async function resolveKnowledgeBaseByVfsName(
   context: KnowledgeWorkspaceContext,
   sourceName: string
 ): Promise<KnowledgeBaseWithCounts> {
-  const rows = await getWorkspaceKnowledgeBases(context.workspaceId, 'active', {
+  const { data: rows } = await getWorkspaceKnowledgeBases(context.workspaceId, 'active', {
     search: sourceName,
   })
   const matches = rows.filter((row) => row.name === sourceName)

@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listKnowledgeBases",
         "summary": "List Knowledge Bases",
-        "description": "List knowledge bases in a workspace with folder filtering, search, sorting, and the canonical cursor envelope. The bounded workspace set is returned in one page with `nextCursor` always null; there is no second page to fetch. An unknown `folderPath` is a 404. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "List knowledge bases in a workspace with folder filtering, search, and sorting. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null. An unknown `folderPath` is a 404. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -94,6 +94,30 @@
               "description": "Sort direction.",
               "type": "string",
               "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum knowledge bases to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum knowledge bases to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor returned by the previous page.",
+            "schema": {
+              "description": "Opaque cursor returned by the previous page.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],

@@ -13,7 +13,6 @@ import {
 } from '@/lib/knowledge/application/knowledge-bases'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { toV2KnowledgeBase } from '@/app/api/v2/knowledge/utils'
-import { v2Error } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -42,9 +41,6 @@ export const PATCH = defineV2JsonRoute({
   operation: knowledgeOperations.update,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
-  parseOptions: {
-    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
-  },
   mapInput: ({ params, body }) => ({
     knowledgeBaseId: params.id,
     assertedWorkspaceId: body.workspaceId,

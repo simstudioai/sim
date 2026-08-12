@@ -104,11 +104,13 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum files per page, clamped to 1–1000.",
+            "description": "Maximum files per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
             "schema": {
-              "description": "Maximum files per page, clamped to 1–1000.",
-              "default": 100,
-              "type": "number"
+              "description": "Maximum files per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
             }
           },
           {
@@ -984,11 +986,11 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum entries per page, from 1 to 100.",
+            "description": "Maximum audit entries to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
             "schema": {
               "default": 50,
-              "description": "Maximum entries per page, from 1 to 100.",
-              "type": "number",
+              "description": "Maximum audit entries to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
               "minimum": 1,
               "maximum": 100
             }
@@ -1000,7 +1002,8 @@
             "description": "Opaque cursor returned by the previous page.",
             "schema": {
               "description": "Opaque cursor returned by the previous page.",
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           {

@@ -5,6 +5,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
   v2DataResponse,
+  v2PaginationFields,
   v2SearchSchema,
   v2SortFields,
   v2TimestampSchema,
@@ -57,12 +58,15 @@ export type V2SecretDeleteData = z.output<typeof v2SecretDeleteDataSchema>
 export const v2SecretSortFields = ['name', 'createdAt', 'updatedAt'] as const
 export type V2SecretSortBy = (typeof v2SecretSortFields)[number]
 
-export const v2ListSecretsQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace whose secret metadata should be listed.'),
-  scope: v2SecretScopeSchema.optional().describe('Restrict results to one ownership scope.'),
-  search: v2SearchSchema.describe('Case-insensitive substring match against the secret name.'),
-  ...v2SortFields(v2SecretSortFields, { sortBy: 'name', sortOrder: 'asc' }),
-})
+export const v2ListSecretsQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace whose secret metadata should be listed.'),
+    scope: v2SecretScopeSchema.optional().describe('Restrict results to one ownership scope.'),
+    search: v2SearchSchema.describe('Case-insensitive substring match against the secret name.'),
+    ...v2SortFields(v2SecretSortFields, { sortBy: 'name', sortOrder: 'asc' }),
+    ...v2PaginationFields({ description: 'Maximum secrets to return per page.' }),
+  })
+  .strict()
 export type V2ListSecretsQuery = z.output<typeof v2ListSecretsQuerySchema>
 
 export const v2SecretParamsSchema = z.object({
@@ -90,7 +94,10 @@ export const v2DeleteSecretQuerySchema = z.object({
 })
 export type V2DeleteSecretQuery = z.output<typeof v2DeleteSecretQuerySchema>
 
-/** Lists names and metadata only. There is deliberately no single-secret GET. */
+/**
+ * Lists names and metadata only, keyset-paginated over the active sort. There is
+ * deliberately no single-secret GET, and no response ever carries a value.
+ */
 export const v2ListSecretsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/secrets',

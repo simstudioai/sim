@@ -16,6 +16,7 @@ import {
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
+  v2PaginationFields,
   v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
@@ -287,13 +288,12 @@ export const v2ListFilesQuerySchema = z
       .describe('Restrict results to files directly inside this folder.'),
     search: v2SearchSchema.describe('Case-insensitive substring match against the file name.'),
     ...v2SortFields(v2FileSortFields, { sortBy: 'uploadedAt', sortOrder: 'asc' }),
-    limit: z.coerce
-      .number()
-      .optional()
-      .default(100)
-      .transform((v) => Math.min(Math.max(1, Math.trunc(v)), 1000))
-      .describe('Maximum files per page, clamped to 1–1000.'),
-    cursor: z.string().min(1).optional().describe('Opaque cursor returned by the previous page.'),
+    ...v2PaginationFields({
+      max: 1000,
+      fallback: 100,
+      outOfRange: 'clamp',
+      description: 'Maximum files per page.',
+    }),
   })
   .strict()
 

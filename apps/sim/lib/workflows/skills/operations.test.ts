@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getEditableSkillIdsMock } = vi.hoisted(() => ({
@@ -14,7 +20,12 @@ vi.mock('@/lib/skills/access', () => ({
   getEditableSkillIds: getEditableSkillIdsMock,
 }))
 
-import { listSkills, listSkillsForUser } from '@/lib/workflows/skills/operations'
+import { BUILTIN_SKILLS } from '@/lib/workflows/skills/builtin-skills'
+import {
+  listSkillSummariesPage,
+  listSkills,
+  listSkillsForUser,
+} from '@/lib/workflows/skills/operations'
 
 describe('listSkills includeBuiltins', () => {
   beforeEach(() => {
@@ -44,6 +55,69 @@ describe('listSkills includeBuiltins', () => {
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe('sk-1')
     expect(result.some((s) => s.id.startsWith('builtin-'))).toBe(false)
+  })
+})
+
+/**
+ * The page is sliced after the built-ins are merged in and the merged array is
+ * re-sorted, so these assert the window over that merged sequence — not over
+ * the DB rows alone.
+ */
+describe('listSkillSummariesPage', () => {
+  const page = (limit: number, offset: number) =>
+    listSkillSummariesPage({
+      workspaceId: 'ws-1',
+      sortBy: 'name',
+      sortOrder: 'asc',
+      limit,
+      offset,
+    })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
+  it('returns at most `limit` skills and reports that more remain', async () => {
+    const result = await page(2, 0)
+
+    expect(result.skills).toHaveLength(2)
+    expect(result.hasMore).toBe(true)
+    expect(result).toMatchObject({ offset: 0, limit: 2 })
+  })
+
+  it('resumes at the offset and reports the end of the list', async () => {
+    const first = await page(BUILTIN_SKILLS.length, 0)
+    const second = await page(BUILTIN_SKILLS.length, BUILTIN_SKILLS.length)
+
+    expect(first.skills).toHaveLength(BUILTIN_SKILLS.length)
+    expect(first.hasMore).toBe(false)
+    expect(second.skills).toHaveLength(0)
+    expect(second.hasMore).toBe(false)
+  })
+
+  it('pages over the merged built-in and workspace sequence, not the DB rows alone', async () => {
+    queueTableRows(schemaMock.skill, [
+      { id: 'sk-1', name: 'aaa-mine', description: 'd', workspaceId: 'ws-1' },
+    ])
+
+    const result = await page(1, 0)
+
+    expect(result.skills.map((s) => s.id)).toEqual(['sk-1'])
+    expect(result.hasMore).toBe(true)
+  })
+
+  it('never selects the skill body for a list page', async () => {
+    await page(50, 0)
+
+    const projection = dbChainMockFns.select.mock.calls.at(-1)?.[0]
+    expect(projection).toBeDefined()
+    expect(projection).not.toHaveProperty('content')
+    expect(projection).toHaveProperty('name')
   })
 })
 

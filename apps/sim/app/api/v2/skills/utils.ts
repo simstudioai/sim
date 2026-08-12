@@ -3,6 +3,7 @@ import type { NextResponse } from 'next/server'
 import type { V2Skill, V2SkillSummary } from '@/lib/api/contracts/v2/skills'
 import type { SkillOrchestrationErrorCode } from '@/lib/skills/orchestration'
 import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
+import type { SkillSummaryRow } from '@/lib/workflows/skills/operations'
 import { v2Error } from '@/app/api/v2/lib/response'
 
 /**
@@ -11,8 +12,11 @@ import { v2Error } from '@/app/api/v2/lib/response'
 
 type SkillRow = typeof skill.$inferSelect
 
-/** List projection — no `content`; skill bodies are fetched per skill. */
-export function toV2SkillSummary(row: SkillRow): V2SkillSummary {
+/**
+ * List projection — no `content`; skill bodies are fetched per skill. It takes
+ * the body-less row so the list query never has to load one.
+ */
+export function toV2SkillSummary(row: SkillSummaryRow): V2SkillSummary {
   return {
     id: row.id,
     name: row.name,

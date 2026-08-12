@@ -139,10 +139,10 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum members to return. Defaults to 50 and cannot exceed 100.",
+            "description": "Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
             "schema": {
               "default": 50,
-              "description": "Maximum members to return. Defaults to 50 and cannot exceed 100.",
+              "description": "Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100
@@ -152,9 +152,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the preceding page.",
+            "description": "Opaque cursor returned by the previous page.",
             "schema": {
-              "description": "Opaque cursor returned by the preceding page.",
+              "description": "Opaque cursor returned by the previous page.",
               "type": "string",
               "minLength": 1
             }
@@ -599,7 +599,7 @@
       "get": {
         "operationId": "listSkills",
         "summary": "List Skills",
-        "description": "List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies and uses the standard cursor envelope with `nextCursor` always null, so there is no second page to fetch; fetch one skill to read its content.",
+        "description": "List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -647,6 +647,30 @@
               "description": "Sort direction.",
               "type": "string",
               "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum skills to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum skills to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor returned by the previous page.",
+            "schema": {
+              "description": "Opaque cursor returned by the previous page.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -991,7 +1015,7 @@
       "get": {
         "operationId": "listCustomTools",
         "summary": "List Custom Tools",
-        "description": "List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.",
         "tags": ["Custom Tools"],
         "parameters": [
           {
@@ -1039,6 +1063,30 @@
               "description": "Sort direction.",
               "type": "string",
               "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum custom tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum custom tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor returned by the previous page.",
+            "schema": {
+              "description": "Opaque cursor returned by the previous page.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -1383,7 +1431,7 @@
       "get": {
         "operationId": "listCredentials",
         "summary": "List Credentials",
-        "description": "List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed. The bounded set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.",
         "tags": ["Credentials"],
         "parameters": [
           {
@@ -1454,6 +1502,30 @@
               "type": "string",
               "enum": ["asc", "desc"]
             }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum credentials to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum credentials to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor returned by the previous page.",
+            "schema": {
+              "description": "Opaque cursor returned by the previous page.",
+              "type": "string",
+              "minLength": 1
+            }
           }
         ],
         "responses": {
@@ -1506,7 +1578,7 @@
       "get": {
         "operationId": "listSecrets",
         "summary": "List Secrets",
-        "description": "List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned. The bounded set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -1565,6 +1637,30 @@
               "description": "Sort direction.",
               "type": "string",
               "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum secrets to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum secrets to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor returned by the previous page.",
+            "schema": {
+              "description": "Opaque cursor returned by the previous page.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],

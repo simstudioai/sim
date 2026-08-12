@@ -8,6 +8,7 @@ import {
   v2DataResponse,
   v2FolderPathInputSchema,
   v2FolderPathSchema,
+  v2PaginationFields,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
@@ -225,13 +226,12 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       .describe('Whether to include the final workflow output.')
       .optional()
       .default(false),
-    limit: z.coerce
-      .number()
-      .optional()
-      .default(100)
-      .transform((value) => Math.min(Math.max(1, Math.trunc(value)), 1000))
-      .describe('Maximum log entries per page, clamped to 1–1000.'),
-    cursor: z.string().describe('Opaque cursor returned by a previous page.').optional(),
+    ...v2PaginationFields({
+      max: 1000,
+      fallback: 100,
+      outOfRange: 'clamp',
+      description: 'Maximum log entries per page.',
+    }),
     order: z
       .enum(['desc', 'asc'])
       .describe('Sort order by execution start time.')

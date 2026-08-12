@@ -5,7 +5,11 @@ import {
   v1AuditLogParamsSchema,
   v1ListAuditLogsQuerySchema,
 } from '@/lib/api/contracts/v1/audit-logs'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2PaginationFields,
+} from '@/lib/api/contracts/v2/shared'
 
 /**
  * v2 audit-logs contracts. These are org-scoped enterprise endpoints. The
@@ -84,12 +88,7 @@ export const v2ListAuditLogsQuerySchema = v1ListAuditLogsQuerySchema
     includeDeparted: v1ListAuditLogsQuerySchema.shape.includeDeparted.describe(
       'Include actions by users who have left the organization.'
     ),
-    limit: v1ListAuditLogsQuerySchema.shape.limit.describe(
-      'Maximum entries per page, from 1 to 100.'
-    ),
-    cursor: v1ListAuditLogsQuerySchema.shape.cursor.describe(
-      'Opaque cursor returned by the previous page.'
-    ),
+    ...v2PaginationFields({ description: 'Maximum audit entries to return per page.' }),
     organizationId: organizationIdSchema.describe(
       'Organization whose audit trail should be queried.'
     ),
