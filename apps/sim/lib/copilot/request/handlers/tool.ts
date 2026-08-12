@@ -2,9 +2,12 @@ import { isBrowserToolName } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import type { AsyncCompletionSignal } from '@/lib/copilot/async-runs/lifecycle'
+import type {
+  AsyncCompletionSignal,
+  AsyncTerminalCompletionSnapshot,
+} from '@/lib/copilot/async-runs/lifecycle'
 import { upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
-import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
+import { COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS, STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
   type MothershipStreamV1ToolCallDescriptor,
@@ -24,10 +27,7 @@ import {
 } from '@/lib/copilot/request/session'
 import { markToolResultSeen, wasToolResultSeen } from '@/lib/copilot/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/copilot/request/tool-call-state'
-import {
-  waitForClientToolCompletion,
-  waitForWorkflowToolCompletion,
-} from '@/lib/copilot/request/tools/client'
+import { waitForClientToolCompletion } from '@/lib/copilot/request/tools/client'
 import { sealClientToolContext } from '@/lib/copilot/request/tools/client-completion-seal.server'
 import { executeToolAndReport } from '@/lib/copilot/request/tools/executor'
 import {
@@ -35,6 +35,7 @@ import {
   TOOL_AWAITING_APPROVAL_STATUS,
   toolCallNeedsApproval,
 } from '@/lib/copilot/request/tools/permission'
+import { raceWorkflowToolClientPickup } from '@/lib/copilot/request/tools/workflow-client-fallback'
 import type {
   ExecutionContext,
   OrchestratorOptions,
@@ -671,9 +672,11 @@ async function dispatchToolExecution(
 ): Promise<void> {
   const scopeLabel = scope === 'subagent' ? 'subagent ' : ''
 
-  const fireToolExecution = (): Promise<AsyncCompletionSignal> => {
+  const fireToolExecution = (
+    execContextOverride?: ExecutionContext
+  ): Promise<AsyncCompletionSignal> => {
     return (async () => {
-      return executeToolAndReport(toolCallId, context, execContext, options)
+      return executeToolAndReport(toolCallId, context, execContextOverride ?? execContext, options)
     })().catch((err) => {
       logger.error(`Parallel ${scopeLabel}tool execution failed`, {
         toolCallId,
@@ -754,23 +757,58 @@ async function dispatchToolExecution(
         ...(context.runId ? { [TraceAttr.RunId]: context.runId } : {}),
       },
       async (span) => {
-        const completion = isWorkflowToolName(toolName)
-          ? await waitForWorkflowToolCompletion({
-              toolCallId,
-              workflowId: resolveWorkflowToolTargetId(args, execContext.workflowId),
-              timeoutMs: timeoutMs ?? STREAM_TIMEOUT_MS,
-              abortSignal: options.abortSignal,
-              registry: execContext.resolvedSecretTraceRegistry,
-            })
-          : await waitForClientToolCompletion({
-              toolCallId,
-              runId: context.runId,
-              userId: execContext.userId,
-              timeoutMs,
-              abortSignal: options.abortSignal,
-              registry: execContext.resolvedSecretTraceRegistry,
-            })
-        span.setAttribute(TraceAttr.ToolCompletionReceived, completion !== undefined)
+        let completion: AsyncTerminalCompletionSnapshot | null
+        if (isWorkflowToolName(toolName)) {
+          const race = await raceWorkflowToolClientPickup({
+            toolCallId,
+            workflowId: resolveWorkflowToolTargetId(args, execContext.workflowId),
+            timeoutMs: timeoutMs ?? STREAM_TIMEOUT_MS,
+            graceMs: COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS,
+            abortSignal: options.abortSignal,
+            registry: execContext.resolvedSecretTraceRegistry,
+            runOnServer: (boundExecutionId) => {
+              // `executeToolAndReportInner` short-circuits a call that is
+              // already 'executing' — which is exactly what this wait set it to
+              // before parking. Hand it back the state it dispatches from.
+              toolCall.status = 'pending'
+              return fireToolExecution({
+                ...execContext,
+                boundWorkflowExecutionId: boundExecutionId,
+              })
+            },
+          })
+
+          if (race.winner === 'sim') {
+            // `executeToolAndReport` already emitted its own `executor: sim`
+            // result and marked it seen, so the client-completion bookkeeping
+            // below must not run again on top of it.
+            span.setAttribute(TraceAttr.ToolExecutor, MothershipStreamV1ToolExecutor.sim)
+            if (race.signal) {
+              span.setAttribute(TraceAttr.ToolOutcome, race.signal.status)
+            }
+            return (
+              race.signal ?? {
+                status: MothershipStreamV1ToolOutcome.error,
+                message: 'Tool completion missing',
+                data: { error: 'Tool completion missing' },
+              }
+            )
+          }
+          completion = race.completion ?? null
+        } else {
+          completion = await waitForClientToolCompletion({
+            toolCallId,
+            runId: context.runId,
+            userId: execContext.userId,
+            timeoutMs,
+            abortSignal: options.abortSignal,
+            registry: execContext.resolvedSecretTraceRegistry,
+          })
+        }
+        span.setAttribute(TraceAttr.ToolExecutor, MothershipStreamV1ToolExecutor.client)
+        // Both waiters resolve `T | null`, never undefined — comparing against
+        // undefined made this a constant `true` and hid every timeout.
+        span.setAttribute(TraceAttr.ToolCompletionReceived, completion !== null)
         if (completion) {
           span.setAttribute(TraceAttr.ToolOutcome, completion.status)
         }

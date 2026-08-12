@@ -15,10 +15,16 @@ const { isSimExecuted, executeTool, ensureHandlersRegistered, toolRequiresApprov
   })
 )
 
-const { upsertAsyncToolCall, markAsyncToolRunning, completeAsyncToolCall } = vi.hoisted(() => ({
+const {
+  upsertAsyncToolCall,
+  markAsyncToolRunning,
+  completeAsyncToolCall,
+  claimWorkflowToolExecution,
+} = vi.hoisted(() => ({
   upsertAsyncToolCall: vi.fn(),
   markAsyncToolRunning: vi.fn(),
   completeAsyncToolCall: vi.fn(),
+  claimWorkflowToolExecution: vi.fn().mockResolvedValue(null),
 }))
 
 const { waitForClientToolCompletion, waitForToolCompletion, waitForWorkflowToolCompletion } =
@@ -56,6 +62,7 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
   upsertAsyncToolCall,
   markAsyncToolRunning,
   completeAsyncToolCall,
+  claimWorkflowToolExecution,
 }))
 
 vi.mock('@/lib/copilot/request/tools/client', () => ({
@@ -578,11 +585,13 @@ describe('sse-handlers tool lifecycle', () => {
     await sleep(0)
     await Promise.allSettled(context.pendingToolPromises.values())
 
+    // The waiter always receives a signal now: the server fallback needs a
+    // handle to cancel its own wait if it ends up running the tool itself.
     expect(waitForWorkflowToolCompletion).toHaveBeenCalledWith({
       toolCallId: 'tool-background',
       workflowId: 'workflow-1',
       timeoutMs: 1000,
-      abortSignal: undefined,
+      abortSignal: expect.any(AbortSignal),
       registry: execContext.resolvedSecretTraceRegistry,
     })
     expect(onEvent).toHaveBeenCalledWith(
@@ -642,6 +651,116 @@ describe('sse-handlers tool lifecycle', () => {
         }),
       })
     )
+  })
+
+  it('runs a workflow tool server-side when no browser picks it up', async () => {
+    // Nobody claims it, the wait expires, and the server wins the claim.
+    waitForWorkflowToolCompletion.mockResolvedValue(null)
+    claimWorkflowToolExecution.mockResolvedValueOnce({ toolCallId: 'tool-unclaimed' })
+    executeTool.mockResolvedValueOnce({ success: true, output: { ran: 'on-server' } })
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-unclaimed',
+          toolName: 'run_workflow',
+          arguments: { workflowId: 'workflow-1' },
+          executor: MothershipStreamV1ToolExecutor.client,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent, interactive: true, timeout: 1 }
+    )
+
+    await Promise.allSettled(context.pendingToolPromises.values())
+
+    // Regression guard: the wait sets the call to 'executing' before parking,
+    // and executeToolAndReport short-circuits anything already 'executing'. If
+    // the handoff stops resetting the status, executeTool is never reached and
+    // the workflow silently does not run.
+    expect(executeTool).toHaveBeenCalled()
+    expect(executeTool.mock.calls.at(-1)?.[0]).toBe('run_workflow')
+    // The claimed execution id must reach the handler so the run is attributable.
+    expect(executeTool.mock.calls.at(-1)?.[2]?.boundWorkflowExecutionId).toBeTruthy()
+
+    const workflowResults = onEvent.mock.calls
+      .map(([event]) => event)
+      .filter(
+        (event) =>
+          event?.type === MothershipStreamV1EventType.tool &&
+          event.payload?.toolCallId === 'tool-unclaimed' &&
+          event.payload?.phase === MothershipStreamV1ToolPhase.result
+      )
+    // Exactly one result, from the sim path — no client-flavored duplicate on top.
+    expect(workflowResults).toHaveLength(1)
+    expect(workflowResults[0].payload.executor).toBe(MothershipStreamV1ToolExecutor.sim)
+  })
+
+  it('claims and runs the same workflow when the call omits an explicit workflowId', async () => {
+    // The waiter resolves the target via resolveWorkflowToolTargetId(args, ctx)
+    // while the handler resolves it as params.workflowId || context.workflowId.
+    // If those two ever diverge, the fallback would claim one workflow and run
+    // another.
+    waitForWorkflowToolCompletion.mockResolvedValue(null)
+    claimWorkflowToolExecution.mockResolvedValueOnce({ toolCallId: 'tool-implicit-workflow' })
+    executeTool.mockResolvedValueOnce({ success: true, output: {} })
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-implicit-workflow',
+          toolName: 'run_workflow',
+          arguments: {},
+          executor: MothershipStreamV1ToolExecutor.client,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent: vi.fn(), interactive: true, timeout: 1 }
+    )
+
+    await Promise.allSettled(context.pendingToolPromises.values())
+
+    expect(waitForWorkflowToolCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({ workflowId: 'workflow-1' })
+    )
+    expect(executeTool.mock.calls.at(-1)?.[2]?.workflowId).toBe('workflow-1')
+  })
+
+  it('does not run a workflow tool server-side when a browser holds the claim', async () => {
+    waitForWorkflowToolCompletion.mockResolvedValue(null)
+    claimWorkflowToolExecution.mockResolvedValueOnce(null)
+    executeTool.mockClear()
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-claimed-elsewhere',
+          toolName: 'run_workflow',
+          arguments: { workflowId: 'workflow-1' },
+          executor: MothershipStreamV1ToolExecutor.client,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent, interactive: true, timeout: 1 }
+    )
+
+    await Promise.allSettled(context.pendingToolPromises.values())
+
+    expect(executeTool).not.toHaveBeenCalled()
   })
 
   it('waits for the desktop client when a static VFS read is explicitly user-local', async () => {

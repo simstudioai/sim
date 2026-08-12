@@ -451,6 +451,32 @@ describe('run tool execution cancellation', () => {
     )
   })
 
+  it('drops a duplicate async launch without confirming or surfacing an error', async () => {
+    // The server fallback (or another tab) already claimed this tool call.
+    // Reporting an error here would overwrite a run that is in flight.
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: vi.fn().mockResolvedValue({
+        error: 'Copilot workflow tool is already bound to another execution',
+        code: 'COPILOT_WORKFLOW_EXECUTION_CONFLICT',
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    executeRunToolOnClient('tool-async-duplicate', 'run_workflow', {
+      workflowId: 'wf-1',
+      async: true,
+    })
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+
+    // Only the execute attempt — never a /api/copilot/confirm report.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/workflows/wf-1/execute')
+    expect(saveExecutionPointer).not.toHaveBeenCalled()
+  })
+
   it('drops a duplicate client runner without confirming or surfacing an error', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)

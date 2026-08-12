@@ -69,6 +69,13 @@ function resolveTriggerBlockId(params: Record<string, unknown>): string | undefi
     : undefined
 }
 
+/** The execute endpoint's "this tool call is already bound to another run" body. */
+function isWorkflowExecutionConflict(responseBody: unknown): boolean {
+  return (
+    isPlainRecord(responseBody) && responseBody.code === COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE
+  )
+}
+
 async function enqueueAsyncWorkflowRun(
   toolCallId: string,
   workflowId: string,
@@ -119,6 +126,18 @@ async function enqueueAsyncWorkflowRun(
         : requestedExecutionId
     acceptanceIsAmbiguous =
       isPlainRecord(responseBody) && responseBody.code === 'ASYNC_ENQUEUE_AMBIGUOUS'
+
+    // Someone else — another tab, or the server's own fallback — already owns
+    // this tool call. Stay silent so the winner reports the result; reporting
+    // an error here would overwrite a run that is happily in flight. Mirrors
+    // the streamed path's handling of the same conflict.
+    if (response.status === 409 && isWorkflowExecutionConflict(responseBody)) {
+      logger.info('[RunTool] Ignoring duplicate async workflow launch', {
+        toolCallId,
+        workflowId,
+      })
+      return
+    }
 
     if (!response.ok && !acceptanceIsAmbiguous) {
       const responseError =
