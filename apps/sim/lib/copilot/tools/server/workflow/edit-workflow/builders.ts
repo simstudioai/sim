@@ -718,7 +718,17 @@ export function normalizeBlockIdsInOperations(operations: EditWorkflowOperation[
   const idMapping = new Map<string, string>()
 
   const claimId = (id: string | undefined) => {
-    if (!id || isValidUuid(id) || idMapping.has(id)) return
+    if (!id || isValidUuid(id)) return
+    if (idMapping.has(id)) {
+      /*
+       * Two declarations share one handle. References naming it are already
+       * ambiguous, so both resolve to whichever block is written last. Warned
+       * rather than disambiguated because splitting them needs ids minted per
+       * declaration site, which the flat reference mapping cannot express.
+       */
+      logger.warn('Duplicate block handle in edit batch; declarations will collapse', { id })
+      return
+    }
     const newId = generateId()
     idMapping.set(id, newId)
     logger.debug('Normalizing block ID', { oldId: id, newId })
