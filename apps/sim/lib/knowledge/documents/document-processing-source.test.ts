@@ -138,7 +138,6 @@ describe('knowledge document processing source', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }])
     mockCheckActorUsageLimits.mockResolvedValue({ isExceeded: false })
     mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
       context === 'workspace' ? [SOURCE_BINDING] : []
@@ -230,22 +229,28 @@ describe('knowledge document processing source', () => {
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
   })
 
-  it('keeps the carrier retryable when another processing attempt owns the document', async () => {
+  it('takes over an existing processing attempt', async () => {
+    dbChainMockFns.limit
+      .mockReset()
+      .mockResolvedValueOnce([{ ...PERSISTED_CONTEXT, processingStatus: 'processing' }])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     dbChainMockFns.returning.mockReset().mockResolvedValueOnce([])
 
-    await expect(
-      processDocumentAsync('knowledge-base-1', 'document-1', {
-        filename: 'stale.pdf',
-        fileUrl: 'https://example.com/stale.pdf',
-        fileSize: 1,
-        mimeType: 'text/plain',
-      })
-    ).rejects.toThrow('processing claim is owned by another attempt')
+    await processDocumentAsync('knowledge-base-1', 'document-1', {
+      filename: 'stale.pdf',
+      fileUrl: 'https://example.com/stale.pdf',
+      fileSize: 1,
+      mimeType: 'text/plain',
+    })
 
-    expect(mockProcessDocument).not.toHaveBeenCalled()
+    expect(mockProcessDocument).toHaveBeenCalled()
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
-    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
-      expect.objectContaining({ processingStatus: 'failed' })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        processingStatus: 'processing',
+        processingStartedAt: expect.any(Date),
+      })
     )
   })
 })

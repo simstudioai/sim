@@ -118,13 +118,6 @@ import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('DocumentService')
 
-class DocumentProcessingClaimUnavailableError extends Error {
-  constructor(documentId: string) {
-    super(`Knowledge document ${documentId} processing claim is owned by another attempt`)
-    this.name = 'DocumentProcessingClaimUnavailableError'
-  }
-}
-
 /**
  * Thrown when a knowledge-base document's `fileUrl` references an internal
  * knowledge-base storage object not owned by the target knowledge base's workspace.
@@ -824,7 +817,6 @@ export async function processDocumentAsync(
         boolean1: document.boolean1,
         boolean2: document.boolean2,
         boolean3: document.boolean3,
-        processingStatus: document.processingStatus,
       })
       .from(document)
       .innerJoin(knowledgeBase, eq(knowledgeBase.id, document.knowledgeBaseId))
@@ -866,7 +858,7 @@ export async function processDocumentAsync(
       mimeType: ctx.mimeType,
     }
 
-    const [claimedDocument] = await db
+    await db
       .update(document)
       .set({
         processingStatus: 'processing',
@@ -875,21 +867,8 @@ export async function processDocumentAsync(
         processingError: null,
       })
       .where(
-        and(
-          eq(document.id, documentId),
-          inArray(document.processingStatus, ['pending', 'failed']),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt)
-        )
+        and(eq(document.id, documentId), isNull(document.archivedAt), isNull(document.deletedAt))
       )
-      .returning({ id: document.id })
-
-    if (!claimedDocument) {
-      logger.info(`[${documentId}] Skipping document processing because another attempt owns it`, {
-        processingStatus: ctx.processingStatus,
-      })
-      throw new DocumentProcessingClaimUnavailableError(documentId)
-    }
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
@@ -1242,10 +1221,6 @@ export async function processDocumentAsync(
       mimeType: docData.mimeType,
       fileSize: docData.fileSize,
     })
-
-    if (error instanceof DocumentProcessingClaimUnavailableError) {
-      throw error
-    }
 
     await db
       .update(document)
