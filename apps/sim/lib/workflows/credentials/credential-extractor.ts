@@ -1,3 +1,4 @@
+import { isPlainRecord } from '@sim/utils/object'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-replace/resources/registry'
 import { setValueAtPath } from '@/lib/workflows/search-replace/value-walker'
@@ -290,6 +291,15 @@ function sanitizeToolInputValue(value: unknown, options: WorkflowSanitizationOpt
 
   let sanitizedValue: unknown = value
   tools.forEach((tool, toolIndex) => {
+    const storedTool = value[toolIndex]
+    if (!isPlainRecord(storedTool)) {
+      throw new Error(`Parsed tool input at index ${toolIndex} lost its object shape`)
+    }
+    if (storedTool.params != null && !isPlainRecord(storedTool.params)) {
+      sanitizedValue = setValueAtPath(sanitizedValue, [toolIndex, 'params'], null)
+      return
+    }
+
     const configs = getToolInputParamConfigs({ tool, toolIndex })
     const configByParamKey = new Map<
       string,

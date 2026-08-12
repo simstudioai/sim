@@ -184,4 +184,25 @@ describe('export sanitizer resource coverage', () => {
       { type: 'custom-tool', params: { token: null, query: null } },
     ])
   })
+
+  it.each([
+    ['string', 'plaintext-secret'],
+    ['array', ['plaintext-secret']],
+  ])('withholds malformed %s tool params', (_shape, params) => {
+    vi.mocked(getBlock).mockReturnValue({
+      name: 'Test',
+      description: '',
+      subBlocks: [{ id: 'field', title: 'Field', type: 'tool-input' }],
+      outputs: {},
+    } as never)
+
+    const sanitized = sanitizeWorkflowForSharing(
+      stateWithSubBlock('tool-input', [{ type: 'custom-tool', params }]),
+      { redactOpaqueCredentialInputs: true }
+    )
+
+    expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toEqual([
+      { type: 'custom-tool', params: null },
+    ])
+  })
 })
