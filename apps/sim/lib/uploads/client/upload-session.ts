@@ -109,6 +109,10 @@ async function uploadPut<T>(params: UploadPutFileSession<T>): Promise<void> {
       reportProgress(params.file.size)
       return
     } catch (error) {
+      if (attempt > 0 && isCreateOnlyConflict(error)) {
+        reportProgress(params.file.size)
+        return
+      }
       if (isAbortError(error) || !isRetryableUploadError(error) || attempt >= MAX_RETRIES) {
         throw error
       }
@@ -317,6 +321,20 @@ async function uploadMultipartPart(params: {
 
 function isRetryableUploadError(error: unknown): error is UploadSessionTransportError {
   return error instanceof UploadSessionTransportError && error.transient
+}
+
+/**
+ * Whether a retried whole-object PUT was rejected by the create-only
+ * precondition every provider signs into the transfer (S3/GCS `412`, Azure
+ * `409`). After a first attempt whose response was lost, that conflict means
+ * our own bytes are already committed, so the transfer is treated as finished
+ * and completion verifies the object's upload id, size, and content type
+ * server-side before anything durable is registered.
+ */
+function isCreateOnlyConflict(error: unknown): boolean {
+  return (
+    error instanceof UploadSessionTransportError && (error.status === 409 || error.status === 412)
+  )
 }
 
 function isRetryableStatus(status: number): boolean {
