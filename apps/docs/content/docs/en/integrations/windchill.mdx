@@ -32,7 +32,7 @@ List WT.Document objects with bounded OData query and pagination controls
 | `select` | string | No | Comma-separated normalized document properties to return |
 | `filter` | string | No | OData $filter expression |
 | `orderBy` | string | No | OData $orderby expression |
-| `top` | number | No | Maximum documents to return, from 1 to 200 |
+| `top` | number | No | Maximum documents in the OData result set \($top\), from 1 to 200 |
 | `skip` | number | No | Documents to skip |
 | `count` | boolean | No | Ask Windchill to include the total matching count |
 | `latestVersion` | boolean | No | Return only the latest version of matching documents |
@@ -49,7 +49,8 @@ List WT.Document objects with bounded OData query and pagination controls
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -58,9 +59,9 @@ List WT.Document objects with bounded OData query and pagination controls
 |   ↳ `folderName` | string | Folder name |
 |   ↳ `folderLocation` | string | Folder path |
 | `pageInfo` | object | OData pagination information |
-|   ↳ `count` | number | Number of documents in this page |
-|   ↳ `totalCount` | number | Total matching documents |
-|   ↳ `nextLink` | string | URL for the next page |
+|   ↳ `count` | number | Number of items returned in this page |
+|   ↳ `totalCount` | number | Total matching items |
+|   ↳ `nextLink` | string | URL returned by Windchill for the next page |
 
 ### Windchill Get Document
 
@@ -87,7 +88,8 @@ Get a WT.Document by OID
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -109,6 +111,7 @@ Retrieve recursive document usage links and their parent and child documents
 | `password` | string | Yes | Windchill service-account password |
 | `documentOid` | string | Yes | WT.Document OID, for example OR:wt.doc.WTDocument:48796581 |
 | `structureDepth` | number | No | Document structure expansion depth, from 1 to 3 |
+| `nextLink` | string | No | Verified @odata.nextLink from a previous structure response |
 
 #### Output
 
@@ -123,7 +126,8 @@ Retrieve recursive document usage links and their parent and child documents
 |     ↳ `number` | string | Document number |
 |     ↳ `title` | string | Document title |
 |     ↳ `description` | string | Document description |
-|     ↳ `state` | string | Life cycle state |
+|     ↳ `state` | string | Internal life cycle state value |
+|     ↳ `stateDisplay` | string | Displayed life cycle state value |
 |     ↳ `versionId` | string | Version identifier |
 |     ↳ `revision` | string | Revision identifier |
 |     ↳ `version` | string | Version and iteration |
@@ -137,7 +141,8 @@ Retrieve recursive document usage links and their parent and child documents
 |     ↳ `number` | string | Document number |
 |     ↳ `title` | string | Document title |
 |     ↳ `description` | string | Document description |
-|     ↳ `state` | string | Life cycle state |
+|     ↳ `state` | string | Internal life cycle state value |
+|     ↳ `stateDisplay` | string | Displayed life cycle state value |
 |     ↳ `versionId` | string | Version identifier |
 |     ↳ `revision` | string | Revision identifier |
 |     ↳ `version` | string | Version and iteration |
@@ -146,6 +151,10 @@ Retrieve recursive document usage links and their parent and child documents
 |     ↳ `folderName` | string | Folder name |
 |     ↳ `folderLocation` | string | Folder path |
 |   ↳ `children` | array | Nested child usage links with the same recursive shape |
+| `pageInfo` | object | OData pagination information |
+|   ↳ `count` | number | Number of items returned in this page |
+|   ↳ `totalCount` | number | Total matching items |
+|   ↳ `nextLink` | string | URL returned by Windchill for the next page |
 
 ### Windchill Get Valid State Transitions
 
@@ -194,6 +203,10 @@ Get primary-content metadata for a document
 |   ↳ `format` | string | Windchill content format |
 |   ↳ `mimeType` | string | Content MIME type |
 |   ↳ `fileSize` | number | Content size in bytes |
+|   ↳ `contentType` | string | Windchill OData content entity type |
+|   ↳ `displayName` | string | Displayed content name |
+|   ↳ `urlLocation` | string | URL-data location |
+|   ↳ `externalLocation` | string | External-storage location |
 
 ### Windchill List Attachments
 
@@ -207,6 +220,7 @@ List attachment metadata for a document
 | `username` | string | Yes | Windchill service-account username |
 | `password` | string | Yes | Windchill service-account password |
 | `documentOid` | string | Yes | WT.Document OID, for example OR:wt.doc.WTDocument:48796581 |
+| `nextLink` | string | No | Verified @odata.nextLink from a previous attachment response |
 
 #### Output
 
@@ -220,6 +234,14 @@ List attachment metadata for a document
 |   ↳ `format` | string | Windchill content format |
 |   ↳ `mimeType` | string | Content MIME type |
 |   ↳ `fileSize` | number | Content size in bytes |
+|   ↳ `contentType` | string | Windchill OData content entity type |
+|   ↳ `displayName` | string | Displayed content name |
+|   ↳ `urlLocation` | string | URL-data location |
+|   ↳ `externalLocation` | string | External-storage location |
+| `pageInfo` | object | OData pagination information |
+|   ↳ `count` | number | Number of items returned in this page |
+|   ↳ `totalCount` | number | Total matching items |
+|   ↳ `nextLink` | string | URL returned by Windchill for the next page |
 
 ### Windchill Create Document
 
@@ -252,7 +274,8 @@ Create one WT.Document
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -286,7 +309,8 @@ Create multiple WT.Document objects atomically
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -321,7 +345,8 @@ Update attributes on one document
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -355,7 +380,8 @@ Update multiple documents atomically
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -430,7 +456,8 @@ Check out one document
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -465,7 +492,8 @@ Check out multiple documents atomically
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -502,7 +530,8 @@ Check in one document
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -539,7 +568,8 @@ Check in multiple documents atomically
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -573,7 +603,8 @@ Undo checkout for one document
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -607,7 +638,8 @@ Undo checkout for multiple documents atomically
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -642,7 +674,8 @@ Create a new revision of one document
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -677,7 +710,8 @@ Create new revisions of multiple documents atomically
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -713,7 +747,8 @@ Transition a document to a valid lifecycle state
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |
@@ -747,7 +782,8 @@ Update installed security-label attributes for one or more documents
 |   ↳ `number` | string | Document number |
 |   ↳ `title` | string | Document title |
 |   ↳ `description` | string | Document description |
-|   ↳ `state` | string | Life cycle state |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
 |   ↳ `versionId` | string | Version identifier |
 |   ↳ `revision` | string | Revision identifier |
 |   ↳ `version` | string | Version and iteration |

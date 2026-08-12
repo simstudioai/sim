@@ -4,6 +4,8 @@
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 const {
   MockWindchillProviderError,
@@ -425,6 +427,101 @@ describe('POST /api/tools/windchill', () => {
     expect(mockUploadWindchillContent).toHaveBeenCalledWith(
       expect.objectContaining({ primaryContent: false })
     )
+    expect(mockDownloadServableFileFromStorage.mock.calls[0][3]).toEqual({
+      maxBytes: MAX_FILE_SIZE,
+    })
+    expect(mockDownloadServableFileFromStorage.mock.calls[1][3]).toEqual({
+      maxBytes: MAX_FILE_SIZE - 3,
+    })
+  })
+
+  it('rejects attachment counts above the contract limit before reading storage', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        ...BASE_BODY,
+        operation: 'windchill_upload_attachments',
+        documentOid: DOCUMENT_OID,
+        attachmentFiles: Array.from({ length: 11 }, (_, index) => ({
+          key: `workspace/workspace-1/${index}.txt`,
+          name: `${index}.txt`,
+          size: 1,
+        })),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(mockAssertToolFileAccess).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+  })
+
+  it('rejects declared aggregate upload size before reading storage', async () => {
+    mockProcessFilesToUserFiles.mockReturnValueOnce([
+      {
+        key: 'workspace/workspace-1/oversized.bin',
+        name: 'oversized.bin',
+        size: MAX_FILE_SIZE + 1,
+        type: 'application/octet-stream',
+      },
+    ])
+
+    const response = await POST(
+      createMockRequest('POST', {
+        ...BASE_BODY,
+        operation: 'windchill_upload_primary_content',
+        documentOid: DOCUMENT_OID,
+        primaryFile: {
+          key: 'workspace/workspace-1/oversized.bin',
+          name: 'oversized.bin',
+          size: MAX_FILE_SIZE + 1,
+        },
+      })
+    )
+
+    expect(response.status).toBe(413)
+    expect(mockAssertToolFileAccess).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+  })
+
+  it('stops an under-reported upload at the remaining aggregate byte budget', async () => {
+    mockProcessFilesToUserFiles.mockReturnValueOnce([
+      { key: 'workspace/workspace-1/one.txt', name: 'one.txt', size: 1, type: 'text/plain' },
+      { key: 'workspace/workspace-1/two.txt', name: 'two.txt', size: 1, type: 'text/plain' },
+      {
+        key: 'workspace/workspace-1/three.txt',
+        name: 'three.txt',
+        size: 1,
+        type: 'text/plain',
+      },
+    ])
+    mockDownloadServableFileFromStorage
+      .mockResolvedValueOnce({ buffer: Buffer.from('one'), contentType: 'text/plain' })
+      .mockRejectedValueOnce(
+        new PayloadSizeLimitError({
+          label: 'Uploaded file',
+          maxBytes: MAX_FILE_SIZE - 3,
+          observedBytes: MAX_FILE_SIZE - 2,
+        })
+      )
+
+    const response = await POST(
+      createMockRequest('POST', {
+        ...BASE_BODY,
+        operation: 'windchill_upload_attachments',
+        documentOid: DOCUMENT_OID,
+        attachmentFiles: [
+          { key: 'workspace/workspace-1/one.txt', name: 'one.txt', size: 1 },
+          { key: 'workspace/workspace-1/two.txt', name: 'two.txt', size: 1 },
+          { key: 'workspace/workspace-1/three.txt', name: 'three.txt', size: 1 },
+        ],
+      })
+    )
+
+    expect(response.status).toBe(413)
+    expect(mockDownloadServableFileFromStorage).toHaveBeenCalledTimes(2)
+    expect(mockDownloadServableFileFromStorage.mock.calls[1][3]).toEqual({
+      maxBytes: MAX_FILE_SIZE - 3,
+    })
+    expect(mockUploadWindchillContent).not.toHaveBeenCalled()
   })
 
   it('stops before storage or Windchill when file ownership is denied', async () => {

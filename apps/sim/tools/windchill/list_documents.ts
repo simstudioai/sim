@@ -57,7 +57,7 @@ export const windchillListDocumentsTool: ToolConfig<WindchillParams, WindchillRe
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum documents to return, from 1 to 200',
+      description: 'Maximum documents in the OData result set ($top), from 1 to 200',
     },
     skip: {
       type: 'number',
