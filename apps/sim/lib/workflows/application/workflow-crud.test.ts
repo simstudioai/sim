@@ -331,7 +331,7 @@ describe('authorized workflow CRUD and version reads', () => {
     expect(mocks.resolvePermission).toHaveBeenCalledWith('user-1', WORKSPACE_ID, null, undefined, {
       forUpdate: undefined,
     })
-    expect(mocks.loadSnapshot).toHaveBeenCalledWith(WORKFLOW_ID)
+    expect(mocks.loadSnapshot).toHaveBeenCalledWith(WORKFLOW_ID, WORKSPACE_ID)
   })
 
   it('rejects executor reads whose canonical target is outside the signed origin workspace', async () => {
