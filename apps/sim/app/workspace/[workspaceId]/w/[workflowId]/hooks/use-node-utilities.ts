@@ -2,10 +2,10 @@ import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
 import { useReactFlow } from 'reactflow'
+import { getBlockMetrics } from '@/lib/workflows/autolayout/utils'
 import {
   calculateContainerDimensions,
   clampPositionToContainer,
-  estimateBlockDimensions,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position-utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -25,20 +25,27 @@ export function useNodeUtilities(blocks: Record<string, any>) {
   }, [])
 
   /**
-   * A block's dimensions as the block itself reported them, or null if it has
-   * not reported yet.
+   * Get the dimensions of a block.
    *
-   * {@link getBlockDimensions} without the estimate fallback — a rough box is
-   * fine for clamping a drag or placing a paste; see
-   * {@link calculateLoopDimensions} for why a container cannot size from one.
+   * Before a card mounts there is no measurement, so the height comes from
+   * {@link getBlockMetrics}, which estimates it from the block's own state —
+   * the sub-blocks its values leave visible, the summary sentence it will draw,
+   * the error row — through the same `calculateWorkflowBlockDimensions` the
+   * card itself calls. It lands on the height the card goes on to render.
    *
-   * A container's own size is already derived from its children, so it counts
-   * as reported once it has one; an empty container reports its default.
+   * The old estimate read the block's *type* alone and assumed
+   * `ceil(subBlockCount / 2)` rows, which put a 39-field Gmail card at 276px
+   * against the 112px it draws. A container sized from that, painted it, then
+   * got the real height a frame later and visibly resized — on every load,
+   * because measurements are not persisted. Estimating from state removes the
+   * gap rather than waiting it out: both passes now produce the same number.
    */
-  const getReportedBlockDimensions = useCallback(
-    (blockId: string): { width: number; height: number } | null => {
+  const getBlockDimensions = useCallback(
+    (blockId: string): { width: number; height: number } => {
       const block = blocks[blockId]
-      if (!block) return null
+      if (!block) {
+        return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: BLOCK_DIMENSIONS.MIN_HEIGHT }
+      }
 
       if (isContainerType(block.type)) {
         return {
@@ -53,36 +60,13 @@ export function useNodeUtilities(blocks: Record<string, any>) {
         }
       }
 
-      if (!block.height) return null
-
+      const metrics = getBlockMetrics(block)
       return {
-        width: block.type === 'note' ? BLOCK_DIMENSIONS.NOTE_WIDTH : BLOCK_DIMENSIONS.FIXED_WIDTH,
-        height:
-          block.type === 'note'
-            ? block.height
-            : Math.max(block.height, BLOCK_DIMENSIONS.MIN_HEIGHT),
+        width: block.type === 'note' ? BLOCK_DIMENSIONS.NOTE_WIDTH : metrics.width,
+        height: block.type === 'note' && block.height ? block.height : metrics.height,
       }
     },
     [blocks, isContainerType]
-  )
-
-  /**
-   * Get the dimensions of a block, estimating from its type when it has not
-   * reported a height yet.
-   */
-  const getBlockDimensions = useCallback(
-    (blockId: string): { width: number; height: number } => {
-      const reported = getReportedBlockDimensions(blockId)
-      if (reported) return reported
-
-      const block = blocks[blockId]
-      if (!block) {
-        return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: BLOCK_DIMENSIONS.MIN_HEIGHT }
-      }
-
-      return estimateBlockDimensions(block.type)
-    },
-    [blocks, getReportedBlockDimensions]
   )
 
   /**
@@ -295,43 +279,33 @@ export function useNodeUtilities(blocks: Record<string, any>) {
   /**
    * Calculates appropriate dimensions for a loop or parallel node based on its children
    *
-   * Sizes only from heights the children have themselves reported. A card's
-   * height depends on what it actually renders — which rows survive its
-   * conditions, whether it draws a summary sentence, and for a reactive field
-   * even a credential it has to fetch — so the card is the only thing that can
-   * know it, and it publishes it once it does.
-   *
-   * Guessing in the meantime is what made a container resize on every load:
-   * `estimateBlockDimensions` assumes `ceil(subBlockCount / 2)` rows, so it read
-   * a 39-field Gmail card as 276px tall against the 112px it draws. The
-   * container painted that, then the real height arrived a frame later and it
-   * visibly resized. Returning null holds the container at the size it already
-   * has, so it moves once, to the right answer.
+   * Child heights come from {@link getBlockDimensions}, which estimates from
+   * block state when a card has not mounted yet and lands on the height it will
+   * render — so the size computed before the cards report matches the one after,
+   * and the container does not resize behind the user.
    *
    * @param nodeId ID of the container node
-   * @returns Calculated dimensions, or null while any child is still unmeasured
+   * @returns Calculated width and height for the container
    */
   const calculateLoopDimensions = useCallback(
-    (nodeId: string): { width: number; height: number } | null => {
+    (nodeId: string): { width: number; height: number } => {
       const currentBlocks = useWorkflowStore.getState().blocks
       const childBlockIds = Object.keys(currentBlocks).filter(
         (id) => currentBlocks[id]?.data?.parentId === nodeId
       )
 
-      const childPositions: Array<{ x: number; y: number; width: number; height: number }> = []
-      for (const childId of childBlockIds) {
-        const child = currentBlocks[childId]
-        if (!child?.position) continue
-
-        const reported = getReportedBlockDimensions(childId)
-        if (!reported) return null
-
-        childPositions.push({ x: child.position.x, y: child.position.y, ...reported })
-      }
+      const childPositions = childBlockIds
+        .map((childId) => {
+          const child = currentBlocks[childId]
+          if (!child?.position) return null
+          const { width, height } = getBlockDimensions(childId)
+          return { x: child.position.x, y: child.position.y, width, height }
+        })
+        .filter((position): position is NonNullable<typeof position> => position !== null)
 
       return calculateContainerDimensions(childPositions)
     },
-    [getReportedBlockDimensions]
+    [getBlockDimensions]
   )
 
   /**
@@ -352,8 +326,6 @@ export function useNodeUtilities(blocks: Record<string, any>) {
 
       for (const { id, block } of containerBlocks) {
         const dimensions = calculateLoopDimensions(id)
-        if (!dimensions) continue
-
         const currentWidth = block?.data?.width
         const currentHeight = block?.data?.height
 
