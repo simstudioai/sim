@@ -31,6 +31,40 @@ function aggregateChildCost(childTraceSpans: TraceSpan[]): number {
   return Math.max(0, summary.totalCost - summary.baseExecutionCharge)
 }
 
+/**
+ * Records that the child's result carries provenance for the secrets it resolved, so the
+ * model-facing projection can still find them.
+ *
+ * The child executes against the caller's own tool-call registry object, so nothing has to be
+ * moved between registries — but `EnvResolver` records a resolution without marking it
+ * propagated, and `forkForPropagatedEntries` (the fork every model boundary projects through)
+ * keeps only propagated entries. Without this crossing a value the child resolved from an
+ * environment variable is dropped from the projection registry and reaches the model vendor in
+ * plaintext. Mirrors the custom-block crossing in `workflow-handler`, and fails closed: an
+ * unusable envelope marks the registry incomplete, which reduces the result the model sees.
+ */
+async function markResultProvenanceCrossing(
+  registry: ResolvedSecretTraceRegistry | undefined,
+  result: ToolResponse
+): Promise<void> {
+  if (!registry) return
+  try {
+    const crossingProvenance = registry.exportCommittedProvenanceForValue({
+      output: result.output,
+      error: result.error,
+    })
+    await registry.importProvenance(crossingProvenance, {
+      trusted: true,
+      origin: 'workflowToolRunner.agentResultCrossing',
+    })
+  } catch (error) {
+    logger.error('Workflow tool result provenance could not be carried across', {
+      error: getErrorMessage(error, 'Unknown error'),
+    })
+    registry.markIncomplete('value-provenance-import-failed')
+  }
+}
+
 interface WorkflowToolParams {
   workflowId?: string
   inputMapping?: Record<string, unknown> | string
@@ -93,7 +127,9 @@ export async function runWorkflowTool(
       output && typeof output === 'object' && !Array.isArray(output)
         ? (output as Record<string, unknown>)
         : { result: output }
-    return { success: true, output: normalized }
+    const result: ToolResponse = { success: true, output: normalized }
+    await markResultProvenanceCrossing(options.resolvedSecretTraceRegistry, result)
+    return result
   } catch (error) {
     const message = getErrorMessage(error, 'Workflow execution failed')
     const isChildError = ChildWorkflowError.isChildWorkflowError(error)
@@ -108,7 +144,7 @@ export async function runWorkflowTool(
       message,
       code: structured.code,
     })
-    return {
+    const result: ToolResponse = {
       success: false,
       output: {
         ...(childCost > 0 ? { cost: { total: childCost } } : {}),
@@ -117,5 +153,7 @@ export async function runWorkflowTool(
       },
       error: message,
     }
+    await markResultProvenanceCrossing(options.resolvedSecretTraceRegistry, result)
+    return result
   }
 }
