@@ -588,10 +588,14 @@
     "packages/terminal-protocol": {
       "name": "@sim/terminal-protocol",
       "version": "0.1.0",
+      "dependencies": {
+        "@sim/utils": "workspace:*",
+      },
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
         "@types/node": "24.2.1",
         "typescript": "^7.0.2",
+        "vitest": "^4.1.0",
       },
     },
     "packages/testing": {

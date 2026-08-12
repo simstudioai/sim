@@ -359,7 +359,11 @@ describe('executeToolAndReport provenance isolation', () => {
     const completion = await executeToolAndReport(
       toolCall.id,
       buildStreamingContext(toolCall),
-      { userId: 'user-1', workflowId: 'workflow-1' },
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+      },
       { onEvent }
     )
 

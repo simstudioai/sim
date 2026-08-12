@@ -39,13 +39,25 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
   browser: {
     parameters: {
       properties: {
+        sessionId: {
+          description:
+            'Reusable session ID returned by an earlier browser call in this chat. Supply it only on a later user message that continues the same browsing objective, and at most once per user message.',
+          type: 'string',
+        },
         task: {
           description:
-            'The web task to complete, in plain language (include the target site/URL if known).',
+            "Optional brief scoping instruction that the conversation does not already convey. Do not restate the user's request.",
+          type: 'string',
+        },
+        title: {
+          description:
+            "Required private orchestration label (3–8 words) for this Browser Agent session's stable objective. When resuming with sessionId, copy the registry title unchanged.",
+          maxLength: 120,
+          minLength: 1,
           type: 'string',
         },
       },
-      required: ['task'],
+      required: ['title'],
       type: 'object',
     },
     resultSchema: undefined,
@@ -1112,18 +1124,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         destination: {
           type: 'string',
-          maxLength: 4096,
           description:
             'Target path under workflows/. An existing folder (or a path ending in "/") duplicates sources into it keeping their names; otherwise the last segment names the copy and the preceding segments are the target folder (created automatically when missing).',
         },
         sources: {
           type: 'array',
-          maxItems: 100,
           description:
             'Canonical workflow VFS paths to duplicate, e.g. ["workflows/My%20Workflow"]. Copy paths verbatim from glob/grep/read output.',
           items: {
             type: 'string',
-            maxLength: 4096,
           },
         },
         toolTitle: {
@@ -3164,6 +3173,26 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 'Field type: text, number, date, boolean (optional for create_tag, defaults to text)',
               enum: ['text', 'number', 'date', 'boolean'],
             },
+            tagValues: {
+              type: 'array',
+              description:
+                'Typed tag values to set on this document (optional for update_document). Resolve tagDefinitionId with list_tags first. Use null to clear a value.',
+              items: {
+                type: 'object',
+                properties: {
+                  tagDefinitionId: {
+                    type: 'string',
+                    description: 'Tag definition ID returned by list_tags.',
+                  },
+                  value: {
+                    type: ['string', 'number', 'boolean', 'null'],
+                    description:
+                      "Value matching the tag definition's field type: string for text, number for number, YYYY-MM-DD string for date, boolean for boolean, or null to clear.",
+                  },
+                },
+                required: ['tagDefinitionId', 'value'],
+              },
+            },
             topK: {
               type: 'number',
               description: 'Number of results to return (1-50, default: 5)',
@@ -3596,12 +3625,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         paths: {
           type: 'array',
-          maxItems: 100,
           description:
             'Canonical folder VFS paths to create, e.g. ["files/Reports/2026"]. Missing parent segments are created automatically.',
           items: {
             type: 'string',
-            maxLength: 4096,
           },
         },
         toolTitle: {
@@ -3620,18 +3647,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         destination: {
           type: 'string',
-          maxLength: 4096,
           description:
             'Target path. A path ending in "/" (or naming an existing folder) moves sources into it keeping their names — always use the trailing "/" form when targeting a folder. Otherwise the last segment is the new name and the preceding segments are the target folder (created automatically when missing).',
         },
         sources: {
           type: 'array',
-          maxItems: 100,
           description:
             'Canonical VFS paths to move or rename, e.g. ["files/draft.md"]. All sources must share one category. Copy paths verbatim from glob/grep/read output.',
           items: {
             type: 'string',
-            maxLength: 4096,
           },
         },
         toolTitle: {
@@ -4067,12 +4091,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         paths: {
           type: 'array',
-          maxItems: 100,
           description:
             'Canonical VFS paths to delete, e.g. ["files/Reports/draft.md"]. Copy paths verbatim from glob/grep/read output. Paths from different categories may be mixed in one call.',
           items: {
             type: 'string',
-            maxLength: 4096,
           },
         },
         toolTitle: {

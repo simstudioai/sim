@@ -808,10 +808,10 @@ async function executeToolAndReportInner(
       return cancelledCompletion('Request aborted before tool result delivery')
     }
 
-    // Fire-and-forget: notify the copilot backend that the tool completed.
-    // IMPORTANT: We must NOT await this — the Go backend may block on the
+    // A newly generated API key is intentionally included only in this
+    // live/replay client event. Model-facing results and long-term chat records stay redacted.
     const clientEventOutput =
-      toolCall.name === GenerateApiKey.id && hasOutputValue(copilotResult)
+      toolCall.name === GenerateApiKey.id && modelSucceeded && hasOutputValue(copilotResult)
         ? copilotResult.output
         : terminalData
     const resultEvent: StreamEvent = {
