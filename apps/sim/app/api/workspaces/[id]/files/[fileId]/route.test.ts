@@ -126,7 +126,6 @@ describe('PATCH /api/workspaces/[id]/files/[fileId]', () => {
 
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({
-      success: false,
       error: 'Insufficient workspace permissions',
     })
     expect(mocks.captureServerEvent).not.toHaveBeenCalled()
@@ -139,7 +138,6 @@ describe('PATCH /api/workspaces/[id]/files/[fileId]', () => {
 
     expect(response.status).toBe(500)
     expect(await response.json()).toEqual({
-      success: false,
       error: 'Internal server error',
     })
   })

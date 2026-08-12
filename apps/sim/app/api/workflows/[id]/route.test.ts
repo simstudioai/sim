@@ -20,7 +20,7 @@ vi.mock('@/lib/api/server', () => ({ parseRequest: mocks.parseRequest }))
 vi.mock('@/lib/api/server/routes', () => ({
   defineInternalJsonRoute: mocks.defineRoute,
   InternalUnauthenticatedError: class InternalUnauthenticatedError extends Error {},
-  internalPlainOrchestrationErrorPolicy: { kind: 'plain-orchestration' },
+  internalOrchestrationErrorPolicy: { kind: 'plain-orchestration' },
   internalRateLimits: { none: vi.fn(() => ({ kind: 'none' })) },
 }))
 

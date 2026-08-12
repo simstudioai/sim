@@ -1,7 +1,7 @@
 import { downloadTableExportResourceContract } from '@/lib/api/contracts/table-transfers'
 import {
   defineInternalJsonRoute,
-  internalPlainOrchestrationErrorPolicy,
+  internalOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
@@ -15,7 +15,7 @@ export const GET = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Existing authenticated table export download signing has no request-rate policy',
   }),
-  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params, query }) => ({
     exportId: params.exportId,
     workspaceId: query.workspaceId,

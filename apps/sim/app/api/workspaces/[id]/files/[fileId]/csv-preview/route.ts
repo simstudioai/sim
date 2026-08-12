@@ -14,7 +14,7 @@ export const GET = defineInternalJsonRoute({
   auth: internalSessionOrExecutorAuth,
   operation: csvPreviewWorkspaceFile.operation,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal CSV preview behavior' }),
-  errorPolicy: internalFileErrorPolicies.plain,
+  errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params, query }) => ({
     fileId: params.fileId,
     assertedWorkspaceId: params.id,

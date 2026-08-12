@@ -83,7 +83,6 @@ describe('/api/workspaces/[id]/files/move', () => {
 
     expect(response.status).toBe(409)
     await expect(response.json()).resolves.toEqual({
-      success: false,
       error: 'A file named "report.csv" already exists in the destination folder',
     })
     expect(mocks.captureServerEvent).not.toHaveBeenCalled()

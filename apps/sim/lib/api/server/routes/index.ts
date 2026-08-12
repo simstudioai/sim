@@ -9,7 +9,6 @@ export {
   internalErrorResponse,
   internalJsonPresenters,
   internalOrchestrationErrorPolicy,
-  internalPlainOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes/internal-json-route'

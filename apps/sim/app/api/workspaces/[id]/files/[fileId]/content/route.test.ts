@@ -143,7 +143,6 @@ describe('PUT /api/workspaces/[id]/files/[fileId]/content', () => {
 
     expect(response.status).toBe(402)
     await expect(response.json()).resolves.toEqual({
-      success: false,
       error: 'Storage limit exceeded',
     })
   })

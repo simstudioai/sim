@@ -3,7 +3,7 @@ import {
   createV2ResourceConcealmentPolicy,
   type InternalErrorPolicy,
   internalErrorResponse,
-  internalPlainOrchestrationErrorPolicy,
+  internalOrchestrationErrorPolicy,
   type V2ErrorPolicy,
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
@@ -16,7 +16,7 @@ import { v2Error } from '@/app/api/v2/lib/response'
 
 function internalKnowledgeErrorPolicy(unhandledMessage: string): InternalErrorPolicy {
   return {
-    project: internalPlainOrchestrationErrorPolicy.project,
+    project: internalOrchestrationErrorPolicy.project,
     unhandled: () => internalErrorResponse(500, { error: unhandledMessage }),
   }
 }
@@ -29,7 +29,7 @@ const internalKnowledgeUploadErrorPolicy: InternalErrorPolicy = {
     if (error instanceof KnowledgeUsageLimitExceededError) {
       return internalErrorResponse(402, { error: error.message })
     }
-    return internalPlainOrchestrationErrorPolicy.project(error)
+    return internalOrchestrationErrorPolicy.project(error)
   },
   unhandled: () =>
     internalErrorResponse(500, { error: 'Failed to process knowledge upload request' }),
@@ -43,7 +43,7 @@ const internalKnowledgeSearchErrorPolicy: InternalErrorPolicy = {
     if (error instanceof KnowledgeSearchProvenanceUnavailableError) {
       return internalErrorResponse(422, { error: error.message })
     }
-    return internalPlainOrchestrationErrorPolicy.project(error)
+    return internalOrchestrationErrorPolicy.project(error)
   },
   unhandled: () => internalErrorResponse(500, { error: 'Failed to perform vector search' }),
 }

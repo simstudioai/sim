@@ -112,7 +112,6 @@ describe('/api/workspaces/[id]/files/folders/[folderId]', () => {
 
     expect(response.status).toBe(409)
     await expect(response.json()).resolves.toEqual({
-      success: false,
       error: 'A folder named "Reports" already exists in this location',
     })
     expect(mocks.captureServerEvent).not.toHaveBeenCalled()
@@ -140,7 +139,6 @@ describe('/api/workspaces/[id]/files/folders/[folderId]', () => {
 
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({
-      success: false,
       error: `Workspace file items not found (folders: ${FOLDER_ID})`,
     })
     expect(mocks.captureServerEvent).not.toHaveBeenCalled()

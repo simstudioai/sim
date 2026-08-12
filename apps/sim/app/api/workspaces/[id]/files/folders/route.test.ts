@@ -113,7 +113,6 @@ describe('/api/workspaces/[id]/files/folders', () => {
 
     expect(response.status).toBe(409)
     await expect(response.json()).resolves.toEqual({
-      success: false,
       error: 'A folder named "Reports" already exists in this location',
     })
     expect(mocks.captureServerEvent).not.toHaveBeenCalled()
