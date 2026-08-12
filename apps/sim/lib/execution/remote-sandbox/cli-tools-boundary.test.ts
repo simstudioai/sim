@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, extname, join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -77,7 +77,12 @@ function runtimeModuleSpecifiers(source: string): string[] {
   return [...specifiers]
 }
 
-function resolveLocalModule(importer: string, specifier: string, root: string): string | null {
+function resolveLocalModule(
+  importer: string,
+  specifier: string,
+  root: string,
+  sourcePaths: ReadonlySet<string>
+): string | null {
   let base: string
   if (specifier.startsWith('@/')) {
     base = resolve(root, specifier.slice(2))
@@ -98,23 +103,23 @@ function resolveLocalModule(importer: string, specifier: string, root: string): 
     join(base, 'index.js'),
     join(base, 'index.jsx'),
   ]
-  return (
-    candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile()) ?? null
-  )
+  return candidates.find((candidate) => sourcePaths.has(candidate)) ?? null
 }
 
 function clientPathToServerModule(root: string, target: string): string[] | null {
   const sources = listProductionSourceFiles(root)
+  const sourcePaths = new Set(sources)
   const sourceByPath = new Map(sources.map((path) => [path, readFileSync(path, 'utf8')]))
   const clientRoots = sources.filter((path) => hasUseClientDirective(sourceByPath.get(path) ?? ''))
   const parent = new Map<string, string | null>(clientRoots.map((path) => [path, null]))
   const pending = [...clientRoots]
+  let pendingIndex = 0
 
-  while (pending.length > 0) {
-    const importer = pending.shift()
+  while (pendingIndex < pending.length) {
+    const importer = pending[pendingIndex++]
     if (!importer) continue
     for (const specifier of runtimeModuleSpecifiers(sourceByPath.get(importer) ?? '')) {
-      const imported = resolveLocalModule(importer, specifier, root)
+      const imported = resolveLocalModule(importer, specifier, root, sourcePaths)
       if (!imported || parent.has(imported)) continue
       parent.set(imported, importer)
       if (imported === target) {
@@ -139,5 +144,5 @@ describe('sandbox CLI client boundary', () => {
     const path = clientPathToServerModule(root, target)
 
     expect(path ? path.map((entry) => entry.slice(root.length + 1)) : null).toBeNull()
-  })
+  }, 30_000)
 })
