@@ -516,6 +516,43 @@ describe('WorkflowBlockHandler', () => {
       expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     })
 
+    it("runs a non-custom child under the parent's env and redaction policy", async () => {
+      const piiBlockOutputRedaction = {
+        enabled: true,
+        entityTypes: ['EMAIL_ADDRESS'],
+        language: 'en',
+      }
+      const ctx = {
+        ...mockContext,
+        workspaceId: 'workspace-parent',
+        environmentVariables: { MY_API_KEY: 'parent-secret' },
+        piiBlockOutputRedaction,
+      } as unknown as ExecutionContext
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Child Workflow',
+              workspaceId: 'workspace-parent',
+              state: { blocks: {}, edges: [], loops: {}, parallels: {} },
+            },
+          }),
+      })
+      mockCreateSnapshot.mockResolvedValue({ snapshot: { id: 'snapshot-1' } })
+      mockExecutorExecute.mockResolvedValue({ success: true, output: { data: 'ok' } })
+
+      await handler.execute(ctx, mockBlock, inputs)
+
+      expect(executorOptions).toHaveLength(1)
+      expect(executorOptions[0].envVarValues).toEqual({ MY_API_KEY: 'parent-secret' })
+      expect(executorOptions[0].contextExtensions.piiBlockOutputRedaction).toBe(
+        piiBlockOutputRedaction
+      )
+      expect(mockGetPersonalAndWorkspaceEnv).not.toHaveBeenCalled()
+    })
+
     it('resolves a source-scoped billing attribution for custom block children', async () => {
       const consumerAttribution = { actorUserId: 'consumer-1', workspaceId: 'workspace-consumer' }
       const sourceAttribution = { actorUserId: 'owner-9', workspaceId: 'workspace-source' }

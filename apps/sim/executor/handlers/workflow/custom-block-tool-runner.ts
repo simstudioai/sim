@@ -3,6 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { PiiBlockOutputRedaction } from '@/executor/execution/types'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
 import type { ExecutionContext, ExecutorDelegationOrigin } from '@/executor/types'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
@@ -40,23 +41,40 @@ interface CustomBlockToolParams {
 }
 
 /**
- * Build a minimal top-level `ExecutionContext` for running a custom block as an
- * agent tool. Every value comes from the server-set `_context` (LLM-proof),
- * including the invoking run's execution and request ids so the child's log
- * correlation names a real execution. `WorkflowBlockHandler`'s path re-derives owner
- * identity, env, and billing from `getCustomBlockAuthority`, so this only needs the
- * fields that path reads — `workspaceId` (org-scopes the authority lookup),
- * `metadata` (read unconditionally at `executeCore`), and `callChain` (recursion
- * depth guard, inherited so it never resets across hops) — plus the non-optional
- * scaffolding. Keep in sync with `WorkflowBlockHandler.executeCore`'s custom branch.
+ * Build a minimal top-level `ExecutionContext` for running a workflow or a custom
+ * block as an agent tool. Every value comes from the server-set `_context`
+ * (LLM-proof) or from `options` (not model-reachable at all), including the
+ * invoking run's execution and request ids so the child's log correlation names a
+ * real execution. `WorkflowBlockHandler.executeCore` reads `workspaceId` (org-scopes
+ * the authority lookup), `metadata` (read unconditionally), and `callChain`
+ * (recursion depth guard, inherited so it never resets across hops), plus the
+ * non-optional scaffolding.
+ *
+ * `environmentVariables` is required rather than defaulted because only the caller
+ * knows which identity's env the child must run under: the custom-block branch
+ * re-derives the publisher's env from `getCustomBlockAuthority` and passes `{}`,
+ * while every other caller must forward the invoking run's map or the child
+ * resolves `{{VAR}}` to the literal reference string. Silent omission is exactly
+ * how the workflow-as-agent-tool path shipped with an empty map.
+ *
+ * `piiBlockOutputRedaction` stays optional because `undefined` is its correct
+ * value rather than a wrong identity: most tenants have no policy at all, and the
+ * custom-block branch omits it deliberately — that child runs cross-workspace
+ * under the publisher's identity, so the consumer's redaction rules would be the
+ * wrong tenant's, exactly as the consumer's env would be.
+ * Keep in sync with `WorkflowBlockHandler.executeCore`.
  */
 export function buildCustomBlockExecutionContext(
   context: CustomBlockExecutorContext,
   options: {
+    /** The invoking run's decrypted env, or `{}` when the child re-derives its own. */
+    environmentVariables: Record<string, string>
     abortSignal?: AbortSignal
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
     executorDelegationOrigin?: ExecutorDelegationOrigin
-  } = {}
+    /** The invoking run's in-flight block-output redaction policy. */
+    piiBlockOutputRedaction?: PiiBlockOutputRedaction
+  }
 ): ExecutionContext {
   // Prefer the invoking agent run's ids so correlation and cancellation both
   // point at a real execution; fall back only when a caller could not supply them.
@@ -75,7 +93,8 @@ export function buildCustomBlockExecutionContext(
     // the agent tool loop owns the only signal reaching this path.
     abortSignal: options.abortSignal,
     resolvedSecretTraceRegistry: options.resolvedSecretTraceRegistry,
-    environmentVariables: {},
+    environmentVariables: options.environmentVariables,
+    piiBlockOutputRedaction: options.piiBlockOutputRedaction,
     blockStates: new Map(),
     executedBlocks: new Set(),
     blockLogs: [],
@@ -121,6 +140,7 @@ export async function runCustomBlockTool(
   }
 
   const ctx = buildCustomBlockExecutionContext(params._context ?? {}, {
+    environmentVariables: {},
     abortSignal: options.abortSignal,
     resolvedSecretTraceRegistry: options.resolvedSecretTraceRegistry,
   })
