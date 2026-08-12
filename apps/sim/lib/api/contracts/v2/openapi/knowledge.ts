@@ -31,7 +31,6 @@ import {
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
-  VALIDATED_ERRORS,
   WORKSPACE_ERRORS,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
@@ -116,7 +115,7 @@ const routes = [
       operationId: 'getKnowledgeBase',
       summary: 'Get Knowledge Base',
       description: `Retrieve a knowledge base by identifier. Inaccessible knowledge bases are reported as not found. ${FOLDER_TREE_TOO_LARGE}`,
-      errors: [...VALIDATED_ERRORS, 'NotFound', 'PayloadTooLarge'],
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The requested knowledge base.' },
     }),
     {
@@ -177,7 +176,7 @@ const routes = [
       operationId: 'deleteKnowledgeBase',
       summary: 'Delete Knowledge Base',
       description: 'Delete a knowledge base and its documents.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'Knowledge base deletion acknowledgement.' },
     }),
     {
@@ -241,7 +240,7 @@ const routes = [
       summary: 'List Documents',
       description:
         'List documents in a knowledge base with filename search, state filtering, sorting, and opaque cursor pagination.',
-      errors: [...VALIDATED_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'A page of knowledge documents.' },
     }),
     {
@@ -362,7 +361,7 @@ const routes = [
       operationId: 'abortKnowledgeDocumentUpload',
       summary: 'Abort Document Upload',
       description: 'Abort an incomplete upload and discard provider-side multipart state.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The aborted upload session.' },
     }),
     {
@@ -398,7 +397,7 @@ const routes = [
       operationId: 'createKnowledgeDocumentUploadPartUrls',
       summary: 'Create Document Upload Part URLs',
       description: 'Issue short-lived signed PUT URLs for up to 100 multipart part numbers.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Signed URLs for the requested upload parts.' },
     }),
     {
@@ -478,7 +477,7 @@ const routes = [
       operationId: 'getKnowledgeDocument',
       summary: 'Get Document',
       description: 'Retrieve document detail, processing state, and connector provenance.',
-      errors: [...VALIDATED_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The requested knowledge document.' },
     }),
     {
@@ -509,7 +508,7 @@ const routes = [
       summary: 'Delete Document',
       description:
         'Remove one document from a knowledge base. What that means depends on the document. A directly uploaded document is deleted outright along with its indexed chunks. A connector-backed document is instead excluded: its row survives, marked excluded and disabled so it stops being searchable and a later connector sync does not re-add it, and its embeddings are not deleted. Either way the document no longer appears in listings or search results.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'Knowledge document deletion acknowledgement.' },
     }),
     {

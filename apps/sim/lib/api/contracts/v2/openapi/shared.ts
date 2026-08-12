@@ -12,13 +12,6 @@ export const RATE_LIMIT_HEADERS = [
   'X-RateLimit-Reset',
 ] as const
 
-export const STANDARD_ERRORS = [
-  'Unauthorized',
-  'RateLimited',
-  'InternalError',
-  'ServiceUnavailable',
-] as const
-
 export const WORKSPACE_ERRORS = [
   'BadRequest',
   'Unauthorized',
@@ -76,17 +69,7 @@ export const ERROR_RESPONSES = {
 export type ErrorResponseId = keyof typeof ERROR_RESPONSES
 
 /**
- * {@link STANDARD_ERRORS} plus the 400 that any operation parsing required path,
- * query, header, or body input returns when that input fails contract validation.
- * `STANDARD_ERRORS` alone is only correct for an operation with nothing to parse.
- */
-export const VALIDATED_ERRORS = [
-  'BadRequest',
-  ...STANDARD_ERRORS,
-] as const satisfies readonly ErrorResponseId[]
-
-/**
- * The three sets below are the only shapes every workspace-scoped resource
+ * The three sets below are the base shapes every workspace-scoped resource
  * operation in the v2 API actually emits, so they live here once rather than
  * being re-derived per domain. Eight per-domain aliases previously denoted these
  * same three sets under names that implied distinctions the generated spec never

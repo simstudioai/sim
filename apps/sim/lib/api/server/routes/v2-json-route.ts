@@ -1,7 +1,10 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
-import { requireJsonRouteDefinition } from '@/lib/api/server/routes/definition'
+import {
+  methodMatchesContract,
+  requireJsonRouteDefinition,
+} from '@/lib/api/server/routes/definition'
 import type {
   JsonApiRouteContract,
   JsonNextRouteHandler,
@@ -250,7 +253,7 @@ export function defineV2JsonRoute<
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
-      if (request.method !== options.contract.method) {
+      if (!methodMatchesContract(request.method, options.contract.method)) {
         throw new Error(
           `Route received ${request.method} for ${options.contract.method} contract ${options.contract.path}`
         )

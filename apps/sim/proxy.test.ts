@@ -127,7 +127,9 @@ describe('resolveApiCorsPolicy', () => {
     expect(policy).toEqual({
       origin: 'https://app.sim.test',
       credentials: true,
-      methods: 'GET,POST,OPTIONS,PUT,DELETE',
+      methods: 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS',
+      exposeHeaders:
+        'Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id',
       headers: expect.stringContaining('Authorization'),
     })
   })

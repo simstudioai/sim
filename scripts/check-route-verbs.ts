@@ -5,10 +5,11 @@
  *
  * All five declarative route builders — `defineV2JsonRoute`,
  * `defineV2BinaryRoute`, `defineV2BodyLifecycleRoute`, `defineInternalJsonRoute`
- * and `defineInternalBinaryRoute` — compare `request.method` against
- * `contract.method` and throw when they differ. That check only fires at
- * RUNTIME, on a real request, and Next.js routes purely by the exported symbol
- * name. So a half-finished rename — `export const PUT` still holding a contract
+ * and `defineInternalBinaryRoute` — throw when `request.method` is not the one
+ * `contract.method` declares, `methodMatchesContract` allowing only a `HEAD`
+ * request against a `GET` contract. That check only fires at RUNTIME, on a real
+ * request, and Next.js routes purely by the exported symbol name. So a
+ * half-finished rename — `export const PUT` still holding a contract
  * that declares `PATCH` — produces a 500 on the verb clients actually call and
  * a 405 on the one they do not, while type-check, tests and every existing
  * audit stay green. The mismatch is invisible until production traffic hits it.
