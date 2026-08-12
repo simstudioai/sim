@@ -175,6 +175,7 @@ describe('Knowledge Utils', () => {
       ])
       /** In-transaction active-document recheck. */
       queueTableRows(schemaMock.document, [{ id: 'doc1' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'doc1' }])
 
       await processDocumentAsync(
         'kb1',
