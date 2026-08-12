@@ -1,14 +1,13 @@
 import type { MenuItemConstructorOptions } from 'electron'
 import { app, BrowserWindow, Menu } from 'electron'
 import type { ConfigStore } from '@/main/config'
+import { DOCS_URL, STATUS_URL } from '@/main/external-links'
 import { openExternalSafe } from '@/main/navigation'
 import type {
   FocusedResourceShortcut,
   ResourceTabSelectionShortcut,
 } from '@/main/resource-shortcuts'
 
-const DOCS_URL = 'https://docs.sim.ai'
-const STATUS_URL = 'https://status.sim.ai'
 const ZOOM_STEP = 0.5
 
 export interface MenuDeps {
@@ -28,6 +27,7 @@ export interface MenuDeps {
     shortcut: FocusedResourceShortcut
   ) => boolean
   toggleSidebar: () => void
+  openSearch: () => void
   signOut: () => void
   checkForUpdates: () => void
 }
@@ -83,6 +83,16 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
   }
 
   const viewSubmenu: MenuItemConstructorOptions[] = [
+    /**
+     * The command palette is the web app's own `Mod+K` command; claiming the
+     * accelerator here means the menu, not the renderer, resolves it — so the
+     * click must drive the same palette the page would have opened.
+     */
+    {
+      label: 'Search',
+      accelerator: 'CmdOrCtrl+K',
+      click: deps.openSearch,
+    },
     {
       label: 'Toggle Sidebar',
       accelerator: 'CmdOrCtrl+B',

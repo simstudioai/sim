@@ -35,6 +35,7 @@ src/main/           # main process (bundled to dist/main.cjs)
   browser-sites/    # imported site directory, safeStorage at rest
   browser-import/   # one-shot import of profiles, cookies and passwords
 src/preload/        # contextBridge IPC bridge (bundled to dist/preload.cjs)
+native/             # Node-API/AppKit bridge for native macOS Help docs search
 static/             # bundled local pages (offline.html)
 e2e/                # Playwright _electron smoke suite
 ```
