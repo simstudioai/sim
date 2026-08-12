@@ -84,6 +84,8 @@ vi.mock('@/providers/utils', () => ({
   })),
 }))
 
+import type { StreamingExecution } from '@/executor/types'
+import type { ProviderRequest, ProviderResponse, ProviderToolConfig } from '@/providers/types'
 import { xAIProvider } from '@/providers/xai'
 
 interface ChatOptions {
@@ -103,17 +105,25 @@ function chat({ content = null, toolCalls }: ChatOptions = {}) {
   }
 }
 
-function tool(name: string) {
-  return { id: name, name, description: 'd', parameters: {} }
+function tool(name: string): ProviderToolConfig {
+  return {
+    id: name,
+    name,
+    description: 'd',
+    params: {},
+    parameters: { type: 'object', properties: {}, required: [] },
+  }
 }
 
-function run(request: Record<string, unknown>) {
+function run(
+  request: Partial<ProviderRequest> = {}
+): Promise<ProviderResponse | StreamingExecution> {
   return xAIProvider.executeRequest!({
     model: 'grok-4.6',
     apiKey: 'test-key',
     messages: [{ role: 'user', content: 'Hi' }],
     ...request,
-  } as never) as Promise<any>
+  })
 }
 
 const firstPayload = () => mockCreate.mock.calls[0][0]
