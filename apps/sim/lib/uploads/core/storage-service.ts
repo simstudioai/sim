@@ -1,8 +1,6 @@
 import type { Readable } from 'node:stream'
-import { randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import {
   getStorageConfig,
@@ -17,20 +15,13 @@ import type {
   DeleteFileOptions,
   DownloadFileOptions,
   FileInfo,
-  GeneratePresignedUrlOptions,
   MultipartCompletionPolicy,
-  PresignedUrlResponse,
   StorageConfig,
   StorageContext,
   StoredObjectInfo,
   UploadFileOptions,
 } from '@/lib/uploads/shared/types'
-import { PRESIGNED_UPLOAD_RECEIPT_METADATA_KEY } from '@/lib/uploads/shared/types'
-import {
-  sanitizeFileKey,
-  sanitizeFilenameForMetadata,
-  sanitizeStorageMetadata,
-} from '@/lib/uploads/utils/file-utils'
+import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('StorageService')
 
@@ -685,243 +676,6 @@ export async function headObject(
     const code = (error as NodeJS.ErrnoException).code
     if (code === 'ENOENT') return null
     throw error
-  }
-}
-
-/** Verifies that a create-only direct upload committed the object minted by one presigned URL. */
-export async function verifyPresignedUploadReceipt(options: {
-  key: string
-  context: StorageContext
-  uploadId: string
-}): Promise<boolean> {
-  const object = await headObject(options.key, options.context)
-  if (!object?.metadata) return false
-
-  return Object.entries(object.metadata).some(
-    ([key, value]) =>
-      key.toLowerCase() === PRESIGNED_UPLOAD_RECEIPT_METADATA_KEY && value === options.uploadId
-  )
-}
-
-/**
- * Generate a presigned URL for direct file upload
- */
-export async function generatePresignedUploadUrl(
-  options: GeneratePresignedUrlOptions
-): Promise<PresignedUrlResponse> {
-  const {
-    fileName,
-    contentType,
-    fileSize,
-    context,
-    userId,
-    expirationSeconds = 3600,
-    metadata = {},
-    customKey,
-  } = options
-
-  const uploadId = generateId()
-
-  const allMetadata = {
-    ...metadata,
-    originalName: fileName,
-    uploadedAt: new Date().toISOString(),
-    purpose: context,
-    ...(userId && { userId }),
-    [PRESIGNED_UPLOAD_RECEIPT_METADATA_KEY]: uploadId,
-  }
-
-  const config = getStorageConfig(context)
-
-  let key: string
-  if (customKey) {
-    key = customKey
-  } else {
-    const timestamp = Date.now()
-    const uniqueId = randomBytes(8).toString('hex')
-    const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
-    key = `${context}/${timestamp}-${uniqueId}-${safeFileName}`
-  }
-
-  if (USE_S3_STORAGE) {
-    const response = await generateS3PresignedUrl(
-      key,
-      contentType,
-      fileSize,
-      allMetadata,
-      config,
-      expirationSeconds
-    )
-    return { ...response, uploadId }
-  }
-
-  if (USE_BLOB_STORAGE) {
-    const response = await generateBlobPresignedUrl(
-      key,
-      contentType,
-      allMetadata,
-      config,
-      expirationSeconds
-    )
-    return { ...response, uploadId }
-  }
-
-  if (USE_GCS_STORAGE) {
-    const response = await generateGcsPresignedUrl(
-      key,
-      contentType,
-      allMetadata,
-      config,
-      expirationSeconds
-    )
-    return { ...response, uploadId }
-  }
-
-  throw new Error('Cloud storage not configured. Cannot generate presigned URL for local storage.')
-}
-
-/**
- * Generate presigned URL for GCS
- */
-async function generateGcsPresignedUrl(
-  key: string,
-  contentType: string,
-  metadata: Record<string, string>,
-  config: StorageConfig,
-  expirationSeconds: number
-): Promise<PresignedUrlResponse> {
-  const { getGcsPresignedUploadUrl } = await import('@/lib/uploads/providers/gcs/client')
-
-  const { url, signedHeaders } = await getGcsPresignedUploadUrl(
-    key,
-    contentType,
-    metadata,
-    createGcsConfig(config),
-    expirationSeconds
-  )
-
-  return {
-    url,
-    key,
-    uploadHeaders: signedHeaders,
-  }
-}
-
-/**
- * Generate presigned URL for S3
- */
-async function generateS3PresignedUrl(
-  key: string,
-  contentType: string,
-  fileSize: number,
-  metadata: Record<string, string>,
-  config: { bucket?: string; region?: string },
-  expirationSeconds: number
-): Promise<PresignedUrlResponse> {
-  const { getS3Client } = await import('@/lib/uploads/providers/s3/client')
-  const { PutObjectCommand } = await import('@aws-sdk/client-s3')
-  const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
-
-  if (!config.bucket || !config.region) {
-    throw new Error('S3 configuration missing bucket or region')
-  }
-
-  const sanitizedMetadata = sanitizeStorageMetadata(metadata, 2000)
-  if (sanitizedMetadata.originalName) {
-    sanitizedMetadata.originalName = sanitizeFilenameForMetadata(sanitizedMetadata.originalName)
-  }
-
-  const command = new PutObjectCommand({
-    Bucket: config.bucket,
-    Key: key,
-    ContentType: contentType,
-    ContentLength: fileSize,
-    IfNoneMatch: '*',
-    Metadata: sanitizedMetadata,
-  })
-
-  const presignedUrl = await getSignedUrl(getS3Client(), command, { expiresIn: expirationSeconds })
-
-  return {
-    url: presignedUrl,
-    key,
-    uploadHeaders: {
-      'If-None-Match': '*',
-    },
-  }
-}
-
-/**
- * Generate presigned URL for Azure Blob
- */
-async function generateBlobPresignedUrl(
-  key: string,
-  contentType: string,
-  metadata: Record<string, string>,
-  config: {
-    containerName?: string
-    accountName?: string
-    accountKey?: string
-    connectionString?: string
-  },
-  expirationSeconds: number
-): Promise<PresignedUrlResponse> {
-  const { getBlobServiceClient, parseConnectionString } = await import(
-    '@/lib/uploads/providers/blob/client'
-  )
-  const { BlobSASPermissions, generateBlobSASQueryParameters, StorageSharedKeyCredential } =
-    await import('@azure/storage-blob')
-
-  if (!config.containerName) {
-    throw new Error('Blob configuration missing container name')
-  }
-
-  const blobServiceClient = await getBlobServiceClient()
-  const containerClient = blobServiceClient.getContainerClient(config.containerName)
-  const blobClient = containerClient.getBlockBlobClient(key)
-
-  const startsOn = new Date()
-  const expiresOn = new Date(startsOn.getTime() + expirationSeconds * 1000)
-
-  let accountName = config.accountName
-  let accountKey = config.accountKey
-  if ((!accountName || !accountKey) && config.connectionString) {
-    ;({ accountName, accountKey } = parseConnectionString(config.connectionString))
-  }
-
-  if (!accountName || !accountKey) {
-    throw new Error(
-      'Azure Blob SAS generation requires accountName/accountKey or a connectionString'
-    )
-  }
-
-  const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey)
-  const sasToken = generateBlobSASQueryParameters(
-    {
-      containerName: config.containerName,
-      blobName: key,
-      permissions: BlobSASPermissions.parse('c'),
-      startsOn,
-      expiresOn,
-    },
-    sharedKeyCredential
-  ).toString()
-
-  return {
-    url: `${blobClient.url}?${sasToken}`,
-    key,
-    uploadHeaders: {
-      'If-None-Match': '*',
-      'x-ms-blob-type': 'BlockBlob',
-      'x-ms-blob-content-type': contentType,
-      ...Object.entries(metadata).reduce(
-        (acc, [k, v]) => {
-          acc[`x-ms-meta-${k}`] = encodeURIComponent(v)
-          return acc
-        },
-        {} as Record<string, string>
-      ),
-    },
   }
 }
 

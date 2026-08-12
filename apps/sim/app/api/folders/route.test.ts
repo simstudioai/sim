@@ -327,6 +327,33 @@ describe('Folders API Route', () => {
       })
     })
 
+    /**
+     * The bounded readers refuse a workspace above `MAX_FOLDERS_PER_WORKSPACE`,
+     * so this endpoint must refuse to push one there — and must say so as an
+     * actionable 409, not an unexplained 500.
+     */
+    it('refuses with 409 and an actionable message at the folder ceiling', async () => {
+      mockAuthenticatedUser()
+
+      mockTransaction.mockImplementationOnce(
+        createMockTransaction({
+          selectResults: [[{ total: 10_000 }]],
+          // A row the insert would return, so a missing guard shows up as a 200, not a fault.
+          insertResult: [mockFolders[0]],
+        })
+      )
+
+      const response = await POST(
+        createMockRequest('POST', { name: 'One More', workspaceId: 'workspace-123' })
+      )
+
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toEqual({
+        error:
+          'This workspace has reached its limit of 10,000 workflow folders. Delete folders you no longer need before creating another one.',
+      })
+    })
+
     it('should create folder with correct sort order', async () => {
       mockAuthenticatedUser()
       let capturedValues: CapturedFolderValues | null = null
@@ -371,7 +398,13 @@ describe('Folders API Route', () => {
 
       mockTransaction.mockImplementationOnce(
         createMockTransaction({
-          selectResults: [[{ workspaceId: 'workspace-123', archivedAt: null }], [], []],
+          // The first read is the collection-ceiling count, then the parent lookup.
+          selectResults: [
+            [{ total: 1 }],
+            [{ workspaceId: 'workspace-123', archivedAt: null }],
+            [],
+            [],
+          ],
           insertResult: [{ ...mockFolders[1] }],
         })
       )

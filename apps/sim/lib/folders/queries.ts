@@ -1,11 +1,13 @@
 import { db } from '@sim/db'
 import { folder } from '@sim/db/schema'
-import { and, type Column, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, type Column, count, eq, isNotNull, isNull } from 'drizzle-orm'
 import type { FolderApi, FolderResourceType } from '@/lib/api/contracts/folders'
 import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-query'
 import type { DbOrTx } from '@/lib/db/types'
-import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
+import { FolderCollectionFullError, FolderCollectionLimitExceededError } from '@/lib/folders/errors'
 import { buildFolderPathIndex, type FolderPathIndex, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import { folderResourceLabel } from '@/lib/folders/resource-traits'
 import type { FolderQueryScope } from '@/hooks/queries/utils/folder-keys'
 
 export type FolderSortBy = 'position' | 'name' | 'createdAt' | 'updatedAt'
@@ -176,8 +178,9 @@ interface ListActiveFolderRowsOptions {
  * pass it get a throw of `FolderCollectionLimitExceededError` rather than a
  * truncated index, because a partial path index resolves real folder paths to
  * `undefined` and re-roots resources at the workspace root. The bound is not a
- * default because folder creation does not enforce the same ceiling on every
- * path, so a workspace can hold more rows than the cap and must still be read.
+ * default because folder creation only refuses at the ceiling on the paths that
+ * run through the orchestration engine, so a workspace can already hold more
+ * rows than the cap and must still be read.
  */
 export async function loadActiveFolderPathIndex(
   workspaceId: string,
@@ -201,6 +204,57 @@ export async function loadActiveFolderPathIndex(
   }
 
   return buildFolderPathIndex(rows)
+}
+
+export interface FolderCollectionRoomOptions {
+  /**
+   * How many folder rows the caller is about to insert. Bulk and recursive
+   * creates must pass their real row count: asserting room for one row and then
+   * inserting a whole subtree crosses the ceiling just as surely as ignoring it.
+   * Defaults to 1, the single-folder create.
+   */
+  additionalRows?: number
+  maxRows?: number
+}
+
+/**
+ * Refuses a folder create that would push a workspace's active tree past the
+ * ceiling the capped readers materialize under.
+ *
+ * Counts rather than loading the index: the writer only needs the cardinality,
+ * and a workspace already over the ceiling must not have its creates fail as a
+ * read error. Callers run this inside the folder mutation lock, which is what
+ * makes the count authoritative against a concurrent create.
+ *
+ * One query regardless of how many rows the caller is adding — a bulk writer
+ * passes `additionalRows` instead of calling this per row, which would be both
+ * O(n) queries and wrong (each call would see room for one more).
+ */
+export async function assertFolderCollectionHasRoom(
+  workspaceId: string,
+  resourceType: FolderResourceType,
+  tx: DbOrTx = db,
+  options: FolderCollectionRoomOptions = {}
+): Promise<void> {
+  const { additionalRows = 1, maxRows = MAX_FOLDERS_PER_WORKSPACE } = options
+  // A copy that creates no folders is not a create; an over-cap workspace must
+  // still be allowed to run it.
+  if (additionalRows <= 0) return
+
+  const [row] = await tx
+    .select({ total: count() })
+    .from(folder)
+    .where(
+      and(
+        eq(folder.workspaceId, workspaceId),
+        eq(folder.resourceType, resourceType),
+        isNull(folder.deletedAt)
+      )
+    )
+
+  if (Number(row?.total ?? 0) + additionalRows > maxRows) {
+    throw new FolderCollectionFullError(folderResourceLabel(resourceType), maxRows)
+  }
 }
 
 /** Resolves a canonical folder path to its internal id; `/` resolves to the root sentinel. */

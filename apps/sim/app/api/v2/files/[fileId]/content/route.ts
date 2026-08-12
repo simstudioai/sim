@@ -23,7 +23,6 @@ export const PUT = defineV2JsonRoute({
   parseOptions: {
     invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
     maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
-    payloadTooLargeResponse: () => v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large'),
   },
   beforeParse: async ({ principal, params }) => {
     if (typeof params.fileId === 'string') {

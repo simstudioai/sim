@@ -2,11 +2,20 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
 import type { skill } from '@sim/db/schema'
 import type { ListSortOrder } from '@/lib/api/list-query'
-import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import {
+  authorizeWorkspaceOperation,
+  defineAuthorizedWorkspaceUseCase,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { skillDelegationPolicy } from '@/lib/skills/application/authorization'
 import { skillOperations } from '@/lib/skills/application/operations'
-import { createSkill, deleteSkillRecord, updateSkill } from '@/lib/skills/orchestration'
+import {
+  createSkill,
+  deleteSkillRecord,
+  type SkillUpsertItem,
+  updateSkill,
+  upsertSkillBatch,
+} from '@/lib/skills/orchestration'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import {
   getSkillById,
@@ -168,6 +177,61 @@ export const updateSkillUseCase = defineAuthorizedWorkspaceUseCase({
     description: `Updated skill "${result.skill.name}"`,
     metadata: { source: input.source },
   }),
+})
+
+export interface UpsertSkillsInput {
+  workspaceId: string
+  skills: SkillUpsertItem[]
+  source?: SkillWriteSource
+}
+
+/**
+ * Applies a mixed batch of skill creates and updates as one semantic
+ * operation. Every item is authorized before any of them is written, and the
+ * writes share one transaction, so a rejected item leaves the whole batch
+ * unwritten and unaudited rather than partially committing it.
+ *
+ * The audit trail is unchanged in shape: one entry per skill actually written,
+ * tagged `skill.created` or `skill.updated`. Only `metadata.operation` differs
+ * from the single-item use cases, because the semantic operation genuinely is
+ * the batch.
+ */
+export const upsertSkillsUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: skillOperations.upsert,
+  resolveContext: ({ input }: { input: UpsertSkillsInput }) =>
+    resolveWorkspaceContext(input.workspaceId),
+  authorizationOptions,
+  async execute({ principal, input, context }) {
+    /**
+     * `skills.upsert` declares only the read floor an update needs. An item
+     * without an id creates, which `skills.create` gates on workspace write —
+     * so demand that too, still ahead of every write.
+     */
+    if (input.skills.some((item) => !item.id)) {
+      await authorizeWorkspaceOperation(
+        principal,
+        skillOperations.create,
+        context,
+        authorizationOptions
+      )
+    }
+
+    const touched = await upsertSkillBatch({
+      workspaceId: context.workspaceId,
+      userId: requirePrincipalSubjectUserId(principal),
+      skills: input.skills,
+    })
+    return { touched }
+  },
+  projectAudit: ({ input, result }) =>
+    result.touched.map((entry) => ({
+      action: entry.operation === 'created' ? AuditAction.SKILL_CREATED : AuditAction.SKILL_UPDATED,
+      resourceType: AuditResourceType.SKILL,
+      resourceId: entry.id,
+      resourceName: entry.name,
+      description: `${entry.operation === 'created' ? 'Created' : 'Updated'} skill "${entry.name}"`,
+      metadata: { source: input.source },
+    })),
 })
 
 export interface DeleteSkillInput {

@@ -165,6 +165,45 @@ describe('GET /api/v2/workflows/[id]/runs', () => {
     expect(mocks.listRuns).not.toHaveBeenCalled()
   })
 
+  it('serves a page containing a run whose output is still being redacted', async () => {
+    mocks.listRuns.mockResolvedValueOnce({
+      data: [
+        {
+          rowId: 'row-3',
+          executionId: 'execution-3',
+          workflowId: 'workflow-1',
+          status: 'redacting',
+          trigger: 'api',
+          startedAt: new Date('2026-08-05T00:03:00Z'),
+          endedAt: new Date('2026-08-05T00:03:01Z'),
+          durationMs: 1000,
+          costTotal: null,
+        },
+        ...EXECUTIONS,
+      ],
+      nextCursor: null,
+      workflowId: 'workflow-1',
+      order: 'desc',
+    })
+
+    const response = await callGet()
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.data.map((run: { status: string }) => run.status)).toEqual([
+      'redacting',
+      'paused',
+      'completed',
+    ])
+  })
+
+  it('rejects redacting as a durable-history filter', async () => {
+    const response = await callGet('?status=redacting')
+
+    expect(response.status).toBe(400)
+    expect(mocks.listRuns).not.toHaveBeenCalled()
+  })
+
   it('rejects queued as a durable-history filter', async () => {
     const response = await callGet('?status=queued')
 

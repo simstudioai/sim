@@ -13,6 +13,7 @@ import {
   type V2RateLimitPolicy,
   V2RouteInfrastructureError,
   type v2ApiKeyAuth,
+  v2PayloadTooLargeResponse,
 } from '@/lib/api/server/routes/v2-json-route'
 import {
   type ParsedRequest,
@@ -136,6 +137,7 @@ export function defineV2BodyLifecycleRoute<
       if (!routeAdmission.success) return routeAdmission.response
 
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
+        payloadTooLargeResponse: v2PayloadTooLargeResponse,
         ...options.parseOptions,
         validationErrorResponse: v2ValidationError,
       })

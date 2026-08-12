@@ -12,6 +12,7 @@ import {
   type V2RateLimitPolicy,
   V2RouteInfrastructureError,
   type v2ApiKeyAuth,
+  v2PayloadTooLargeResponse,
 } from '@/lib/api/server/routes/v2-json-route'
 import { parseRequest } from '@/lib/api/server/validation'
 import type { ApplicationOperation } from '@/lib/core/application'
@@ -58,6 +59,7 @@ export function defineV2BinaryRoute<
       if (!admission.success) return admission.response
 
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
+        payloadTooLargeResponse: v2PayloadTooLargeResponse,
         validationErrorResponse: v2ValidationError,
       })
       if (!parsed.success) return parsed.response

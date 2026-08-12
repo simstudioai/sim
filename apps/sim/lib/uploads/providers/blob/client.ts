@@ -601,12 +601,18 @@ export async function initiateMultipartUpload(
 }
 
 /**
- * Generate presigned URLs for uploading parts
+ * Generate presigned URLs for uploading parts.
+ *
+ * `expiresOn` is required rather than defaulted: the caller owns the part-URL lifetime and
+ * advertises the matching `expiresAt` to the client, so a local default would be a second
+ * source of truth that silently keeps signing 1h SAS tokens after the caller's window changed.
  */
 export async function getMultipartPartUrls(
   key: string,
   partNumbers: number[],
-  customConfig?: BlobConfig
+  customConfig: BlobConfig | undefined,
+  /** Absolute instant the SAS token stops being valid. */
+  expiresOn: Date
 ): Promise<AzurePartUploadUrl[]> {
   const {
     BlobServiceClient,
@@ -659,7 +665,7 @@ export async function getMultipartPartUrls(
       blobName: key,
       permissions: BlobSASPermissions.parse('w'), // Write permission
       startsOn: new Date(),
-      expiresOn: new Date(Date.now() + 3600 * 1000), // 1 hour
+      expiresOn,
     }
 
     const sasToken = generateBlobSASQueryParameters(

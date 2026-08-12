@@ -147,7 +147,7 @@ export const v2CursorListResponse = <T extends z.ZodType>(itemSchema: T) =>
       .string()
       .nullable()
       .describe(
-        'Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response.'
+        'Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself.'
       ),
   })
 

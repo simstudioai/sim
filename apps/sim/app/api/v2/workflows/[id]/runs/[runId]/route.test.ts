@@ -169,6 +169,20 @@ describe('v2 run detail and cancel adapters', () => {
     expect((await (await callStatus()).json()).data.status).toBe('queued')
   })
 
+  it('returns the run resource while its output is still being redacted', async () => {
+    mocks.readRun.mockResolvedValueOnce({
+      ...baseStatus,
+      status: 'redacting',
+      level: 'info',
+      error: null,
+    })
+
+    const response = await callStatus()
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data.status).toBe('redacting')
+  })
+
   it('returns the public pause context without its internal paused-execution ID', async () => {
     mocks.readRun.mockResolvedValueOnce({
       ...baseStatus,

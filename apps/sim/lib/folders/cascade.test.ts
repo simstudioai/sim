@@ -14,6 +14,7 @@ import {
 } from '@/lib/folders/cascade'
 import { FOLDER_RESOURCES, type FolderResourceConfig } from '@/lib/folders/config'
 import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
+import { folderResourceSupportsLocking } from '@/lib/folders/resource-traits'
 import { folderMutationStatus } from '@/lib/folders/status'
 
 interface SelectCall {
@@ -438,6 +439,16 @@ describe('FOLDER_RESOURCES', () => {
       .filter((config) => config.supportsLocking)
       .map((config) => config.resourceType)
     expect(lockable).toEqual(['workflow'])
+  })
+
+  it('answers the lock question identically whether asked of the config or the trait', () => {
+    // Routes read `folderResourceSupportsLocking` (the leaf module, so a lock check costs no
+    // db-schema graph) while orchestration reads `config.supportsLocking`. Declared twice they
+    // drift silently: a newly lockable resource would lock in orchestration but not in the
+    // routes that guard it.
+    for (const config of Object.values(FOLDER_RESOURCES)) {
+      expect(config.supportsLocking).toBe(folderResourceSupportsLocking(config.resourceType))
+    }
   })
 
   it('guards the delete of resources that gate their own deletion', () => {

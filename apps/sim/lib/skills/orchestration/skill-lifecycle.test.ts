@@ -21,16 +21,6 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
   deleteSkill: mockDeleteSkill,
 }))
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
-}))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: { SKILL_CREATED: 'skill.created', SKILL_UPDATED: 'skill.updated' },
-  AuditResourceType: { SKILL: 'skill' },
-  recordAudit: vi.fn(),
-}))
-
 import { createSkill, updateSkill } from '@/lib/skills/orchestration/skill-lifecycle'
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'

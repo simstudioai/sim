@@ -83,7 +83,12 @@ describe('POST /api/v2/tables/imports', () => {
           completedAt: null,
         },
         uploadToken: 'signed-token',
-        transfer: { method: 'put', url: 'https://storage.example/upload', headers: {} },
+        transfer: {
+          method: 'put',
+          url: 'https://storage.example/upload',
+          headers: {},
+          expiresAt: '2026-01-01T01:00:00.000Z',
+        },
       },
     ],
     [

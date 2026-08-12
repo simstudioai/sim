@@ -48,14 +48,9 @@ describe('/api/v2/workflows/[id]/rollback route definition', () => {
       error: { code: 'BAD_REQUEST', message: 'Request body must be valid JSON' },
     })
 
-    const payloadTooLargeResponse = Reflect.get(
-      Reflect.get(POST, 'parseOptions'),
-      'payloadTooLargeResponse'
-    )()
-    expect(payloadTooLargeResponse.status).toBe(413)
-    expect(await payloadTooLargeResponse.json()).toEqual({
-      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' },
-    })
+    expect(
+      Reflect.get(Reflect.get(POST, 'parseOptions'), 'payloadTooLargeResponse')
+    ).toBeUndefined()
   })
 
   it('presents the full declared rollback lifecycle response', () => {

@@ -590,12 +590,18 @@ export async function uploadGcsPart(
 /**
  * Generate presigned URLs for uploading parts to GCS. The URLs sign the
  * `partNumber`/`uploadId` query parameters (V4), matching the S3 flow.
+ *
+ * `expires` is required rather than defaulted: the caller owns the part-URL lifetime and
+ * advertises the matching `expiresAt` to the client, so a local default would be a second
+ * source of truth that silently keeps signing 1h URLs after the caller's window changed.
  */
 export async function getGcsMultipartPartUrls(
   key: string,
   uploadId: string,
   partNumbers: number[],
-  customConfig?: GcsConfig
+  customConfig: GcsConfig | undefined,
+  /** Absolute instant the signature stops being valid. */
+  expires: Date
 ): Promise<GcsPartUploadUrl[]> {
   const config = customConfig || { bucket: GCS_CONFIG.bucket }
   const storage = await getGcsClient()
@@ -606,7 +612,7 @@ export async function getGcsMultipartPartUrls(
       const [url] = await file.getSignedUrl({
         version: 'v4',
         action: 'write',
-        expires: Date.now() + 3600 * 1000,
+        expires,
         queryParams: {
           partNumber: String(partNumber),
           uploadId,

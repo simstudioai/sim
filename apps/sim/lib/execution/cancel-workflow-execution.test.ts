@@ -10,6 +10,7 @@ const {
   mockCancelWorkflowGroupExecution,
   mockCaptureServerEvent,
   mockClearPausedCancellationIntent,
+  mockCompletePausedCancellation,
   mockGetJobQueue,
   mockGetPausedCancellationStatus,
   mockMarkExecutionCancelled,
@@ -24,6 +25,7 @@ const {
   mockCancelWorkflowGroupExecution: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
   mockClearPausedCancellationIntent: vi.fn(),
+  mockCompletePausedCancellation: vi.fn(),
   mockGetJobQueue: vi.fn(),
   mockGetPausedCancellationStatus: vi.fn(),
   mockMarkExecutionCancelled: vi.fn(),
@@ -91,7 +93,7 @@ vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
     getPausedCancellationStatus: mockGetPausedCancellationStatus,
     blockQueuedResumesForCancellation: mockBlockQueuedResumes,
     clearPausedCancellationIntent: mockClearPausedCancellationIntent,
-    completePausedCancellation: vi.fn(),
+    completePausedCancellation: mockCompletePausedCancellation,
   },
 }))
 
@@ -117,6 +119,7 @@ describe('cancelWorkflowExecution', () => {
     mockAbortManualExecution.mockReturnValue(false)
     mockBlockQueuedResumes.mockResolvedValue(undefined)
     mockClearPausedCancellationIntent.mockResolvedValue(undefined)
+    mockCompletePausedCancellation.mockResolvedValue(true)
     mockReleaseExecutionSlot.mockResolvedValue(undefined)
     mockPublishWorkflowGroupCancellationEvent.mockResolvedValue(undefined)
     mockGetJobQueue.mockResolvedValue({
@@ -173,18 +176,101 @@ describe('cancelWorkflowExecution', () => {
   it.each([
     [{ kind: 'conflict' as const, status: 'completed' }, 'cannot be cancelled while completed'],
     [{ kind: 'not_workflow_group' as const }, 'no longer the active table execution'],
-  ])('reports a refused workflow-group cell claim as a conflict', async (outcome, message) => {
+  ])(
+    'releases the reservation before reporting a refused workflow-group cell claim as a conflict',
+    async (outcome, message) => {
+      mockResolveWorkflowExecutionOwnership.mockResolvedValue({
+        belongsToWorkflow: true,
+        workflowGroupWorkspaceId: 'workspace-1',
+      })
+      mockCancelWorkflowGroupExecution.mockResolvedValue(outcome)
+
+      await expect(cancelWorkflowExecution(INPUT)).rejects.toMatchObject({
+        code: 'conflict',
+        message: expect.stringContaining(message),
+      })
+      expect(mockPublishWorkflowGroupCancellationEvent).not.toHaveBeenCalled()
+      expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
+    }
+  )
+
+  it.each([
+    [{ kind: 'conflict' as const, status: 'completed' }],
+    [{ kind: 'not_workflow_group' as const }],
+  ])(
+    'keeps the reservation held when a refused claim follows a paused cancellation',
+    async (outcome) => {
+      mockResolveWorkflowExecutionOwnership.mockResolvedValue({
+        belongsToWorkflow: true,
+        workflowGroupWorkspaceId: 'workspace-1',
+      })
+      mockBeginPausedCancellation.mockResolvedValue(true)
+      mockCancelWorkflowGroupExecution.mockResolvedValue(outcome)
+
+      await expect(cancelWorkflowExecution(INPUT)).rejects.toMatchObject({ code: 'conflict' })
+      expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    [{ kind: 'conflict' as const, status: 'completed' }],
+    [{ kind: 'not_workflow_group' as const }],
+  ])(
+    'keeps the reservation held when a refused claim follows a failed cancellation',
+    async (outcome) => {
+      mockResolveWorkflowExecutionOwnership.mockResolvedValue({
+        belongsToWorkflow: true,
+        workflowGroupWorkspaceId: 'workspace-1',
+      })
+      mockMarkExecutionCancelled.mockResolvedValue({
+        durablyRecorded: false,
+        reason: 'redis_unavailable',
+      })
+      mockCancelWorkflowGroupExecution.mockResolvedValue(outcome)
+
+      await expect(cancelWorkflowExecution(INPUT)).rejects.toMatchObject({ code: 'conflict' })
+      expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+    }
+  )
+
+  it('releases the reservation and rethrows when the workflow-group cancel fails unexpectedly', async () => {
     mockResolveWorkflowExecutionOwnership.mockResolvedValue({
       belongsToWorkflow: true,
       workflowGroupWorkspaceId: 'workspace-1',
     })
-    mockCancelWorkflowGroupExecution.mockResolvedValue(outcome)
+    const failure = new Error('Workflow-group cancellation lost its locked workflow-log claim')
+    mockCancelWorkflowGroupExecution.mockRejectedValue(failure)
 
-    await expect(cancelWorkflowExecution(INPUT)).rejects.toMatchObject({
-      code: 'conflict',
-      message: expect.stringContaining(message),
-    })
+    await expect(cancelWorkflowExecution(INPUT)).rejects.toBe(failure)
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
     expect(mockPublishWorkflowGroupCancellationEvent).not.toHaveBeenCalled()
+    expect(mockUpdateSet).not.toHaveBeenCalled()
+  })
+
+  it('keeps the reservation held when an unexpected workflow-group failure follows a paused cancellation', async () => {
+    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
+      belongsToWorkflow: true,
+      workflowGroupWorkspaceId: 'workspace-1',
+    })
+    mockBeginPausedCancellation.mockResolvedValue(true)
+    mockCancelWorkflowGroupExecution.mockRejectedValue(new Error('serialization conflict'))
+
+    await expect(cancelWorkflowExecution(INPUT)).rejects.toThrow('serialization conflict')
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+  })
+
+  it('keeps the reservation held when an unexpected workflow-group failure follows a failed cancellation', async () => {
+    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
+      belongsToWorkflow: true,
+      workflowGroupWorkspaceId: 'workspace-1',
+    })
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: false,
+      reason: 'redis_unavailable',
+    })
+    mockCancelWorkflowGroupExecution.mockRejectedValue(new Error('serialization conflict'))
+
+    await expect(cancelWorkflowExecution(INPUT)).rejects.toThrow('serialization conflict')
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
