@@ -11,6 +11,7 @@ import {
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import { createMcpServerUseCase, listMcpServersUseCase } from '@/lib/mcp/application/use-cases'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
 import { toV2McpServer } from '@/app/api/v2/mcp-servers/utils'
 
 export const dynamic = 'force-dynamic'
@@ -23,9 +24,17 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
-  mapInput: ({ query }) => query,
+  mapInput: ({ query }) => ({
+    ...query,
+    cursorKeys: readSortedCursor(query.cursor, query.sortBy, query.sortOrder),
+  }),
   useCase: listMcpServersUseCase,
-  present: ({ servers }) => ({ data: servers.map(toV2McpServer), nextCursor: null }),
+  present: ({ servers, nextCursorKeys, sortBy, sortOrder }) => ({
+    data: servers.map(toV2McpServer),
+    nextCursor: nextCursorKeys
+      ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), nextCursorKeys)
+      : null,
+  }),
 })
 
 /** POST /api/v2/mcp-servers — Register a new MCP server. */

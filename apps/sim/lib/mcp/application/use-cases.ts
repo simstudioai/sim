@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { getPostgresErrorCode } from '@sim/utils/errors'
-import type { ListSortOrder } from '@/lib/api/list-query'
+import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
@@ -83,16 +83,28 @@ export interface ListMcpServersInput {
   search?: string
   sortBy?: McpServerSortBy
   sortOrder?: ListSortOrder
+  /** Absent reads the whole set — only the copilot adapter does that. */
+  limit?: number
+  cursorKeys?: CursorKey[]
 }
 
+/**
+ * One page of a workspace's MCP servers, plus the sort the presenter needs to
+ * stamp the next cursor with. The surface presenter sees only this result.
+ */
 export const listMcpServersUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.list,
   resolveContext: ({ input }: { input: ListMcpServersInput }) =>
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
   async execute({ input, context }) {
-    const servers = await listWorkspaceMcpServers({ ...input, workspaceId: context.workspaceId })
-    return { servers }
+    const page = await listWorkspaceMcpServers({ ...input, workspaceId: context.workspaceId })
+    return {
+      servers: page.data,
+      nextCursorKeys: page.nextCursorKeys,
+      sortBy: input.sortBy ?? 'createdAt',
+      sortOrder: input.sortOrder ?? 'desc',
+    }
   },
 })
 
@@ -109,6 +121,41 @@ export const discoverMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
   async execute({ principal, input, context }) {
     const tools = await mcpService.discoverTools(
       requirePrincipalSubjectUserId(principal),
+      context.workspaceId,
+      input.refresh ?? false
+    )
+    return { tools }
+  },
+})
+
+export interface DiscoverMcpServerToolsInput {
+  workspaceId: string
+  serverId: string
+  refresh?: boolean
+}
+
+/**
+ * The tool inventory of one registered MCP server.
+ *
+ * Shares `mcp_servers.tools.discover` with the workspace-wide discovery: both
+ * resolve the acting user's own OAuth credentials against a third-party server,
+ * which is why that operation denies workspace API keys. Resolving the server
+ * through {@link resolveServerContext} first is what makes an id from another
+ * workspace a not-found rather than an upstream connection attempt.
+ *
+ * The pass is also the only thing that writes the server row's
+ * `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh`, so
+ * calling this is what makes those fields meaningful on a subsequent read.
+ */
+export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: mcpServerOperations.discoverTools,
+  resolveContext: ({ input }: { input: DiscoverMcpServerToolsInput }) =>
+    resolveServerContext(input.workspaceId, input.serverId),
+  authorizationOptions,
+  async execute({ principal, input, context }) {
+    const tools = await mcpService.discoverServerTools(
+      requirePrincipalSubjectUserId(principal),
+      context.server.id,
       context.workspaceId,
       input.refresh ?? false
     )

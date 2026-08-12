@@ -116,7 +116,12 @@ describe('/api/v2/mcp-servers', () => {
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.gate.mockResolvedValue(null)
-    mocks.list.mockResolvedValue({ servers: [server] })
+    mocks.list.mockResolvedValue({
+      servers: [server],
+      nextCursorKeys: null,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
     mocks.create.mockResolvedValue({ server, updated: false })
   })
 
@@ -134,9 +139,84 @@ describe('/api/v2/mcp-servers', () => {
         search: undefined,
         sortBy: 'createdAt',
         sortOrder: 'desc',
+        limit: 50,
+        cursor: undefined,
+        cursorKeys: undefined,
       },
       request: expect.anything(),
     })
+  })
+
+  it('bounds the server list by the requested limit', async () => {
+    await GET(request('GET', `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&limit=2`))
+
+    expect(mocks.list).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ limit: 2 }) })
+    )
+  })
+
+  it('mints a resumable cursor and replays it against the same sort', async () => {
+    mocks.list.mockResolvedValueOnce({
+      servers: [server],
+      nextCursorKeys: [server.createdAt.toISOString(), server.id],
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
+
+    const first = await GET(
+      request('GET', `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&limit=1`)
+    )
+    const { nextCursor } = await first.json()
+
+    expect(nextCursor).toEqual(expect.any(String))
+
+    const second = await GET(
+      request(
+        'GET',
+        `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&limit=1&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(second.status).toBe(200)
+    expect(mocks.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          cursorKeys: [server.createdAt.toISOString(), server.id],
+        }),
+      })
+    )
+  })
+
+  it('rejects a cursor minted under a different sort', async () => {
+    mocks.list.mockResolvedValueOnce({
+      servers: [server],
+      nextCursorKeys: [server.createdAt.toISOString(), server.id],
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
+
+    const first = await GET(
+      request('GET', `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&limit=1`)
+    )
+    const { nextCursor } = await first.json()
+
+    const response = await GET(
+      request(
+        'GET',
+        `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&limit=1&sortBy=name&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+  })
+
+  it('rejects a fractional limit rather than paging on a fractional LIMIT', async () => {
+    const response = await GET(
+      request('GET', `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&limit=1.5`)
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.list).not.toHaveBeenCalled()
   })
 
   it('strictly creates an MCP server with the v2 source and status', async () => {

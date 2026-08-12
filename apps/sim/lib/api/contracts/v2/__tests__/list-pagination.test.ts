@@ -52,6 +52,7 @@ const PAGED_LISTS = [
   'GET /api/v2/knowledge',
   'GET /api/v2/knowledge/[id]/documents',
   'GET /api/v2/logs',
+  'GET /api/v2/mcp-servers',
   'GET /api/v2/secrets',
   'GET /api/v2/skills',
   'GET /api/v2/tables',
@@ -65,17 +66,19 @@ const PAGED_LISTS = [
 
 /**
  * Lists that accept neither param and always return `nextCursor: null`, because
- * the set is small and bounded per workspace or per table.
+ * the set is small and bounded per workspace, per table, or per server.
  *
- * Every remaining entry but the MCP server list is a *folder* list, and a folder
- * tree is already capped where it is loaded
- * (`MAX_*_FOLDERS_PER_WORKSPACE`) — bounded by construction rather than by a
- * caller's `limit`.
+ * Every folder list is capped where the tree is loaded
+ * (`MAX_*_FOLDERS_PER_WORKSPACE`), and one MCP server's tool inventory is capped
+ * by tool discovery itself (`LIST_TOOLS_MAX_TOOLS` / `LIST_TOOLS_MAX_BYTES`) no
+ * matter what the upstream server reports — bounded by construction rather than
+ * by a caller's `limit`. The MCP *server* list is not: nothing caps how many
+ * servers a workspace registers, which is why it is paged.
  */
 const FULL_SET_LISTS = [
   'GET /api/v2/files/folders',
   'GET /api/v2/knowledge/folders',
-  'GET /api/v2/mcp-servers',
+  'GET /api/v2/mcp-servers/[id]/tools',
   'GET /api/v2/tables/[tableId]/groups',
   'GET /api/v2/tables/[tableId]/views',
   'GET /api/v2/tables/folders',

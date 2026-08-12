@@ -1,8 +1,10 @@
 import type { NextResponse } from 'next/server'
 import { type V2McpServer, v2McpServerSchema } from '@/lib/api/contracts/v2/mcp-servers'
+import { createV2ResourceConcealmentPolicy, type V2ErrorPolicy } from '@/lib/api/server/routes'
 import { projectMcpHeaders } from '@/lib/mcp/projection'
 import type { McpServerRow } from '@/lib/mcp/queries'
-import { v2Error } from '@/app/api/v2/lib/response'
+import { categorizeError } from '@/lib/mcp/utils'
+import { type V2ErrorCode, v2Error } from '@/app/api/v2/lib/response'
 
 /**
  * Shared serialization + error mapping for the v2 MCP server surface.
@@ -48,3 +50,50 @@ export function v2McpOrchestrationError(
       return v2Error('INTERNAL_ERROR', 'Internal server error')
   }
 }
+
+export const mcpServerResourceErrorPolicy = createV2ResourceConcealmentPolicy({
+  notFoundMessage: 'MCP server not found',
+})
+
+/**
+ * v2 code for a status {@link categorizeError} assigned a discovery failure.
+ *
+ * 408 and 502 collapse onto 503 because the v2 envelope publishes neither, and
+ * both mean the same thing to a caller: the third-party server did not answer,
+ * come back later. `v2Error` stamps the 503 with `Retry-After`. `500` is absent
+ * on purpose — see {@link v2McpToolDiscoveryErrorPolicy}.
+ */
+const V2_CODE_BY_DISCOVERY_STATUS: Partial<Record<number, V2ErrorCode>> = {
+  400: 'BAD_REQUEST',
+  401: 'UNAUTHORIZED',
+  404: 'NOT_FOUND',
+  408: 'SERVICE_UNAVAILABLE',
+  502: 'SERVICE_UNAVAILABLE',
+  503: 'SERVICE_UNAVAILABLE',
+}
+
+/**
+ * Renders a tool-discovery failure.
+ *
+ * Discovery talks to a server the caller registered, so its failures are
+ * ordinary operating conditions rather than Sim faults: an unreachable, slow, or
+ * cooling-down server is a retryable 503, and a server whose stored OAuth grant
+ * no longer works is a 401 telling the caller to reauthorize. Answering all of
+ * those with a bare 500 would make the endpoint that completes MCP onboarding
+ * indistinguishable from a Sim outage.
+ *
+ * `categorizeError` already owns that classification for the internal surface
+ * and returns caller-safe generic messages, so it is reused rather than
+ * re-derived. Anything it cannot classify falls through as `null`, which keeps
+ * the builder's own generic 500 and its unhandled-error logging.
+ */
+export const v2McpToolDiscoveryErrorPolicy = {
+  render(error) {
+    const orchestrated = mcpServerResourceErrorPolicy.render(error)
+    if (orchestrated) return orchestrated
+
+    const { message, status } = categorizeError(error)
+    const code = V2_CODE_BY_DISCOVERY_STATUS[status]
+    return code ? v2Error(code, message) : null
+  },
+} satisfies V2ErrorPolicy
