@@ -11,7 +11,8 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
+import { FolderCollectionFullError, FolderCollectionLimitExceededError } from '@/lib/folders/errors'
+import { folderMutationStatus } from '@/lib/folders/status'
 
 const {
   mockArchiveFolderCascade,
@@ -25,6 +26,7 @@ const {
   mockRestoreFolderRows,
   mockWouldCreateFolderCycle,
   mockLoadActiveFolderPathIndex,
+  mockAssertFolderCollectionHasRoom,
   resourceConfig,
 } = vi.hoisted(() => ({
   mockArchiveFolderCascade: vi.fn(),
@@ -38,6 +40,7 @@ const {
   mockRestoreFolderRows: vi.fn(),
   mockWouldCreateFolderCycle: vi.fn(),
   mockLoadActiveFolderPathIndex: vi.fn(),
+  mockAssertFolderCollectionHasRoom: vi.fn(),
   resourceConfig: { current: {} as Record<string, unknown> },
 }))
 
@@ -64,6 +67,7 @@ vi.mock('@/lib/folders/naming', () => ({ deduplicateFolderName: mockDeduplicateF
 vi.mock('@/lib/folders/queries', () => ({
   wouldCreateFolderCycle: mockWouldCreateFolderCycle,
   loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
+  assertFolderCollectionHasRoom: mockAssertFolderCollectionHasRoom,
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -140,6 +144,7 @@ beforeEach(() => {
   resetDbChainMock()
   setConfig()
   mockWouldCreateFolderCycle.mockResolvedValue(false)
+  mockAssertFolderCollectionHasRoom.mockResolvedValue(undefined)
   mockLoadActiveFolderPathIndex.mockResolvedValue({
     rowById: new Map(),
     pathById: new Map(),
@@ -321,6 +326,28 @@ describe('createFolder', () => {
     })
   })
 
+  /**
+   * The writer must agree with the bounded readers: without this the sidebar
+   * create path could push a workspace past `MAX_FOLDERS_PER_WORKSPACE`, after
+   * which every capped read fails on a state the product allowed to exist.
+   */
+  it('refuses a create at the collection ceiling with a typed conflict, before inserting', async () => {
+    mockAssertFolderCollectionHasRoom.mockRejectedValueOnce(
+      new FolderCollectionFullError('table', 10_000)
+    )
+
+    const result = await createFolder(baseCreate)
+
+    expect(result).toEqual({
+      success: false,
+      error:
+        'This workspace has reached its limit of 10,000 table folders. Delete folders you no longer need before creating another one.',
+      errorCode: 'conflict',
+    })
+    expect(folderMutationStatus(result.errorCode)).toBe(409)
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
   it('reports any other insert failure as internal rather than a name conflict', async () => {
     queueTableRows(schemaMock.folder, [{ minSortOrder: 0 }])
     dbChainMockFns.returning.mockRejectedValueOnce(new Error('connection reset'))
@@ -354,6 +381,8 @@ describe('path-owned folder mutations', () => {
       error: 'Folder path index exceeds the 10000 row limit',
       errorCode: 'payload_too_large',
     })
+    // A collection too large to materialize is an infrastructure limit, not a fault.
+    expect(folderMutationStatus(result.errorCode)).toBe(413)
     expect(mockLoadActiveFolderPathIndex).toHaveBeenCalledWith(
       'ws-1',
       'workflow',

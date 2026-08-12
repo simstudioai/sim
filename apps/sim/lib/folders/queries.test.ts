@@ -9,8 +9,10 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
+import { FolderCollectionFullError, FolderCollectionLimitExceededError } from '@/lib/folders/errors'
 import {
+  assertFolderCollectionHasRoom,
   findActiveFolder,
   listActiveFolderRows,
   listFoldersForWorkspace,
@@ -203,11 +205,12 @@ describe('folder queries', () => {
     })
 
     /**
-     * The bound stays opt-in. Folder creation does not refuse at
-     * `MAX_FOLDERS_PER_WORKSPACE` on every path — `POST /api/folders` passes no
-     * `maxFolderRows` — so a workspace already over the cap must still be
-     * readable. Defaulting the bound would turn every path-index consumer into
-     * a hard failure for a state the product allows to exist.
+     * The bound stays opt-in. Creation now refuses at
+     * `MAX_FOLDERS_PER_WORKSPACE`, but a workspace that crossed the ceiling
+     * before that guard existed — or through a create path that still bypasses
+     * the orchestration engine — must stay readable. Defaulting the bound would
+     * turn every path-index consumer into a hard failure for a state that
+     * already exists in production data.
      */
     it('leaves the read unbounded when no maxRows is given', async () => {
       queueTableRows(schemaMock.folder, [
@@ -234,6 +237,50 @@ describe('folder queries', () => {
         message: 'Folder list exceeds the 2 row limit',
       })
       expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
+    })
+  })
+
+  /**
+   * The writer half of the ceiling the bounded readers enforce. Without it a
+   * workspace could be driven past `MAX_FOLDERS_PER_WORKSPACE`, after which
+   * every capped reader fails on a state the product allowed to exist.
+   */
+  describe('assertFolderCollectionHasRoom', () => {
+    it('refuses a create once the active collection is at the ceiling', async () => {
+      queueTableRows(schemaMock.folder, [{ total: MAX_FOLDERS_PER_WORKSPACE }])
+
+      const rejection = expect(assertFolderCollectionHasRoom('ws-1', 'workflow')).rejects
+      await rejection.toBeInstanceOf(FolderCollectionFullError)
+      await rejection.toMatchObject({
+        code: 'conflict',
+        message:
+          'This workspace has reached its limit of 10,000 workflow folders. Delete folders you no longer need before creating another one.',
+      })
+    })
+
+    it('still refuses a workspace that is already past the ceiling', async () => {
+      queueTableRows(schemaMock.folder, [{ total: MAX_FOLDERS_PER_WORKSPACE + 1 }])
+
+      await expect(assertFolderCollectionHasRoom('ws-1', 'table')).rejects.toBeInstanceOf(
+        FolderCollectionFullError
+      )
+    })
+
+    it('allows a create below the ceiling and counts only this resource type', async () => {
+      queueTableRows(schemaMock.folder, [{ total: MAX_FOLDERS_PER_WORKSPACE - 1 }])
+
+      await expect(assertFolderCollectionHasRoom('ws-1', 'knowledge_base')).resolves.toBeUndefined()
+
+      const where = whereAt(0)
+      expect(hasMockCondition(where, (n) => n.type === 'eq' && n.right === 'knowledge_base')).toBe(
+        true
+      )
+      expect(
+        hasMockCondition(
+          where,
+          (n) => n.type === 'isNull' && n.column === schemaMock.folder.deletedAt
+        )
+      ).toBe(true)
     })
   })
 
