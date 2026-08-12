@@ -7,7 +7,12 @@ import type {
 } from '@/lib/workflows/search-replace/types'
 import type { SelectorContext } from '@/hooks/selectors/types'
 
-const OVERLAPPING_MATCH_KIND_PRIORITY: Record<WorkflowSearchMatchKind, number> = {
+/**
+ * Which kind wins when two matches cover the same span. Exported so the
+ * equivalence tests can share it instead of hand-copying the values, which
+ * silently drifted once already.
+ */
+export const OVERLAPPING_MATCH_KIND_PRIORITY: Record<WorkflowSearchMatchKind, number> = {
   text: 0,
   environment: 1,
   'workflow-reference': 2,
@@ -141,31 +146,86 @@ function shouldPreferOverlappingMatch(
   return false
 }
 
+/** Kept indices for one overlap scope, plus the highest `range.end` among them. */
+interface RangeMatchScopeBucket {
+  indices: number[]
+  maxEnd: number
+}
+
+function widenScopeBucket(bucket: RangeMatchScopeBucket, end: number): void {
+  if (Number.isFinite(end)) bucket.maxEnd = Math.max(bucket.maxEnd, end)
+}
+
+/**
+ * Overlap resolution is scoped to one value inside one subblock, so candidates
+ * are bucketed by that scope rather than rescanned. The previous `findIndex`
+ * over the whole accumulated list recomputed every candidate's scope key on
+ * every iteration - O(n^2) string builds, which cost ~1.4s on a workflow
+ * producing ~500 matches and froze the search field while typing.
+ *
+ * A bucket only ever holds entries that have both a scope key and a range, and
+ * those are exactly the entries the old predicate could match. Buckets keep
+ * insertion order and the scan stops at the first overlap, so this picks the
+ * same candidate the linear scan did.
+ *
+ * `maxEnd` is the largest `range.end` currently kept in the bucket. A match
+ * starting at or after it cannot overlap anything in that bucket, so the scan
+ * is skipped. That keeps a single long field full of disjoint hits linear
+ * instead of quadratic within its own bucket, to the extent its matches arrive
+ * in ascending offset order; out-of-order producers just fall back to scanning.
+ *
+ * It must be refreshed on the replacement path too, not only on append:
+ * `shouldPreferOverlappingMatch` prefers the SHORTER range, and a shorter range
+ * can still end further right than the one it evicts. Leaving `maxEnd` stale
+ * there let the short-circuit skip genuine overlaps and leak duplicates.
+ *
+ * Only finite ends widen it. `Math.max` with a non-finite end would pin
+ * `maxEnd` at `NaN`, and since every comparison against `NaN` is false that
+ * would silently switch dedupe off for the rest of the scope. A non-finite
+ * range cannot overlap anything anyway - `rangesOverlap` is false for it - so
+ * skipping the widening matches what the unbucketed scan did.
+ */
 export function dedupeOverlappingWorkflowSearchMatches<T extends WorkflowSearchMatch>(
   matches: T[]
 ): T[] {
   const deduped: T[] = []
+  const bucketsByScopeKey = new Map<string, RangeMatchScopeBucket>()
 
   for (const match of matches) {
     const scopeKey = getRangeMatchScopeKey(match)
     const matchRange = match.range
-    const existingIndex =
-      scopeKey && matchRange
-        ? deduped.findIndex(
-            (candidate) =>
-              getRangeMatchScopeKey(candidate) === scopeKey &&
-              candidate.range &&
-              rangesOverlap(candidate.range, matchRange)
-          )
-        : -1
+    const bucket = scopeKey && matchRange ? bucketsByScopeKey.get(scopeKey) : undefined
+
+    let existingIndex = -1
+    if (bucket && matchRange && matchRange.start < bucket.maxEnd) {
+      for (const index of bucket.indices) {
+        const candidate = deduped[index]
+        if (candidate.range && rangesOverlap(candidate.range, matchRange)) {
+          existingIndex = index
+          break
+        }
+      }
+    }
 
     if (existingIndex === -1) {
+      if (scopeKey && matchRange) {
+        if (bucket) {
+          bucket.indices.push(deduped.length)
+          widenScopeBucket(bucket, matchRange.end)
+        } else {
+          bucketsByScopeKey.set(scopeKey, {
+            indices: [deduped.length],
+            maxEnd: Number.isFinite(matchRange.end) ? matchRange.end : Number.NEGATIVE_INFINITY,
+          })
+        }
+      }
       deduped.push(match)
       continue
     }
 
     if (shouldPreferOverlappingMatch(match, deduped[existingIndex])) {
       deduped[existingIndex] = match
+      if (bucket && matchRange) widenScopeBucket(bucket, matchRange.end)
     }
   }
 
