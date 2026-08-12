@@ -17,8 +17,6 @@ import {
 
 const logger = createLogger('WebhookProvider:Windchill')
 
-type WindchillScope = 'document' | 'folder' | 'container'
-
 function eventManagementRoot(baseUrl: string): string {
   return `${normalizeServiceRoot(baseUrl).replace(/\/v\d+$/i, '')}/EventMgmt`
 }

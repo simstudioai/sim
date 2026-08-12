@@ -35,7 +35,7 @@ export function windchillSetupInstructions(eventLabel: string): string {
   const instructions = [
     '<strong>Requirement:</strong> This trigger targets a self-managed Windchill deployment with Windchill REST Services 2.7. Windchill+ does not support webhook subscriptions.',
     'Ask a Windchill administrator to set <strong>Webhooks &gt; Outgoing Webhook URL</strong> at the site level to the same host as the generated Sim webhook URL. Windchill allows only one configured outgoing webhook host.',
-    'Enter the versioned Windchill service root and credentials for an account allowed to manage Event Management subscriptions.',
+    'Enter the versioned Windchill service root and credentials for a <strong>Basic-authenticated account</strong> allowed to manage Event Management subscriptions. OAuth authentication is not supported by this trigger.',
     `Choose the document scope for <strong>${eventLabel}</strong>. When you save, Sim creates the Windchill subscription automatically.`,
     'Keep the generated webhook URL private. PTC does not document a webhook signing mechanism, so Sim accepts deliveries through the unique callback URL and passes the JSON body through unchanged.',
   ]
