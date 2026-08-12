@@ -5,9 +5,10 @@ import { requireBinaryRouteDefinition } from '@/lib/api/server/routes/definition
 import {
   type InternalErrorPolicy,
   InternalUnauthenticatedError,
+  internalErrorResponse,
   type internalSessionAuth,
 } from '@/lib/api/server/routes/internal-json-route'
-import { withRequestId } from '@/lib/api/server/routes/request-id'
+import { responseWithRequestId, withRequestId } from '@/lib/api/server/routes/request-id'
 import type {
   BinaryApiRouteContract,
   BinaryResponseDescriptor,
@@ -82,14 +83,14 @@ export function defineInternalBinaryRoute<
         principal = await options.auth.authenticate()
       } catch (error) {
         if (error instanceof InternalUnauthenticatedError) {
-          return NextResponse.json({ error: error.message }, { status: 401 })
+          return createJsonErrorResponse(internalErrorResponse(401, { error: error.message }))
         }
         throw error
       }
 
       await options.rateLimit.enforce(request, principal)
       const parsed = await parseRequest(options.contract, request, context ?? {})
-      if (!parsed.success) return parsed.response
+      if (!parsed.success) return responseWithRequestId(parsed.response)
 
       try {
         const input = options.mapInput(parsed.data)

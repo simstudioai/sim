@@ -8,7 +8,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import { requireJsonRouteDefinition } from '@/lib/api/server/routes/definition'
-import { withRequestId } from '@/lib/api/server/routes/request-id'
+import { responseWithRequestId, withRequestId } from '@/lib/api/server/routes/request-id'
 import type {
   JsonApiRouteContract,
   JsonErrorResponseDescriptor,
@@ -304,7 +304,7 @@ export function defineInternalJsonRoute<
         principal = await options.auth.authenticate(request, rawParams)
       } catch (error) {
         if (error instanceof InternalUnauthenticatedError) {
-          return NextResponse.json({ error: error.message }, { status: 401 })
+          return createJsonErrorResponse(internalErrorResponse(401, { error: error.message }))
         }
         throw error
       }
@@ -325,7 +325,7 @@ export function defineInternalJsonRoute<
         context ?? {},
         options.parseOptions
       )
-      if (!parsed.success) return parsed.response
+      if (!parsed.success) return responseWithRequestId(parsed.response)
 
       try {
         const input = await options.mapInput(parsed.data, { principal, request })

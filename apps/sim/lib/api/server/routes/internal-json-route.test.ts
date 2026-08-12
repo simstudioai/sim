@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import {
   defineInternalJsonRoute,
+  InternalUnauthenticatedError,
   internalErrorResponse,
   internalOrchestrationErrorPolicy,
   internalRateLimits,
@@ -146,6 +147,72 @@ describe('defineInternalJsonRoute', () => {
     expect(response.status).toBe(404)
     expect(body).toEqual({ error: 'Widget not found', requestId: 'req-orchestration' })
     expect(body).not.toHaveProperty('success')
+  })
+
+  it('stamps the request id onto an authentication failure', async () => {
+    mockGetRequestContext.mockReturnValue({ requestId: 'req-auth' })
+
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth: {
+        authenticate: vi.fn(async () => {
+          throw new InternalUnauthenticatedError('Unauthorized')
+        }),
+      },
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute() {
+          return { value: 'unreachable' }
+        },
+      },
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Unauthorized',
+      requestId: 'req-auth',
+    })
+  })
+
+  it('stamps the request id onto a request parsing failure', async () => {
+    mockGetRequestContext.mockReturnValue({ requestId: 'req-parse' })
+
+    const queryContract = defineRouteContract({
+      method: 'GET',
+      path: '/api/test/internal-json-route',
+      query: z.object({ widgetId: z.string().min(1, 'widgetId is required') }),
+      response: {
+        mode: 'json',
+        schema: z.object({ value: z.string() }),
+      },
+    })
+
+    const handler = defineInternalJsonRoute({
+      contract: queryContract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute() {
+          return { value: 'unreachable' }
+        },
+      },
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+    const body = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(body.requestId).toBe('req-parse')
   })
 
   it('orders auth, rate limiting, parsing, async mapping, and application execution', async () => {
