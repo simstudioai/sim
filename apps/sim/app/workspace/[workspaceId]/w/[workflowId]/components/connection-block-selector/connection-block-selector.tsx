@@ -433,8 +433,9 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
                       }}
                       icon={result.item.icon}
                       bgColor={result.item.bgColor}
-                      showColoredIcon
-                      workflowType={result.kind === 'block' ? result.item.type : undefined}
+                      blockType={
+                        result.kind === 'tool_operation' ? result.item.blockType : result.item.type
+                      }
                       label={result.item.name}
                     />
                   ))}
@@ -453,7 +454,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
                             onSelect={() => handleToolOperationSelect(result.item)}
                             icon={result.item.icon}
                             bgColor={result.item.bgColor}
-                            showColoredIcon
+                            blockType={result.item.blockType}
                             label={result.item.name}
                           />
                         )
@@ -470,8 +471,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
                           }
                           icon={result.item.icon}
                           bgColor={result.item.bgColor}
-                          showColoredIcon
-                          workflowType={result.kind === 'block' ? result.item.type : undefined}
+                          blockType={result.item.type}
                           label={result.item.name}
                         />
                       )

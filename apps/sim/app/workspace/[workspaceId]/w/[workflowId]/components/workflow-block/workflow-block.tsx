@@ -84,6 +84,7 @@ import {
   useIsBlockInActiveExecutionHandoff,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
+import { hasBlockAccent } from '@/blocks/accent'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlock } from '@/blocks/registry'
 import {
@@ -1219,7 +1220,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       isExecutionHighlighted={isExecutionHighlighted}
       Icon={config.icon}
       iconBgColor={config.bgColor}
-      isIntegration={config.category === 'tools'}
+      isIntegration={!hasBlockAccent(config.type)}
       horizontalHandles={horizontalHandles}
       shouldShowDefaultHandles={shouldShowDefaultHandles}
       blockHeight={blockHeight}

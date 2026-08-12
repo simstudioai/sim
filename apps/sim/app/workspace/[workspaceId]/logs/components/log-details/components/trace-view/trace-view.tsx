@@ -42,11 +42,12 @@ import {
   getDisplayName,
   hasErrorInTree,
   hasUnhandledErrorInTree,
-  iconColorClass,
   isIterationType,
   parseTime,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
+import { BlockTile } from '@/blocks/block-tile'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 
 const DEFAULT_TREE_PANE_WIDTH = 240
@@ -331,12 +332,12 @@ const TraceTreeRow = memo(function TraceTreeRow({
           <div className='size-[14px] flex-shrink-0' />
         )}
         {!isIterationType(span.type) && (
-          <div
-            className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-            style={{ background: bgColor }}
-          >
-            {BlockIcon && <BlockIcon className={cn('size-[10px]', iconColorClass(bgColor))} />}
-          </div>
+          <BlockTile
+            blockType={span.type?.toLowerCase() ?? ''}
+            icon={BlockIcon ?? undefined}
+            bgColor={bgColor}
+            size='sm'
+          />
         )}
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
@@ -711,7 +712,9 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
             className='mt-[2px] flex size-[18px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className={cn('size-[12px]', iconColorClass(bgColor))} />}
+            {BlockIcon && (
+              <BlockIcon className={cn('size-[12px]', getTileIconColorClass(bgColor))} />
+            )}
           </div>
         )}
         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>

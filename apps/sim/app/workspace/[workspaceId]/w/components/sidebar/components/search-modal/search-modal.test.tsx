@@ -10,6 +10,7 @@ import {
   type MothershipSendMessageDetail,
 } from '@/lib/mothership/events'
 import { SearchModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/search-modal'
+import { getBlock } from '@/blocks/registry'
 
 const { mockPush, mockSearchState } = vi.hoisted(() => ({
   mockPush: vi.fn(),
@@ -688,6 +689,53 @@ describe('SearchModal', () => {
       expect(document.body.textContent).not.toContain('Webhook Trigger Trigger')
     } finally {
       mockSearchState.data = original
+    }
+  })
+
+  it('accents a first-party trigger by its canvas role, not its catalog color', async () => {
+    const Icon = () => null
+    const original = { ...mockSearchState.data }
+    /*
+     * The palette reads the accent from the block's category, so the row's
+     * appearance is only meaningful against a registry that reports one — the
+     * shared mock omits it.
+     */
+    const mockedGetBlock = vi.mocked(getBlock)
+    const originalGetBlock = mockedGetBlock.getMockImplementation()
+    mockedGetBlock.mockImplementation(
+      (type: string) => ({ category: type === 'slack' ? 'tools' : 'triggers', icon: Icon }) as never
+    )
+    mockSearchState.data = {
+      ...mockSearchState.data,
+      triggers: [
+        {
+          id: 'generic_webhook',
+          name: 'Webhook Trigger',
+          icon: Icon,
+          bgColor: '#10B981',
+          type: 'generic_webhook',
+        },
+        {
+          id: 'slack',
+          name: 'Slack',
+          icon: Icon,
+          bgColor: '#611f69',
+          type: 'slack',
+        },
+      ],
+    }
+
+    try {
+      await act(async () => {
+        root.render(<SearchModal open onOpenChange={vi.fn()} pageContext='workflow' />)
+      })
+
+      expect(document.querySelector('[data-workflow-type-icon="generic_webhook"]')).not.toBeNull()
+      // A third-party trigger keeps its brand tile, exactly as the canvas paints it.
+      expect(document.querySelector('[data-workflow-type-icon="slack"]')).toBeNull()
+    } finally {
+      mockSearchState.data = original
+      if (originalGetBlock) mockedGetBlock.mockImplementation(originalGetBlock)
     }
   })
 

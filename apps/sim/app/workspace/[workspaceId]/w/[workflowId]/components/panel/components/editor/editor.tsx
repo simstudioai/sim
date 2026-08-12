@@ -54,6 +54,7 @@ import {
   isBlockProtected,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { hasBlockAccent } from '@/blocks/accent'
 import { isLightTileColor } from '@/blocks/icon-color'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
@@ -107,7 +108,7 @@ export function Editor() {
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
   const typeAccent = getWorkflowTypeAccent(currentBlock?.type ?? '')
-  const isIntegration = blockConfig?.category === 'tools'
+  const isIntegration = blockConfig != null && !hasBlockAccent(blockConfig.type)
   const title = currentBlock?.name || 'Editor'
   const isBlockNameSearchHighlighted =
     activeSearchTarget?.targetKind === 'block-name' && activeSearchTarget.blockId === currentBlockId

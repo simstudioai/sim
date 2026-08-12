@@ -2,14 +2,12 @@
 
 import type { ComponentType } from 'react'
 import { memo } from 'react'
-import { cn } from '@sim/emcn'
 import { File, Workflow } from '@sim/emcn/icons'
-import { WorkflowTypeIcon } from '@sim/workflow-renderer'
 import { Command } from 'cmdk'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { COMMAND_ITEM_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
-import { getTileIconColorClass } from '@/blocks/icon-color'
+import { BlockTile } from '@/blocks/block-tile'
 
 interface ResultMetaProps {
   meta?: string
@@ -85,31 +83,14 @@ export const MemoizedCommandItem = memo(
     onSelect,
     icon: Icon,
     bgColor,
-    showColoredIcon,
-    workflowType,
+    blockType,
     label,
     labelPrefix,
     meta,
   }: CommandItemProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        {workflowType ? (
-          <WorkflowTypeIcon type={workflowType} Icon={Icon} />
-        ) : (
-          <div
-            className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-            style={{ background: showColoredIcon ? bgColor : 'transparent' }}
-          >
-            <Icon
-              className={cn(
-                'transition-transform duration-100 group-hover:scale-110',
-                showColoredIcon
-                  ? `size-[10px] ${getTileIconColorClass(bgColor)}`
-                  : 'size-[16px] text-[var(--text-icon)]'
-              )}
-            />
-          </div>
-        )}
+        <BlockTile blockType={blockType} icon={Icon} bgColor={bgColor} />
         <span className='truncate text-[var(--text-body)]'>
           {labelPrefix && <span className='text-[var(--text-subtle)]'>{labelPrefix} </span>}
           {label}
@@ -122,8 +103,7 @@ export const MemoizedCommandItem = memo(
     prev.value === next.value &&
     prev.icon === next.icon &&
     prev.bgColor === next.bgColor &&
-    prev.showColoredIcon === next.showColoredIcon &&
-    prev.workflowType === next.workflowType &&
+    prev.blockType === next.blockType &&
     prev.label === next.label &&
     prev.labelPrefix === next.labelPrefix &&
     prev.meta === next.meta
