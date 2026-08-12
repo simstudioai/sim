@@ -3,17 +3,21 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WindchillBlock, WindchillBlockMeta } from '@/blocks/blocks/windchill'
-import { WINDCHILL_OPERATIONS } from '@/tools/windchill/types'
+import type { ToolConfig } from '@/tools/types'
+import * as windchillTools from '@/tools/windchill'
+import {
+  WINDCHILL_OPERATIONS,
+  type WindchillParams,
+  type WindchillResponse,
+} from '@/tools/windchill/types'
 import {
   buildWindchillReadUrl,
   createBasicAuthHeader,
-  createWindchillTool,
   encodeWindchillOid,
   normalizeServiceRoot,
   normalizeWindchillReadOutput,
   resolveWindchillNextLink,
   sanitizeWindchillError,
-  WINDCHILL_OPERATION_DEFINITIONS,
 } from '@/tools/windchill/utils'
 
 const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
@@ -32,6 +36,22 @@ import {
 } from '@/tools/windchill/utils.server'
 
 const BASE_URL = 'https://windchill.example.com/Windchill/servlet/odata/v6'
+
+function isWindchillTool(value: unknown): value is ToolConfig<WindchillParams, WindchillResponse> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    typeof value.id === 'string' &&
+    value.id.startsWith('windchill_')
+  )
+}
+
+const WINDCHILL_TOOLS_BY_ID = new Map(
+  Object.values(windchillTools)
+    .filter(isWindchillTool)
+    .map((tool) => [tool.id, tool])
+)
 
 function mockResponse({
   body,
@@ -65,17 +85,19 @@ beforeEach(() => {
 
 describe('Windchill tools', () => {
   it('defines and builds every registered operation', () => {
-    expect(Object.keys(WINDCHILL_OPERATION_DEFINITIONS)).toEqual([...WINDCHILL_OPERATIONS])
+    expect([...WINDCHILL_TOOLS_BY_ID.keys()].sort()).toEqual([...WINDCHILL_OPERATIONS].sort())
 
     for (const operation of WINDCHILL_OPERATIONS) {
-      const tool = createWindchillTool(operation)
+      const tool = WINDCHILL_TOOLS_BY_ID.get(operation)
+      expect(tool).toBeDefined()
+      if (!tool) continue
+
       expect(tool.id).toBe(operation)
       expect(tool.params.baseUrl.visibility).toBe('user-only')
       expect(tool.params.username.visibility).toBe('user-only')
       expect(tool.params.password.visibility).toBe('user-only')
 
-      if (WINDCHILL_OPERATION_DEFINITIONS[operation].directRead) {
-        expect(tool.request.url).toBeTypeOf('function')
+      if (typeof tool.request.url === 'function') {
         expect(tool.request.stripAuthOnRedirect).toBe(true)
       } else {
         expect(tool.request.url).toBe('/api/tools/windchill')
@@ -132,6 +154,14 @@ describe('Windchill tools', () => {
     expect(url.searchParams.get('$skip')).toBe('10')
     expect(url.searchParams.get('$count')).toBe('true')
     expect(url.searchParams.get('ptc.search.latestversion')).toBe('true')
+    expect(() =>
+      buildWindchillReadUrl('windchill_list_documents', {
+        baseUrl: BASE_URL,
+        username: 'user',
+        password: 'not-a-real-password',
+        select: 'ID,Name,ProviderOnlyField',
+      })
+    ).toThrow('select supports only normalized document properties')
     expect(() =>
       buildWindchillReadUrl('windchill_list_documents', {
         baseUrl: BASE_URL,
@@ -221,7 +251,16 @@ describe('Windchill tools', () => {
           {
             ID: 'OR:wt.doc.WTDocumentUsageLink:1',
             DocUsedBy: { ID: 'OR:wt.doc.WTDocument:1', Name: 'Parent' },
-            DocUses: { ID: 'OR:wt.doc.WTDocument:2', Name: 'Child' },
+            DocUses: {
+              ID: 'OR:wt.doc.WTDocument:2',
+              Name: 'Child',
+              DocUsageLinks: [
+                {
+                  ID: 'OR:wt.doc.WTDocumentUsageLink:2',
+                  DocUses: { ID: 'OR:wt.doc.WTDocument:3', Name: 'Grandchild' },
+                },
+              ],
+            },
           },
         ],
       }).structure?.[0]
@@ -229,6 +268,14 @@ describe('Windchill tools', () => {
       id: 'OR:wt.doc.WTDocumentUsageLink:1',
       parent: { id: 'OR:wt.doc.WTDocument:1', name: 'Parent' },
       child: { id: 'OR:wt.doc.WTDocument:2', name: 'Child' },
+      children: [
+        {
+          id: 'OR:wt.doc.WTDocumentUsageLink:2',
+          parent: { id: 'OR:wt.doc.WTDocument:2', name: 'Child' },
+          child: { id: 'OR:wt.doc.WTDocument:3', name: 'Grandchild' },
+          children: [],
+        },
+      ],
     })
 
     expect(
@@ -351,7 +398,7 @@ describe('Windchill tools', () => {
       '/PTC.DocMgmt.UploadStage1Action'
     )
     expect(JSON.parse(mockSecureFetchWithValidation.mock.calls[1][1].body)).toEqual({
-      noOfFiles: 1,
+      NoOfFiles: 1,
     })
     expect(mockSecureFetchWithValidation.mock.calls[2][0]).toBe(
       'https://replica.example.com/upload/signed'
@@ -395,6 +442,12 @@ describe('Windchill block', () => {
     for (const toolId of WINDCHILL_OPERATIONS) {
       expect(WindchillBlock.tools.config?.tool({ operation: toolId })).toBe(toolId)
     }
+
+    expect(WindchillBlock.subBlocks.some((subBlock) => subBlock.id === 'expand')).toBe(false)
+    expect(WindchillBlock.inputs).not.toHaveProperty('expand')
+    expect(WINDCHILL_TOOLS_BY_ID.get('windchill_update_document')?.params.attributes.required).toBe(
+      true
+    )
   })
 
   it('uses one canonical parameter for each basic and advanced file pair', () => {
@@ -441,5 +494,6 @@ describe('Windchill block', () => {
     expect(WindchillBlock.integrationType).toBe('documents')
     expect(WindchillBlockMeta.tags).toEqual(['content-management', 'document-processing'])
     expect(WindchillBlockMeta.templates).toHaveLength(7)
+    expect(WindchillBlockMeta.skills).toHaveLength(5)
   })
 })

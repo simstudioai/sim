@@ -21945,114 +21945,114 @@
       "slug": "windchill",
       "name": "Windchill",
       "description": "Manage WT.Document objects and content in PTC Windchill",
-      "longDescription": "Integrate PTC Windchill document management into your workflow. Read and update WT.Document metadata, perform version and lifecycle actions, and transfer primary content and attachments.",
+      "longDescription": "Integrate PTC Windchill REST Services 2.7 document management into your workflow using Basic authentication. Read and update WT.Document metadata, perform version and lifecycle actions, and transfer primary content and attachments. Windchill OAuth deployments are not currently supported.",
       "bgColor": "#4B5563",
       "iconName": "DocumentIcon",
       "docsUrl": "https://docs.sim.ai/integrations/windchill",
       "operations": [
         {
           "name": "List Documents",
-          "description": ""
+          "description": "List WT.Document objects with bounded OData query and pagination controls"
         },
         {
           "name": "Get Document",
-          "description": ""
+          "description": "Get a WT.Document by OID"
         },
         {
           "name": "Get Document Structure",
-          "description": ""
+          "description": "Retrieve recursive document usage links and their parent and child documents"
         },
         {
           "name": "Get Valid State Transitions",
-          "description": ""
+          "description": "Get lifecycle states a document can transition to from its current state"
         },
         {
           "name": "Get Primary Content",
-          "description": ""
+          "description": "Get primary-content metadata for a document"
         },
         {
           "name": "List Attachments",
-          "description": ""
+          "description": "List attachment metadata for a document"
         },
         {
           "name": "Create Document",
-          "description": ""
+          "description": "Create one WT.Document"
         },
         {
           "name": "Create Documents",
-          "description": ""
+          "description": "Create multiple WT.Document objects atomically"
         },
         {
           "name": "Update Document",
-          "description": ""
+          "description": "Update attributes on one document"
         },
         {
           "name": "Update Documents",
-          "description": ""
+          "description": "Update multiple documents atomically"
         },
         {
           "name": "Delete Document",
-          "description": ""
+          "description": "Delete one document"
         },
         {
           "name": "Delete Documents",
-          "description": ""
+          "description": "Delete multiple documents atomically"
         },
         {
           "name": "Check Out Document",
-          "description": ""
+          "description": "Check out one document"
         },
         {
           "name": "Check Out Documents",
-          "description": ""
+          "description": "Check out multiple documents atomically"
         },
         {
           "name": "Check In Document",
-          "description": ""
+          "description": "Check in one document"
         },
         {
           "name": "Check In Documents",
-          "description": ""
+          "description": "Check in multiple documents atomically"
         },
         {
           "name": "Undo Check Out Document",
-          "description": ""
+          "description": "Undo checkout for one document"
         },
         {
           "name": "Undo Check Out Documents",
-          "description": ""
+          "description": "Undo checkout for multiple documents atomically"
         },
         {
           "name": "Revise Document",
-          "description": ""
+          "description": "Create a new revision of one document"
         },
         {
           "name": "Revise Documents",
-          "description": ""
+          "description": "Create new revisions of multiple documents atomically"
         },
         {
           "name": "Set Lifecycle State",
-          "description": ""
+          "description": "Transition a document to a valid lifecycle state"
         },
         {
           "name": "Update Document Security Labels",
-          "description": ""
+          "description": "Update installed security-label attributes for one or more documents"
         },
         {
           "name": "Download Primary Content",
-          "description": ""
+          "description": "Download primary content into a canonical UserFile"
         },
         {
           "name": "Upload Primary Content",
-          "description": ""
+          "description": "Upload or replace a document primary-content file"
         },
         {
           "name": "Download Attachment",
-          "description": ""
+          "description": "Download a document attachment into a canonical UserFile"
         },
         {
           "name": "Upload Attachments",
-          "description": ""
+          "description": "Upload one or more files as document attachments"
         }
       ],
       "operationCount": 26,
