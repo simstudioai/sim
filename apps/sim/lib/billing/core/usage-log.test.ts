@@ -41,6 +41,7 @@ import {
   recordCumulativeUsage,
   recordUsage,
   resolveCumulativeTopUp,
+  UNKNOWN_CURSOR_MESSAGE,
 } from '@/lib/billing/core/usage-log'
 
 /**
@@ -420,6 +421,43 @@ describe('usage-log query scopes', () => {
       conditions: [{ type: 'eq', left: 'workspaceId', right: 'workspace-1' }],
     })
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(26)
+  })
+
+  it('rejects a cursor that resolves to no usage event instead of restarting at page 1', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    await expect(
+      getUserUsageLogs('user-1', { cursor: 'log-from-another-ledger', includeSummary: false })
+    ).rejects.toMatchObject({
+      name: 'OrchestrationError',
+      code: 'validation',
+      message: UNKNOWN_CURSOR_MESSAGE,
+    })
+  })
+
+  it('narrows the page to rows after a resolvable cursor', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ createdAt: new Date('2026-07-01T00:00:00Z') }])
+
+    await getUserUsageLogs('user-1', { cursor: 'log-1', limit: 25, includeSummary: false })
+
+    expect(latestWhereCondition()).toMatchObject({
+      type: 'and',
+      conditions: [{ type: 'eq', left: 'userId', right: 'user-1' }, { type: 'or' }],
+    })
+  })
+
+  it('trusts a caller-supplied cursor timestamp without a lookup', async () => {
+    await getUserUsageLogs('user-1', {
+      cursor: 'log-1',
+      cursorCreatedAt: new Date('2026-07-01T00:00:00Z'),
+      limit: 25,
+      includeSummary: false,
+    })
+
+    expect(latestWhereCondition()).toMatchObject({
+      type: 'and',
+      conditions: [{ type: 'eq', left: 'userId', right: 'user-1' }, { type: 'or' }],
+    })
   })
 
   it('keeps personal queries actor-scoped with an optional workspace filter', async () => {

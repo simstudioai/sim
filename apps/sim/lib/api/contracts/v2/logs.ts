@@ -28,11 +28,23 @@ const v2LogCostSchema = z
  * reported set is exactly the persisted set — a value missing here fails the response
  * parse, and because list validation is whole-page one such row turns an entire page
  * into a 500.
+ *
+ * That pass-through is also why this field disagrees with the run resources for the
+ * same run, and the disagreement is documented rather than reconciled. The run list
+ * projects `paused` over the persisted value whenever the run holds a `paused` or
+ * `partially_resumed` row in `paused_executions` (`executionStatus` in
+ * `lib/workflows/executor/execution-queries.ts`), so an ordinary human-in-the-loop
+ * pause reads `paused` there and `pending` here. Adopting the overlay would need this
+ * read to join `paused_executions`, and would silently move live runs between the
+ * `pending` and `paused` buckets of a shipped field that internal log consumers read
+ * from the same query — a breaking change, not a correction. Callers that need the
+ * pause distinction read the run resources, which also carry the `paused` object that
+ * separates "waiting on a human" from "a resume attempt failed".
  */
 export const v2LogStatusSchema = z
   .enum(PERSISTED_WORKFLOW_EXECUTION_STATUSES)
   .describe(
-    'Current execution status. `redacting` is transient while run output is scrubbed. `paused` is reported when a resume attempt did not run to completion and the run is waiting to be resumed again.'
+    'Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not run to completion and the run is waiting to be resumed again. **This differs from the run resources for the same run:** `GET /api/v2/workflows/{id}/runs` and `GET /api/v2/workflows/{id}/runs/{runId}` additionally report `paused` for a run held at a human-in-the-loop pause point, which this field reports as `pending`. Use the run resources when the pause state matters.'
   )
 
 /** Execution `files` is a per-run jsonb array of attachment metadata. */
@@ -182,6 +194,22 @@ export const v2LogParamsSchema = z.object({
     .describe('The unique run identifier shared by lifecycle and diagnostic resources.'),
 })
 
+/**
+ * The window bounds are constructed into `Date`s by the route and reach the query as
+ * bound timestamps, so an unparseable value would arrive as an `Invalid Date` and fail
+ * inside the driver's timestamp mapper — a caller-reachable 500. Validating the format
+ * here is what keeps that a 400, and the accepted form is deliberately identical to the
+ * sibling run list (`v2ListWorkflowRunsQuerySchema`) so the same timestamp works on both
+ * collections. That form is UTC-only: a date without a time (`2026-08-06`) and an
+ * offset-bearing timestamp (`2026-08-06T00:00:00+02:00`) are both rejected, so the
+ * descriptions say "UTC ISO 8601" rather than the broader "ISO 8601" they would
+ * otherwise overpromise.
+ */
+const V2_LOG_START_DATE_DESCRIPTION =
+  'Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.'
+const V2_LOG_END_DATE_DESCRIPTION =
+  'Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.'
+
 export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
   .omit({ executionId: true, folderIds: true })
   .extend({
@@ -191,11 +219,15 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
     startDate: z
       .string()
-      .describe('Only include runs started at or after this ISO 8601 timestamp.')
+      .datetime({
+        message: 'startDate must be a UTC ISO 8601 timestamp, e.g. 2026-08-06T00:00:00Z',
+      })
+      .describe(V2_LOG_START_DATE_DESCRIPTION)
       .optional(),
     endDate: z
       .string()
-      .describe('Only include runs started at or before this ISO 8601 timestamp.')
+      .datetime({ message: 'endDate must be a UTC ISO 8601 timestamp, e.g. 2026-08-06T00:00:00Z' })
+      .describe(V2_LOG_END_DATE_DESCRIPTION)
       .optional(),
     runId: z
       .string()

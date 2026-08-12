@@ -10,6 +10,7 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
@@ -658,6 +659,25 @@ export async function getUsageCreditsByLogId(
 }
 
 /**
+ * Caller-facing message for a `cursor` that names no usage event.
+ *
+ * This ledger's cursor is a raw `usage_log.id` resolved by lookup rather than an
+ * opaque keyset cursor, so a value that resolves to no row carries no position at
+ * all. Applying no cursor condition in that case — the previous behaviour — restarts
+ * the sequence at page 1 while still reporting `hasMore`, so a pager that persisted a
+ * cursor across a deploy, or across environments, walks the first page forever and
+ * counts the same credits on every lap. Rejecting it makes the failure visible on the
+ * request that caused it.
+ *
+ * The wording deliberately does not reuse `INVALID_CURSOR_MESSAGE`: that message names
+ * `sortBy`/`sortOrder`, and this collection accepts neither param, so it would send the
+ * caller to look for a knob that does not exist. The actionable half — restart without
+ * a cursor — is the same.
+ */
+export const UNKNOWN_CURSOR_MESSAGE =
+  'cursor does not identify a usage event. Restart pagination without a cursor; a cursor is only valid against the ledger it was issued from.'
+
+/**
  * Options for querying usage logs
  */
 export interface GetUsageLogsOptions {
@@ -748,9 +768,11 @@ async function getUsageLogs(
       let resolvedCursorCreatedAt = cursorCreatedAt
 
       if (!resolvedCursorCreatedAt) {
-        // Cursor resolution stays on the primary: the page itself reads a
-        // load-balanced replica, and a laggier sibling replica missing the
-        // cursor row would silently restart pagination from page 1.
+        /**
+         * Cursor resolution stays on the primary: the page itself reads a
+         * load-balanced replica, and a laggier sibling replica missing the
+         * cursor row would reject a cursor that is in fact resumable.
+         */
         const cursorLog = await db
           .select({ createdAt: usageLog.createdAt })
           .from(usageLog)
@@ -759,13 +781,14 @@ async function getUsageLogs(
         resolvedCursorCreatedAt = cursorLog[0]?.createdAt
       }
 
-      if (resolvedCursorCreatedAt) {
-        const cursorCondition = or(
-          lt(usageLog.createdAt, resolvedCursorCreatedAt),
-          and(eq(usageLog.createdAt, resolvedCursorCreatedAt), lt(usageLog.id, cursor))
-        )
-        if (cursorCondition) conditions.push(cursorCondition)
-      }
+      if (!resolvedCursorCreatedAt)
+        throw new OrchestrationError('validation', UNKNOWN_CURSOR_MESSAGE)
+
+      const cursorCondition = or(
+        lt(usageLog.createdAt, resolvedCursorCreatedAt),
+        and(eq(usageLog.createdAt, resolvedCursorCreatedAt), lt(usageLog.id, cursor))
+      )
+      if (cursorCondition) conditions.push(cursorCondition)
     }
 
     const logs = await dbReplica
@@ -845,6 +868,15 @@ async function getUsageLogs(
       },
     }
   } catch (error) {
+    /**
+     * A classified failure is caller-fixable and already carries the message the
+     * surface will render, so it is reported as a warning rather than joining the
+     * genuine faults this logger's error volume is watched for.
+     */
+    if (asOrchestrationError(error)) {
+      logger.warn('Rejected a usage-log query', { error: toError(error).message, scope })
+      throw error
+    }
     logger.error('Failed to get usage logs', {
       error: toError(error).message,
       scope,

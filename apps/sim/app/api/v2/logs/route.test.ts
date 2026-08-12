@@ -128,6 +128,50 @@ describe('GET /api/v2/logs', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['abc', 'startDate'],
+    ['2026-08-06', 'startDate'],
+    ['2026-08-06T00:00:00+02:00', 'startDate'],
+  ])('rejects %s as a window bound before it can reach the query', async (value, field) => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&${field}=${encodeURIComponent(value)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('startDate') },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unparseable endDate', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&endDate=abc`)
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('forwards a UTC window bound as a Date', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&startDate=2026-08-06T00:00:00Z`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          filters: expect.objectContaining({ startDate: new Date('2026-08-06T00:00:00Z') }),
+        }),
+      })
+    )
+  })
+
   it('projects typed folder errors', async () => {
     mocks.execute.mockRejectedValueOnce(new OrchestrationError('not_found', 'Folder not found'))
 
