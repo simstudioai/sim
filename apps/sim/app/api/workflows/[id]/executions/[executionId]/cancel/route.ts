@@ -6,7 +6,10 @@ import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
+import {
+  type CancelWorkflowExecutionResponse,
+  cancelWorkflowExecutionContract,
+} from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
@@ -33,6 +36,18 @@ import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-m
 const logger = createLogger('CancelExecutionAPI')
 const PAUSED_CANCELLATION_DB_ATTEMPTS = 3
 const PAUSED_CANCELLATION_DB_RETRY_MS = 200
+
+/**
+ * Builds the single success shape this route returns. The route hand-builds its
+ * responses rather than going through a declarative builder, so nothing else
+ * checks that they satisfy the contract the client validates against — and
+ * several outcomes the route resolves itself (a still-queued run, an
+ * already-cancelled run) ride on `success: true`, where a rejected body turns a
+ * cancellation that worked into a client-side failure.
+ */
+function cancellationOutcome(body: CancelWorkflowExecutionResponse) {
+  return NextResponse.json(body)
+}
 
 async function cancelQueuedExecutionJobs(
   workflowId: string,
@@ -397,7 +412,7 @@ export const POST = withRouteHandler(
             workspaceId ? { groups: { workspace: workspaceId } } : undefined
           )
 
-          return NextResponse.json({
+          return cancellationOutcome({
             success: true,
             executionId,
             redisAvailable: cancellation.reason !== 'redis_unavailable',
@@ -524,7 +539,7 @@ export const POST = withRouteHandler(
         const pausedReconciliationSucceeded =
           exactStopSatisfied &&
           (!hasPausedCancellation || (cancellationEventPublished && pausedCancelled))
-        return NextResponse.json({
+        return cancellationOutcome({
           success: pausedReconciliationSucceeded,
           executionId,
           redisAvailable: requiresCancellationEvent ? cancellationEventPublished : true,
@@ -597,7 +612,7 @@ export const POST = withRouteHandler(
             })
           })
           await clearStopSignalMarkers(stopSummary)
-          return NextResponse.json({
+          return cancellationOutcome({
             success: false,
             executionId,
             redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
@@ -658,7 +673,7 @@ export const POST = withRouteHandler(
                 })
               })
               await clearStopSignalMarkers(stopSummary)
-              return NextResponse.json({
+              return cancellationOutcome({
                 success: false,
                 executionId,
                 redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
@@ -669,7 +684,7 @@ export const POST = withRouteHandler(
               })
             }
           } else if (!effectivePausedCancellationPath) {
-            return NextResponse.json({
+            return cancellationOutcome({
               success: false,
               executionId,
               redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
@@ -801,7 +816,7 @@ export const POST = withRouteHandler(
             await PauseResumeManager.clearPausedCancellationIntent(executionId, workflowId)
           }
         }
-        return NextResponse.json({
+        return cancellationOutcome({
           success: false,
           executionId,
           redisAvailable: stopSummary.cancellation.reason !== 'redis_unavailable',
@@ -963,7 +978,7 @@ export const POST = withRouteHandler(
                   ? 'queue_cancelled'
                   : stopSummary.cancellation.reason
 
-      return NextResponse.json({
+      return cancellationOutcome({
         success,
         executionId,
         redisAvailable:

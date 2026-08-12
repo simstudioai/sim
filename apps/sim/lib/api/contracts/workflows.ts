@@ -661,11 +661,12 @@ export const workflowExecutionStatusQuerySchema = z.object({
 })
 
 /**
- * Full cancellation-outcome vocabulary — mirrors
- * `CancelWorkflowExecutionReason` in `lib/execution/cancel-workflow-execution`
- * (contracts stay import-clean of server modules). The paused-HITL path emits
- * the two `paused_*` values; a narrower copy of this enum previously lived in
- * `contracts/logs.ts` and made the client reject those responses.
+ * Cancellation outcomes produced by the cancellation service, and so the whole
+ * vocabulary the public v2 endpoint can return — `cancelWorkflowRun` delegates
+ * its outcome to that service. Mirrors `CancelWorkflowExecutionReason` in
+ * `lib/execution/cancel-workflow-execution` (contracts stay import-clean of
+ * server modules). Keeping the internal route's extra outcomes out of here is
+ * what stops the published v2 schema advertising reasons v2 cannot emit.
  */
 export const cancelWorkflowExecutionReasonSchema = z.enum([
   'recorded',
@@ -675,6 +676,22 @@ export const cancelWorkflowExecutionReasonSchema = z.enum([
   'paused_database_cancel_failed',
 ])
 
+/**
+ * The internal route's vocabulary. It resolves four outcomes before the service
+ * is ever reached: `queue_cancelled` (the run was still queued, so no execution
+ * log row existed), `already_cancelled` (reconciling a run already cancelled),
+ * and the two stop-signal failures. Several ride on `success: true` responses,
+ * so validating them against the service enum makes `requestJson` reject
+ * cancellations that genuinely applied.
+ */
+export const internalCancelWorkflowExecutionReasonSchema = z.enum([
+  ...cancelWorkflowExecutionReasonSchema.options,
+  'queue_cancelled',
+  'already_cancelled',
+  'active_resume_signal_failed',
+  'cancellation_not_finalized',
+])
+
 const cancelWorkflowExecutionResponseSchema = z.object({
   success: z.boolean(),
   executionId: z.string(),
@@ -682,8 +699,10 @@ const cancelWorkflowExecutionResponseSchema = z.object({
   durablyRecorded: z.boolean(),
   locallyAborted: z.boolean(),
   pausedCancelled: z.boolean(),
-  reason: cancelWorkflowExecutionReasonSchema.optional(),
+  reason: internalCancelWorkflowExecutionReasonSchema.optional(),
 })
+
+export type CancelWorkflowExecutionResponse = z.output<typeof cancelWorkflowExecutionResponseSchema>
 
 const resumeWorkflowExecutionContextResponseSchema = z
   .object({

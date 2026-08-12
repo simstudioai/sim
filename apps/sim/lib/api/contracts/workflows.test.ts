@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cancelWorkflowExecutionReasonSchema,
   executeWorkflowBodySchema,
   getWorkflowResponseDataSchema,
+  internalCancelWorkflowExecutionReasonSchema,
   updateWorkflowBodySchema,
   workflowListItemSchema,
 } from '@/lib/api/contracts/workflows'
@@ -126,5 +128,24 @@ describe('workflow contracts', () => {
 
     expect(forkPolicySchema.parse({ forkSyncExcluded: true }).forkSyncExcluded).toBe(true)
     expect(forkPolicySchema.parse({}).forkSyncExcluded).toBe(false)
+  })
+
+  /**
+   * The v2 cancel endpoint presents `cancelWorkflowRun`'s result unchanged, and
+   * that use case delegates wholly to the cancellation service — so it cannot
+   * emit the outcomes the internal route resolves for itself. Folding those into
+   * the service enum would publish four reasons v2 never returns, because the
+   * v2 contract documents this enum value by value.
+   */
+  it('keeps internal-only cancellation reasons out of the enum v2 publishes', () => {
+    for (const reason of [
+      'queue_cancelled',
+      'already_cancelled',
+      'active_resume_signal_failed',
+      'cancellation_not_finalized',
+    ]) {
+      expect(internalCancelWorkflowExecutionReasonSchema.options).toContain(reason)
+      expect(cancelWorkflowExecutionReasonSchema.options).not.toContain(reason)
+    }
   })
 })
