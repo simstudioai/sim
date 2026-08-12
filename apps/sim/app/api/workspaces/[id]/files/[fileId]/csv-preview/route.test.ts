@@ -29,9 +29,10 @@ const KEY = `workspace/${WORKSPACE_ID}/large.csv`
 const USER = { id: 'user-1' }
 const context = { params: Promise.resolve({ id: WORKSPACE_ID, fileId: FILE_ID }) }
 
-function request(): NextRequest {
+function request(signal?: AbortSignal): NextRequest {
   return new NextRequest(
-    `http://localhost/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}/csv-preview?key=${encodeURIComponent(KEY)}`
+    `http://localhost/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}/csv-preview?key=${encodeURIComponent(KEY)}`,
+    { signal }
   )
 }
 
@@ -56,6 +57,25 @@ describe('GET /api/workspaces/[id]/files/[fileId]/csv-preview', () => {
       key: KEY,
       context: 'workspace',
       signal: req.signal,
+    })
+  })
+
+  it('returns a cancellation response when the client disconnects during the storage read', async () => {
+    const controller = new AbortController()
+    const req = request(controller.signal)
+    mocks.getSlice.mockImplementation(async () => {
+      controller.abort()
+      throw Object.assign(new Error('Premature close'), {
+        code: 'ERR_STREAM_PREMATURE_CLOSE',
+      })
+    })
+
+    const response = await GET(req, context)
+
+    expect(response.status).toBe(499)
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Client cancelled request',
+      requestId: expect.any(String),
     })
   })
 })

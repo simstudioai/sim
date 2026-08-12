@@ -365,6 +365,10 @@ export function defineInternalJsonRoute<
       }
     },
     {
+      clientAbortResponse: ({ requestId }) =>
+        createJsonErrorResponse(
+          internalErrorResponse(499, { error: 'Client cancelled request', requestId })
+        ),
       typedErrorResponse: ({ error, status, requestId }) =>
         NextResponse.json({ error: error.message, requestId }, { status }),
       unhandledErrorResponse: () =>

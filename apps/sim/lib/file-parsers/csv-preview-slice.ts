@@ -137,6 +137,9 @@ export async function getCsvPreviewSlice({
     piped.destroy()
     parser.destroy()
     return { headers, rows, truncated }
+  } catch (error) {
+    if (signal?.aborted) signal.throwIfAborted()
+    throw error
   } finally {
     signal?.removeEventListener('abort', onAbort)
     source.destroy()

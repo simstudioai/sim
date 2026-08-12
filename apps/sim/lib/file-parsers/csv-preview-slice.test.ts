@@ -125,7 +125,7 @@ describe('getCsvPreviewSlice', () => {
     await vi.waitFor(() => expect(read).toHaveBeenCalled())
     controller.abort()
 
-    await expect(preview).rejects.toMatchObject({ code: 'ERR_STREAM_PREMATURE_CLOSE' })
+    await expect(preview).rejects.toMatchObject({ name: 'AbortError' })
     expect(destroySpy).toHaveBeenCalled()
   })
 })

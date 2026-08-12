@@ -287,6 +287,7 @@ export function defineV2JsonRoute<
       }
     },
     {
+      clientAbortResponse: () => v2Error('CLIENT_CLOSED_REQUEST', 'Client cancelled request'),
       typedErrorResponse: ({ error }) => v2HttpError(error),
       unhandledErrorResponse: ({ error }) =>
         error instanceof V2RouteInfrastructureError
