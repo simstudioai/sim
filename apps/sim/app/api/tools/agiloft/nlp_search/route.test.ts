@@ -155,9 +155,19 @@ describe('EWNLPSearch response', () => {
     )
 
     const response = await POST(createMockRequest('POST', baseBody))
-    const data = (await response.json()) as { success: boolean; error?: string }
+    const data = (await response.json()) as {
+      success: boolean
+      output: unknown
+      error?: string
+    }
 
+    /**
+     * A refusal Agiloft already settled must come back as a completed failure.
+     * A 500 would have the tool runner retry a search it has already declined.
+     */
+    expect(response.status).toBe(200)
     expect(data.success).toBe(false)
+    expect(data.output).toEqual({ records: [], totalCount: 0, truncated: false })
     expect(data.error).toContain('One has to specify $login, $password')
   })
 

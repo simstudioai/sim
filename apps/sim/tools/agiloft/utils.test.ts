@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 import {
   agiloftAlrestBase,
   alrestDeleteRecordUrl,
-  alrestRecordCollectionUrl,
   alrestRecordUrl,
   alrestSearchUrl,
   buildAttachFileUrl,
@@ -52,7 +51,6 @@ describe('agiloftAlrestBase', () => {
 
 describe('alrest record routes', () => {
   it('builds collection, item, and search paths under the KB base', () => {
-    expect(alrestRecordCollectionUrl(BASE, 'contract')).toBe(`${BASE}/contract?lang=en`)
     expect(alrestRecordUrl(BASE, 'contract', ' 6342 ')).toBe(`${BASE}/contract/6342?lang=en`)
     expect(alrestSearchUrl(BASE, 'contract')).toBe(`${BASE}/contract/search?lang=en`)
   })
@@ -342,5 +340,49 @@ describe('multi-value field encoding', () => {
       buildCreateRecordBody(baseParams, { contactMethod: ['phone', 42, true] })
     )
     expect(sent.getAll('contactMethod')).toEqual(['phone', '42', 'true'])
+  })
+})
+
+describe('reserved parameter namespace', () => {
+  /**
+   * Record data reaches the body builders from workflow input, so a field named
+   * after a reserved parameter would append a second occurrence of it and let
+   * that data choose the table or the credentials.
+   */
+  it('refuses a field that reuses a reserved $ parameter name', () => {
+    expect(() => buildCreateRecordBody(baseParams, { $table: 'other_table' })).toThrow(TypeError)
+    expect(() => buildCreateRecordBody(baseParams, { $password: 'evil' })).toThrow(TypeError)
+    expect(() => buildUpsertRecordBody({ ...baseParams, match: 'id' }, { $KB: 'other' })).toThrow(
+      TypeError
+    )
+  })
+
+  it('leaves the reserved pairs single-valued for ordinary field data', () => {
+    const sent = new URLSearchParams(buildCreateRecordBody(baseParams, { contract_title1: 'X' }))
+    expect(sent.getAll('$table')).toEqual(['contract'])
+    expect(sent.getAll('$password')).toEqual([PLACEHOLDER_PASSWORD])
+  })
+})
+
+describe('pagination input', () => {
+  const nlpBase = {
+    instanceUrl: INSTANCE,
+    knowledgeBase: baseParams.knowledgeBase,
+    login: baseParams.login,
+    password: PLACEHOLDER_PASSWORD,
+    nlpQuery: 'Active NDAs',
+    fields: 'id',
+  }
+
+  it('drops a non-numeric or negative value rather than widening the search', () => {
+    const sent = new URLSearchParams(buildNlpSearchBody({ ...nlpBase, page: 'abc', limit: '-1' }))
+    expect(sent.has('page')).toBe(false)
+    expect(sent.has('limit')).toBe(false)
+  })
+
+  it('keeps a zero page, which is the documented first page', () => {
+    const sent = new URLSearchParams(buildNlpSearchBody({ ...nlpBase, page: '0', limit: '10' }))
+    expect(sent.get('page')).toBe('0')
+    expect(sent.get('limit')).toBe('10')
   })
 })

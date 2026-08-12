@@ -12,7 +12,7 @@ import {
   buildNlpSearchBody,
   buildNlpSearchUrl,
 } from '@/tools/agiloft/utils'
-import { executeEwRequest, readAlrestJson } from '@/tools/agiloft/utils.server'
+import { executeEwRequest, isAgiloftRefusal, readAlrestJson } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,6 +62,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         body: buildNlpSearchBody(params),
       }),
       async (response) => {
+        /**
+         * EWNLPSearch is the one legacy `EW*` operation that answers in the JSON
+         * envelope the `alrest` surface uses — `{success, message, result}` with
+         * `result` as the record array — rather than `EWREST_` assignments. Its
+         * request half is form-encoded like the rest of the `EW*` surface, so
+         * the two halves deliberately use different conventions. Do not
+         * "correct" this to `parseEwRest` to match create.
+         */
         const returned = (await readAlrestJson<Record<string, unknown>[]>(response)) ?? []
         const records = returned.slice(0, AGILOFT_MAX_SEARCH_RECORDS)
 
@@ -84,6 +92,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(result)
   } catch (error) {
+    /**
+     * A refusal Agiloft already decided on is a final answer, not a transient
+     * fault, so it is reported in a 200 body like every sibling operation does.
+     * A 500 would have the tool runner retry a search Agiloft has already
+     * declined.
+     */
+    if (isAgiloftRefusal(error)) {
+      logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
+      return NextResponse.json({
+        success: false,
+        output: { records: [], totalCount: 0, truncated: false },
+        error: error.message,
+      })
+    }
+
     logger.error(`[${requestId}] Error running Agiloft NLP search:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })

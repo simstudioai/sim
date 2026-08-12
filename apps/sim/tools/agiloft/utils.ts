@@ -60,10 +60,6 @@ function tableSegment(table: string): string {
   return encodeURIComponent(table.trim())
 }
 
-export function alrestRecordCollectionUrl(base: string, table: string): string {
-  return `${base}/${tableSegment(table)}?lang=${AGILOFT_LANG}`
-}
-
 export function alrestRecordUrl(base: string, table: string, recordId: string): string {
   return `${base}/${tableSegment(table)}/${encodeURIComponent(recordId.trim())}?lang=${AGILOFT_LANG}`
 }
@@ -233,13 +229,6 @@ export function encodeEwFormBody(fields: Array<[string, string]>): string {
 }
 
 /**
- * Expands caller-supplied record data into form pairs, appending to `fields`.
- *
- * Multi-value fields are encoded as repeated key/value pairs, not as a joined
- * string. Objects have no documented encoding at all, and String()-ing one
- * silently writes "[object Object]" into the record.
- */
-/**
  * Renders one field value, refusing anything Agiloft has no encoding for.
  *
  * Applied to array entries as well as bare values: an object nested in a
@@ -255,9 +244,29 @@ function encodeFieldValue(field: string, value: unknown): string {
   return String(value)
 }
 
+/**
+ * Expands caller-supplied record data into form pairs, appending to `fields`.
+ *
+ * Multi-value fields are encoded as repeated key/value pairs, not as a joined
+ * string.
+ *
+ * `$` opens Agiloft's reserved request-parameter namespace — `$table`, `$KB`,
+ * `$login`, `$password` — which this body has already set. Record data reaches
+ * here from workflow input, so a field carrying one of those names would append
+ * a second occurrence of a reserved parameter and let the caller's data decide
+ * which table the record lands in, or which credentials the call runs under.
+ * Whether the duplicate wins is Agiloft's parser's business, so the name is
+ * refused rather than sent.
+ */
 function pushRecordFields(fields: Array<[string, string]>, data: Record<string, unknown>): void {
   for (const [field, value] of Object.entries(data)) {
     if (value === undefined || value === null) continue
+
+    if (field.startsWith('$')) {
+      throw new TypeError(
+        `Field "${field}" uses Agiloft's reserved "$" parameter prefix, which record data cannot set. Rename the field.`
+      )
+    }
 
     if (Array.isArray(value)) {
       for (const entry of value) {
@@ -295,16 +304,17 @@ export function buildUpsertRecordBody(
  * EWCreate is the documented create operation. It answers with the ID of the
  * new record as an `EWREST_id` assignment, which is the only place that ID is
  * published. There is no documented JSON create that returns it.
- *
- * Every parameter travels in a form-encoded body: EWCreate lists
- * `application/x-www-form-urlencoded` as its supported Content-Type, it is one
- * of the operations that accept credentials in the body rather than the query
- * string, and a body has no request-line length ceiling on the record data.
  */
 export function buildCreateRecordUrl(base: string): string {
   return `${base}/ewws/EWCreate`
 }
 
+/**
+ * Every parameter travels in a form-encoded body: EWCreate lists
+ * `application/x-www-form-urlencoded` as its supported Content-Type, it is one
+ * of the operations that accept credentials in the body rather than the query
+ * string, and a body has no request-line length ceiling on the record data.
+ */
 export function buildCreateRecordBody(
   params: AgiloftBaseParams,
   data: Record<string, unknown>
@@ -442,6 +452,13 @@ export function buildNlpSearchUrl(base: string): string {
  * of the URL, access logs, and proxy traces. `field` repeats once per requested
  * field, matching Agiloft's multi-value encoding.
  */
+/** Keeps a pagination input only when it reads as a non-negative whole number. */
+function toPaginationValue(value?: string): string | undefined {
+  const trimmed = value?.trim()
+  if (!trimmed) return undefined
+  return /^\d+$/.test(trimmed) ? trimmed : undefined
+}
+
 export function buildNlpSearchBody(params: AgiloftNlpSearchParams): string {
   const fields: Array<[string, string]> = [
     ['$KB', params.knowledgeBase],
@@ -458,9 +475,16 @@ export function buildNlpSearchBody(params: AgiloftNlpSearchParams): string {
   /**
    * EWNLPSearch ignores the table and searches the whole knowledge base, so
    * pagination is the only bound a caller has on the result size.
+   *
+   * Both are documented as integers, and the block accepts them as free text,
+   * so a non-numeric value is dropped rather than forwarded — Agiloft ignores
+   * parameters it cannot read, which would silently widen the search instead of
+   * bounding it.
    */
-  if (params.page) fields.push(['page', params.page])
-  if (params.limit) fields.push(['limit', params.limit])
+  const page = toPaginationValue(params.page)
+  const limit = toPaginationValue(params.limit)
+  if (page !== undefined) fields.push(['page', page])
+  if (limit !== undefined) fields.push(['limit', limit])
 
   return encodeEwFormBody(fields)
 }

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { type NextRequest, NextResponse } from 'next/server'
 import { agiloftCreateRecordContract } from '@/lib/api/contracts/tools/agiloft'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -69,13 +70,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
+    /**
+     * Encoded before the request is issued, not inside the request builder: an
+     * unencodable field is a permanent refusal, and a TypeError thrown from the
+     * builder would surface as a 500 the tool runner then retries.
+     */
+    let requestBody: string
+    try {
+      requestBody = buildCreateRecordBody(params, fieldValues)
+    } catch (error) {
+      return NextResponse.json({
+        success: false,
+        output: { id: null, fields: {} },
+        error: getErrorMessage(error, 'The data parameter contains a value Agiloft cannot encode'),
+      })
+    }
+
     const result = await executeEwRequest<AgiloftRecordResponse>(
       params,
       (base) => ({
         url: buildCreateRecordUrl(base),
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: buildCreateRecordBody(params, fieldValues),
+        body: requestBody,
       }),
       async (response) => {
         const text = await response.text()
@@ -90,7 +107,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           return {
             success: false,
             output: { id: null, fields: {} },
-            error: `Agiloft error ${response.status}: ${describeAgiloftError(text)}`,
+            error: `Agiloft error ${response.status}: ${describeAgiloftError(truncate(text, 300))}`,
           }
         }
 
@@ -110,7 +127,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           return {
             success: false,
             output: { id: null, fields: {} },
-            error: `Agiloft accepted the create but returned no record ID, so the record may exist. Check the table before retrying - retrying creates a second record. Response: ${describeAgiloftError(text)}`,
+            error: `Agiloft accepted the create but returned no record ID, so the record may exist. Check the table before retrying - retrying creates a second record. Response: ${describeAgiloftError(truncate(text, 300))}`,
           }
         }
 

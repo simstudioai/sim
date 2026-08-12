@@ -261,14 +261,37 @@ describe('EWCreate', () => {
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 
-  it('refuses an object field value rather than writing [object Object]', async () => {
+  /**
+   * An unencodable field is a permanent refusal, so it has to come back settled
+   * like every other create failure. Encoding it inside the request builder
+   * would surface the TypeError as a 500, which the tool runner then retries.
+   */
+  it('refuses an object field value as a settled failure, not a retryable 500', async () => {
     const response = await POST(
       createMockRequest('POST', { ...baseBody, data: '{"nested":{"a":1}}' })
     )
+    const data = (await response.json()) as {
+      success: boolean
+      output: unknown
+      error?: string
+    }
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.output).toEqual({ id: null, fields: {} })
+    expect(data.error).toContain('has no encoding for')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it('refuses a field that reuses a reserved $ parameter name', async () => {
+    const response = await POST(
+      createMockRequest('POST', { ...baseBody, data: '{"$table":"other_table"}' })
+    )
     const data = (await response.json()) as { success: boolean; error?: string }
 
+    expect(response.status).toBe(200)
     expect(data.success).toBe(false)
-    expect(data.error).toContain('has no encoding for')
+    expect(data.error).toContain('reserved')
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 })

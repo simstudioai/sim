@@ -277,8 +277,11 @@ export async function executeAlrestRequest<R extends ToolResponse>(
 
 /**
  * Runs a single `/ewws/EW*` call. No login round-trip: that surface rejects the
- * bearer token and authenticates from the inline `$login`/`$password` already
- * present in the URL built by the caller.
+ * bearer token and authenticates from the inline `$login`/`$password` the
+ * caller puts on the request — in the query string for the operations that only
+ * accept parameters there, in the form-encoded body for the ones that take it
+ * (EWCreate, EWUpsert, EWNLPSearch), which keeps the password out of URLs and
+ * access logs.
  */
 export async function executeEwRequest<R extends ToolResponse>(
   params: AgiloftCredentials,
