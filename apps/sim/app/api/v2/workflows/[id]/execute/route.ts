@@ -216,13 +216,14 @@ export const POST = withRouteHandler(
           'Async execution does not support streaming or output-shaping options'
         )
       }
-      if (
-        hasAgentStreamPolicy({
-          includeThinking: body.includeThinking,
-          includeToolCalls: body.includeToolCalls,
-        }) &&
-        !clientAcceptsAgentStreamProtocol(req.headers)
-      ) {
+      const hasAgentStreamOptions = hasAgentStreamPolicy({
+        includeThinking: body.includeThinking,
+        includeToolCalls: body.includeToolCalls,
+      })
+      if (hasAgentStreamOptions && !body.stream) {
+        return v2Error('BAD_REQUEST', 'includeThinking and includeToolCalls require stream: true')
+      }
+      if (hasAgentStreamOptions && !clientAcceptsAgentStreamProtocol(req.headers)) {
         return v2Error(
           'BAD_REQUEST',
           `includeThinking and includeToolCalls require the ${AGENT_STREAM_PROTOCOL_HEADER_LABEL}: ${AGENT_STREAM_PROTOCOL_V1} request header, which declares that the client understands agent-event frames.`

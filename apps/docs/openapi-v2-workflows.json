@@ -1021,7 +1021,7 @@
       "post": {
         "operationId": "executeWorkflowV2",
         "summary": "Execute Workflow",
-        "description": "Execute a deployed workflow synchronously, asynchronously, or as Server-Sent Events. Public workflows permit anonymous synchronous and streaming execution; asynchronous execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with `status: \"failed\"` and `error.code: \"TIMEOUT\"` rather than an HTTP error, so branch on `status`. The optional `X-Run-Id` header is a one-shot uniqueness claim, not an idempotency key: reusing a value returns 409 with `error.details.code: \"RUN_ID_CONFLICT\"` and never replays the earlier run. Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.",
+        "description": "Execute a deployed workflow synchronously, asynchronously, or as Server-Sent Events. Public workflows permit anonymous synchronous and streaming execution; asynchronous execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with `status: \"failed\"` and `error.code: \"TIMEOUT\"` rather than an HTTP error, so branch on `status`. The optional `X-Run-Id` header is a one-shot uniqueness claim, not an idempotency key: reusing a value returns 409 with `error.details.code: \"RUN_ID_CONFLICT\"` and never replays the earlier run. Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require `stream: true`. (6) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.",
         "tags": ["Workflows"],
         "security": [
           {
@@ -1069,7 +1069,7 @@
         ],
         "requestBody": {
           "required": true,
-          "description": "Input and execution-mode options for a deployed workflow. Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.",
+          "description": "Input and execution-mode options for a deployed workflow. Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require `stream: true`. (6) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.",
           "content": {
             "application/json": {
               "schema": {
@@ -3861,12 +3861,12 @@
           },
           "includeThinking": {
             "default": false,
-            "description": "Include model reasoning events in an agent-event stream. Requires the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.",
+            "description": "Include model reasoning events in an agent-event stream. Requires `stream: true` and the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.",
             "type": "boolean"
           },
           "includeToolCalls": {
             "default": false,
-            "description": "Include tool-call events in an agent-event stream. Requires the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.",
+            "description": "Include tool-call events in an agent-event stream. Requires `stream: true` and the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.",
             "type": "boolean"
           },
           "includeFileBase64": {
@@ -3882,7 +3882,7 @@
         },
         "additionalProperties": false,
         "title": "Execute workflow request",
-        "description": "Input and execution-mode options for a deployed workflow. Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.",
+        "description": "Input and execution-mode options for a deployed workflow. Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require `stream: true`. (6) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.",
         "examples": [
           {
             "input": {

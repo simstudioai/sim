@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  channelForHostname,
+  channelForDeploymentEnvironment,
   channelOfVersion,
   MANIFEST_ASSET_NAME,
   rewriteManifestUrls,
@@ -22,19 +22,17 @@ function release(
   }
 }
 
-describe('channelForHostname', () => {
-  it('maps hosted environments to their channels', () => {
-    expect(channelForHostname('dev.sim.ai')).toBe('dev')
-    expect(channelForHostname('www.dev.sim.ai')).toBe('dev')
-    expect(channelForHostname('staging.sim.ai')).toBe('staging')
-    expect(channelForHostname('www.staging.sim.ai')).toBe('staging')
-    expect(channelForHostname('sim.ai')).toBe('latest')
-    expect(channelForHostname('www.sim.ai')).toBe('latest')
+describe('channelForDeploymentEnvironment', () => {
+  it('maps hosted deployment environments to their channels', () => {
+    expect(channelForDeploymentEnvironment('dev')).toBe('dev')
+    expect(channelForDeploymentEnvironment('staging')).toBe('staging')
+    expect(channelForDeploymentEnvironment('production')).toBe('latest')
   })
 
-  it('defaults self-hosted and local deployments to stable', () => {
-    expect(channelForHostname('sim.example.com')).toBe('latest')
-    expect(channelForHostname('localhost')).toBe('latest')
+  it('defaults self-hosted, local, and unknown deployments to stable', () => {
+    expect(channelForDeploymentEnvironment(undefined)).toBe('latest')
+    expect(channelForDeploymentEnvironment('')).toBe('latest')
+    expect(channelForDeploymentEnvironment('unknown')).toBe('latest')
   })
 })
 
