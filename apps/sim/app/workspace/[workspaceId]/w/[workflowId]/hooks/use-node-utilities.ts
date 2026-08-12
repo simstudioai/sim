@@ -25,20 +25,67 @@ export function useNodeUtilities(blocks: Record<string, any>) {
   }, [])
 
   /**
-   * A block's dimensions as the block itself reported them, or null if it has
-   * not reported yet.
+   * A block's dimensions as reported during this session, or null if nothing
+   * has reported them yet.
    *
-   * {@link getBlockDimensions} without the estimate fallback — a rough box is
-   * fine for clamping a drag or placing a paste; see
-   * {@link calculateLoopDimensions} for why a container cannot size from one.
+   * Reads `layout`, not `height`. `layout` is in-memory only — a card writes it
+   * through `updateBlockLayoutMetrics` once it knows what it renders, and a
+   * container through `updateNodeDimensions` once it has been sized from its
+   * children. `height` is a persisted column, so it can still hold last
+   * session's value for a block that has not reported yet, and `data.width` /
+   * `data.height` likewise persist a container's last size. Sizing a container
+   * from those is the same guess-then-correct this gate exists to prevent, just
+   * closer to the truth and harder to reproduce.
    *
-   * A container's own size is already derived from its children, so it counts
-   * as reported once it has one; an empty container reports its default.
+   * Reading `layout` also settles nesting: an inner container that is still
+   * waiting on its own children has nothing in `layout`, so it reports null and
+   * the outer container waits with it, rather than sizing to the inner one's
+   * default and resizing again once it fills out.
    */
   const getReportedBlockDimensions = useCallback(
     (blockId: string): { width: number; height: number } | null => {
       const block = blocks[blockId]
-      if (!block) return null
+      const reportedHeight = block?.layout?.measuredHeight
+      if (!block || !reportedHeight) return null
+
+      if (isContainerType(block.type)) {
+        return {
+          width: Math.max(
+            block.layout?.measuredWidth || CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
+            CONTAINER_DIMENSIONS.MIN_WIDTH
+          ),
+          height: Math.max(reportedHeight, CONTAINER_DIMENSIONS.MIN_HEIGHT),
+        }
+      }
+
+      return {
+        width: block.type === 'note' ? BLOCK_DIMENSIONS.NOTE_WIDTH : BLOCK_DIMENSIONS.FIXED_WIDTH,
+        height:
+          block.type === 'note'
+            ? reportedHeight
+            : Math.max(reportedHeight, BLOCK_DIMENSIONS.MIN_HEIGHT),
+      }
+    },
+    [blocks, isContainerType]
+  )
+
+  /**
+   * Get the dimensions of a block, falling back to its persisted height and
+   * then to an estimate from its type.
+   *
+   * The callers here only need a rough box — clamping a drag, placing a paste —
+   * so a stale height beats a guess and a guess beats nothing. A container
+   * sizing itself cannot use either; see {@link calculateLoopDimensions}.
+   */
+  const getBlockDimensions = useCallback(
+    (blockId: string): { width: number; height: number } => {
+      const reported = getReportedBlockDimensions(blockId)
+      if (reported) return reported
+
+      const block = blocks[blockId]
+      if (!block) {
+        return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: BLOCK_DIMENSIONS.MIN_HEIGHT }
+      }
 
       if (isContainerType(block.type)) {
         return {
@@ -53,36 +100,19 @@ export function useNodeUtilities(blocks: Record<string, any>) {
         }
       }
 
-      if (!block.height) return null
-
-      return {
-        width: block.type === 'note' ? BLOCK_DIMENSIONS.NOTE_WIDTH : BLOCK_DIMENSIONS.FIXED_WIDTH,
-        height:
-          block.type === 'note'
-            ? block.height
-            : Math.max(block.height, BLOCK_DIMENSIONS.MIN_HEIGHT),
-      }
-    },
-    [blocks, isContainerType]
-  )
-
-  /**
-   * Get the dimensions of a block, estimating from its type when it has not
-   * reported a height yet.
-   */
-  const getBlockDimensions = useCallback(
-    (blockId: string): { width: number; height: number } => {
-      const reported = getReportedBlockDimensions(blockId)
-      if (reported) return reported
-
-      const block = blocks[blockId]
-      if (!block) {
-        return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: BLOCK_DIMENSIONS.MIN_HEIGHT }
+      if (block.height) {
+        return {
+          width: block.type === 'note' ? BLOCK_DIMENSIONS.NOTE_WIDTH : BLOCK_DIMENSIONS.FIXED_WIDTH,
+          height:
+            block.type === 'note'
+              ? block.height
+              : Math.max(block.height, BLOCK_DIMENSIONS.MIN_HEIGHT),
+        }
       }
 
       return estimateBlockDimensions(block.type)
     },
-    [blocks, getReportedBlockDimensions]
+    [blocks, isContainerType, getReportedBlockDimensions]
   )
 
   /**
