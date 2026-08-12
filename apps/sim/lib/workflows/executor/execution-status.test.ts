@@ -5,9 +5,9 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { and } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetJob, mockMaterializeForDisplay } = vi.hoisted(() => ({
+const { mockGetJob, mockMaterializeForDisplayWithBlockOutputs } = vi.hoisted(() => ({
   mockGetJob: vi.fn(),
-  mockMaterializeForDisplay: vi.fn(),
+  mockMaterializeForDisplayWithBlockOutputs: vi.fn(),
 }))
 
 vi.mock('@/lib/core/async-jobs', () => ({
@@ -15,7 +15,7 @@ vi.mock('@/lib/core/async-jobs', () => ({
 }))
 
 vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplay: mockMaterializeForDisplay,
+  materializeExecutionDataForDisplayWithBlockOutputs: mockMaterializeForDisplayWithBlockOutputs,
 }))
 
 vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
@@ -35,7 +35,10 @@ describe('getWorkflowExecutionStatus queue projection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockMaterializeForDisplay.mockResolvedValue({})
+    mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
+      executionData: {},
+      blockOutputs: new Map(),
+    })
   })
 
   it('selects run outputs only from the secret-safe display projection', async () => {
@@ -60,9 +63,9 @@ describe('getWorkflowExecutionStatus queue projection', () => {
     ])
     queueTableRows(schemaMock.resumeQueue, [])
     queueTableRows(schemaMock.pausedExecutions, [])
-    mockMaterializeForDisplay.mockResolvedValueOnce({
-      finalOutput: { token: '[REDACTED]' },
-      traceSpans: [{ blockId: 'block-1', output: { token: '[REDACTED]' } }],
+    mockMaterializeForDisplayWithBlockOutputs.mockResolvedValueOnce({
+      executionData: { finalOutput: { token: '[REDACTED]' } },
+      blockOutputs: new Map([['block-1', { token: '[REDACTED]' }]]),
     })
     const status = await getWorkflowExecutionStatus({
       ...input,
@@ -70,13 +73,14 @@ describe('getWorkflowExecutionStatus queue projection', () => {
       selectedOutputs: ['block-1'],
     })
 
-    expect(mockMaterializeForDisplay).toHaveBeenCalledWith(
+    expect(mockMaterializeForDisplayWithBlockOutputs).toHaveBeenCalledWith(
       expect.objectContaining({ executionState: expect.anything() }),
       {
         workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
         executionId: 'execution-1',
-      }
+      },
+      ['block-1']
     )
     expect(status).toMatchObject({
       finalOutput: { token: '[REDACTED]' },
