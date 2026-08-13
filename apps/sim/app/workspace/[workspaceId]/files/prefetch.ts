@@ -31,8 +31,9 @@ import {
 export async function prefetchFilesBrowser(
   queryClient: QueryClient,
   workspaceId: string,
-  userId: string
+  userId: string | undefined
 ): Promise<void> {
+  if (!userId) return
   const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
   if (!hostContext) return
 

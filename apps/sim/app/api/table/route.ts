@@ -15,7 +15,7 @@ import {
   type TableSchema,
   type TableScope,
 } from '@/lib/table'
-import { normalizeColumn, toTableListItem } from '@/lib/table/wire'
+import { normalizeColumn, toTableListItem, toWireTimestamp } from '@/lib/table/wire'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { orchestrationErrorResponse } from '@/app/api/table/utils'
 
@@ -141,14 +141,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           maxRows: table.maxRows,
           folderId: table.folderId ?? null,
           locks: table.locks,
-          createdAt:
-            table.createdAt instanceof Date
-              ? table.createdAt.toISOString()
-              : String(table.createdAt),
-          updatedAt:
-            table.updatedAt instanceof Date
-              ? table.updatedAt.toISOString()
-              : String(table.updatedAt),
+          createdAt: toWireTimestamp(table.createdAt),
+          updatedAt: toWireTimestamp(table.updatedAt),
         },
         message: 'Table created successfully',
       },

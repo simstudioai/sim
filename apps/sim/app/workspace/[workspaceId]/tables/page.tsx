@@ -18,15 +18,8 @@ export const metadata: Metadata = {
  * route-level `loading.tsx` covers the navigation/chunk-load transition.
  */
 export default async function TablesPage({ params }: { params: Promise<{ workspaceId: string }> }) {
-  const { workspaceId } = await params
-
+  const [{ workspaceId }, session] = await Promise.all([params, getSession()])
   const queryClient = getQueryClient()
-  /**
-   * `getSession` is `cache`d and the layout has already resolved it for this
-   * request, so this costs nothing and gives the prefetch the viewer its
-   * data-layer reads need to authorize against.
-   */
-  const session = await getSession()
   await prefetchTables(queryClient, workspaceId, session?.user?.id)
 
   return (

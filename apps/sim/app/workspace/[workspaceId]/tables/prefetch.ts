@@ -1,10 +1,9 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { listFoldersForWorkspace } from '@/lib/folders/queries'
 import { listTables } from '@/lib/table'
 import { toTableListItem } from '@/lib/table/wire'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
+import { prefetchResourceFolders } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-folders'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
-import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
 import { TABLE_LIST_STALE_TIME, tableKeys } from '@/hooks/queries/utils/table-keys'
 
 /**
@@ -35,29 +34,20 @@ export async function prefetchTables(
   workspaceId: string,
   userId: string | undefined
 ): Promise<void> {
-  const hostContext = userId ? await getWorkspaceHostContextForViewer(workspaceId, userId) : null
+  if (!userId) return
+  const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
+  if (!hostContext) return
 
   await Promise.all([
-    ...(hostContext
-      ? [
-          queryClient.prefetchQuery({
-            queryKey: tableKeys.list(workspaceId, 'active'),
-            queryFn: async () => {
-              const tables = await listTables(workspaceId, { scope: 'active' })
-              return tables.map(toTableListItem)
-            },
-            staleTime: TABLE_LIST_STALE_TIME,
-          }),
-          queryClient.prefetchQuery({
-            queryKey: folderKeys.list(workspaceId, 'active', 'table'),
-            queryFn: async () => {
-              const rows = await listFoldersForWorkspace(workspaceId, 'active', 'table')
-              return rows.map(mapFolder)
-            },
-            staleTime: FOLDER_LIST_STALE_TIME,
-          }),
-        ]
-      : []),
+    queryClient.prefetchQuery({
+      queryKey: tableKeys.list(workspaceId, 'active'),
+      queryFn: async () => {
+        const tables = await listTables(workspaceId, { scope: 'active' })
+        return tables.map(toTableListItem)
+      },
+      staleTime: TABLE_LIST_STALE_TIME,
+    }),
+    prefetchResourceFolders(queryClient, workspaceId, 'table', userId),
     prefetchResourceListChrome(queryClient, workspaceId, 'table', userId),
   ])
 }

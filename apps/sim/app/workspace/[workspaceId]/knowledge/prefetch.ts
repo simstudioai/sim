@@ -1,12 +1,10 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { listKnowledgeBasesContract } from '@/lib/api/contracts/knowledge'
 import { internalSessionAuth } from '@/lib/api/server/routes'
-import { listFoldersForWorkspace } from '@/lib/folders/queries'
 import { internalKnowledgePresenters } from '@/lib/knowledge/api/internal-route'
 import { listInternalKnowledgeBases } from '@/lib/knowledge/application/knowledge-bases'
-import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
+import { prefetchResourceFolders } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-folders'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
-import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
 import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 /**
@@ -38,8 +36,6 @@ export async function prefetchKnowledgeBases(
   workspaceId: string,
   userId: string | undefined
 ): Promise<void> {
-  const hostContext = userId ? await getWorkspaceHostContextForViewer(workspaceId, userId) : null
-
   await Promise.all([
     queryClient.prefetchQuery({
       queryKey: knowledgeKeys.list(workspaceId, 'active'),
@@ -55,18 +51,7 @@ export async function prefetchKnowledgeBases(
       },
       staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
     }),
-    ...(hostContext
-      ? [
-          queryClient.prefetchQuery({
-            queryKey: folderKeys.list(workspaceId, 'active', 'knowledge_base'),
-            queryFn: async () => {
-              const rows = await listFoldersForWorkspace(workspaceId, 'active', 'knowledge_base')
-              return rows.map(mapFolder)
-            },
-            staleTime: FOLDER_LIST_STALE_TIME,
-          }),
-        ]
-      : []),
+    prefetchResourceFolders(queryClient, workspaceId, 'knowledge_base', userId),
     prefetchResourceListChrome(queryClient, workspaceId, 'knowledge_base', userId),
   ])
 }

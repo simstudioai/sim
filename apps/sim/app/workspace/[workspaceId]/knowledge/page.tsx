@@ -25,15 +25,8 @@ export default async function KnowledgePage({
 }: {
   params: Promise<{ workspaceId: string }>
 }) {
-  const { workspaceId } = await params
-
+  const [{ workspaceId }, session] = await Promise.all([params, getSession()])
   const queryClient = getQueryClient()
-  /**
-   * `getSession` is `cache`d and the layout has already resolved it for this
-   * request, so this costs nothing and gives the prefetch the viewer its
-   * data-layer reads need to authorize against.
-   */
-  const session = await getSession()
   await prefetchKnowledgeBases(queryClient, workspaceId, session?.user?.id)
 
   return (

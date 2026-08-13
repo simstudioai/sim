@@ -1,5 +1,5 @@
 import { typeMetadataOf } from '@/lib/table/column-types'
-import type { ColumnDefinition, TableDefinition, TableSchema } from '@/lib/table/types'
+import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
 
 /**
  * Projects a stored column onto its wire form: optional flags defaulted and
@@ -27,8 +27,8 @@ export function normalizeColumn(
   }
 }
 
-/** Serializes a stored timestamp to the ISO string the list wire shape carries. */
-function toWireTimestamp(value: Date | string): string {
+/** Serializes a stored timestamp to the ISO string a table wire shape carries. */
+export function toWireTimestamp(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : String(value)
 }
 
@@ -49,7 +49,7 @@ export function toTableListItem(table: TableDefinition): TableDefinition {
     name: table.name,
     description: table.description,
     schema: {
-      columns: (table.schema as TableSchema).columns.map(normalizeColumn),
+      columns: table.schema.columns.map(normalizeColumn),
     },
     rowCount: table.rowCount,
     maxRows: table.maxRows,
