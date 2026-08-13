@@ -2,12 +2,19 @@ import { db } from '@sim/db'
 import { credential, pendingCredentialDraft, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, lt } from 'drizzle-orm'
+import { and, eq, gt, lt } from 'drizzle-orm'
 import { defaultCredentialDisplayName } from '@/lib/credentials/display-name'
 import { credentialProviderMatchesService, getAllOAuthServices } from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuthConnectDraft')
 const DRAFT_TTL_MS = 15 * 60 * 1000
+
+export type ConnectDraft = typeof pendingCredentialDraft.$inferSelect
+
+export interface CreatedConnectDraft {
+  id: string
+  expiresAt: Date
+}
 
 /**
  * Creates the pending credential draft at OAuth click time so custom and
@@ -21,7 +28,7 @@ export async function createConnectDraft(params: {
   credentialId?: string
   /** Reconnect only: the credential's actual name, so audit records stay accurate. */
   displayName?: string
-}): Promise<void> {
+}): Promise<CreatedConnectDraft> {
   const { userId, workspaceId, providerId, credentialId } = params
 
   let displayName = params.displayName
@@ -32,42 +39,21 @@ export async function createConnectDraft(params: {
     const service = getAllOAuthServices().find((s) =>
       credentialProviderMatchesService(providerId, s)
     )
-    const serviceName = service?.name ?? providerId
+    if (!service) throw new Error(`Cannot create OAuth draft for unknown provider ${providerId}`)
+    const serviceName = service.name
 
-    let userName: string | null = null
-    try {
-      const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, userId))
-      userName = row?.name ?? null
-    } catch (error) {
-      // Cosmetic only — fall back to the "My {Service}" default
-      logger.warn('User name lookup failed for connect draft display name', {
-        userId,
-        workspaceId,
-        providerId,
-        error,
-      })
-    }
+    const [row] = await db.select({ name: user.name }).from(user).where(eq(user.id, userId))
+    if (!row) throw new Error(`Cannot create OAuth draft for missing user ${userId}`)
+    const userName = row.name
 
     // Auto-number against existing workspace credentials so repeat connects for
     // the same provider stay distinguishable — same behavior as the connect
-    // modal, which computes this client-side. Best effort: on failure the name
-    // simply skips deduplication.
-    let takenNames: ReadonlySet<string> = new Set<string>()
-    try {
-      const rows = await db
-        .select({ displayName: credential.displayName })
-        .from(credential)
-        .where(and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'oauth')))
-      takenNames = new Set(rows.map((row) => row.displayName.toLowerCase()))
-    } catch (error) {
-      // Cosmetic only — proceed without collision numbering
-      logger.warn('Credential name lookup failed for connect draft deduplication', {
-        userId,
-        workspaceId,
-        providerId,
-        error,
-      })
-    }
+    // modal, which computes this client-side.
+    const rows = await db
+      .select({ displayName: credential.displayName })
+      .from(credential)
+      .where(and(eq(credential.workspaceId, workspaceId), eq(credential.type, 'oauth')))
+    const takenNames = new Set(rows.map((credentialRow) => credentialRow.displayName.toLowerCase()))
 
     displayName = defaultCredentialDisplayName(userName, serviceName, takenNames)
   }
@@ -79,10 +65,11 @@ export async function createConnectDraft(params: {
     .where(
       and(eq(pendingCredentialDraft.userId, userId), lt(pendingCredentialDraft.expiresAt, now))
     )
-  await db
+  const id = generateId()
+  const [draft] = await db
     .insert(pendingCredentialDraft)
     .values({
-      id: generateId(),
+      id,
       userId,
       workspaceId,
       providerId,
@@ -100,8 +87,11 @@ export async function createConnectDraft(params: {
       // credentialId must be written on BOTH paths: a plain connect that reuses a
       // stale reconnect draft row would otherwise silently rebind the old
       // credential instead of creating a new one.
-      set: { displayName, credentialId: credentialId ?? null, expiresAt, createdAt: now },
+      set: { id, displayName, credentialId: credentialId ?? null, expiresAt, createdAt: now },
     })
+    .returning({ id: pendingCredentialDraft.id, expiresAt: pendingCredentialDraft.expiresAt })
+
+  if (!draft) throw new Error('OAuth connect draft insert returned no row')
 
   logger.info('Created OAuth connect credential draft', {
     userId,
@@ -109,4 +99,23 @@ export async function createConnectDraft(params: {
     providerId,
     credentialId: credentialId ?? null,
   })
+  return draft
+}
+
+export async function getActiveConnectDraft(
+  draftId: string,
+  userId: string
+): Promise<ConnectDraft | null> {
+  const [draft] = await db
+    .select()
+    .from(pendingCredentialDraft)
+    .where(
+      and(
+        eq(pendingCredentialDraft.id, draftId),
+        eq(pendingCredentialDraft.userId, userId),
+        gt(pendingCredentialDraft.expiresAt, new Date())
+      )
+    )
+    .limit(1)
+  return draft ?? null
 }

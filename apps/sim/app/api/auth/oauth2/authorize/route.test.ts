@@ -4,8 +4,10 @@
 import {
   createMockRequest,
   dbChainMockFns,
+  queueTableRows,
   resetDbChainMock,
   resetEnvMock,
+  schemaMock,
   setEnv,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,11 +17,13 @@ const {
   mockOAuth2LinkAccount,
   mockCheckWorkspaceAccess,
   mockGetCredentialActorContext,
+  mockLaunchCredentialConnection,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockOAuth2LinkAccount: vi.fn(),
   mockCheckWorkspaceAccess: vi.fn(),
   mockGetCredentialActorContext: vi.fn(),
+  mockLaunchCredentialConnection: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/auth', () => ({
@@ -33,6 +37,13 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 
 vi.mock('@/lib/credentials/access', () => ({
   getCredentialActorContext: mockGetCredentialActorContext,
+}))
+
+vi.mock('@/lib/credentials/application/launch-credential-connection', () => ({
+  launchCredentialConnection: {
+    operation: { id: 'credentials.connections.launch' },
+    execute: mockLaunchCredentialConnection,
+  },
 }))
 
 vi.mock('@/lib/oauth/utils', () => ({
@@ -99,7 +110,16 @@ describe('OAuth2 authorize route', () => {
       GOOGLE_CLIENT_ID: 'google-client',
       GOOGLE_CLIENT_SECRET: 'google-secret',
     })
-    mockGetSession.mockResolvedValue({ user: { id: USER_ID } })
+    mockGetSession.mockResolvedValue({
+      user: { id: USER_ID },
+      session: { id: 'session-1' },
+    })
+    queueTableRows(schemaMock.user, [{ name: 'Test User' }])
+    dbChainMockFns.onConflictDoUpdate.mockImplementation(() => ({
+      returning: vi
+        .fn()
+        .mockResolvedValue([{ id: 'draft-1', expiresAt: new Date('2026-08-12T20:15:00.000Z') }]),
+    }))
     mockCheckWorkspaceAccess.mockResolvedValue({
       hasAccess: true,
       canWrite: true,
@@ -111,6 +131,69 @@ describe('OAuth2 authorize route', () => {
       status: 200,
       json: async () => ({ url: LINK_URL }),
       headers: { getSetCookie: () => ['better-auth.state=xyz; Path=/'] },
+    })
+  })
+
+  describe('draft-bound connection', () => {
+    it('resolves the exact user-bound draft before starting OAuth', async () => {
+      mockLaunchCredentialConnection.mockResolvedValue({
+        draft: {
+          id: 'draft-1',
+          userId: USER_ID,
+          workspaceId: WORKSPACE_ID,
+          providerId: 'google-email',
+          displayName: "Test User's Gmail",
+          description: null,
+          credentialId: null,
+          expiresAt: new Date('2026-08-12T20:15:00.000Z'),
+          createdAt: new Date('2026-08-12T20:00:00.000Z'),
+        },
+      })
+      const request = authorizeRequest({ draftId: 'draft-1' })
+
+      const response = await GET(request)
+
+      expect(response.headers.get('location')).toBe(LINK_URL)
+      expect(mockLaunchCredentialConnection).toHaveBeenCalledWith({
+        principal: { kind: 'session', userId: USER_ID, sessionId: 'session-1' },
+        input: { draftId: 'draft-1' },
+        request,
+      })
+      expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+      expect(mockOAuth2LinkAccount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: {
+            providerId: 'google-email',
+            callbackURL: `${BASE_URL}/oauth/credential-connected?result=connected`,
+            errorCallbackURL: `${BASE_URL}/oauth/credential-connected?result=failed`,
+          },
+        })
+      )
+    })
+
+    it('hands custom providers to their authenticated browser flow', async () => {
+      setEnv({ TRELLO_API_KEY: 'trello-key' })
+      mockLaunchCredentialConnection.mockResolvedValue({
+        draft: {
+          id: 'draft-1',
+          userId: USER_ID,
+          workspaceId: WORKSPACE_ID,
+          providerId: 'trello',
+          displayName: "Test User's Trello",
+          description: null,
+          credentialId: null,
+          expiresAt: new Date('2026-08-12T20:15:00.000Z'),
+          createdAt: new Date('2026-08-12T20:00:00.000Z'),
+        },
+      })
+
+      const response = await GET(authorizeRequest({ draftId: 'draft-1' }))
+
+      expect(response.headers.get('location')).toBe(
+        `${BASE_URL}/api/auth/trello/authorize?returnUrl=https%3A%2F%2Fsim.test%2Foauth%2Fcredential-connected%3Fresult%3Dconnected`
+      )
+      expect(mockOAuth2LinkAccount).not.toHaveBeenCalled()
     })
   })
 

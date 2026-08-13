@@ -1,4 +1,8 @@
-import { v2ListCredentialsContract } from '@/lib/api/contracts/v2/credentials'
+import {
+  v2CreateCredentialConnectionContract,
+  v2ListCredentialProvidersContract,
+  v2ListCredentialsContract,
+} from '@/lib/api/contracts/v2/credentials'
 import {
   v2CreateCustomToolContract,
   v2DeleteCustomToolContract,
@@ -164,6 +168,24 @@ const CREDENTIAL_EXAMPLE = {
   role: 'admin',
   createdAt: '2026-06-01T09:14:00.000Z',
   updatedAt: '2026-06-20T14:02:11.000Z',
+} as const
+
+const CREDENTIAL_PROVIDER_EXAMPLE = {
+  serviceId: 'salesforce',
+  name: 'Salesforce',
+  description: 'Connect to Salesforce CRM data and operations.',
+  providerFamily: 'salesforce',
+  available: true,
+  supportsReconnect: true,
+  authorizationOptions: [
+    { providerId: 'salesforce', label: 'Production' },
+    { providerId: 'salesforce-sandbox', label: 'Sandbox' },
+  ],
+} as const
+
+const CREDENTIAL_CONNECTION_EXAMPLE = {
+  authorizationUrl: 'https://www.sim.ai/api/auth/oauth2/authorize?draftId=draft-123',
+  expiresAt: '2026-06-20T14:17:11.000Z',
 } as const
 
 const SECRET_EXAMPLE = {
@@ -805,6 +827,56 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2ListCredentialProvidersContract,
+    resourceOperation('Credentials', {
+      operationId: 'listCredentialProviders',
+      summary: 'List Credential Providers',
+      description: `List catalogued OAuth services and whether each is available to the caller in this workspace and deployment. Authorization options contain the exact provider IDs accepted by the connection endpoint. ${FULL_SET_LIST}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'OAuth provider catalog with caller-specific availability.' },
+    }),
+    {
+      query: documentedSchema(
+        v2ListCredentialProvidersContract.query,
+        'ListCredentialProvidersQuery',
+        'List credential providers query',
+        'Workspace used to evaluate provider availability.'
+      ),
+      response: documentedSchema(
+        v2ListCredentialProvidersContract.response.schema,
+        'ListCredentialProvidersResponse',
+        'List credential providers response',
+        'OAuth providers and their authorization-server options.',
+        [{ data: [CREDENTIAL_PROVIDER_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateCredentialConnectionContract,
+    resourceOperation('Credentials', {
+      operationId: 'createCredentialConnection',
+      summary: 'Create Credential Connection',
+      description: `Create a short-lived browser URL for connecting an OAuth provider or reconnecting an existing OAuth credential. Open the URL in a browser, sign in as the personal API-key owner, complete provider authorization, then refresh the credentials list. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'A short-lived browser authorization URL.' },
+    }),
+    {
+      body: documentedSchema(
+        v2CreateCredentialConnectionContract.body,
+        'CreateCredentialConnectionBody',
+        'Create credential connection body',
+        'For a new connection, provide providerId and displayName. For a reconnect, provide only credentialId; the existing display name is preserved.'
+      ),
+      response: documentedSchema(
+        v2CreateCredentialConnectionContract.response.schema,
+        'CreateCredentialConnectionResponse',
+        'Create credential connection response',
+        'Short-lived Sim browser entrypoint and its expiry.',
+        [{ data: CREDENTIAL_CONNECTION_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2ListSecretsContract,
     resourceOperation('Secrets', {
       operationId: 'listSecrets',
@@ -953,7 +1025,8 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
     },
     {
       name: 'Credentials',
-      description: 'List OAuth and service-account connections without secret material.',
+      description:
+        'Discover OAuth providers, connect or reconnect accounts, and list connections without secret material.',
     },
     {
       name: 'Secrets',

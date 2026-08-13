@@ -262,12 +262,46 @@ export const instagramCallbackContract = defineRouteContract({
   response: { mode: 'redirect' },
 })
 
-export const authorizeOAuth2QuerySchema = z.object({
-  providerId: z.string().min(1, 'providerId is required'),
-  workspaceId: workspaceIdSchema,
-  callbackURL: z.string().min(1).optional(),
-  credentialId: z.string().min(1).optional(),
-})
+export const authorizeOAuth2QuerySchema = z
+  .object({
+    draftId: z
+      .string()
+      .min(1, 'draftId is required')
+      .max(255, 'draftId must be at most 255 characters')
+      .optional(),
+    providerId: z.string().min(1, 'providerId is required').optional(),
+    workspaceId: workspaceIdSchema.optional(),
+    callbackURL: z.string().min(1).optional(),
+    credentialId: z.string().min(1).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.draftId) {
+      for (const field of ['providerId', 'workspaceId', 'callbackURL', 'credentialId'] as const) {
+        if (data[field] !== undefined) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [field],
+            message: `${field} cannot be combined with draftId`,
+          })
+        }
+      }
+      return
+    }
+    if (!data.providerId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['providerId'],
+        message: 'providerId is required',
+      })
+    }
+    if (!data.workspaceId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['workspaceId'],
+        message: 'workspaceId is required',
+      })
+    }
+  })
 
 export const authorizeOAuth2Contract = defineRouteContract({
   method: 'GET',
