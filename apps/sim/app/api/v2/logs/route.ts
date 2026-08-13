@@ -4,7 +4,7 @@ import {
   v2ListLogsContract,
   v2LogStatusSchema,
 } from '@/lib/api/contracts/v2/logs'
-import { UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/list-query'
+import { UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { v2LogErrorPolicies } from '@/lib/logs/api/route-policies'

@@ -6,11 +6,7 @@ import {
   REFILTERED_CURSOR_MESSAGE,
   UNREADABLE_CURSOR_MESSAGE,
 } from '@/lib/api/cursor-binding'
-import {
-  type CursorKey,
-  INVALID_CURSOR_MESSAGE,
-  UNREADABLE_CURSOR_MESSAGE,
-} from '@/lib/api/list-query'
+import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
 import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
 import { forbiddenErrorDetails } from '@/lib/core/application'
