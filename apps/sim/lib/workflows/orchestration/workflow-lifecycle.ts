@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { folder as folderTable, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isFolderInWorkspace } from '@sim/platform-authz/workflow'
-import { toError } from '@sim/utils/errors'
+import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min, ne } from 'drizzle-orm'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
@@ -258,25 +258,43 @@ export async function performCreateWorkflowTransition(
   const now = new Date()
   const { workflowState, subBlockValues, startBlockId } = buildDefaultWorkflowArtifacts()
 
-  await db.transaction(async (tx) => {
-    await tx.insert(workflow).values({
-      id: workflowId,
-      userId: params.userId,
-      workspaceId: params.workspaceId,
-      folderId,
-      sortOrder,
-      name,
-      description: params.description,
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      variables: {},
-    })
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(workflow).values({
+        id: workflowId,
+        userId: params.userId,
+        workspaceId: params.workspaceId,
+        folderId,
+        sortOrder,
+        name,
+        description: params.description,
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+        isDeployed: false,
+        runCount: 0,
+        variables: {},
+      })
 
-    await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
-  })
+      await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+    })
+  } catch (error) {
+    /**
+     * The name pre-check above is a `SELECT`, so two concurrent creates of the same
+     * name both pass it and the loser is rejected by
+     * `workflow_workspace_folder_name_active_unique` as a raw Postgres `23505`.
+     * Reported as the conflict the pre-check already raises, so a caller sees one
+     * answer whether it lost the race or simply arrived second.
+     */
+    if (getPostgresErrorCode(error) === '23505') {
+      return {
+        success: false,
+        error: `A workflow named "${name}" already exists in this folder`,
+        errorCode: 'conflict',
+      }
+    }
+    throw error
+  }
 
   logger.info(`[${requestId}] Successfully created workflow ${workflowId}`)
 

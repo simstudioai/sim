@@ -111,7 +111,7 @@ export function assertCursorQueryBinding(
       'CURSOR_SORT_CONFLICT'
     )
   }
-  if (decoded.offset !== undefined && decoded.filterKey !== canonicalFilterKey(scope)) {
+  if (decoded.filterKey !== canonicalFilterKey(scope)) {
     throw new TableQueryValidationError(
       'Cursor was created under a different filter. Restart paging without the cursor.',
       'CURSOR_FILTER_CONFLICT'
@@ -180,7 +180,7 @@ export function encodeCursor(args: {
     ...('k' in body || sortKey === undefined ? {} : { s: sortKey }),
     // Every offset — whole-view or offset-from-anchor — counts filtered rows, so
     // both the pure-offset and compound shapes carry the filter stamp.
-    ...('o' in body && filterKey !== undefined ? { p: filterKey } : {}),
+    ...(filterKey !== undefined ? { p: filterKey } : {}),
     v: CURSOR_VERSION,
   }
   return toBase64Url(JSON.stringify(payload))
@@ -220,7 +220,7 @@ export function decodeCursor(token: string): {
     }
   }
   if (hasKeyset) {
-    return { after: { orderKey: record.k as string, id: record.i as string } }
+    return { after: { orderKey: record.k as string, id: record.i as string }, ...filterBinding }
   }
   if (hasOffset) {
     return {

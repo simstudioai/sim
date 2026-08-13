@@ -8,6 +8,7 @@ import { v2ListAuditLogsContract } from '@/lib/api/contracts/v2/audit-logs'
 import { filesAuditOpenApiDocument } from '@/lib/api/contracts/v2/openapi/files-audit'
 import { knowledgeOpenApiDocument } from '@/lib/api/contracts/v2/openapi/knowledge'
 import { ERROR_RESPONSES } from '@/lib/api/contracts/v2/openapi/shared'
+import { v2ErrorResponseSchema } from '@/lib/api/contracts/v2/shared'
 import { v2CreateTableViewContract, v2QueryRowsBodySchema } from '@/lib/api/contracts/v2/tables'
 import { v2GetWorkflowRunContract } from '@/lib/api/contracts/v2/workflows'
 import {
@@ -20,12 +21,12 @@ import {
  * therefore have nowhere else to be asserted.
  */
 describe('v2 403 cause codes', () => {
-  it('publishes every code in the generated OpenAPI 403 description', () => {
+  it("publishes every code on the error envelope's details field", () => {
+    const details = v2ErrorResponseSchema.shape.error.shape.details
+    const published = details.description ?? ''
     for (const code of FORBIDDEN_DETAIL_CODES) {
-      expect(ERROR_RESPONSES.Forbidden.description).toContain(code)
-      expect(ERROR_RESPONSES.Forbidden.description).toContain(
-        FORBIDDEN_DETAIL_CODE_DESCRIPTIONS[code]
-      )
+      expect(published).toContain(code)
+      expect(published).toContain(FORBIDDEN_DETAIL_CODE_DESCRIPTIONS[code])
     }
   })
 

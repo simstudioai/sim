@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { LIST_SORT_ORDERS, type ListSortOrder } from '@/lib/api/list-query'
+import {
+  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
+  FORBIDDEN_DETAIL_CODES,
+} from '@/lib/core/application/forbidden'
 import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/lib/folders/paths'
 
 /**
@@ -180,7 +184,17 @@ export const v2ErrorResponseSchema = z.object({
     .object({
       code: z.string().describe('Stable machine-readable error code.'),
       message: z.string().describe('Human-readable explanation of the error.'),
-      details: z.unknown().optional().describe('Optional structured error details.'),
+      details: z
+        .unknown()
+        .optional()
+        .describe(
+          [
+            'Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:',
+            ...FORBIDDEN_DETAIL_CODES.map(
+              (code) => `- \`${code}\` — ${FORBIDDEN_DETAIL_CODE_DESCRIPTIONS[code]}`
+            ),
+          ].join('\n')
+        ),
     })
     .describe('Canonical error details.'),
 })
@@ -199,7 +213,7 @@ export const v2CursorListResponse = <T extends z.ZodType>(itemSchema: T) =>
       .string()
       .nullable()
       .describe(
-        'Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself.'
+        'Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself.'
       ),
   })
 
@@ -297,7 +311,7 @@ export function v2LimitSchema(options: V2LimitOptions = {}) {
  * looping on page one.
  */
 export function v2CursorSchema(
-  description = 'Opaque cursor returned by the previous page. It is bound to the sort and filters the page was read under: send it back with the same params, and restart pagination without a cursor after changing any of them. Only `limit` may change mid-walk.'
+  description = 'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.'
 ) {
   return z.string().min(1, 'cursor must be a non-empty token').optional().describe(description)
 }

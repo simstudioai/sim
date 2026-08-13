@@ -166,10 +166,20 @@ describe('cursor↔filter binding', () => {
     expect(() => assertCursorQueryBinding(decoded, { predicate: ACTIVE })).not.toThrow()
   })
 
-  it('leaves a pure keyset cursor unbound — it names an absolute position', () => {
-    const decoded = decodeCursor(encodeCursor({ lastRow: ROW, keysetValid: true, nextOffset: 10 }))
-    expect(decoded.filterKey).toBeUndefined()
+  it('binds a pure keyset cursor to its filter too', () => {
+    /**
+     * A keyset position is absolute in `(order_key, id)`, which is why this was
+     * once left unbound. Absolute ordering is not the same as completeness:
+     * replaying the cursor under a wider filter silently omits every match that
+     * sorts before it, and the caller reads the short page as the end of the
+     * sequence rather than as an error.
+     */
+    const decoded = decodeCursor(
+      encodeCursor({ lastRow: ROW, keysetValid: true, nextOffset: 10, predicate: ACTIVE })
+    )
+    expect(decoded.filterKey).toBe(canonicalFilterKey({ predicate: ACTIVE }))
     expect(() => assertCursorQueryBinding(decoded, { predicate: ACTIVE })).not.toThrow()
+    expect(() => assertCursorQueryBinding(decoded, {})).toThrow(/different filter/i)
   })
 
   it('fingerprints structurally equal predicates identically, key order aside', () => {

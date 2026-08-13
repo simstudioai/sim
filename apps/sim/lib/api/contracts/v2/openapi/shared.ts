@@ -5,10 +5,6 @@ import type {
   OpenApiHeader,
   OpenApiSecurityScheme,
 } from '@/lib/api/openapi/types'
-import {
-  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
-  FORBIDDEN_DETAIL_CODES,
-} from '@/lib/core/application/forbidden'
 
 export const RATE_LIMIT_HEADERS = [
   'X-RateLimit-Limit',
@@ -45,13 +41,8 @@ export const WORKSPACE_ERRORS = [
  * cause": the audit that produced these codes found the claim false, and it will
  * be false again the moment a domain adds a refusal without one.
  */
-const FORBIDDEN_DESCRIPTION = [
-  'The caller lacks the rights this operation requires. Where the cause is one a caller can act on, `error.details.code` names it, drawn from a closed set:',
-  ...FORBIDDEN_DETAIL_CODES.map(
-    (code) => `- \`${code}\` — ${FORBIDDEN_DETAIL_CODE_DESCRIPTIONS[code]}`
-  ),
-  'A resource in a workspace the caller cannot reach at all answers `404`, not `403`, so absence and denial are indistinguishable to a caller who was never entitled to tell them apart.',
-].join('\n')
+const FORBIDDEN_DESCRIPTION =
+  'The caller lacks the rights this operation requires. When the cause is one a caller can act on, `error.details.code` names it. A resource in a workspace the caller cannot reach at all answers `404` instead, so absence and denial are indistinguishable.'
 
 export const ERROR_RESPONSES = {
   BadRequest: { status: 400, description: 'The request is invalid.' },
