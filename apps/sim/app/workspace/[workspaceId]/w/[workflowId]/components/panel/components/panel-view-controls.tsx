@@ -47,13 +47,14 @@ export function PanelViewControls({
     >
       <div
         className={cn(
-          'relative h-[30px] min-w-0 flex-shrink-0 basis-[30px] rounded-lg transition-[flex-grow,background-color] duration-200 [transition-timing-function:cubic-bezier(0.77,0,0.175,1)] motion-reduce:transition-none',
-          toolbarActive ? 'grow' : 'grow-0 cursor-pointer hover-hover:bg-[var(--surface-active)]'
+          'relative h-[30px] min-w-0 flex-shrink-0 rounded-lg transition-[width,flex-grow,background-color] duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+          toolbarActive
+            ? 'w-0 grow'
+            : 'w-[80px] grow-0 cursor-pointer hover-hover:bg-[var(--surface-active)]'
         )}
       >
         <ChipInput
           ref={searchInputRef}
-          icon={Search}
           type='search'
           surface={toolbarActive ? 'field' : 'button'}
           onChange={handleSearchChange}
@@ -65,23 +66,41 @@ export function PanelViewControls({
           tabIndex={toolbarActive ? 0 : -1}
           className='min-w-0'
           inputClassName={cn(
-            'transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none',
+            'pl-4 transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
             toolbarActive
               ? 'translate-x-0 opacity-100 delay-75 motion-reduce:delay-0'
               : '-translate-x-1 opacity-0 delay-0'
           )}
         />
 
+        <span
+          aria-hidden='true'
+          className='pointer-events-none absolute inset-0 flex items-center gap-1 px-2'
+        >
+          <Search className='size-[14px] flex-none text-[var(--text-icon)]' />
+          <span
+            aria-hidden='true'
+            className={cn(
+              'min-w-0 whitespace-nowrap text-[var(--text-body)] text-sm transition-[opacity,transform] duration-150 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+              toolbarActive
+                ? 'translate-x-1 opacity-0 delay-0'
+                : 'translate-x-0 opacity-100 delay-100 motion-reduce:delay-0'
+            )}
+          >
+            Toolbar
+          </span>
+        </span>
+
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <button
               type='button'
               onClick={onToolbarSelect}
-              aria-label='Open Toolbar'
+              aria-label='Toolbar'
               aria-pressed={toolbarActive}
               tabIndex={toolbarActive ? -1 : 0}
               className={cn(
-                'absolute inset-0 rounded-lg transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none',
+                'absolute inset-0 rounded-lg transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
                 toolbarActive ? 'pointer-events-none opacity-0' : 'opacity-100'
               )}
               aria-hidden={toolbarActive}
@@ -106,7 +125,7 @@ export function PanelViewControls({
             'absolute inset-y-0 end-3.5 flex items-center transition-opacity [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
             toolbarActive
               ? 'pointer-events-none opacity-0 delay-0 duration-0'
-              : 'opacity-100 delay-200 duration-100 motion-reduce:delay-0'
+              : 'opacity-100 delay-300 duration-100 motion-reduce:delay-0'
           )}
         >
           {editorActions}
