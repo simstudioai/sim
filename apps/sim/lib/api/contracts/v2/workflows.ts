@@ -546,7 +546,10 @@ export const v2ListWorkflowFoldersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/folders',
   query: v2ListFoldersQuerySchema,
-  response: { mode: 'json', schema: v2CursorListResponse(v2WorkflowFolderSchema) },
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2WorkflowFolderSchema, { paged: false }),
+  },
 })
 
 export const v2CreateWorkflowFolderContract = defineRouteContract({

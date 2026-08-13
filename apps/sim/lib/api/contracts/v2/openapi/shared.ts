@@ -231,7 +231,21 @@ export const FULL_SET_LIST =
  * Pinned by `contracts/v2/openapi/head-not-safe.test.ts`.
  */
 export const HEAD_MIRRORS_GET =
-  'A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise.'
+  'A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return.'
+
+/**
+ * Appended where the skipped payload headers are the ones a caller is most
+ * likely to have wanted from a `HEAD`.
+ *
+ * `Content-Length` on a `HEAD` is the standard way to size a download before
+ * fetching it, and this surface cannot serve it: the byte length comes from the
+ * same read that records the download audit event, which is the effect
+ * `headSafe: false` exists to skip. Naming the alternative is the difference
+ * between a documented limitation and a caller discovering an absent header at
+ * runtime.
+ */
+export const HEAD_OMITS_PAYLOAD_HEADERS =
+  'In particular a `HEAD` does not report `Content-Length`, so it cannot be used to size a download in advance; read the size from the file resource instead.'
 
 /**
  * Appended to an operation whose semantic operation sets `workspaceApiKey: 'deny'`.

@@ -6,7 +6,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { filesAuditOpenApiDocument } from '@/lib/api/contracts/v2/openapi/files-audit'
 import { resourcesOpenApiDocument } from '@/lib/api/contracts/v2/openapi/resources'
-import { HEAD_MIRRORS_GET } from '@/lib/api/contracts/v2/openapi/shared'
+import { HEAD_MIRRORS_GET, HEAD_OMITS_PAYLOAD_HEADERS } from '@/lib/api/contracts/v2/openapi/shared'
 import { tablesOpenApiDocument } from '@/lib/api/contracts/v2/openapi/tables'
 import { workflowsOpenApiDocument } from '@/lib/api/contracts/v2/openapi/workflows'
 import type { OpenApiDocumentDefinition, OpenApiRouteDefinition } from '@/lib/api/openapi/types'
@@ -52,6 +52,30 @@ describe('operations whose GET declares headSafe: false', () => {
     expect(
       routes
         .filter((route) => !route.operation.description.includes(HEAD_MIRRORS_GET))
+        .map((route) => `${route.operation.operationId} (GET ${route.contract.path})`)
+    ).toEqual([])
+  })
+
+  /**
+   * The `200` documents `Content-Type`, `Content-Length`, and
+   * `Content-Disposition`, and the `HEAD` short-circuit answers before the read
+   * that produces any of them — so all three are absent on a `HEAD` the spec's
+   * own success object appears to promise them for. A caller sizing a download
+   * from `Content-Length` gets nothing back and no way to have known that.
+   */
+  it('says a HEAD omits the payload headers its 200 documents', () => {
+    /** Rate-limit headers ARE emitted on a HEAD; only these three are not. */
+    const payloadHeaders = ['Content-Type', 'Content-Length', 'Content-Disposition']
+    const withPayloadHeaders = DOCUMENTS.flatMap((document) => document.routes)
+      .filter(declaresHeadNotSafe)
+      .filter((route) =>
+        (route.operation.success?.headers ?? []).some((header) => payloadHeaders.includes(header))
+      )
+
+    expect(withPayloadHeaders.length).toBeGreaterThan(0)
+    expect(
+      withPayloadHeaders
+        .filter((route) => !route.operation.description.includes(HEAD_OMITS_PAYLOAD_HEADERS))
         .map((route) => `${route.operation.operationId} (GET ${route.contract.path})`)
     ).toEqual([])
   })

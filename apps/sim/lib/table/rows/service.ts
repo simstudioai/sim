@@ -612,9 +612,19 @@ export async function upsertRow(
       (c) => getColumnId(c) === data.conflictTarget || c.name === data.conflictTarget
     )
     if (!col) {
+      /**
+       * Name the column the way the caller does. A name-keyed surface resolves
+       * `conflictTarget` to its storage id before this call, so echoing the
+       * argument verbatim answers a request naming `email` with a `col_…` id
+       * the caller has never seen and cannot map back. Same rule as the
+       * missing-value branch below.
+       */
+      const requested =
+        schema.columns.find((c) => getColumnId(c) === data.conflictTarget)?.name ??
+        data.conflictTarget
       throw new OrchestrationError(
         'validation',
-        `Column "${data.conflictTarget}" is not a unique column. Available unique columns: ${uniqueColumns.map((c) => c.name).join(', ')}`
+        `Column "${requested}" is not a unique column. Available unique columns: ${uniqueColumns.map((c) => c.name).join(', ')}`
       )
     }
     targetColumnKey = getColumnId(col)

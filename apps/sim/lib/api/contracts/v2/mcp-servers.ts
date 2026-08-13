@@ -444,6 +444,6 @@ export const v2ListMcpServerToolsContract = defineRouteContract({
   query: v2ListMcpServerToolsQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2McpToolSchema),
+    schema: v2CursorListResponse(v2McpToolSchema, { paged: false }),
   },
 })

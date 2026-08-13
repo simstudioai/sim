@@ -26,6 +26,20 @@ import { createHash } from 'node:crypto'
 export const REFILTERED_CURSOR_MESSAGE =
   'cursor does not match the requested filters. Restart pagination without a cursor after changing a filter.'
 
+/**
+ * Caller-facing message for a token that cannot be decoded at all.
+ *
+ * Distinct from {@link REFILTERED_CURSOR_MESSAGE} and from
+ * `INVALID_CURSOR_MESSAGE` for the same reason those two are distinct from each
+ * other: an undecodable token says nothing about which param changed, and the
+ * lists that raise it do not all have a sort to name. `GET /audit-logs`
+ * declares neither `sortBy` nor `sortOrder` and its query schema is `.strict()`,
+ * so sending a caller to adjust them answers one 400 with advice that earns a
+ * second.
+ */
+export const UNREADABLE_CURSOR_MESSAGE =
+  'cursor is not a valid pagination cursor. Restart pagination without a cursor.'
+
 /** A scalar a list filter can be expressed as, before canonicalization. */
 export type CursorScopePart =
   | string

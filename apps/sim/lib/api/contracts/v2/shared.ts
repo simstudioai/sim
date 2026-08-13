@@ -21,15 +21,19 @@ import {
  * - list:              `{ data: T[], nextCursor: string | null }`
  * - error:             `{ error: { code, message, details? } }`
  *
- * Every documented v2 operation uses that family. The two exceptions are the
- * local-storage upload data plane — `PUT /api/v2/uploads/{uploadId}` and
- * `PUT /api/v2/uploads/{uploadId}/parts/{partNumber}` — which emit a bare
- * `{ error: string }` body. They are authenticated by a short-lived upload
- * token rather than an API key, are deliberately absent from the public
- * OpenAPI specs (see `UNDOCUMENTED_V2_ROUTES` in
- * `scripts/check-openapi-specs.ts`), and are only ever reached through a URL
- * handed back by a documented operation, so no caller writes against them
- * from docs.
+ * Every v2 route uses that error family, including the two that are not
+ * published: the local-storage upload data plane — `PUT /api/v2/uploads/{uploadId}`
+ * and `PUT /api/v2/uploads/{uploadId}/parts/{partNumber}`. Those two are
+ * authenticated by a short-lived upload token rather than an API key and are
+ * deliberately absent from the public OpenAPI specs (see
+ * `UNDOCUMENTED_V2_ROUTES` in `scripts/check-openapi-specs.ts`), because their
+ * URL is signed, short-lived, and only ever reached through a documented
+ * operation's response. They used to answer with a bare `{ error: string }`
+ * instead, which made the one step that actually moves the bytes the one step a
+ * caller could not parse with its v2 error handling. Not being in the document
+ * is a reason not to publish a route; it was never a reason to answer in a
+ * different shape. What that step promises — method, headers, `204`, and which
+ * codes mean what — is published on `transfer.url` in `contracts/v2/uploads.ts`.
  *
  * Every list returns the opaque-cursor envelope (Stripe/Slack-style)
  * `{ data, nextCursor }`, but not every list is *paged*. A paged list also
@@ -226,15 +230,38 @@ export type V2ErrorResponse = z.output<typeof v2ErrorResponseSchema>
 export const v2DataResponse = <T extends z.ZodType>(dataSchema: T) =>
   z.object({ data: dataSchema.describe('Response data.') })
 
-/** `{ data: T[], nextCursor: string | null }` — the v2 list envelope. */
-export const v2CursorListResponse = <T extends z.ZodType>(itemSchema: T) =>
+interface V2ListResponseOptions {
+  /**
+   * `false` for a full-set list — one that shares the envelope but declares no
+   * `cursor`/`limit` and always answers `null`. Defaults to `true`.
+   */
+  paged?: boolean
+}
+
+/**
+ * `{ data: T[], nextCursor: string | null }` — the v2 list envelope.
+ *
+ * `paged` selects the `nextCursor` documentation, and exists because the two
+ * cases had been publishing the same sentence. A full-set list accepts no
+ * `cursor` param — its query schema is `.strict()`, so the token the envelope
+ * told the caller to "send back as `cursor`" is a `400` — and its `nextCursor`
+ * is `null` by construction, so the instruction described a loop that could
+ * never run. The envelope stays shared either way: that is what lets a
+ * full-set list gain real pages later without a contract change.
+ */
+export const v2CursorListResponse = <T extends z.ZodType>(
+  itemSchema: T,
+  options: V2ListResponseOptions = {}
+) =>
   z.object({
     data: z.array(itemSchema).describe('Items in the current page.'),
     nextCursor: z
       .string()
       .nullable()
       .describe(
-        'Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself.'
+        options.paged === false
+          ? 'Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change.'
+          : 'Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself.'
       ),
   })
 
@@ -611,12 +638,21 @@ export const v2DeleteFolderQuerySchema = z
      * deleting a subtree, and the accepted vocabulary is closed — an
      * out-of-vocabulary value is a `400`, not a silent `false` — so leaving it
      * undeclared hid a destructive switch behind a guess.
+     *
+     * `case: 'sensitive'` is what makes "closed" true. `z.stringbool()` folds
+     * case by default, so the server honoured `recursive=True`, `TRUE`, `YES`
+     * and `ENABLED` as a recursive delete while publishing only the twelve
+     * lowercase spellings — a generated client validates against the `enum` and
+     * would reject a request the server would have executed destructively.
+     * Accepting exactly what is published is the safe direction to close that
+     * gap: an unpublished spelling now fails the request instead of deleting a
+     * subtree.
      */
     recursive: z
-      .stringbool()
+      .stringbool({ case: 'sensitive' })
       .prefault('false')
       .describe(
-        "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected."
+        "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected."
       )
       .meta({ enum: [...V2_TRUE_VALUES, ...V2_FALSE_VALUES] }),
   })

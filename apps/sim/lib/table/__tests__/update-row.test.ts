@@ -265,6 +265,39 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
     expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(false)
   })
 
+  /**
+   * The v2 surface is column-NAME-keyed and resolves `conflictTarget` to its
+   * storage id before this call, so the rejection has to translate back — a
+   * caller that sent `email` cannot act on a `col_…` id it has never seen.
+   */
+  it('upsertRow names the conflict column the caller does, not its storage id', async () => {
+    const table: TableDefinition = {
+      ...TABLE,
+      schema: {
+        columns: [
+          { id: 'col_9934c202', name: 'email', type: 'string' },
+          { id: 'col_2f1a', name: 'slug', type: 'string', unique: true },
+        ],
+      },
+    }
+    vi.mocked(getUniqueColumns).mockReturnValue([
+      { id: 'col_2f1a', name: 'slug', type: 'string', unique: true },
+    ])
+
+    await expect(
+      upsertRow(
+        {
+          tableId: 'tbl-1',
+          workspaceId: 'ws-1',
+          data: { col_9934c202: 'a@b.test' },
+          conflictTarget: 'col_9934c202',
+        },
+        table,
+        'req-1'
+      )
+    ).rejects.toThrow('Column "email" is not a unique column. Available unique columns: slug')
+  })
+
   it('upsertRow acquires the advisory lock on the insert path (no match)', async () => {
     vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
     // Initial existing-row check + post-lock re-check both find no match.

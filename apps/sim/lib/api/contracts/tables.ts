@@ -639,10 +639,16 @@ const predicateGroupsJsonSchema = (selfRef: string) =>
  * emit an explicit `IS NULL OR NOT …` arm, and `ne`/`nin` negate a JSONB
  * containment test that is false for an absent key, so all of them return rows
  * whose column is null.
+ *
+ * Multi-select is not an exception to that, though the published sentence used
+ * to claim it was: its `ncontains` is `NOT (data @> '{"tags":["opt"]}')`, and
+ * `data` is never NULL, so an absent or null cell makes the containment test
+ * false and the negation true — the same include-nulls behaviour as every other
+ * negation. Pinned by `__tests__/sql.test.ts`.
  */
 const PREDICATE_TREE_DESCRIPTION = [
   `Recursive predicate tree. Each group node is exactly one non-empty \`all\` or \`any\` array whose members are further groups or \`{ field, op, value }\` conditions; the root must be a group, not a bare condition. At most ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels of nesting, and ${MAX_PREDICATE_NODES} nodes in total.`,
-  'The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. Multi-select `ncontains` is the exception and excludes nulls.',
+  'The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`.',
   PREDICATE_OPERATOR_GRAMMAR,
 ].join(' ')
 

@@ -144,8 +144,15 @@ describe('v2 cursor binding', () => {
       expect(readScopedCursor(undefined, scope)).toBeUndefined()
     })
 
-    it('rejects a token that is not valid base64-JSON', () => {
-      expect(() => readScopedCursor('not-a-cursor', scope)).toThrow()
+    /**
+     * The three lists that mint their own tokens do not share a sort knob —
+     * `GET /audit-logs` declares neither `sortBy` nor `sortOrder`, and its query
+     * schema is `.strict()` — so an undecodable token must not send the caller
+     * to adjust params that would themselves be rejected.
+     */
+    it('rejects a token that is not valid base64-JSON without naming a sort param', () => {
+      expect(() => readScopedCursor('not-a-cursor', scope)).toThrow(/not a valid pagination cursor/)
+      expect(() => readScopedCursor('not-a-cursor', scope)).not.toThrow(/sort/i)
     })
   })
 

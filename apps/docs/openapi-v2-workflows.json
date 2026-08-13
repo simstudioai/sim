@@ -951,7 +951,7 @@
       "get": {
         "operationId": "exportWorkflow",
         "summary": "Export Workflow",
-        "description": "Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. Exporting records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. Exporting records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -1981,9 +1981,9 @@
             "name": "recursive",
             "in": "query",
             "required": false,
-            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected.",
+            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
             "schema": {
-              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected.",
+              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
               "enum": [
                 "true",
                 "1",
@@ -4779,7 +4779,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],

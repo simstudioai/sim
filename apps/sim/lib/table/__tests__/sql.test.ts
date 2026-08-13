@@ -565,10 +565,20 @@ describe('SQL Builder', () => {
       expect(out).not.toContain('ILIKE')
     })
 
-    it('negates multiselect membership for $ncontains', () => {
+    /**
+     * Multi-select `$ncontains` keeps null and absent cells, like every other
+     * negation on the surface: `data` itself is never NULL, so containment is
+     * FALSE — not NULL — for a missing key, and the negation is therefore TRUE.
+     * The published `TablePredicate` description used to call multi-select the
+     * one exception that excluded nulls; it never was, and the description now
+     * says so.
+     */
+    it('negates multiselect membership for $ncontains, keeping null and absent cells', () => {
       const out = render(buildFilterClause({ tags: { $ncontains: 'opt_a' } }, TABLE, [tagsCol]))
       expect(out).toContain('NOT (')
       expect(out).toContain('"tags":["opt_a"]')
+      expect(out).not.toContain('IS NOT NULL')
+      expect(out).not.toContain("? 'tags'")
     })
 
     it('rejects explicit equality on a multiselect — it could never match', () => {

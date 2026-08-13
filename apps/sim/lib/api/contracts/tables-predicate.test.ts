@@ -336,4 +336,20 @@ describe('the published predicate schema', () => {
       true
     )
   })
+
+  /**
+   * The description published a null rule the compiler never implemented:
+   * multi-select `ncontains` was called "the exception" that excludes nulls,
+   * while `sql.ts` emits a bare `NOT (data @> …)` — TRUE for an absent key,
+   * exactly like every other negation. A wrong null rule is worse than none:
+   * it reads as deliberate, so a caller writes a predicate that silently
+   * returns rows it was told were excluded.
+   */
+  it('does not claim a multi-select null exception the compiler never had', () => {
+    const description = String(published.description)
+
+    expect(description).toContain('The negating operators include nulls')
+    expect(description).not.toMatch(/exception/i)
+    expect(description).toMatch(/multi-select included/i)
+  })
 })

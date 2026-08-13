@@ -4,6 +4,7 @@ import {
   type CursorScopePart,
   cursorScopeKey,
   REFILTERED_CURSOR_MESSAGE,
+  UNREADABLE_CURSOR_MESSAGE,
 } from '@/lib/api/cursor-binding'
 import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
@@ -216,6 +217,21 @@ export function v2HttpError(error: HttpError): NextResponse {
   const code = V2_CODE_BY_HTTP_STATUS[error.statusCode]
   if (!code) return v2Error('INTERNAL_ERROR', 'Internal server error')
   return v2Error(code, error.message)
+}
+
+/**
+ * The 500 of the local-storage upload data plane, in the canonical envelope.
+ *
+ * `PUT /api/v2/uploads/{uploadId}` and its `/parts/{partNumber}` sibling are
+ * deliberately outside the public OpenAPI documents (see
+ * `UNDOCUMENTED_V2_ROUTES`), but they are still v2 routes a caller reaches
+ * through a URL a documented operation handed it. Being undocumented is a
+ * reason not to publish them; it was never a reason to answer in a different
+ * error shape. They do not run `admitV2Request`, so they cannot reuse the JSON
+ * builder's handler — this is the one piece of it they need.
+ */
+export function v2UploadDataPlaneError(): NextResponse {
+  return v2Error('INTERNAL_ERROR', 'Internal server error')
 }
 
 /** Render a contract `ZodError` as the v2 error envelope. */
@@ -475,7 +491,7 @@ export function readScopedCursor(
   if (!cursor) return undefined
   const decoded = decodeCursor<Partial<ScopedCursorPayload>>(cursor)
   if (!decoded || typeof decoded.inner !== 'string') {
-    throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
+    throw new OrchestrationError('validation', UNREADABLE_CURSOR_MESSAGE)
   }
   if ((decoded.scope ?? undefined) !== (scope || undefined)) {
     throw new OrchestrationError('validation', REFILTERED_CURSOR_MESSAGE)

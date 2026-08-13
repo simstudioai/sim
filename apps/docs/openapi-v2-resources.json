@@ -629,7 +629,7 @@
       "get": {
         "operationId": "listMcpServerTools",
         "summary": "List MCP Server Tools",
-        "description": "Connect to a registered MCP server and return the tools it exposes, completing onboarding without opening the Sim UI. Unlike most reads this one has side effects: it opens a live connection to the third-party server and writes `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh` on the server resource. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Discovery itself bounds the set at 1,000 tools and 5 MB of tool payload per server. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch. An unreachable, slow, or cooling-down server is a `503`; a stored OAuth grant that no longer works is a `409` with `error.details.code` `MCP_SERVER_REAUTHORIZATION_REQUIRED`, which only a human reauthorizing in Sim can clear. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Connect to a registered MCP server and return the tools it exposes, completing onboarding without opening the Sim UI. Unlike most reads this one has side effects: it opens a live connection to the third-party server and writes `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh` on the server resource. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. Discovery itself bounds the set at 1,000 tools and 5 MB of tool payload per server. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch. An unreachable, slow, or cooling-down server is a `503`; a stored OAuth grant that no longer works is a `409` with `error.details.code` `MCP_SERVER_REAUTHORIZATION_REQUIRED`, which only a human reauthorizing in Sim can clear. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -3071,7 +3071,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],

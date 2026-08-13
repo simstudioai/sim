@@ -761,7 +761,7 @@ export const v2ListKnowledgeFoldersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/knowledge/folders',
   query: v2ListFoldersQuerySchema,
-  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema) },
+  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema, { paged: false }) },
 })
 
 export const v2CreateKnowledgeFolderContract = defineRouteContract({
@@ -1097,7 +1097,7 @@ export const v2ListKnowledgeTagsContract = defineRouteContract({
     .strict(),
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2KnowledgeTagSchema),
+    schema: v2CursorListResponse(v2KnowledgeTagSchema, { paged: false }),
   },
 })
 

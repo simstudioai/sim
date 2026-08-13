@@ -1898,9 +1898,9 @@
             "name": "recursive",
             "in": "query",
             "required": false,
-            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected.",
+            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
             "schema": {
-              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected.",
+              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
               "enum": [
                 "true",
                 "1",
@@ -2902,7 +2902,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3362,7 +3362,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL to which the file bytes are uploaded."
+            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
           },
           "headers": {
             "type": "object",
@@ -3565,7 +3565,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL for this upload part."
+            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
           },
           "headers": {
             "type": "object",
@@ -4064,13 +4064,13 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],
         "additionalProperties": false,
         "title": "Knowledge folder list response",
-        "description": "A cursor-paginated page of knowledge-base folders."
+        "description": "The whole bounded set of knowledge-base folders, in one page."
       },
       "V2KnowledgeFolderResponse": {
         "type": "object",
