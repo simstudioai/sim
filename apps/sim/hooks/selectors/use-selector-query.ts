@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query'
 import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
 import { usePersonalEnvironment } from '@/hooks/queries/environment'
 import { getSelectorDefinition, mergeOption } from '@/hooks/selectors/registry'
@@ -84,8 +84,6 @@ export function useSelectorOptions(
       definition.fetchList?.({ ...queryArgs, signal }) ?? Promise.resolve([]),
     enabled: !supportsPagination && isEnabled,
     staleTime: definition.staleTime ?? DEFAULT_SELECTOR_STALE_TIME,
-    /** `search` is part of the key, so without this the open dropdown empties on every edit. */
-    placeholderData: keepPreviousData,
   })
 
   const pagedQuery = useInfiniteQuery<SelectorPage>({
@@ -102,8 +100,6 @@ export function useSelectorOptions(
     initialPageParam: undefined as string | undefined,
     enabled: supportsPagination && isEnabled,
     staleTime: definition.staleTime ?? DEFAULT_SELECTOR_STALE_TIME,
-    /** Same reason as the flat query: the key carries `search`. */
-    placeholderData: keepPreviousData,
   })
 
   const { hasNextPage, isFetchingNextPage, fetchNextPage, isError } = pagedQuery
