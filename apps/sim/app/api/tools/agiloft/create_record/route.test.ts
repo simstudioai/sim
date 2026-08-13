@@ -287,6 +287,30 @@ describe('EWCreate', () => {
     expect(data.error).toContain('retrying creates a second record')
   })
 
+  /**
+   * The credentials travel in the submitted form body, so an Agiloft error page
+   * or an intermediary that echoes request parameters would hand them straight
+   * back to the workflow caller.
+   */
+  it('keeps the instance password out of an echoed upstream error body', async () => {
+    arrangeCreate(
+      res({
+        ok: false,
+        status: 500,
+        text: `<html><body>Error processing request: $KB=Contract+Templates&$login=svc.user&$password=${PLACEHOLDER_PASSWORD}</body></html>`,
+      })
+    )
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).not.toContain(PLACEHOLDER_PASSWORD)
+    expect(data.error).not.toContain('svc.user')
+    expect(data.error).toContain('[redacted]')
+  })
+
   it('keeps the instance password out of a relayed transport error', async () => {
     inputValidationMockFns.mockSecureFetchWithPinnedIP.mockRejectedValueOnce(
       new Error(`upstream echoed $password=${PLACEHOLDER_PASSWORD}`)

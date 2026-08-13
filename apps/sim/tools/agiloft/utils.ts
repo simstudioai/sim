@@ -43,6 +43,26 @@ export function describeAgiloftError(body: string): string {
   return detail ? `${typed[1]}: ${detail}` : typed[1]
 }
 
+/**
+ * Strips the instance credentials out of any text relayed to the caller.
+ *
+ * The credentials for the operations that accept them travel in the request
+ * body, and an Agiloft error page or an intermediary that echoes submitted form
+ * parameters would carry them straight back. Anything derived from an upstream
+ * response or a transport error goes through here before it reaches a workflow
+ * result or a log.
+ */
+export function redactAgiloftSecrets(
+  message: string,
+  credentials: { login: string; password: string }
+): string {
+  let safe = message
+  for (const secret of [credentials.password, credentials.login]) {
+    if (secret) safe = safe.split(secret).join('[redacted]')
+  }
+  return safe
+}
+
 /** Language sent on every Agiloft call; EWLogin rejects the request without it. */
 export const AGILOFT_LANG = 'en'
 

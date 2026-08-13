@@ -186,6 +186,22 @@ describe('EWNLPSearch response', () => {
     expect(data.output).toEqual({ records: [], totalCount: 0, truncated: false })
   })
 
+  it('keeps the instance password out of an echoed upstream error body', async () => {
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      res({
+        ok: false,
+        status: 500,
+        text: `<html><body>Error: $login=svc.user&$password=${PLACEHOLDER_PASSWORD}</body></html>`,
+      })
+    )
+
+    const response = await POST(createMockRequest('POST', baseBody))
+    const data = (await response.json()) as { error?: string }
+
+    expect(data.error).not.toContain(PLACEHOLDER_PASSWORD)
+    expect(data.error).not.toContain('svc.user')
+  })
+
   it('caps the records it returns and reports the result as truncated', async () => {
     inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
       res({

@@ -11,6 +11,7 @@ import {
   AGILOFT_MAX_SEARCH_RECORDS,
   buildNlpSearchBody,
   buildNlpSearchUrl,
+  redactAgiloftSecrets,
 } from '@/tools/agiloft/utils'
 import { executeEwRequest, isAgiloftRefusal, readAlrestJson } from '@/tools/agiloft/utils.server'
 
@@ -53,67 +54,78 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const result = await executeEwRequest<AgiloftNlpSearchResponse>(
-      params,
-      (base) => ({
-        url: buildNlpSearchUrl(base),
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: buildNlpSearchBody(params),
-      }),
-      async (response) => {
-        /**
-         * EWNLPSearch is the one legacy `EW*` operation that answers in the JSON
-         * envelope the `alrest` surface uses — `{success, message, result}` with
-         * `result` as the record array — rather than `EWREST_` assignments. Its
-         * request half is form-encoded like the rest of the `EW*` surface, so
-         * the two halves deliberately use different conventions. Do not
-         * "correct" this to `parseEwRest` to match create.
-         */
-        const payload = await readAlrestJson<Record<string, unknown>[]>(response)
+    let result: AgiloftNlpSearchResponse
+    try {
+      result = await executeEwRequest<AgiloftNlpSearchResponse>(
+        params,
+        (base) => ({
+          url: buildNlpSearchUrl(base),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: buildNlpSearchBody(params),
+        }),
+        async (response) => {
+          /**
+           * EWNLPSearch is the one legacy `EW*` operation that answers in the JSON
+           * envelope the `alrest` surface uses — `{success, message, result}` with
+           * `result` as the record array — rather than `EWREST_` assignments. Its
+           * request half is form-encoded like the rest of the `EW*` surface, so
+           * the two halves deliberately use different conventions. Do not
+           * "correct" this to `parseEwRest` to match create.
+           */
+          const payload = await readAlrestJson<Record<string, unknown>[]>(response)
 
-        /**
-         * `result` is documented as an array, but a single-record or empty-object
-         * answer would make an unchecked `.slice` throw a TypeError that escapes
-         * as a 500. Normalising keeps an unexpected shape a readable result.
-         */
-        const returned = Array.isArray(payload) ? payload : payload ? [payload] : []
-        const records = returned.slice(0, AGILOFT_MAX_SEARCH_RECORDS)
+          /**
+           * `result` is documented as an array, but a single-record or empty-object
+           * answer would make an unchecked `.slice` throw a TypeError that escapes
+           * as a 500. Normalising keeps an unexpected shape a readable result.
+           */
+          const returned = Array.isArray(payload) ? payload : payload ? [payload] : []
+          const records = returned.slice(0, AGILOFT_MAX_SEARCH_RECORDS)
 
-        if (returned.length > records.length) {
-          logger.warn(
-            `[${requestId}] Agiloft NLP search returned ${returned.length} records; truncated to ${AGILOFT_MAX_SEARCH_RECORDS}`
-          )
+          if (returned.length > records.length) {
+            logger.warn(
+              `[${requestId}] Agiloft NLP search returned ${returned.length} records; truncated to ${AGILOFT_MAX_SEARCH_RECORDS}`
+            )
+          }
+
+          return {
+            success: true,
+            output: {
+              records,
+              totalCount: records.length,
+              truncated: returned.length > records.length,
+            },
+          }
         }
-
-        return {
-          success: true,
-          output: {
-            records,
-            totalCount: records.length,
-            truncated: returned.length > records.length,
-          },
-        }
+      )
+    } catch (error) {
+      /**
+       * A refusal Agiloft already decided on is a final answer, not a transient
+       * fault, so it is reported in a 200 body like every sibling operation does.
+       * A 500 would have the tool runner retry a search Agiloft has already
+       * declined. The message carries upstream response text and this request's
+       * credentials travel in its form body, so it is redacted first.
+       */
+      if (isAgiloftRefusal(error)) {
+        const described = redactAgiloftSecrets(error.message, params)
+        logger.warn(`[${requestId}] Agiloft refused the request`, { error: described })
+        return NextResponse.json({
+          success: false,
+          output: { records: [], totalCount: 0, truncated: false },
+          error: described,
+        })
       }
-    )
+
+      logger.error(`[${requestId}] Error running Agiloft NLP search:`, error)
+      return NextResponse.json(
+        { success: false, error: redactAgiloftSecrets(toError(error).message, params) },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(result)
   } catch (error) {
-    /**
-     * A refusal Agiloft already decided on is a final answer, not a transient
-     * fault, so it is reported in a 200 body like every sibling operation does.
-     * A 500 would have the tool runner retry a search Agiloft has already
-     * declined.
-     */
-    if (isAgiloftRefusal(error)) {
-      logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
-      return NextResponse.json({
-        success: false,
-        output: { records: [], totalCount: 0, truncated: false },
-        error: error.message,
-      })
-    }
-
     logger.error(`[${requestId}] Error running Agiloft NLP search:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })

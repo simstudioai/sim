@@ -13,6 +13,7 @@ import {
   buildCreateRecordBody,
   buildCreateRecordUrl,
   describeAgiloftError,
+  redactAgiloftSecrets,
 } from '@/tools/agiloft/utils'
 import { executeEwRequest, resolveAgiloftInstance } from '@/tools/agiloft/utils.server'
 
@@ -30,21 +31,6 @@ const UNCONFIRMED_PREFIX =
 
 /** A typed Agiloft exception means the create was declined, not left in doubt. */
 const AGILOFT_EXCEPTION = /EW[A-Za-z]*Exception/
-
-/**
- * Strips the instance credentials out of an error string.
- *
- * Errors relayed to the caller can carry upstream text, and a servlet error
- * page that echoes submitted request parameters would carry the password that
- * now travels in the request body.
- */
-function redactSecrets(message: string, params: { login: string; password: string }): string {
-  let safe = message
-  for (const secret of [params.password, params.login]) {
-    if (secret) safe = safe.split(secret).join('[redacted]')
-  }
-  return safe
-}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -139,7 +125,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }),
         async (response) => {
           const text = await response.text()
-          const described = truncate(describeAgiloftError(text), 300)
+          /**
+           * Redacted here, not at each use: every branch below relays this text,
+           * and the credentials are in the submitted form body, so an error page
+           * that echoes request parameters would carry them back.
+           */
+          const described = redactAgiloftSecrets(truncate(describeAgiloftError(text), 300), params)
 
           /**
            * Every failure below is one Agiloft already decided on, so each is
@@ -226,7 +217,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({
         success: false,
         output: { id: null, fields: {} },
-        error: `${UNCONFIRMED_PREFIX} ${redactSecrets(toError(error).message, params)}`,
+        error: `${UNCONFIRMED_PREFIX} ${redactAgiloftSecrets(toError(error).message, params)}`,
       })
     }
 
