@@ -12,6 +12,11 @@ const {
   mockListFoldersForWorkspace,
   mockListInternalKnowledgeBases,
   mockListPinnedItemsForUser,
+  mockListWorkflowsForUser,
+  mockListWorkspacesForViewer,
+  mockGetUserProfile,
+  mockGetWorkspacePermissions,
+  mockListMothershipChats,
   mockListTables,
   mockListWorkspaceFileFolders,
   mockListWorkspaceFilesWithShares,
@@ -23,6 +28,11 @@ const {
   mockListFoldersForWorkspace: vi.fn(),
   mockListInternalKnowledgeBases: vi.fn(),
   mockListPinnedItemsForUser: vi.fn(),
+  mockListWorkflowsForUser: vi.fn(),
+  mockListWorkspacesForViewer: vi.fn(),
+  mockGetUserProfile: vi.fn(),
+  mockGetWorkspacePermissions: vi.fn(),
+  mockListMothershipChats: vi.fn(),
   mockListTables: vi.fn(),
   mockListWorkspaceFileFolders: vi.fn(),
   mockListWorkspaceFilesWithShares: vi.fn(),
@@ -45,6 +55,19 @@ vi.mock('@/lib/pinned-items/queries', () => ({
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceMemberProfiles: mockGetWorkspaceMemberProfiles,
+  getWorkspacePermissionsForAuthorizedViewer: mockGetWorkspacePermissions,
+}))
+vi.mock('@/lib/workflows/queries', () => ({
+  listWorkflowsForUser: mockListWorkflowsForUser,
+}))
+vi.mock('@/lib/workspaces/list', () => ({
+  listWorkspacesForViewer: mockListWorkspacesForViewer,
+}))
+vi.mock('@/lib/users/queries', () => ({
+  getUserProfile: mockGetUserProfile,
+}))
+vi.mock('@/lib/copilot/chat/list-mothership-chats', () => ({
+  listMothershipChats: mockListMothershipChats,
 }))
 vi.mock('@/lib/table/service', () => ({
   listTables: mockListTables,
@@ -74,6 +97,7 @@ vi.mock('@sim/emcn', () => ({
 
 import { prefetchFilesBrowser } from '@/app/workspace/[workspaceId]/files/prefetch'
 import { prefetchKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/prefetch'
+import { prefetchWorkspaceSidebar } from '@/app/workspace/[workspaceId]/prefetch'
 import { prefetchTables } from '@/app/workspace/[workspaceId]/tables/prefetch'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
@@ -98,6 +122,16 @@ describe('workspace list prefetches', () => {
     mockListWorkspaceFilesWithShares.mockResolvedValue([])
     mockListWorkspaceFileFolders.mockResolvedValue([])
     mockListPinnedItemsForUser.mockResolvedValue([])
+    mockListWorkflowsForUser.mockResolvedValue([])
+    mockGetUserProfile.mockResolvedValue({ id: USER_ID, name: 'Ada', email: 'a@b.c' })
+    mockGetWorkspacePermissions.mockResolvedValue({ users: [] })
+    mockListMothershipChats.mockResolvedValue([])
+    mockListWorkspacesForViewer.mockResolvedValue({
+      workspaces: [],
+      lastActiveWorkspaceId: null,
+      pinnedWorkspaceIds: [],
+      creationPolicy: null,
+    })
     mockGetWorkspaceMemberProfiles.mockResolvedValue([])
     mockListTables.mockResolvedValue([])
     mockAuthenticate.mockResolvedValue({ kind: 'session', userId: USER_ID, sessionId: 'sess-1' })
@@ -366,6 +400,84 @@ describe('workspace list prefetches', () => {
     }
   })
 
+  describe('prefetchWorkspaceSidebar / seedWorkspaceList', () => {
+    const HOST_CONTEXT = {
+      workspace: { id: WORKSPACE_ID },
+      viewer: { permission: 'admin' },
+    } as never
+
+    const WORKSPACE_ROW = {
+      id: WORKSPACE_ID,
+      name: 'GTM',
+      ownerId: USER_ID,
+      organizationId: null,
+      workspaceMode: 'personal',
+      permissions: 'admin',
+    }
+
+    const LIST_PAYLOAD = {
+      workspaces: [WORKSPACE_ROW],
+      lastActiveWorkspaceId: null,
+      pinnedWorkspaceIds: [],
+      creationPolicy: null,
+    }
+
+    /**
+     * The load-bearing contract: an empty list must leave the key UNSET so the client
+     * fetch reaches `GET /api/workspaces`' default-workspace creation path. Seeding an
+     * empty array instead would suppress it and strand a brand-new viewer.
+     */
+    it('seeds nothing when the viewer has no workspaces', async () => {
+      mockListWorkspacesForViewer.mockResolvedValue({ ...LIST_PAYLOAD, workspaces: [] })
+      const client = makeClient()
+
+      await prefetchWorkspaceSidebar(client, WORKSPACE_ID, USER_ID, HOST_CONTEXT, null)
+
+      expect(client.getQueryData(workspaceKeys.list('active'))).toBeUndefined()
+    })
+
+    it('seeds the workspace list when the viewer has one', async () => {
+      mockListWorkspacesForViewer.mockResolvedValue(LIST_PAYLOAD)
+      const client = makeClient()
+
+      await prefetchWorkspaceSidebar(client, WORKSPACE_ID, USER_ID, HOST_CONTEXT, null)
+
+      const cached = client.getQueryData(workspaceKeys.list('active')) as
+        | { workspaces: Array<{ id: string }> }
+        | undefined
+      expect(cached).toBeDefined()
+      expect(cached?.workspaces.map((w) => w.id)).toEqual([WORKSPACE_ID])
+    })
+
+    /** A failed seed is an optimization loss, not a render failure. */
+    it('does not throw when the workspace read rejects, and seeds nothing', async () => {
+      mockListWorkspacesForViewer.mockRejectedValue(new Error('500'))
+      const client = makeClient()
+
+      await expect(
+        prefetchWorkspaceSidebar(client, WORKSPACE_ID, USER_ID, HOST_CONTEXT, null)
+      ).resolves.toBeUndefined()
+      expect(client.getQueryData(workspaceKeys.list('active'))).toBeUndefined()
+    })
+
+    /** Guards the mismatch check that keeps one workspace's data out of another's cache. */
+    it('seeds nothing when the host context is for a different workspace', async () => {
+      mockListWorkspacesForViewer.mockResolvedValue(LIST_PAYLOAD)
+      const client = makeClient()
+
+      await prefetchWorkspaceSidebar(
+        client,
+        WORKSPACE_ID,
+        USER_ID,
+        { workspace: { id: 'other-ws' }, viewer: { permission: 'admin' } } as never,
+        null
+      )
+
+      expect(client.getQueryCache().getAll()).toHaveLength(0)
+      expect(mockListWorkspacesForViewer).not.toHaveBeenCalled()
+    })
+  })
+
   describe('graceful failure', () => {
     it.each([
       [
@@ -379,9 +491,14 @@ describe('workspace list prefetches', () => {
         tableKeys.list(WORKSPACE_ID, 'active'),
       ],
       [
+        /**
+         * Asserted against the folder key, not the file list: `prefetchFilesBrowser`
+         * deliberately never seeds `workspaceFilesKeys` (the layout owns it), so an
+         * assertion on that key would hold no matter what this function did.
+         */
         'prefetchFilesBrowser',
         (client: QueryClient) => prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID),
-        workspaceFilesKeys.list(WORKSPACE_ID, 'active'),
+        workspaceFileFolderKeys.list(WORKSPACE_ID, 'active'),
       ],
     ] as const)(
       '%s does not throw when the fetcher rejects (page still renders, client refetches)',
@@ -393,6 +510,7 @@ describe('workspace list prefetches', () => {
         mockListInternalKnowledgeBases.mockRejectedValue(boom)
         mockListPinnedItemsForUser.mockRejectedValue(boom)
         mockGetWorkspaceMemberProfiles.mockRejectedValue(boom)
+        mockListWorkspaceFileFolders.mockRejectedValue(boom)
         const client = makeClient()
 
         await expect(prefetch(client)).resolves.toBeUndefined()
