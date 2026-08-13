@@ -12,6 +12,7 @@ import {
   SANDBOX_SELECTABLE_CLI_TOOL_IDS,
 } from '@/lib/execution/remote-sandbox/cli-tools'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
+import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
@@ -24,6 +25,8 @@ import {
   SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
 import type { ToolConfig, ToolHostingCondition } from '@/tools/types'
+import { buildSlackManifest, SLACK_CAPABILITIES } from '@/triggers/slack/capabilities'
+import { buildSlackCustomBotRequestUrl } from '@/triggers/webhook-url'
 
 /** The service-account alternative to OAuth for a service, when it offers one. */
 export interface VfsServiceAccountAuth {
@@ -733,6 +736,15 @@ export function serializeCredentials(
       // credential) — they reconnect differently, so the agent must branch on
       // this. Env-var credentials carry no type.
       type: a.credentialType,
+      // Derived, not stored: the public Request URL a Slack custom-bot app
+      // posts events to. One per credential; every workflow trigger that
+      // selects this credential shares it. This is what the setup wizard shows
+      // in Slack's Event Subscriptions step.
+      ...(a.credentialType === 'service_account' &&
+      a.providerId === SLACK_CUSTOM_BOT_PROVIDER_ID &&
+      a.id
+        ? { requestUrl: buildSlackCustomBotRequestUrl(a.id) }
+        : {}),
       connectedAt: a.createdAt.toISOString(),
     })),
     null,
@@ -1138,6 +1150,38 @@ export function serializeIntegrationSchema(
 }
 
 /**
+ * Derived setup reference for `slack_oauth` — the same material the custom-bot
+ * setup wizard shows, surfaced so the copilot can walk a user (or the browser
+ * agent) through Slack app creation without guessing. None of this is a block
+ * field: the manifest is a template for api.slack.com, and the Request URL is a
+ * per-credential property (`requestUrl` in environment/credentials.json).
+ */
+function slackOAuthSetupReference(): Record<string, unknown> {
+  const defaults = SLACK_CAPABILITIES.filter((c) => c.defaultChecked).map((c) => c.id)
+  return {
+    note:
+      'Setup reference (derived; NOT block fields). A custom bot is a reusable workspace credential: ' +
+      'one Slack app, one Request URL, shared by every trigger that selects it. To create or rotate one, ' +
+      'emit a service_account credential card for provider "slack" — the wizard collects the signing secret ' +
+      'and bot token without them entering the chat. Existing custom bots appear as service_account ' +
+      'credentials in environment/credentials.json, each with its requestUrl.',
+    requestUrlPattern: '{baseUrl}/api/webhooks/slack/custom/{credentialId}',
+    capabilities: SLACK_CAPABILITIES.map((c) => ({
+      id: c.id,
+      label: c.label,
+      group: c.group,
+      defaultChecked: c.defaultChecked,
+      scopes: c.scopes,
+      events: c.events,
+    })),
+    defaultManifest: buildSlackManifest(new Set(defaults), {
+      appName: 'Sim Bot',
+      webhookUrl: '<the credential requestUrl>',
+    }),
+  }
+}
+
+/**
  * Serialize a trigger schema for VFS components/triggers/{provider}/{id}.json
  */
 export function serializeTriggerSchema(trigger: {
@@ -1160,6 +1204,7 @@ export function serializeTriggerSchema(trigger: {
       webhook: trigger.webhook || undefined,
       subBlocks: trigger.subBlocks.map(serializeSubBlock),
       outputs: trigger.outputs,
+      ...(trigger.id === 'slack_oauth' ? { setup: slackOAuthSetupReference() } : {}),
     },
     null,
     2

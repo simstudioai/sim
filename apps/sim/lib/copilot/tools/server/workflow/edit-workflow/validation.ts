@@ -22,7 +22,11 @@ import { BlockType, EDGE, normalizeName } from '@/executor/constants'
 import { isAutoModel, isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
 import { isPiByokOnlyMode } from '@/providers/pi-providers'
 import { getTool } from '@/tools/utils'
-import { TRIGGER_RUNTIME_SUBBLOCK_IDS, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
+import {
+  TRIGGER_ROUTING_FIELD,
+  TRIGGER_RUNTIME_SUBBLOCK_IDS,
+  TRIGGER_WEBHOOK_URL_FIELD,
+} from '@/triggers/constants'
 import type {
   EdgeHandleValidationResult,
   EditWorkflowOperation,
@@ -73,6 +77,17 @@ export function validateInputsForBlock(
       error: `"${TRIGGER_WEBHOOK_URL_FIELD}" is read-only. The webhook URL is auto-assigned by Sim and cannot be changed by the agent or the user.`,
     })
     inputs = omit(inputs, [TRIGGER_WEBHOOK_URL_FIELD])
+  }
+
+  if (TRIGGER_ROUTING_FIELD in inputs) {
+    errors.push({
+      blockId,
+      blockType,
+      field: TRIGGER_ROUTING_FIELD,
+      value: inputs[TRIGGER_ROUTING_FIELD],
+      error: `"${TRIGGER_ROUTING_FIELD}" is read-only. Event routing is derived from the selected credential and cannot be edited on the block.`,
+    })
+    inputs = omit(inputs, [TRIGGER_ROUTING_FIELD])
   }
 
   const blockConfig = getBlock(blockType)
