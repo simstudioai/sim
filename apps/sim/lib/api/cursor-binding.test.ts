@@ -199,6 +199,15 @@ describe('unordered filter scope parts', () => {
     const b = cursorScopeKey({ workflowIds: unorderedScopePart('B,A') })
     expect(a).toBe(b)
   })
+  it('fingerprints a duplicate-bearing set identically', () => {
+    // The filters compile to `inArray`, which is set membership, so A,A,B
+    // selects exactly what A,B does and must resume the same page.
+    expect(cursorScopeKey({ workflowIds: unorderedScopePart('A,A,B') })).toBe(
+      cursorScopeKey({ workflowIds: unorderedScopePart('A,B') })
+    )
+    expect(unorderedScopePart('B,A,B')).toBe('A,B')
+  })
+
   it('still separates genuinely different sets', () => {
     expect(cursorScopeKey({ workflowIds: unorderedScopePart('A,B') })).not.toBe(
       cursorScopeKey({ workflowIds: unorderedScopePart('A,C') })

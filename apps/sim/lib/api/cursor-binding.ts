@@ -68,16 +68,22 @@ export type CursorScopePart =
  * spelling, so a caller who reorders an equivalent filter mid-walk gets a 400
  * for a page that is genuinely the next one.
  *
- * {@link canonicalJson} already sorts object keys, so this only has to sort the
- * list members. Empty members are dropped because the parsers drop them too.
+ * {@link canonicalJson} already sorts object keys, so this only has to normalize
+ * the list. Members are de-duplicated as well as sorted: the filters compile to
+ * `inArray`, which is set membership, so `A,A,B` selects exactly what `A,B` does
+ * and must not bind to a different page. Empty members are dropped because the
+ * parsers drop them too.
  */
 export function unorderedScopePart(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined
-  const members = raw
-    .split(',')
-    .map((member) => member.trim())
-    .filter((member) => member.length > 0)
-    .sort()
+  const members = [
+    ...new Set(
+      raw
+        .split(',')
+        .map((member) => member.trim())
+        .filter((member) => member.length > 0)
+    ),
+  ].sort()
   return members.length > 0 ? members.join(',') : undefined
 }
 
