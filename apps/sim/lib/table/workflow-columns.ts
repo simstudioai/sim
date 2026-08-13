@@ -41,6 +41,7 @@ import type {
   TableSchema,
   WorkflowGroup,
 } from '@/lib/table/types'
+import { stripGroupDeps } from '@/lib/table/workflow-group-deps'
 
 const logger = createLogger('WorkflowGroupScheduler')
 
@@ -1082,23 +1083,6 @@ export async function runWorkflowColumn(opts: {
  * doesn't see an empty object. Returns the same group reference when nothing
  * changed.
  */
-export function stripGroupDeps(group: WorkflowGroup, removed: ReadonlySet<string>): WorkflowGroup {
-  const cols = group.dependencies?.columns ?? []
-  const mappings = group.inputMappings ?? []
-  const filteredDeps = cols.filter((d) => !removed.has(d))
-  const filteredMappings = mappings.filter((m) => !removed.has(m.columnName))
-  const depsChanged = filteredDeps.length !== cols.length
-  const mappingsChanged = filteredMappings.length !== mappings.length
-  if (!depsChanged && !mappingsChanged) return group
-  const next: WorkflowGroup = { ...group }
-  if (depsChanged) {
-    next.dependencies = filteredDeps.length > 0 ? { columns: filteredDeps } : undefined
-  }
-  if (mappingsChanged) {
-    next.inputMappings = filteredMappings.length > 0 ? filteredMappings : undefined
-  }
-  return next
-}
 
 /**
  * Validates schema-level invariants. Run on every `addTableColumn`,
@@ -1365,3 +1349,5 @@ export function assertValidSchema(schema: TableSchema, columnOrder: string[] | u
     throw new OrchestrationError('validation', `Schema validation failed: ${errs.join('; ')}`)
   }
 }
+
+export { stripGroupDeps }

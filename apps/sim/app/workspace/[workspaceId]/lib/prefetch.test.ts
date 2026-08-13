@@ -12,7 +12,7 @@ const {
   mockListFoldersForWorkspace,
   mockListInternalKnowledgeBases,
   mockListPinnedItemsForUser,
-  mockListTables,
+  mockPrefetchInternalJson,
   mockListWorkspaceFileFolders,
   mockListWorkspaceFilesWithShares,
 } = vi.hoisted(() => ({
@@ -23,7 +23,7 @@ const {
   mockListFoldersForWorkspace: vi.fn(),
   mockListInternalKnowledgeBases: vi.fn(),
   mockListPinnedItemsForUser: vi.fn(),
-  mockListTables: vi.fn(),
+  mockPrefetchInternalJson: vi.fn(),
   mockListWorkspaceFileFolders: vi.fn(),
   mockListWorkspaceFilesWithShares: vi.fn(),
 }))
@@ -46,22 +46,8 @@ vi.mock('@/lib/pinned-items/queries', () => ({
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceMemberProfiles: mockGetWorkspaceMemberProfiles,
 }))
-/**
- * The barrel is mocked rather than `@/lib/table/wire`, so the prefetch's real
- * `toTableListItem` projection runs and the wire-shape assertions below are
- * meaningful rather than mocked away.
- */
-vi.mock('@/lib/table', () => ({
-  listTables: mockListTables,
-}))
-/**
- * `typeMetadataOf` is the one leaf of the real wire projection that reaches the
- * column-type registry, and through it every type module's icon and editor. Stub
- * that leaf only, so `toTableListItem`'s timestamp, `metadata`, and job
- * normalization stay under test rather than being mocked away wholesale.
- */
-vi.mock('@/lib/table/column-types', () => ({
-  typeMetadataOf: () => ({}),
+vi.mock('@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch', () => ({
+  prefetchInternalJson: mockPrefetchInternalJson,
 }))
 vi.mock('@/lib/api/server/routes', () => ({
   internalSessionAuth: { authenticate: mockAuthenticate },
@@ -104,7 +90,7 @@ describe('workspace list prefetches', () => {
     mockListWorkspaceFileFolders.mockResolvedValue([])
     mockListPinnedItemsForUser.mockResolvedValue([])
     mockGetWorkspaceMemberProfiles.mockResolvedValue([])
-    mockListTables.mockResolvedValue([])
+    mockPrefetchInternalJson.mockResolvedValue({ data: { tables: [] } })
     mockAuthenticate.mockResolvedValue({ kind: 'session', userId: USER_ID, sessionId: 'sess-1' })
     mockListInternalKnowledgeBases.mockResolvedValue({ knowledgeBases: [] })
     mockKnowledgePresenterList.mockReturnValue({ success: true, data: [] })
@@ -197,73 +183,24 @@ describe('workspace list prefetches', () => {
   })
 
   describe('prefetchTables', () => {
-    const TABLE_ROW = {
-      id: 't-1',
-      name: 'people',
-      description: null,
-      schema: { columns: [{ id: 'c1', name: 'name', type: 'string' }] },
-      metadata: { columnWidths: { c1: 120 } },
-      rowCount: 3,
-      maxRows: 10_000,
-      workspaceId: WORKSPACE_ID,
-      folderId: null,
-      createdBy: 'u-1',
-      locks: {
-        schemaLocked: false,
-        insertLocked: false,
-        updateLocked: false,
-        deleteLocked: false,
-      },
-      archivedAt: null,
-      createdAt: new Date('2026-01-01T00:00:00.000Z'),
-      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
-    }
-
-    it('reads tables from the data layer rather than over the wire', async () => {
-      mockListTables.mockResolvedValue([TABLE_ROW])
-      const client = makeClient()
-
-      await prefetchTables(client, WORKSPACE_ID, USER_ID)
-
-      expect(mockListTables).toHaveBeenCalledWith(WORKSPACE_ID, { scope: 'active' })
-    })
-
     /**
-     * `listTablesContract`'s response schema is a passthrough `z.custom`, so a client fetch
-     * caches the route's JSON verbatim. Seeding the raw data-layer row would put `Date`s and
-     * the server-only `metadata` field under a key the hook never sees them on.
+     * The tables list is the one read on this page still served over HTTP: `listTables` lives in
+     * a module graph that reaches the executable tool registry, which
+     * `check:tool-registry-boundary` refuses to let into a page graph.
      */
-    it('seeds the wire shape a client fetch caches, not the raw data-layer row', async () => {
-      mockListTables.mockResolvedValue([TABLE_ROW])
+    it('primes the exact key useTablesList reads and unwraps data.tables', async () => {
+      const tables = [{ id: 't-1' }]
+      mockPrefetchInternalJson.mockResolvedValue({ data: { tables } })
       const client = makeClient()
 
       await prefetchTables(client, WORKSPACE_ID, USER_ID)
 
-      const [cached] = client.getQueryData(tableKeys.list(WORKSPACE_ID, 'active')) as Array<
-        Record<string, unknown>
-      >
-      expect(cached.createdAt).toBe('2026-01-01T00:00:00.000Z')
-      expect(cached.updatedAt).toBe('2026-01-02T00:00:00.000Z')
-      expect(cached.archivedAt).toBeNull()
-      expect(cached).not.toHaveProperty('metadata')
-      expect(cached.schema).toEqual({
-        columns: [{ id: 'c1', name: 'name', type: 'string', required: false, unique: false }],
-      })
-      expect(cached.jobStatus).toBeNull()
-      expect(cached.jobRowsProcessed).toBe(0)
-    })
-
-    it('caches no tables when the viewer cannot be proved', async () => {
-      mockGetWorkspaceHostContextForViewer.mockResolvedValue(null)
-      const client = makeClient()
-
-      await prefetchTables(client, WORKSPACE_ID, USER_ID)
-
-      expect(mockListTables).not.toHaveBeenCalled()
-      expect(client.getQueryData(tableKeys.list(WORKSPACE_ID, 'active'))).toBeUndefined()
+      expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
+        `/api/table?workspaceId=${WORKSPACE_ID}&scope=active`
+      )
+      expect(client.getQueryData(tableKeys.list(WORKSPACE_ID, 'active'))).toEqual(tables)
     })
   })
-
   describe('prefetchFilesBrowser', () => {
     it('primes the folder key the client hook reads', async () => {
       const folders = [{ id: 'folder-1' }]
@@ -398,7 +335,7 @@ describe('workspace list prefetches', () => {
         const boom = new Error('500')
         mockListWorkspaceFilesWithShares.mockRejectedValue(boom)
         mockListFoldersForWorkspace.mockRejectedValue(boom)
-        mockListTables.mockRejectedValue(boom)
+        mockPrefetchInternalJson.mockRejectedValue(boom)
         mockListInternalKnowledgeBases.mockRejectedValue(boom)
         mockListPinnedItemsForUser.mockRejectedValue(boom)
         mockGetWorkspaceMemberProfiles.mockRejectedValue(boom)
