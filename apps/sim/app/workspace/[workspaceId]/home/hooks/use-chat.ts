@@ -1202,6 +1202,25 @@ export function shouldActivateResourceEvent(
   return options?.activate === true || !activeResourceId || activeResourceId === resourceId
 }
 
+/**
+ * Whether a fresh outbound message must join the chat's send queue instead of
+ * dispatching directly. Queueing while a send or stop is in flight is the
+ * obvious half; the queued-ahead term preserves FIFO across the
+ * streaming→idle boundary — a message queued while the previous turn streamed
+ * must reach the model before one typed after that turn ended but before the
+ * queue drained. Without it the fresh send jumps the queue and both the
+ * transcript and the model see the user's messages in swapped order. The two
+ * signals never gap mid-dispatch: a queued message stays in the queue until
+ * its optimistic send applies, which is after the in-flight flag is set.
+ */
+export function shouldQueueOutgoingMessage(
+  sendInFlight: boolean,
+  stopPending: boolean,
+  queuedAheadCount: number
+): boolean {
+  return sendInFlight || stopPending || queuedAheadCount > 0
+}
+
 export interface UseChatOptions {
   onResourceEvent?: ResourceEventHandler
   apiPath?: string
@@ -4188,12 +4207,23 @@ export function useChat(
 
       // An in-flight send drains the queue from `finalize`; a pending stop kicks
       // the dispatcher itself, since nothing else will once the stop settles.
-      if (sendingRef.current || pendingStopPromiseRef.current) {
+      // A non-empty queue forces queueing even on an idle chat: messages
+      // queued while the previous turn streamed must go out first, so a fresh
+      // send lands behind them instead of jumping the line in the drain gap
+      // after a turn ends.
+      const queuedAheadCount = (queueStore.queues[activeChatKey] ?? EMPTY_MESSAGE_QUEUE).length
+      if (
+        shouldQueueOutgoingMessage(
+          Boolean(sendingRef.current),
+          Boolean(pendingStopPromiseRef.current),
+          queuedAheadCount
+        )
+      ) {
         queueStore.enqueue(
           activeChatKey,
           createQueuedMessage(message, fileAttachments, contexts, options?.resumeUserMessageId)
         )
-        if (pendingStopPromiseRef.current) {
+        if (pendingStopPromiseRef.current || (queuedAheadCount > 0 && !sendingRef.current)) {
           void enqueueQueueDispatchRef.current({ type: 'send_head' })
         }
         return

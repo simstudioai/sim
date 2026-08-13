@@ -14,6 +14,7 @@ import {
   reconcileLiveAssistantTurn,
   selectReconnectReplayState,
   shouldActivateResourceEvent,
+  shouldQueueOutgoingMessage,
   waitForDetachedChatResolution,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type {
@@ -42,6 +43,27 @@ describe('shouldActivateResourceEvent', () => {
         activate: true,
       })
     ).toBe(true)
+  })
+})
+
+describe('shouldQueueOutgoingMessage', () => {
+  it('queues while a send is in flight', () => {
+    expect(shouldQueueOutgoingMessage(true, false, 0)).toBe(true)
+  })
+
+  it('queues while a stop is still settling', () => {
+    expect(shouldQueueOutgoingMessage(false, true, 0)).toBe(true)
+  })
+
+  it('queues behind messages still waiting after the turn ended', () => {
+    // The regression: a message queued mid-stream must dispatch before one
+    // typed in the idle gap after the turn stopped — a direct send here would
+    // jump the queue and swap the user's message order.
+    expect(shouldQueueOutgoingMessage(false, false, 1)).toBe(true)
+  })
+
+  it('sends directly on an idle chat with an empty queue', () => {
+    expect(shouldQueueOutgoingMessage(false, false, 0)).toBe(false)
   })
 })
 
