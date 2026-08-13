@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import {
+  DOCS_CONFIG,
   FOLDER_CONFIGS,
   type FolderConfig,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
@@ -88,6 +89,36 @@ export function useMentionInsertHandlers({
     ]
   )
 
+  /**
+   * Special handler for Docs (no item parameter, uses DOCS_CONFIG)
+   */
+  const insertDocsMention = useCallback(() => {
+    const label = DOCS_CONFIG.getLabel()
+    const context = DOCS_CONFIG.buildContext()
+
+    // Prevent duplicate insertion
+    if (isContextAlreadySelected(context, selectedContexts)) {
+      resetActiveMentionQuery()
+      closeMenus()
+      return
+    }
+
+    // Docs uses fallback insertion
+    if (!replaceActiveMentionWith(label)) {
+      insertAtCursor(` @${label} `)
+    }
+
+    onContextAdd(context)
+    closeMenus()
+  }, [
+    selectedContexts,
+    replaceActiveMentionWith,
+    insertAtCursor,
+    onContextAdd,
+    resetActiveMentionQuery,
+    closeMenus,
+  ])
+
   const handlers = useMemo(
     () => ({
       insertPastChatMention: createInsertHandler(FOLDER_CONFIGS.chats),
@@ -97,8 +128,9 @@ export function useMentionInsertHandlers({
       insertWorkflowBlockMention: createInsertHandler(FOLDER_CONFIGS['workflow-blocks']),
       insertLogMention: createInsertHandler(FOLDER_CONFIGS.logs),
       insertIntegrationMention: createInsertHandler(FOLDER_CONFIGS.integrations),
+      insertDocsMention,
     }),
-    [createInsertHandler]
+    [createInsertHandler, insertDocsMention]
   )
 
   return handlers

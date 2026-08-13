@@ -150,12 +150,12 @@ describe('display-message', () => {
     const display = toDisplayMessage({
       id: 'msg-selection',
       role: 'user',
-      content: '@Guide @Terminal',
+      content: '@Docs @Terminal',
       timestamp: '2024-01-01T00:00:00.000Z',
       contexts: [
         {
           kind: 'browser_tab',
-          label: 'Guide',
+          label: 'Docs',
           tabId: 'tab-1',
           selection: {
             text: 'Selected browser text',
@@ -179,7 +179,7 @@ describe('display-message', () => {
     expect(display.contexts).toEqual([
       {
         kind: 'browser_tab',
-        label: 'Guide',
+        label: 'Docs',
         tabId: 'tab-1',
         selection: {
           text: 'Selected browser text',

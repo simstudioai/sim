@@ -29,6 +29,7 @@ interface UseMentionKeyboardProps {
     insertWorkflowBlockMention: (blk: any) => void
     insertLogMention: (log: any) => void
     insertIntegrationMention: (integration: any) => void
+    insertDocsMention: () => void
   }
   /** Folder navigation state exposed from MentionMenu via callback */
   mentionFolderNav: MentionFolderNav | null
@@ -113,15 +114,19 @@ export function useMentionKeyboard({
    * Build aggregated list matching the portal's ordering
    */
   const buildAggregatedList = useCallback(
-    (query: string): Array<{ type: MentionFolderId; value: any }> => {
+    (query: string): Array<{ type: MentionFolderId | 'docs'; value: any }> => {
       const q = query.toLowerCase()
-      const result: Array<{ type: MentionFolderId; value: any }> = []
+      const result: Array<{ type: MentionFolderId | 'docs'; value: any }> = []
 
       for (const folderId of FOLDER_ORDER) {
         const filtered = filterFolderItems(folderId, q)
         filtered.forEach((item) => {
           result.push({ type: folderId, value: item })
         })
+      }
+
+      if ('docs'.includes(q)) {
+        result.push({ type: 'docs', value: null })
       }
 
       return result
@@ -210,6 +215,13 @@ export function useMentionKeyboard({
 
       e.preventDefault()
 
+      const isDocsSelected = mentionActiveIndex === FOLDER_ORDER.length
+      if (isDocsSelected) {
+        resetActiveMentionQuery()
+        insertHandlers.insertDocsMention()
+        return true
+      }
+
       const selectedFolderId = FOLDER_ORDER[mentionActiveIndex]
       if (selectedFolderId) {
         const config = FOLDER_CONFIGS[selectedFolderId]
@@ -230,6 +242,7 @@ export function useMentionKeyboard({
       resetActiveMentionQuery,
       setSubmenuQueryStart,
       ensureFolderLoaded,
+      insertHandlers,
     ]
   )
 
@@ -270,8 +283,12 @@ export function useMentionKeyboard({
         const idx = Math.max(0, Math.min(submenuActiveIndex, aggregated.length - 1))
         const chosen = aggregated[idx]
         if (chosen) {
-          const handler = insertHandlerMap[chosen.type]
-          handler(chosen.value)
+          if (chosen.type === 'docs') {
+            insertHandlers.insertDocsMention()
+          } else {
+            const handler = insertHandlerMap[chosen.type]
+            handler(chosen.value)
+          }
         }
         return true
       }
@@ -286,6 +303,13 @@ export function useMentionKeyboard({
           handler(chosen)
           setSubmenuQueryStart(null)
         }
+        return true
+      }
+
+      const isDocsSelected = mentionActiveIndex === FOLDER_ORDER.length
+      if (isDocsSelected) {
+        resetActiveMentionQuery()
+        insertHandlers.insertDocsMention()
         return true
       }
 
@@ -318,6 +342,7 @@ export function useMentionKeyboard({
       setSubmenuActiveIndex,
       setSubmenuQueryStart,
       ensureFolderLoaded,
+      insertHandlers,
     ]
   )
 

@@ -224,7 +224,7 @@ describe('mothership private trace provenance transport', () => {
         {
           ...requestBody,
           messages: [{ role: 'user', content: 'secret-value __var_FOREIGN' }],
-          contexts: [{ kind: 'knowledge', knowledgeId: 'knowledge-1', label: 'Docs' }],
+          contexts: [{ kind: 'docs', label: 'Docs' }],
         },
         { Authorization: 'Bearer internal', 'x-sim-billing-attribution': 'billing' },
         'http://localhost:3000/api/mothership/execute'
@@ -235,9 +235,15 @@ describe('mothership private trace provenance transport', () => {
     expect(mockProcessContextsServer).toHaveBeenCalledWith(
       expect.any(Array),
       'user-1',
+      'secret-value __var_FOREIGN',
       'workspace-1',
-      'chat-1'
+      'chat-1',
+      expect.any(Object)
     )
+
+    const contextRegistry = mockProcessContextsServer.mock.calls.at(-1)?.[5]
+    const lifecycleOptions = mockRunHeadlessCopilotLifecycle.mock.calls.at(-1)?.[1]
+    expect(contextRegistry).toBe(lifecycleOptions.environmentContext?.resolvedSecretTraceRegistry)
   })
 
   it('keeps context routing and display inputs raw until the lifecycle boundary', async () => {
@@ -287,8 +293,10 @@ describe('mothership private trace provenance transport', () => {
         },
       ],
       'user-1',
+      'hello',
       'workspace-1',
-      'chat-1'
+      'chat-1',
+      expect.any(Object)
     )
   })
 

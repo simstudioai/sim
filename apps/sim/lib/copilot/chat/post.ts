@@ -205,6 +205,7 @@ const ChatContextSchema = z
       'logs',
       'workflow_block',
       'knowledge',
+      'docs',
       'table',
       'table_selection',
       'file',
@@ -457,11 +458,22 @@ async function resolveAgentContexts(params: {
   contexts?: UnifiedChatRequest['contexts']
   resourceAttachments?: UnifiedChatRequest['resourceAttachments']
   userId: string
+  message: string
   workspaceId?: string
   chatId?: string
+  resolvedSecretTraceRegistry?: ExecutionContext['resolvedSecretTraceRegistry']
   requestId: string
 }): Promise<Array<{ type: string; content: string; tag?: string; path?: string }>> {
-  const { contexts, resourceAttachments, userId, workspaceId, chatId, requestId } = params
+  const {
+    contexts,
+    resourceAttachments,
+    userId,
+    message,
+    workspaceId,
+    chatId,
+    resolvedSecretTraceRegistry,
+    requestId,
+  } = params
 
   let agentContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
 
@@ -470,8 +482,10 @@ async function resolveAgentContexts(params: {
       agentContexts = await processContextsServer(
         contexts as ChatContext[],
         userId,
+        message,
         workspaceId,
-        chatId
+        chatId,
+        resolvedSecretTraceRegistry
       )
     } catch (error) {
       logger.error(`[${requestId}] Failed to process contexts`, error)
@@ -1264,7 +1278,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           }),
         activeOtelRoot.context
       )
-      const agentContextsPromise = executionContextPromise.then(() => {
+      const agentContextsPromise = executionContextPromise.then((executionContext) => {
         return withCopilotSpan(
           TraceSpan.CopilotChatResolveAgentContexts,
           {
@@ -1276,8 +1290,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               contexts: normalizedContexts,
               resourceAttachments: body.resourceAttachments,
               userId: authenticatedUserId,
+              message: body.message,
               workspaceId,
               chatId: actualChatId,
+              resolvedSecretTraceRegistry: executionContext.resolvedSecretTraceRegistry,
               requestId,
             }),
           activeOtelRoot.context

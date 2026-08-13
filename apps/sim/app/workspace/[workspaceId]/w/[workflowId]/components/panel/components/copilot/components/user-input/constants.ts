@@ -13,6 +13,11 @@ export type MentionFolderId =
   | 'integrations'
 
 /**
+ * Menu item category types for mention menu (includes folders + docs item)
+ */
+export type MentionCategory = MentionFolderId | 'docs'
+
+/**
  * Configuration interface for folder types
  */
 export interface FolderConfig<TItem = any> {
@@ -179,9 +184,17 @@ export const FOLDER_ORDER: MentionFolderId[] = [
 ]
 
 /**
- * Total number of items in the root menu.
+ * Docs item configuration (special case - not a folder)
  */
-export const ROOT_MENU_ITEM_COUNT = FOLDER_ORDER.length
+export const DOCS_CONFIG = {
+  getLabel: () => 'Docs',
+  buildContext: (): ChatContext => ({ kind: 'docs', label: 'Docs' }),
+} as const
+
+/**
+ * Total number of items in root menu (folders + docs)
+ */
+export const ROOT_MENU_ITEM_COUNT = FOLDER_ORDER.length + 1
 
 /**
  * Slash command configuration

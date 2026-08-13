@@ -10,6 +10,7 @@ import {
   MAX_TABLE_SELECTION_ROWS,
 } from '@/lib/copilot/chat/selection-context'
 import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ChatContext } from '@/stores/panel'
 
 const {
@@ -25,6 +26,7 @@ const {
   readKnowledgeBase,
   getBlockVisibilityForCopilot,
   isIntegrationDeploymentAvailable,
+  searchDocsExecute,
 } = vi.hoisted(() => ({
   discoverServerTools: vi.fn(),
   getBlock: vi.fn(),
@@ -38,6 +40,7 @@ const {
   readKnowledgeBase: vi.fn(),
   getBlockVisibilityForCopilot: vi.fn(async () => null),
   isIntegrationDeploymentAvailable: vi.fn(() => true),
+  searchDocsExecute: vi.fn(),
 }))
 
 vi.mock('@/blocks/registry', () => ({ getBlock, getBlockRegistry }))
@@ -57,6 +60,9 @@ vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   readKnowledgeBase: { execute: readKnowledgeBase },
 }))
+vi.mock('@/lib/copilot/tools/server/docs/search-docs', () => ({
+  searchDocsServerTool: { execute: searchDocsExecute },
+}))
 
 /**
  * Overrides the global `@sim/db` mock: the logs-context tests below need
@@ -75,8 +81,9 @@ describe('processContextsServer - knowledge contexts', () => {
 
   it('reads through the fixed application query with a trusted chat principal', async () => {
     const result = await processContextsServer(
-      [{ kind: 'knowledge', knowledgeId: 'knowledge-1', label: 'Product KB' } as ChatContext],
+      [{ kind: 'knowledge', knowledgeId: 'knowledge-1', label: 'Docs' } as ChatContext],
       'dual-workspace-user',
+      'hello',
       'workspace-a',
       'chat-1'
     )
@@ -97,7 +104,7 @@ describe('processContextsServer - knowledge contexts', () => {
     expect(result).toEqual([
       {
         type: 'knowledge',
-        tag: '@Product KB',
+        tag: '@Docs',
         content: '',
         path: 'knowledgebases/Product%20docs/meta.json',
       },
@@ -111,6 +118,7 @@ describe('processContextsServer - knowledge contexts', () => {
       processContextsServer(
         [{ kind: 'knowledge', knowledgeId: 'knowledge-b', label: 'Hidden' } as ChatContext],
         'dual-workspace-user',
+        'hello',
         'workspace-a',
         'chat-1'
       )
@@ -124,6 +132,7 @@ describe('processContextsServer - knowledge contexts', () => {
       processContextsServer(
         [{ kind: 'knowledge', knowledgeId: 'knowledge-b', label: 'Hidden' } as ChatContext],
         'dual-workspace-user',
+        'hello',
         'workspace-a',
         'chat-1'
       )
@@ -156,6 +165,7 @@ describe('processContextsServer - block contexts', () => {
         { kind: 'blocks', blockIds: ['notion'], label: 'Notion' } as ChatContext,
       ],
       'user-1',
+      'hello',
       'workspace-1'
     )
 
@@ -186,6 +196,7 @@ describe('processContextsServer - skill contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'skill', skillId: 'sk-1', label: 'My Skill — PostHog' } as ChatContext],
       'user-1',
+      'hello',
       'ws-1'
     )
 
@@ -212,6 +223,7 @@ describe('processContextsServer - skill contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'skill', skillId, label: 'Skill' } as ChatContext],
       'user-1',
+      'hello',
       'ws-1'
     )
 
@@ -234,6 +246,7 @@ describe('processContextsServer - skill contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'skill', skillId: 'missing', label: 'x' } as ChatContext],
       'user-1',
+      'hello',
       'ws-1'
     )
 
@@ -244,6 +257,7 @@ describe('processContextsServer - skill contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'skill', skillId: 'sk-1', label: 'x' } as ChatContext],
       'user-1',
+      'hello',
       undefined
     )
 
@@ -258,6 +272,7 @@ describe('processContextsServer - skill contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'skill', skillId, label: 'Skill 1' } as ChatContext],
       'user-1',
+      'hello',
       'ws-1'
     )
 
@@ -270,6 +285,70 @@ describe('processContextsServer - skill contexts', () => {
     expect(logged).not.toContain('private-skill-id')
     expect(logged).not.toContain('__var_')
     expect(logged).not.toContain('__sim_')
+  })
+})
+
+describe('processContextsServer - docs contexts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('routes @Docs to an unscoped search_docs query', async () => {
+    const resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry()
+    const results = [
+      {
+        path: 'docs/workflows/loops.mdx',
+        url: 'https://docs.sim.ai/workflows/loops',
+        title: 'Loops',
+        content: 'Use a loop block to iterate.',
+        similarity: 0.9,
+      },
+    ]
+    searchDocsExecute.mockResolvedValue({ results, query: 'how do loops work?', totalResults: 1 })
+
+    const result = await processContextsServer(
+      [{ kind: 'docs', label: 'Docs' }],
+      'user-1',
+      '@Docs how do loops work?',
+      'ws-1',
+      undefined,
+      resolvedSecretTraceRegistry
+    )
+
+    expect(searchDocsExecute).toHaveBeenCalledWith(
+      { query: 'how do loops work?' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: undefined,
+        resolvedSecretTraceRegistry,
+      }
+    )
+    expect(result).toEqual([
+      {
+        type: 'docs',
+        tag: '@Docs',
+        content: JSON.stringify(results),
+      },
+    ])
+  })
+
+  it('uses the Docs label when the message only contains the mention', async () => {
+    searchDocsExecute.mockResolvedValue({ results: [], query: 'Docs', totalResults: 0 })
+
+    await processContextsServer(
+      [{ kind: 'docs', label: 'Docs' }],
+      'user-1',
+      '@Docs',
+      'ws-1',
+      'chat-1',
+      new ResolvedSecretTraceRegistry()
+    )
+
+    expect(searchDocsExecute).toHaveBeenCalledWith(
+      { query: 'Docs' },
+      expect.objectContaining({ workspaceId: 'ws-1', chatId: 'chat-1' })
+    )
   })
 })
 
@@ -292,6 +371,7 @@ describe('processContextsServer - MCP contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' }],
       'user-1',
+      '/Docs find auth docs',
       'ws-1'
     )
 
@@ -452,6 +532,7 @@ describe('processContextsServer - logs contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'logs', executionId: 'exec-1', label: 'My Flow' } as ChatContext],
       'user-1',
+      'hello',
       'ws-1'
     )
 
@@ -519,6 +600,7 @@ describe('processContextsServer - logs contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'logs', executionId: 'exec-1', label: 'My Flow' } as ChatContext],
       'user-1',
+      'hello',
       'ws-1'
     )
 
@@ -552,6 +634,7 @@ describe('processContextsServer - logs contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'logs', executionId: 'exec-1', label: 'My Flow' } as ChatContext],
       'user-1',
+      'hello',
       'ws-1'
     )
 
@@ -581,6 +664,7 @@ describe('processContextsServer - logs contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'logs', executionId: 'exec-1', label: 'My Flow' } as ChatContext],
       'user-1',
+      'hello',
       'ws-1'
     )
 
@@ -615,6 +699,7 @@ describe('processContextsServer - file_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
+      'explain this',
       'ws-1'
     )
 
@@ -641,6 +726,7 @@ describe('processContextsServer - file_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
+      'hello',
       'ws-1'
     )
 
@@ -663,6 +749,7 @@ describe('processContextsServer - file_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
+      'explain',
       'ws-1'
     )
 
@@ -709,6 +796,7 @@ describe('processContextsServer - table_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
+      'summarize',
       'ws-1'
     )
 
@@ -741,6 +829,7 @@ describe('processContextsServer - table_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
+      'hello',
       'ws-1'
     )
 
@@ -768,6 +857,7 @@ describe('processContextsServer - table_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
+      'summarize',
       'ws-1'
     )
 
@@ -802,6 +892,7 @@ describe('processContextsServer - table_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
+      'summarize',
       'ws-1'
     )
 
@@ -842,6 +933,7 @@ describe('processContextsServer - table_selection contexts', () => {
           } as ChatContext,
         ],
         'user-1',
+        'summarize',
         'ws-1'
       )
 
@@ -879,6 +971,7 @@ describe('processContextsServer - table_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
+      'summarize',
       'ws-1'
     )
 
@@ -907,6 +1000,7 @@ describe('processContextsServer - table_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
+      'summarize',
       'ws-1'
     )
 

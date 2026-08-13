@@ -113,7 +113,7 @@ export const SPEECH_RECOGNITION_LANG = 'en-US'
 // inner tab. The singleton ids ask the agent to inspect the whole resource;
 // every other id is a precise live-tab pointer.
 const RESOURCE_TO_CONTEXT: Record<
-  Exclude<MothershipResourceType, 'generic'>,
+  MothershipResourceType,
   (resource: MothershipResource) => ChatContext
 > = {
   browser: (r) => ({ kind: 'browser_tab', tabId: r.id, label: r.title }),
@@ -127,9 +127,9 @@ const RESOURCE_TO_CONTEXT: Record<
   task: (r) => ({ kind: 'past_chat', chatId: r.id, label: r.title }),
   log: (r) => ({ kind: 'logs', executionId: r.id, label: r.title }),
   integration: (r) => ({ kind: 'integration', blockType: r.id, label: r.title }),
+  generic: (r) => ({ kind: 'docs', label: r.title }),
 }
 
-export function mapResourceToContext(resource: MothershipResource): ChatContext | null {
-  if (resource.type === 'generic') return null
+export function mapResourceToContext(resource: MothershipResource): ChatContext {
   return RESOURCE_TO_CONTEXT[resource.type](resource)
 }
