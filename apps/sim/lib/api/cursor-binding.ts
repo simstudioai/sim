@@ -95,12 +95,37 @@ export function parseUnorderedList(raw: string | undefined): string[] | undefine
 }
 
 /**
+ * Canonical form of a JSON-encoded filter array whose members are AND-conjoined.
+ *
+ * {@link canonicalJson} preserves array order, which is right for a sequence but
+ * wrong for a set: clauses that compile to `and(...)` select the same rows in any
+ * order, so binding to the order a caller happened to write them refuses a cursor
+ * for a page that is genuinely the next one. Members are canonicalized, then
+ * de-duplicated and sorted — `A AND A` selects what `A` does.
+ *
+ * A non-array or unparseable value binds by its raw spelling: the request
+ * carrying it is about to fail validation anyway.
+ */
+export function unorderedJsonScopePart(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return canonicalJson(parsed)
+    return `[${[...new Set(parsed.map(canonicalJson))].sort().join(',')}]`
+  } catch {
+    return raw
+  }
+}
+
+/**
  * Deterministic JSON: object keys sorted so two structurally equal values
  * serialize identically regardless of the key order they arrived in, and
  * `undefined` members dropped so an omitted param and an absent one agree.
  *
- * Array order is preserved — reordering an `in` list is treated as a different
- * filter, which only ever costs a restart.
+ * Array order is preserved, because an array is a sequence in the general case.
+ * A filter whose array is really a set must canonicalize it first — see
+ * {@link parseUnorderedList} and {@link unorderedJsonScopePart} — or equivalent
+ * queries fingerprint differently and a valid cursor is refused.
  */
 export function canonicalJson(value: unknown): string {
   if (value instanceof Date) return JSON.stringify(value.toISOString())

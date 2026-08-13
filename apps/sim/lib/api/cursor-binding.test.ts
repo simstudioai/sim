@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { cursorScopeKey, parseUnorderedList, unorderedScopePart } from '@/lib/api/cursor-binding'
+import {
+  cursorScopeKey,
+  parseUnorderedList,
+  unorderedJsonScopePart,
+  unorderedScopePart,
+} from '@/lib/api/cursor-binding'
 import {
   cursorSortKey,
   decodeOffsetCursor,
@@ -217,6 +222,29 @@ describe('unordered filter scope parts', () => {
     expect(parseUnorderedList('A, B')).toEqual(['A', 'B'])
     expect(parseUnorderedList('A,B')).toEqual(parseUnorderedList('A, B'))
     expect(unorderedScopePart('A, B')).toBe(parseUnorderedList('A, B')?.join(','))
+  })
+
+  /**
+   * Tag filters compile to `and(...)`, so reordering the clauses selects the
+   * same documents. Binding to the order a caller happened to write them in
+   * refused a cursor for a page that was genuinely the next one.
+   */
+  it('treats an AND-conjoined filter array as a set', () => {
+    const ab = '[{"name":"a","value":"1"},{"name":"b","value":"2"}]'
+    const ba = '[{"name":"b","value":"2"},{"name":"a","value":"1"}]'
+
+    expect(unorderedJsonScopePart(ab)).toBe(unorderedJsonScopePart(ba))
+    expect(unorderedJsonScopePart('[{"name":"a"},{"name":"a"}]')).toBe(
+      unorderedJsonScopePart('[{"name":"a"}]')
+    )
+    expect(unorderedJsonScopePart(ab)).not.toBe(
+      unorderedJsonScopePart('[{"name":"a","value":"1"}]')
+    )
+  })
+
+  it('binds an unparseable filter by its raw spelling', () => {
+    expect(unorderedJsonScopePart('{not json')).toBe('{not json')
+    expect(unorderedJsonScopePart(undefined)).toBeUndefined()
   })
 
   it('still separates genuinely different sets', () => {
