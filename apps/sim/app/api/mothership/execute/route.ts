@@ -211,7 +211,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workflowId,
       executionId,
     })
-    const lastUserMessage = messages.filter((message) => message.role === 'user').at(-1)?.content
     // double-cast-allowed: the contract validates contexts as open kind/label objects; processContextsServer narrows on `kind` at runtime
     const agentMentions = contexts as unknown as ChatContext[] | undefined
     const taggedMcpServerIds = (agentMentions ?? []).flatMap((context) =>
@@ -239,18 +238,14 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
         mothershipToolsPromise,
         computeWorkspaceEntitlements(workspaceId, userId),
-        processContextsServer(
-          nonMcpAgentMentions,
-          userId,
-          lastUserMessage,
-          workspaceId,
-          effectiveChatId
-        ).catch((error) => {
-          reqLogger.warn('Failed to resolve agent contexts for execution', {
-            error: toError(error).message,
-          })
-          return []
-        }),
+        processContextsServer(nonMcpAgentMentions, userId, workspaceId, effectiveChatId).catch(
+          (error) => {
+            reqLogger.warn('Failed to resolve agent contexts for execution', {
+              error: toError(error).message,
+            })
+            return []
+          }
+        ),
       ])
     const requestPayload: Record<string, unknown> = {
       messages,

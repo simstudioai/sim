@@ -1,14 +1,11 @@
-import { trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { foldDocsIndexPath } from '@/lib/copilot/docs/docs-path'
 import { DOCS_MANIFEST } from '@/lib/copilot/generated/docs-manifest'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import type { GrepCountEntry, GrepMatch, GrepOptions } from '@/lib/copilot/vfs/operations'
-import { glob as globPaths, grep, grepReadResult } from '@/lib/copilot/vfs/operations'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { glob as globPaths, grepReadResult } from '@/lib/copilot/vfs/operations'
 
 const logger = createLogger('DocsCorpus')
 
@@ -22,16 +19,12 @@ const DOCS_PREFIX = 'docs/'
 const FETCH_ATTEMPT_TIMEOUT_MS = 3_000
 const FETCH_MAX_ATTEMPTS = 3
 
-/** Parallel page fetches for a directory-scoped grep. */
-const GREP_FETCH_CONCURRENCY = 8
-
 /**
  * Thrown for expected, user-facing docs-corpus conditions (unknown page,
  * directory path, site unreachable). The VFS handlers return the message as the
  * tool error instead of logging an internal failure.
  */
 export class DocsCorpusError extends Error {
-  readonly code = 'DOCS_CORPUS' as const
   constructor(message: string) {
     super(message)
     this.name = 'DocsCorpusError'
@@ -47,10 +40,11 @@ const docsKeyView: Map<string, string> = new Map(
   DOCS_MANIFEST.map((path) => [`${DOCS_PREFIX}${path}`, ''])
 )
 
-function normalize(path: string): string {
-  // Trailing slashes are stripped so `docs/` addresses the corpus the same way
-  // `docs` does — otherwise a trailing-slash glob pattern matches no key and
-  // silently returns an empty result instead of the corpus listing.
+/**
+ * Normalize a docs path and make `docs/` equivalent to `docs`, avoiding empty
+ * glob results caused only by a trailing slash.
+ */
+export function normalizeDocsPath(path: string): string {
   return path.trim().replace(/^\/+/, '').replace(/\/+$/, '')
 }
 
@@ -62,7 +56,7 @@ function normalize(path: string): string {
  */
 export function isDocsPath(path: string | undefined): boolean {
   if (!path) return false
-  const normalized = normalize(path)
+  const normalized = normalizeDocsPath(path)
   return normalized === 'docs' || normalized.startsWith(DOCS_PREFIX)
 }
 
@@ -79,12 +73,12 @@ export function couldMatchDocsScope(pattern: string | undefined): boolean {
 
 /** Manifest paths (and their virtual directories) matching an explicit `docs/` pattern. */
 export function globDocs(pattern: string): string[] {
-  return globPaths(docsKeyView, normalize(pattern))
+  return globPaths(docsKeyView, normalizeDocsPath(pattern))
 }
 
 /** True when `path` is a page in the docs tree. */
 export function isDocsPage(path: string): boolean {
-  return docsKeyView.has(normalize(path))
+  return docsKeyView.has(normalizeDocsPath(path))
 }
 
 /**
@@ -101,7 +95,7 @@ export function docsPathForSourceDocument(sourceDocument: string | null): string
 
 /** True when `path` is a directory in the docs tree rather than a page. */
 export function isDocsDir(path: string): boolean {
-  const dir = `${normalize(path).replace(/\/+$/, '')}/`
+  const dir = `${normalizeDocsPath(path).replace(/\/+$/, '')}/`
   if (dir === DOCS_PREFIX) return true
   for (const key of docsKeyView.keys()) {
     if (key.startsWith(dir)) return true
@@ -137,7 +131,11 @@ async function fetchDocsPageOnce(url: string): Promise<DocsFetchResult> {
     })
     if (!response.ok) {
       logger.warn('Docs page fetch returned a non-OK status', { url, status: response.status })
-      const permanent = response.status >= 400 && response.status < 500 && response.status !== 429
+      const permanent =
+        response.status >= 400 &&
+        response.status < 500 &&
+        response.status !== 408 &&
+        response.status !== 429
       return { outcome: permanent ? 'missing' : 'unavailable' }
     }
     return { outcome: 'ok', content: await response.text() }
@@ -148,7 +146,7 @@ async function fetchDocsPageOnce(url: string): Promise<DocsFetchResult> {
 }
 
 async function fetchDocsPage(path: string): Promise<DocsFetchResult> {
-  const key = normalize(path)
+  const key = normalizeDocsPath(path)
   if (!docsKeyView.has(key)) return { outcome: 'missing' }
   const url = `${DOCS_BASE_URL}/${key.slice(DOCS_PREFIX.length)}`
   for (let attempt = 1; ; attempt++) {
@@ -164,7 +162,7 @@ async function fetchDocsPage(path: string): Promise<DocsFetchResult> {
  * surface the message verbatim.
  */
 export async function readDocsPage(path: string): Promise<DocsPage> {
-  const key = normalize(path)
+  const key = normalizeDocsPath(path)
   if (!docsKeyView.has(key)) {
     if (isDocsDir(key)) {
       const dir = key.replace(/\/+$/, '')
@@ -189,49 +187,26 @@ export async function readDocsPage(path: string): Promise<DocsPage> {
 }
 
 /**
- * Grep the docs corpus. A single page greps just that page. A directory path
- * (`docs`, `docs/files`) fans out to every manifest page under it: pages are
- * fetched in parallel and searched as one multi-file grep, so results follow
- * manifest order and `maxResults` applies across pages. Pages the site no
- * longer serves are skipped; a page that cannot be reached after retries fails
- * the whole grep, because a silent partial result would misread as "not
- * documented".
+ * Grep one docs page. Directory-wide grep is deliberately unsupported because
+ * each page is a separate network fetch; use `search_docs` for corpus search or
+ * `glob("docs/**")` to find a page first.
  */
 export async function grepDocs(
   path: string,
   pattern: string,
   options?: GrepOptions
 ): Promise<GrepMatch[] | string[] | GrepCountEntry[]> {
-  const key = normalize(path)
-  if (docsKeyView.has(key)) {
-    const page = await readDocsPage(key)
-    return grepReadResult(key, page, pattern, key, options)
-  }
-  if (!isDocsDir(key)) {
+  const key = normalizeDocsPath(path)
+  if (!docsKeyView.has(key)) {
+    if (isDocsDir(key)) {
+      throw new DocsCorpusError(
+        `"${path}" is a docs directory; grep must target one docs page. Use search_docs to search the corpus or glob("${key}/**") to list its pages.`
+      )
+    }
     throw new DocsCorpusError(
-      `"${path}" is not a docs page or directory. Use glob("docs/**") to list the docs corpus.`
+      `"${path}" is not a docs page. Use glob("docs/**") to list the docs corpus.`
     )
   }
-  const dir = `${key}/`
-  const pages = [...docsKeyView.keys()].filter((pageKey) => pageKey.startsWith(dir))
-  trace.getActiveSpan()?.setAttribute(TraceAttr.CopilotVfsGrepDocsPageCount, pages.length)
-  let unreachable = 0
-  const results = await mapWithConcurrency(pages, GREP_FETCH_CONCURRENCY, async (pageKey) => {
-    // Once any page is unreachable the grep is going to fail — skip the
-    // remaining fetches instead of hammering a site that is not answering.
-    if (unreachable > 0) return null
-    const result = await fetchDocsPage(pageKey)
-    if (result.outcome === 'unavailable') unreachable++
-    return result
-  })
-  if (unreachable > 0) {
-    throw new DocsCorpusError(
-      `Could not load every page under ${dir} from ${DOCS_BASE_URL} — a partial grep could misread as "not documented". Retry shortly.`
-    )
-  }
-  const contents = new Map<string, string>()
-  results.forEach((result, index) => {
-    if (result?.outcome === 'ok') contents.set(pages[index], result.content)
-  })
-  return grep(contents, pattern, undefined, options)
+  const page = await readDocsPage(key)
+  return grepReadResult(key, page, pattern, key, options)
 }

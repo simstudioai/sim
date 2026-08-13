@@ -280,11 +280,11 @@ describe('persisted-message', () => {
   it('round-trips browser and terminal selection snapshots', () => {
     const persisted = buildPersistedUserMessage({
       id: 'user-selection',
-      content: '@Docs @Terminal',
+      content: '@Guide @Terminal',
       contexts: [
         {
           kind: 'browser_tab',
-          label: 'Docs',
+          label: 'Guide',
           tabId: 'tab-1',
           selection: {
             text: 'Selected browser text',
@@ -310,7 +310,7 @@ describe('persisted-message', () => {
     expect(normalized.contexts).toEqual([
       {
         kind: 'browser_tab',
-        label: 'Docs',
+        label: 'Guide',
         tabId: 'tab-1',
         selection: {
           text: 'Selected browser text',

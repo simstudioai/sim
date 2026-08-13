@@ -3117,12 +3117,12 @@ export const Grep: ToolCatalogEntry = {
       path: {
         type: 'string',
         description:
-          "Optional scope. A prefix (e.g. 'workflows/', 'environment/', 'internal/') searches the VFS map under it. An exact single-file path under files/ or uploads/ (optionally with /content) searches that file's content only; folders and multi-file trees there are rejected for content search. A docs/ page or directory searches live page text — a directory fans out to every docs page under it.",
+          "Optional scope. A prefix (e.g. 'workflows/', 'environment/', 'internal/') searches the VFS map under it. An exact supported single-file path searches that file's content; folders and multi-file trees are rejected for content search.",
       },
       pattern: {
         type: 'string',
         description:
-          "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, memories) by default; searches a single file's extracted text when path is one files/ or uploads/ file leaf, and live docs page text when path is a docs/ page or directory.",
+          "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, memories) by default, or an exact supported file leaf's content when path selects one.",
       },
       toolTitle: {
         type: 'string',
@@ -4563,7 +4563,7 @@ export const SearchDocs: ToolCatalogEntry = {
           'Optional docs/ VFS path (a page such as docs/workflows/blocks/agent.mdx, or a section such as docs/workflows) that limits the search scope',
       },
       query: { type: 'string', description: 'The search query' },
-      topK: { type: 'number', description: 'Number of results (default 5, max 25)' },
+      topK: { type: 'number', description: 'Number of results (default 5, max 25)', default: 5 },
     },
     required: ['query'],
   },

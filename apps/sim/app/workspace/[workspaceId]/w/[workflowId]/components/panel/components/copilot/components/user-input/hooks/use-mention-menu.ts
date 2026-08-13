@@ -229,7 +229,7 @@ export function useMentionMenu({
   /**
    * Inserts text at the current cursor position
    *
-   * @param text - Text to insert (e.g., " @Docs ")
+   * @param text - Text to insert at the current cursor position
    */
   const insertAtCursor = useCallback(
     (text: string) => {

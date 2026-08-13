@@ -54,6 +54,7 @@ vi.mock('@sim/db', () => ({
 }))
 
 import { DocsSearchScopeError, searchDocs } from '@/lib/copilot/docs/docs-search'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 /** Render a drizzle condition to comparable SQL-ish text for assertions. */
 function whereText(): string {
@@ -105,16 +106,15 @@ describe('searchDocs path scoping', () => {
   it('includes a section overview stored in either on-disk layout', async () => {
     await searchDocs('cron', { path: 'docs/workflows' })
     const text = whereText()
-    // `workflows/index.mdx` is inside the subtree; a sibling `workflows.mdx` is not,
-    // and fumadocs accepts either, so the scope must name it explicitly.
     expect(text).toContain('workflows/%')
     expect(text).toContain('workflows.mdx')
   })
 
   it('rejects a path outside the docs corpus', async () => {
-    await expect(searchDocs('cron', { path: 'files/report.pdf' })).rejects.toThrow(
-      DocsSearchScopeError
-    )
+    const error = await searchDocs('cron', { path: 'files/report.pdf' }).catch((cause) => cause)
+    expect(error).toBeInstanceOf(DocsSearchScopeError)
+    expect(error).toBeInstanceOf(OrchestrationError)
+    expect(error).toMatchObject({ code: 'validation' })
   })
 
   it('rejects a docs path that is neither a page nor a section', async () => {
@@ -282,7 +282,6 @@ describe('searchDocs topK clamping', () => {
   })
 
   it('falls back to the default rather than passing NaN to the query', async () => {
-    // Math.min/Math.max propagate NaN, so a bare clamp would reach `.limit(NaN)`.
     await searchDocs('cron', { topK: Number.NaN })
     expect(capturedLimit.value).toBe(5)
     await searchDocs('cron', { topK: 'twelve' as unknown as number })

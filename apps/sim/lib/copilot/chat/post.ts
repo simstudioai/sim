@@ -205,7 +205,6 @@ const ChatContextSchema = z
       'logs',
       'workflow_block',
       'knowledge',
-      'docs',
       'table',
       'table_selection',
       'file',
@@ -458,12 +457,11 @@ async function resolveAgentContexts(params: {
   contexts?: UnifiedChatRequest['contexts']
   resourceAttachments?: UnifiedChatRequest['resourceAttachments']
   userId: string
-  message: string
   workspaceId?: string
   chatId?: string
   requestId: string
 }): Promise<Array<{ type: string; content: string; tag?: string; path?: string }>> {
-  const { contexts, resourceAttachments, userId, message, workspaceId, chatId, requestId } = params
+  const { contexts, resourceAttachments, userId, workspaceId, chatId, requestId } = params
 
   let agentContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
 
@@ -472,7 +470,6 @@ async function resolveAgentContexts(params: {
       agentContexts = await processContextsServer(
         contexts as ChatContext[],
         userId,
-        message,
         workspaceId,
         chatId
       )
@@ -1279,7 +1276,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               contexts: normalizedContexts,
               resourceAttachments: body.resourceAttachments,
               userId: authenticatedUserId,
-              message: body.message,
               workspaceId,
               chatId: actualChatId,
               requestId,

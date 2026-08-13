@@ -746,7 +746,7 @@ describe('vfs handlers docs corpus routing', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('greps one docs page or a docs directory without touching the workspace VFS', async () => {
+  it('greps one docs page and rejects directory scope without touching the workspace VFS', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -756,16 +756,17 @@ describe('vfs handlers docs corpus routing', () => {
     const single = await executeVfsGrep({ pattern: 'cron', path: DOCS_PAGE }, GREP_CTX)
     expect(single.success).toBe(true)
 
-    const multi = await executeVfsGrep(
+    const directory = await executeVfsGrep(
       { pattern: 'cron', path: 'docs/workflows', maxResults: 10_000 },
       GREP_CTX
     )
-    expect(multi.success).toBe(true)
-    expect(fetchMock.mock.calls.length).toBeGreaterThan(1)
+    expect(directory.success).toBe(false)
+    expect(directory.error).toContain('grep must target one docs page')
+    expect(fetchMock).toHaveBeenCalledOnce()
 
     const invalid = await executeVfsGrep({ pattern: 'cron', path: 'docs/not-a-page.mdx' }, GREP_CTX)
     expect(invalid.success).toBe(false)
-    expect(invalid.error).toContain('not a docs page or directory')
+    expect(invalid.error).toContain('not a docs page')
     expect(getOrMaterializeVFS).not.toHaveBeenCalled()
   })
 
@@ -784,6 +785,8 @@ describe('vfs handlers docs corpus routing', () => {
     const output = result.output as { content: string; totalLines: number }
     expect(output.totalLines).toBe(totalLines)
     expect(output.content).toContain('[Page truncated: returned lines 1-')
+    expect(output.content).toMatch(/offset: \d+ and limit: \d+/)
+    expect(output.content).toContain('reduce the limit if that window is still too large')
     expect(JSON.stringify(output).length).toBeLessThanOrEqual(TOOL_RESULT_MAX_INLINE_CHARS)
   })
 

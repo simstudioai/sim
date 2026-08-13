@@ -83,13 +83,11 @@ describe('getToolDisplayTitle natural-language coverage', () => {
     expect(getToolDisplayTitle('search_docs', { query: 'loop blocks iteration' })).toBe(
       'Searching Sim docs for "loop blocks iteration"'
     )
-    // The completed-state flip must keep the suffix, not drop back to the bare label.
     expect(
       getToolCompletedTitle(
         getToolDisplayTitle('search_docs', { query: 'how to read workflow logs' })
       )
     ).toBe('Searched Sim docs for "how to read workflow logs"')
-    // A long agent-written query is truncated rather than blowing out the chip.
     expect(
       getToolDisplayTitle('search_docs', {
         query:

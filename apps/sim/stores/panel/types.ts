@@ -77,7 +77,6 @@ export type ChatContext =
     }
   | { kind: 'folder'; folderId: string; label: string }
   | { kind: 'filefolder'; fileFolderId: string; label: string }
-  | { kind: 'docs'; label: string }
   /**
    * A tab in the desktop browser or terminal panel, dragged into the input to
    * say "this one". Resource tags remain live pointers; tags created from an

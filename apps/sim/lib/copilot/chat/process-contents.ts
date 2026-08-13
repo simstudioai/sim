@@ -120,8 +120,6 @@ function formatTerminalSelection(selection: TerminalTextSelection): string {
 export async function processContextsServer(
   contexts: ChatContext[] | undefined,
   userId: string,
-  /** Retained for call-site compatibility; unused while @docs tagging is disabled. */
-  _userMessage: string | undefined,
   currentWorkspaceId?: string,
   chatId?: string
 ): Promise<AgentContext[]> {
@@ -311,9 +309,6 @@ export async function processContextsServer(
           path: result.path,
         }
       }
-      // `docs` contexts are intentionally inert: @docs tagging is disabled while
-      // the docs corpus moves to the `docs/` VFS tree. A tagged context resolves
-      // to nothing and is filtered out below.
       return null
     } catch (error) {
       logger.error('Failed processing context (server)', { ctx, error })

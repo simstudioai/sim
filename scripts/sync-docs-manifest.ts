@@ -66,12 +66,11 @@ function toDocsPath(mdxPath: string): string | null {
 
 function render(paths: string[]): string {
   const entries = paths.map((path) => `  '${path}',`).join('\n')
-  return `// AUTO-GENERATED FILE. DO NOT EDIT.
-// Generated from apps/docs/content/docs/en by scripts/sync-docs-manifest.ts
-// Run: bun run docs-manifest:generate
-//
-
-/**
+  return `/**
+ * AUTO-GENERATED FILE. DO NOT EDIT.
+ * Generated from apps/docs/content/docs/en by scripts/sync-docs-manifest.ts.
+ * Run: bun run docs-manifest:generate.
+ *
  * Every page in the copilot's read-only \`docs/\` VFS tree, as a path that is
  * simultaneously the \`docs/\`-relative VFS path and the docs.sim.ai URL path
  * (so \`docs/workflows/blocks/agent.mdx\` reads

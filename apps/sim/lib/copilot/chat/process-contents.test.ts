@@ -75,9 +75,8 @@ describe('processContextsServer - knowledge contexts', () => {
 
   it('reads through the fixed application query with a trusted chat principal', async () => {
     const result = await processContextsServer(
-      [{ kind: 'knowledge', knowledgeId: 'knowledge-1', label: 'Docs' } as ChatContext],
+      [{ kind: 'knowledge', knowledgeId: 'knowledge-1', label: 'Product KB' } as ChatContext],
       'dual-workspace-user',
-      'hello',
       'workspace-a',
       'chat-1'
     )
@@ -98,7 +97,7 @@ describe('processContextsServer - knowledge contexts', () => {
     expect(result).toEqual([
       {
         type: 'knowledge',
-        tag: '@Docs',
+        tag: '@Product KB',
         content: '',
         path: 'knowledgebases/Product%20docs/meta.json',
       },
@@ -112,7 +111,6 @@ describe('processContextsServer - knowledge contexts', () => {
       processContextsServer(
         [{ kind: 'knowledge', knowledgeId: 'knowledge-b', label: 'Hidden' } as ChatContext],
         'dual-workspace-user',
-        'hello',
         'workspace-a',
         'chat-1'
       )
@@ -126,7 +124,6 @@ describe('processContextsServer - knowledge contexts', () => {
       processContextsServer(
         [{ kind: 'knowledge', knowledgeId: 'knowledge-b', label: 'Hidden' } as ChatContext],
         'dual-workspace-user',
-        'hello',
         'workspace-a',
         'chat-1'
       )
@@ -159,7 +156,6 @@ describe('processContextsServer - block contexts', () => {
         { kind: 'blocks', blockIds: ['notion'], label: 'Notion' } as ChatContext,
       ],
       'user-1',
-      'hello',
       'workspace-1'
     )
 
@@ -190,7 +186,6 @@ describe('processContextsServer - skill contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'skill', skillId: 'sk-1', label: 'My Skill — PostHog' } as ChatContext],
       'user-1',
-      'hello',
       'ws-1'
     )
 
@@ -217,7 +212,6 @@ describe('processContextsServer - skill contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'skill', skillId, label: 'Skill' } as ChatContext],
       'user-1',
-      'hello',
       'ws-1'
     )
 
@@ -240,7 +234,6 @@ describe('processContextsServer - skill contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'skill', skillId: 'missing', label: 'x' } as ChatContext],
       'user-1',
-      'hello',
       'ws-1'
     )
 
@@ -251,7 +244,6 @@ describe('processContextsServer - skill contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'skill', skillId: 'sk-1', label: 'x' } as ChatContext],
       'user-1',
-      'hello',
       undefined
     )
 
@@ -266,7 +258,6 @@ describe('processContextsServer - skill contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'skill', skillId, label: 'Skill 1' } as ChatContext],
       'user-1',
-      'hello',
       'ws-1'
     )
 
@@ -279,23 +270,6 @@ describe('processContextsServer - skill contexts', () => {
     expect(logged).not.toContain('private-skill-id')
     expect(logged).not.toContain('__var_')
     expect(logged).not.toContain('__sim_')
-  })
-})
-
-describe('processContextsServer - docs contexts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('resolves a tagged docs context to nothing while @docs tagging is disabled', async () => {
-    const result = await processContextsServer(
-      [{ kind: 'docs', label: 'Docs' } as ChatContext],
-      'user-1',
-      'how do loops work @Docs',
-      'ws-1'
-    )
-
-    expect(result).toEqual([])
   })
 })
 
@@ -318,7 +292,6 @@ describe('processContextsServer - MCP contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' }],
       'user-1',
-      '/Docs find auth docs',
       'ws-1'
     )
 
@@ -479,7 +452,6 @@ describe('processContextsServer - logs contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'logs', executionId: 'exec-1', label: 'My Flow' } as ChatContext],
       'user-1',
-      'hello',
       'ws-1'
     )
 
@@ -547,7 +519,6 @@ describe('processContextsServer - logs contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'logs', executionId: 'exec-1', label: 'My Flow' } as ChatContext],
       'user-1',
-      'hello',
       'ws-1'
     )
 
@@ -581,7 +552,6 @@ describe('processContextsServer - logs contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'logs', executionId: 'exec-1', label: 'My Flow' } as ChatContext],
       'user-1',
-      'hello',
       'ws-1'
     )
 
@@ -611,7 +581,6 @@ describe('processContextsServer - logs contexts', () => {
     const result = await processContextsServer(
       [{ kind: 'logs', executionId: 'exec-1', label: 'My Flow' } as ChatContext],
       'user-1',
-      'hello',
       'ws-1'
     )
 
@@ -646,7 +615,6 @@ describe('processContextsServer - file_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
-      'explain this',
       'ws-1'
     )
 
@@ -673,7 +641,6 @@ describe('processContextsServer - file_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
-      'hello',
       'ws-1'
     )
 
@@ -696,7 +663,6 @@ describe('processContextsServer - file_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
-      'explain',
       'ws-1'
     )
 
@@ -743,7 +709,6 @@ describe('processContextsServer - table_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
-      'summarize',
       'ws-1'
     )
 
@@ -776,7 +741,6 @@ describe('processContextsServer - table_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
-      'hello',
       'ws-1'
     )
 
@@ -804,7 +768,6 @@ describe('processContextsServer - table_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
-      'summarize',
       'ws-1'
     )
 
@@ -839,7 +802,6 @@ describe('processContextsServer - table_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
-      'summarize',
       'ws-1'
     )
 
@@ -880,7 +842,6 @@ describe('processContextsServer - table_selection contexts', () => {
           } as ChatContext,
         ],
         'user-1',
-        'summarize',
         'ws-1'
       )
 
@@ -918,7 +879,6 @@ describe('processContextsServer - table_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
-      'summarize',
       'ws-1'
     )
 
@@ -947,7 +907,6 @@ describe('processContextsServer - table_selection contexts', () => {
         } as ChatContext,
       ],
       'user-1',
-      'summarize',
       'ws-1'
     )
 

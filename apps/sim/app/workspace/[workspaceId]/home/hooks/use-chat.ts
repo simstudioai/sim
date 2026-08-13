@@ -458,8 +458,6 @@ function isChatContext(value: unknown): value is ChatContext {
       return typeof value.folderId === 'string'
     case 'filefolder':
       return typeof value.fileFolderId === 'string'
-    case 'docs':
-      return true
     case 'slash_command':
       return typeof value.command === 'string'
     case 'integration':

@@ -19,8 +19,8 @@ const CHIP_LINK_SCHEME = 'sim'
  * string>>` keeps it union-synced: rename a kind's id field and this stops
  * type-checking.
  *
- * Excluded kinds (`current_workflow`, `blocks`, `workflow_block`, `docs`) carry
- * no single portable id (an array / two ids / none) and degrade to plain text.
+ * Kinds absent from this map have no portable single-id representation and
+ * degrade to plain text.
  */
 const PORTABLE_KIND_TO_ID_FIELD = {
   table: 'tableId',

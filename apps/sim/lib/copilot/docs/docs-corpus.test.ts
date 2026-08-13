@@ -16,7 +16,6 @@ import {
   readDocsPage,
 } from '@/lib/copilot/docs/docs-corpus'
 import { DOCS_MANIFEST } from '@/lib/copilot/generated/docs-manifest'
-import type { GrepMatch } from '@/lib/copilot/vfs/operations'
 
 const SAMPLE_PAGE = DOCS_MANIFEST.find((path) => path === 'workflows/blocks/agent.mdx')
 
@@ -142,14 +141,17 @@ describe('readDocsPage', () => {
     await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/could not be reached/)
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
+
+  it('treats 408 as retryable rather than a missing page', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 408, text: async () => '' })
+    await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/could not be reached/)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
 })
 
 describe('grepDocs', () => {
   const fetchMock = vi.fn()
   const SECTION_DIR = 'docs/workflows/blocks'
-  const SECTION_PAGES = DOCS_MANIFEST.filter((path) => path.startsWith('workflows/blocks/')).map(
-    (path) => `docs/${path}`
-  )
 
   beforeEach(() => {
     fetchMock.mockReset()
@@ -175,51 +177,15 @@ describe('grepDocs', () => {
     ])
   })
 
-  it('greps a directory by fetching every page under it', async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => 'intro\ncron marker line\ntail',
-    })
-    expect(SECTION_PAGES.length).toBeGreaterThan(1)
-
-    const matches = (await grepDocs(SECTION_DIR, 'cron marker', {
-      maxResults: 10_000,
-    })) as GrepMatch[]
-
-    expect(fetchMock).toHaveBeenCalledTimes(SECTION_PAGES.length)
-    expect(matches.map((match) => match.path)).toEqual(SECTION_PAGES)
-  })
-
-  it('skips pages the site no longer serves instead of failing the directory grep', async () => {
-    const missingUrl = `https://docs.sim.ai/${SECTION_PAGES[0].slice('docs/'.length)}`
-    fetchMock.mockImplementation(async (url: string) =>
-      url === missingUrl
-        ? { ok: false, status: 404, text: async () => '' }
-        : { ok: true, status: 200, text: async () => 'cron marker line' }
+  it('rejects a directory without fetching any pages', async () => {
+    await expect(grepDocs(SECTION_DIR, 'cron marker')).rejects.toThrow(
+      /grep must target one docs page/
     )
-
-    const matches = (await grepDocs(SECTION_DIR, 'cron marker', {
-      maxResults: 10_000,
-    })) as GrepMatch[]
-
-    expect(matches.map((match) => match.path)).toEqual(SECTION_PAGES.slice(1))
-  })
-
-  it('fails the whole directory grep when a page cannot be reached', async () => {
-    fetchMock.mockImplementation(async (url: string) =>
-      url.endsWith(`/${SAMPLE_PAGE}`)
-        ? { ok: false, status: 502, text: async () => '' }
-        : { ok: true, status: 200, text: async () => 'cron marker line' }
-    )
-
-    await expect(grepDocs(SECTION_DIR, 'cron marker')).rejects.toThrow(/Retry shortly/)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('rejects a path that is neither a page nor a directory without fetching', async () => {
-    await expect(grepDocs('docs/not-a-real-page.mdx', 'cron')).rejects.toThrow(
-      /not a docs page or directory/
-    )
+    await expect(grepDocs('docs/not-a-real-page.mdx', 'cron')).rejects.toThrow(/not a docs page/)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })

@@ -110,7 +110,6 @@ export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKind
     label: 'Logs',
     renderIcon: ({ className }) => <Library className={className} />,
   },
-  docs: { label: 'Docs', renderIcon: () => null },
   slash_command: { label: 'Command', renderIcon: () => null },
   integration: { label: 'Integration', renderIcon: renderIntegrationTile },
   skill: {

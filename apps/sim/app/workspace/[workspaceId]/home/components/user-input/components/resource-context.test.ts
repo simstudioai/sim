@@ -47,4 +47,8 @@ describe('mapResourceToContext', () => {
       label: 'Leads',
     })
   })
+
+  it('does not turn a synthetic panel into a chat context', () => {
+    expect(mapResourceToContext(resource({ type: 'generic', title: 'Results' }))).toBeNull()
+  })
 })

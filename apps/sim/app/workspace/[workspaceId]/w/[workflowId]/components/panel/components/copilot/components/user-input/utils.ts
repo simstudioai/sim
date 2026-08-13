@@ -305,8 +305,6 @@ export function areContextsEqual(c: ChatContext, context: ChatContext): boolean 
       const ctx = context as IntegrationContext
       return c.blockType === ctx.blockType
     }
-    case 'docs':
-      return true // Only one docs context allowed
     case 'slash_command': {
       const ctx = context as SlashCommandContext
       return c.command === ctx.command

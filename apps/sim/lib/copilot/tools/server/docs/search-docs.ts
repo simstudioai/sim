@@ -1,7 +1,9 @@
 import type { DocsSearchResult } from '@/lib/copilot/docs/docs-search'
 import { searchDocs } from '@/lib/copilot/docs/docs-search'
 import { SearchDocs } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import { ServerToolModelInputError } from '@/lib/copilot/tools/server/model-input'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 interface SearchDocsParams {
   query: string
@@ -28,6 +30,9 @@ interface SearchDocsOutput {
  */
 function shortfallNote(outcome: Awaited<ReturnType<typeof searchDocs>>): string | undefined {
   const { results, candidatesConsidered, droppedBelowThreshold, droppedStale } = outcome
+  if (results.length === 0 && candidatesConsidered === 0) {
+    return 'No indexed candidates were returned. The search index may lag the live docs. If you know the page, read it directly; otherwise use glob("docs/**") to find the current path.'
+  }
   if (droppedBelowThreshold === 0 && droppedStale === 0) return undefined
 
   const reasons: string[] = []
@@ -52,12 +57,20 @@ function shortfallNote(outcome: Awaited<ReturnType<typeof searchDocs>>): string 
  */
 export const searchDocsServerTool: BaseServerTool<SearchDocsParams, SearchDocsOutput> = {
   name: SearchDocs.id,
-  async execute(params: SearchDocsParams): Promise<SearchDocsOutput> {
-    const outcome = await searchDocs(params.query, { path: params.path, topK: params.topK })
+  async execute(params: SearchDocsParams, context?: ServerToolContext): Promise<SearchDocsOutput> {
+    const queryProjection = projectResolvedSecretModelContent(
+      params.query,
+      context?.resolvedSecretTraceRegistry
+    )
+    if (!queryProjection.safe || typeof queryProjection.value !== 'string') {
+      throw new ServerToolModelInputError('Docs search query could not be processed safely')
+    }
+    const query = queryProjection.value
+    const outcome = await searchDocs(query, { path: params.path, topK: params.topK })
     const note = shortfallNote(outcome)
     return {
       results: outcome.results,
-      query: params.query,
+      query,
       totalResults: outcome.results.length,
       ...(note ? { note } : {}),
     }

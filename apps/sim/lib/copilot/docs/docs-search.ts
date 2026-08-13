@@ -2,8 +2,15 @@ import { db } from '@sim/db'
 import { docsEmbeddings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, like, ne, notLike, or, sql } from 'drizzle-orm'
-import { docsPathForSourceDocument, isDocsDir, isDocsPage } from '@/lib/copilot/docs/docs-corpus'
+import { escapeLikePattern } from '@/lib/api/list-query'
+import {
+  docsPathForSourceDocument,
+  isDocsDir,
+  isDocsPage,
+  normalizeDocsPath,
+} from '@/lib/copilot/docs/docs-corpus'
 import { docsSourceCandidates, UNMOUNTED_DOCS_SECTIONS } from '@/lib/copilot/docs/docs-path'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
 const logger = createLogger('DocsSearch')
@@ -42,10 +49,9 @@ export interface DocsSearchOutcome {
  * section in the docs corpus. Surfaced verbatim so the model can correct itself
  * rather than reading an empty result as "the docs say nothing about this".
  */
-export class DocsSearchScopeError extends Error {
-  readonly code = 'DOCS_SEARCH_SCOPE' as const
+export class DocsSearchScopeError extends OrchestrationError {
   constructor(message: string) {
-    super(message)
+    super('validation', message)
     this.name = 'DocsSearchScopeError'
   }
 }
@@ -66,7 +72,7 @@ export class DocsSearchScopeError extends Error {
  * discarded as stale.
  */
 function scopeCondition(path?: string) {
-  const normalized = (path ?? '').trim().replace(/^\/+/, '').replace(/\/+$/, '')
+  const normalized = normalizeDocsPath(path ?? '')
   if (normalized === '' || normalized === 'docs') {
     return and(
       ne(docsEmbeddings.sourceDocument, 'index.mdx'),
@@ -85,7 +91,6 @@ function scopeCondition(path?: string) {
   const tail = normalized.slice('docs/'.length)
 
   if (isDocsPage(normalized)) {
-    // One page: on disk it is either `<tail>.mdx` or `<tail>/index.mdx`.
     const [pageFile, indexFile] = docsSourceCandidates(tail)
     return or(
       eq(docsEmbeddings.sourceDocument, pageFile),
@@ -94,10 +99,6 @@ function scopeCondition(path?: string) {
   }
 
   if (isDocsDir(normalized)) {
-    // Everything under the directory, PLUS a sibling `<tail>.mdx`. Fumadocs
-    // accepts either layout for a section overview and only `<tail>/index.mdx`
-    // is inside the subtree, so matching the prefix alone would silently omit
-    // the overview for the sibling layout — page scope already covers both.
     return or(
       like(docsEmbeddings.sourceDocument, `${escapeLikePattern(tail)}/%`),
       eq(docsEmbeddings.sourceDocument, `${tail}.mdx`)
@@ -107,10 +108,6 @@ function scopeCondition(path?: string) {
   throw new DocsSearchScopeError(
     `"${path}" is not a page or section in the docs corpus. Use glob("docs/**") to find a valid path, or omit path to search everything.`
   )
-}
-
-function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, (char) => `\\${char}`)
 }
 
 /**
@@ -149,12 +146,17 @@ export async function searchDocs(
   const topK = clampTopK(options?.topK)
   const where = scopeCondition(options?.path)
 
-  logger.info('Executing docs search', { query, topK, path: options?.path ?? null })
+  logger.info('Executing docs search', {
+    queryLength: query.length,
+    topK,
+    path: options?.path ?? null,
+  })
 
   const { embedding: queryEmbedding } = await generateSearchEmbedding(query)
   if (!queryEmbedding || queryEmbedding.length === 0) {
     return { results: [], candidatesConsidered: 0, droppedBelowThreshold: 0, droppedStale: 0 }
   }
+  const queryVector = JSON.stringify(queryEmbedding)
 
   const rows = await db
     .select({
@@ -162,11 +164,11 @@ export async function searchDocs(
       sourceDocument: docsEmbeddings.sourceDocument,
       sourceLink: docsEmbeddings.sourceLink,
       headerText: docsEmbeddings.headerText,
-      similarity: sql<number>`1 - (${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)`,
+      similarity: sql<number>`1 - (${docsEmbeddings.embedding} <=> ${queryVector}::vector)`,
     })
     .from(docsEmbeddings)
     .where(where)
-    .orderBy(sql`${docsEmbeddings.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector`)
+    .orderBy(sql`${docsEmbeddings.embedding} <=> ${queryVector}::vector`)
     .limit(topK)
 
   const results: DocsSearchResult[] = []
@@ -184,9 +186,9 @@ export async function searchDocs(
     }
     results.push({
       path,
-      url: String(row.sourceLink || '#'),
-      title: String(row.headerText || 'Untitled Section'),
-      content: String(row.chunkText || ''),
+      url: row.sourceLink,
+      title: row.headerText,
+      content: row.chunkText,
       similarity: row.similarity,
     })
   }

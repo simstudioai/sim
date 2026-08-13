@@ -135,23 +135,20 @@ async function canReturnWorkspaceFileValue(
 }
 
 /**
- * Trim an oversized docs page to the largest whole-line prefix that fits the
+ * Trim an oversized docs page to a whole-line prefix that fits the
  * inline budget, preserving the true `totalLines` so the model can page through
  * the rest with offset/limit. Returns null when not even one line fits — a
  * single line longer than the cap — so the caller can fail instead of returning
- * an over-cap payload as success.
+ * an over-cap payload as success. The notice offers grep as an alternative to
+ * another read because either operation fetches the page once.
  */
 function truncateDocsPageToInlineCap(page: { content: string; totalLines: number }): {
   output: { content: string; totalLines: number }
   returnedLines: number
 } | null {
   const lines = page.content.split('\n')
-  // Route to ONE more fetch, not two. Telling the model to grep and then read
-  // costs two more uncached fetches of a page it already partly has; grep and
-  // read cost the same single fetch, so grep is an alternative to a read here,
-  // never a step before one.
   const notice = (shown: number) =>
-    `\n\n[Page truncated: returned lines 1-${shown} of ${page.totalLines}. To continue, read this path with offset: ${shown}. To jump straight to a section, grep this path INSTEAD of reading it — grep is the same single fetch and returns only matching lines with their numbers.]`
+    `\n\n[Page truncated: returned lines 1-${shown} of ${page.totalLines}. To continue, read this path with offset: ${shown} and limit: ${shown}; reduce the limit if that window is still too large. To jump straight to a section, grep this path INSTEAD of reading it — grep is the same single fetch and returns only matching lines with their numbers.]`
 
   let kept = lines.length
   while (kept > 0) {
@@ -192,14 +189,6 @@ export async function executeVfsGrep(
       context: (params.context as number) ?? 0,
     }
 
-    // Routing mirrors read/glob:
-    //  - uploads/<file>  -> grep one chat upload's content (chat-scoped)
-    //  - docs/<page>     -> grep one docs.sim.ai page (one page only — each is a fetch)
-    //  - files/<file>    -> grep one workspace file's content (one file only)
-    //  - everything else -> grep the in-memory VFS map (workflow JSON, metadata)
-    // Chat uploads and the docs corpus are opt-in like recently-deleted/: they are
-    // never in the VFS map, so an unscoped grep can't touch them — only an explicit
-    // uploads/<file> or docs/<page> path does, and only one at a time.
     let result: GrepMatch[] | string[] | GrepCountEntry[]
     let provenanceFile: WorkspaceFileSecretProvenanceIdentity | undefined
     if (rawPath !== undefined && isDocsPath(rawPath)) {
@@ -298,9 +287,6 @@ export async function executeVfsGlob(
   }
 
   try {
-    // The docs corpus is a lazy view of docs.sim.ai built from the generated
-    // manifest, not part of the workspace VFS — an explicit docs/ pattern is the
-    // only way to see it.
     if (couldMatchDocsScope(pattern)) {
       const files = globDocs(pattern)
       logger.debug('vfs_glob docs result', { pattern, fileCount: files.length })
@@ -375,17 +361,10 @@ export async function executeVfsRead(
       }
     }
 
-    // Docs pages are fetched from the live docs site on demand — the manifest
-    // path is the URL path, so there is nothing workspace-scoped to resolve.
     if (isDocsPath(path)) {
       const page = await readDocsPage(path)
       const windowed = applyWindow(page)
       if (serializedResultSize(windowed) > TOOL_RESULT_MAX_INLINE_CHARS) {
-        // Several real docs pages (the largest integration references) exceed the
-        // inline cap, so failing here would make a plain read of them always fail
-        // and cost a second fetch to recover. Truncate to what fits instead and
-        // tell the model how to page — but only when it did not ask for a window,
-        // since an explicit offset/limit that still overflows is a caller error.
         if (offset !== undefined || limit !== undefined) {
           return {
             success: false,
@@ -569,8 +548,6 @@ export async function executeVfsRead(
       output: result,
     }
   } catch (err) {
-    // Expected docs-corpus conditions (unknown page, directory path, site
-    // unreachable): surface the message verbatim.
     if (err instanceof DocsCorpusError) {
       logger.debug('vfs_read docs page rejected', { path, error: err.message })
       return { success: false, error: err.message }
