@@ -146,8 +146,8 @@ describe('getToolDisplayTitle for deployments', () => {
     ['deploy_as_api', { action: 'undeploy' }, 'Undeploying API'],
     ['deploy_as_chat', { action: 'deploy' }, 'Deploying chat'],
     ['deploy_as_chat', { action: 'undeploy' }, 'Undeploying chat'],
-    ['publish_custom_block', { action: 'deploy' }, 'Deploying custom block'],
-    ['publish_custom_block', { action: 'undeploy' }, 'Undeploying custom block'],
+    ['publish_custom_block', { action: 'deploy' }, 'Publishing custom block'],
+    ['publish_custom_block', { action: 'undeploy' }, 'Unpublishing custom block'],
     ['deploy_as_mcp', undefined, 'Deploying MCP tool'],
     ['redeploy', undefined, 'Redeploying API'],
   ])('uses the action and deployment type for %s', (toolName, args, expected) => {

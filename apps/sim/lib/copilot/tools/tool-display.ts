@@ -352,6 +352,9 @@ function materializeFileTitle(args: ToolArgs): string {
   if (operation === 'import') {
     return `Importing ${summarizeTargets(targets, 'workflow')}`
   }
+  if (operation === 'extract') {
+    return `Extracting ${summarizeTargets(targets, 'archive')}`
+  }
   return `Saving ${summarizeTargets(targets, 'file')}`
 }
 
@@ -468,7 +471,7 @@ const TOOL_TITLES: Record<string, string> = {
   delete_workspace_mcp_server: 'Deleting MCP server',
   deploy_as_api: 'Deploying API',
   deploy_as_chat: 'Deploying chat',
-  publish_custom_block: 'Deploying custom block',
+  publish_custom_block: 'Publishing custom block',
   deploy_as_mcp: 'Deploying MCP tool',
   diff_workflows: 'Comparing workflows',
   download_file: 'Downloading file',
@@ -478,8 +481,8 @@ const TOOL_TITLES: Record<string, string> = {
   get_block_outputs: 'Getting block outputs',
   get_block_upstream_references: 'Getting block references',
   get_deployed_workflow_state: 'Getting deployed workflow',
-  list_deployment_versions: 'Getting deployment logs',
-  get_ui_reference: 'Getting platform actions',
+  list_deployment_versions: 'Listing deployment versions',
+  get_ui_reference: 'Reading UI reference',
   get_scheduled_task_logs: 'Reading scheduled task logs',
   get_workflow_data: 'Getting workflow data',
   get_workflow_run_options: 'Getting run options',
@@ -488,7 +491,7 @@ const TOOL_TITLES: Record<string, string> = {
   list_user_workspaces: 'Listing workspaces',
   list_workspace_mcp_servers: 'Listing MCP servers',
   load_deployment: 'Loading deployment',
-  save_upload: 'Preparing file',
+  save_upload: 'Saving upload',
   manage_sandbox: 'Managing sandbox',
   manage_scheduled_task: 'Managing scheduled task',
   move_file: 'Moving file',
@@ -504,7 +507,7 @@ const TOOL_TITLES: Record<string, string> = {
   restore_resource: 'Restoring resource',
   run_block: 'Running block',
   scheduled_task: 'Managing scheduled task',
-  search_sim_docs: 'Searching documentation',
+  search_sim_docs: 'Searching Sim docs',
   set_block_enabled: 'Toggling block',
   set_environment_variables: 'Setting environment variables',
   set_global_workflow_variables: 'Setting workflow variables',
@@ -681,7 +684,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'deploy_as_chat':
       return deploymentTitle(args, 'chat')
     case 'publish_custom_block':
-      return deploymentTitle(args, 'custom block')
+      return `${stringArg(args, 'action') === 'undeploy' ? 'Unpublishing' : 'Publishing'} custom block`
     case 'ffmpeg':
       return ffmpegTitle(args)
     case 'manage_knowledge_base':
@@ -949,8 +952,28 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'run_workflow_until_block':
       return 'Running workflow'
     case 'query_logs': {
+      // The model narrates its own query; the per-view titles are fallbacks.
+      const title = stringArg(args, 'title')
+      if (title) return title
       const workflowName = stringArg(args, 'workflowName')
-      return workflowName ? `Querying logs for ${workflowName}` : 'Querying logs'
+      const scope = workflowName ? ` for ${workflowName}` : ''
+      switch (stringArg(args, 'view')) {
+        case 'stats':
+          return `Analyzing run stats${scope}`
+        case 'trace':
+          return 'Reading execution trace'
+        case 'overview':
+          return 'Reading execution overview'
+        case 'full':
+          return 'Reading execution details'
+        case 'list':
+          return `Querying logs${scope}`
+        default:
+          // view is optional: executionId implies the trace digest default.
+          return stringArg(args, 'executionId')
+            ? 'Reading execution trace'
+            : `Querying logs${scope}`
+      }
     }
     case 'read': {
       if (isWorkflowArtifactPath(stringArg(args, 'path'), 'lint.json')) {
@@ -992,6 +1015,9 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Creating: 'Created',
   Deleting: 'Deleted',
   Deploying: 'Deployed',
+  Publishing: 'Published',
+  Unpublishing: 'Unpublished',
+  Analyzing: 'Analyzed',
   Disabling: 'Disabled',
   Downloading: 'Downloaded',
   Duplicating: 'Duplicated',

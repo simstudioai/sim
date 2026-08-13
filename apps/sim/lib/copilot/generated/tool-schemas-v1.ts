@@ -3321,7 +3321,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               view: {
                 type: 'string',
                 description:
-                  'Saved table view to open pinned (type "table" only): a view id or exact view name from the table\'s views.json. The panel opens the table with that view\'s filter/sort active. Omit to open the table on its default view.',
+                  'Saved table view to open pinned (type "table" only): a view ID from the table\'s views.json. The panel opens the table with that view\'s filter/sort active. Omit to open the table on its default view.',
               },
             },
             required: ['type'],
@@ -3609,9 +3609,23 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           description: "Optional (view='full'): only return this block's span subtree.",
         },
+        blockIds: {
+          type: 'array',
+          description:
+            "(view='full') Block ids to drill into, copied from the trace digest's blockId values. Preferred over blockName; several at once is fine.",
+          items: {
+            type: 'string',
+          },
+        },
         blockName: {
           type: 'string',
           description: "Optional (view='full'): only return spans for this block name.",
+        },
+        bucket: {
+          type: 'string',
+          description:
+            "(view='stats') Calendar bucketing for the per-workflow series: 'day' or 'hour'. Omit for overall totals only.",
+          enum: ['day', 'hour'],
         },
         costOperator: {
           type: 'string',
@@ -3638,25 +3652,34 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         endDate: {
           type: 'string',
-          description: "Filter (view='list'): ISO end of the time range.",
+          description: "Filter (view='list'/'stats'): ISO end of the time range.",
         },
         executionId: {
           type: 'string',
           description:
-            "Required for 'overview'/'full': the execution to read. For 'list', an optional exact-match filter.",
+            "Required for 'trace'/'overview'/'full': the execution to read. For 'list', an optional exact-match filter.",
+        },
+        fields: {
+          type: 'array',
+          description:
+            "(view='full') Only load these payload fields per span: whole keys ('input', 'output', 'error') or dotted paths into them ('output.result.rows', 'input.query'). Dotted selections come back under 'selected' keyed by path. Use this to pull just the field you need instead of a block's entire I/O.",
+          items: {
+            type: 'string',
+          },
         },
         folderIds: {
           type: 'string',
-          description: "Filter (view='list'): comma-separated folder IDs (descendants included).",
+          description:
+            "Filter (view='list'/'stats'): comma-separated folder IDs (descendants included).",
         },
         folderName: {
           type: 'string',
-          description: "Filter (view='list'): substring match on folder name.",
+          description: "Filter (view='list'/'stats'): substring match on folder name.",
         },
         level: {
           type: 'string',
           description:
-            "Filter (view='list'): comma-separated levels: error, info, running, pending. Default all.",
+            "Filter (view='list'/'stats'): comma-separated levels: error, info, running, pending. Default all.",
         },
         limit: {
           type: 'number',
@@ -3683,32 +3706,41 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         startDate: {
           type: 'string',
-          description: "Filter (view='list'): ISO start of the time range.",
+          description: "Filter (view='list'/'stats'): ISO start of the time range.",
+        },
+        timezone: {
+          type: 'string',
+          description:
+            '(view=\'stats\') IANA timezone the buckets are computed in, e.g. "America/Los_Angeles". Defaults to UTC. Set this whenever the user\'s question is about "today"/"yesterday" in their local time.',
+        },
+        title: {
+          type: 'string',
+          description:
+            'Short human-readable label for this query, shown as the tool row in the UI, e.g. "Counting Elder failures Aug 12-13" or "Reading the failed enrichment run". Always provide one — it is how the user follows what you are looking for.',
         },
         triggers: {
           type: 'string',
-          description: "Filter (view='list'): comma-separated trigger types.",
+          description: "Filter (view='list'/'stats'): comma-separated trigger types.",
         },
         view: {
           type: 'string',
           description:
-            "Disclosure level: 'list' (summaries), 'overview' (one execution's trace tree, no I/O), or 'full' (one execution's trace spans with I/O).",
-          enum: ['list', 'overview', 'full'],
+            "Disclosure level: 'stats' (aggregate counts), 'list' (summaries), 'trace' (one execution's condensed block digest), 'overview' (trace tree, no I/O), 'full' (spans with I/O). Defaults to 'trace' with executionId, else 'list'.",
+          enum: ['list', 'stats', 'trace', 'overview', 'full'],
         },
         workflowIds: {
           type: 'string',
-          description: "Filter (view='list'): comma-separated workflow IDs.",
+          description: "Filter (view='list'/'stats'): comma-separated workflow IDs.",
         },
         workflowName: {
           type: 'string',
-          description: "Filter (view='list'): substring match on workflow name.",
+          description: "Filter (view='list'/'stats'): substring match on workflow name.",
         },
         workspaceId: {
           type: 'string',
           description: 'Workspace ID to scope to.',
         },
       },
-      required: ['view'],
     },
     resultSchema: undefined,
   },
@@ -3751,7 +3783,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             view: {
               type: 'string',
               description:
-                "Saved view to query through (query_rows only): a view id or exact view name from the table's views.json. The view's saved filter ANDs with any filter you pass (query-within-the-view); its saved sort applies only when you pass no order. Layout fields (hidden columns, widths) are ignored — full rows come back. Manage views via the table agent.",
+                "Saved view to query through (query_rows only): a view ID from the table's views.json. The view's saved filter ANDs with any filter you pass (query-within-the-view); its saved sort applies only when you pass no order. Layout fields (hidden columns, widths) are ignored — full rows come back. Manage views via the table agent.",
             },
           },
         },
@@ -5338,7 +5370,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             name: {
               type: 'string',
               description:
-                "View display name (required for create_view; optional rename on update_view). Free-form label, need not be unique — prefer distinct names so query_user_table's view argument can use them unambiguously.",
+                'View display name (required for create_view; optional rename on update_view). Free-form label; references always use the view ID, so names are purely display.',
             },
             sort: {
               type: 'array',

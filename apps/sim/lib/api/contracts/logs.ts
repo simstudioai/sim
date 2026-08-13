@@ -38,6 +38,8 @@ export const listLogsQuerySchema = logFilterQuerySchema.extend({
   limit: z.coerce.number().int().min(1).max(200).optional().default(100),
   sortBy: logSortBySchema,
   sortOrder: logSortOrderSchema,
+  /** Also run a COUNT(*) under the same filters and return it as `total`. */
+  includeTotal: z.coerce.boolean().optional(),
 })
 
 export const logDetailQuerySchema = z.object({
@@ -294,6 +296,8 @@ export type WorkflowLogRow = WorkflowLogSummary &
 export const listLogsResponseSchema = z.object({
   data: z.array(workflowLogSummarySchema),
   nextCursor: z.string().nullable(),
+  /** Total rows matching the filters; present only when `includeTotal` was set. */
+  total: z.number().optional(),
 })
 
 export type ListLogsResponse = z.output<typeof listLogsResponseSchema>
