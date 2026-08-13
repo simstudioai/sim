@@ -1,12 +1,285 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { GoogleCalendarBlock } from '@/blocks/blocks/google_calendar'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { tableNewRowTrigger } from '@/triggers/table/poller'
 import {
+  buildCanonicalIndex,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   reindexToolCanonicalModes,
+  resolveDependencyValue,
   scopeCanonicalModesForTool,
 } from './visibility'
+
+const tableTriggerMocks = vi.hoisted(() => ({ fetchQuery: vi.fn() }))
+
+vi.mock('@/app/_shell/providers/get-query-client', () => ({
+  getQueryClient: () => ({ fetchQuery: tableTriggerMocks.fetchQuery }),
+}))
+
+const canonicalIndex = buildCanonicalIndex([
+  {
+    id: 'resourceSelector',
+    type: 'project-selector',
+    canonicalParamId: 'resourceId',
+    mode: 'basic',
+  },
+  {
+    id: 'triggerResourceSelector',
+    type: 'project-selector',
+    canonicalParamId: 'resourceId',
+    mode: 'trigger',
+  },
+  {
+    id: 'manualResourceId',
+    type: 'short-input',
+    canonicalParamId: 'resourceId',
+    mode: 'advanced',
+  },
+  {
+    id: 'triggerManualResourceId',
+    type: 'short-input',
+    canonicalParamId: 'resourceId',
+    mode: 'trigger-advanced',
+  },
+] as Parameters<typeof buildCanonicalIndex>[0])
+
+describe('resolveDependencyValue', () => {
+  it.each([
+    ['Basic', 'null', 'basic', null],
+    ['Basic', 'undefined', 'basic', undefined],
+    ['Basic', 'empty string', 'basic', ''],
+    ['Basic', 'empty array', 'basic', []],
+    ['Advanced', 'null', 'advanced', null],
+    ['Advanced', 'undefined', 'advanced', undefined],
+    ['Advanced', 'empty string', 'advanced', ''],
+    ['Advanced', 'empty array', 'advanced', []],
+  ] as const)(
+    'keeps an explicitly cleared %s value (%s) instead of using the dormant side',
+    (_, _clearKind, mode, cleared) => {
+      const values =
+        mode === 'basic'
+          ? { resourceSelector: cleared, manualResourceId: 'stale-advanced' }
+          : { resourceSelector: 'stale-basic', manualResourceId: cleared }
+
+      expect(
+        resolveDependencyValue('resourceId', values, canonicalIndex, { resourceId: mode })
+      ).toEqual(cleared)
+    }
+  )
+
+  it('prefers the exact dependency member before another member in the selected mode', () => {
+    const values = {
+      resourceSelector: 'regular-basic',
+      triggerResourceSelector: null,
+      manualResourceId: 'stale-advanced',
+    }
+
+    expect(
+      resolveDependencyValue('triggerResourceSelector', values, canonicalIndex, {
+        resourceId: 'basic',
+      })
+    ).toBeNull()
+  })
+
+  it('prefers a populated same-mode alias over an empty primary member for a canonical key', () => {
+    const values = {
+      resourceSelector: null,
+      triggerResourceSelector: 'trigger-basic',
+      manualResourceId: 'stale-advanced',
+    }
+
+    expect(
+      resolveDependencyValue('resourceId', values, canonicalIndex, { resourceId: 'basic' })
+    ).toBe('trigger-basic')
+  })
+
+  it('never falls back to the opposite mode when the selected side is absent', () => {
+    expect(
+      resolveDependencyValue('resourceId', { manualResourceId: 'stale-advanced' }, canonicalIndex, {
+        resourceId: 'basic',
+      })
+    ).toBeUndefined()
+  })
+
+  it.each([
+    {
+      name: 'uses a direct value when the selected member is absent',
+      dependency: 'resourceSelector',
+      values: { resourceId: 'legacy-direct', manualResourceId: 'inactive-advanced' },
+      overrides: { resourceId: 'basic' as const },
+      expected: 'legacy-direct',
+    },
+    {
+      name: 'does not expose an inactive member through its exact key',
+      dependency: 'manualResourceId',
+      values: { resourceId: 'legacy-direct', manualResourceId: 'inactive-advanced' },
+      overrides: { resourceId: 'basic' as const },
+      expected: undefined,
+    },
+    {
+      name: 'lets an active clear remove a stale direct value',
+      dependency: 'resourceId',
+      values: {
+        resourceId: 'legacy-direct',
+        resourceSelector: null,
+        manualResourceId: 'inactive-advanced',
+      },
+      overrides: { resourceId: 'basic' as const },
+      expected: null,
+    },
+    {
+      name: 'lets the active member replace a stale direct value',
+      dependency: 'resourceId',
+      values: {
+        resourceId: 'legacy-direct',
+        resourceSelector: 'current-basic',
+        manualResourceId: 'inactive-advanced',
+      },
+      overrides: { resourceId: 'basic' as const },
+      expected: 'current-basic',
+    },
+    {
+      name: 'preserves a direct-only legacy value without a mode',
+      dependency: 'resourceId',
+      values: { resourceId: 'legacy-direct' },
+      overrides: undefined,
+      expected: 'legacy-direct',
+    },
+    {
+      name: 'preserves the legacy direct fallback after an inferred clear',
+      dependency: 'resourceId',
+      values: { resourceId: 'legacy-direct', resourceSelector: null },
+      overrides: undefined,
+      expected: 'legacy-direct',
+    },
+  ])('$name', ({ dependency, values, overrides, expected }) => {
+    expect(resolveDependencyValue(dependency, values, canonicalIndex, overrides)).toEqual(expected)
+  })
+
+  it.each([
+    ['Basic only', { resourceSelector: 'basic' }, 'basic'],
+    ['Advanced only', { manualResourceId: 'advanced' }, 'advanced'],
+    ['both modes populated', { resourceSelector: 'basic', manualResourceId: 'advanced' }, 'basic'],
+    ['neither mode populated', {}, undefined],
+  ])('preserves legacy value inference with no explicit mode: %s', (_, values, expected) => {
+    expect(resolveDependencyValue('resourceId', values, canonicalIndex)).toBe(expected)
+  })
+
+  it('preserves legacy inference when the stored override is invalid', () => {
+    expect(
+      resolveDependencyValue('resourceId', { manualResourceId: 'advanced' }, canonicalIndex, {
+        resourceId: 'invalid' as 'basic',
+      })
+    ).toBe('advanced')
+  })
+
+  it('uses the real Google Calendar trigger credential despite an action-only mode override', () => {
+    const triggerIndex = buildCanonicalIndex(
+      getCanonicalSubBlocksForSurface(GoogleCalendarBlock.subBlocks, true)
+    )
+
+    expect(
+      resolveDependencyValue(
+        'triggerCredentials',
+        { triggerCredentials: 'trigger-credential', manualCredential: 'stale-action-manual' },
+        triggerIndex,
+        { oauthCredential: 'advanced' }
+      )
+    ).toBe('trigger-credential')
+  })
+})
+
+describe('getCanonicalSubBlocksForSurface', () => {
+  it.each([
+    ['action', false, ['resourceSelector', 'manualResourceId']],
+    ['trigger', true, ['triggerResourceSelector', 'triggerManualResourceId']],
+  ])('keeps only the %s canonical aliases', (_, triggerSurface, expectedIds) => {
+    const subBlocks = [
+      ...Object.keys(canonicalIndex.canonicalIdBySubBlockId).map((id) => ({
+        id,
+        type: 'short-input' as const,
+        canonicalParamId: 'resourceId',
+        mode: id.startsWith('trigger')
+          ? id.includes('Manual')
+            ? ('trigger-advanced' as const)
+            : ('trigger' as const)
+          : id.includes('manual')
+            ? ('advanced' as const)
+            : ('basic' as const),
+      })),
+      { id: 'triggerConfig', type: 'trigger-config' as const },
+      { id: 'operation', type: 'dropdown' as const },
+    ]
+
+    expect(
+      getCanonicalSubBlocksForSurface(subBlocks, triggerSurface).map((subBlock) => subBlock.id)
+    ).toEqual(triggerSurface ? [...expectedIds, 'triggerConfig'] : [...expectedIds, 'operation'])
+  })
+})
+
+describe('table trigger column options', () => {
+  afterEach(() => {
+    tableTriggerMocks.fetchQuery.mockReset()
+    useWorkflowRegistry.setState({
+      activeWorkflowId: null,
+      hydration: {
+        phase: 'idle',
+        workspaceId: null,
+        workflowId: null,
+        requestId: null,
+        error: null,
+      },
+    })
+    useSubBlockStore.setState({ workflowValues: {} })
+    useWorkflowStore.setState({ blocks: {} })
+  })
+
+  it('does not use a dormant Advanced table after the explicit Basic value is cleared', async () => {
+    const workflowId = 'workflow-1'
+    const blockId = 'table-trigger-1'
+    useWorkflowRegistry.setState({
+      activeWorkflowId: workflowId,
+      hydration: {
+        phase: 'ready',
+        workspaceId: 'workspace-1',
+        workflowId,
+        requestId: null,
+        error: null,
+      },
+    })
+    useSubBlockStore.setState({
+      workflowValues: {
+        [workflowId]: {
+          [blockId]: { tableSelector: null, manualTableId: 'dormant-advanced' },
+        },
+      },
+    })
+    useWorkflowStore.setState({
+      blocks: {
+        [blockId]: {
+          data: { canonicalModes: { tableId: 'basic' } },
+        } as never,
+      },
+    })
+    tableTriggerMocks.fetchQuery.mockResolvedValue([
+      { id: 'dormant-advanced', schema: { columns: [{ name: 'should-not-load' }] } },
+    ])
+
+    const fetchOptions = tableNewRowTrigger.subBlocks.find(
+      (subBlock) => subBlock.id === 'watchColumns'
+    )?.fetchOptions
+
+    expect(fetchOptions).toBeDefined()
+    await expect(fetchOptions?.(blockId)).resolves.toEqual([])
+    expect(tableTriggerMocks.fetchQuery).not.toHaveBeenCalled()
+  })
+})
 
 describe('evaluateSubBlockCondition', () => {
   describe('simple value matching', () => {
@@ -236,6 +509,24 @@ describe('scopeCanonicalModesForTool', () => {
     const overrides = { 'table:tableId': 'advanced' as const, '0:tableId': 'basic' as const }
     expect(scopeCanonicalModesForTool(overrides, 0, 'table')).toEqual({ tableId: 'basic' })
   })
+
+  it.concurrent(
+    'merges a legacy tool baseline with index-scoped overrides and lets the index win collisions',
+    () => {
+      const overrides = {
+        'table:tableId': 'advanced' as const,
+        'table:databaseId': 'basic' as const,
+        '0:tableId': 'basic' as const,
+        '0:schemaId': 'advanced' as const,
+      }
+
+      expect(scopeCanonicalModesForTool(overrides, 0, 'table')).toEqual({
+        tableId: 'basic',
+        databaseId: 'basic',
+        schemaId: 'advanced',
+      })
+    }
+  )
 
   it.concurrent('does not fall back when no legacyToolType is given', () => {
     expect(scopeCanonicalModesForTool({ 'table:tableId': 'advanced' }, 0)).toBeUndefined()

@@ -29,6 +29,8 @@ import {
   buildSubBlockValues,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
+  isPureTriggerBlockConfig,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
@@ -37,7 +39,6 @@ import {
   parseDependsOn,
   resolveDependencyValue,
   scopeCanonicalModesForTool,
-  shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { type ParsedStoredTool, parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
@@ -774,9 +775,11 @@ export function getToolInputParamConfigs({
       })
   }
 
-  const toolCanonicalIndex = buildCanonicalIndex(
-    blockConfig?.subBlocks ?? subBlocksResult.subBlocks
+  const actionToolSubBlocks = getCanonicalSubBlocksForSurface(
+    blockConfig?.subBlocks ?? subBlocksResult.subBlocks,
+    false
   )
+  const toolCanonicalIndex = buildCanonicalIndex(actionToolSubBlocks)
   const visibleSubBlocks = subBlocksResult.subBlocks.filter((subBlock) =>
     isToolParamVisibleForReactiveCondition({
       subBlockConfig: subBlock,
@@ -786,7 +789,7 @@ export function getToolInputParamConfigs({
       credentialTypeById,
     })
   )
-  const allToolSubBlocks = blockConfig?.subBlocks ?? subBlocksResult.subBlocks
+  const allToolSubBlocks = actionToolSubBlocks
   const getDependentValuePaths = (changedSubBlockId: string): WorkflowSearchValuePath[] =>
     getWorkflowSearchDependentClears(allToolSubBlocks, changedSubBlockId).map((clear) => [
       'params',
@@ -1260,9 +1263,10 @@ export function indexWorkflowSearchMatches(
   for (const block of Object.values(workflow.blocks)) {
     const blockConfig = blockConfigs[block.type] ?? getBlock(block.type)
     const subBlockConfigs = blockConfig?.subBlocks ?? []
-    const canonicalSubBlockConfigs = block.triggerMode
-      ? subBlockConfigs.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
-      : subBlockConfigs
+    const canonicalSubBlockConfigs = getCanonicalSubBlocksForSurface(
+      subBlockConfigs,
+      Boolean(block.triggerMode) || isPureTriggerBlockConfig(blockConfig)
+    )
     const configsById = new Map(subBlockConfigs.map((subBlock) => [subBlock.id, subBlock]))
     const canonicalIndex = buildCanonicalIndex(canonicalSubBlockConfigs)
     const subBlockValues = buildSubBlockValues(block.subBlocks ?? {})

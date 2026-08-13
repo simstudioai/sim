@@ -45,6 +45,48 @@ const blockConfigs: Record<string, { subBlocks: SubBlockConfig[] }> = {
   },
 }
 
+const mixedToolCanonicalSubBlocks: SubBlockConfig[] = [
+  {
+    id: 'credential',
+    title: 'Credential',
+    type: 'oauth-input',
+    canonicalParamId: 'oauthCredential',
+    mode: 'basic',
+  },
+  {
+    id: 'triggerCredentials',
+    title: 'Trigger Credential',
+    type: 'oauth-input',
+    canonicalParamId: 'oauthCredential',
+    mode: 'trigger',
+  },
+]
+
+const mixedSurfaceCredentialConfigs = {
+  action: [
+    {
+      id: 'credential',
+      title: 'Action Credential',
+      type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+    },
+    {
+      id: 'manualCredential',
+      title: 'Action Credential ID',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+    },
+  ] as SubBlockConfig[],
+  trigger: {
+    id: 'triggerCredentials',
+    title: 'Trigger Credential',
+    type: 'oauth-input',
+    mode: 'trigger',
+  } as SubBlockConfig,
+}
+
 describe('remapToolBlockResources', () => {
   it('remaps nested credential + knowledge-base ids and leaves external selectors', () => {
     const tool = {
@@ -160,6 +202,29 @@ describe('remapToolBlockResources', () => {
       blockConfigs: { reactiveblock: { subBlocks: [] } },
     })
     expect((result.params as Record<string, string>).credential).toBe('cred-dst')
+  })
+
+  it('does not remap a trigger-only credential stored on an Agent tool', () => {
+    const tool = {
+      type: 'mixedblock',
+      toolId: 'mixedblock_run',
+      params: { credential: '', triggerCredentials: 'cred-trigger' },
+    }
+    const recorded: Array<{ kind: string; id: string }> = []
+    const result = remapToolBlockResources(tool, {
+      resolve: (kind, id) => (kind === 'credential' ? `${id}-mapped` : null),
+      resolveFileKey: () => null,
+      record: (kind, id) => recorded.push({ kind, id }),
+      clearUnresolved: false,
+      parentCanonicalModes: { '0:oauthCredential': 'basic' },
+      toolIndex: 0,
+      blockConfigs: {
+        mixedblock: { subBlocks: mixedToolCanonicalSubBlocks },
+      },
+    })
+
+    expect(result).toBe(tool)
+    expect(recorded).toEqual([])
   })
 
   it('clears a dependent tool param when its parent resource is remapped', () => {
@@ -833,9 +898,128 @@ describe('scanWorkflowReferences canonical-pair detection', () => {
     // The advanced escape-hatch id is preserved verbatim (not auto-remapped).
     expect(result.subBlocks.manualCredential.value).toBe('cred-active')
   })
+
+  it('remaps the live trigger credential despite an action-only Advanced mode', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        ...mixedSurfaceCredentialConfigs.action,
+        { ...mixedSurfaceCredentialConfigs.trigger, canonicalParamId: 'oauthCredential' },
+      ])
+    )
+    const subBlocks: SubBlockRecord = {
+      credential: { type: 'oauth-input', value: 'action-basic' },
+      manualCredential: { type: 'short-input', value: 'action-advanced' },
+      triggerCredentials: { type: 'oauth-input', value: 'trigger-live' },
+    }
+    const canonicalModes = { oauthCredential: 'advanced' as const }
+
+    const remapped = remapForkSubBlocks(
+      subBlocks,
+      (kind, id) => (kind === 'credential' && id === 'trigger-live' ? 'trigger-target' : null),
+      'promote',
+      { blockType: 'google_calendar', canonicalModes, triggerMode: true }
+    )
+    const scan = scanWorkflowReferences(
+      [
+        {
+          id: 'b1',
+          name: 'Calendar Trigger',
+          type: 'google_calendar',
+          triggerMode: true,
+          canonicalModes,
+          subBlocks,
+        },
+      ],
+      () => null
+    )
+
+    expect(remapped.subBlocks).toMatchObject({
+      credential: { value: '' },
+      manualCredential: { value: '' },
+      triggerCredentials: { value: 'trigger-target' },
+    })
+    expect(remapped.references.map((ref) => ref.sourceId)).toEqual(['trigger-live'])
+    expect(scan.references.map((ref) => ref.sourceId)).toEqual(['trigger-live'])
+  })
+
+  it.each([
+    ['action', false, []],
+    ['trigger', true, ['hidden-trigger-credential']],
+  ] as const)(
+    '%s surface handles Airtable trigger credentials correctly',
+    (_, triggerMode, refs) => {
+      vi.mocked(getBlock).mockReturnValue(
+        blockWith([...mixedSurfaceCredentialConfigs.action, mixedSurfaceCredentialConfigs.trigger])
+      )
+      const subBlocks: SubBlockRecord = {
+        triggerCredentials: { type: 'oauth-input', value: 'hidden-trigger-credential' },
+      }
+
+      const remapped = remapForkSubBlocks(subBlocks, () => null, 'promote', {
+        blockType: 'airtable',
+        triggerMode,
+      })
+      const scan = scanWorkflowReferences(
+        [
+          {
+            id: 'b1',
+            name: 'Airtable Action',
+            type: 'airtable',
+            triggerMode,
+            subBlocks,
+          },
+        ],
+        () => null
+      )
+
+      expect(remapped.subBlocks.triggerCredentials.value).toBe('')
+      expect(remapped.references.map((ref) => ref.sourceId)).toEqual(refs)
+      expect(remapped.unmapped.map((ref) => ref.sourceId)).toEqual(refs)
+      expect(scan.references.map((ref) => ref.sourceId)).toEqual(refs)
+    }
+  )
 })
 
 describe('collectClearedDependents', () => {
+  it.each([
+    ['action', false, []],
+    ['trigger', true, ['labelIds']],
+  ] as const)('%s surface reports only live Gmail trigger fields', (_, triggerMode, expected) => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        ...mixedSurfaceCredentialConfigs.action,
+        mixedSurfaceCredentialConfigs.trigger,
+        {
+          id: 'labelIds',
+          title: 'Gmail Labels to Monitor',
+          type: 'dropdown',
+          mode: 'trigger',
+          dependsOn: ['triggerCredentials'],
+        },
+      ])
+    )
+    const targetDraft: SubBlockRecord = {
+      triggerCredentials: { type: 'oauth-input', value: 'trigger-credential' },
+      labelIds: { type: 'dropdown', value: ['INBOX'] },
+    }
+    const merged: SubBlockRecord = {
+      triggerCredentials: { type: 'oauth-input', value: '' },
+      labelIds: { type: 'dropdown', value: [] },
+    }
+
+    expect(
+      collectClearedDependents(
+        'gmail',
+        'b1',
+        'Gmail Action',
+        targetDraft,
+        merged,
+        undefined,
+        triggerMode
+      )
+    ).toEqual(expected.map((subBlockKey) => expect.objectContaining({ subBlockKey })))
+  })
+
   it('flags a required dependent the target had set but the merge left empty', () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([
@@ -1004,6 +1188,49 @@ describe('collectClearedDependents', () => {
         required: true,
       },
     ])
+  })
+
+  it('does not flag a trigger-only dependent nested inside an Agent tool', () => {
+    vi.mocked(getBlock).mockImplementation((type) => {
+      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+      if (type === 'mixedblock')
+        return blockWith([
+          ...mixedToolCanonicalSubBlocks,
+          {
+            id: 'triggerFolder',
+            title: 'Trigger Folder',
+            type: 'folder-selector',
+            dependsOn: ['triggerCredentials'],
+            required: true,
+            mode: 'trigger',
+          },
+        ])
+      return undefined as unknown as BlockConfig
+    })
+    const targetDraft: SubBlockRecord = {
+      tools: entry('tools', 'tool-input', [
+        {
+          type: 'mixedblock',
+          title: 'Mixed',
+          params: { credential: 'c-target', triggerFolder: 'TRIGGER' },
+        },
+      ]),
+    }
+    const merged: SubBlockRecord = {
+      tools: entry('tools', 'tool-input', [
+        {
+          type: 'mixedblock',
+          title: 'Mixed',
+          params: { credential: 'c-new', triggerFolder: '' },
+        },
+      ]),
+    }
+
+    expect(
+      collectClearedDependents('agent', 'b1', 'Agent', targetDraft, merged, {
+        '0:oauthCredential': 'basic',
+      })
+    ).toEqual([])
   })
 })
 

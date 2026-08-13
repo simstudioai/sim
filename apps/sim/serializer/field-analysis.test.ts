@@ -7,6 +7,7 @@
  */
 import { blocksMock, toolsMetadataMock, toolsUtilsMock } from '@sim/testing/mocks'
 import { describe, expect, it, vi } from 'vitest'
+import { GoogleCalendarBlock } from '@/blocks/blocks/google_calendar'
 
 const { svcConfig } = vi.hoisted(() => ({ svcConfig: { value: null as any } }))
 
@@ -213,5 +214,85 @@ describe('extractBlockParams', () => {
     expect(params.cred).toBe('cred_123')
     expect(params.credential).toBeUndefined()
     expect(params.manualCredential).toBeUndefined()
+  })
+
+  it.each([
+    {
+      name: 'explicit action Basic clear',
+      overrides: {
+        data: { canonicalModes: { oauthCredential: 'basic' } },
+      },
+      values: ['', 'action-advanced', 'dormant-trigger'],
+      expected: '',
+    },
+    {
+      name: 'legacy action inference',
+      overrides: {},
+      values: ['', 'action-advanced', 'dormant-trigger'],
+      expected: 'action-advanced',
+    },
+    {
+      name: 'trigger surface with an action-only explicit Advanced mode',
+      overrides: {
+        triggerMode: true,
+        data: { canonicalModes: { oauthCredential: 'advanced' } },
+      },
+      values: ['dormant-action', 'dormant-action-advanced', 'trigger-basic'],
+      expected: 'trigger-basic',
+    },
+  ])('uses the active Google Calendar surface for $name', ({ overrides, values, expected }) => {
+    svcConfig.value = GoogleCalendarBlock
+    const [credential, manualCredential, triggerCredentials] = values
+
+    const params = extractBlockParams(
+      block({
+        type: 'svc',
+        ...overrides,
+        subBlocks: {
+          credential: { value: credential },
+          manualCredential: { value: manualCredential },
+          triggerCredentials: { value: triggerCredentials },
+        },
+      })
+    )
+
+    expect(params.oauthCredential).toBe(expected)
+    expect(params.credential).toBeUndefined()
+    expect(params.manualCredential).toBeUndefined()
+    expect(params.triggerCredentials).toBeUndefined()
+  })
+
+  it('uses trigger canonical pairs for a pure trigger block without a triggerMode flag', () => {
+    svcConfig.value = config(
+      [
+        ['actionSelector', 'project-selector', 'basic'],
+        ['actionManualId', 'short-input', 'advanced'],
+        ['triggerSelector', 'project-selector', 'trigger'],
+        ['triggerManualId', 'short-input', 'trigger-advanced'],
+      ].map(([id, type, mode]) => ({
+        id,
+        type,
+        canonicalParamId: 'resourceId',
+        mode,
+      })),
+      { category: 'triggers', triggers: { enabled: true } }
+    )
+
+    const params = extractBlockParams(
+      block({
+        type: 'svc',
+        data: { canonicalModes: { resourceId: 'basic' } },
+        subBlocks: {
+          actionSelector: { value: 'dormant-action' },
+          actionManualId: { value: 'dormant-action-advanced' },
+          triggerSelector: { value: 'trigger-basic' },
+          triggerManualId: { value: 'trigger-advanced' },
+        },
+      })
+    )
+
+    expect(params.resourceId).toBe('trigger-basic')
+    expect(params.triggerSelector).toBeUndefined()
+    expect(params.triggerManualId).toBeUndefined()
   })
 })

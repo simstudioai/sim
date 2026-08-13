@@ -32,7 +32,9 @@ import { extractReferencePrefixes } from '@/lib/workflows/sanitization/reference
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   hasAdvancedValues,
+  isPureTriggerBlockConfig,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,
@@ -1055,9 +1057,15 @@ function PreviewEditorContent({
     }, {})
   }, [subBlockValues])
 
+  const isPureTriggerBlock = isPureTriggerBlockConfig(blockConfig)
+  const triggerCanonicalSurface = block.triggerMode === true || isPureTriggerBlock
+  const canonicalSubBlocks = useMemo(
+    () => getCanonicalSubBlocksForSurface(blockConfig?.subBlocks || [], triggerCanonicalSurface),
+    [blockConfig?.subBlocks, triggerCanonicalSurface]
+  )
   const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
+    () => buildCanonicalIndex(canonicalSubBlocks),
+    [canonicalSubBlocks]
   )
 
   const isSubflow = block.type === 'loop' || block.type === 'parallel'
@@ -1115,9 +1123,8 @@ function PreviewEditorContent({
   const canonicalModeOverrides = block.data?.canonicalModes
   const effectiveAdvanced =
     (block.advancedMode ?? false) ||
-    hasAdvancedValues(blockConfig.subBlocks, rawValues, canonicalIndex)
+    hasAdvancedValues(canonicalSubBlocks, rawValues, canonicalIndex)
 
-  const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
   const effectiveTrigger = block.triggerMode === true
 
   const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {

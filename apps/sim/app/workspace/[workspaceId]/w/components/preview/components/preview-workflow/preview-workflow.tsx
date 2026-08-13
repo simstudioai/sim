@@ -484,6 +484,7 @@ export function PreviewWorkflow({
           isPreviewSelected: isSelected,
           executionStatus,
           subBlockValues: block.subBlocks,
+          canonicalModes: block.data?.canonicalModes,
           errorEnabled: block.errorEnabled === true,
           hasErrorConnection: blocksWithErrorEdge.has(blockId),
           lightweight,

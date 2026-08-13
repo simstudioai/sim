@@ -2,18 +2,31 @@ import { TableIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { listTablesContract } from '@/lib/api/contracts/tables'
 import type { TableDefinition } from '@/lib/table'
+import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
-import { readActiveWorkflowContext, readBlockValues } from '@/triggers/editor-state'
+import {
+  readActiveWorkflowContext,
+  readBlockCanonicalModes,
+  readBlockValues,
+} from '@/triggers/editor-state'
 import type { TriggerConfig } from '@/triggers/types'
 
 async function fetchTableColumns(blockId: string): Promise<Array<{ label: string; id: string }>> {
   const { activeWorkflowId, workspaceId } = await readActiveWorkflowContext()
   if (!activeWorkflowId || !workspaceId) return []
 
-  const blockValues = await readBlockValues(blockId)
-  const tableId = (blockValues?.tableSelector as string) || (blockValues?.manualTableId as string)
-  if (!tableId) return []
+  const [blockValues, canonicalModes] = await Promise.all([
+    readBlockValues(blockId),
+    readBlockCanonicalModes(blockId),
+  ])
+  const tableId = resolveDependencyValue(
+    'tableId',
+    blockValues ?? {},
+    TABLE_TRIGGER_CANONICAL_INDEX,
+    canonicalModes
+  )
+  if (typeof tableId !== 'string' || !tableId) return []
 
   const tables = await getQueryClient().fetchQuery({
     queryKey: tableKeys.list(workspaceId),
@@ -158,3 +171,5 @@ export const tableNewRowTrigger: TriggerConfig = {
     },
   },
 }
+
+const TABLE_TRIGGER_CANONICAL_INDEX = buildCanonicalIndex(tableNewRowTrigger.subBlocks)

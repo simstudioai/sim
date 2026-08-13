@@ -32,6 +32,7 @@ import {
   buildSubBlockValues,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
@@ -198,10 +199,15 @@ function getVisiblePreviewSubBlocks(block: BlockState): {
     rawValues.__canonicalModes = canonicalModeOverrides
   }
 
-  const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+  const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
+  const canonicalIndex = buildCanonicalIndex(
+    getCanonicalSubBlocksForSurface(
+      blockConfig.subBlocks,
+      Boolean(block.triggerMode) || Boolean(isPureTriggerBlock)
+    )
+  )
   const effectiveAdvanced = Boolean(block.advancedMode)
   const effectiveTrigger = Boolean(block.triggerMode)
-  const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
 
   const visibleSubBlocks = blockConfig.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.hideFromPreview) return false

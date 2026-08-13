@@ -12,6 +12,7 @@ import {
   SEARCH_REPLACE_BLOCK_CONFIGS,
 } from '@/lib/workflows/search-replace/search-replace.fixtures'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
+import type { SubBlockConfig } from '@/blocks/types'
 
 /**
  * Uses the real tool registry. Nothing here imports it directly — the dependency
@@ -23,6 +24,33 @@ import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replac
  * 8 tests across this file and its sibling suite.
  */
 vi.unmock('@/tools/registry')
+
+const mixedCredentialSelectorSubBlocks: SubBlockConfig[] = [
+  {
+    id: 'credential',
+    title: 'Credential',
+    type: 'oauth-input',
+    canonicalParamId: 'oauthCredential',
+    mode: 'basic',
+    paramVisibility: 'user-only',
+  },
+  {
+    id: 'triggerCredentials',
+    title: 'Trigger Credential',
+    type: 'oauth-input',
+    canonicalParamId: 'oauthCredential',
+    mode: 'trigger',
+    paramVisibility: 'user-only',
+  },
+  {
+    id: 'channel',
+    title: 'Channel',
+    type: 'channel-selector',
+    selectorKey: 'slack.channels',
+    dependsOn: ['oauthCredential'],
+    paramVisibility: 'user-or-llm',
+  },
+]
 
 describe('indexWorkflowSearchMatches', () => {
   it('marks generic tool-param fallbacks as non-authoritative', () => {
@@ -718,6 +746,41 @@ describe('indexWorkflowSearchMatches', () => {
     expect(triggerConfigMatches).toHaveLength(1)
     expect(triggerConfigMatches[0].subBlockId).toBe('triggerConfig')
     expect(triggerManualMatches).toEqual([])
+  })
+
+  it('does not put a dormant trigger credential in an action selector context', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['surface-1'] = {
+      id: 'surface-1',
+      type: 'custom',
+      name: 'Surface Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      data: { canonicalModes: { oauthCredential: 'basic' } },
+      subBlocks: {
+        credential: { id: 'credential', type: 'oauth-input', value: '' },
+        triggerCredentials: {
+          id: 'triggerCredentials',
+          type: 'oauth-input',
+          value: 'dormant-trigger',
+        },
+        channel: { id: 'channel', type: 'channel-selector', value: 'C123' },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'C123',
+      mode: 'resource',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: { subBlocks: mixedCredentialSelectorSubBlocks },
+      },
+    }).filter((match) => match.blockId === 'surface-1')
+
+    expect(matches).toHaveLength(1)
+    expect(matches[0].resource?.selectorContext).toBeUndefined()
   })
 
   it('does not index fixed-choice dropdown values as text replacements', () => {
@@ -1756,6 +1819,57 @@ describe('indexWorkflowSearchMatches', () => {
         }),
       }),
     ])
+  })
+
+  it('does not use a trigger-only alias in an Agent tool selector context', () => {
+    const workflow = createSearchReplaceWorkflowFixture()
+    workflow.blocks['tool-input-1'] = {
+      id: 'tool-input-1',
+      type: 'custom',
+      name: 'Tool Input Block',
+      position: { x: 0, y: 0 },
+      enabled: true,
+      outputs: {},
+      data: { canonicalModes: { '0:oauthCredential': 'basic' } },
+      subBlocks: {
+        tools: {
+          id: 'tools',
+          type: 'tool-input',
+          value: [
+            {
+              type: 'slack',
+              toolId: 'slack_message',
+              operation: 'send',
+              title: 'Slack message',
+              params: {
+                credential: '',
+                triggerCredentials: 'dormant-trigger',
+                channel: 'COLD',
+                text: 'message',
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const matches = indexWorkflowSearchMatches({
+      workflow,
+      query: 'COLD',
+      mode: 'resource',
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      blockConfigs: {
+        ...SEARCH_REPLACE_BLOCK_CONFIGS,
+        custom: {
+          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
+        },
+        slack: { subBlocks: mixedCredentialSelectorSubBlocks },
+      },
+    }).filter((match) => match.kind === 'selector-resource')
+
+    expect(matches).toHaveLength(1)
+    expect(matches[0].resource?.selectorContext).not.toHaveProperty('oauthCredential')
   })
 
   it('indexes tool-input titles as non-editable display labels', () => {

@@ -1618,6 +1618,12 @@ describe('transformBlockTool multi-instance unique IDs', () => {
         canonicalParamId: 'tableId',
         mode: 'advanced',
       },
+      {
+        id: 'triggerManualTableId',
+        type: 'short-input',
+        canonicalParamId: 'tableId',
+        mode: 'trigger-advanced',
+      },
     ],
     tools: {
       access: ['table_query_rows', 'table_insert_row'],
@@ -1742,14 +1748,56 @@ describe('transformBlockTool multi-instance unique IDs', () => {
     expect(result?.id).toBe('table_query_rows_tbl_direct')
   })
 
-  it('preserves the canonical table id when advanced mode is active', async () => {
-    const result = await transformTable(
-      { tableId: 'tbl_advanced', tableSelector: 'tbl_basic' },
-      { '0:tableId': 'advanced' },
-      0
-    )
-    expect(result?.id).toBe('table_query_rows_tbl_advanced')
-    expect(result?.paramsTransform?.(result.params)).toEqual({ tableId: 'tbl_advanced' })
+  it.each([
+    [
+      'drops a stale direct id when the selected member is explicitly cleared',
+      { tableId: 'tbl_stale', tableSelector: 'tbl_inactive', manualTableId: '' },
+      { '0:tableId': 'advanced' as const },
+      0,
+      'table_query_rows',
+      {},
+    ],
+    [
+      'does not execute a trigger-only alias as an Agent tool parameter',
+      { manualTableId: '', triggerManualTableId: 'tbl_trigger' },
+      { '0:tableId': 'advanced' as const },
+      0,
+      'table_query_rows',
+      {},
+    ],
+    [
+      'keeps a legacy direct id when only the inactive raw member is present',
+      { tableId: 'tbl_advanced', tableSelector: 'tbl_inactive' },
+      { '0:tableId': 'advanced' as const },
+      0,
+      'table_query_rows_tbl_advanced',
+      { tableId: 'tbl_advanced' },
+    ],
+    [
+      'prefers a selected raw member over a stale direct id',
+      {
+        tableId: 'tbl_stale',
+        tableSelector: 'tbl_current',
+        manualTableId: 'tbl_inactive',
+      },
+      { '0:tableId': 'basic' as const },
+      0,
+      'table_query_rows_tbl_current',
+      { tableId: 'tbl_current' },
+    ],
+    [
+      'preserves a legacy type-scoped mode when no index-scoped mode exists',
+      { tableSelector: 'tbl_basic', manualTableId: 'tbl_advanced' },
+      { 'table:tableId': 'advanced' as const },
+      undefined,
+      'table_query_rows_tbl_advanced',
+      { tableId: 'tbl_advanced' },
+    ],
+  ] as const)('%s', async (_, params, modes, toolIndex, expectedId, expectedParams) => {
+    const result = await transformTable(params, modes, toolIndex)
+
+    expect(result?.id).toBe(expectedId)
+    expect(result?.paramsTransform?.(result.params)).toEqual(expectedParams)
   })
 
   it('falls back to the base tool id when no table is selected', async () => {

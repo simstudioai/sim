@@ -483,10 +483,16 @@ export async function copyWorkflowStateIntoTarget(
       block.data as { canonicalModes?: Record<string, 'basic' | 'advanced'> } | undefined
     )?.canonicalModes
     if (transformSubBlocks) {
-      subBlocks = transformSubBlocks(subBlocks, block.type, activeCanonicalModes, (next) => {
-        activeCanonicalModes = next
-        updatedData = { ...updatedData, canonicalModes: next } as BlockData
-      })
+      subBlocks = transformSubBlocks(
+        subBlocks,
+        block.type,
+        activeCanonicalModes,
+        (next) => {
+          activeCanonicalModes = next
+          updatedData = { ...updatedData, canonicalModes: next } as BlockData
+        },
+        block.triggerMode
+      )
     }
     if (varIdMapping.size > 0) {
       subBlocks = remapVariableIdsInSubBlocks(subBlocks, varIdMapping)
@@ -527,7 +533,8 @@ export async function copyWorkflowStateIntoTarget(
           block.name,
           targetCurrent,
           subBlocks,
-          activeCanonicalModes
+          activeCanonicalModes,
+          block.triggerMode
         )
       )
     }

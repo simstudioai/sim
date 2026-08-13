@@ -358,6 +358,7 @@ describe('copyWorkflowStateIntoTarget canonicalModes reindex propagation', () =>
     async () => {
       mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
       const seenCanonicalModes: Array<Record<string, 'basic' | 'advanced'> | undefined> = []
+      const seenTriggerModes: Array<boolean | undefined> = []
       const tx = {
         insert: () => ({ values: () => Promise.resolve() }),
       } as unknown as DbOrTx
@@ -373,8 +374,9 @@ describe('copyWorkflowStateIntoTarget canonicalModes reindex propagation', () =>
           blocks: {
             block1: {
               id: 'block1',
-              type: 'agent',
-              name: 'Agent',
+              type: 'mixed_trigger_test',
+              name: 'Mixed Trigger',
+              triggerMode: true,
               subBlocks: {},
               // The source's ORIGINAL (pre-drop) canonicalModes - every step after the
               // transform must see the REINDEXED value below instead, not this one.
@@ -393,8 +395,15 @@ describe('copyWorkflowStateIntoTarget canonicalModes reindex propagation', () =>
         // Simulates a `tool-input` drop shifting tool 1 -> 0: returns subBlocks unchanged but
         // reports the reindexed canonicalModes via the callback, exactly like
         // `createForkBootstrapTransform`/`createForkSubBlockTransform` do.
-        transformSubBlocks: (subBlocks, _blockType, canonicalModes, onCanonicalModesChanged) => {
+        transformSubBlocks: (
+          subBlocks,
+          _blockType,
+          canonicalModes,
+          onCanonicalModesChanged,
+          triggerMode
+        ) => {
           seenCanonicalModes.push(canonicalModes)
+          seenTriggerModes.push(triggerMode)
           onCanonicalModesChanged?.({ '0:credential': 'advanced' })
           return subBlocks
         },
@@ -406,6 +415,7 @@ describe('copyWorkflowStateIntoTarget canonicalModes reindex propagation', () =>
       }
       // The transform received the source's original value...
       expect(seenCanonicalModes).toEqual([{ '1:credential': 'advanced' }])
+      expect(seenTriggerModes).toEqual([true])
       // ...and the PERSISTED block carries the reindexed one, not the stale source value.
       expect(persistedBlock.data?.canonicalModes).toEqual({ '0:credential': 'advanced' })
     }

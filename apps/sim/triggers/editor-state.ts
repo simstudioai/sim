@@ -39,6 +39,14 @@ export async function readBlockValues(
   return useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[blockId]
 }
 
+/** The persisted Basic/Advanced choices for `blockId` in the open workflow. */
+export async function readBlockCanonicalModes(
+  blockId: string
+): Promise<Record<string, 'basic' | 'advanced'> | undefined> {
+  const { useWorkflowStore } = await import('@/stores/workflows/workflow/store')
+  return useWorkflowStore.getState().blocks[blockId]?.data?.canonicalModes
+}
+
 /** The active workspace's workflows, for trigger sub-blocks that select other workflows. */
 export async function readWorkspaceWorkflowOptions(options?: {
   excludeActiveWorkflow?: boolean

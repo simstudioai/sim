@@ -23,8 +23,10 @@ import {
   buildSubBlockValues,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   isCanonicalPair,
   isNonEmptyValue,
+  isPureTriggerBlockConfig,
   reindexCanonicalModesByPosition,
   resolveActiveCanonicalValue,
   resolveCanonicalMode,
@@ -204,7 +206,8 @@ export type SubBlockTransform = (
   subBlocks: SubBlockRecord,
   blockType: string,
   canonicalModes?: CanonicalModeOverrides,
-  onCanonicalModesChanged?: (next: CanonicalModeOverrides) => void
+  onCanonicalModesChanged?: (next: CanonicalModeOverrides) => void,
+  triggerMode?: boolean
 ) => SubBlockRecord
 
 /**
@@ -216,6 +219,8 @@ export type SubBlockTransform = (
  * through verbatim, and a dormant member's value is cleared and never detected.
  */
 export interface CanonicalModeGates {
+  /** The key belongs to the block's inactive action/trigger surface. */
+  isInactiveSurfaceMember: (subBlockKey: string) => boolean
   /** The key is a pair member that is NOT the pair's active member. */
   isDormantMember: (subBlockKey: string) => boolean
   /** The key is the pair's ACTIVE advanced member - the live, user-owned manual field. */
@@ -229,6 +234,7 @@ export interface CanonicalModeGates {
 }
 
 const NO_GATES: CanonicalModeGates = {
+  isInactiveSurfaceMember: () => false,
   isDormantMember: () => false,
   isActiveManualMember: () => false,
   isManualParentDependent: () => false,
@@ -277,6 +283,7 @@ export function createCanonicalModeGates(
   }
 
   return {
+    isInactiveSurfaceMember: () => false,
     isDormantMember: (subBlockKey) => {
       const baseKey = baseKeyOf(subBlockKey)
       const group = groupFor(baseKey)
@@ -306,14 +313,56 @@ export function createCanonicalModeGates(
   }
 }
 
-/** Per-block context for the fork remap. `blockType`/`canonicalModes` gate DETECTION (not rewrite). */
+/**
+ * Build canonical gates for the block surface that can execute. Mixed action/trigger blocks may
+ * reuse one canonical id across both surfaces, so the full config would let an action-only mode
+ * mark a live trigger member dormant. Canonical members on the other surface remain dormant so
+ * their workspace-scoped values are cleaned up; every other off-surface field is separately marked
+ * inactive so it cannot become a reference blocker or needs-configuration prompt.
+ */
+export function createBlockCanonicalModeGates(
+  config: ReturnType<typeof getBlock>,
+  values: Record<string, unknown>,
+  canonicalModes?: CanonicalModeOverrides,
+  triggerMode?: boolean
+): CanonicalModeGates {
+  if (!config) return NO_GATES
+  const triggerSurface = triggerMode === true || isPureTriggerBlockConfig(config)
+  const activeSubBlocks = getCanonicalSubBlocksForSurface(config.subBlocks, triggerSurface)
+  const activeGates = createCanonicalModeGates(activeSubBlocks, values, canonicalModes)
+  const activeIds = new Set(activeSubBlocks.map((subBlock) => subBlock.id).filter(Boolean))
+  const inactiveSurfaceIds = new Set(
+    config.subBlocks
+      .filter((subBlock) => subBlock.id && !activeIds.has(subBlock.id))
+      .map((subBlock) => subBlock.id)
+  )
+  const dormantSurfaceIds = new Set(
+    config.subBlocks
+      .filter((subBlock) => subBlock.canonicalParamId && inactiveSurfaceIds.has(subBlock.id))
+      .map((subBlock) => subBlock.id)
+  )
+  if (inactiveSurfaceIds.size === 0) return activeGates
+
+  return {
+    ...activeGates,
+    isInactiveSurfaceMember: (subBlockKey) =>
+      inactiveSurfaceIds.has(subBlockKey.replace(/_\d+$/, '')),
+    isDormantMember: (subBlockKey) =>
+      dormantSurfaceIds.has(subBlockKey.replace(/_\d+$/, '')) ||
+      activeGates.isDormantMember(subBlockKey),
+  }
+}
+
+/** Per-block context for surface-aware fork remapping and reference detection. */
 export interface RemapForkContext {
   blockId?: string
   blockName?: string
-  /** Block type, to build the canonical index for active-member DETECTION gating (rewrite unaffected). */
+  /** Block type, used to build the canonical index for the active action/trigger surface. */
   blockType?: string
   /** Canonical-mode overrides (`block.data.canonicalModes`), picking the active member per pair. */
   canonicalModes?: CanonicalModeOverrides
+  /** Whether this mixed action/trigger block is currently using its trigger surface. */
+  triggerMode?: boolean
   /** Target MCP server row lookup for rewriting remapped tool-input entries' server metadata. */
   resolveMcpServerMeta?: ForkMcpServerMetaResolver
   /**
@@ -418,7 +467,16 @@ export function remapToolBlockResources(
     opts.toolIndex,
     tool.type
   )
-  const toolBlockSubBlocks = (opts.blockConfigs?.[tool.type] ?? getBlock(tool.type))?.subBlocks
+  const allToolBlockSubBlocks = (opts.blockConfigs?.[tool.type] ?? getBlock(tool.type))?.subBlocks
+  const toolBlockSubBlocks = allToolBlockSubBlocks
+    ? getCanonicalSubBlocksForSurface(allToolBlockSubBlocks, false)
+    : undefined
+  const actionToolSubBlockIds = new Set(toolBlockSubBlocks?.map((config) => config.id) ?? [])
+  const inactiveToolSurfaceIds = new Set(
+    allToolBlockSubBlocks
+      ?.filter((config) => !actionToolSubBlockIds.has(config.id))
+      .map((config) => config.id) ?? []
+  )
   const gates = createCanonicalModeGates(toolBlockSubBlocks, toolValues, scopedModes)
 
   // Clear DORMANT member keys first: a stale inactive value must not survive the copy (and must
@@ -435,6 +493,7 @@ export function remapToolBlockResources(
   // params so they're caught even when their config is filtered out by a reactive condition
   // (the registry loop below would otherwise miss them). Dormant members were cleared above.
   for (const paramId of Object.keys(params)) {
+    if (inactiveToolSurfaceIds.has(paramId)) continue
     const overrideKind = getToolParamOverrideKind(paramId)
     if (!overrideKind) continue
     if (gates.isDormantMember(paramId)) continue
@@ -825,7 +884,7 @@ export function remapForkSubBlocks(
     if (!mapped) unmapped.set(key, reference)
   }
 
-  // Mode policy (see {@link createCanonicalModeGates}): only the ACTIVE canonical member is a
+  // Mode policy (see {@link createBlockCanonicalModeGates}): only the ACTIVE canonical member is a
   // real reference. An active BASIC selector is remapped + detected (mapping/copy/blockers); an
   // active ADVANCED (manual) member - and every dependent scoped to it - passes through VERBATIM
   // (user-owned, never remapped, never a mapping requirement); a DORMANT member's value is
@@ -833,10 +892,11 @@ export function remapForkSubBlocks(
   // subblock is still rewritten but not detected. Needs `blockType` for the config; an unknown
   // block type gets no gating (everything detected, nothing passed through - the conservative
   // default).
-  const gates = createCanonicalModeGates(
-    context?.blockType ? getBlock(context.blockType)?.subBlocks : undefined,
+  const gates = createBlockCanonicalModeGates(
+    context?.blockType ? getBlock(context.blockType) : undefined,
     buildSubBlockValues(subBlocks),
-    context?.canonicalModes
+    context?.canonicalModes,
+    context?.triggerMode
   )
 
   for (const [subBlockKey, subBlock] of Object.entries(subBlocks)) {
@@ -867,7 +927,11 @@ export function remapForkSubBlocks(
     const verbatimManual =
       !dormant &&
       (gates.isActiveManualMember(subBlockKey) || gates.isManualParentDependent(subBlockKey))
-    const detectionSkipped = dormant || verbatimManual || gates.isConditionHidden(subBlockKey)
+    const detectionSkipped =
+      dormant ||
+      gates.isInactiveSurfaceMember(subBlockKey) ||
+      verbatimManual ||
+      gates.isConditionHidden(subBlockKey)
     // `{{ENV}}` detection is gated on EXECUTION, not on ownership. A dormant member and a
     // condition-hidden field never execute, so their refs must not become sync blockers - but an
     // ACTIVE MANUAL member is exactly the value that DOES execute, and its `{{KEY}}` is a live
@@ -877,7 +941,8 @@ export function remapForkSubBlocks(
     // missing that secret silently passed the required-env gate instead of blocking the sync.
     // Resource-id detection keeps `verbatimManual` (a hand-typed id stays a user-owned escape
     // hatch); only env refs, which are never workspace-scoped ids, are detected here.
-    const envDetectionSkipped = dormant || gates.isConditionHidden(subBlockKey)
+    const envDetectionSkipped =
+      dormant || gates.isInactiveSurfaceMember(subBlockKey) || gates.isConditionHidden(subBlockKey)
     if (dormant && isNonEmptyValue(value)) {
       value = ''
     }
@@ -1065,7 +1130,9 @@ export function clearDependentsOnRemap(
   remappedKeys: ReadonlySet<string>,
   canonicalModes?: CanonicalModeOverrides,
   /** Keys remapped via a COPY (see {@link RemapSubBlocksResult.copyRemappedKeys}). */
-  copyRemappedKeys?: ReadonlySet<string>
+  copyRemappedKeys?: ReadonlySet<string>,
+  /** Whether this mixed action/trigger block is currently using its trigger surface. */
+  triggerMode?: boolean
 ): SubBlockRecord {
   if (remappedKeys.size === 0) return subBlocks
   const config = getBlock(blockType)
@@ -1076,10 +1143,11 @@ export function clearDependentsOnRemap(
   // (only the active mode is serialized). With `canonicalModes` absent the value heuristic keeps a
   // populated basic member active, so this is a no-op for the normal case; the gate only bites the
   // toggle-with-stale-dormant edge (advanced active + a dormant basic that was remapped).
-  const gates = createCanonicalModeGates(
-    config.subBlocks,
+  const gates = createBlockCanonicalModeGates(
+    config,
     buildSubBlockValues(subBlocks),
-    canonicalModes
+    canonicalModes,
+    triggerMode
   )
 
   // The exemption's parent test: an mcp-server selector whose POST-remap value is non-empty was
@@ -1225,6 +1293,7 @@ function collectClearedToolParamDependents(
     if (!isRecord(targetTool) || targetTool.type !== tool.type) continue
     const toolConfig = getBlock(tool.type)
     if (!toolConfig) continue
+    const actionToolSubBlocks = getCanonicalSubBlocksForSurface(toolConfig.subBlocks, false)
     const targetParams = isRecord(targetTool.params) ? targetTool.params : {}
     const mergedParams = isRecord(tool.params) ? tool.params : {}
     // A tool's `operation` lives at the tool level, not in params, but conditions
@@ -1237,12 +1306,12 @@ function collectClearedToolParamDependents(
     // active member executes). Modes resolve like the tool-input UI: tool-scoped overrides,
     // then the value heuristic over the merged params.
     const gates = createCanonicalModeGates(
-      toolConfig.subBlocks,
+      actionToolSubBlocks,
       mergedValues,
       scopeCanonicalModesForTool(parentCanonicalModes, index, tool.type)
     )
     const toolLabel = typeof tool.title === 'string' && tool.title ? tool.title : toolConfig.name
-    for (const cfg of toolConfig.subBlocks) {
+    for (const cfg of actionToolSubBlocks) {
       if (!cfg.dependsOn || !cfg.id) continue
       // Only flag a param the TARGET tool had configured (not one the source carried in).
       if (!isNonEmptyValue(targetParams[cfg.id])) continue
@@ -1280,7 +1349,8 @@ export function collectClearedDependents(
   blockName: string,
   targetCurrentSubBlocks: SubBlockRecord,
   mergedSubBlocks: SubBlockRecord,
-  canonicalModes?: CanonicalModeOverrides
+  canonicalModes?: CanonicalModeOverrides,
+  triggerMode?: boolean
 ): NeedsConfigurationField[] {
   const config = getBlock(blockType)
   if (!config) return []
@@ -1288,10 +1358,11 @@ export function collectClearedDependents(
   const mergedValues = buildSubBlockValues(mergedSubBlocks)
   // A DORMANT canonical member the merge cleared is not a lost configuration - only the pair's
   // active member executes, so an inactive slot must never demand a re-pick.
-  const gates = createCanonicalModeGates(config.subBlocks, mergedValues, canonicalModes)
+  const gates = createBlockCanonicalModeGates(config, mergedValues, canonicalModes, triggerMode)
   const fields: NeedsConfigurationField[] = []
   for (const cfg of config.subBlocks) {
     if (!cfg.id) continue
+    if (gates.isInactiveSurfaceMember(cfg.id)) continue
     // Only flag a field the target had configured (so the user lost their own selection),
     // still empty after merge, and currently active (a value under a now-inactive
     // `condition`/operation or a dormant canonical member isn't really in play).
@@ -1497,10 +1568,11 @@ export function createForkSubBlockTransform(
     isCopiedTarget?: (kind: ForkRemapKind, sourceId: string) => boolean
   }
 ): SubBlockTransform {
-  return (subBlocks, blockType, canonicalModes, onCanonicalModesChanged) => {
+  return (subBlocks, blockType, canonicalModes, onCanonicalModesChanged, triggerMode) => {
     const result = remapSubBlocks(subBlocks, resolve, {
       blockType,
       canonicalModes,
+      triggerMode,
       resolveMcpServerMeta: options?.resolveMcpServerMeta,
       isCopiedTarget: options?.isCopiedTarget,
     })
@@ -1510,7 +1582,8 @@ export function createForkSubBlockTransform(
       blockType,
       result.remappedKeys,
       result.canonicalModes ?? canonicalModes,
-      result.copyRemappedKeys
+      result.copyRemappedKeys,
+      triggerMode
     )
   }
 }
@@ -1534,6 +1607,8 @@ export function scanWorkflowReferences(
     subBlocks: unknown
     /** `block.data.canonicalModes`, picking the active member per canonical pair for detection. */
     canonicalModes?: CanonicalModeOverrides
+    /** Whether this mixed action/trigger block is currently using its trigger surface. */
+    triggerMode?: boolean
   }>,
   resolve: ForkReferenceResolver
 ): WorkflowReferenceScan {
@@ -1549,6 +1624,7 @@ export function scanWorkflowReferences(
       blockName: block.name,
       blockType: block.type,
       canonicalModes: block.canonicalModes,
+      triggerMode: block.triggerMode,
     })
     for (const reference of blockResult.references) {
       const key = `${reference.kind}:${reference.sourceId}`

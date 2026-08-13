@@ -29,7 +29,10 @@ import {
 } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
+  type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
+  isPureTriggerBlockConfig,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,
@@ -84,6 +87,8 @@ interface WorkflowPreviewBlockData {
   executionStatus?: ExecutionStatus
   /** Subblock values from the workflow state */
   subBlockValues?: Record<string, SubBlockValueEntry | unknown>
+  /** Persisted Basic/Advanced selections for canonical subblock pairs. */
+  canonicalModes?: CanonicalModeOverrides
   /**
    * Whether the block routes its failures to a second output. The port is the
    * rendered half of that choice, so it only exists when the choice was made —
@@ -231,6 +236,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     isPreviewSelected = false,
     executionStatus,
     subBlockValues,
+    canonicalModes,
     errorEnabled = false,
     hasErrorConnection = false,
     lightweight = false,
@@ -238,9 +244,15 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
 
   const blockConfig = getBlock(type)
 
+  const isPureTriggerBlock = isPureTriggerBlockConfig(blockConfig)
+  const triggerCanonicalSurface = isTrigger || type === 'starter' || isPureTriggerBlock
+  const canonicalSubBlocks = useMemo(
+    () => getCanonicalSubBlocksForSurface(blockConfig?.subBlocks || [], triggerCanonicalSurface),
+    [blockConfig?.subBlocks, triggerCanonicalSurface]
+  )
   const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
+    () => buildCanonicalIndex(canonicalSubBlocks),
+    [canonicalSubBlocks]
   )
 
   const rawValues = useMemo(() => {
@@ -266,7 +278,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
   const displayableSubBlocks = useMemo(() => {
     if (!blockConfig?.subBlocks) return []
 
-    const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
     const effectiveTrigger = isTrigger || type === 'starter'
 
     return blockConfig.subBlocks.filter((subBlock) => {
@@ -289,7 +300,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       /** Skip value-dependent visibility checks in lightweight mode */
       if (lightweight) return !subBlock.condition
 
-      if (!isSubBlockVisibleForMode(subBlock, false, canonicalIndex, rawValues, undefined)) {
+      if (!isSubBlockVisibleForMode(subBlock, false, canonicalIndex, rawValues, canonicalModes)) {
         return false
       }
       if (subBlock.condition && !evaluateSubBlockCondition(subBlock.condition, rawValues)) {
@@ -311,6 +322,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     type,
     isTrigger,
     canonicalIndex,
+    canonicalModes,
     rawValues,
     canvasPresentation,
   ])
@@ -702,7 +714,8 @@ function shouldSkipPreviewBlockRender(
     prevProps.data.executionStatus !== nextProps.data.executionStatus ||
     prevProps.data.errorEnabled !== nextProps.data.errorEnabled ||
     prevProps.data.hasErrorConnection !== nextProps.data.hasErrorConnection ||
-    prevProps.data.lightweight !== nextProps.data.lightweight
+    prevProps.data.lightweight !== nextProps.data.lightweight ||
+    !areCanonicalModesEqual(prevProps.data.canonicalModes, nextProps.data.canonicalModes)
   ) {
     return false
   }
@@ -726,6 +739,20 @@ function shouldSkipPreviewBlockRender(
   }
 
   return true
+}
+
+function areCanonicalModesEqual(
+  previous: CanonicalModeOverrides | undefined,
+  next: CanonicalModeOverrides | undefined
+): boolean {
+  if (previous === next) return true
+  if (!previous || !next) return false
+
+  const previousKeys = Object.keys(previous)
+  const nextKeys = Object.keys(next)
+  if (previousKeys.length !== nextKeys.length) return false
+
+  return previousKeys.every((key) => previous[key] === next[key])
 }
 
 /**

@@ -9,6 +9,7 @@ vi.unmock('@/blocks/registry')
 
 import * as blocksBarrel from '@/blocks'
 import { getBlock as getRealBlock } from '@/blocks/registry'
+import { extractBlockParams } from '@/serializer'
 import {
   backfillCanonicalModes,
   migrateSubblockIds,
@@ -39,6 +40,8 @@ function makeBlock(overrides: Partial<BlockState> & { type: string }): BlockStat
     ...overrides,
   } as BlockState
 }
+
+const stored = (value: unknown) => ({ value }) as BlockState['subBlocks'][string]
 
 /**
  * `dropParkedSubblocks` deletes any subblock whose id starts with `_removed_`,
@@ -435,6 +438,87 @@ describe('migrateSubblockIds', () => {
 })
 
 describe('backfillCanonicalModes', () => {
+  it.each([
+    {
+      name: 'action',
+      triggerMode: false,
+      values: ['action-basic', 'action-advanced', 'dormant-trigger'],
+      calendarId: undefined,
+      expectedModes: { oauthCredential: 'basic' },
+      absentMode: undefined,
+      expectedCredential: 'action-basic',
+    },
+    {
+      name: 'trigger',
+      triggerMode: true,
+      values: ['dormant-action', 'dormant-action-advanced', 'trigger-basic'],
+      calendarId: 'trigger-calendar',
+      expectedModes: { calendarId: 'basic' },
+      absentMode: 'oauthCredential',
+      expectedCredential: 'trigger-basic',
+    },
+  ])(
+    'backfills only the $name surface of the real Google Calendar block',
+    ({ triggerMode, values, calendarId, expectedModes, absentMode, expectedCredential }) => {
+      const [credential, manualCredential, triggerCredentials] = values
+      const subBlocks: BlockState['subBlocks'] = {
+        credential: stored(credential),
+        manualCredential: stored(manualCredential),
+        triggerCredentials: stored(triggerCredentials),
+      }
+      if (calendarId) {
+        subBlocks.calendarId = stored(calendarId)
+      }
+
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({ type: 'google_calendar', triggerMode, subBlocks }),
+      }
+      const paramsBeforeBackfill = extractBlockParams(input.b1)
+      const { blocks, migrated } = backfillCanonicalModes(input)
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.data?.canonicalModes).toMatchObject(expectedModes)
+      if (absentMode) expect(blocks.b1.data?.canonicalModes).not.toHaveProperty(absentMode)
+      expect(extractBlockParams(blocks.b1)).toEqual(paramsBeforeBackfill)
+      expect(paramsBeforeBackfill.oauthCredential).toBe(expectedCredential)
+    }
+  )
+
+  it('uses the trigger surface for a pure trigger block without a triggerMode flag', () => {
+    getBlockSpy.mockImplementationOnce(
+      () =>
+        ({
+          category: 'triggers',
+          triggers: { enabled: true },
+          subBlocks: [
+            ['actionSelector', 'project-selector', 'basic'],
+            ['actionManualId', 'short-input', 'advanced'],
+            ['triggerSelector', 'project-selector', 'trigger'],
+            ['triggerManualId', 'short-input', 'trigger-advanced'],
+          ].map(([id, type, mode]) => ({
+            id,
+            type,
+            canonicalParamId: 'resourceId',
+            mode,
+          })),
+        }) as never
+    )
+    const input: Record<string, BlockState> = {
+      b1: makeBlock({
+        type: 'pure-trigger-test',
+        subBlocks: {
+          actionManualId: stored('dormant-action'),
+          triggerSelector: stored('trigger-basic'),
+        },
+      }),
+    }
+
+    const { blocks, migrated } = backfillCanonicalModes(input)
+
+    expect(migrated).toBe(true)
+    expect(blocks.b1.data?.canonicalModes).toMatchObject({ resourceId: 'basic' })
+  })
+
   it('should add missing canonicalModes entry for knowledge block with basic value', () => {
     const input: Record<string, BlockState> = {
       b1: makeBlock({
@@ -481,17 +565,44 @@ describe('backfillCanonicalModes', () => {
     expect(modes.knowledgeBaseId).toBe('advanced')
   })
 
+  it('should preserve legacy advancedMode selection when both canonical values are set', () => {
+    const input: Record<string, BlockState> = {
+      b1: makeBlock({
+        type: 'slack',
+        advancedMode: true,
+        data: {},
+        subBlocks: {
+          operation: stored('send'),
+          destinationType: stored('channel'),
+          channel: stored('C_BASIC'),
+          manualChannel: stored('C_ADVANCED'),
+          text: stored('Hello'),
+        },
+      }),
+    }
+
+    const paramsBeforeBackfill = extractBlockParams(input.b1)
+    const { blocks, migrated } = backfillCanonicalModes(input)
+    const paramsAfterBackfill = extractBlockParams(blocks.b1)
+    const secondPass = backfillCanonicalModes(blocks)
+
+    expect(migrated).toBe(true)
+    expect(blocks.b1.data?.canonicalModes).toMatchObject({ channel: 'advanced' })
+    expect(paramsBeforeBackfill.channel).toBe('C_ADVANCED')
+    expect(paramsAfterBackfill).toEqual(paramsBeforeBackfill)
+    expect(secondPass.migrated).toBe(false)
+    expect(secondPass.blocks.b1).toBe(blocks.b1)
+  })
+
   it('should not overwrite existing canonicalModes entries', () => {
     const input: Record<string, BlockState> = {
       b1: makeBlock({
         type: 'knowledge',
-        data: { canonicalModes: { knowledgeBaseId: 'advanced', documentId: 'basic' } },
+        advancedMode: true,
+        data: { canonicalModes: { knowledgeBaseId: 'basic', documentId: 'basic' } },
         subBlocks: {
-          knowledgeBaseSelector: {
-            id: 'knowledgeBaseSelector',
-            type: 'knowledge-base-selector',
-            value: 'kb-uuid',
-          },
+          knowledgeBaseSelector: stored('kb-uuid'),
+          manualKnowledgeBaseId: stored('kb-uuid-manual'),
         },
       }),
     }
@@ -500,7 +611,7 @@ describe('backfillCanonicalModes', () => {
 
     expect(migrated).toBe(false)
     const modes = blocks.b1.data?.canonicalModes as Record<string, string>
-    expect(modes.knowledgeBaseId).toBe('advanced')
+    expect(modes.knowledgeBaseId).toBe('basic')
   })
 
   it('should skip blocks with no canonical pairs in their config', () => {

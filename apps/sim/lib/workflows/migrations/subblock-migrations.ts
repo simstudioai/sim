@@ -5,7 +5,11 @@ import { sanitizeMalformedSubBlocks } from '@/lib/workflows/sanitization/subbloc
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
+  type CanonicalGroup,
+  type CanonicalMode,
+  getCanonicalSubBlocksForSurface,
   isCanonicalPair,
+  isPureTriggerBlockConfig,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
@@ -286,6 +290,18 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
 }
 
 /**
+ * Resolves a missing per-pair mode without changing the legacy serializer's selection.
+ */
+function resolveBackfilledCanonicalMode(
+  block: Pick<BlockState, 'advancedMode'>,
+  group: CanonicalGroup,
+  values: Record<string, unknown>
+): CanonicalMode {
+  if (block.advancedMode === true) return 'advanced'
+  return resolveCanonicalMode(group, values)
+}
+
+/**
  * Backfills missing `canonicalModes` entries in block data.
  *
  * When a canonical pair is added to a block definition, existing blocks
@@ -307,7 +323,12 @@ export function backfillCanonicalModes(blocks: Record<string, BlockState>): {
       continue
     }
 
-    const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+    const canonicalIndex = buildCanonicalIndex(
+      getCanonicalSubBlocksForSurface(
+        blockConfig.subBlocks,
+        Boolean(block.triggerMode) || isPureTriggerBlockConfig(blockConfig)
+      )
+    )
     const pairs = Object.values(canonicalIndex.groupsById).filter(isCanonicalPair)
     if (pairs.length === 0) {
       result[blockId] = block
@@ -322,7 +343,7 @@ export function backfillCanonicalModes(blocks: Record<string, BlockState>): {
     for (const group of pairs) {
       if (existing[group.canonicalId] != null) continue
 
-      const resolved = resolveCanonicalMode(group, values)
+      const resolved = resolveBackfilledCanonicalMode(block, group, values)
       if (!patched) patched = { ...existing }
       patched[group.canonicalId] = resolved
     }

@@ -64,7 +64,9 @@ import {
 } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
+  getCanonicalSubBlocksForSurface,
   hasAdvancedValues,
+  isPureTriggerBlockConfig,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -791,11 +793,22 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     ])
   }
 
-  const canonicalIndex = useMemo(() => buildCanonicalIndex(config.subBlocks), [config.subBlocks])
+  const canonicalSubBlocks = useMemo(
+    () =>
+      getCanonicalSubBlocksForSurface(
+        config.subBlocks,
+        displayTriggerMode || isPureTriggerBlockConfig(config)
+      ),
+    [config.subBlocks, displayTriggerMode]
+  )
+  const canonicalIndex = useMemo(
+    () => buildCanonicalIndex(canonicalSubBlocks),
+    [canonicalSubBlocks]
+  )
   const canonicalModeOverrides = currentStoreBlock?.data?.canonicalModes
 
   const hiddenByReactiveCondition = useReactiveConditions(
-    config.subBlocks,
+    canonicalSubBlocks,
     id,
     activeWorkflowId,
     canonicalModeOverrides
@@ -832,7 +845,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
     const effectiveAdvanced = canEditWorkflow
       ? displayAdvancedMode
-      : displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
+      : displayAdvancedMode || hasAdvancedValues(canonicalSubBlocks, rawValues, canonicalIndex)
     const effectiveTrigger = displayTriggerMode
     const canvasPresentation = resolveCanvasBlockPresentation(config, name, rawValues)
 
@@ -919,8 +932,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     )
     return canEditWorkflow
       ? displayAdvancedMode
-      : displayAdvancedMode || hasAdvancedValues(config.subBlocks, rawValues, canonicalIndex)
-  }, [subBlockState, displayAdvancedMode, config.subBlocks, canonicalIndex, canEditWorkflow])
+      : displayAdvancedMode || hasAdvancedValues(canonicalSubBlocks, rawValues, canonicalIndex)
+  }, [subBlockState, displayAdvancedMode, canonicalSubBlocks, canonicalIndex, canEditWorkflow])
 
   const shouldShowDefaultHandles = showsCanvasDefaultHandles(config, type, displayTriggerMode)
 
