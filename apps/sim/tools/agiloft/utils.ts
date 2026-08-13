@@ -1,3 +1,4 @@
+import { truncate } from '@sim/utils/string'
 import type {
   AgiloftAsyncStatusParams,
   AgiloftAttachmentInfoParams,
@@ -83,6 +84,26 @@ export function redactAgiloftSecrets(
     }
   }
   return safe
+}
+
+/**
+ * Turns a raw Agiloft response body into the one-line detail relayed to a
+ * caller or written to a log.
+ *
+ * The ordering is the entire point of this function existing. Redaction has to
+ * run while the text is still exactly what the server sent: `describeAgiloftError`
+ * strips tags and collapses whitespace, and `truncate` clips, and either can
+ * reshape a credential so it no longer matches what is being replaced - leaving
+ * a fragment of it in the output. Composing the three by hand has gone wrong
+ * repeatedly, in both directions, so callers hand over the raw body and get back
+ * a string that is safe to relay.
+ */
+export function describeAgiloftFailure(
+  rawBody: string,
+  credentials: { login: string; password: string },
+  maxLength = 300
+): string {
+  return truncate(describeAgiloftError(redactAgiloftSecrets(rawBody, credentials)), maxLength)
 }
 
 /** Language sent on every Agiloft call; EWLogin rejects the request without it. */

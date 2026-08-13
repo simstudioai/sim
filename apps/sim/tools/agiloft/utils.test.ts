@@ -18,6 +18,7 @@ import {
   buildSelectRecordsUrl,
   buildUpsertRecordBody,
   describeAgiloftError,
+  describeAgiloftFailure,
   ewCredentialBody,
   parseFieldList,
   redactAgiloftSecrets,
@@ -418,5 +419,39 @@ describe('credential redaction', () => {
     expect(redactAgiloftSecrets('EWWrongDataException: no column bogus', creds)).toBe(
       'EWWrongDataException: no column bogus'
     )
+  })
+})
+
+describe('describeAgiloftFailure', () => {
+  /**
+   * describeAgiloftError strips tags and collapses whitespace, so redacting
+   * after it runs can miss a credential that those transforms reshaped. The
+   * pipeline exists so the order cannot be composed wrongly at a call site.
+   */
+  it('redacts a credential the HTML strip would otherwise reshape', () => {
+    const creds = { login: 'svc.user', password: 'a<b>c' }
+    const body = `<html><body>EWWrongDataException has occurred: submitted $password=${creds.password}</body></html>`
+
+    const described = describeAgiloftFailure(body, creds)
+
+    expect(described).not.toContain(creds.password)
+    expect(described).toContain('[redacted]')
+  })
+
+  it('redacts a credential whitespace collapsing would otherwise reshape', () => {
+    const creds = { login: 'svc.user', password: 'two  spaces' }
+    const described = describeAgiloftFailure(`<html>echo ${creds.password}</html>`, creds)
+
+    expect(described).not.toContain(creds.password)
+    expect(described).toContain('[redacted]')
+  })
+
+  it('still reduces the body to its typed exception message', () => {
+    const described = describeAgiloftFailure(
+      '<html><body>EWWrongDataException has occurred: [task-1] Wrong format pointed to start_date</body></html>',
+      { login: 'svc.user', password: 'not-a-real-password' }
+    )
+
+    expect(described).toBe('EWWrongDataException: Wrong format pointed to start_date')
   })
 })

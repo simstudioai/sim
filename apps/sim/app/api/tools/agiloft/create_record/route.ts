@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { truncate } from '@sim/utils/string'
 import { type NextRequest, NextResponse } from 'next/server'
 import { agiloftCreateRecordContract } from '@/lib/api/contracts/tools/agiloft'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -12,7 +11,7 @@ import type { AgiloftRecordResponse } from '@/tools/agiloft/types'
 import {
   buildCreateRecordBody,
   buildCreateRecordUrl,
-  describeAgiloftError,
+  describeAgiloftFailure,
   redactAgiloftSecrets,
 } from '@/tools/agiloft/utils'
 import { executeEwRequest, resolveAgiloftInstance } from '@/tools/agiloft/utils.server'
@@ -143,7 +142,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
            * and the credentials are in the submitted form body, so an error page
            * that echoes request parameters would carry them back.
            */
-          const described = truncate(redactAgiloftSecrets(describeAgiloftError(text), params), 300)
+          const described = describeAgiloftFailure(text, params)
 
           /**
            * Every failure below is one Agiloft already decided on, so each is
