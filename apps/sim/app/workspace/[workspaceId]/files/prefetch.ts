@@ -3,6 +3,7 @@ import { listWorkspaceFileFoldersContract } from '@/lib/api/contracts/workspace-
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
+import { seedWorkspaceFiles } from '@/app/workspace/[workspaceId]/lib/seed-workspace-files'
 import {
   WORKSPACE_FILE_FOLDERS_STALE_TIME,
   workspaceFileFolderKeys,
@@ -15,14 +16,8 @@ import {
  * the Owner column — under the same query keys their client hooks (`useWorkspaceFileFolders`) use
  * (scope `active`), so the browser paints populated on first render.
  *
- * The FILE LIST itself is deliberately not here: the sidebar reads it on every workspace route, so
- * it is seeded by `prefetchWorkspaceSidebar` in the layout — the only boundary that renders
- * before the sidebar registers the query. Prefetching it again here would re-read it per request
- * and still not reach the server render (`HydrationBoundary` defers an already-seen query to an
- * effect, which SSR never runs). See the note on that entry. The layout declines to seed a
- * workspace whose file list exceeds its payload budget; recovering those here would mean
- * mirroring that budget check inversely, since an unconditional prefetch would re-read and
- * duplicate the entry for every workspace under the budget.
+ * The file list is seeded here rather than in the layout so only the routes that render it pay for
+ * it. See {@link seedWorkspaceFiles} for why a large workspace seeds nothing at all.
  *
  * Folders and the chrome reads all go through the data layer, shaped to their route contracts so a
  * hydrated entry matches a client fetch.
@@ -58,5 +53,6 @@ export async function prefetchFilesBrowser(
       staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
     }),
     prefetchResourceListChrome(queryClient, workspaceId, 'file', userId),
+    seedWorkspaceFiles(queryClient, workspaceId),
   ])
 }

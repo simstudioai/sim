@@ -6,7 +6,6 @@ import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { getUserProfile } from '@/lib/users/queries'
 import { listWorkflowsForUser } from '@/lib/workflows/queries'
-import { listWorkspaceFilesWithShares } from '@/lib/workspace-files/queries'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { getWorkspacePermissionsForAuthorizedViewer } from '@/lib/workspaces/permissions/utils'
@@ -25,7 +24,6 @@ import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow, WORKFLOW_LIST_STALE_TIME } from '@/hooks/queries/utils/workflow-list-query'
 import { normalizeWorkspacesResponse } from '@/hooks/queries/utils/workspace-list-query'
 import { WORKSPACE_PERMISSIONS_STALE_TIME, workspaceKeys } from '@/hooks/queries/workspace'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import {
   WORKSPACE_HOST_CONTEXT_STALE_TIME,
   workspaceHostKeys,
@@ -93,46 +91,6 @@ async function seedWorkspaceList(
 }
 
 /**
- * How many files the layout is willing to inline into the document. Seeded on EVERY
- * workspace route, so at ~500 bytes of JSON per file this budgets the entry at ~150 KB.
- *
- * A workspace above the budget seeds NOTHING rather than a prefix: the sidebar filters
- * this list client-side, so a truncated seed would silently hide files.
- */
-export const WORKSPACE_FILE_SEED_MAX = 300
-
-/**
- * Seeds the workspace's file list, which sidebar chrome registers on EVERY workspace
- * route. It must be seeded HERE, not by the Files pages: `HydrationBoundary` defers a
- * query the cache has already seen to a `useEffect`, which SSR never runs.
- *
- * Seeded rather than prefetched so it can decline to create an entry at all above
- * {@link WORKSPACE_FILE_SEED_MAX} — `prefetchQuery` always creates one, and a partial
- * entry would be read as the whole list. Parsed through the route's response contract.
- */
-async function seedWorkspaceFiles(queryClient: QueryClient, workspaceId: string): Promise<void> {
-  try {
-    const files = await listWorkspaceFilesWithShares(workspaceId, 'active', {
-      maxRows: WORKSPACE_FILE_SEED_MAX,
-      /**
-       * A failed read must reach the catch below, not degrade to an empty list: seeding
-       * `[]` would cache "this workspace has no files" as authoritative for the entry's
-       * lifetime, which is worse than seeding nothing and letting the client fetch.
-       */
-      throwOnError: true,
-    })
-    if (!files) return
-    queryClient.setQueryData(workspaceFilesKeys.list(workspaceId, 'active'), files)
-  } catch (error) {
-    /** Optimization only: the client fetch reaches the route instead. Logged so drift between
-     * this read and the contract's response schema doesn't degrade silently into a waterfall. */
-    logger.warn('Workspace file list seed failed; client will fetch', {
-      error: getErrorMessage(error),
-    })
-  }
-}
-
-/**
  * Prefetches the sidebar's workflow, chat, folder, workspace-permissions,
  * workspace, and viewer-profile reads for a workspace and stores them under the
  * same query keys + mappers the client hooks use, so the persistent sidebar
@@ -190,7 +148,6 @@ export async function prefetchWorkspaceSidebar(
         ]
       : []),
     prefetchResourceFolders(queryClient, workspaceId, 'workflow', userId),
-    seedWorkspaceFiles(queryClient, workspaceId),
     queryClient.prefetchQuery({
       queryKey: workspaceKeys.permissions(workspaceId),
       queryFn: () =>

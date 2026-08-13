@@ -97,10 +97,7 @@ vi.mock('@sim/emcn', () => ({
 
 import { prefetchFilesBrowser } from '@/app/workspace/[workspaceId]/files/prefetch'
 import { prefetchKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/prefetch'
-import {
-  prefetchWorkspaceSidebar,
-  WORKSPACE_FILE_SEED_MAX,
-} from '@/app/workspace/[workspaceId]/prefetch'
+import { prefetchWorkspaceSidebar } from '@/app/workspace/[workspaceId]/prefetch'
 import { prefetchTables } from '@/app/workspace/[workspaceId]/tables/prefetch'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
@@ -357,19 +354,18 @@ describe('workspace list prefetches', () => {
     })
 
     /**
-     * The FILE LIST is deliberately not primed here — `prefetchWorkspaceSidebar` owns it, because the
-     * sidebar reads that query on every workspace route and therefore registers it before any page
-     * renders. `HydrationBoundary` hands an already-seen query to a `useEffect`, which SSR never runs,
-     * so a page-level prefetch of this key costs a request per render and still cannot reach the server
-     * render. Restoring it here would reintroduce exactly that.
+     * The file list is the browser's primary content, so it must be seeded by the page that
+     * renders it — the layout no longer seeds it, which would have charged every workspace
+     * route for a list only a few of them read.
      */
-    it('leaves the file list to the layout rather than re-reading it per page', async () => {
+    it('seeds the file list the browser renders', async () => {
+      const files = [{ id: 'file-1' }]
+      mockListWorkspaceFilesWithShares.mockResolvedValue(files)
       const client = makeClient()
 
       await prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID)
 
-      expect(mockListWorkspaceFilesWithShares).not.toHaveBeenCalled()
-      expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toBeUndefined()
+      expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual(files)
     })
 
     /**
@@ -514,48 +510,15 @@ describe('workspace list prefetches', () => {
     })
 
     /**
-     * The file list is seeded on every workspace route, so it is the one entry whose size
-     * scales with a workspace's content on routes that never read it. The budget is passed
-     * down rather than applied here, so the read can stop before the share join.
+     * The file list belongs to the pages that render it, not to every workspace route. A sidebar
+     * seed would charge the workflow editor, logs, and settings for a read none of them make.
      */
-    it('seeds the file list, bounded by the document payload budget', async () => {
-      const files = [{ id: 'file-1', name: 'a.txt' }]
-      mockListWorkspaceFilesWithShares.mockResolvedValue(files)
+    it('does not read the workspace file list', async () => {
       const client = makeClient()
 
       await prefetchWorkspaceSidebar(client, WORKSPACE_ID, USER_ID, HOST_CONTEXT, null)
 
-      expect(mockListWorkspaceFilesWithShares).toHaveBeenCalledWith(WORKSPACE_ID, 'active', {
-        maxRows: WORKSPACE_FILE_SEED_MAX,
-        /** A failed read must reach the catch, not degrade to a cached empty list. */
-        throwOnError: true,
-      })
-      expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual(files)
-    })
-
-    /**
-     * The load-bearing half of the budget: a workspace over it seeds NOTHING rather than the
-     * prefix that was read. The sidebar search filters this list client-side and the Files
-     * browser renders it as the workspace's files, so a truncated seed would silently hide
-     * files — the client fetch must reach the route for the complete list instead.
-     */
-    it('seeds nothing when the workspace exceeds the budget', async () => {
-      mockListWorkspaceFilesWithShares.mockResolvedValue(null)
-      const client = makeClient()
-
-      await prefetchWorkspaceSidebar(client, WORKSPACE_ID, USER_ID, HOST_CONTEXT, null)
-
-      expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toBeUndefined()
-    })
-
-    /** A failed file read is an optimization loss, not a render failure. */
-    it('does not throw when the file read rejects, and seeds no files', async () => {
-      mockListWorkspaceFilesWithShares.mockRejectedValue(new Error('500'))
-      const client = makeClient()
-
-      await expect(
-        prefetchWorkspaceSidebar(client, WORKSPACE_ID, USER_ID, HOST_CONTEXT, null)
-      ).resolves.toBeUndefined()
+      expect(mockListWorkspaceFilesWithShares).not.toHaveBeenCalled()
       expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toBeUndefined()
     })
 
@@ -591,9 +554,9 @@ describe('workspace list prefetches', () => {
       ],
       [
         /**
-         * Asserted against the folder key, not the file list: `prefetchFilesBrowser`
-         * deliberately never seeds `workspaceFilesKeys` (the layout owns it), so an
-         * assertion on that key would hold no matter what this function did.
+         * Asserted against the folder key: the file list is seeded rather than prefetched, so
+         * a rejecting read leaves that key empty by design and could not distinguish a
+         * swallowed failure from a function that did nothing.
          */
         'prefetchFilesBrowser',
         (client: QueryClient) => prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID),
