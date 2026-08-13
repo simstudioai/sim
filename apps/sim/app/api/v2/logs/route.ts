@@ -4,7 +4,7 @@ import {
   v2ListLogsContract,
   v2LogStatusSchema,
 } from '@/lib/api/contracts/v2/logs'
-import { UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
+import { UNREADABLE_CURSOR_MESSAGE, unorderedScopePart } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { v2LogErrorPolicies } from '@/lib/logs/api/route-policies'
@@ -41,8 +41,8 @@ function logCursorFilters(query: {
 }) {
   return cursorFilterScope({
     workspaceId: query.workspaceId,
-    workflowIds: query.workflowIds,
-    triggers: query.triggers,
+    workflowIds: unorderedScopePart(query.workflowIds),
+    triggers: unorderedScopePart(query.triggers),
     level: query.level,
     startDate: query.startDate,
     endDate: query.endDate,
@@ -52,7 +52,7 @@ function logCursorFilters(query: {
     minCost: query.minCost,
     maxCost: query.maxCost,
     model: query.model,
-    folderPaths: query.folderPaths,
+    folderPaths: unorderedScopePart(query.folderPaths),
     order: query.order,
   })
 }

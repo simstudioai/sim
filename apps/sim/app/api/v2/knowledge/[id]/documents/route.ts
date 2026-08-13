@@ -4,6 +4,7 @@ import {
   v2ListKnowledgeDocumentsContract,
   v2UploadKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v2/knowledge'
+import { canonicalJson } from '@/lib/api/cursor-binding'
 import {
   defineV2BodyLifecycleRoute,
   defineV2JsonRoute,
@@ -45,6 +46,21 @@ export const revalidate = 0
 const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
 
 /** Every param that changes which documents, in which order, this list returns. */
+/**
+ * Canonical form of `tagFilters` so two equivalent filters differing only in
+ * key order fingerprint the same. {@link canonicalJson} sorts object keys. An
+ * unparseable value binds by its raw spelling — the request carrying it is
+ * about to fail validation anyway.
+ */
+function canonicalTagFilters(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined
+  try {
+    return canonicalJson(JSON.parse(raw))
+  } catch {
+    return raw
+  }
+}
+
 function documentCursorFilters(
   knowledgeBaseId: string,
   query: { workspaceId: string; enabledFilter?: string; search?: string; tagFilters?: string }
@@ -54,7 +70,7 @@ function documentCursorFilters(
     workspaceId: query.workspaceId,
     enabledFilter: query.enabledFilter,
     search: query.search,
-    tagFilters: query.tagFilters,
+    tagFilters: canonicalTagFilters(query.tagFilters),
   })
 }
 

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorScopeKey, unorderedScopePart } from '@/lib/api/cursor-binding'
 import {
   cursorFilterScope,
   cursorSortKey,
@@ -190,5 +190,22 @@ describe('v2 cursor binding', () => {
     it('stays short enough to sit inside an opaque token', () => {
       expect(cursorScopeKey({ search: 'x'.repeat(200) })).toHaveLength(22)
     })
+  })
+})
+
+describe('unordered filter scope parts', () => {
+  it('fingerprints a reordered set identically', () => {
+    const a = cursorScopeKey({ workflowIds: unorderedScopePart('A,B') })
+    const b = cursorScopeKey({ workflowIds: unorderedScopePart('B,A') })
+    expect(a).toBe(b)
+  })
+  it('still separates genuinely different sets', () => {
+    expect(cursorScopeKey({ workflowIds: unorderedScopePart('A,B') })).not.toBe(
+      cursorScopeKey({ workflowIds: unorderedScopePart('A,C') })
+    )
+  })
+  it('treats an all-empty list as absent, matching the parsers', () => {
+    expect(unorderedScopePart(',,')).toBeUndefined()
+    expect(unorderedScopePart('A,,B')).toBe('A,B')
   })
 })

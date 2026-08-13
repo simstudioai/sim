@@ -58,6 +58,29 @@ export type CursorScopePart =
  * Array order is preserved — reordering an `in` list is treated as a different
  * filter, which only ever costs a restart.
  */
+/**
+ * Canonical form of a filter the query treats as an unordered SET.
+ *
+ * A comma-separated list and a JSON object both have a spelling the caller
+ * chose and a meaning the query acts on: `workflowIds=A,B` and `B,A` select the
+ * same runs, and two `tagFilters` objects differing only in key order match the
+ * same documents. Fingerprinting the raw spelling binds the cursor to the
+ * spelling, so a caller who reorders an equivalent filter mid-walk gets a 400
+ * for a page that is genuinely the next one.
+ *
+ * {@link canonicalJson} already sorts object keys, so this only has to sort the
+ * list members. Empty members are dropped because the parsers drop them too.
+ */
+export function unorderedScopePart(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined
+  const members = raw
+    .split(',')
+    .map((member) => member.trim())
+    .filter((member) => member.length > 0)
+    .sort()
+  return members.length > 0 ? members.join(',') : undefined
+}
+
 export function canonicalJson(value: unknown): string {
   if (value instanceof Date) return JSON.stringify(value.toISOString())
   if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
