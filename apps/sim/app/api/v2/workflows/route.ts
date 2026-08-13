@@ -1,6 +1,6 @@
 import type { V2WorkflowListItem } from '@/lib/api/contracts/v2/workflows'
 import { v2CreateWorkflowContract, v2ListWorkflowsContract } from '@/lib/api/contracts/v2/workflows'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -22,7 +22,7 @@ function workflowCursorFilters(query: {
   deployedOnly: boolean
   search?: string
 }) {
-  return cursorScopeKey({
+  return cursorScopeKey(cursorRoute(v2ListWorkflowsContract), {
     workspaceId: query.workspaceId,
     folderPath: query.folderPath,
     deployedOnly: query.deployedOnly,

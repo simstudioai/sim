@@ -11,6 +11,7 @@ import { V2_SEARCH_MAX_LENGTH } from '@/lib/api/contracts/v2/shared'
 import * as tableContracts from '@/lib/api/contracts/v2/tables'
 import {
   V2_TABLE_IMPORT_OPTIONS_MAX_BYTES,
+  v2AddWorkflowGroupBodySchema,
   v2ApiTableSchema,
   v2CreateTableBodySchema,
   v2CreateTableColumnBodySchema,
@@ -25,6 +26,7 @@ import {
   v2TableImportStatusSchema,
   v2TableUploadImportSourceSchema,
   v2UpdateTableColumnBodySchema,
+  v2UpdateWorkflowGroupBodySchema,
 } from '@/lib/api/contracts/v2/tables'
 import { getValidationErrorMessage } from '@/lib/api/server/validation'
 import { MAX_RUN_TARGET_ROW_IDS, TABLE_LIMITS } from '@/lib/table/constants'
@@ -78,6 +80,51 @@ describe('v2 table column contracts', () => {
 
     expect(result.success).toBe(false)
     expect(issueCodes(result.error?.issues ?? [])).toContain('unrecognized_keys')
+  })
+
+  /**
+   * Same field, same reason, one level down: the group body's `.strict()` binds
+   * its own level, so an `outputColumns` entry that kept `workflowGroupId` was
+   * stripped, overwritten with the server-minted id, and answered 201.
+   */
+  it('refuses a workflow group id on a group output column', () => {
+    const result = v2AddWorkflowGroupBodySchema.safeParse({
+      workspaceId: WORKSPACE_ID,
+      group: {
+        type: 'enrichment',
+        enrichmentId: 'company-domain',
+        outputs: [{ blockId: '', path: 'domain', columnName: 'zz_y' }],
+      },
+      outputColumns: [{ name: 'zz_y', type: 'string', workflowGroupId: 'wfg_does_not_exist' }],
+    })
+
+    expect(result.success).toBe(false)
+    expect(issueCodes(result.error?.issues ?? [])).toContain('unrecognized_keys')
+  })
+
+  it('refuses a workflow group id on an added output column', () => {
+    const result = v2UpdateWorkflowGroupBodySchema.safeParse({
+      workspaceId: WORKSPACE_ID,
+      groupId: 'group-1',
+      newOutputColumns: [{ name: 'zz_z', type: 'string', workflowGroupId: 'wfg_does_not_exist' }],
+    })
+
+    expect(result.success).toBe(false)
+    expect(issueCodes(result.error?.issues ?? [])).toContain('unrecognized_keys')
+  })
+
+  it('accepts a group output column that leaves the group id to the server', () => {
+    expect(
+      v2AddWorkflowGroupBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        group: {
+          type: 'enrichment',
+          enrichmentId: 'company-domain',
+          outputs: [{ blockId: '', path: 'domain', columnName: 'zz_y' }],
+        },
+        outputColumns: [{ name: 'zz_y', type: 'string' }],
+      }).success
+    ).toBe(true)
   })
 
   it('keeps required in table responses for existing stored schemas', () => {

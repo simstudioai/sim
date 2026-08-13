@@ -282,9 +282,18 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
 }
 
 /**
- * Build SQL conditions from structured filters with operator support
- * - Same tag multiple times: OR logic
- * - Different tags: AND logic
+ * Build SQL conditions from structured filters with operator support. Every
+ * filter is a conjunct, including two that name the same tag.
+ *
+ * Search used to group filters by slot and OR same-slot conditions together,
+ * which made the two surfaces over the same tag vocabulary answer different
+ * questions: the document list ANDs every filter, so `gte 9` plus `lte 2` on one
+ * number tag returned nothing there and a full page of results from search —
+ * a widening on the billed endpoint, the same failure mode as dropping a filter.
+ * OR also made a range on a single text tag (`contains A` and `contains B`)
+ * inexpressible, while the union it produced stays reachable as separate
+ * searches. Neither contract ever documented the OR, so no caller could have
+ * been relying on it deliberately.
  *
  * Every filter reaching here has already been validated, so one that fails to
  * compile is a defect rather than a predicate to skip. Skipping it dropped the
@@ -293,36 +302,11 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
  * paid for the widened scan. It is reported as a validation failure instead.
  */
 export function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: any) {
-  // Group filters by tagSlot
-  const filtersBySlot = new Map<string, StructuredFilter[]>()
-  for (const filter of filters) {
-    const slot = filter.tagSlot
-    if (!filtersBySlot.has(slot)) {
-      filtersBySlot.set(slot, [])
-    }
-    filtersBySlot.get(slot)!.push(filter)
-  }
-
-  // Build conditions: OR within same slot, AND across different slots
-  const conditions: ReturnType<typeof sql>[] = []
-
-  for (const [, slotFilters] of filtersBySlot) {
-    const slotConditions = slotFilters.map((f) => {
-      const condition = buildFilterCondition(f, embeddingTable)
-      if (condition === null) throw uncompilableTagFilterError(f)
-      return condition
-    })
-
-    if (slotConditions.length === 1) {
-      // Single condition for this slot
-      conditions.push(slotConditions[0])
-    } else {
-      // Multiple conditions for same slot - OR them together
-      conditions.push(sql`(${sql.join(slotConditions, sql` OR `)})`)
-    }
-  }
-
-  return conditions
+  return filters.map((filter) => {
+    const condition = buildFilterCondition(filter, embeddingTable)
+    if (condition === null) throw uncompilableTagFilterError(filter)
+    return condition
+  })
 }
 
 /**

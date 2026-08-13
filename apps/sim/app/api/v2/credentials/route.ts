@@ -1,6 +1,6 @@
 import type { V2Credential } from '@/lib/api/contracts/v2/credentials'
 import { v2ListCredentialsContract } from '@/lib/api/contracts/v2/credentials'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -42,7 +42,7 @@ function credentialCursorFilters(query: {
   providerId?: string
   search?: string
 }) {
-  return cursorScopeKey({
+  return cursorScopeKey(cursorRoute(v2ListCredentialsContract), {
     workspaceId: query.workspaceId,
     type: query.type,
     providerId: query.providerId,

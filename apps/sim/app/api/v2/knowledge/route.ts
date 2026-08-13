@@ -2,7 +2,7 @@ import {
   v2CreateKnowledgeBaseContract,
   v2ListKnowledgeBasesContract,
 } from '@/lib/api/contracts/v2/knowledge'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -28,7 +28,7 @@ function knowledgeCursorFilters(query: {
   folderPath?: string
   search?: string
 }) {
-  return cursorScopeKey({
+  return cursorScopeKey(cursorRoute(v2ListKnowledgeBasesContract), {
     workspaceId: query.workspaceId,
     folderPath: query.folderPath,
     search: query.search,

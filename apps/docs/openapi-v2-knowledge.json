@@ -728,9 +728,9 @@
             "name": "tagFilters",
             "in": "query",
             "required": false,
-            "description": "A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[{\"tagName\":\"category\",\"operator\":\"eq\",\"value\":\"billing\"}]`. A name that is not defined in this knowledge base is rejected, never ignored.",
+            "description": "A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[{\"tagName\":\"category\",\"operator\":\"eq\",\"value\":\"billing\"}]`. Every filter must hold, including two that name the same tag. A name that is not defined in this knowledge base is rejected, never ignored.",
             "schema": {
-              "description": "A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[{\"tagName\":\"category\",\"operator\":\"eq\",\"value\":\"billing\"}]`. A name that is not defined in this knowledge base is rejected, never ignored.",
+              "description": "A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[{\"tagName\":\"category\",\"operator\":\"eq\",\"value\":\"billing\"}]`. Every filter must hold, including two that name the same tag. A name that is not defined in this knowledge base is rejected, never ignored.",
               "examples": [
                 "[{\"tagName\":\"category\",\"operator\":\"eq\",\"value\":\"billing\"}]"
               ],
@@ -2820,9 +2820,10 @@
             "examples": [["7c9e6679-7425-40de-944b-e07fc1f90ae7"]]
           },
           "query": {
-            "description": "Natural-language query; required when tag filters are omitted.",
+            "description": "Natural-language query; required when tag filters are omitted. At most 32768 characters — longer text exceeds the embedding model's per-input token ceiling and would be truncated before the billed search ran.",
             "examples": ["How do I reset my password?"],
-            "type": "string"
+            "type": "string",
+            "maxLength": 32768
           },
           "topK": {
             "default": 10,
@@ -2832,7 +2833,8 @@
             "maximum": 100
           },
           "tagFilters": {
-            "description": "Structured tag filters. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{id}/tags`.",
+            "description": "Structured tag filters, at most 10 of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching `GET /api/v2/knowledge/{id}/documents`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{id}/tags`.",
+            "maxItems": 10,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/V2KnowledgeSearchTagFilter"

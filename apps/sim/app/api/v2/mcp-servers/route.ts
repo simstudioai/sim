@@ -2,7 +2,7 @@ import {
   v2CreateMcpServerContract,
   v2ListMcpServersContract,
 } from '@/lib/api/contracts/v2/mcp-servers'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -20,7 +20,7 @@ export const revalidate = 0
 
 /** Every param that changes which MCP servers, in which order, this list returns. */
 function mcpServerCursorFilters(query: { workspaceId: string; search?: string }) {
-  return cursorScopeKey({
+  return cursorScopeKey(cursorRoute(v2ListMcpServersContract), {
     workspaceId: query.workspaceId,
     search: query.search,
   })

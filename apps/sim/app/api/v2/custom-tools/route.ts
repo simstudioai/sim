@@ -2,7 +2,7 @@ import {
   v2CreateCustomToolContract,
   v2ListCustomToolsContract,
 } from '@/lib/api/contracts/v2/custom-tools'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -22,7 +22,7 @@ export const revalidate = 0
 
 /** Every param that changes which custom tools, in which order, this list returns. */
 function customToolCursorFilters(query: { workspaceId: string; search?: string }) {
-  return cursorScopeKey({
+  return cursorScopeKey(cursorRoute(v2ListCustomToolsContract), {
     workspaceId: query.workspaceId,
     search: query.search,
   })

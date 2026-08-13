@@ -1,5 +1,5 @@
 import { v2ListBillingLogsContract } from '@/lib/api/contracts/v2/billing'
-import { cursorScopeKey, instantScopePart } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey, instantScopePart } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2BillingErrorPolicies } from '@/lib/billing/api/route-policies'
 import { listBillingLogs } from '@/lib/billing/application/list-billing-logs'
@@ -32,7 +32,7 @@ function billingLogCursorFilters(query: {
   startDate?: string
   endDate?: string
 }) {
-  return cursorScopeKey({
+  return cursorScopeKey(cursorRoute(v2ListBillingLogsContract), {
     source: query.source,
     workspaceId: query.workspaceId,
     period: query.period,
