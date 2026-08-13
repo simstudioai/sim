@@ -8,6 +8,11 @@ import type {
   ContractParams,
   ContractQuery,
 } from '@/lib/api/contracts'
+import {
+  blankQueryValueValidationError,
+  duplicateQueryValueValidationError,
+} from '@/lib/api/server/blank-query-values'
+import { nulByteValidationError } from '@/lib/api/server/nul-bytes'
 import { env } from '@/lib/core/config/env'
 import {
   assertContentLengthWithinLimit,
@@ -61,6 +66,16 @@ export interface ParseRequestOptions {
   maxBodyBytes?: number
   /** Treat an absent or whitespace-only body as `undefined` before contract validation. */
   optionalJsonBody?: boolean
+  /**
+   * See {@link blankQueryValueValidationError}. Opt-in, so the internal surface —
+   * whose own clients send blanks today — is unaffected.
+   */
+  rejectBlankQueryValues?: boolean
+  /**
+   * See {@link duplicateQueryValueValidationError}. Opt-in on the same terms,
+   * and only sound where no query parameter is declared as an array.
+   */
+  rejectDuplicateQueryValues?: boolean
 }
 
 export function serializeZodIssues(error: z.ZodError): z.core.$ZodIssue[] {
@@ -276,6 +291,20 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
     body = parsedBody.data
   }
 
+  if (options?.rejectDuplicateQueryValues) {
+    const duplicated = duplicateQueryValueValidationError(rawQuery)
+    if (duplicated) {
+      return { success: false, response: projectValidationError(duplicated, options) }
+    }
+  }
+
+  if (options?.rejectBlankQueryValues) {
+    const blank = blankQueryValueValidationError(rawQuery)
+    if (blank) {
+      return { success: false, response: projectValidationError(blank, options) }
+    }
+  }
+
   const params = contract.params
     ? validateRequestSchema(contract.params, rawParams, options)
     : undefined
@@ -294,6 +323,12 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
   const parsedBody = contract.body ? validateRequestSchema(contract.body, body, options) : undefined
   if (parsedBody && !parsedBody.success) return parsedBody
 
+  const nulBytes =
+    rejectNulBytes(params?.data, options) ??
+    rejectNulBytes(query?.data, options) ??
+    rejectNulBytes(parsedBody?.data, options)
+  if (nulBytes) return nulBytes
+
   return {
     success: true,
     data: {
@@ -305,6 +340,30 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
   }
 }
 
+/**
+ * Applies {@link nulByteValidationError} to one validated request slice and
+ * projects a hit through the same error renderer the schema failures use, so a
+ * NUL is a 400 in every surface's own envelope instead of a driver-level 500.
+ */
+function rejectNulBytes(
+  data: unknown,
+  options?: ParseRequestOptions
+): { success: false; response: NextResponse<unknown> } | null {
+  const error = nulByteValidationError(data)
+  if (!error) return null
+  return { success: false, response: projectValidationError(error, options) }
+}
+
+/** Renders a validation failure through the caller's envelope when it supplies one. */
+function projectValidationError(
+  error: z.ZodError,
+  options?: ParseRequestOptions
+): NextResponse<unknown> {
+  return options?.validationErrorResponse
+    ? options.validationErrorResponse(error)
+    : validationErrorResponse(error)
+}
+
 function validateRequestSchema<S extends ApiSchema>(
   schema: S,
   data: unknown,
@@ -314,9 +373,7 @@ function validateRequestSchema<S extends ApiSchema>(
   if (!result.success) {
     return {
       success: false,
-      response: options?.validationErrorResponse
-        ? options.validationErrorResponse(result.error)
-        : validationErrorResponse(result.error),
+      response: projectValidationError(result.error, options),
       error: result.error,
     }
   }

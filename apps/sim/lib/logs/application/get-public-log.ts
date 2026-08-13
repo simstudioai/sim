@@ -1,5 +1,6 @@
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { logOperations } from '@/lib/logs/application/operations'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
@@ -26,8 +27,34 @@ export interface GetPublicLogResult {
   log: Omit<PublicWorkflowLog, 'workflowState'> & {
     workflowState: Record<string, unknown> | null
   }
+  /**
+   * The run's workflow folder as a canonical path — `/` at the workspace root,
+   * matching what the workflow resources report for the same workflow — or
+   * `null` when no path can be resolved for it.
+   *
+   * The two must stay distinct: collapsing both into `null` leaves a caller
+   * unable to tell a root-level workflow from one whose folder aged out, and
+   * `null` is not a value `folderPaths` takes back as a filter.
+   */
   workflowFolderPath: string | null
   executionData: Record<string, unknown>
+}
+
+/**
+ * A run's folder path, distinguishing the root from an unresolvable folder.
+ *
+ * Deliberately not `workflowFolderPathForId`, which throws on a folder missing
+ * from the index. That is right for a workflow read, where an unresolvable
+ * folder means the caller's own tree is inconsistent; it is wrong for a
+ * diagnostic log read, where the run may long outlive the folder it ran in and a
+ * 500 would withhold the whole run over one unresolvable field.
+ */
+function publicLogFolderPath(
+  pathById: ReadonlyMap<string, string>,
+  folderId: string | null
+): string | null {
+  if (!folderId) return ROOT_FOLDER_PATH
+  return pathById.get(folderId) ?? null
 }
 
 export const getPublicLog = defineAuthorizedWorkspaceUseCase({
@@ -63,9 +90,7 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
     }
     return {
       log: { ...log, workflowState: sanitizeExecutionSnapshotState(log.workflowState) },
-      workflowFolderPath: log.workflowFolderId
-        ? (folderIndex.pathById.get(log.workflowFolderId) ?? null)
-        : null,
+      workflowFolderPath: publicLogFolderPath(folderIndex.pathById, log.workflowFolderId),
       executionData,
     }
   },

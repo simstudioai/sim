@@ -6,6 +6,7 @@
  */
 
 import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
@@ -16,6 +17,7 @@ import {
   SINGLE_SELECT_OPERATORS,
 } from '@/lib/table/column-types'
 import { NAME_PATTERN } from '@/lib/table/constants'
+import { normalizeDateCellValue } from '@/lib/table/dates'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import type {
   ColumnDefinition,
@@ -366,9 +368,37 @@ function validateComparisonValue(
       `Range operator on column "${field}" (${label}) requires a number, got ${typeof value}`
     )
   }
-  if (cast === 'timestamptz' && typeof value !== 'string') {
+  if (cast === 'timestamptz') {
+    if (typeof value !== 'string') {
+      throw new TableQueryValidationError(
+        `Range operator on column "${field}" (date) requires a date string, got ${typeof value}`
+      )
+    }
+    if (normalizeDateCellValue(value) === null) {
+      throw new TableQueryValidationError(
+        `Range operator on column "${field}" (date) requires a parseable date string, got "${truncate(value, 64)}"`
+      )
+    }
+  }
+}
+
+/**
+ * Guards a bound that is about to be bound into a `::timestamptz` cast on a
+ * system timestamp column (`createdAt`/`updatedAt`).
+ *
+ * The type check alone was not enough: any string went straight into the cast,
+ * so `not-a-date` raised `invalid input syntax for type timestamp with time
+ * zone` inside the driver. That throw carries no classification the route layer
+ * recognizes, so a malformed filter — caller input — surfaced as a 500. Parsing
+ * with the same normalizer the `date` column type uses to store cells keeps the
+ * filter grammar and the storage grammar in agreement.
+ */
+function assertParseableTimestampBound(field: string, value: JsonValue | undefined): void {
+  if (typeof value !== 'string' || normalizeDateCellValue(value) === null) {
     throw new TableQueryValidationError(
-      `Range operator on column "${field}" (date) requires a date string, got ${typeof value}`
+      `Operator on column "${field}" requires a parseable date string, got ${
+        typeof value === 'string' ? `"${truncate(value, 64)}"` : typeof value
+      }`
     )
   }
 }
@@ -657,7 +687,10 @@ function buildSystemColumnClause(
   // `TimeZone` GUC, so identical queries return different rows per environment and
   // day-boundary ranges land off by the offset. Normalizing the bound to UTC wall
   // clock is session-independent and still honors an explicit offset in the input.
-  const ts = (v: JsonValue | undefined) => sql`${String(v)}::timestamptz AT TIME ZONE 'UTC'`
+  const ts = (v: JsonValue | undefined) => {
+    assertParseableTimestampBound(field, v)
+    return sql`${String(v)}::timestamptz AT TIME ZONE 'UTC'`
+  }
   const bind = spec.kind === 'timestamp' ? ts : (v: JsonValue | undefined) => sql`${String(v)}`
   /**
    * Mirrors the JSONB pattern builders: `*` is the caller's only wildcard, an

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   customToolFunctionParametersSchema,
   customToolSchemaSchema,
@@ -106,13 +106,15 @@ export const v2CustomToolDeleteDataSchema = z
 export type V2CustomToolDeleteData = z.output<typeof v2CustomToolDeleteDataSchema>
 
 export const v2CustomToolParamsSchema = z.object({
-  id: nonEmptyIdSchema.describe('Custom tool to retrieve, update, or delete.'),
+  id: nonEmptyIdSchema.describe('Unique custom tool identifier.'),
 })
 export type V2CustomToolParams = z.output<typeof v2CustomToolParamsSchema>
 
-export const v2CustomToolWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the custom tool.'),
-})
+export const v2CustomToolWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the custom tool.'),
+  })
+  .strict()
 export type V2CustomToolWorkspaceQuery = z.output<typeof v2CustomToolWorkspaceQuerySchema>
 
 /** A custom tool's natural name field is `title`, so that is what `search` matches. */
@@ -180,6 +182,7 @@ export const v2ListCustomToolsContract = defineRouteContract({
 export const v2CreateCustomToolContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/custom-tools',
+  query: noInputSchema,
   body: v2CreateCustomToolBodySchema,
   response: {
     mode: 'json',
@@ -202,6 +205,7 @@ export const v2GetCustomToolContract = defineRouteContract({
 export const v2UpdateCustomToolContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/custom-tools/[id]',
+  query: noInputSchema,
   params: v2CustomToolParamsSchema,
   body: v2UpdateCustomToolBodySchema,
   response: {

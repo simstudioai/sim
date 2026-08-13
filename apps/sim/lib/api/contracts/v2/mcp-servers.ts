@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { mcpAuthTypeSchema, mcpServerSchema, mcpTransportSchema } from '@/lib/api/contracts/mcp'
 import {
   booleanQueryFlagSchema,
+  noInputSchema,
   nonEmptyIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -60,7 +61,9 @@ const v2McpServerUrlSchema = z
     },
     { error: 'url must be an absolute http or https URL' }
   )
-  .describe('Absolute HTTP or HTTPS endpoint URL without `{{ENV_VAR}}` references.')
+  .describe(
+    'Absolute HTTP or HTTPS endpoint URL without `{{ENV_VAR}}` references. It determines server identity and is immutable: delete and recreate the server to change endpoints.'
+  )
 
 const v2McpServerHeadersSchema = z.record(
   z.string().min(1, 'Header names cannot be empty'),
@@ -113,11 +116,16 @@ export const v2McpServerSchema = z
     enabled: mcpServerSchema.shape.enabled.describe(
       'Whether the server tools are available to workflows.'
     ),
+    /**
+     * These three are written only by a real discovery. Registration stores a
+     * configuration without contacting the endpoint, so it leaves all three at
+     * their defaults rather than asserting a connection nothing has verified.
+     */
     connectionStatus: mcpServerSchema.shape.connectionStatus.describe(
-      'Result of the most recent connection attempt.'
+      'Result of the most recent connection attempt. Registration and re-registration store a configuration without contacting the endpoint, so a server begins — and returns to — `disconnected` until a tool discovery runs.'
     ),
     lastError: mcpServerSchema.shape.lastError.describe(
-      'Message from the most recent failed connection, or null when absent.'
+      'Message from the most recent failed connection, or null when absent. A re-registration clears it, since the configuration it described no longer applies.'
     ),
     toolCount: mcpServerSchema.shape.toolCount.describe(
       'Number of tools discovered on the server.'
@@ -126,7 +134,7 @@ export const v2McpServerSchema = z
       'ISO 8601 timestamp of the most recent tool-list refresh.'
     ),
     lastConnected: mcpServerSchema.shape.lastConnected.describe(
-      'ISO 8601 timestamp of the most recent successful connection.'
+      'ISO 8601 timestamp of the most recent successful connection. Absent until the server completes one; registering a server does not set it.'
     ),
     createdAt: mcpServerSchema.shape.createdAt.describe(
       'ISO 8601 timestamp when the server was registered.'
@@ -168,13 +176,15 @@ export const v2McpServerDeleteDataSchema = z
 export type V2McpServerDeleteData = z.output<typeof v2McpServerDeleteDataSchema>
 
 export const v2McpServerParamsSchema = z.object({
-  id: nonEmptyIdSchema.describe('MCP server the operation acts on.'),
+  id: nonEmptyIdSchema.describe('Unique MCP server identifier.'),
 })
 export type V2McpServerParams = z.output<typeof v2McpServerParamsSchema>
 
-export const v2McpServerWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the MCP server.'),
-})
+export const v2McpServerWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the MCP server.'),
+  })
+  .strict()
 export type V2McpServerWorkspaceQuery = z.output<typeof v2McpServerWorkspaceQuerySchema>
 
 export const v2McpServerSortFields = ['name', 'createdAt', 'updatedAt'] as const
@@ -213,11 +223,16 @@ export const v2CreateMcpServerBodySchema = z
     url: v2McpServerUrlSchema,
     authType: mcpAuthTypeSchema
       .optional()
-      .describe('Authentication method. Sim detects it from the server when omitted.'),
+      .describe(
+        'Authentication method. Applied server-side as `headers` when omitted; registration never contacts the server, so an omitted value is never detected from it.'
+      )
+      .meta({ default: 'headers' }),
     /** Write-only. Reads expose `hasHeaders` and `headerNames` instead. */
     headers: v2McpServerHeadersSchema
       .optional()
-      .describe('Write-only request headers sent to the server.')
+      .describe(
+        'Write-only request headers sent to the server. Replaced wholesale rather than merged on update: sending this field drops every stored header it does not repeat.'
+      )
       .meta({ writeOnly: true }),
     timeout: z
       .number()
@@ -249,14 +264,18 @@ export const v2CreateMcpServerBodySchema = z
       .max(512, 'oauthClientId is too long')
       .nullable()
       .optional()
-      .describe('Pre-registered OAuth client identifier.'),
+      .describe(
+        'Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization.'
+      ),
     /** Write-only. Reads expose `hasOauthClientSecret` instead. */
     oauthClientSecret: z
       .string()
       .max(2048, 'oauthClientSecret is too long')
       .nullable()
       .optional()
-      .describe('Write-only pre-registered OAuth client secret.')
+      .describe(
+        'Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication.'
+      )
       .meta({ writeOnly: true }),
   })
   .strict()
@@ -288,7 +307,18 @@ export type V2UpdateMcpServerBody = z.input<typeof v2UpdateMcpServerBodySchema>
  * declaration gives an OpenAI function's `parameters`. `type` can be pinned to
  * the literal because the MCP SDK's own `ListToolsResult` schema already rejects
  * a tool whose `inputSchema.type` is anything else, so a server cannot make this
- * response fail its own validation.
+ * response fail its own validation. `properties` and `required` are pinned on
+ * the same ground, and the SDK is the stricter of the two on `properties`.
+ *
+ * The rule that keeps this safe is that a key may only be declared here when the
+ * SDK declares it at least as tightly. `description` may not: the SDK's
+ * `ToolSchema.inputSchema` does not declare it at all, so its own
+ * `.catchall(z.unknown())` admits any value — including the JSON `null` a Python
+ * server emits for an absent description. Declaring it `z.string().optional()`
+ * made the builder's outbound `.parse()` throw on a payload the protocol
+ * permits, and discovery answered a bare 500. It is left to the `catchall`
+ * below, which publishes as `additionalProperties` and passes the value through
+ * untouched.
  */
 const v2McpToolInputSchema = z
   .object({
@@ -303,7 +333,6 @@ const v2McpToolInputSchema = z
       .array(z.string().describe('Name of a required argument.'))
       .optional()
       .describe('Names of the arguments the tool requires.'),
-    description: z.string().optional().describe('Description of the argument object.'),
   })
   .catchall(z.unknown().describe('Additional JSON Schema keyword reported by the server.'))
   .describe("JSON Schema for the tool's arguments, as reported by the server.")
@@ -331,7 +360,7 @@ export const v2ListMcpServerToolsQuerySchema = v2McpServerWorkspaceQuerySchema
       .optional()
       .default(false)
       .describe(
-        'Bypass the cached tool list and reconnect to the server. Slower, and the only way to pick up a tool added since the last refresh.'
+        'Bypass the short-lived per-workspace tool cache and reconnect under your own credentials. A cached result reflects whichever workspace member last ran discovery, so this is the only way to pick up a tool added since then; it costs a live round trip.'
       ),
   })
   .strict()
@@ -357,6 +386,7 @@ export const v2ListMcpServersContract = defineRouteContract({
 export const v2CreateMcpServerContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/mcp-servers',
+  query: noInputSchema,
   body: v2CreateMcpServerBodySchema,
   response: {
     mode: 'json',
@@ -379,6 +409,7 @@ export const v2GetMcpServerContract = defineRouteContract({
 export const v2UpdateMcpServerContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/mcp-servers/[id]',
+  query: noInputSchema,
   params: v2McpServerParamsSchema,
   body: v2UpdateMcpServerBodySchema,
   response: {
@@ -411,6 +442,6 @@ export const v2ListMcpServerToolsContract = defineRouteContract({
   query: v2ListMcpServerToolsQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2McpToolSchema),
+    schema: v2CursorListResponse(v2McpToolSchema, { paged: false }),
   },
 })

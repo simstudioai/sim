@@ -250,6 +250,171 @@ describe('MCP server lifecycle orchestration', () => {
     expect(mockRevokeOauthTokens).toHaveBeenCalledWith('server-1', 'workspace-1')
   })
 
+  it('registers a new server as disconnected rather than stamping a connection it never made', async () => {
+    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Example',
+        transport: 'streamable-http',
+        url: 'https://example.com/anything',
+        authType: 'headers',
+      },
+    ])
+
+    const result = await performCreateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Example',
+      url: 'https://example.com/anything',
+      headers: { authorization: 'Bearer token' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ connectionStatus: 'disconnected', lastConnected: null })
+    )
+  })
+
+  it('leaves a re-registered server disconnected until discovery re-runs', async () => {
+    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        deletedAt: null,
+        url: 'https://example.com/mcp',
+        transport: 'streamable-http',
+        headers: { authorization: 'Bearer original' },
+        authType: 'headers',
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Example',
+        transport: 'streamable-http',
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+      },
+    ])
+
+    const result = await performCreateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Example',
+      url: 'https://example.com/mcp',
+      headers: { authorization: 'Bearer rotated' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        lastConnected: null,
+        lastError: null,
+      })
+    )
+  })
+
+  /**
+   * `isServerEligibleForDiscovery` skips an OAuth row that is not `connected`,
+   * and only a real discovery can set `connected`. Clearing the status for an
+   * edit that changes nothing a connection is made from therefore removes every
+   * tool the server publishes, with no path back.
+   */
+  it('keeps an OAuth server connected through a re-registration that only renames it', async () => {
+    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        deletedAt: null,
+        url: 'https://example.com/mcp',
+        transport: 'streamable-http',
+        headers: {},
+        authType: 'oauth',
+        oauthClientId: 'client-1',
+        oauthClientSecret: 'secret-1',
+      },
+    ])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Renamed',
+        transport: 'streamable-http',
+        url: 'https://example.com/mcp',
+        authType: 'oauth',
+      },
+    ])
+
+    const result = await performCreateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Renamed',
+      description: 'Now with a description',
+      url: 'https://example.com/mcp',
+    })
+
+    expect(result.success).toBe(true)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Renamed', description: 'Now with a description' })
+    )
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ connectionStatus: 'disconnected' })
+    )
+    expect(result.updatedFields).not.toContain('connectionStatus')
+    // A rename invalidates nothing, so the stored OAuth grant must survive it too.
+    expect(mockRevokeOauthTokens).not.toHaveBeenCalled()
+  })
+
+  it('resets a re-registered server whose transport changes', async () => {
+    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        deletedAt: null,
+        url: 'https://example.com/mcp',
+        transport: 'streamable-http',
+        headers: {},
+        authType: 'oauth',
+        oauthClientId: 'client-1',
+        oauthClientSecret: 'secret-1',
+      },
+    ])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Example',
+        transport: 'sse',
+        url: 'https://example.com/mcp',
+        authType: 'oauth',
+      },
+    ])
+
+    const result = await performCreateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Example',
+      url: 'https://example.com/mcp',
+      transport: 'sse',
+    })
+
+    expect(result.success).toBe(true)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        lastConnected: null,
+        lastError: null,
+      })
+    )
+  })
+
   it('audits a re-registration that rewrites a live server as an update', async () => {
     mockGenerateMcpServerId.mockReturnValue('server-1')
     dbChainMockFns.limit.mockResolvedValueOnce([

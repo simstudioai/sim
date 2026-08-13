@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { deploymentVersionOrActiveParamsSchema } from '@/lib/api/contracts/deployments'
+import {
+  DEPLOYMENT_VERSION_MAX,
+  deploymentVersionOrActiveParamsSchema,
+  deploymentVersionParamsSchema,
+} from '@/lib/api/contracts/deployments'
 
 describe('deployment version route params', () => {
   it('coerces numeric path params from the server boundary', () => {
@@ -19,4 +23,21 @@ describe('deployment version route params', () => {
       deploymentVersionOrActiveParamsSchema.safeParse({ id: 'workflow-1', version }).success
     ).toBe(false)
   })
+
+  /**
+   * `workflow_deployment_version.version` is a Postgres `integer`. A larger
+   * value has no row to miss — it overflows the comparison, which surfaces as
+   * an unclassifiable 500 on a request the caller could have been told was bad.
+   */
+  it.each([deploymentVersionParamsSchema, deploymentVersionOrActiveParamsSchema])(
+    'bounds the path version to the integer column range',
+    (schema) => {
+      expect(
+        schema.safeParse({ id: 'workflow-1', version: String(DEPLOYMENT_VERSION_MAX) }).success
+      ).toBe(true)
+      expect(
+        schema.safeParse({ id: 'workflow-1', version: String(DEPLOYMENT_VERSION_MAX + 1) }).success
+      ).toBe(false)
+    }
+  )
 })

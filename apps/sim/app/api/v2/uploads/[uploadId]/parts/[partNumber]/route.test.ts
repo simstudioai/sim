@@ -70,7 +70,7 @@ describe('PUT /api/v2/uploads/[uploadId]/parts/[partNumber]', () => {
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({
-      error: 'Part 1 has 2 bytes; expected 3',
+      error: { code: 'BAD_REQUEST', message: 'Part 1 has 2 bytes; expected 3' },
     })
   })
 
@@ -93,7 +93,9 @@ describe('PUT /api/v2/uploads/[uploadId]/parts/[partNumber]', () => {
     const response = await request()
 
     expect(response.status).toBe(409)
-    await expect(response.json()).resolves.toEqual({ error: 'Upload session has expired' })
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'CONFLICT', message: 'Upload session has expired' },
+    })
     expect(mockExpectedUploadPartSize).not.toHaveBeenCalled()
     expect(mockWriteLocalMultipartPart).not.toHaveBeenCalled()
   })

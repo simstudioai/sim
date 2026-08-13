@@ -49,11 +49,12 @@ const auth = {
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
 }
+const columns = [{ id: 'col_a', name: 'Status', type: 'text' as const }]
 const view = {
   id: 'view-1',
   tableId: 'table-1',
   name: 'Active',
-  config: {},
+  config: { sort: [{ field: 'col_a', direction: 'desc' as const }] },
   isDefault: false,
   createdBy: 'user-1',
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -68,8 +69,8 @@ describe('/api/v2/tables/[tableId]/views', () => {
     v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.list.mockResolvedValue({ views: [view] })
-    mocks.create.mockResolvedValue({ view })
+    mocks.list.mockResolvedValue({ views: [view], columns })
+    mocks.create.mockResolvedValue({ view, columns })
     mocks.emails.mockResolvedValue(new Map([['user-1', 'user@example.com']]))
     mocks.email.mockResolvedValue('user@example.com')
   })
@@ -87,7 +88,7 @@ describe('/api/v2/tables/[tableId]/views', () => {
           id: 'view-1',
           tableId: 'table-1',
           name: 'Active',
-          config: {},
+          config: { sort: [{ field: 'Status', direction: 'desc' }] },
           isDefault: false,
           createdByEmail: 'user@example.com',
           createdAt: '2026-01-01T00:00:00.000Z',

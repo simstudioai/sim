@@ -48,7 +48,7 @@ type V2DocumentProcessingStatus = (typeof PROCESSING_STATUSES)[number]
  * reads as `pending`, matching the column default; an unrecognised one is a
  * producer bug rather than a caller-reachable failure, so it throws.
  */
-export function toProcessingStatus(status: string | null | undefined): V2DocumentProcessingStatus {
+function toProcessingStatus(status: string | null | undefined): V2DocumentProcessingStatus {
   if (status === null || status === undefined) return 'pending'
   const known = PROCESSING_STATUSES.find((candidate) => candidate === status)
   if (!known) throw new Error(`Unexpected knowledge document processing status: ${status}`)
@@ -59,7 +59,7 @@ export function toProcessingStatus(status: string | null | undefined): V2Documen
  * The document columns every v2 document projection reads. `uploadedAt` is
  * accepted as nullable because the column is nullable in storage.
  */
-export interface V2DocumentSummarySource {
+interface V2DocumentSummarySource {
   id: string
   knowledgeBaseId: string
   filename: string

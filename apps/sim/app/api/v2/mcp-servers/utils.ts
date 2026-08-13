@@ -6,7 +6,11 @@ import { createV2ResourceConcealmentPolicy, type V2ErrorPolicy } from '@/lib/api
 import { isTimeoutError } from '@/lib/core/execution-limits'
 import { projectMcpHeaders } from '@/lib/mcp/projection'
 import type { McpServerRow } from '@/lib/mcp/queries'
-import { McpConnectionError, McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
+import {
+  McpConnectionError,
+  McpOauthAuthorizationRequiredError,
+  McpServerCooldownError,
+} from '@/lib/mcp/types'
 import { v2Error } from '@/app/api/v2/lib/response'
 
 /**
@@ -49,10 +53,14 @@ export const MCP_SERVER_REAUTHORIZATION_REQUIRED = 'MCP_SERVER_REAUTHORIZATION_R
  *
  * Every branch returns a constant, so an upstream message — which may quote a
  * hostname, a token endpoint, or a stack — never reaches the caller.
+ *
+ * Selection is typed, never matched on message text: `McpConnectionError`
+ * interpolates the server's display name into its message, so a server named
+ * after the word `cooldown` would select the cooldown branch it is not in.
  */
 function unreachableServerMessage(error: unknown): string {
   if (isTimeoutError(error)) return 'The MCP server took too long to respond'
-  if (error instanceof McpConnectionError && error.message.toLowerCase().includes('cooldown')) {
+  if (error instanceof McpServerCooldownError) {
     return 'The MCP server recently failed and is in cooldown'
   }
   return 'The MCP server could not be reached'

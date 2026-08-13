@@ -53,7 +53,7 @@ export const internalSessionAuth = {
   },
 } as const
 
-export interface InternalSessionOrExecutorAuthOptions {
+interface InternalSessionOrExecutorAuthOptions {
   audience: string
   resourceScope?(
     params: Record<string, string | string[] | undefined>

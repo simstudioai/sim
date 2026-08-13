@@ -57,6 +57,7 @@ import {
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenancePolicy,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   deleteFile,
   downloadFile,
@@ -67,7 +68,7 @@ import {
 import { MAX_WORKSPACE_FILE_SIZE, toLegacyWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
-import { isUuid, sanitizeFileName } from '@/executor/constants'
+import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 import type { WorkspaceFileFolderRecord } from './workspace-file-folder-manager'
 import {
@@ -211,8 +212,7 @@ export function parseWorkspaceFileKey(key: string): string | null {
 export function generateWorkspaceFileKey(workspaceId: string, fileName: string): string {
   const timestamp = Date.now()
   const random = randomBytes(8).toString('hex')
-  const safeFileName = sanitizeFileName(fileName)
-  return `workspace/${workspaceId}/${timestamp}-${random}-${safeFileName}`
+  return `workspace/${workspaceId}/${buildStorageKeySegment(`${timestamp}-${random}-`, fileName)}`
 }
 
 const MAX_COPY_SUFFIX = 1000

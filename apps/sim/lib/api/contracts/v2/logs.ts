@@ -1,14 +1,21 @@
 import { z } from 'zod'
 import { traceSpansSchema } from '@/lib/api/contracts/logs'
-import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  noInputSchema,
+  runIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v1ListLogsQuerySchema } from '@/lib/api/contracts/v1/logs'
 import {
+  V2_FOLDER_FILTER_MISS,
   v2CursorListResponse,
   v2DataResponse,
   v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2PaginationFields,
+  v2RunOrderSchema,
   v2RunWindowBoundSchema,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
@@ -45,7 +52,7 @@ const v2LogCostSchema = z
 export const v2LogStatusSchema = z
   .enum(PERSISTED_WORKFLOW_EXECUTION_STATUSES)
   .describe(
-    'Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not run to completion and the run is waiting to be resumed again. **This differs from the run resources for the same run:** `GET /api/v2/workflows/{id}/runs` and `GET /api/v2/workflows/{id}/runs/{runId}` additionally report `paused` for a run held at a human-in-the-loop pause point, which this field reports as `pending`. Use the run resources when the pause state matters.'
+    'Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not complete; a run held at a human-in-the-loop pause point reads `pending` here, and `paused` on the workflow run resources. Use those when the pause state matters.'
   )
 
 /** Execution `files` is a per-run jsonb array of attachment metadata. */
@@ -75,7 +82,7 @@ const v2LogWorkflowStateSchema = z
   )
   .nullable()
   .describe(
-    'Workflow graph snapshot captured for the run, with credential values redacted: `oauth-input`, `password: true`, and table sub-block values are null; sensitive nested tool parameters and every parameter without authoritative codec metadata are null; and `{{VAR}}` references in non-opaque fields are preserved. Null when no snapshot is retained.'
+    'Workflow graph snapshot captured for the run, or null when none is retained. Credential-bearing values are redacted to null: `oauth-input`, `password: true`, table sub-block values, sensitive nested tool parameters, and any parameter without authoritative codec metadata. `{{VAR}}` references in non-opaque fields are preserved.'
   )
 
 const v2LogWorkflowSummarySchema = z.object({
@@ -150,7 +157,9 @@ export const v2LogDetailSchema = z
         description: z.string().nullable().describe('Workflow description, or null when unset.'),
         folderPath: v2FolderPathSchema
           .nullable()
-          .describe('Workflow folder path, or null when unavailable.'),
+          .describe(
+            'Canonical folder path of the workflow, in the same form `folderPaths` accepts as a filter: `/` for a workflow at the workspace root. Null only when the path cannot be resolved — the folder has been deleted, or the workflow itself no longer exists.'
+          ),
         ownerEmail: z
           .email()
           .nullable()
@@ -189,48 +198,103 @@ export const v2LogDetailSchema = z
 export type V2LogDetail = z.output<typeof v2LogDetailSchema>
 
 export const v2LogParamsSchema = z.object({
-  runId: z
-    .string()
-    .min(1, 'runId cannot be empty')
-    .describe('The unique run identifier shared by lifecycle and diagnostic resources.'),
+  runId: runIdSchema.describe('Unique workflow run identifier.'),
 })
+
+/**
+ * Upper bound of `workflow_execution_logs.total_duration_ms`, whose column is a
+ * Postgres `integer`.
+ *
+ * The same rule `DEPLOYMENT_VERSION_MAX` states for deployment versions: a
+ * comparison against an `integer` column is an `integer` comparison, so a bound
+ * outside int4 — or one carrying a fractional part — is not a filter that
+ * matches nothing, it is a value Postgres refuses to parse. `1.5`,
+ * `2147483648`, and `1e30` each reached the query as a bind parameter and came
+ * back as a 500 on a read the caller had every reason to believe was well
+ * formed.
+ */
+const V2_DURATION_MS_MAX = 2147483647
+
+/**
+ * A duration bound, in the units and range its column can hold.
+ *
+ * Whole milliseconds rather than a coerced `number`, because the column is
+ * `integer`: publishing `number` invited exactly the fractional value Postgres
+ * cannot compare. Non-negative for the same reason the column is — a run cannot
+ * last less than no time — so a negative bound is a caller mistake rather than a
+ * filter that happens to match everything or nothing.
+ */
+function v2DurationBoundSchema(
+  field: 'minDurationMs' | 'maxDurationMs',
+  bound: 'Minimum' | 'Maximum'
+) {
+  return z.coerce
+    .number()
+    .int(`${field} must be a whole number of milliseconds`)
+    .min(0, `${field} must not be negative`)
+    .max(V2_DURATION_MS_MAX, `${field} must be at most ${V2_DURATION_MS_MAX}`)
+    .describe(
+      `${bound} total execution duration in milliseconds. Whole milliseconds from 0 to ${V2_DURATION_MS_MAX}; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.`
+    )
+}
+
+/**
+ * A comma-separated filter list, with an empty entry rejected rather than dropped.
+ *
+ * `folderPaths` already refused `/,` while its two siblings on the same operation
+ * silently discarded the empty entry, so one endpoint answered two ways to one
+ * mistake. Rejecting is the half that matches the surface-wide rule for a blank
+ * value (`V2_PARSE_DEFAULTS.rejectBlankQueryValues`): dropping it turns a
+ * malformed list into a narrower filter and reports nothing, which on a log
+ * search reads as "those runs do not exist".
+ */
+function v2CommaListSchema(field: 'workflowIds' | 'triggers', description: string) {
+  return z
+    .string()
+    .describe(description)
+    .refine((value) => value.split(',').every((entry) => entry.length > 0), {
+      error: `${field} must not contain an empty entry`,
+    })
+}
 
 export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
   .omit({ executionId: true, folderIds: true })
   .extend({
     workspaceId: workspaceIdSchema.describe('Workspace whose execution logs should be returned.'),
-    workflowIds: z.string().describe('Comma-separated workflow identifiers to include.').optional(),
-    triggers: z.string().describe('Comma-separated trigger types to include.').optional(),
+    workflowIds: v2CommaListSchema(
+      'workflowIds',
+      'Comma-separated workflow identifiers to include. An empty entry is rejected.'
+    ).optional(),
+    triggers: v2CommaListSchema(
+      'triggers',
+      'Comma-separated trigger types to include. An empty entry is rejected. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.'
+    ).optional(),
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
     startDate: v2RunWindowBoundSchema('startDate').optional(),
     endDate: v2RunWindowBoundSchema('endDate').optional(),
-    runId: z
-      .string()
-      .min(1, 'runId cannot be empty')
-      .describe('Exact run identifier to match.')
-      .optional(),
-    minDurationMs: z.coerce
-      .number()
-      .describe('Minimum total execution duration in milliseconds.')
-      .optional(),
-    maxDurationMs: z.coerce
-      .number()
-      .describe('Maximum total execution duration in milliseconds.')
-      .optional(),
+    runId: runIdSchema.describe('Exact run identifier to match.').optional(),
+    minDurationMs: v2DurationBoundSchema('minDurationMs', 'Minimum').optional(),
+    maxDurationMs: v2DurationBoundSchema('maxDurationMs', 'Maximum').optional(),
     minCost: z.coerce.number().describe('Minimum execution cost in USD.').optional(),
     maxCost: z.coerce.number().describe('Maximum execution cost in USD.').optional(),
     model: z.string().describe('AI model used during execution.').optional(),
     details: z
       .enum(['basic', 'full'])
-      .describe('Response detail level.')
+      .describe(
+        'Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.'
+      )
       .optional()
       .default('basic'),
     includeTraceSpans: booleanQueryFlagSchema
-      .describe('Whether to include block-level trace spans.')
+      .describe(
+        'Whether to include block-level trace spans. Implies `details=full`. Spans are pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error.'
+      )
       .optional()
       .default(false),
     includeFinalOutput: booleanQueryFlagSchema
-      .describe('Whether to include the final workflow output.')
+      .describe(
+        'Whether to include the final workflow output. Implies `details=full`, so the `workflow` summary is present regardless of what `details` is set to.'
+      )
       .optional()
       .default(false),
     ...v2PaginationFields({
@@ -247,17 +311,14 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
      * would break every caller, while accepting `sortOrder` as an alias would
      * add a second spelling of one thing with undefined precedence when both
      * arrive — so the split is documented rather than papered over.
+     *
+     * Shared with `GET /workflows/{id}/runs` so the two spell the enum the same
+     * way in the generated specs.
      */
-    order: z
-      .enum(['desc', 'asc'])
-      .describe(
-        'Sort direction by execution start time. This operation deviates from the v2 `sortBy` + `sortOrder` convention: logs are sortable only by start time, so the direction is carried by this single `order` param and `sortBy`/`sortOrder` are not accepted.'
-      )
-      .optional()
-      .default('desc'),
+    order: v2RunOrderSchema('execution'),
     folderPaths: z
       .string()
-      .describe('Comma-separated workflow folder paths to include.')
+      .describe(`Comma-separated workflow folder paths to include. ${V2_FOLDER_FILTER_MISS}`)
       .optional()
       .transform((value, ctx) => {
         if (value === undefined) return undefined
@@ -311,6 +372,7 @@ export const v2ListLogsContract = defineRouteContract({
 export const v2GetLogContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/logs/[runId]',
+  query: noInputSchema,
   params: v2LogParamsSchema,
   response: {
     mode: 'json',

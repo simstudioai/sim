@@ -1,7 +1,7 @@
 import type { CursorKey } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
-import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
+import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import {
   listWorkspaceFiles,
@@ -26,7 +26,6 @@ export interface QueryWorkspaceFilePageInput {
   sortOrder: 'asc' | 'desc'
   limit: number
   after?: CursorKey[]
-  cursorSort: string
 }
 
 async function resolveListWorkspaceFileContext(workspaceId: string) {
@@ -53,26 +52,29 @@ export const queryWorkspaceFilePage = defineAuthorizedWorkspaceFileUseCase({
   resolveContext: ({ input }: { input: QueryWorkspaceFilePageInput }) =>
     resolveListWorkspaceFileContext(input.workspaceId),
   async execute({ input, context }) {
-    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'file')
-    const folderId =
-      input.folderPath === undefined
-        ? undefined
-        : input.folderPath === ROOT_FOLDER_PATH
-          ? null
-          : folderIndex.idByPath.get(input.folderPath)
-    if (input.folderPath !== undefined && folderId === undefined) {
-      throw new OrchestrationError('not_found', 'Folder not found')
-    }
+    /**
+     * Capped the way the workflow, table, and knowledge lists cap theirs. A
+     * truncated index does not fail — it silently loses paths, and the only
+     * consumer here is the `folderPath` filter, so a real folder outside the
+     * read rows would resolve to nothing and the caller would get an empty page
+     * for a folder that has files in it. The cap turns that into the same 413
+     * the sibling lists answer.
+     */
+    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'file', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
+    const folderFilter = resolveFolderPathFilter(folderIndex, input.folderPath)
+    if (folderFilter.kind === 'noMatch') return { files: [], nextKeys: null }
 
     const { files, nextKeys } = await queryWorkspaceFiles(context.workspaceId, {
       scope: input.scope,
-      folderId,
+      folderId: folderFilter.kind === 'folder' ? folderFilter.folderId : undefined,
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,
       limit: input.limit,
       after: input.after,
     })
-    return { files, nextKeys, cursorSort: input.cursorSort }
+    return { files, nextKeys }
   },
 })

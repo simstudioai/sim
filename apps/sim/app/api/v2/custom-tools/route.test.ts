@@ -55,6 +55,7 @@ vi.mock('@/lib/custom-tools/application/use-cases', () => ({
 }))
 
 import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
+import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET, POST } from '@/app/api/v2/custom-tools/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -133,6 +134,66 @@ describe('/api/v2/custom-tools', () => {
       'v2:custom_tools.list:workspace:workspace-1',
       expect.objectContaining({ maxTokens: 100 })
     )
+  })
+
+  /**
+   * Pins the binding end-to-end — the mint in `present` and the read in
+   * `mapInput` — because the contract-level sweep only checks a hand-maintained
+   * map of param names and stays green when a route drops the stamp entirely.
+   */
+  it('refuses a cursor minted under a different filter', async () => {
+    mocks.list.mockResolvedValue({
+      tools: [tool],
+      nextCursorKeys: ['2026-01-01T00:00:00.000Z', 'tool-1'],
+    })
+
+    const minted = await GET(
+      request('GET', `/api/v2/custom-tools?workspaceId=${WORKSPACE_ID}&search=lookup`)
+    )
+    const { nextCursor } = await minted.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    mocks.list.mockClear()
+    const replayed = await GET(
+      request(
+        'GET',
+        `/api/v2/custom-tools?workspaceId=${WORKSPACE_ID}&search=refund&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(replayed.status).toBe(400)
+    expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  it('resumes a cursor replayed under the filters it was minted with', async () => {
+    mocks.list.mockResolvedValue({
+      tools: [tool],
+      nextCursorKeys: ['2026-01-01T00:00:00.000Z', 'tool-1'],
+    })
+
+    const minted = await GET(
+      request('GET', `/api/v2/custom-tools?workspaceId=${WORKSPACE_ID}&search=lookup`)
+    )
+    const { nextCursor } = await minted.json()
+
+    mocks.list.mockClear()
+    const resumed = await GET(
+      request(
+        'GET',
+        `/api/v2/custom-tools?workspaceId=${WORKSPACE_ID}&search=lookup&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(resumed.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: expect.objectContaining({
+        search: 'lookup',
+        cursorKeys: ['2026-01-01T00:00:00.000Z', 'tool-1'],
+      }),
+      request: expect.anything(),
+    })
   })
 
   it('creates exactly one custom tool with the v2 source and status', async () => {

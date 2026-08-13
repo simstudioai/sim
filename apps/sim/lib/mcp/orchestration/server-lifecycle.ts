@@ -4,6 +4,7 @@ import { mcpServerOauth } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit'
 import type { NextRequest } from 'next/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
@@ -157,6 +158,8 @@ export async function createMcpServer(
         id: mcpServers.id,
         deletedAt: mcpServers.deletedAt,
         url: mcpServers.url,
+        transport: mcpServers.transport,
+        headers: mcpServers.headers,
         authType: mcpServers.authType,
         oauthClientId: mcpServers.oauthClientId,
         oauthClientSecret: mcpServers.oauthClientSecret,
@@ -204,10 +207,22 @@ export async function createMcpServer(
         currentEncryptedClientSecret: existingServer.oauthClientSecret,
       })
       const isRevival = existingServer.deletedAt !== null
-      const authTypeChanged = existingServer.authType !== resolvedAuthType
       // Turning OAuth off orphans its tokens; revoke and delete them, mirroring the update path.
       const oauthDisabled = existingServer.authType === 'oauth' && resolvedAuthType !== 'oauth'
       const shouldClearOauth = urlChanged || credsChanged || isRevival || oauthDisabled
+      /**
+       * Everything a connection is established from. `name`, `description`,
+       * `timeout`, `retries`, and `enabled` are deliberately absent: none of
+       * them changes what the server answers to a discovery, so rewriting one
+       * must not invalidate a status a real discovery earned.
+       */
+      const connectionInputsChanged =
+        isRevival ||
+        urlChanged ||
+        credsChanged ||
+        existingServer.transport !== transport ||
+        (existingServer.authType ?? 'headers') !== resolvedAuthType ||
+        !isEqual(existingServer.headers ?? {}, params.headers || {})
 
       if (shouldClearOauth) await revokeMcpOauthTokens(serverId, params.workspaceId)
 
@@ -229,18 +244,25 @@ export async function createMcpServer(
           updatedAt: new Date(),
           deletedAt: null,
         }
-        if (authTypeChanged || (shouldClearOauth && resolvedAuthType === 'oauth')) {
-          // An auth-type flip, or an OAuth URL/creds change, invalidates any prior connection:
-          // reset to disconnected and clear the stale error so the UI never shows
-          // connected-with-error until re-discovery. Mirrors performUpdateMcpServer.
+        /**
+         * A re-registration must never stamp `connected` itself: the former
+         * `else` branch published a fresh `lastConnected` for any non-OAuth
+         * re-registration without contacting the endpoint, and left `lastError`
+         * alone, so `connected` could sit beside a stale error.
+         * `mcpService.updateServerStatus` is the only writer entitled to claim a
+         * connection, and it does so after a real discovery.
+         *
+         * Resetting is scoped to the inputs a connection is actually made from.
+         * A re-registration also rewrites `name` and `description`, and clearing
+         * the status for those strands an OAuth server: `isServerEligibleForDiscovery`
+         * skips an OAuth row that is not `connected`, so the only writer that can
+         * restore the status is gated on the status just cleared, and a rename
+         * silently removes every tool the server publishes.
+         */
+        if (connectionInputsChanged) {
           updateValues.connectionStatus = 'disconnected'
           updateValues.lastConnected = null
           updateValues.lastError = null
-        } else if (resolvedAuthType !== 'oauth') {
-          // A non-OAuth (re-)registration with unchanged auth optimistically marks the server
-          // reachable; discovery corrects it if the endpoint is unhealthy.
-          updateValues.connectionStatus = 'connected'
-          updateValues.lastConnected = new Date()
         }
         if (params.oauthClientIdProvided) updateValues.oauthClientId = oauthClientId
         if (params.oauthClientSecretProvided) {
@@ -291,8 +313,21 @@ export async function createMcpServer(
       timeout,
       retries,
       enabled,
-      connectionStatus: resolvedAuthType === 'oauth' ? 'disconnected' : 'connected',
-      lastConnected: resolvedAuthType === 'oauth' ? null : new Date(),
+      /**
+       * Registration stores a configuration; it does not open a connection. The
+       * only network touch on this path is `detectMcpAuthType`, an OAuth
+       * discovery probe whose failure is swallowed, so a URL serving static HTML
+       * — or nothing at all — reached this insert and was written as
+       * `connected` with `lastConnected` set to now. Both columns are contracted
+       * as the result of, and the time of, a real connection attempt, and
+       * `tool-validation.ts` gates tool availability on the first of them, so an
+       * unverified server read as healthy. The honest initial state is the
+       * column default; `mcpService.updateServerStatus` moves it once a
+       * discovery actually runs, which `isServerEligibleForDiscovery` allows for
+       * a non-OAuth server immediately.
+       */
+      connectionStatus: 'disconnected',
+      lastConnected: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     })

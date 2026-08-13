@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getShareForResource,
@@ -84,7 +85,7 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
         await validatePublicFileSharing(subjectUserId, context.workspaceId, effectiveAuthType)
       } catch (error) {
         if (error instanceof PublicFileSharingNotAllowedError)
-          throw new OrchestrationError('forbidden', error.message)
+          throw new ForbiddenOperationError('PUBLIC_SHARING_NOT_ALLOWED', error.message)
         throw error
       }
     }

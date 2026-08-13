@@ -20,6 +20,7 @@ export const POST = defineV2JsonRoute({
     assertedWorkspaceId: body.workspaceId,
     data: body.data,
     conflictTarget: body.conflictTarget,
+    strictWrite: true,
   }),
   useCase: upsertTableRow,
   present: ({ table, row, operation }) => ({

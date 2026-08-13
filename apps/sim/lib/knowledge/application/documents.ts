@@ -65,7 +65,10 @@ import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { StorageService } from '@/lib/uploads'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
-import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
+import {
+  EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE,
+  MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
+} from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 
 const logger = createLogger('KnowledgeDocumentApplication')
@@ -87,12 +90,6 @@ export interface ListKnowledgeDocumentsInput {
    * document filtering and search speak one tag vocabulary.
    */
   tagNameFilters?: KnowledgeTagNameFilter[]
-  /**
-   * The query state `offset` counts positions within, echoed back so a surface
-   * presenter can stamp the next cursor with it. Surface-only; the read itself
-   * does not use it.
-   */
-  cursorScope?: string
 }
 
 export interface ReadKnowledgeDocumentInput {
@@ -259,7 +256,6 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         resolvedNameFilters?.definitionsByKnowledgeBase.get(context.knowledgeBaseId) ??
         (await getDocumentTagDefinitions(context.knowledgeBaseId)),
       workspaceId: context.workspaceId,
-      cursorScope: input.cursorScope,
     }
   },
 })
@@ -310,6 +306,9 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     }
     if (input.file.fileSize !== input.file.buffer.byteLength) {
       throw new Error('Knowledge document upload size does not match its buffered bytes')
+    }
+    if (input.file.fileSize === 0) {
+      throw new OrchestrationError('validation', EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE)
     }
     const fileTypeError = validateFileType(input.file.filename, input.file.mimeType)
     if (fileTypeError) throw new OrchestrationError('validation', fileTypeError.message)

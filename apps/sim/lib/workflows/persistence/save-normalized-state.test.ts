@@ -40,9 +40,13 @@ describe('parseWorkflowStateForPersistence', () => {
     const deployedAt = new Date('2026-01-02T03:04:05.678Z')
 
     const fromDate = parseWorkflowStateForPersistence(checkpointState({ deployedAt }))
-    const overTheWire = parseWorkflowStateForPersistence(
-      JSON.parse(JSON.stringify(checkpointState({ deployedAt })))
-    )
+    /**
+     * Serialized and parsed as two steps, not `structuredClone`: the point is the
+     * lossy JSON round trip that turns the `Date` into a string, which a
+     * structured clone would preserve and so would not exercise the wire form.
+     */
+    const serialized = JSON.stringify(checkpointState({ deployedAt }))
+    const overTheWire = parseWorkflowStateForPersistence(JSON.parse(serialized))
 
     expect(fromDate.success).toBe(true)
     expect(overTheWire.success).toBe(true)

@@ -37,6 +37,7 @@ vi.mock('@/lib/mcp/application/use-cases', () => ({
   createMcpServerUseCase: { operation: { id: 'mcp_servers.create' }, execute: mocks.create },
 }))
 
+import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET, POST } from '@/app/api/v2/mcp-servers/route'
 
 type McpServerRow = typeof mcpServers.$inferSelect
@@ -187,6 +188,71 @@ describe('/api/v2/mcp-servers', () => {
     )
 
     expect(response.status).toBe(400)
+  })
+
+  /**
+   * The sort case above is a separate stamp. This pins the filter half of the
+   * binding end-to-end — the mint in `present` and the read in `mapInput` —
+   * because the contract-level sweep only checks a hand-maintained map of param
+   * names and stays green when a route drops the stamp entirely.
+   */
+  it('refuses a cursor minted under a different filter', async () => {
+    mocks.list.mockResolvedValue({
+      servers: [server],
+      nextCursorKeys: [server.createdAt.toISOString(), server.id],
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
+
+    const minted = await GET(
+      request('GET', `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&search=docs`)
+    )
+    const { nextCursor } = await minted.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    mocks.list.mockClear()
+    const replayed = await GET(
+      request(
+        'GET',
+        `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&search=tickets&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(replayed.status).toBe(400)
+    expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  it('resumes a cursor replayed under the filters it was minted with', async () => {
+    mocks.list.mockResolvedValue({
+      servers: [server],
+      nextCursorKeys: [server.createdAt.toISOString(), server.id],
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
+
+    const minted = await GET(
+      request('GET', `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&search=docs`)
+    )
+    const { nextCursor } = await minted.json()
+
+    mocks.list.mockClear()
+    const resumed = await GET(
+      request(
+        'GET',
+        `/api/v2/mcp-servers?workspaceId=${WORKSPACE_ID}&search=docs&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(resumed.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: expect.objectContaining({
+        search: 'docs',
+        cursorKeys: [server.createdAt.toISOString(), server.id],
+      }),
+      request: expect.anything(),
+    })
   })
 
   it('rejects a fractional limit rather than paging on a fractional LIMIT', async () => {

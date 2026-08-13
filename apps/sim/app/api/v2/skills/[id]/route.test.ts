@@ -86,18 +86,22 @@ const skill = {
 }
 const context = { params: Promise.resolve({ id: skill.id }) }
 
+/**
+ * The read and delete verbs scope themselves with `?workspaceId=`; the write
+ * verb carries `workspaceId` in its body. Sending the query copy on a write is
+ * now a 400 rather than a silently dropped key, so the helper only appends it
+ * where the contract declares it.
+ */
 function request(method: 'GET' | 'PATCH' | 'DELETE', body?: unknown) {
-  return new NextRequest(
-    `http://localhost:3000/api/v2/skills/${skill.id}?workspaceId=${WORKSPACE_ID}`,
-    {
-      method,
-      headers: {
-        'x-api-key': 'key',
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }
-  )
+  const query = method === 'PATCH' ? '' : `?workspaceId=${WORKSPACE_ID}`
+  return new NextRequest(`http://localhost:3000/api/v2/skills/${skill.id}${query}`, {
+    method,
+    headers: {
+      'x-api-key': 'key',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
 }
 
 describe('/api/v2/skills/[id]', () => {
@@ -122,6 +126,25 @@ describe('/api/v2/skills/[id]', () => {
       input: { workspaceId: WORKSPACE_ID, skillId: skill.id },
       request: expect.anything(),
     })
+  })
+
+  /**
+   * Every list in this family rejects a query param it does not implement, so
+   * the single-resource reads must too. A caller who mistypes a flag otherwise
+   * gets a 200 that silently ignored it, which reads as confirmation the flag
+   * exists and does nothing.
+   */
+  it('rejects a query param it does not implement', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/skills/${skill.id}?workspaceId=${WORKSPACE_ID}&includeContents=true`,
+        { method: 'GET', headers: { 'x-api-key': 'key' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.get).not.toHaveBeenCalled()
   })
 
   it('updates a skill and emits only surface analytics', async () => {

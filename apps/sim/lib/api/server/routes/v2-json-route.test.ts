@@ -14,7 +14,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import type { ParsedRequest, ParseRequestOptions } from '@/lib/api/server/validation'
-import type { OperationUseCase } from '@/lib/core/application'
+import {
+  NoWorkspaceAccessError,
+  type OperationUseCase,
+  PrincipalKindAuthorizationError,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
 
@@ -31,6 +35,7 @@ import {
   defineV2JsonRoute,
   type V2ErrorPolicy,
   v2ApiKeyAuth,
+  v2HeadAuthorizationResponse,
   v2OrchestrationErrorPolicy,
   v2RateLimits,
 } from '@/lib/api/server/routes/v2-json-route'
@@ -487,5 +492,224 @@ describe('defineV2JsonRoute', () => {
     await expect(response.json()).resolves.toEqual({
       error: { code: 'PAYLOAD_TOO_LARGE', message: 'Import archive is too large' },
     })
+  })
+})
+
+/**
+ * A `HEAD` on a route whose `GET` is not safe must answer the question the `GET`
+ * would answer, minus the effect — not merely the question admission can answer.
+ *
+ * Returning {@link v2HeadNoEffect} straight after authenticate + rate-limit is
+ * an existence oracle: any valid API key draws a bodiless 200 for a denied
+ * principal kind, a nonexistent id, another tenant's workspace, and even a
+ * request missing a required param, while the `GET` beside it answers 403. These
+ * pin the builder to running the authorization phase and stopping before the
+ * business phase.
+ */
+describe('defineV2JsonRoute HEAD on a route that is not head-safe', () => {
+  const headContract = defineRouteContract({
+    method: 'GET',
+    path: '/api/v2/widgets/[widgetId]',
+    params: z.object({ widgetId: z.string() }).strict(),
+    query: z.object({ workspaceId: z.string().min(1) }).strict(),
+    response: { mode: 'json', schema: z.object({ data: z.object({ value: z.string() }) }) },
+  })
+
+  type HeadInput = { widgetId: string; workspaceId: string }
+
+  function createHeadHandler(overrides: {
+    authorize?: (args: { input: HeadInput }) => Promise<void>
+    execute?: () => Promise<Result>
+    omitAuthorize?: boolean
+  }) {
+    const useCase: OperationUseCase<typeof operation, HeadInput, Result> = {
+      operation,
+      execute: overrides.execute ?? (async () => ({ value: 'ok' })),
+      authorize: overrides.omitAuthorize ? undefined : (overrides.authorize ?? (async () => {})),
+    }
+    return defineV2JsonRoute({
+      contract: headContract,
+      auth: v2ApiKeyAuth,
+      operation,
+      headSafe: false,
+      rateLimit: v2RateLimits.publicApi,
+      errorPolicy: v2OrchestrationErrorPolicy,
+      mapInput: ({ params, query }) => ({ widgetId: params.widgetId, ...query }),
+      useCase,
+      present: (result) => ({ data: result }),
+    })
+  }
+
+  const headContext = { params: Promise.resolve({ widgetId: 'widget-1' }) }
+
+  function headRequest(query = 'workspaceId=workspace-1'): NextRequest {
+    return new NextRequest(`http://localhost/api/v2/widgets/widget-1?${query}`, {
+      method: 'HEAD',
+      headers: { 'x-api-key': 'secret' },
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
+    v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
+  })
+
+  it('answers a denied principal kind with the status its GET would produce', async () => {
+    const execute = vi.fn(async () => ({ value: 'ok' }))
+    const response = await createHeadHandler({
+      execute,
+      authorize: async () => {
+        throw new PrincipalKindAuthorizationError('workspace_api_key', operation.id)
+      },
+    })(headRequest(), headContext)
+
+    expect(response.status).toBe(403)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('answers a nonexistent resource with 404 rather than confirming it exists', async () => {
+    const execute = vi.fn(async () => ({ value: 'ok' }))
+    const response = await createHeadHandler({
+      execute,
+      authorize: async () => {
+        throw new OrchestrationError('not_found', 'Widget not found')
+      },
+    })(headRequest(), headContext)
+
+    expect(response.status).toBe(404)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('answers an unauthorized workspace with the GET`s own refusal status', async () => {
+    const execute = vi.fn(async () => ({ value: 'ok' }))
+    const response = await createHeadHandler({
+      execute,
+      authorize: async () => {
+        throw new NoWorkspaceAccessError()
+      },
+    })(headRequest('workspaceId=someone-elses-workspace'), headContext)
+
+    expect(response.status).toBe(403)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing required param instead of answering 200', async () => {
+    const authorize = vi.fn(async () => {})
+    const response = await createHeadHandler({ authorize })(headRequest(''), headContext)
+
+    expect(response.status).toBe(400)
+    expect(authorize).not.toHaveBeenCalled()
+  })
+
+  it('answers an authorized probe bodiless without running the business phase', async () => {
+    const execute = vi.fn(async () => ({ value: 'ok' }))
+    const authorize = vi.fn(async () => {})
+    const response = await createHeadHandler({ execute, authorize })(headRequest(), headContext)
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('')
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        input: { widgetId: 'widget-1', workspaceId: 'workspace-1' },
+      })
+    )
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('refuses at definition time to build the route when the use case cannot authorize', () => {
+    expect(() => createHeadHandler({ omitAuthorize: true })).toThrow(/authorize/)
+  })
+
+  /**
+   * The definition-time guard is what a route hits, and it covers both builders
+   * that answer a `HEAD` this way. This pins the responder's own behaviour if it
+   * is ever reached another way: a missing authorization phase has to fail,
+   * because skipping it hands back the bodiless 200 for a resource nothing
+   * authorized — the leak the guard exists to prevent, restored.
+   */
+  it('refuses to answer 200 when the authorization phase is missing', async () => {
+    await expect(
+      v2HeadAuthorizationResponse({
+        useCase: { authorize: undefined },
+        principal,
+        input: { widgetId: 'widget-1', workspaceId: 'workspace-1' },
+        request: headRequest(),
+        errorPolicy: v2OrchestrationErrorPolicy,
+      })
+    ).rejects.toThrow(/authorize/)
+  })
+})
+
+const presenterContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/widgets/[widgetId]/pages',
+  params: z.object({ widgetId: z.string() }).strict(),
+  query: z.object({ sort: z.string(), workspaceId: z.string() }).strict(),
+  body: z.object({ value: z.string() }).strict(),
+  response: {
+    mode: 'json',
+    status: 201,
+    schema: z.object({ data: z.object({ value: z.string() }), nextCursor: z.string() }),
+  },
+})
+
+/**
+ * A `nextCursor` is stamped with the sort and filters the page was read under,
+ * and those live in the request rather than the domain result — so a presenter
+ * that cannot see the parsed request forces the use case to carry an HTTP
+ * cursor-encoding concern back out.
+ */
+describe('defineV2JsonRoute presentation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
+    v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
+  })
+
+  it('hands the presenter the parsed request alongside the result', async () => {
+    const present = vi.fn((result: Result, parsed: ParsedRequest<typeof presenterContract>) => ({
+      data: result,
+      nextCursor: `${parsed.params.widgetId}:${parsed.query.sort}:${parsed.body.value}`,
+    }))
+
+    const handler = defineV2JsonRoute({
+      contract: presenterContract,
+      auth: v2ApiKeyAuth,
+      operation,
+      rateLimit: v2RateLimits.publicApi,
+      errorPolicy: v2OrchestrationErrorPolicy,
+      mapInput: ({ body }) => body,
+      useCase: { operation, execute: async ({ input }) => input },
+      present,
+    })
+
+    const response = await handler(
+      new NextRequest('http://localhost/api/v2/widgets/widget-1/pages?sort=asc&workspaceId=ws-1', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+        body: JSON.stringify({ value: 'ok' }),
+      }),
+      { params: Promise.resolve({ widgetId: 'widget-1' }) }
+    )
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toEqual({
+      data: { value: 'ok' },
+      nextCursor: 'widget-1:asc:ok',
+    })
+    expect(present).toHaveBeenCalledWith(
+      { value: 'ok' },
+      expect.objectContaining({
+        params: { widgetId: 'widget-1' },
+        query: { sort: 'asc', workspaceId: 'ws-1' },
+        body: { value: 'ok' },
+      })
+    )
   })
 })

@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   download: vi.fn(),
+  authorizeDownload: vi.fn(),
   rename: vi.fn(),
   deleteFile: vi.fn(),
   getUserEmailsByIds: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('@/lib/workspace-files/application/download-workspace-file', () => ({
   downloadWorkspaceFileStream: {
     operation: { id: 'files.download', minimumRole: 'read', workspaceApiKey: 'allow' },
     execute: mocks.download,
+    authorize: mocks.authorizeDownload,
   },
 }))
 
@@ -72,6 +74,12 @@ const auth = {
   keyType: 'workspace' as const,
 }
 
+function headRequest(query: string): NextRequest {
+  return new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}?${query}`, {
+    method: 'HEAD',
+  })
+}
+
 function fileRecord(overrides: Record<string, unknown> = {}) {
   return {
     id: FILE_ID,
@@ -109,6 +117,49 @@ describe('v2 single-file routes', () => {
       deleted: true,
     })
     mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
+    mocks.authorizeDownload.mockResolvedValue(undefined)
+  })
+
+  /**
+   * A download `HEAD` answered before the use case's workspace-scoped file
+   * resolution is an existence oracle: any valid API key draws a bodiless 200
+   * for a file id whose `GET` answers 404. These pin the probe to the answer the
+   * download gives, and to still not auditing one.
+   */
+  it('answers an authorized HEAD bodiless without auditing a download', async () => {
+    const response = await GET(headRequest(`workspaceId=${WORKSPACE_ID}`), context)
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('')
+    expect(mocks.download).not.toHaveBeenCalled()
+    expect(mocks.authorizeDownload).toHaveBeenCalledOnce()
+  })
+
+  it('does not confirm a file the caller cannot reach', async () => {
+    mocks.authorizeDownload.mockRejectedValueOnce(new NoWorkspaceAccessError())
+
+    const response = await GET(headRequest('workspaceId=someone-elses-workspace'), context)
+
+    expect(response.status).toBe(404)
+    expect(mocks.download).not.toHaveBeenCalled()
+  })
+
+  it('does not confirm a file id that does not exist', async () => {
+    mocks.authorizeDownload.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'File not found')
+    )
+
+    const response = await GET(headRequest(`workspaceId=${WORKSPACE_ID}`), context)
+
+    expect(response.status).toBe(404)
+    expect(mocks.download).not.toHaveBeenCalled()
+  })
+
+  it('rejects a HEAD missing the required workspaceId instead of answering 200', async () => {
+    const response = await GET(headRequest(''), context)
+
+    expect(response.status).toBe(400)
+    expect(mocks.authorizeDownload).not.toHaveBeenCalled()
   })
 
   it('downloads bytes through the binary adapter with operation rate headers', async () => {

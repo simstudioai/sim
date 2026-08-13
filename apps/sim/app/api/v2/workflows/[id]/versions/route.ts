@@ -1,5 +1,9 @@
 import type { V2WorkflowVersion } from '@/lib/api/contracts/v2/workflows'
-import { v2ListWorkflowVersionsContract } from '@/lib/api/contracts/v2/workflows'
+import {
+  v2ListWorkflowVersionsContract,
+  v2WorkflowVersionCursorSchema,
+} from '@/lib/api/contracts/v2/workflows'
+import { UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
@@ -10,10 +14,6 @@ import { decodeCursor, encodeCursor } from '@/app/api/v2/lib/response'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-interface WorkflowVersionCursor {
-  version: number
-}
-
 export const GET = defineV2JsonRoute({
   contract: v2ListWorkflowVersionsContract,
   auth: v2ApiKeyAuth,
@@ -21,14 +21,16 @@ export const GET = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
   mapInput: ({ params, query }) => {
-    const after = query.cursor ? decodeCursor<WorkflowVersionCursor>(query.cursor) : null
-    if (query.cursor && (!after || !Number.isInteger(after.version) || after.version < 1)) {
-      throw new OrchestrationError('validation', 'Invalid cursor')
+    const decoded = query.cursor
+      ? v2WorkflowVersionCursorSchema.safeParse(decodeCursor(query.cursor))
+      : undefined
+    if (decoded && !decoded.success) {
+      throw new OrchestrationError('validation', UNREADABLE_CURSOR_MESSAGE)
     }
     return {
       workflowId: params.id,
       limit: query.limit,
-      afterVersion: after?.version,
+      afterVersion: decoded?.data.version,
     }
   },
   useCase: listWorkflowVersions,

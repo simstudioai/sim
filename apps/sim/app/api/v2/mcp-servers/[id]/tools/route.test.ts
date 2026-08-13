@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   discover: vi.fn(),
+  authorizeDiscover: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
@@ -32,11 +33,17 @@ vi.mock('@/lib/mcp/application/use-cases', () => ({
   discoverMcpServerToolsUseCase: {
     operation: { id: 'mcp_servers.tools.discover' },
     execute: mocks.discover,
+    authorize: mocks.authorizeDiscover,
   },
 }))
 
-import { WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
-import { McpConnectionError, McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
+import { NoWorkspaceAccessError, WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  McpConnectionError,
+  McpOauthAuthorizationRequiredError,
+  McpServerCooldownError,
+} from '@/lib/mcp/types'
 import { GET } from '@/app/api/v2/mcp-servers/[id]/tools/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -78,6 +85,7 @@ describe('/api/v2/mcp-servers/[id]/tools', () => {
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.discover.mockResolvedValue({ tools: [TOOL] })
+    mocks.authorizeDiscover.mockResolvedValue(undefined)
   })
 
   it('returns a server tool inventory as a single page', async () => {
@@ -115,6 +123,53 @@ describe('/api/v2/mcp-servers/[id]/tools', () => {
 
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('')
+    expect(mocks.discover).not.toHaveBeenCalled()
+    expect(mocks.authorizeDiscover).toHaveBeenCalledOnce()
+  })
+
+  /**
+   * A `HEAD` answered before the use case's resource authorization is an
+   * existence oracle: any valid API key draws a bodiless 200 for a server id in
+   * a workspace it cannot read, for one that does not exist, and for a principal
+   * kind this operation refuses outright. These four pin the probe to the answer
+   * the `GET` gives.
+   */
+  it('does not confirm a server to a principal kind the operation refuses', async () => {
+    mocks.authorizeDiscover.mockRejectedValueOnce(new WorkspaceApiKeyAuthorizationError())
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`, 'HEAD'), { ...context })
+
+    expect(response.status).toBe(403)
+    expect(mocks.discover).not.toHaveBeenCalled()
+  })
+
+  it('does not confirm a server id that does not exist', async () => {
+    mocks.authorizeDiscover.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'MCP server not found')
+    )
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`, 'HEAD'), { ...context })
+
+    expect(response.status).toBe(404)
+    expect(mocks.discover).not.toHaveBeenCalled()
+  })
+
+  it('does not confirm a server in a workspace the caller cannot read', async () => {
+    mocks.authorizeDiscover.mockRejectedValueOnce(new NoWorkspaceAccessError())
+
+    const response = await GET(request('workspaceId=someone-elses-workspace', 'HEAD'), {
+      ...context,
+    })
+
+    expect(response.status).toBe(404)
+    expect(mocks.discover).not.toHaveBeenCalled()
+  })
+
+  it('rejects a HEAD missing the required workspaceId instead of answering 200', async () => {
+    const response = await GET(request('', 'HEAD'), { ...context })
+
+    expect(response.status).toBe(400)
+    expect(mocks.authorizeDiscover).not.toHaveBeenCalled()
     expect(mocks.discover).not.toHaveBeenCalled()
   })
 
@@ -171,6 +226,62 @@ describe('/api/v2/mcp-servers/[id]/tools', () => {
 
     expect(response.status).toBe(500)
     expect(body.error.code).toBe('INTERNAL_ERROR')
+  })
+
+  /**
+   * `inputSchema` below the `object` wrapper is authored by the third-party
+   * server, and the MCP SDK's own `ToolSchema` does not declare `description`
+   * there — its `.catchall(z.unknown())` lets any value through, so a server
+   * serializing an absent description as JSON `null` (what a Python `None`
+   * produces) reaches Sim unvalidated. Declaring the key more tightly than the
+   * upstream schema does made the builder's outbound `.parse()` throw, and
+   * discovery answered a bare 500 for a payload the protocol permits.
+   */
+  it('publishes a tool whose server reported a non-string inputSchema description', async () => {
+    mocks.discover.mockResolvedValueOnce({
+      tools: [
+        {
+          ...TOOL,
+          inputSchema: { type: 'object' as const, description: null, properties: {} },
+        },
+      ],
+    })
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data[0].inputSchema).toEqual({
+      type: 'object',
+      description: null,
+      properties: {},
+    })
+  })
+
+  /**
+   * `McpConnectionError` interpolates the server's display name into its
+   * message, so selecting the 503 wording by searching that message for
+   * `cooldown` hands a server named after the word the negative-cache wording
+   * for a cooldown it was never in.
+   */
+  it('does not read cooldown wording out of a server display name', async () => {
+    mocks.discover.mockRejectedValueOnce(new McpConnectionError('ECONNREFUSED', 'Cooldown Docs'))
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(body.error.message).toBe('The MCP server could not be reached')
+  })
+
+  it('reports a server inside the discovery cooldown with its own wording', async () => {
+    mocks.discover.mockRejectedValueOnce(new McpServerCooldownError(SERVER_ID))
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(503)
+    expect(body.error.message).toBe('The MCP server recently failed and is in cooldown')
   })
 
   it('rejects a workspace API key, which cannot supply the caller`s OAuth grant', async () => {

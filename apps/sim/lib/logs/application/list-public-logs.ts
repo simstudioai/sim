@@ -1,8 +1,7 @@
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
-import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 import { logOperations } from '@/lib/logs/application/operations'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import type { LogFilters } from '@/lib/logs/public-filters'
@@ -46,12 +45,17 @@ export const listPublicLogs = defineAuthorizedWorkspaceUseCase({
     const folderIndex = input.folderPaths
       ? await loadActiveFolderPathIndex(context.workspaceId, 'workflow')
       : null
-    const resolvedFolderIds = input.folderPaths?.map((path) =>
-      path === ROOT_FOLDER_PATH ? null : folderIndex?.idByPath.get(path)
-    )
-    if (resolvedFolderIds?.some((folderId) => folderId === undefined)) {
-      throw new OrchestrationError('not_found', 'Folder not found')
-    }
+    /**
+     * A path naming no active folder contributes nothing to the scope instead of
+     * failing the read, so `folderPaths=/live,/deleted` still returns the `/live`
+     * runs and `folderPaths=/deleted` alone returns an empty page. See
+     * {@link resolveFolderPathFilter} for why a filter's miss is an empty set.
+     */
+    const resolvedFolderIds = input.folderPaths?.flatMap((path) => {
+      if (!folderIndex) return []
+      const filter = resolveFolderPathFilter(folderIndex, path)
+      return filter.kind === 'folder' ? [filter.folderId] : []
+    })
 
     const folderIds = resolvedFolderIds?.filter(
       (folderId): folderId is string => typeof folderId === 'string'

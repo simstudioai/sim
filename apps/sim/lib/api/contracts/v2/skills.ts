@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   skillContentSchema,
   skillDescriptionSchema,
@@ -36,7 +36,11 @@ import {
 /** List item — everything but the skill body. */
 export const v2SkillSummarySchema = z
   .object({
-    id: z.string().describe('Unique skill identifier. Built-in skills use their name as the id.'),
+    id: z
+      .string()
+      .describe(
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.'
+      ),
     name: z.string().describe('Kebab-case name that agents use to reference the skill.'),
     description: z.string().describe('One-line summary of when the skill applies.'),
     /** True for built-in template skills, which ship with Sim and cannot be written to. */
@@ -83,14 +87,16 @@ export type V2SkillDeleteData = z.output<typeof v2SkillDeleteDataSchema>
 
 export const v2SkillParamsSchema = z.object({
   id: nonEmptyIdSchema.describe(
-    'Skill to retrieve, update, or delete. Built-in skills use their name as the id.'
+    'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.'
   ),
 })
 export type V2SkillParams = z.output<typeof v2SkillParamsSchema>
 
-export const v2SkillWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the skill.'),
-})
+export const v2SkillWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the skill.'),
+  })
+  .strict()
 export type V2SkillWorkspaceQuery = z.output<typeof v2SkillWorkspaceQuerySchema>
 
 export const v2SkillSortFields = ['name', 'createdAt', 'updatedAt'] as const
@@ -166,6 +172,7 @@ export const v2ListSkillsContract = defineRouteContract({
 export const v2CreateSkillContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/skills',
+  query: noInputSchema,
   body: v2CreateSkillBodySchema,
   response: {
     mode: 'json',
@@ -188,6 +195,7 @@ export const v2GetSkillContract = defineRouteContract({
 export const v2UpdateSkillContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/skills/[id]',
+  query: noInputSchema,
   params: v2SkillParamsSchema,
   body: v2UpdateSkillBodySchema,
   response: {

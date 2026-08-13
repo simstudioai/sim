@@ -29,6 +29,7 @@ import type {
 import {
   COLUMN_TYPES,
   FILTER_OPS,
+  MAX_RUN_TARGET_ROW_IDS,
   MAX_SELECT_OPTIONS,
   NAME_PATTERN,
   SORT_DIRECTIONS,
@@ -37,7 +38,9 @@ import {
 import { CSV_SYNC_MAX_FILE_SIZE_BYTES, CSV_SYNC_MAX_FILE_SIZE_MESSAGE } from '@/lib/table/import'
 import {
   getTablePredicateTreeSizeError,
+  MAX_PREDICATE_DEPTH,
   MAX_PREDICATE_GROUP_SIZE,
+  MAX_PREDICATE_NODES,
   normalizeTablePredicate,
 } from '@/lib/table/query-builder/predicate'
 
@@ -469,6 +472,23 @@ export const TABLE_QUERY_MAX_BODY_BYTES = 1024 * 1024
 const MAX_SORT_KEYS = 16
 
 /**
+ * The published predicate grammar.
+ *
+ * Without it a caller reads an untyped operand and an operator enum with no
+ * semantics, and the natural guess — SQL's own `%` wildcard — matches zero rows
+ * under a 200 with nothing saying why. Stated on the operator and on the tree so
+ * it reaches the OpenAPI description of every endpoint taking a predicate.
+ */
+const PREDICATE_OPERATOR_GRAMMAR = [
+  'Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`.',
+  'Membership: `in`, `nin` (array operand).',
+  'Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand).',
+  'Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`.',
+  'Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`.',
+  'A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+].join(' ')
+
+/**
  * v2 filter wire format: the typed `{ all | any: [...] }` predicate tree (same
  * shape the engine consumes). Structure is validated here; schema-awareness
  * (unknown column, json-op rejection) is enforced server-side by
@@ -485,9 +505,20 @@ const MAX_SORT_KEYS = 16
  * would just fall through to the leaf branch, which is the more dangerous reading.
  */
 const predicateLeafObjectSchema = z.strictObject({
-  field: z.string().min(1, 'field is required').max(128),
-  op: z.enum(FILTER_OPS),
-  value: z.unknown().optional(),
+  field: z
+    .string()
+    .min(1, 'field is required')
+    .max(128)
+    .describe(
+      'Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`.'
+    ),
+  op: z.enum(FILTER_OPS).describe(PREDICATE_OPERATOR_GRAMMAR),
+  value: z
+    .unknown()
+    .optional()
+    .describe(
+      'Operand. A scalar for the comparison operators, an array for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`.'
+    ),
 })
 
 // double-cast-allowed: `z.unknown()` keeps the runtime permissive (a leaf value
@@ -525,15 +556,113 @@ const predicateBoundarySchema = z.unknown().superRefine((value, ctx) => {
 })
 
 /**
+ * The published JSON Schema for a predicate tree.
+ *
+ * `predicateSchema` is a `pipe` whose input side is `z.unknown()` — the size
+ * guard has to run before the recursive union so pathological input is a `400`
+ * rather than a stack overflow — and `z.toJSONSchema` documents a pipe from its
+ * input. That published the most consequential shape in the API as a bare
+ * description: the leaf keys `field`/`op`/`value` were named nowhere in the
+ * contract and were discoverable only by reading an example, so a caller
+ * guessing `{column, operator, value}` got a `400` with nothing to correct
+ * against. This object is merged in through `.meta()` so the shape is published
+ * without moving the guard.
+ *
+ * Every bound below is read from the runtime constant that enforces it, and
+ * `tables-predicate.test.ts` pins the published operator set against
+ * `FILTER_OPS`, so the two cannot drift.
+ */
+const PREDICATE_LEAF_JSON_SCHEMA = {
+  type: 'object',
+  title: 'Predicate condition',
+  description: 'One column comparison.',
+  properties: {
+    field: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 128,
+      description:
+        'Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`.',
+    },
+    op: {
+      type: 'string',
+      enum: [...FILTER_OPS],
+      description:
+        'Comparison operator. The `TablePredicate` schema description carries the grammar for all of them.',
+    },
+    value: {
+      description:
+        'Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`.',
+    },
+  },
+  required: ['field', 'op'],
+  additionalProperties: false,
+} as const
+
+/**
+ * A group's members are the schema itself, so each component carries a `$ref`
+ * to its own id. The self-reference is what makes the recursion resolvable from
+ * inside a single `$defs` entry — a reference to a sibling component would be
+ * dangling wherever only one of the two is reachable, which is exactly the
+ * shape the table-view body has.
+ */
+const predicateGroupJsonSchema = (key: 'all' | 'any', conjunction: string, selfRef: string) =>
+  ({
+    type: 'object',
+    description: `Matches a row when ${conjunction} member matches.`,
+    properties: {
+      [key]: {
+        type: 'array',
+        minItems: 1,
+        maxItems: MAX_PREDICATE_GROUP_SIZE,
+        description: `Members combined with ${key === 'all' ? 'AND' : 'OR'}. An empty group is rejected, because it would compile to no filter at all.`,
+        items: {
+          description: 'A nested group, or a single condition.',
+          anyOf: [{ $ref: selfRef }, PREDICATE_LEAF_JSON_SCHEMA],
+        },
+      },
+    },
+    required: [key],
+    additionalProperties: false,
+  }) as const
+
+const predicateGroupsJsonSchema = (selfRef: string) =>
+  [
+    predicateGroupJsonSchema('all', 'every', selfRef),
+    predicateGroupJsonSchema('any', 'at least one', selfRef),
+  ] as const
+
+/**
+ * Stated once here rather than on each operation that accepts a predicate.
+ * The NULL clause is the surprising half: `ncontains`, `nlike`, and `nilike`
+ * emit an explicit `IS NULL OR NOT …` arm, and `ne`/`nin` negate a JSONB
+ * containment test that is false for an absent key, so all of them return rows
+ * whose column is null.
+ *
+ * Multi-select is not an exception to that, though the published sentence used
+ * to claim it was: its `ncontains` is `NOT (data @> '{"tags":["opt"]}')`, and
+ * `data` is never NULL, so an absent or null cell makes the containment test
+ * false and the negation true — the same include-nulls behaviour as every other
+ * negation. Pinned by `__tests__/sql.test.ts`.
+ */
+const PREDICATE_TREE_DESCRIPTION = [
+  `Recursive predicate tree. Each group node is exactly one non-empty \`all\` or \`any\` array whose members are further groups or \`{ field, op, value }\` conditions; the root must be a group, not a bare condition. At most ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels of nesting, and ${MAX_PREDICATE_NODES} nodes in total.`,
+  'The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`.',
+  PREDICATE_OPERATOR_GRAMMAR,
+].join(' ')
+
+/**
  * The canonical grouped predicate schema for dual-grammar boundaries. Keeping
  * its root group-only prevents a legacy filter with columns named `field`,
  * `op`, and `value` from being reinterpreted as a v2 predicate.
  */
-const documentedPredicateSchema = predicateBoundarySchema
-  .pipe(predicateTreeSchema)
-  .describe(
-    'Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node.'
-  )
+const documentedPredicateSchema = predicateBoundarySchema.pipe(predicateTreeSchema).meta({
+  id: 'TablePredicate',
+  title: 'Table predicate',
+  description: PREDICATE_TREE_DESCRIPTION,
+  type: 'object',
+  oneOf: [...predicateGroupsJsonSchema('#/$defs/TablePredicate')],
+})
 
 // double-cast-allowed: the pipe's inferred input is `unknown`, and letting TS widen the recursive lazy union through it makes typecheck OOM
 export const predicateSchema = documentedPredicateSchema as unknown as z.ZodType<TablePredicate>
@@ -547,9 +676,16 @@ export const predicateSchema = documentedPredicateSchema as unknown as z.ZodType
 export const predicateInputSchema = predicateBoundarySchema
   .pipe(predicateNodeSchema)
   .transform(normalizeTablePredicate)
-  .describe(
-    'Recursive predicate condition or group, normalized to a grouped predicate after validation.'
-  ) as z.ZodType<TablePredicate, PredicateNode>
+  .meta({
+    id: 'TablePredicateInput',
+    title: 'Table predicate input',
+    description:
+      'A single `{ field, op, value }` condition or a group, normalized to a grouped predicate after validation. Same grammar and limits as `TablePredicate`.',
+    oneOf: [
+      ...predicateGroupsJsonSchema('#/$defs/TablePredicateInput'),
+      PREDICATE_LEAF_JSON_SCHEMA,
+    ],
+  }) as z.ZodType<TablePredicate, PredicateNode>
 
 /**
  * v2 sort wire format: an ordered list of `{ field, direction }`.
@@ -1737,7 +1873,12 @@ export const runColumnBodyBaseSchema = z.object({
     .enum(['all', 'incomplete'])
     .default('all')
     .describe('Whether to run all or only incomplete cells.'),
-  rowIds: z.array(z.string().min(1)).min(1).optional().describe('Explicit row subset to run.'),
+  rowIds: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(MAX_RUN_TARGET_ROW_IDS, `Cannot target more than ${MAX_RUN_TARGET_ROW_IDS} rows`)
+    .optional()
+    .describe('Explicit row subset to run.'),
   /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
    *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
   filter: bulkFilterSchema.optional(),
@@ -1873,11 +2014,33 @@ export const tableEventStreamContract = defineRouteContract({
 
 /**
  * A saved view's stored shape: `TableMetadata`'s column layout plus the row
- * predicate and sort. Every column reference is a stable column id, so a rename
- * never invalidates a view.
+ * predicate and sort.
+ *
+ * Every column reference is STORED as a stable column id, so a rename never
+ * invalidates a view — but a write may reference a column either way, and
+ * `normalizeViewConfigForStorage` resolves a name to its id before the config is
+ * persisted. That is what lets the name-keyed v2 surface and the id-keyed
+ * first-party UI write the same blob. A read is presented in the reading
+ * surface's own vocabulary.
  */
 export const tableViewConfigSchema = tableMetadataSchema
   .extend({
+    columnWidths: z
+      .record(z.string(), z.number().positive())
+      .optional()
+      .describe('Column widths keyed by column name or stable column identifier.'),
+    columnOrder: z
+      .array(z.string())
+      .optional()
+      .describe('Columns in display order, by name or stable identifier.'),
+    pinnedColumns: z
+      .array(z.string())
+      .optional()
+      .describe('Pinned columns, by name or stable identifier.'),
+    hiddenColumns: z
+      .array(z.string())
+      .optional()
+      .describe('Hidden columns, by name or stable identifier.'),
     // The v2 predicate/sort grammar — same wire as the query routes, so a saved
     // view gets the same strictness and depth bounds as a live filter, and its
     // config can later feed the v2 surfaces without conversion.

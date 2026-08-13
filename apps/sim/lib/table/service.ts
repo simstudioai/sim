@@ -28,6 +28,7 @@ import {
   textKey,
   timestampKey,
 } from '@/lib/api/list-query'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
@@ -464,6 +465,54 @@ export async function queryTables(
 }
 
 /**
+ * The refusal {@link createTable} raises when a workspace is at its table
+ * ceiling. Shared so the advisory pre-check answers with the identical code,
+ * status, and message as the authoritative one inside the transaction.
+ */
+function workspaceTableLimitReached(maxTables: number): ForbiddenOperationError {
+  /**
+   * A quota ceiling, not bad input — both create routes have always answered
+   * 403 for it. It names its cause so a client can tell a ceiling apart from a
+   * role or key-kind refusal: one is cleared by deleting a table, the other by
+   * changing who is calling. The status is left as it shipped, and it disagrees
+   * with the row ceiling's 400 — see `TableRowLimitError` in `lib/table/billing`
+   * for why both are recorded rather than unified here.
+   */
+  return new ForbiddenOperationError(
+    'WORKSPACE_RESOURCE_LIMIT_REACHED',
+    `Workspace has reached maximum table limit (${maxTables})`
+  )
+}
+
+/**
+ * Advisory table-quota check for a caller that is about to make the user pay
+ * for work before {@link createTable} would run.
+ *
+ * The authoritative check is the `FOR UPDATE` count inside `createTable`'s
+ * transaction and stays there — this one races, by construction, because the
+ * ceiling can be reached (or cleared) during whatever the caller does next. It
+ * exists so that "next" is not a multi-gigabyte upload: the CSV import used to
+ * hand out a presigned PUT for a table it already knew it could not create, and
+ * only answered 403 after the whole file had crossed the wire, leaving an
+ * orphaned object behind.
+ */
+export async function assertWorkspaceTableCapacity(
+  workspaceId: string,
+  maxTables: number
+): Promise<void> {
+  const [{ count: existingCount }] = await db
+    .select({ count: count() })
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
+  if (Number(existingCount) >= maxTables) throw workspaceTableLimitReached(maxTables)
+}
+
+/**
  * Creates a new table.
  *
  * @param data - Table creation data
@@ -553,14 +602,7 @@ export async function createTable(
           )
         )
 
-      if (Number(existingCount) >= maxTables) {
-        // A quota ceiling, not bad input — both create routes have always
-        // answered 403 for it.
-        throw new OrchestrationError(
-          'forbidden',
-          `Workspace has reached maximum table limit (${maxTables})`
-        )
-      }
+      if (Number(existingCount) >= maxTables) throw workspaceTableLimitReached(maxTables)
 
       const duplicateName = await trx
         .select({ id: userTableDefinitions.id })

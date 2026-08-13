@@ -12,6 +12,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 
 const mocks = vi.hoisted(() => ({
   listVersions: vi.fn(),
@@ -103,6 +104,52 @@ describe('GET /api/v2/workflows/[id]/versions', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.listVersions).not.toHaveBeenCalled()
+    /**
+     * The undecodable-token message, not the sort-mismatch one: this list
+     * declares no `sortBy`/`sortOrder`, so naming them would answer a 400 with
+     * advice that earns a second.
+     */
+    expect((await response.json()).error.message).toBe(UNREADABLE_CURSOR_MESSAGE)
+  })
+
+  /**
+   * A cursor is caller-controlled bytes, so its decoded payload is validated
+   * like any request field. `version` is compared against an `integer` column,
+   * where an out-of-range value overflows the comparison and 500s instead of
+   * returning an empty page.
+   */
+  it.each([
+    ['out of the integer range', { version: 2147483648 }],
+    ['at zero', { version: 0 }],
+    ['non-numeric', { version: 'two' }],
+    ['carrying an unknown key', { version: 2, sort: 'name' }],
+    ['missing its key', {}],
+  ])('rejects a forged cursor %s', async (_case, payload) => {
+    const cursor = Buffer.from(JSON.stringify(payload)).toString('base64')
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/workflows/workflow-1/versions?cursor=${encodeURIComponent(cursor)}`
+      ),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.listVersions).not.toHaveBeenCalled()
+  })
+
+  it('resumes from a well-formed cursor', async () => {
+    const cursor = Buffer.from(JSON.stringify({ version: 5 })).toString('base64')
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/workflows/workflow-1/versions?cursor=${encodeURIComponent(cursor)}`
+      ),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.listVersions).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ afterVersion: 5 }) })
+    )
   })
 
   it('rejects an unauthenticated request', async () => {

@@ -21,7 +21,7 @@ export const GET = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, query }) => ({ tableId: params.tableId, workspaceId: query.workspaceId }),
-  present: async ({ views }) => {
+  present: async ({ views, columns }) => {
     const emailByUserId = await getUserEmailsByIds(
       views.flatMap((view) => (view.createdBy ? [view.createdBy] : []))
     )
@@ -29,7 +29,8 @@ export const GET = defineV2JsonRoute({
       data: views.map((view) =>
         toApiView(
           view,
-          view.createdBy ? requireResolvedUserEmail(emailByUserId, view.createdBy) : null
+          view.createdBy ? requireResolvedUserEmail(emailByUserId, view.createdBy) : null,
+          columns
         )
       ),
       nextCursor: null,
@@ -45,7 +46,11 @@ export const POST = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
-  present: async ({ view }) => ({
-    data: toApiView(view, view.createdBy ? await getRequiredUserEmail(view.createdBy) : null),
+  present: async ({ view, columns }) => ({
+    data: toApiView(
+      view,
+      view.createdBy ? await getRequiredUserEmail(view.createdBy) : null,
+      columns
+    ),
   }),
 })
