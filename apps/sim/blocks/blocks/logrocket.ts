@@ -346,6 +346,7 @@ export const LogRocketBlock: BlockConfig = {
       type: 'string',
       description: 'Profile data timestamp in milliseconds since epoch',
     },
+    version: { type: 'string', description: 'Release version to register' },
   },
 
   outputs: {
