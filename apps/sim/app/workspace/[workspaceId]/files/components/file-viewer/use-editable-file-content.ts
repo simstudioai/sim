@@ -178,7 +178,15 @@ export function useEditableFileContent({
     file.id,
     file.key,
     GENERATED_SOURCE_FILE_TYPES.has(file.type),
-    { refetchInterval: reconcileRefetchInterval }
+    {
+      refetchInterval: reconcileRefetchInterval,
+      // `canAutosave: false` on this surface means a server-side owner holds durability — the
+      // collaborative relay, which projects the live document to markdown itself and merges
+      // external writes INTO that document. There is nothing a focus refetch of the durable bytes
+      // can teach the editor that the shared document does not already have; all it does is
+      // re-read a storage key the relay's last save has already rotated away from.
+      refetchOnWindowFocus: canAutosave,
+    }
   )
 
   /**

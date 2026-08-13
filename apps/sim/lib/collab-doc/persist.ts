@@ -3,12 +3,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import * as Y from 'yjs'
 import {
   ContentVersionConflictError,
+  fetchWorkspaceFileBuffer,
   getWorkspaceFile,
   updateWorkspaceFileContent,
 } from '@/lib/uploads/contexts/workspace'
 import { hashMarkdown, saveCollabDocState } from './collab-state'
-import { yDocToFileMarkdown } from './converter'
-import { stripEmptyTopLevelParagraphs } from './normalize'
+import { canonicalizeYDoc, yDocToFileMarkdown } from './converter'
 
 const logger = createLogger('FileDocPersist')
 
@@ -69,17 +69,48 @@ export async function persistFileDoc(
 
   const ydoc = new Y.Doc()
   let markdownBuffer: Buffer
-  // The Yjs snapshot cached below (`saveCollabDocState`) seeds a later cold room open directly, so it
-  // must never carry structure the markdown re-parse would strip — a top-level empty paragraph left in
-  // the snapshot resurfaces as a stray blank line when that warm doc settles, diverging from the static
-  // placeholder. Normalize it out here so the cached binary matches the durable markdown by construction.
+  // The snapshot cached below seeds a later cold room directly, so it must describe the same document
+  // the durable markdown does — otherwise a warm open renders structure the markdown cannot reproduce
+  // and the doc reflows once it settles. `canonicalizeYDoc` converges this DETACHED copy onto its own
+  // markdown projection, which is exactly that guarantee, and leaves the live room untouched.
   let cachedDocState = docState
   try {
     Y.applyUpdate(ydoc, docState)
-    if (stripEmptyTopLevelParagraphs(ydoc)) cachedDocState = Y.encodeStateAsUpdate(ydoc)
+    if (canonicalizeYDoc(ydoc)) cachedDocState = Y.encodeStateAsUpdate(ydoc)
     markdownBuffer = Buffer.from(yDocToFileMarkdown(ydoc), 'utf-8')
   } finally {
     ydoc.destroy()
+  }
+
+  // A persist that would write the bytes already on disk is skipped entirely. Binding an editor to a
+  // seeded document emits a Yjs update of its own — y-tiptap normalizes node attributes on bind — so
+  // simply OPENING a file schedules a save whose projection is byte-identical to the file. Writing it
+  // is not free: `updateWorkspaceFileContent` uploads under a FRESH storage key, repoints the row, and
+  // deletes the old object, so every reader still holding the previous key 404s. That is the stray
+  // not-found a page sees on open, racing its own first content read.
+  //
+  // Length is the free reject — a real edit almost never lands on the same byte count — so the compare
+  // read happens only when a no-op write is actually on the table. Unchanged content means there is
+  // nothing to clobber, so this reports the file's CURRENT durable version rather than conflicting on a
+  // stale `expectedVersion`: it resynchronizes the relay's If-Match token instead of stranding it.
+  if (record.size === markdownBuffer.length) {
+    const current = await fetchWorkspaceFileBuffer(record).catch(() => null)
+    if (current?.equals(markdownBuffer)) {
+      // Still refresh the cached snapshot: the markdown is unchanged (so its `sourceHash` tag stays
+      // valid) but the doc state may have just been canonicalized, and a cold open should seed from
+      // the repaired binary rather than the one that needed repairing.
+      try {
+        await saveCollabDocState(fileId, cachedDocState, hashMarkdown(markdownBuffer))
+      } catch (error) {
+        logger.warn(`Failed to cache collab doc state for file ${fileId}`, {
+          error: getErrorMessage(error),
+        })
+      }
+      return {
+        status: 'persisted',
+        version: (record.contentUpdatedAt ?? record.updatedAt).getTime(),
+      }
+    }
   }
 
   try {

@@ -5,8 +5,7 @@ import * as Y from 'yjs'
 import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { hashMarkdown, loadFreshCollabDocState } from './collab-state'
-import { markdownToYDoc } from './converter'
-import { stripEmptyTopLevelParagraphs } from './normalize'
+import { canonicalizeYDoc, markdownToYDoc } from './converter'
 
 const logger = createLogger('FileDocSeed')
 
@@ -28,18 +27,22 @@ export interface FileDocSeed {
 }
 
 /**
- * Repair a cached Yjs snapshot before it seeds a room: strip any top-level empty paragraphs the markdown
- * re-parse would drop (see {@link stripEmptyTopLevelParagraphs}), so a warm seed renders identically to
- * the static placeholder and never surfaces a stray blank line once the doc settles. Returns the original
- * bytes untouched when the snapshot is already clean (the common case) — no re-encode cost — and a fresh
- * encode (preserving the CRDT's client ids, only adding tombstones for the removed empties) when it
- * repaired a legacy snapshot baked before this normalization existed.
+ * Bring a cached Yjs snapshot into canonical form before it seeds a room, so a warm open and a cold open
+ * render the same document as the static placeholder (see {@link canonicalizeYDoc}).
+ *
+ * The freshness tag is a hash of the markdown alone, carrying no parser version — so a snapshot written
+ * under older parse rules still reads as fresh and would otherwise be replayed verbatim, with no path
+ * that ever repairs it. Running the round-trip here is that repair, and it doubles as the bound on this
+ * branch: the cached path never calls `parseMarkdownToDoc`, so it is the one way into a room that the
+ * parse-side limits do not cover. Returns the original bytes untouched when the snapshot is already
+ * canonical (the common case) — no re-encode — and a fresh encode, preserving the CRDT's client ids, when
+ * it repaired one.
  */
-function normalizeSeedUpdate(cached: Uint8Array): Uint8Array {
+function canonicalSeedUpdate(cached: Uint8Array): Uint8Array {
   const doc = new Y.Doc()
   try {
     Y.applyUpdate(doc, cached)
-    return stripEmptyTopLevelParagraphs(doc) ? Y.encodeStateAsUpdate(doc) : cached
+    return canonicalizeYDoc(doc) ? Y.encodeStateAsUpdate(doc) : cached
   } finally {
     doc.destroy()
   }
@@ -82,7 +85,7 @@ export async function buildFileDocSeed(
   // block the cold open — symmetric with persist's best-effort cache write.
   try {
     const cached = await loadFreshCollabDocState(fileId, hashMarkdown(buffer))
-    if (cached) return { update: normalizeSeedUpdate(cached), version }
+    if (cached) return { update: canonicalSeedUpdate(cached), version }
   } catch (error) {
     logger.warn(`Failed to read cached collab doc state for file ${fileId}`, {
       error: getErrorMessage(error),

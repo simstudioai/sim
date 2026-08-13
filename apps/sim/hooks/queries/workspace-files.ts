@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -203,12 +203,56 @@ export function useWorkspaceImageDimensionsAdapter(
 }
 
 /**
+ * A read that addressed a storage object the file no longer points at.
+ *
+ * A workspace file's bytes are rewritten under a NEW storage key on every content update and the
+ * superseded object is deleted (`updateWorkspaceFileContent`), so a 404 from a content read means
+ * "the key you are holding has been replaced", not "the server is broken" — the serve route says as
+ * much and logs it at `info`. Distinguished from a transport failure so {@link useStaleKeyRecovery}
+ * can re-resolve the record instead of surfacing a dead end.
+ */
+class StaleStorageKeyError extends Error {
+  constructor() {
+    super('File content is no longer at the requested storage key')
+    this.name = 'StaleStorageKeyError'
+  }
+}
+
+/**
+ * Re-resolve a workspace's file records after a read found its storage key superseded.
+ *
+ * The key a content read addresses comes from the cached file list, and nothing invalidates that
+ * list when a write rotates the key — the collaborative relay projects an open document back to
+ * markdown every few seconds, entirely server-side, so an open tab's key can be replaced many times
+ * over without a single client-visible event. Recovering on the 404 makes the rotation cost exactly
+ * one request instead of stranding the reader on a dead key until a full reload.
+ *
+ * Invalidates the RECORD, never the failed query: the refetched list either hands back a new key —
+ * which re-keys the read onto a fresh cache entry that fetches once — or the same one, in which case
+ * nothing refetches and the failure stands. That asymmetry is what makes this loop-proof, and it is
+ * why a genuinely deleted file settles instead of retrying: the list simply stops containing it.
+ */
+function useStaleKeyRecovery(workspaceId: string): (error: unknown) => void {
+  const queryClient = useQueryClient()
+  return useCallback(
+    (error: unknown) => {
+      if (!workspaceId || !(error instanceof StaleStorageKeyError)) return
+      void queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(workspaceId),
+      })
+    },
+    [queryClient, workspaceId]
+  )
+}
+
+/**
  * Fetch file content as text via a content-source URL
  */
 async function fetchWorkspaceFileContent(url: string, signal?: AbortSignal): Promise<string> {
   // boundary-raw-fetch: binary/text download, response is not JSON
   const response = await fetch(url, { signal, cache: 'no-store' })
 
+  if (response.status === 404) throw new StaleStorageKeyError()
   if (!response.ok) {
     throw new Error('Failed to fetch file content')
   }
@@ -227,22 +271,38 @@ async function fetchWorkspaceFileContent(url: string, signal?: AbortSignal): Pro
  * its single refetch raced the agent's write. The function form is re-evaluated by react-query
  * after every fetch and options pass, so a condition read through a ref stops the polling as soon
  * as it flips — no re-render required.
+ *
+ * `refetchOnWindowFocus` is how an out-of-band edit reaches a tab that was left open, so it defaults
+ * on. Pass `false` where a server-side owner holds the file's durability — the collaborative relay
+ * projects the live document to markdown itself, and delivers external writes into that document as
+ * CRDT merges — because there the durable bytes are strictly behind what the editor already shows,
+ * and re-reading them only chases a storage key the relay's last save already replaced.
  */
 export function useWorkspaceFileContent(
   workspaceId: string,
   fileId: string,
   key: string,
   raw?: boolean,
-  options?: { refetchInterval?: number | false | (() => number | false) }
+  options?: {
+    refetchInterval?: number | false | (() => number | false)
+    refetchOnWindowFocus?: boolean
+  }
 ) {
   const source = useFileContentSource()
+  const recoverStaleKey = useStaleKeyRecovery(workspaceId)
   return useQuery({
     queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text', key),
-    queryFn: ({ signal }) =>
-      fetchWorkspaceFileContent(source.buildUrl(key, { raw, bust: true }), signal),
+    queryFn: async ({ signal }) => {
+      try {
+        return await fetchWorkspaceFileContent(source.buildUrl(key, { raw, bust: true }), signal)
+      } catch (error) {
+        recoverStaleKey(error)
+        throw error
+      }
+    },
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: WORKSPACE_FILE_CONTENT_STALE_TIME,
-    refetchOnWindowFocus: 'always',
+    refetchOnWindowFocus: options?.refetchOnWindowFocus === false ? false : 'always',
     refetchInterval: options?.refetchInterval ?? false,
   })
 }
@@ -280,6 +340,7 @@ async function fetchWorkspaceFileBinary(
   // boundary-raw-fetch: binary download consumed as ArrayBuffer
   const response = await fetch(url, init)
   if (response.status === 409) throw new DocNotReadyError()
+  if (response.status === 404) throw new StaleStorageKeyError()
   if (!response.ok) throw new Error('Failed to fetch file content')
   return response.arrayBuffer()
 }
@@ -303,17 +364,24 @@ export function useWorkspaceFileBinary(
   options?: { enabled?: boolean; version?: string | number }
 ) {
   const source = useFileContentSource()
+  const recoverStaleKey = useStaleKeyRecovery(workspaceId)
   return useQuery({
     queryKey:
       options?.version != null
         ? [...workspaceFilesKeys.content(workspaceId, fileId, 'binary', key), options.version]
         : workspaceFilesKeys.content(workspaceId, fileId, 'binary', key),
-    queryFn: ({ signal }) =>
-      fetchWorkspaceFileBinary(
-        source.buildUrl(key, { version: options?.version, bust: true }),
-        options?.version,
-        signal
-      ),
+    queryFn: async ({ signal }) => {
+      try {
+        return await fetchWorkspaceFileBinary(
+          source.buildUrl(key, { version: options?.version, bust: true }),
+          options?.version,
+          signal
+        )
+      } catch (error) {
+        recoverStaleKey(error)
+        throw error
+      }
+    },
     // Callers gate this on a readiness signal (e.g. the file has committed
     // content) so we don't 409-poll the serve route for a generated doc whose
     // compiled artifact hasn't been written yet — the doc is fetched once, when

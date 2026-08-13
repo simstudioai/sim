@@ -9,7 +9,7 @@
  */
 import { act, type ReactNode } from 'react'
 import { sleep } from '@sim/utils/helpers'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createWorkspaceFileContract } from '@/lib/api/contracts/workspace-files'
@@ -44,7 +44,8 @@ afterEach(() => {
 
 function renderContentHook(options?: {
   refetchInterval?: number | false | (() => number | false)
-}): { unmount: () => void } {
+  refetchOnWindowFocus?: boolean
+}): { queryClient: QueryClient; unmount: () => void } {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const container = document.createElement('div')
   const root: Root = createRoot(container)
@@ -66,6 +67,7 @@ function renderContentHook(options?: {
     )
   })
   return {
+    queryClient,
     unmount: () => {
       act(() => root.unmount())
       queryClient.clear()
@@ -145,6 +147,97 @@ describe('useWorkspaceFileContent refetchInterval passthrough', () => {
       await sleep(150)
     })
     expect(fetchCount).toBe(settled)
+    unmount()
+  })
+})
+
+/**
+ * A content update rewrites the file under a NEW storage key and deletes the old object, so the key
+ * held by an open tab goes dead — every few seconds while a collaborative document is being edited,
+ * since the relay persists it server-side. These pin the two halves of the answer: don't create the
+ * staleness where a server-side owner holds durability, and recover from it everywhere else.
+ */
+describe('useWorkspaceFileContent stale storage key', () => {
+  async function focusWindow() {
+    await act(async () => {
+      focusManager.setFocused(false)
+      focusManager.setFocused(true)
+      await sleep(50)
+    })
+  }
+
+  afterEach(() => {
+    focusManager.setFocused(undefined)
+  })
+
+  it('re-reads on focus by default, so an out-of-band edit reaches an open tab', async () => {
+    const { unmount } = renderContentHook()
+    await act(async () => {
+      await sleep(50)
+    })
+    expect(fetchCount).toBe(1)
+
+    await focusWindow()
+
+    expect(fetchCount).toBe(2)
+    unmount()
+  })
+
+  it('does not re-read on focus when the collaborative relay owns durability', async () => {
+    const { unmount } = renderContentHook({ refetchOnWindowFocus: false })
+    await act(async () => {
+      await sleep(50)
+    })
+    expect(fetchCount).toBe(1)
+
+    await focusWindow()
+
+    expect(fetchCount).toBe(1)
+    unmount()
+  })
+
+  it('re-resolves the file record when the key it read has been superseded', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        fetchCount += 1
+        return new Response('{"error":"FileNotFoundError"}', { status: 404 })
+      })
+    )
+    const { queryClient, unmount } = renderContentHook()
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await act(async () => {
+      await sleep(50)
+    })
+
+    expect(fetchCount).toBe(1)
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: workspaceFilesKeys.workspaceLists('ws-1'),
+    })
+    // The RECORD is re-resolved, never this query — re-driving the read against the same dead key
+    // is what would spin.
+    expect(invalidateQueries).toHaveBeenCalledTimes(1)
+    unmount()
+  })
+
+  it('leaves the record alone when the read fails for any other reason', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        fetchCount += 1
+        return new Response('nope', { status: 500 })
+      })
+    )
+    const { queryClient, unmount } = renderContentHook()
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await act(async () => {
+      await sleep(50)
+    })
+
+    expect(fetchCount).toBe(1)
+    expect(invalidateQueries).not.toHaveBeenCalled()
     unmount()
   })
 })

@@ -721,7 +721,39 @@ export function LoadedRichMarkdownEditor({
    * is latched, so a fatal rejection that fired before this subscription is not missed.
    */
   useEffect(() => {
+    /**
+     * Reveal the live document only once it has stopped moving.
+     *
+     * `synced` fires when the sync handshake completes, but the room's remaining updates can still be
+     * in flight — reconnecting to a room that was edited moments ago, the handshake lands on the base
+     * state and the edit arrives a few milliseconds later. Flipping readiness on `synced` alone
+     * therefore un-hides the live editor onto an INTERMEDIATE state and lets the document correct
+     * itself in view: measured on a reload right after a block move, the editor was revealed showing
+     * the pre-move order and re-ordered 7ms later. The placeholder was showing the right thing the
+     * whole time, so the swap is the only reason anything moved.
+     *
+     * So hold the reveal until one animation frame passes with no update to the shared document; any
+     * update restarts the wait. Deferred readiness costs at most a frame of the placeholder — which is
+     * already rendering the correct content — while going NOT-ready stays immediate, so nothing can
+     * keep a fatal or unsynced document editable a moment longer than before.
+     */
+    let settleFrame: number | null = null
+    const cancelSettle = () => {
+      if (settleFrame !== null) cancelAnimationFrame(settleFrame)
+      settleFrame = null
+    }
     const setReady = (ready: boolean) => {
+      cancelSettle()
+      if (ready) {
+        settleFrame = requestAnimationFrame(() => {
+          settleFrame = null
+          applyReady(true)
+        })
+        return
+      }
+      applyReady(false)
+    }
+    const applyReady = (ready: boolean) => {
       // Child-local: gates editability (a user must never type into an unsynced/unseeded doc).
       setCollabReady(ready)
       // Parent: gates CLIENT autosave. In a collaborative session the relay persists the doc to
@@ -730,14 +762,16 @@ export function LoadedRichMarkdownEditor({
       // Only the non-collaborative (solo) path client-autosaves.
       onCollabReadyChange(collaboration ? false : ready)
     }
+    // No shared document to settle on the solo path, so apply directly — deferring a frame would only
+    // delay autosave, and this branch returns before the cleanup that cancels a pending frame.
     if (!collaboration) {
-      setReady(true)
+      applyReady(true)
       return
     }
     const { provider, doc } = collaboration
     if (!editor) {
       setReady(false)
-      return
+      return cancelSettle
     }
     const config = doc.getMap(FILE_DOC_SEED.configMap)
 
@@ -766,12 +800,21 @@ export function LoadedRichMarkdownEditor({
     const report = () => {
       const synced = provider.synced
       const seeded = config.get(FILE_DOC_SEED.flag) === true
-      const next = nextCollabReadiness(syncedOnce, { synced, seeded, offlineSeed })
+      // `joinError` is latched ONLY on the provider's fatal paths (non-retryable rejection, access
+      // revocation, readiness deadline), so it is exactly "this document is abandoned".
+      const fatal = provider.joinError !== null
+      const next = nextCollabReadiness(syncedOnce, { synced, seeded, offlineSeed, fatal })
       syncedOnce = next.syncedOnce
       setReady(next.ready)
     }
+    /**
+     * Re-report unconditionally, not just when the fallback seeds. A fatal that arrives on an ALREADY
+     * seeded doc (access revoked mid-session) leaves `seedFromLoaded` a no-op, so nothing else would
+     * fire an observer and the editor would stay editable on a document the provider has abandoned.
+     */
     const onJoinError = (error: JoinFileDocError) => {
       if (error.retryable === false) seedFromLoaded()
+      report()
     }
 
     // A server edit that changes ONLY the frontmatter (e.g. copilot) updates the config map but not
@@ -792,18 +835,31 @@ export function LoadedRichMarkdownEditor({
       }
     }
 
+    /** An update while the reveal is pending means the document is still catching up — wait again. */
+    const restartSettle = () => {
+      if (settleFrame === null) return
+      cancelSettle()
+      settleFrame = requestAnimationFrame(() => {
+        settleFrame = null
+        applyReady(true)
+      })
+    }
+
     provider.on('synced', report)
     provider.on('join-error', onJoinError)
     config.observe(report)
     config.observe(syncFrontmatter)
+    doc.on('update', restartSettle)
     report()
     if (provider.joinError) onJoinError(provider.joinError)
 
     return () => {
+      cancelSettle()
       provider.off('synced', report)
       provider.off('join-error', onJoinError)
       config.unobserve(report)
       config.unobserve(syncFrontmatter)
+      doc.off('update', restartSettle)
       // Report NOT ready on teardown — the safe direction. If this effect ever re-runs while mounted
       // (a future dep change), briefly gating autosave off is harmless; reporting `true` here could
       // ungate it while the doc is unready.

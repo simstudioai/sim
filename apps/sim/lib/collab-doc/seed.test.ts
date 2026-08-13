@@ -2,6 +2,8 @@
  * @vitest-environment jsdom
  */
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
+import { getSchema } from '@tiptap/core'
+import { prosemirrorJSONToYDoc } from '@tiptap/y-tiptap'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 
@@ -23,8 +25,13 @@ vi.mock('./collab-state', () => ({
   loadFreshCollabDocState: mockLoadFresh,
 }))
 
-import { serializeMarkdownBody } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
-import { yDocToMarkdown } from './converter'
+import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
+import {
+  parseMarkdownToDoc,
+  serializeMarkdownBody,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+import { markdownToYDoc, yDocToMarkdown } from './converter'
+import { COLLAB_DOC_FIELD } from './field'
 import { buildFileDocSeed } from './seed'
 
 describe('buildFileDocSeed', () => {
@@ -54,8 +61,10 @@ describe('buildFileDocSeed', () => {
 
   it('cold-start fast path: returns the cached binary directly without re-converting when it is fresh', async () => {
     // A cached binary derived from the current markdown → seed returns it verbatim (no conversion), the
-    // Hocuspocus load-document path that preserves the CRDT's client ids across reopens.
-    const cachedDoc = new Y.Doc()
+    // Hocuspocus load-document path that preserves the CRDT's client ids across reopens. Built through
+    // `markdownToYDoc` so it is in the canonical form persist caches; a hand-rolled doc would be
+    // repaired on the way through and this would assert the fast path while never taking it.
+    const cachedDoc = markdownToYDoc('# Anything')
     cachedDoc.getText('marker').insert(0, 'cached')
     const cached = Y.encodeStateAsUpdate(cachedDoc)
     mockFetchBuffer.mockResolvedValue(Buffer.from('# Anything', 'utf-8'))
@@ -67,6 +76,39 @@ describe('buildFileDocSeed', () => {
     const doc = new Y.Doc()
     Y.applyUpdate(doc, seed!.update)
     expect(doc.getText('marker').toString()).toBe('cached')
+    cachedDoc.destroy()
+  })
+
+  /**
+   * The freshness tag is a hash of the markdown alone, so a snapshot written under older parse rules
+   * still reads as fresh and would otherwise be replayed verbatim forever. Repairing it here is the only
+   * path that ever fixes one — and the repair has to be reported, or the caller hands back the bytes it
+   * just decided were wrong (which is how the cached path kept reseeding docs that were missing the
+   * editor's trailing paragraph, letting every binding client stack another).
+   */
+  it('repairs a cached snapshot that is not in the editor normal form', async () => {
+    const stale = prosemirrorJSONToYDoc(
+      getSchema(createMarkdownContentExtensions()),
+      // A raw parse — no trailing paragraph, which is exactly what a pre-normalization snapshot holds.
+      parseMarkdownToDoc('# T\n\nbody\n\n- a\n- b'),
+      COLLAB_DOC_FIELD
+    )
+    const cached = Y.encodeStateAsUpdate(stale)
+    mockFetchBuffer.mockResolvedValue(Buffer.from('# T\n\nbody\n\n- a\n- b', 'utf-8'))
+    mockLoadFresh.mockResolvedValue(cached)
+
+    const seed = await buildFileDocSeed('ws-1', 'file-1')
+
+    expect(seed?.update).not.toBe(cached)
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, seed!.update)
+    const fragment = doc.getXmlFragment(COLLAB_DOC_FIELD)
+    const last = fragment.get(fragment.length - 1)
+    expect(last instanceof Y.XmlElement && last.nodeName === 'paragraph' && last.length === 0).toBe(
+      true
+    )
+    stale.destroy()
+    doc.destroy()
   })
 
   it('falls through to conversion when the cache read fails (never blocks a cold open)', async () => {
