@@ -18,9 +18,7 @@ export type PostStatus = 'publish' | 'draft' | 'pending' | 'private' | 'future'
 // Comment status types
 export type CommentStatus = 'approved' | 'hold' | 'spam' | 'trash'
 
-// ============================================
 // POST OPERATIONS
-// ============================================
 
 // Create Post
 export interface WordPressCreatePostParams extends WordPressBaseParams {
@@ -142,9 +140,7 @@ interface WordPressSearchPostsResponse extends ToolResponse {
   }
 }
 
-// ============================================
 // PAGE OPERATIONS
-// ============================================
 
 // Create Page
 export interface WordPressCreatePageParams extends WordPressBaseParams {
@@ -249,9 +245,7 @@ export interface WordPressListPagesResponse extends ToolResponse {
   }
 }
 
-// ============================================
 // MEDIA OPERATIONS
-// ============================================
 
 // Upload Media
 export interface WordPressUploadMediaParams extends WordPressBaseParams {
@@ -334,9 +328,7 @@ export interface WordPressDeleteMediaResponse extends ToolResponse {
   }
 }
 
-// ============================================
 // COMMENT OPERATIONS
-// ============================================
 
 // Create Comment
 export interface WordPressCreateCommentParams extends WordPressBaseParams {
@@ -426,9 +418,7 @@ export interface WordPressDeleteCommentResponse extends ToolResponse {
   }
 }
 
-// ============================================
 // TAXONOMY OPERATIONS (Categories & Tags)
-// ============================================
 
 // Create Category
 export interface WordPressCreateCategoryParams extends WordPressBaseParams {
@@ -585,9 +575,7 @@ export interface WordPressDeleteTagResponse extends ToolResponse {
   }
 }
 
-// ============================================
 // USER OPERATIONS
-// ============================================
 
 // Get Current User
 export interface WordPressGetCurrentUserParams extends WordPressBaseParams {}
@@ -641,9 +629,7 @@ export interface WordPressGetUserResponse extends ToolResponse {
   }
 }
 
-// ============================================
 // SEARCH OPERATIONS
-// ============================================
 
 // Search Content
 export interface WordPressSearchContentParams extends WordPressBaseParams {

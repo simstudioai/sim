@@ -34,7 +34,6 @@ vi.mock('@/app/api/table/utils', async () => {
   const { asOrchestrationError, messageForOrchestrationError, statusForOrchestrationError } =
     await import('@/lib/core/orchestration/types')
   return {
-    normalizeColumn: (column: unknown) => column,
     csvProxyBodyCapResponse: () => null,
     multipartErrorResponse: (error: { code: string; message: string }) =>
       NextResponse.json(

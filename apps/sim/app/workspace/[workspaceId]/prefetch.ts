@@ -120,12 +120,11 @@ async function seedWorkspaceList(
  * seeds nothing, leaving the client fetch to reach `GET /api/workspaces`'
  * default-workspace creation path — the same outcome a rejecting `queryFn` used
  * to produce, without routing a normal state through the error channel. That
- * matters because `makeQueryClient` dehydrates pending queries and sets
- * `retryOnMount: false`: were this read ever deferred, its rejection would
- * hydrate the client query into an error state nothing retries, permanently
- * locking a brand-new viewer out of workspace creation. Seeding also skips the
- * `retry: 1` default, which previously ran the whole read a second time, a
- * retry delay later, purely to re-derive an outcome already known.
+ * matters because only a settled query is dehydrated: an unawaited read would be
+ * dropped from the payload entirely, so the switcher would waterfall on every
+ * cold load rather than paint populated. Seeding also skips the `retry` default,
+ * which previously ran the whole read a second time, a retry delay later, purely
+ * to re-derive an outcome already known.
  */
 export async function prefetchWorkspaceSidebar(
   queryClient: QueryClient,

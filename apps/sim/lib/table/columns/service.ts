@@ -57,7 +57,8 @@ import type {
   UpdateColumnTypeData,
 } from '@/lib/table/types'
 import { validateColumnDefinition } from '@/lib/table/validation'
-import { assertValidSchema, stripGroupDeps } from '@/lib/table/workflow-columns'
+import { assertValidSchema } from '@/lib/table/workflow-columns'
+import { stripGroupDeps } from '@/lib/table/workflow-group-deps'
 
 const logger = createLogger('TableColumnService')
 const COLUMN_RETYPE_SCAN_MAX_BYTES = 32 * 1024 * 1024

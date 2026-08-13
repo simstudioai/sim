@@ -20,9 +20,8 @@ import {
  * and still not reach the server render (`HydrationBoundary` defers an already-seen query to an
  * effect, which SSR never runs). See the note on that entry.
  *
- * Folders read the data layer; the payload is shaped to its route contract so a hydrated entry
- * matches a client fetch. Everything else still goes through its route — see
- * {@link prefetchInternalJson}.
+ * Folders and the chrome reads all go through the data layer, shaped to their route contracts so a
+ * hydrated entry matches a client fetch.
  *
  * That read carries no authorization of its own, so the viewer is proved first. This reuses the
  * layout's `cache`d host-context lookup rather than re-deriving the permission, so it costs no
@@ -32,8 +31,9 @@ import {
 export async function prefetchFilesBrowser(
   queryClient: QueryClient,
   workspaceId: string,
-  userId: string
+  userId: string | undefined
 ): Promise<void> {
+  if (!userId) return
   const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
   if (!hostContext) return
 
@@ -43,6 +43,6 @@ export async function prefetchFilesBrowser(
       queryFn: () => listWorkspaceFileFolders(workspaceId, { scope: 'active' }),
       staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
     }),
-    prefetchResourceListChrome(queryClient, workspaceId, 'file'),
+    prefetchResourceListChrome(queryClient, workspaceId, 'file', userId),
   ])
 }

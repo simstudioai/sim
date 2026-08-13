@@ -56,7 +56,7 @@ import {
   UNLOCKED_TABLE_LOCKS,
 } from '@/lib/table/types'
 import { validateTableName, validateTableSchema } from '@/lib/table/validation'
-import { stripGroupDeps } from '@/lib/table/workflow-columns'
+import { stripGroupDeps } from '@/lib/table/workflow-group-deps'
 
 const logger = createLogger('TableService')
 

@@ -14,8 +14,9 @@ import {
 import { predicateToStorage } from '@/lib/table/select-values'
 import type { ColumnDefinition, Filter, TableLockKind } from '@/lib/table/types'
 import type { TableView } from '@/lib/table/views/service'
+import { normalizeColumn } from '@/lib/table/wire'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
-import { CSV_IMPORT_PROXY_BODY_CAP_BYTES, normalizeColumn } from '@/app/api/table/utils'
+import { CSV_IMPORT_PROXY_BODY_CAP_BYTES } from '@/app/api/table/utils'
 import { v2Error, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
 /**

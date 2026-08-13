@@ -13,7 +13,7 @@ import {
   updateTableGroupUseCase,
 } from '@/lib/table/application/groups'
 import { tableOperations } from '@/lib/table/application/operations'
-import { normalizeColumn } from '@/app/api/table/utils'
+import { normalizeColumn } from '@/lib/table/wire'
 import { presentV2WorkflowGroup } from '@/app/api/v2/tables/presenters'
 
 export const dynamic = 'force-dynamic'
