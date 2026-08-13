@@ -25,8 +25,17 @@ export const tableKeys = {
   exportJobs: (workspaceId?: string) =>
     [...tableKeys.all, 'export-jobs', workspaceId ?? ''] as const,
   rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
+  /**
+   * Prefix covering only the paged row lists.
+   *
+   * `rowsRoot` is a shared parent — `rowWrites` and `find` hang off it holding
+   * entirely different shapes — so anything walking the cache to update or snapshot
+   * row pages must start here instead. Reaching for `rowsRoot` and subtracting the
+   * siblings is a denylist that rots the moment a fifth subtree is added.
+   */
+  infiniteRowsRoot: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'infinite'] as const,
   infiniteRows: (tableId: string, paramsKey: string) =>
-    [...tableKeys.rowsRoot(tableId), 'infinite', paramsKey] as const,
+    [...tableKeys.infiniteRowsRoot(tableId), paramsKey] as const,
   rowWrites: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'write'] as const,
   find: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), 'find', paramsKey] as const,
