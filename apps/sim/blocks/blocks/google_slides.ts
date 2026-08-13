@@ -480,7 +480,6 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       },
     },
 
-    // ========== Write Operation Fields ==========
     {
       id: 'slideIndex',
       title: 'Slide Index',
@@ -508,7 +507,6 @@ Return ONLY the slide content - no explanations, no markdown formatting markers,
       },
     },
 
-    // ========== Create Operation Fields ==========
     {
       id: 'title',
       title: 'Presentation Title',
@@ -578,7 +576,6 @@ Return ONLY the slide content - no explanations, no markdown formatting markers,
       },
     },
 
-    // ========== Replace All Text Operation Fields ==========
     {
       id: 'findText',
       title: 'Find Text',
@@ -618,7 +615,6 @@ Return ONLY the replacement text - no explanations, no quotes, no extra text.`,
       mode: 'advanced',
     },
 
-    // ========== Add Slide Operation Fields ==========
     {
       id: 'layout',
       title: 'Slide Layout',
@@ -675,7 +671,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       },
     },
 
-    // ========== Add Image Operation Fields ==========
     {
       id: 'pageObjectId',
       title: 'Slide ID',
@@ -735,7 +730,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       condition: { field: 'operation', value: 'add_image' },
     },
 
-    // ========== Get Thumbnail Operation Fields ==========
     {
       id: 'thumbnailPageId',
       title: 'Slide ID',
@@ -765,7 +759,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       value: () => 'PNG',
     },
 
-    // ========== Get Page Operation Fields ==========
     {
       id: 'getPageObjectId',
       title: 'Page/Slide ID',
@@ -775,7 +768,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       required: true,
     },
 
-    // ========== Delete Object Operation Fields ==========
     {
       id: 'deleteObjectId',
       title: 'Object ID',
@@ -785,7 +777,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       required: true,
     },
 
-    // ========== Duplicate Object Operation Fields ==========
     {
       id: 'duplicateObjectId',
       title: 'Object ID',
@@ -803,7 +794,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       mode: 'advanced',
     },
 
-    // ========== Reorder Slides Operation Fields ==========
     {
       id: 'reorderSlideIds',
       title: 'Slide IDs',
@@ -821,7 +811,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       required: true,
     },
 
-    // ========== Create Table Operation Fields ==========
     {
       id: 'tablePageObjectId',
       title: 'Slide ID',
@@ -875,7 +864,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       condition: { field: 'operation', value: 'create_table' },
     },
 
-    // ========== Create Shape Operation Fields ==========
     {
       id: 'shapePageObjectId',
       title: 'Slide ID',
@@ -936,7 +924,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       condition: { field: 'operation', value: 'create_shape' },
     },
 
-    // ========== Insert Text Operation Fields ==========
     {
       id: 'insertTextObjectId',
       title: 'Object ID',
@@ -972,7 +959,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       condition: { field: 'operation', value: 'insert_text' },
     },
 
-    // ========== Copy Presentation Operation Fields ==========
     {
       id: 'sourcePresentationSelector',
       title: 'Source Presentation',
@@ -1031,7 +1017,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       condition: { field: 'operation', value: 'copy_presentation' },
     },
 
-    // ========== Export Presentation Operation Fields ==========
     {
       id: 'exportFormat',
       title: 'Export Format',
@@ -1049,7 +1034,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       condition: { field: 'operation', value: 'export_presentation' },
     },
 
-    // ========== Batch Update (Raw) Operation Fields ==========
     {
       id: 'requestsJson',
       title: 'Requests (JSON Array)',
@@ -1074,7 +1058,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // ========== Replace All Shapes With Image Fields ==========
     {
       id: 'replaceShapesImageUrl',
       title: 'Image URL',
@@ -1117,7 +1100,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // ========== Replace Image Fields ==========
     {
       id: 'replaceImageObjectId',
       title: 'Image Object ID',
@@ -1146,7 +1128,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       condition: { field: 'operation', value: 'replace_image' },
     },
 
-    // ========== Update Image Properties Fields ==========
     {
       id: 'imagePropsObjectId',
       title: 'Image Object ID',
@@ -1223,7 +1204,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // ========== Text Style Fields ==========
     {
       id: 'textObjectId',
       title: 'Object ID',
@@ -1551,7 +1531,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       condition: { field: 'operation', value: 'create_paragraph_bullets' },
     },
 
-    // ========== Update Shape Properties Fields ==========
     {
       id: 'shapePropsObjectId',
       title: 'Shape Object ID',
@@ -1656,7 +1635,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // ========== Update Page Properties Fields ==========
     {
       id: 'pagePropsObjectId',
       title: 'Slide ID',
@@ -1710,7 +1688,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // ========== Update Slide Properties Fields ==========
     {
       id: 'slidePropsObjectId',
       title: 'Slide ID',
@@ -1741,7 +1718,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // ========== Update Alt Text Fields ==========
     {
       id: 'altTextObjectId',
       title: 'Element Object ID',
@@ -1762,7 +1738,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       condition: { field: 'operation', value: 'update_page_element_alt_text' },
     },
 
-    // ========== Update Element Transform Fields ==========
     {
       id: 'transformObjectId',
       title: 'Element Object ID',
@@ -1822,7 +1797,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       condition: { field: 'operation', value: 'update_page_element_transform' },
     },
 
-    // ========== Z-Order Fields ==========
     {
       id: 'zOrderObjectIds',
       title: 'Object IDs',
@@ -1845,7 +1819,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       required: true,
     },
 
-    // ========== Group / Ungroup Fields ==========
     {
       id: 'groupChildrenObjectIds',
       title: 'Children Object IDs',
@@ -1871,7 +1844,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       required: true,
     },
 
-    // ========== Create Line Fields ==========
     {
       id: 'linePageObjectId',
       title: 'Slide ID',
@@ -1919,7 +1891,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       condition: { field: 'operation', value: 'create_line' },
     },
 
-    // ========== Update Line Properties Fields ==========
     {
       id: 'linePropsObjectId',
       title: 'Line Object ID',
@@ -1987,7 +1958,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // ========== Update Line Category Fields ==========
     {
       id: 'lineCategoryObjectId',
       title: 'Line Object ID',
@@ -2008,7 +1978,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       required: true,
     },
 
-    // ========== Reroute Line Fields ==========
     {
       id: 'rerouteLineObjectId',
       title: 'Line Object ID',
@@ -2017,7 +1986,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       required: true,
     },
 
-    // ========== Table Row/Column Insert/Delete Fields ==========
     {
       id: 'tableTargetObjectId',
       title: 'Table Object ID',
@@ -2089,7 +2057,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       condition: { field: 'operation', value: 'insert_table_columns' },
     },
 
-    // ========== Merge / Unmerge / Cell / Border Table Range Fields ==========
     {
       id: 'tableRangeObjectId',
       title: 'Table Object ID',
@@ -2170,7 +2137,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       required: true,
     },
 
-    // ========== Update Table Cell Properties Fields ==========
     {
       id: 'tableCellBackgroundColor',
       title: 'Cell Background Color',
@@ -2213,7 +2179,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // ========== Update Table Border Properties Fields ==========
     {
       id: 'tableBorderPosition',
       title: 'Border Position',
@@ -2269,7 +2234,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // ========== Update Table Column Properties Fields ==========
     {
       id: 'tableColumnPropsObjectId',
       title: 'Table Object ID',
@@ -2307,7 +2271,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // ========== Update Table Row Properties Fields ==========
     {
       id: 'tableRowPropsObjectId',
       title: 'Table Object ID',
@@ -2345,7 +2308,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // ========== Sheets Chart Embed Fields ==========
     {
       id: 'chartPageObjectId',
       title: 'Slide ID',
@@ -2416,7 +2378,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       condition: { field: 'operation', value: 'create_sheets_chart' },
     },
 
-    // ========== Refresh Sheets Chart Fields ==========
     {
       id: 'refreshChartObjectId',
       title: 'Chart Object ID',
@@ -2425,7 +2386,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       required: true,
     },
 
-    // ========== Replace All Shapes With Sheets Chart Fields ==========
     {
       id: 'replaceShapesChartFindText',
       title: 'Find Text (Token)',
@@ -2449,7 +2409,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       mode: 'advanced',
     },
 
-    // ========== Create Video Fields ==========
     {
       id: 'videoPageObjectId',
       title: 'Slide ID',
@@ -2505,7 +2464,6 @@ Return ONLY the text content - no explanations, no markdown formatting markers, 
       condition: { field: 'operation', value: 'create_video' },
     },
 
-    // ========== Update Video Properties Fields ==========
     {
       id: 'videoPropsObjectId',
       title: 'Video Object ID',

@@ -186,7 +186,6 @@ export const S3Block: BlockConfig<S3Response> = {
       required: true,
     },
 
-    // ===== UPLOAD (PUT OBJECT) FIELDS =====
     {
       id: 'objectKey',
       title: 'Object Key/Path',
@@ -245,7 +244,6 @@ export const S3Block: BlockConfig<S3Response> = {
       mode: 'advanced',
     },
 
-    // ===== DOWNLOAD (GET OBJECT) FIELDS =====
     {
       id: 's3Uri',
       title: 'S3 Object URL',
@@ -255,7 +253,6 @@ export const S3Block: BlockConfig<S3Response> = {
       required: true,
     },
 
-    // ===== LIST OBJECTS FIELDS =====
     {
       id: 'prefix',
       title: 'Prefix/Folder',
@@ -292,7 +289,6 @@ export const S3Block: BlockConfig<S3Response> = {
       required: true,
     },
 
-    // ===== COPY OBJECT FIELDS =====
     {
       id: 'sourceBucket',
       title: 'Source Bucket',

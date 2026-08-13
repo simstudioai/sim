@@ -811,9 +811,7 @@ async function processExecutionLogFromDb(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Active resource context resolution (direct DB lookups, workspace-scoped)
-// ---------------------------------------------------------------------------
 
 /**
  * Resolves the content of the currently active resource tab via direct DB

@@ -4,9 +4,7 @@ interface LeadMagicBaseParams {
   apiKey: string
 }
 
-// ---------------------------------------------------------------------------
 // Shared output property constants
-// ---------------------------------------------------------------------------
 
 export const LEADMAGIC_PROFILE_OUTPUT_PROPERTIES = {
   profile_url: { type: 'string', description: 'LinkedIn profile URL' },
@@ -22,9 +20,7 @@ export const LEADMAGIC_PROFILE_OUTPUT_PROPERTIES = {
   company_website: { type: 'string', description: 'Company website', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
-// ---------------------------------------------------------------------------
 // Email Validation
-// ---------------------------------------------------------------------------
 
 export interface LeadMagicValidateEmailParams extends LeadMagicBaseParams {
   email: string
@@ -47,9 +43,7 @@ export interface LeadMagicValidateEmailResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Email Finder
-// ---------------------------------------------------------------------------
 
 export interface LeadMagicFindEmailParams extends LeadMagicBaseParams {
   first_name?: string
@@ -76,9 +70,7 @@ export interface LeadMagicFindEmailResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Mobile Finder
-// ---------------------------------------------------------------------------
 
 export interface LeadMagicFindMobileParams extends LeadMagicBaseParams {
   profile_url?: string
@@ -96,9 +88,7 @@ export interface LeadMagicFindMobileResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Profile Search (LinkedIn enrichment by profile URL)
-// ---------------------------------------------------------------------------
 
 export interface LeadMagicProfileSearchParams extends LeadMagicBaseParams {
   profile_url: string
@@ -129,9 +119,7 @@ export interface LeadMagicProfileSearchResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Profile to Email (LinkedIn URL → work email)
-// ---------------------------------------------------------------------------
 
 export interface LeadMagicProfileToEmailParams extends LeadMagicBaseParams {
   profile_url: string
@@ -146,9 +134,7 @@ export interface LeadMagicProfileToEmailResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Email to Profile (work/personal email → LinkedIn profile URL)
-// ---------------------------------------------------------------------------
 
 export interface LeadMagicEmailToProfileParams extends LeadMagicBaseParams {
   work_email?: string
@@ -163,9 +149,7 @@ export interface LeadMagicEmailToProfileResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Company Search
-// ---------------------------------------------------------------------------
 
 export interface LeadMagicCompanySearchParams extends LeadMagicBaseParams {
   company_domain?: string
@@ -197,9 +181,7 @@ export interface LeadMagicCompanySearchResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Role Finder
-// ---------------------------------------------------------------------------
 
 export interface LeadMagicRoleFinderParams extends LeadMagicBaseParams {
   job_title: string
@@ -221,9 +203,7 @@ export interface LeadMagicRoleFinderResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Get Credits (balance check — free, no hosting)
-// ---------------------------------------------------------------------------
 
 export interface LeadMagicGetCreditsParams extends LeadMagicBaseParams {}
 
@@ -233,9 +213,7 @@ export interface LeadMagicGetCreditsResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Union response type
-// ---------------------------------------------------------------------------
 
 export type LeadMagicResponse =
   | LeadMagicValidateEmailResponse
