@@ -14,9 +14,10 @@
  *   This only resolves correctly because the seek admits `order_key IS NULL`
  *   rows; a bare `(order_key, id) > (…)` excludes them and strands the tail.
  *
- * Any shape carrying an offset is stamped with the query state that offset
- * counts positions within — the sort AND the filters — and refuses to resume
- * under a different one. See {@link assertCursorQueryBinding}.
+ * Every shape is stamped with the filters its page was produced under, and any
+ * shape carrying an offset is additionally stamped with the sort that offset
+ * counts positions within. A token refuses to resume under a different one. See
+ * {@link assertCursorQueryBinding}.
  */
 
 import { canonicalJson, fingerprint } from '@/lib/api/cursor-binding'
@@ -27,6 +28,15 @@ import type { Filter, Sort, TablePredicate, TableRow, TableRowsCursor } from '@/
  * Cursor payload version. Every encoded token carries `v`; decode rejects any
  * other value so a future shape change (new `v`) fails cleanly instead of being
  * misread against the current field set.
+ *
+ * Deliberately NOT bumped for the filter stamp. Adding `p` is additive: a token
+ * minted before it still decodes, and an unfiltered read — where the stamp is
+ * absent on both sides — resumes normally across the deploy. A pre-stamp token
+ * replayed against a filtered query is the only one that fails, and it fails
+ * with `CURSOR_FILTER_CONFLICT` and "Restart paging without the cursor", which
+ * is both accurate and actionable. Bumping the version would trade that for a
+ * generic unreadable-cursor 400 on EVERY in-flight token, including the
+ * unfiltered ones that would otherwise have kept working.
  */
 const CURSOR_VERSION = 1
 
@@ -35,10 +45,10 @@ type QueryBinding = { s?: string; p?: string }
 type CursorPayload = CursorBody & QueryBinding & { v: number }
 
 /**
- * The filters an offset counts positions within. A cursor carrying an offset is
- * bound to both this and the sort; a pure keyset cursor is bound to neither,
- * because `(order_key, id)` names an absolute position that stays correct under
- * any membership change.
+ * The query state a page was produced under. Every cursor shape is bound to the
+ * filters — a keyset position is absolute in `(order_key, id)` but not
+ * complete, so replaying it under different filters returns a page of the wrong
+ * sequence. Only a cursor carrying an offset is additionally bound to the sort.
  */
 export interface CursorQueryScope {
   sort?: Sort | null
@@ -82,13 +92,14 @@ export function canonicalFilterKey(
  * sequence — rows skipped or duplicated with no error. Throws
  * `CURSOR_SORT_CONFLICT` so callers restart paging without the cursor.
  *
- * Any offset — the whole-view one and the compound cursor's offset-from-anchor
- * alike — counts rows in the FILTERED sequence, so it is bound to the filters as
- * well. Replaying an offset under a different predicate lands at that ordinal of
- * a sequence the caller never asked for: a narrower filter silently returns an
- * empty page the caller reads as "no more matches". That mismatch throws
- * `CURSOR_FILTER_CONFLICT`. A pure keyset cursor carries no offset and is left
- * unbound — `(order_key, id)` is an absolute position, correct under any filter.
+ * The filter binding applies to EVERY shape, not only the ones carrying an
+ * offset. An offset counts rows in the FILTERED sequence, so replaying it under
+ * a different predicate lands at that ordinal of a sequence the caller never
+ * asked for: a narrower filter silently returns an empty page the caller reads
+ * as "no more matches". A pure keyset cursor names an absolute position in
+ * `(order_key, id)`, but absolute is not complete — resumed under a wider
+ * filter it silently omits every newly matching row that sorts before it. Both
+ * mismatches throw `CURSOR_FILTER_CONFLICT`.
  */
 export function assertCursorQueryBinding(
   decoded: { after?: TableRowsCursor; offset?: number; sortKey?: string; filterKey?: string },

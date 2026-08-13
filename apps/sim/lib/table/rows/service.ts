@@ -1567,6 +1567,10 @@ export interface UpdateRowOptions {
  * and failing the write would strand the whole cell run over one output that
  * does not fit its bound column. It blanks that cell instead. Every other write
  * carries a value someone asked to store, so an uncoercible one is refused.
+ *
+ * The policy governs the patch's own keys. A merged row also carries cells this
+ * request never touched; those always follow `null`, whatever the policy —
+ * see `PatchedKeys` in `@/lib/table/validation`.
  */
 function uncoercibleValuePolicy(options: { computedWrite?: boolean }): UncoercibleValuePolicy {
   return options.computedWrite ? 'null' : 'reject'
@@ -1633,7 +1637,8 @@ export async function updateRow(
   const schemaValidation = coerceRowToSchema(
     mergedData,
     table.schema,
-    uncoercibleValuePolicy(options)
+    uncoercibleValuePolicy(options),
+    Object.keys(data.data)
   )
   if (!schemaValidation.valid) {
     throw new OrchestrationError(
@@ -1824,7 +1829,7 @@ function bulkUpdateValidationError(
   const sizeValidation = validateRowSize(mergedData)
   if (!sizeValidation.valid) return sizeValidation.errors.join(', ')
 
-  const schemaValidation = coerceRowToSchema(mergedData, table.schema)
+  const schemaValidation = coerceRowToSchema(mergedData, table.schema, 'reject', Object.keys(patch))
   return schemaValidation.valid ? null : schemaValidation.errors.join(', ')
 }
 
@@ -2258,7 +2263,8 @@ export async function batchUpdateRows(
     const schemaValidation = coerceRowToSchema(
       merged,
       table.schema,
-      uncoercibleValuePolicy(options)
+      uncoercibleValuePolicy(options),
+      Object.keys(update.data)
     )
     if (!schemaValidation.valid) {
       throw new OrchestrationError(

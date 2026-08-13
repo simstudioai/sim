@@ -67,6 +67,18 @@ export const selectColumnType: ColumnTypeDefinition = {
     return resolved === null ? { ok: false } : { ok: true, value: resolved }
   },
 
+  salvage(value, column) {
+    // Where the write cannot fail, a multi cell keeps the members that DO
+    // resolve rather than being blanked: `Alpha, opt_b, ghost` from a CSV or a
+    // block output stores `[opt_a, opt_b]`, which is what it stored before the
+    // write path started refusing partial matches. Dropping one unmatched name
+    // is a smaller loss than erasing the two that matched. A single cell holds
+    // one option and has nothing partial to keep, so it stays blanked.
+    if (!column.multiple) return { ok: false }
+    const resolved = resolveSelectCellValue(value, column)
+    return resolved === null ? { ok: false } : { ok: true, value: resolved }
+  },
+
   validateCell(value, column) {
     const ids = optionIds(column)
     if (column.multiple) {

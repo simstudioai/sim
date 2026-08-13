@@ -22,13 +22,14 @@ import {
 import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableViewsChanged } from '@/lib/table/events'
+import type { DbTransaction } from '@/lib/table/planner'
 import { filterRulesToPredicate, filterToRules } from '@/lib/table/query-builder/converters'
 import {
   SYSTEM_COLUMN_FIELDS,
   validateStoragePredicate,
   validateStorageSortSpec,
 } from '@/lib/table/query-builder/validate'
-import { withLockedTable } from '@/lib/table/service'
+import { setTableTxTimeouts } from '@/lib/table/tx'
 import type {
   ColumnDefinition,
   Filter,
@@ -100,6 +101,48 @@ export function pruneViewConfig(
 }
 
 /**
+ * Every column reference the row-selecting half of a stored config holds — each
+ * `filter` leaf field and each `sort` field. Feeds the carried-forward exemption
+ * in {@link normalizeViewConfigForStorage}, so it lists refs whether or not they
+ * still resolve.
+ */
+function configColumnRefs(config: TableViewConfig): string[] {
+  const refs: string[] = []
+  for (const { field } of config.sort ?? []) refs.push(field)
+  const visit = (node: PredicateNode): void => {
+    if (!node || typeof node !== 'object') return
+    if ('all' in node || 'any' in node) {
+      const members = 'all' in node ? node.all : node.any
+      if (Array.isArray(members)) for (const child of members) visit(child)
+      return
+    }
+    if ('field' in node && typeof node.field === 'string') refs.push(node.field)
+  }
+  if (config.filter) visit(config.filter)
+  return refs
+}
+
+/**
+ * `columns` plus a placeholder for each exempt reference that no longer resolves,
+ * so the shared query validators accept it without being taught about views. The
+ * placeholders exist for the length of one validation call and are never stored.
+ */
+function tolerantColumns(
+  columns: ColumnDefinition[],
+  carriedForward: readonly string[]
+): ColumnDefinition[] {
+  if (carriedForward.length === 0) return columns
+  const live = new Set(columns.map(getColumnId))
+  const extra: ColumnDefinition[] = []
+  for (const ref of carriedForward) {
+    if (live.has(ref)) continue
+    live.add(ref)
+    extra.push({ id: ref, name: ref, type: 'string' })
+  }
+  return extra.length > 0 ? [...columns, ...extra] : columns
+}
+
+/**
  * Canonicalizes a caller-supplied config for storage: every column reference is
  * rewritten to the column's stable **id**, then the row-selecting parts are
  * validated against the live schema.
@@ -115,15 +158,25 @@ export function pruneViewConfig(
  * can never load. Column LAYOUT is deliberately not validated — it auto-saves as
  * the user drags, and racing a concurrent column delete must self-heal through
  * {@link pruneViewConfig}, not fail the drag.
+ *
+ * `carriedForward` names the references the STORED config already holds, and
+ * they are exempt. Deleting a column leaves every view that filtered on it
+ * dangling — `pruneViewConfig` deliberately does not prune a filter — so without
+ * the exemption the view becomes unwritable: the Save chip sends the whole
+ * `{filter, sort, hiddenColumns}` slice, and a user changing the sort would be
+ * refused over a condition they did not touch, with no way to save the removal
+ * of anything else first. A reference the caller INTRODUCES is still refused.
  */
 export function normalizeViewConfigForStorage(
   config: TableViewConfig,
-  columns: ColumnDefinition[]
+  columns: ColumnDefinition[],
+  carriedForward: readonly string[] = []
 ): TableViewConfig {
   const stored = remapViewConfigColumnRefs(config, buildColumnIdByName(columns))
+  const known = tolerantColumns(columns, carriedForward)
   try {
-    if (stored.filter) validateStoragePredicate(stored.filter, columns)
-    if (stored.sort) validateStorageSortSpec(stored.sort, columns)
+    if (stored.filter) validateStoragePredicate(stored.filter, known)
+    if (stored.sort) validateStorageSortSpec(stored.sort, known)
   } catch (error) {
     if (error instanceof TableQueryValidationError) {
       throw new TableViewValidationError(error.message)
@@ -265,6 +318,26 @@ function normalizeName(name: string): string {
   return trimmed
 }
 
+/**
+ * Serializes the saved-view writers for one table on a transaction-scoped
+ * advisory lock of their own, so a count-then-insert cannot be raced. Keyed
+ * `user_table_views:<tableId>`, deliberately distinct from the
+ * `user_table_schema:<tableId>` key the column/row mutators hold: presentation
+ * state must not queue behind a schema rewrite.
+ */
+async function withTableViewsLock<T>(
+  tableId: string,
+  write: (trx: DbTransaction) => Promise<T>
+): Promise<T> {
+  return db.transaction(async (trx) => {
+    await setTableTxTimeouts(trx)
+    await trx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_views:${tableId}`}, 0))`
+    )
+    return write(trx)
+  })
+}
+
 export interface CreateTableViewData {
   tableId: string
   workspaceId: string
@@ -279,16 +352,21 @@ export interface CreateTableViewData {
  * {@link TABLE_LIMITS.MAX_VIEWS_PER_TABLE}.
  *
  * The list read returns every view in one unpaginated page, so that promise only
- * holds if the write side enforces it. The count and the insert share the
- * table's advisory lock — the same device the column mutators use — which is
- * what makes the count authoritative against a concurrent create rather than a
- * check two racing writers can both pass.
+ * holds if the write side enforces it. The count and the insert share an advisory
+ * lock, which is what makes the count authoritative against a concurrent create
+ * rather than a check two racing writers can both pass.
+ *
+ * The lock is keyed to this table's VIEWS, not to its schema. A view is
+ * presentation state and contends only with another view create; taking the
+ * schema lock would queue it behind a column rewrite or a bulk row job, whose
+ * statement timeouts run far past this transaction's 3s `lock_timeout`, so
+ * creating a view would fail for the duration of an unrelated long mutation.
  */
 export async function createTableView(data: CreateTableViewData): Promise<TableView> {
   const name = normalizeName(data.name)
   const config = normalizeViewConfigForStorage(data.config, data.columns)
 
-  const row = await withLockedTable(data.tableId, async (_table, trx) => {
+  const row = await withTableViewsLock(data.tableId, async (trx) => {
     const [existing] = await trx
       .select({ total: count() })
       .from(tableViews)
@@ -343,23 +421,12 @@ export interface UpdateTableViewData {
  * `configPatch` merges in the database (`||`) rather than client-side, so two
  * overlapping partial writes — a column resize landing while a pin is in flight —
  * can't each replace the whole blob from their own stale snapshot.
+ *
+ * The config is normalized inside the transaction, against the stored row, so
+ * the references that row already carries stay writable — see
+ * {@link normalizeViewConfigForStorage}.
  */
 export async function updateTableView(data: UpdateTableViewData): Promise<TableView | null> {
-  const config =
-    data.config === undefined ? undefined : normalizeViewConfigForStorage(data.config, data.columns)
-  const configPatch =
-    data.configPatch === undefined
-      ? undefined
-      : normalizeViewConfigForStorage(data.configPatch, data.columns)
-
-  const patch: Partial<typeof tableViews.$inferInsert> = { updatedAt: new Date() }
-  if (data.name !== undefined) patch.name = normalizeName(data.name)
-  if (config !== undefined) patch.config = config
-  if (configPatch !== undefined) {
-    patch.config = sql`${tableViews.config} || ${JSON.stringify(configPatch)}::jsonb`
-  }
-  if (data.isDefault !== undefined) patch.isDefault = data.isDefault
-
   const outcome = await db.transaction(async (tx) => {
     // Confirm the target exists BEFORE demoting. The demotion has to run first —
     // the partial unique index rejects a second default — but on a PATCH naming a
@@ -377,6 +444,24 @@ export async function updateTableView(data: UpdateTableViewData): Promise<TableV
       )
       .limit(1)
     if (!existing) return null
+
+    const carriedForward = configColumnRefs((existing.config ?? {}) as TableViewConfig)
+    const config =
+      data.config === undefined
+        ? undefined
+        : normalizeViewConfigForStorage(data.config, data.columns, carriedForward)
+    const configPatch =
+      data.configPatch === undefined
+        ? undefined
+        : normalizeViewConfigForStorage(data.configPatch, data.columns, carriedForward)
+
+    const patch: Partial<typeof tableViews.$inferInsert> = { updatedAt: new Date() }
+    if (data.name !== undefined) patch.name = normalizeName(data.name)
+    if (config !== undefined) patch.config = config
+    if (configPatch !== undefined) {
+      patch.config = sql`${tableViews.config} || ${JSON.stringify(configPatch)}::jsonb`
+    }
+    if (data.isDefault !== undefined) patch.isDefault = data.isDefault
 
     const nextName = data.name === undefined ? existing.name : normalizeName(data.name)
     const storedConfig = (existing.config ?? {}) as TableViewConfig

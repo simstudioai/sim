@@ -301,6 +301,27 @@ describe('saved-view ceiling', () => {
     expect(mockSignalTableViewsChanged).not.toHaveBeenCalled()
   })
 
+  it('serializes on the views lock rather than the table schema lock', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'view-100',
+        tableId: 'table-1',
+        workspaceId: 'ws-1',
+        name: 'Another View',
+        config: {},
+        isDefault: false,
+        createdBy: 'user-1',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ])
+
+    await create()
+
+    expect(mockWithLockedTable).not.toHaveBeenCalled()
+  })
+
   it('allows the create that lands exactly on the ceiling', async () => {
     queueTableRows(tableViews, [{ total: TABLE_LIMITS.MAX_VIEWS_PER_TABLE - 1 }])
     dbChainMockFns.returning.mockResolvedValueOnce([
@@ -442,6 +463,42 @@ describe('view config column-reference normalization', () => {
         viewId: 'view-1',
         tableId: 'table-1',
         configPatch: { filter: { all: [{ field: 'ghost', op: 'eq', value: 'x' }] } },
+        columns,
+      })
+    ).rejects.toMatchObject({ name: 'TableViewValidationError' })
+  })
+
+  /**
+   * A column delete leaves the referencing views behind, and `pruneViewConfig`
+   * deliberately does not prune a filter. The write must therefore let the
+   * already-stored reference through — otherwise the first save of anything else
+   * on that view (a sort change, a hidden-column change, the Save chip's whole
+   * config) 400s on a condition the user did not touch.
+   */
+  it('lets a save carry forward a stale filter reference the view already stored', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: stale, sort: [{ field: 'col_a', direction: 'asc' }] },
+        columns,
+      })
+    ).resolves.not.toBeNull()
+  })
+
+  it('still refuses a NEW unknown reference on a view that already had a stale one', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: { all: [{ field: 'col_other_ghost', op: 'eq', value: 'x' }] } },
         columns,
       })
     ).rejects.toMatchObject({ name: 'TableViewValidationError' })
