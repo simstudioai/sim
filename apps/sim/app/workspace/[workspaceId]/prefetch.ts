@@ -4,13 +4,13 @@ import type { QueryClient } from '@tanstack/react-query'
 import { listWorkspacesContract, type WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
-import { listFoldersForWorkspace } from '@/lib/folders/queries'
 import { getUserProfile } from '@/lib/users/queries'
 import { listWorkflowsForUser } from '@/lib/workflows/queries'
 import { listWorkspaceFilesWithShares } from '@/lib/workspace-files/queries'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { getWorkspacePermissionsForAuthorizedViewer } from '@/lib/workspaces/permissions/utils'
+import { prefetchResourceFolders } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-folders'
 import {
   MOTHERSHIP_CHAT_LIST_STALE_TIME,
   mapChat,
@@ -21,7 +21,6 @@ import {
   USER_PROFILE_STALE_TIME,
   userProfileKeys,
 } from '@/hooks/queries/user-profile'
-import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow, WORKFLOW_LIST_STALE_TIME } from '@/hooks/queries/utils/workflow-list-query'
 import { normalizeWorkspacesResponse } from '@/hooks/queries/utils/workspace-list-query'
@@ -59,9 +58,8 @@ const logger = createLogger('WorkspacePrefetch')
  * Seeded rather than prefetched so the empty-list case can decline to create a
  * cache entry at all: the route's default-workspace creation path must run on
  * the client, and an entry — even an empty one — would suppress it. Expressing
- * that as an absent seed keeps a normal state out of the error channel, where
- * it previously cost a full second re-read (`retry: 1`) to re-derive an outcome
- * already known.
+ * that as an absent seed also keeps a routine state out of the error channel,
+ * where it read as a failure rather than as "nothing to seed".
  */
 async function seedWorkspaceList(
   queryClient: QueryClient,
@@ -122,9 +120,7 @@ async function seedWorkspaceList(
  * to produce, without routing a normal state through the error channel. That
  * matters because only a settled query is dehydrated: an unawaited read would be
  * dropped from the payload entirely, so the switcher would waterfall on every
- * cold load rather than paint populated. Seeding also skips the `retry` default,
- * which previously ran the whole read a second time, a retry delay later, purely
- * to re-derive an outcome already known.
+ * cold load rather than paint populated.
  */
 export async function prefetchWorkspaceSidebar(
   queryClient: QueryClient,
@@ -156,14 +152,7 @@ export async function prefetchWorkspaceSidebar(
           }),
         ]
       : []),
-    queryClient.prefetchQuery({
-      queryKey: folderKeys.list(workspaceId, 'active', 'workflow'),
-      queryFn: async () => {
-        const rows = await listFoldersForWorkspace(workspaceId, 'active', 'workflow')
-        return rows.map(mapFolder)
-      },
-      staleTime: FOLDER_LIST_STALE_TIME,
-    }),
+    prefetchResourceFolders(queryClient, workspaceId, 'workflow', userId),
     /**
      * The sidebar reads the workspace's files for its search modal, on EVERY workspace route — so this
      * query is registered by sidebar chrome before any page renders. That ordering is why it has to be

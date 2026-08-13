@@ -36,6 +36,8 @@ export async function prefetchKnowledgeBases(
   workspaceId: string,
   userId: string | undefined
 ): Promise<void> {
+  if (!userId) return
+
   await Promise.all([
     queryClient.prefetchQuery({
       queryKey: knowledgeKeys.list(workspaceId, 'active'),
