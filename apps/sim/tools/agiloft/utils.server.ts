@@ -7,10 +7,30 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import type { AgiloftBaseParams, AgiloftCredentials } from '@/tools/agiloft/types'
-import { AGILOFT_LANG, agiloftAlrestBase, describeAgiloftError } from '@/tools/agiloft/utils'
+import {
+  AGILOFT_LANG,
+  agiloftAlrestBase,
+  describeAgiloftError,
+  redactAgiloftSecrets,
+} from '@/tools/agiloft/utils'
 import type { HttpMethod, ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgiloftAuthServer')
+
+/**
+ * Refuses redirects on any request that carries Agiloft credentials.
+ *
+ * `secureFetchWithPinnedIP` replays the whole options object to a redirect's
+ * `Location` — same method, same body — and `stripAuthOnRedirect` only removes
+ * the `Authorization` header, which does nothing for `$login`/`$password` in a
+ * form body. The redirect target is checked for private addresses but is not
+ * held to the original host, so a 3xx would POST the instance's credentials to
+ * whatever public host it names. On a write it would also re-send the create.
+ *
+ * None of these operations redirect in normal use; Agiloft's redirect decorator
+ * is opt-in per call and this connector never asks for it.
+ */
+const AGILOFT_NO_REDIRECT = { maxRedirects: 0 } as const
 
 export interface AgiloftRequestConfig {
   url: string
@@ -75,6 +95,7 @@ export async function agiloftLoginPinned(
   const response = await secureFetchWithPinnedIP(`${base}/ewws/EWLogin`, resolvedIP, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    ...AGILOFT_NO_REDIRECT,
     body: formEncode(
       filterUndefined({
         $KB: params.knowledgeBase,
@@ -88,21 +109,33 @@ export async function agiloftLoginPinned(
     ),
   })
 
-  const text = await response.text()
+  const rawText = await response.text()
+
+  /**
+   * Login posts the credentials in its form body, so an error page echoing the
+   * submitted parameters echoes them. Redacted while the text is still whole,
+   * before any of the messages below truncate it.
+   *
+   * Only the messages use this. Parsing stays on `rawText`: a token is opaque
+   * base64, so a short credential can appear inside it by coincidence, and
+   * redacting first would rewrite the token and break every request that
+   * carries it.
+   */
+  const safeText = redactAgiloftSecrets(rawText, params)
 
   if (!response.ok) {
-    throw new Error(`Agiloft login failed (${response.status}): ${describeAgiloftError(text)}`)
+    throw new Error(`Agiloft login failed (${response.status}): ${describeAgiloftError(safeText)}`)
   }
 
   let data: { access_token?: string; authentication_scheme?: string }
   try {
-    data = JSON.parse(text)
+    data = JSON.parse(rawText)
   } catch {
-    throw new Error(`Agiloft login returned a non-JSON response: ${truncate(text, 200)}`)
+    throw new Error(`Agiloft login returned a non-JSON response: ${truncate(safeText, 200)}`)
   }
 
   if (!data.access_token) {
-    throw new Error(`Agiloft login did not return an access token: ${truncate(text, 200)}`)
+    throw new Error(`Agiloft login did not return an access token: ${truncate(safeText, 200)}`)
   }
 
   const scheme = (data.authentication_scheme || 'Bearer').trim() || 'Bearer'
@@ -128,6 +161,7 @@ export async function agiloftLogoutPinned(
       {
         method: 'POST',
         headers: { Authorization: authorization },
+        ...AGILOFT_NO_REDIRECT,
       }
     )
   } catch (error) {
@@ -173,6 +207,7 @@ export async function executeAgiloftRequest<R extends ToolResponse>(
         Authorization: session.authorization,
       },
       body: req.body,
+      ...AGILOFT_NO_REDIRECT,
     })
     return await transformResponse(response)
   } finally {
@@ -219,12 +254,26 @@ export function isAgiloftRefusal(error: unknown): error is AgiloftAlrestError {
  * — whether it failed by status code, by `success: false`, or by returning
  * something that is not JSON at all.
  */
-export async function readAlrestJson<T>(response: SecureFetchResponse): Promise<T | undefined> {
-  const text = await response.text()
+export async function readAlrestJson<T>(
+  response: SecureFetchResponse,
+  credentials?: { login: string; password: string }
+): Promise<T | undefined> {
+  const rawText = await response.text()
+
+  /**
+   * Redacted here rather than by the caller, because the messages below embed a
+   * truncated slice of the body. Clipping first can cut through a credential and
+   * leave a prefix that a later full-value replace can no longer match, so the
+   * redaction has to happen while the text is still whole.
+   *
+   * `credentials` is passed by the operations that send them on the request
+   * itself; the rest authenticate with a bearer token and cannot echo one back.
+   */
+  const text = credentials ? redactAgiloftSecrets(rawText, credentials) : rawText
 
   let envelope: AlrestEnvelope<T>
   try {
-    envelope = JSON.parse(text)
+    envelope = JSON.parse(rawText)
   } catch {
     throw new AgiloftAlrestError(
       `Agiloft returned a non-JSON response (${response.status}): ${truncate(text, 300)}`
@@ -239,7 +288,9 @@ export async function readAlrestJson<T>(response: SecureFetchResponse): Promise<
         .join('; ') ||
       envelope.message ||
       describeAgiloftError(truncate(text, 300))
-    throw new AgiloftAlrestError(`Agiloft error: ${detail}`)
+    throw new AgiloftAlrestError(
+      `Agiloft error: ${credentials ? redactAgiloftSecrets(detail, credentials) : detail}`
+    )
   }
 
   return envelope.result
@@ -263,6 +314,7 @@ export async function executeAlrestRequest<R extends ToolResponse>(
       method: req.method,
       headers: { ...req.headers, Authorization: session.authorization },
       body: req.body,
+      ...AGILOFT_NO_REDIRECT,
     })
     return await transformResponse(response)
   } finally {
@@ -277,20 +329,31 @@ export async function executeAlrestRequest<R extends ToolResponse>(
 
 /**
  * Runs a single `/ewws/EW*` call. No login round-trip: that surface rejects the
- * bearer token and authenticates from the inline `$login`/`$password` already
- * present in the URL built by the caller.
+ * bearer token and authenticates from the inline `$login`/`$password` the
+ * caller puts on the request — in the query string for the operations that only
+ * accept parameters there, in the form-encoded body for the ones that take it
+ * (EWCreate, EWUpsert, EWNLPSearch), which keeps the password out of URLs and
+ * access logs.
  */
 export async function executeEwRequest<R extends ToolResponse>(
   params: AgiloftCredentials,
   buildRequest: (base: string) => AgiloftRequestConfig,
-  transformResponse: (response: SecureFetchResponse) => Promise<R>
+  transformResponse: (response: SecureFetchResponse) => Promise<R>,
+  preResolvedIP?: string
 ): Promise<R> {
-  const resolvedIP = await resolveAgiloftInstance(params.instanceUrl)
+  /**
+   * A write caller resolves the instance itself so it can tell a rejected host
+   * (nothing sent) from a failure after the request went out (the write may
+   * have landed). Resolving a second time here would put a DNS failure on the
+   * wrong side of that line, so the caller's already-validated IP is reused.
+   */
+  const resolvedIP = preResolvedIP ?? (await resolveAgiloftInstance(params.instanceUrl))
   const req = buildRequest(params.instanceUrl.replace(/\/$/, ''))
   const response = await secureFetchWithPinnedIP(req.url, resolvedIP, {
     method: req.method,
     headers: req.headers,
     body: req.body,
+    ...AGILOFT_NO_REDIRECT,
   })
   return await transformResponse(response)
 }

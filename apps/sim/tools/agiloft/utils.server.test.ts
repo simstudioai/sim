@@ -16,7 +16,7 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   secureFetchWithPinnedIP: mockSecureFetch,
 }))
 
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import { agiloftLoginPinned, executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 
 const baseParams = {
   instanceUrl: 'https://example.agiloft.com',
@@ -164,5 +164,43 @@ describe('executeAgiloftRequest', () => {
     ).rejects.toThrow(/blocked IP address/)
 
     expect(mockSecureFetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('agiloftLoginPinned token integrity', () => {
+  /**
+   * A token is opaque base64, so a short credential can appear inside it by
+   * coincidence. Redacting the body before parsing would rewrite the token and
+   * break every request that carries it, so parsing stays on the raw text.
+   */
+  it('returns the token intact when the password occurs inside it', async () => {
+    /**
+     * Deliberately not JWT-shaped: a realistic header segment reads as a real
+     * token to secret scanners. All this test needs is an opaque value that
+     * happens to contain the password.
+     */
+    const password = 'abc'
+    const token = `opaque-session-value-${password}-trailing`
+
+    mockSecureFetch.mockResolvedValueOnce(
+      mockResponse({ json: { access_token: token, authentication_scheme: 'Bearer ' } })
+    )
+
+    const session = await agiloftLoginPinned({ ...baseParams, password }, '93.184.216.34')
+
+    expect(session.token).toBe(token)
+    expect(session.authorization).toBe(`Bearer ${token}`)
+  })
+
+  it('redacts the credentials from a login failure message', async () => {
+    mockSecureFetch.mockResolvedValueOnce(
+      mockResponse({
+        ok: false,
+        status: 500,
+        text: `<html><body>Error: $login=admin&$password=${PLACEHOLDER_PASSWORD}</body></html>`,
+      })
+    )
+
+    await expect(agiloftLoginPinned(baseParams, '93.184.216.34')).rejects.toThrow(/\[redacted\]/)
   })
 })

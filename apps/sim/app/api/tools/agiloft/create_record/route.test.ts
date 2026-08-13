@@ -22,7 +22,7 @@ const PINNED_IP = '93.184.216.34'
 
 const baseBody = {
   instanceUrl: 'https://example.agiloft.com',
-  knowledgeBase: 'Russell Investments',
+  knowledgeBase: 'Contract Templates',
   login: 'svc.user',
   password: PLACEHOLDER_PASSWORD,
   table: 'contract',
@@ -72,7 +72,7 @@ describe('EWLogin', () => {
   it('sends $table and $lang alongside $KB in a form body, which the live server requires', async () => {
     arrange(res({ json: { success: true, result: { id: 6342 } } }))
 
-    await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    await READ(createMockRequest('POST', { ...baseBody, recordId: '6342' }))
 
     const [url, ip, init] = inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.calls[0]
     expect(url).toBe('https://example.agiloft.com/ewws/EWLogin')
@@ -81,7 +81,7 @@ describe('EWLogin', () => {
     expect(init.headers['Content-Type']).toBe('application/x-www-form-urlencoded')
 
     const sent = new URLSearchParams(init.body as string)
-    expect(sent.get('$KB')).toBe('Russell Investments')
+    expect(sent.get('$KB')).toBe('Contract Templates')
     expect(sent.get('$table')).toBe('contract')
     expect(sent.get('$lang')).toBe('en')
     expect(sent.get('$login')).toBe('svc.user')
@@ -93,7 +93,7 @@ describe('EWLogin', () => {
   it('trims the trailing space Agiloft puts on authentication_scheme', async () => {
     arrange(res({ json: { success: true, result: { id: 6342 } } }))
 
-    await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    await READ(createMockRequest('POST', { ...baseBody, recordId: '6342' }))
 
     const [, , init] = inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.calls[1]
     expect(init.headers.Authorization).toBe('Bearer tok-123')
@@ -108,7 +108,7 @@ describe('EWLogin', () => {
       })
     )
 
-    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const response = await READ(createMockRequest('POST', { ...baseBody, recordId: '6342' }))
     const data = (await response.json()) as { success: boolean; error?: string }
 
     expect(data.success).toBe(false)
@@ -117,33 +117,333 @@ describe('EWLogin', () => {
 })
 
 describe('alrest envelope handling', () => {
-  it('targets /ewws/alrest/{KB} for record creation', async () => {
-    arrange(res({ json: { success: true, result: { id: 6342, contract_title1: 'X' } } }))
-
-    const response = await POST(
-      createMockRequest('POST', { ...baseBody, data: '{"contract_title1":"X"}' })
-    )
-    const data = (await response.json()) as { success: boolean; output: { id: string | null } }
-
-    const [url] = inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.calls[1]
-    expect(url).toBe(
-      'https://example.agiloft.com/ewws/alrest/Russell%20Investments/contract?lang=en'
-    )
-    expect(data.output.id).toBe('6342')
-  })
-
-  it('treats HTTP 200 with success:false as a failure, not a successful create', async () => {
+  it('treats HTTP 200 with success:false as a failure, not a successful read', async () => {
     arrange(
       res({
-        json: { success: false, errors: [{ message: 'Field contract_title1 is required' }] },
+        json: { success: false, errors: [{ message: 'No column bogus_field in table contract' }] },
+      })
+    )
+
+    const response = await READ(createMockRequest('POST', { ...baseBody, recordId: '6342' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('No column bogus_field in table contract')
+  })
+})
+
+describe('EWCreate', () => {
+  /**
+   * EWCreate authenticates from the credentials in its own form body, so unlike
+   * the alrest operations it needs no login/logout pair around it.
+   */
+  function arrangeCreate(operationResponse: ReturnType<typeof res>) {
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(operationResponse)
+  }
+
+  it('posts a form-encoded body to EWCreate with no login round trip', async () => {
+    arrangeCreate(res({ text: "EWREST_id='353';" }))
+
+    await POST(createMockRequest('POST', { ...baseBody, data: '{"contract_title1":"X"}' }))
+
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(1)
+
+    const [url, ip, init] = inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.calls[0]
+    expect(url).toBe('https://example.agiloft.com/ewws/EWCreate')
+    expect(ip).toBe(PINNED_IP)
+    expect(init.method).toBe('POST')
+    expect(init.headers['Content-Type']).toBe('application/x-www-form-urlencoded')
+
+    const sent = new URLSearchParams(init.body as string)
+    expect(sent.get('$KB')).toBe('Contract Templates')
+    expect(sent.get('$table')).toBe('contract')
+    expect(sent.get('$lang')).toBe('en')
+    expect(sent.get('contract_title1')).toBe('X')
+    // Credentials belong in the body, never the URL.
+    expect(url).not.toContain(PLACEHOLDER_PASSWORD)
+    expect(sent.get('$password')).toBe(PLACEHOLDER_PASSWORD)
+  })
+
+  it('returns the ID from the documented EWREST_id assignment', async () => {
+    arrangeCreate(res({ text: "EWREST_id='353';" }))
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as {
+      success: boolean
+      output: { id: string | null; fields: Record<string, unknown> }
+    }
+
+    expect(data.success).toBe(true)
+    expect(data.output.id).toBe('353')
+    expect(data.output.fields).toEqual({})
+  })
+
+  it('passes through any other field values the create returns', async () => {
+    arrangeCreate(res({ text: "EWREST_id='353';\nEWREST_status_1a='Initial Due Diligence';" }))
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as {
+      output: { id: string | null; fields: Record<string, unknown> }
+    }
+
+    expect(data.output.id).toBe('353')
+    expect(data.output.fields).toEqual({ status_1a: 'Initial Due Diligence' })
+  })
+
+  it('encodes a multi-value field as repeated pairs, not a joined string', async () => {
+    arrangeCreate(res({ text: "EWREST_id='353';" }))
+
+    await POST(
+      createMockRequest('POST', {
+        ...baseBody,
+        data: '{"contactMethod":["phone","email"]}',
+      })
+    )
+
+    const [, , init] = inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.calls[0]
+    expect(new URLSearchParams(init.body as string).getAll('contactMethod')).toEqual([
+      'phone',
+      'email',
+    ])
+  })
+
+  it('reports an upstream refusal as a settled failure rather than a retryable 500', async () => {
+    arrangeCreate(
+      res({
+        ok: false,
+        status: 400,
+        text: '<html><body>EWWrongDataException has occurred: Wrong format/value pointed to start_date</body></html>',
+      })
+    )
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+
+    /**
+     * The tool runner retries 500s, and a retried create writes a second record
+     * instead of converging on the first.
+     */
+    expect(response.status).toBe(200)
+    const data = (await response.json()) as { success: boolean; error?: string }
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('Wrong format/value pointed to start_date')
+  })
+
+  it('warns that the record may exist when the create returns no ID', async () => {
+    arrangeCreate(res({ text: '' }))
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('the record may exist')
+    expect(data.error).toContain('retrying creates a second record')
+  })
+
+  /**
+   * A typed exception is Agiloft declining the create outright, so nothing was
+   * written and the caller must not be warned about a phantom record.
+   */
+  it('reports a typed refusal as a definite failure, not an unconfirmed write', async () => {
+    arrangeCreate(
+      res({
+        text: '<html><body>EWWrongDataException has occurred: No column bogus in table contract</body></html>',
+      })
+    )
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"bogus":"x"}' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('no record was written')
+    expect(data.error).not.toContain('may exist')
+  })
+
+  it('refuses a record ID that is not a number rather than chaining it downstream', async () => {
+    arrangeCreate(res({ text: "EWREST_id='353;DROP';" }))
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { success: boolean; output: { id: string | null } }
+
+    expect(data.success).toBe(false)
+    expect(data.output.id).toBeNull()
+  })
+
+  /**
+   * A rejected instance URL is decided before anything is sent, so it must not
+   * come back wearing the do-not-retry warning. The route resolves the instance
+   * itself and hands the result down, so there is exactly one resolution and
+   * everything after it is genuinely post-transmit.
+   */
+  it('reports a rejected instance URL as a pre-flight failure, not an unconfirmed write', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValueOnce({
+      isValid: false,
+      error: 'URL resolves to a private IP address',
+    })
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(response.status).toBe(400)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('private IP')
+    expect(data.error).not.toContain('may exist')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it('resolves the instance once, so a DNS failure cannot land on the wrong side of the line', async () => {
+    arrangeCreate(res({ text: "EWREST_id='353';" }))
+
+    await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+
+    expect(inputValidationMockFns.mockValidateUrlWithDNS).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * The request was already on the wire, so the write may have committed. A 500
+   * here is what would have the caller retry and duplicate the record.
+   */
+  it('settles a transport failure after the request was sent instead of returning 500', async () => {
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockRejectedValueOnce(
+      new Error('socket hang up')
+    )
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('could not be confirmed')
+    expect(data.error).toContain('retrying creates a second record')
+  })
+
+  /**
+   * The credentials travel in the submitted form body, so an Agiloft error page
+   * or an intermediary that echoes request parameters would hand them straight
+   * back to the workflow caller.
+   */
+  it('keeps the instance password out of an echoed upstream error body', async () => {
+    arrangeCreate(
+      res({
+        ok: false,
+        status: 500,
+        text: `<html><body>Error processing request: $KB=Contract+Templates&$login=svc.user&$password=${PLACEHOLDER_PASSWORD}</body></html>`,
       })
     )
 
     const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
     const data = (await response.json()) as { success: boolean; error?: string }
 
+    expect(response.status).toBe(200)
     expect(data.success).toBe(false)
-    expect(data.error).toContain('Field contract_title1 is required')
+    expect(data.error).not.toContain(PLACEHOLDER_PASSWORD)
+    expect(data.error).not.toContain('svc.user')
+    expect(data.error).toContain('[redacted]')
+  })
+
+  /**
+   * A 4xx carrying a typed exception is Agiloft declining the request, so
+   * nothing was written and warning about a phantom record is wrong.
+   */
+  it('reports a 4xx validation decline as a definite failure, not an unconfirmed write', async () => {
+    arrangeCreate(
+      res({
+        ok: false,
+        status: 400,
+        text: '<html><body>EWWrongDataException has occurred: Wrong format/value pointed to start_date</body></html>',
+      })
+    )
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('no record was written')
+    expect(data.error).not.toContain('may exist')
+  })
+
+  it('keeps the unconfirmed warning on a 5xx, which may have committed first', async () => {
+    arrangeCreate(
+      res({
+        ok: false,
+        status: 502,
+        text: '<html><body>EWUnexpectedException has occurred: upstream failure</body></html>',
+      })
+    )
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { error?: string }
+
+    expect(data.error).toContain('may exist')
+  })
+
+  it('keeps the instance password out of a relayed transport error', async () => {
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockRejectedValueOnce(
+      new Error(`upstream echoed $password=${PLACEHOLDER_PASSWORD}`)
+    )
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { error?: string }
+
+    expect(data.error).not.toContain(PLACEHOLDER_PASSWORD)
+    expect(data.error).toContain('[redacted]')
+  })
+
+  it('rejects a data parameter that is not JSON without calling Agiloft', async () => {
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: 'title = X' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('must be a JSON object of field names to values')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A JSON array parses fine but has no field names, so it would post a body
+   * carrying nothing but credentials and create an empty record.
+   */
+  it('rejects valid JSON that is not an object of field names', async () => {
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '["a","b"]' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('must be a JSON object of field names to values')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  /**
+   * An unencodable field is a permanent refusal, so it has to come back settled
+   * like every other create failure. Encoding it inside the request builder
+   * would surface the TypeError as a 500, which the tool runner then retries.
+   */
+  it('refuses an object field value as a settled failure, not a retryable 500', async () => {
+    const response = await POST(
+      createMockRequest('POST', { ...baseBody, data: '{"nested":{"a":1}}' })
+    )
+    const data = (await response.json()) as {
+      success: boolean
+      output: unknown
+      error?: string
+    }
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.output).toEqual({ id: null, fields: {} })
+    expect(data.error).toContain('has no encoding for')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it('refuses a field that reuses a reserved $ parameter name', async () => {
+    const response = await POST(
+      createMockRequest('POST', { ...baseBody, data: '{"$table":"other_table"}' })
+    )
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('reserved')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 })
 
@@ -232,16 +532,6 @@ describe('search result ceiling', () => {
 })
 
 describe('review round 1 fixes', () => {
-  it('fails a create that comes back without a record ID', async () => {
-    arrange(res({ json: { success: true, result: {} } }))
-
-    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
-    const data = (await response.json()) as { success: boolean; error?: string }
-
-    expect(data.success).toBe(false)
-    expect(data.error).toContain('did not return an ID')
-  })
-
   it('refuses a non-numeric record ID on a projected read rather than interpolating it', async () => {
     const response = await READ(
       createMockRequest('POST', {
@@ -284,6 +574,26 @@ describe('documented EWREST response keys', () => {
 
     expect(data.success).toBe(true)
     expect(data.output.choiceLineId).toBe(1)
+  })
+
+  /**
+   * Agiloft's own docs disagree here: the REST Interface operations table lists
+   * the endpoint as `/ewws/GetChoiceLineID`, while the operation's own page uses
+   * `/ewws/EWGetChoiceLineId` in both worked examples. The detail page wins, and
+   * this pins it so the summary table's spelling does not get adopted later.
+   */
+  it('targets the endpoint spelled out on the operation page, not the summary table', async () => {
+    const { POST: CHOICE } = await import('@/app/api/tools/agiloft/get_choice_line_id/route')
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      res({ text: "EWREST_choiceLineId = '1';" })
+    )
+
+    await CHOICE(createMockRequest('POST', { ...baseBody, fieldName: 'priority', value: 'High' }))
+
+    const [url] = inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.calls[0]
+    expect(url).toContain('/ewws/EWGetChoiceLineId?')
+    expect(url).toContain('&field=priority')
+    expect(url).toContain('&value=High')
   })
 })
 
@@ -558,11 +868,13 @@ describe('review round 3 fixes', () => {
       res({ json: { success: false, errors: [{ message: 'Field contract_title1 is required' }] } })
     )
 
-    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const response = await SEARCH(
+      createMockRequest('POST', { ...baseBody, query: "status_1a='Active'" })
+    )
 
     /**
-     * The tool runner retries 500s, and retrying a refused create can duplicate
-     * a record — a refusal must come back as a settled failure.
+     * The tool runner retries 500s, so a refusal Agiloft already settled must
+     * come back as a completed failure instead.
      */
     expect(response.status).toBe(200)
     const data = (await response.json()) as { success: boolean; error?: string }

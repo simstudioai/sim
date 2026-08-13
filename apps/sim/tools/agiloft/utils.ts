@@ -1,3 +1,4 @@
+import { truncate } from '@sim/utils/string'
 import type {
   AgiloftAsyncStatusParams,
   AgiloftAttachmentInfoParams,
@@ -6,6 +7,7 @@ import type {
   AgiloftGetChoiceLineIdParams,
   AgiloftListTablesParams,
   AgiloftLockRecordParams,
+  AgiloftNlpSearchParams,
   AgiloftRemoveAttachmentParams,
   AgiloftRetrieveAttachmentParams,
   AgiloftRunActionButtonParams,
@@ -42,6 +44,68 @@ export function describeAgiloftError(body: string): string {
   return detail ? `${typed[1]}: ${detail}` : typed[1]
 }
 
+/**
+ * Every spelling of a credential that could come back in an echoed response.
+ *
+ * The value is sent form-encoded, so an error page that quotes the submitted
+ * parameters quotes the encoded form, not the raw one. A password with a space
+ * leaves as `a%20b` or `a+b` and would sail past a replace that only knows
+ * `a b`. Longest first so a variant that contains another is replaced whole.
+ */
+function secretSpellings(secret: string): string[] {
+  const encoded = encodeURIComponent(secret)
+  return [...new Set([secret, encoded, encoded.replace(/%20/g, '+')])].sort(
+    (a, b) => b.length - a.length
+  )
+}
+
+/**
+ * Strips the instance credentials out of any text relayed to the caller.
+ *
+ * The credentials for the operations that accept them travel in the request
+ * body, and an Agiloft error page or an intermediary that echoes submitted form
+ * parameters would carry them straight back. Anything derived from an upstream
+ * response or a transport error goes through here before it reaches a workflow
+ * result or a log.
+ *
+ * Redact before truncating, never after: clipping the text first can cut
+ * through a credential and leave a prefix that no longer matches anything this
+ * replaces.
+ */
+export function redactAgiloftSecrets(
+  message: string,
+  credentials: { login: string; password: string }
+): string {
+  let safe = message
+  for (const secret of [credentials.password, credentials.login]) {
+    if (!secret) continue
+    for (const spelling of secretSpellings(secret)) {
+      safe = safe.split(spelling).join('[redacted]')
+    }
+  }
+  return safe
+}
+
+/**
+ * Turns a raw Agiloft response body into the one-line detail relayed to a
+ * caller or written to a log.
+ *
+ * The ordering is the entire point of this function existing. Redaction has to
+ * run while the text is still exactly what the server sent: `describeAgiloftError`
+ * strips tags and collapses whitespace, and `truncate` clips, and either can
+ * reshape a credential so it no longer matches what is being replaced - leaving
+ * a fragment of it in the output. Composing the three by hand has gone wrong
+ * repeatedly, in both directions, so callers hand over the raw body and get back
+ * a string that is safe to relay.
+ */
+export function describeAgiloftFailure(
+  rawBody: string,
+  credentials: { login: string; password: string },
+  maxLength = 300
+): string {
+  return truncate(describeAgiloftError(redactAgiloftSecrets(rawBody, credentials)), maxLength)
+}
+
 /** Language sent on every Agiloft call; EWLogin rejects the request without it. */
 export const AGILOFT_LANG = 'en'
 
@@ -57,10 +121,6 @@ export function agiloftAlrestBase(instanceUrl: string, knowledgeBase: string): s
 /** Table segment of an alrest path. */
 function tableSegment(table: string): string {
   return encodeURIComponent(table.trim())
-}
-
-export function alrestRecordCollectionUrl(base: string, table: string): string {
-  return `${base}/${tableSegment(table)}?lang=${AGILOFT_LANG}`
 }
 
 export function alrestRecordUrl(base: string, table: string, recordId: string): string {
@@ -217,6 +277,72 @@ export function buildUpsertRecordUrl(base: string): string {
   return `${base}/ewws/EWUpsert`
 }
 
+/**
+ * Serializes ordered key/value pairs into an `application/x-www-form-urlencoded`
+ * body, the Content-Type the legacy `/ewws/EW*` operations document as
+ * supported, and the only one EWCreate accepts.
+ *
+ * Pairs rather than an object because Agiloft encodes multi-value fields as the
+ * same key repeated, which an object cannot express.
+ */
+export function encodeEwFormBody(fields: Array<[string, string]>): string {
+  return fields
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&')
+}
+
+/**
+ * Renders one field value, refusing anything Agiloft has no encoding for.
+ *
+ * Applied to array entries as well as bare values: an object nested in a
+ * multi-value field is just as unencodable as a bare one, and `String()` would
+ * quietly write "[object Object]" into the record instead of failing.
+ */
+function encodeFieldValue(field: string, value: unknown): string {
+  if (typeof value === 'object') {
+    throw new TypeError(
+      `Field "${field}" is an object, which Agiloft has no encoding for. Use a string, a number, or an array of values.`
+    )
+  }
+  return String(value)
+}
+
+/**
+ * Expands caller-supplied record data into form pairs, appending to `fields`.
+ *
+ * Multi-value fields are encoded as repeated key/value pairs, not as a joined
+ * string.
+ *
+ * `$` opens Agiloft's reserved request-parameter namespace — `$table`, `$KB`,
+ * `$login`, `$password` — which this body has already set. Record data reaches
+ * here from workflow input, so a field carrying one of those names would append
+ * a second occurrence of a reserved parameter and let the caller's data decide
+ * which table the record lands in, or which credentials the call runs under.
+ * Whether the duplicate wins is Agiloft's parser's business, so the name is
+ * refused rather than sent.
+ */
+function pushRecordFields(fields: Array<[string, string]>, data: Record<string, unknown>): void {
+  for (const [field, value] of Object.entries(data)) {
+    if (value === undefined || value === null) continue
+
+    if (field.startsWith('$')) {
+      throw new TypeError(
+        `Field "${field}" uses Agiloft's reserved "$" parameter prefix, which record data cannot set. Rename the field.`
+      )
+    }
+
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (entry === undefined || entry === null) continue
+        fields.push([field, encodeFieldValue(field, entry)])
+      }
+      continue
+    }
+
+    fields.push([field, encodeFieldValue(field, value)])
+  }
+}
+
 export function buildUpsertRecordBody(
   params: AgiloftUpsertRecordParams,
   data: Record<string, unknown>
@@ -232,34 +358,41 @@ export function buildUpsertRecordBody(
 
   if (params.async) fields.push(['$async', 'true'])
 
-  for (const [field, value] of Object.entries(data)) {
-    if (value === undefined || value === null) continue
+  pushRecordFields(fields, data)
 
-    /**
-     * Multi-value fields are encoded as repeated key/value pairs, not as a
-     * joined string. Objects have no documented encoding at all, and
-     * String()-ing one silently writes "[object Object]" into the record.
-     */
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        if (entry === undefined || entry === null) continue
-        fields.push([field, String(entry)])
-      }
-      continue
-    }
+  return encodeEwFormBody(fields)
+}
 
-    if (typeof value === 'object') {
-      throw new TypeError(
-        `Field "${field}" is an object, which Agiloft has no encoding for. Use a string, a number, or an array of values.`
-      )
-    }
+/**
+ * EWCreate is the documented create operation. It answers with the ID of the
+ * new record as an `EWREST_id` assignment, which is the only place that ID is
+ * published. There is no documented JSON create that returns it.
+ */
+export function buildCreateRecordUrl(base: string): string {
+  return `${base}/ewws/EWCreate`
+}
 
-    fields.push([field, String(value)])
-  }
+/**
+ * Every parameter travels in a form-encoded body: EWCreate lists
+ * `application/x-www-form-urlencoded` as its supported Content-Type, it is one
+ * of the operations that accept credentials in the body rather than the query
+ * string, and a body has no request-line length ceiling on the record data.
+ */
+export function buildCreateRecordBody(
+  params: AgiloftBaseParams,
+  data: Record<string, unknown>
+): string {
+  const fields: Array<[string, string]> = [
+    ['$KB', params.knowledgeBase],
+    ['$table', params.table],
+    ['$login', params.login],
+    ['$password', params.password],
+    ['$lang', AGILOFT_LANG],
+  ]
 
-  return fields
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
-    .join('&')
+  pushRecordFields(fields, data)
+
+  return encodeEwFormBody(fields)
 }
 
 export function buildSavedSearchUrl(base: string, params: AgiloftBaseParams): string {
@@ -367,6 +500,56 @@ export const AGILOFT_ASYNC_STATUS: Record<number, { status: string; complete: bo
  */
 export function buildNlpSearchUrl(base: string): string {
   return `${base}/ewws/EWNLPSearch`
+}
+
+/**
+ * Body for EWNLPSearch.
+ *
+ * `$KB`, `$login`, and `$password` are request parameters, not payload keys.
+ * Agiloft documents them under the operation's query parameters and rejects the
+ * call outright when they arrive as members of a JSON object instead:
+ *
+ *   EWWrongDataException ... One has to specify $login, $password parameters
+ *
+ * Form-encoding the whole request satisfies that while keeping the password out
+ * of the URL, access logs, and proxy traces. `field` repeats once per requested
+ * field, matching Agiloft's multi-value encoding.
+ */
+/** Keeps a pagination input only when it reads as a non-negative whole number. */
+function toPaginationValue(value?: string): string | undefined {
+  const trimmed = value?.trim()
+  if (!trimmed) return undefined
+  return /^\d+$/.test(trimmed) ? trimmed : undefined
+}
+
+export function buildNlpSearchBody(params: AgiloftNlpSearchParams): string {
+  const fields: Array<[string, string]> = [
+    ['$KB', params.knowledgeBase],
+    ['$login', params.login],
+    ['$password', params.password],
+    ['$lang', AGILOFT_LANG],
+    ['nlp_query', params.nlpQuery.trim()],
+  ]
+
+  for (const field of parseFieldList(params.fields) ?? []) {
+    fields.push(['field', field])
+  }
+
+  /**
+   * EWNLPSearch ignores the table and searches the whole knowledge base, so
+   * pagination is the only bound a caller has on the result size.
+   *
+   * Both are documented as integers, and the block accepts them as free text,
+   * so a non-numeric value is dropped rather than forwarded — Agiloft ignores
+   * parameters it cannot read, which would silently widen the search instead of
+   * bounding it.
+   */
+  const page = toPaginationValue(params.page)
+  const limit = toPaginationValue(params.limit)
+  if (page !== undefined) fields.push(['page', page])
+  if (limit !== undefined) fields.push(['limit', limit])
+
+  return encodeEwFormBody(fields)
 }
 
 export function getLockHttpMethod(lockAction: string): HttpMethod {
