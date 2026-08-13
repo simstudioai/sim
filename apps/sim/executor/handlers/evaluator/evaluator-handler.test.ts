@@ -44,6 +44,7 @@ import { EvaluatorBlockHandler } from '@/executor/handlers/evaluator/evaluator-h
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
+import type { ProviderRequest } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 
@@ -51,8 +52,11 @@ const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockExecuteProviderRequest = executeProviderRequest as Mock
 
 /** The provider request the handler built, keyed the way the old wire body was. */
-function providerRequestBody(index = 0): Record<string, any> {
-  const [provider, request] = mockExecuteProviderRequest.mock.calls[index]
+function providerRequestBody(index = 0): ProviderRequest & { provider: string } {
+  const [provider, request] = mockExecuteProviderRequest.mock.calls[index] as [
+    string,
+    ProviderRequest,
+  ]
   return { provider, ...request }
 }
 
