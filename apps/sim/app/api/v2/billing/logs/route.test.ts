@@ -146,6 +146,55 @@ describe('GET /api/v2/billing/logs', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
+  /**
+   * The envelope check used to accept any string as the inner token, so an
+   * empty one passed it and then read as falsy in the ledger reader: no cursor
+   * condition was applied and the caller walked the first page again — the very
+   * failure {@link UNKNOWN_CURSOR_MESSAGE} exists to make visible.
+   */
+  it('rejects a cursor whose inner token is empty instead of restarting at page one', async () => {
+    const cursor = ledgerCursor('', { period: 'all' })
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/billing/logs?period=all&limit=1&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  /** This operation takes neither param, so naming them sends the caller nowhere. */
+  it('names the params a rejected cursor is actually bound to', async () => {
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/v2/billing/logs?cursor=not-a-cursor')
+    )
+
+    const body = await response.json()
+    expect(body.error.message).not.toContain('sortBy')
+    expect(body.error.message).not.toContain('sortOrder')
+  })
+
+  /**
+   * `0000` satisfies the published `\d{4}` date-time pattern but names no
+   * instant Postgres can store, so the value has to be refused before
+   * `resolveDateRange` turns it into a bind parameter.
+   */
+  it('rejects a year-0000 custom range bound before it can reach the ledger', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/billing/logs?period=custom&startDate=${encodeURIComponent('0000-01-01T00:00:00Z')}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('startDate') },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
   it('authenticates before rejecting invalid custom ranges', async () => {
     const response = await GET(
       new NextRequest('http://localhost:3000/api/v2/billing/logs?period=custom')

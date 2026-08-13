@@ -169,6 +169,34 @@ describe('public log application use cases', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
+  /**
+   * `null` used to stand for both "at the workspace root" and "the path could
+   * not be resolved", so a caller could tell neither apart nor feed the value
+   * back to `folderPaths`. The root is `/`, exactly as the workflow resources
+   * report it for the same workflow.
+   */
+  it('reports the workspace root as a path a folderPaths filter would accept', async () => {
+    mocks.getLog.mockResolvedValueOnce({ ...log, workflowFolderId: null })
+
+    const result = await getPublicLog.execute({
+      principal: workspacePrincipal,
+      input: { runId: 'run-1' },
+    })
+
+    expect(result.workflowFolderPath).toBe('/')
+  })
+
+  it('keeps null for a folder whose path cannot be resolved', async () => {
+    mocks.getLog.mockResolvedValueOnce({ ...log, workflowFolderId: 'folder-archived' })
+
+    const result = await getPublicLog.execute({
+      principal: workspacePrincipal,
+      input: { runId: 'run-1' },
+    })
+
+    expect(result.workflowFolderPath).toBeNull()
+  })
+
   it('redacts credential values from the run snapshot', async () => {
     mocks.getLog.mockResolvedValueOnce({
       ...log,

@@ -157,7 +157,9 @@ export const v2LogDetailSchema = z
         description: z.string().nullable().describe('Workflow description, or null when unset.'),
         folderPath: v2FolderPathSchema
           .nullable()
-          .describe('Workflow folder path, or null when unavailable.'),
+          .describe(
+            'Canonical folder path of the workflow, in the same form `folderPaths` accepts as a filter: `/` for a workflow at the workspace root. Null only when the path cannot be resolved — the folder has been deleted, or the workflow itself no longer exists.'
+          ),
         ownerEmail: z
           .email()
           .nullable()
@@ -199,40 +201,100 @@ export const v2LogParamsSchema = z.object({
   runId: runIdSchema.describe('Unique workflow run identifier.'),
 })
 
+/**
+ * Upper bound of `workflow_execution_logs.total_duration_ms`, whose column is a
+ * Postgres `integer`.
+ *
+ * The same rule `DEPLOYMENT_VERSION_MAX` states for deployment versions: a
+ * comparison against an `integer` column is an `integer` comparison, so a bound
+ * outside int4 — or one carrying a fractional part — is not a filter that
+ * matches nothing, it is a value Postgres refuses to parse. `1.5`,
+ * `2147483648`, and `1e30` each reached the query as a bind parameter and came
+ * back as a 500 on a read the caller had every reason to believe was well
+ * formed.
+ */
+const V2_DURATION_MS_MAX = 2147483647
+
+/**
+ * A duration bound, in the units and range its column can hold.
+ *
+ * Whole milliseconds rather than a coerced `number`, because the column is
+ * `integer`: publishing `number` invited exactly the fractional value Postgres
+ * cannot compare. Non-negative for the same reason the column is — a run cannot
+ * last less than no time — so a negative bound is a caller mistake rather than a
+ * filter that happens to match everything or nothing.
+ */
+function v2DurationBoundSchema(
+  field: 'minDurationMs' | 'maxDurationMs',
+  bound: 'Minimum' | 'Maximum'
+) {
+  return z.coerce
+    .number()
+    .int(`${field} must be a whole number of milliseconds`)
+    .min(0, `${field} must not be negative`)
+    .max(V2_DURATION_MS_MAX, `${field} must be at most ${V2_DURATION_MS_MAX}`)
+    .describe(
+      `${bound} total execution duration in milliseconds. Whole milliseconds from 0 to ${V2_DURATION_MS_MAX}; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.`
+    )
+}
+
+/**
+ * A comma-separated filter list, with an empty entry rejected rather than dropped.
+ *
+ * `folderPaths` already refused `/,` while its two siblings on the same operation
+ * silently discarded the empty entry, so one endpoint answered two ways to one
+ * mistake. Rejecting is the half that matches the surface-wide rule for a blank
+ * value (`V2_PARSE_DEFAULTS.rejectBlankQueryValues`): dropping it turns a
+ * malformed list into a narrower filter and reports nothing, which on a log
+ * search reads as "those runs do not exist".
+ */
+function v2CommaListSchema(field: 'workflowIds' | 'triggers', description: string) {
+  return z
+    .string()
+    .describe(description)
+    .refine((value) => value.split(',').every((entry) => entry.length > 0), {
+      error: `${field} must not contain an empty entry`,
+    })
+}
+
 export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
   .omit({ executionId: true, folderIds: true })
   .extend({
     workspaceId: workspaceIdSchema.describe('Workspace whose execution logs should be returned.'),
-    workflowIds: z.string().describe('Comma-separated workflow identifiers to include.').optional(),
-    triggers: z.string().describe('Comma-separated trigger types to include.').optional(),
+    workflowIds: v2CommaListSchema(
+      'workflowIds',
+      'Comma-separated workflow identifiers to include. An empty entry is rejected.'
+    ).optional(),
+    triggers: v2CommaListSchema(
+      'triggers',
+      'Comma-separated trigger types to include. An empty entry is rejected. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.'
+    ).optional(),
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
     startDate: v2RunWindowBoundSchema('startDate').optional(),
     endDate: v2RunWindowBoundSchema('endDate').optional(),
     runId: runIdSchema.describe('Exact run identifier to match.').optional(),
-    minDurationMs: z.coerce
-      .number()
-      .describe('Minimum total execution duration in milliseconds.')
-      .optional(),
-    maxDurationMs: z.coerce
-      .number()
-      .describe('Maximum total execution duration in milliseconds.')
-      .optional(),
+    minDurationMs: v2DurationBoundSchema('minDurationMs', 'Minimum').optional(),
+    maxDurationMs: v2DurationBoundSchema('maxDurationMs', 'Maximum').optional(),
     minCost: z.coerce.number().describe('Minimum execution cost in USD.').optional(),
     maxCost: z.coerce.number().describe('Maximum execution cost in USD.').optional(),
     model: z.string().describe('AI model used during execution.').optional(),
     details: z
       .enum(['basic', 'full'])
-      .describe('Response detail level.')
+      .describe(
+        'Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.'
+      )
       .optional()
       .default('basic'),
     includeTraceSpans: booleanQueryFlagSchema
       .describe(
-        'Whether to include block-level trace spans. Spans are pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error.'
+        'Whether to include block-level trace spans. Implies `details=full`. Spans are pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error.'
       )
       .optional()
       .default(false),
     includeFinalOutput: booleanQueryFlagSchema
-      .describe('Whether to include the final workflow output.')
+      .describe(
+        'Whether to include the final workflow output. Implies `details=full`, so the `workflow` summary is present regardless of what `details` is set to.'
+      )
       .optional()
       .default(false),
     ...v2PaginationFields({

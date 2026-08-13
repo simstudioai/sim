@@ -21,6 +21,16 @@ export function encodePublicLogCursor(cursor: PublicLogCursor): string {
   return Buffer.from(JSON.stringify(cursor)).toString('base64')
 }
 
+/**
+ * Reads the keyset this list resumes from, or `null` for a token that names no
+ * position.
+ *
+ * `id` is checked for content rather than only for type: it is one half of the
+ * `(startedAt, id)` tuple the query compares against, so an empty one is a
+ * position no row can sit after, and accepting it would answer a truncated page
+ * as though it were a complete one. It is the same looseness the wrapping
+ * envelope had — see `readScopedCursor` — one layer down.
+ */
 export function decodePublicLogCursor(
   cursor: string,
   expectedOrder: 'asc' | 'desc'
@@ -31,6 +41,7 @@ export function decodePublicLogCursor(
     if (
       typeof parsed.startedAt !== 'string' ||
       typeof parsed.id !== 'string' ||
+      parsed.id.length === 0 ||
       (order !== 'asc' && order !== 'desc') ||
       order !== expectedOrder
     ) {

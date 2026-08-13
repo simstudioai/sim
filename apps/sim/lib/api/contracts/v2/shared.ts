@@ -375,14 +375,26 @@ export function v2PaginationFields(options: V2LimitOptions = {}) {
  * reads over the same runs, so the same timestamp must work on both — sharing
  * the schema is what makes that true rather than merely intended, and it is why
  * the descriptions say "UTC ISO 8601" instead of overpromising "ISO 8601".
+ *
+ * Format alone is not enough, which is why the year is checked on top of it.
+ * `date-time` publishes a four-digit year, so `0000-01-01T00:00:00Z` is a
+ * spec-valid value that `Date` parses happily — but the proleptic Gregorian
+ * calendar Postgres implements has no year zero, so the resulting bind parameter
+ * is refused by the server rather than by anything in the request path, and the
+ * caller sees a 500 for a request the published schema told it to send. Year
+ * `0001` upward is storable and stays accepted, which leaves `0000` the single
+ * value the format admits and the column cannot hold.
  */
 export function v2RunWindowBoundSchema(field: 'startDate' | 'endDate') {
   const boundary = field === 'startDate' ? 'at or after' : 'at or before'
   return z
     .string()
     .datetime({ error: `${field} must be a UTC ISO 8601 timestamp, e.g. 2026-08-06T00:00:00Z` })
+    .refine((value) => new Date(value).getUTCFullYear() >= 1, {
+      error: `${field} must name a storable instant; there is no year 0000`,
+    })
     .describe(
-      `Only include runs started ${boundary} this UTC ISO 8601 timestamp, e.g. \`2026-08-06T00:00:00Z\`. A date without a time, or a timestamp carrying a UTC offset instead of \`Z\`, is rejected.`
+      `Only include runs started ${boundary} this UTC ISO 8601 timestamp, e.g. \`2026-08-06T00:00:00Z\`. A date without a time, or a timestamp carrying a UTC offset instead of \`Z\`, is rejected, as is year \`0000\`, which names no storable instant.`
     )
     .meta({ format: 'date-time' })
 }
