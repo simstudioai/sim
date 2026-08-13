@@ -110,7 +110,6 @@ describe('AgentGroup browser takeover', () => {
           agentLabel: 'Browser Agent',
           items: [tool('success'), browserTakeover(reason)],
           isStreaming: true,
-          isCurrentSection: true,
           isLaneOpen: true,
         })
       )
@@ -184,7 +183,6 @@ describe('AgentGroup browser takeover', () => {
           agentLabel: 'Browser Agent',
           items: [takeover],
           isStreaming: true,
-          isCurrentSection: true,
           isLaneOpen: true,
         })
       )
@@ -206,7 +204,6 @@ describe('AgentGroup browser takeover', () => {
           agentLabel: 'Browser Agent',
           items: [completedTakeover],
           isStreaming: true,
-          isCurrentSection: true,
           isLaneOpen: true,
         })
       )

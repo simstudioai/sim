@@ -556,3 +556,93 @@ describe('reduceEvent — span-start owner reconciliation', () => {
     expect((lane as AgentNode).agentId).toBe('workflow')
   })
 })
+
+describe('reduceEvent — span end settles stale lane tools', () => {
+  const laneScope = { lane: 'subagent', spanId: 'S1', parentToolCallId: 'd1' } as Scope
+
+  it('marks still-running tools success when their lane ends cleanly', () => {
+    const model = apply([
+      envelope(
+        1,
+        'span',
+        { kind: 'subagent', event: 'start', agent: 'browser', data: { tool_call_id: 'd1' } },
+        laneScope
+      ),
+      toolCall(2, 'click-1', 'browser_click', laneScope),
+      // No result for click-1 — dropped/reordered past the lane end.
+      envelope(
+        3,
+        'span',
+        { kind: 'subagent', event: 'end', agent: 'browser', data: {} },
+        laneScope
+      ),
+    ])
+
+    const click = model.nodes.get('click-1')
+    if (click?.kind !== 'tool') throw new Error('expected tool node')
+    expect(click.status).toBe('success')
+
+    const laneId = model.agentBySpanId.get('S1')
+    const lane = laneId ? model.nodes.get(laneId) : undefined
+    if (lane?.kind !== 'agent') throw new Error('expected agent lane')
+    expect(lane.status).toBe('success')
+  })
+
+  it('marks still-running tools error when the lane ends with an error', () => {
+    const model = apply([
+      envelope(
+        1,
+        'span',
+        { kind: 'subagent', event: 'start', agent: 'browser', data: { tool_call_id: 'd1' } },
+        laneScope
+      ),
+      toolCall(2, 'click-1', 'browser_click', laneScope),
+      envelope(
+        3,
+        'span',
+        { kind: 'subagent', event: 'end', agent: 'browser', data: { error: 'boom' } },
+        laneScope
+      ),
+    ])
+
+    const click = model.nodes.get('click-1')
+    if (click?.kind !== 'tool') throw new Error('expected tool node')
+    expect(click.status).toBe('error')
+  })
+
+  it('leaves settled tools alone and lets a late result overwrite the settle', () => {
+    const model = apply([
+      envelope(
+        1,
+        'span',
+        { kind: 'subagent', event: 'start', agent: 'browser', data: { tool_call_id: 'd1' } },
+        laneScope
+      ),
+      toolCall(2, 'click-1', 'browser_click', laneScope),
+      envelope(
+        3,
+        'span',
+        { kind: 'subagent', event: 'end', agent: 'browser', data: {} },
+        laneScope
+      ),
+      // Late result arrives after the settle — it must win.
+      envelope(
+        4,
+        'tool',
+        {
+          phase: 'result',
+          toolCallId: 'click-1',
+          toolName: 'browser_click',
+          success: false,
+          error: 'nope',
+        },
+        laneScope
+      ),
+    ])
+
+    const click = model.nodes.get('click-1')
+    if (click?.kind !== 'tool') throw new Error('expected tool node')
+    expect(click.status).toBe('error')
+    expect(click.result?.error).toBe('nope')
+  })
+})

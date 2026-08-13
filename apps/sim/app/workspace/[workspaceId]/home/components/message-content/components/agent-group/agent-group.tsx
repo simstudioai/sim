@@ -37,8 +37,6 @@ interface AgentGroupProps {
   items: AgentGroupItem[]
   isDelegating?: boolean
   isStreaming?: boolean
-  /** This group is the latest section in its parent sequence (drives collapse). */
-  isCurrentSection?: boolean
   /** The subagent lane is still open (no subagent_end yet) — i.e. actively running. */
   isLaneOpen?: boolean
 }
@@ -110,7 +108,6 @@ export function AgentGroup({
   items,
   isDelegating = false,
   isStreaming = false,
-  isCurrentSection = false,
   isLaneOpen = false,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
@@ -123,17 +120,18 @@ export function AgentGroup({
   const isWorking =
     !activeBrowserTakeover && ((isDelegating && !resolved) || (isStreaming && isLaneOpen))
 
-  // Expand while the turn is live and any of: the lane is open (the subagent is
-  // actively running), this is the current/latest section, or there is unresolved
-  // work. A finished group stays open until the NEXT section starts (it is no
-  // longer the latest), instead of collapsing the instant its own work resolves.
-  // Keying "still running" off the lane-open signal (not `resolved` alone) avoids
-  // a collapse/reopen flicker on parallel siblings: a subagent's tools all
-  // momentarily read "done" in the gap between its last search and its `respond`
-  // ("Gathering thoughts") tool, transiently flipping `resolved` true; the open
-  // lane bridges that gap so the row never collapses mid-run. The turn ending
-  // (isStreaming false) collapses everything; a manual toggle pins the choice.
-  const autoExpanded = isStreaming && (isCurrentSection || isLaneOpen || !resolved)
+  // Expand while the turn is live and the subagent is still working: the lane
+  // is open, or there is unresolved work. When the lane closes and the work
+  // resolves the group collapses — with parallel subagents, finished siblings
+  // fold away while the still-running ones stay open, instead of every group
+  // lingering expanded until the next section starts. Keying "still running"
+  // off the lane-open signal (not `resolved` alone) avoids a collapse/reopen
+  // flicker mid-run: a subagent's tools all momentarily read "done" in the gap
+  // between its last search and its `respond` ("Gathering thoughts") tool,
+  // transiently flipping `resolved` true; the open lane bridges that gap. The
+  // turn ending (isStreaming false) collapses everything; a manual toggle pins
+  // the choice.
+  const autoExpanded = isStreaming && (isLaneOpen || !resolved)
   const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
   const [expandedTakeoverId, setExpandedTakeoverId] = useState<string | null>(null)
   // An outstanding permission prompt overrides a manual collapse: the turn
@@ -219,7 +217,6 @@ export function AgentGroup({
                           items={item.group.items}
                           isDelegating={item.group.isDelegating}
                           isStreaming={isStreaming}
-                          isCurrentSection={idx === items.length - 1}
                           isLaneOpen={item.group.isOpen}
                         />
                       </div>

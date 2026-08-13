@@ -611,9 +611,24 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         if (data?.pending === true) break
         breakLane(model, resolvedSpanId, tsMs)
         const node = model.nodes.get(resolvedSpanId)
+        const spanErrored = Boolean(data && asString(data.error))
         if (node && node.kind === 'agent' && !isNodeTerminal(node.status)) {
-          node.status = data && asString(data.error) ? 'error' : 'success'
+          node.status = spanErrored ? 'error' : 'success'
           node.endSeq = seq
+        }
+        // The lane is over: settle any tool row still `running` in it (its
+        // result was dropped or reordered past the end). Left open, the row
+        // pins the whole group expanded and shimmering for the rest of the
+        // turn even though the subagent already returned. A late result event
+        // still corrects this — applyToolResult overwrites unconditionally.
+        for (const id of model.order) {
+          const stale = model.nodes.get(id)
+          if (stale?.kind === 'tool' && stale.spanId === resolvedSpanId) {
+            if (stale.status === 'running') {
+              stale.status = spanErrored ? 'error' : 'success'
+              stale.streamingArgs = undefined
+            }
+          }
         }
       }
       break
