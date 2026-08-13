@@ -434,7 +434,7 @@ export const v2ListFileFoldersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/files/folders',
   query: v2ListFoldersQuerySchema,
-  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema) },
+  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema, { paged: false }) },
 })
 
 export const v2CreateFileFolderContract = defineRouteContract({

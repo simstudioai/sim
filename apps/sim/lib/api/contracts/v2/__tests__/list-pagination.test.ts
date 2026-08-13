@@ -370,6 +370,24 @@ interface V2ListContract {
   strictQuery: boolean | null | undefined
   /** Whether a fractional `limit` draws a validation issue on `limit` itself. */
   rejectsFractionalLimit: boolean
+  /** Published description of `nextCursor`, as a caller reads it in the spec. */
+  nextCursorDescription: string
+}
+
+/**
+ * The `nextCursor` description the generated spec carries.
+ *
+ * Read off the JSON Schema rather than the Zod node because that is the
+ * artifact a caller and a generated client actually see — an envelope that is
+ * right in TypeScript but publishes the wrong sentence is exactly the
+ * divergence this exists to catch.
+ */
+function nextCursorDescription(schema: z.ZodType | undefined): string {
+  if (!schema) return ''
+  const published = z.toJSONSchema(schema, { io: 'output', unrepresentable: 'any' }) as {
+    properties?: Record<string, { description?: string }>
+  }
+  return published.properties?.nextCursor?.description ?? ''
 }
 
 /**
@@ -402,6 +420,7 @@ async function sweepV2ListContracts(): Promise<V2ListContract[]> {
         inputKeys: [...new Set(variants.flat())].sort(),
         strictQuery: value.query ? rejectsUnknownKeys(value.query) : undefined,
         rejectsFractionalLimit: rejectsFractionalLimit(value),
+        nextCursorDescription: nextCursorDescription(value.response?.schema),
       })
     }
   }
@@ -453,6 +472,32 @@ describe('v2 list pagination split', () => {
         byKey.get(key)?.params.any,
         `${key} returns the full set; adding a defaulted limit to any accepted input shape would truncate existing callers. See .agents/skills/v2-api-conventions/SKILL.md.`
       ).toEqual([])
+    }
+  })
+
+  /**
+   * The envelope is shared by both kinds of list, so its `nextCursor` sentence
+   * has to say which one the caller is holding. Both kinds published the paged
+   * sentence — "Send it back as `cursor`" — on lists whose `.strict()` query
+   * declares no `cursor`, so following the response's own instruction is a 400,
+   * and `nextCursor` is `null` by construction anyway. The description is the
+   * only part of the envelope that can carry the difference.
+   */
+  it('documents nextCursor as the kind of cursor the list actually has', async () => {
+    const contracts = await loadV2ListContracts()
+    const byKey = new Map(contracts.map((c) => [c.key, c]))
+
+    for (const key of FULL_SET_LISTS) {
+      expect(
+        byKey.get(key)?.nextCursorDescription,
+        `${key} returns its whole set but publishes the paged nextCursor sentence, which sends a caller to replay a token its query rejects. Build the response with v2CursorListResponse(item, { paged: false }).`
+      ).not.toMatch(/send it back as/i)
+    }
+    for (const key of PAGED_LISTS) {
+      expect(
+        byKey.get(key)?.nextCursorDescription,
+        `${key} is paged, so its nextCursor must document how to fetch the next page.`
+      ).toMatch(/send it back as/i)
     }
   })
 

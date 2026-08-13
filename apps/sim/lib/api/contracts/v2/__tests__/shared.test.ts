@@ -54,9 +54,13 @@ describe('v2 folder path contracts', () => {
    * vocabulary, which contributes nothing to JSON Schema. Parsing every listed
    * spelling here is what keeps the restatement honest through a Zod upgrade —
    * and this is a destructive switch, so a spelling the spec advertises but the
-   * server rejects is worse than an undocumented one.
+   * server rejects is worse than an undocumented one — and on a destructive
+   * switch so is the reverse: a spelling the server honours but the spec does
+   * not list is a recursive delete a generated client would have refused to
+   * send. `recursive` is therefore case-SENSITIVE, accepting exactly the twelve
+   * published spellings and nothing else.
    */
-  it('accepts every spelling of `recursive` it publishes, in any case', () => {
+  it('accepts every spelling of `recursive` it publishes, and only those', () => {
     const published = z.toJSONSchema(v2DeleteFolderQuerySchema, {
       io: 'input',
       unrepresentable: 'any',
@@ -76,17 +80,15 @@ describe('v2 folder path contracts', () => {
           .recursive
       ).toBe(false)
     }
-    expect(
-      v2DeleteFolderQuerySchema.parse({ workspaceId: WORKSPACE_ID, path: '/R', recursive: 'YES' })
-        .recursive
-    ).toBe(true)
-    expect(
-      v2DeleteFolderQuerySchema.safeParse({
-        workspaceId: WORKSPACE_ID,
-        path: '/R',
-        recursive: 'maybe',
-      }).success
-    ).toBe(false)
+    for (const value of ['True', 'TRUE', 'YES', 'On', 'Y', 'ENABLED', 'maybe']) {
+      expect(
+        v2DeleteFolderQuerySchema.safeParse({
+          workspaceId: WORKSPACE_ID,
+          path: '/R',
+          recursive: value,
+        }).success
+      ).toBe(false)
+    }
   })
 
   /**

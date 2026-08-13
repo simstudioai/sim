@@ -534,7 +534,7 @@ export const v2ListTableFoldersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/tables/folders',
   query: v2ListFoldersQuerySchema,
-  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema) },
+  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema, { paged: false }) },
 })
 
 export const v2CreateTableFolderContract = defineRouteContract({
@@ -1139,7 +1139,7 @@ export const v2ListTableViewsContract = defineRouteContract({
   query: v2TableWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2ApiViewSchema),
+    schema: v2CursorListResponse(v2ApiViewSchema, { paged: false }),
   },
 })
 
@@ -1266,7 +1266,7 @@ export const v2ListWorkflowGroupsContract = defineRouteContract({
   query: v2TableWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2WorkflowGroupSchema),
+    schema: v2CursorListResponse(v2WorkflowGroupSchema, { paged: false }),
   },
 })
 

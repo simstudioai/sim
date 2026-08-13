@@ -661,7 +661,7 @@ const routes = [
         v2ListKnowledgeFoldersContract.response.schema,
         'V2KnowledgeFolderListResponse',
         'Knowledge folder list response',
-        'A cursor-paginated page of knowledge-base folders.'
+        'The whole bounded set of knowledge-base folders, in one page.'
       ),
     }
   ),

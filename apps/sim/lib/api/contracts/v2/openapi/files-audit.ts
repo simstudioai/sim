@@ -29,6 +29,7 @@ import {
   FOLDER_TREE_TOO_LARGE,
   FULL_SET_LIST,
   HEAD_MIRRORS_GET,
+  HEAD_OMITS_PAYLOAD_HEADERS,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
@@ -332,7 +333,7 @@ const routes = [
     filesOperation({
       operationId: 'downloadFile',
       summary: 'Download File',
-      description: `Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it answers \`409\` while that artifact is still compiling and \`413\` if it renders past the size ceiling. Downloading records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET}`,
+      description: `Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it answers \`409\` while that artifact is still compiling and \`413\` if it renders past the size ceiling. Downloading records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: {
         description: 'The file bytes.',

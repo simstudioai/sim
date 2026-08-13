@@ -3665,9 +3665,9 @@
             "name": "recursive",
             "in": "query",
             "required": false,
-            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected.",
+            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
             "schema": {
-              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected.",
+              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
               "enum": [
                 "true",
                 "1",
@@ -5022,7 +5022,7 @@
       },
       "TablePredicate": {
         "title": "Table predicate",
-        "description": "Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so \"not X\" is not the complement of \"X\" over a nullable column. Multi-select `ncontains` is the exception and excludes nulls. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.",
+        "description": "Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so \"not X\" is not the complement of \"X\" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.",
         "type": "object",
         "oneOf": [
           {
@@ -5724,7 +5724,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],
@@ -6371,7 +6371,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],
@@ -7398,7 +7398,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL to which the file bytes are uploaded."
+            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
           },
           "headers": {
             "type": "object",
@@ -7966,7 +7966,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL for this upload part."
+            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
           },
           "headers": {
             "type": "object",
@@ -8367,7 +8367,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],
