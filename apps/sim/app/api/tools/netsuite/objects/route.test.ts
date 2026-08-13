@@ -234,11 +234,11 @@ describe('POST /api/tools/netsuite/objects', () => {
     })
   })
 
-  it('normalizes, deduplicates, sorts, and caps record types', async () => {
-    const items = Array.from({ length: 1_001 }, (_, index) => ({
-      name: `record_${String(1_000 - index).padStart(4, '0')}`,
+  it('normalizes, deduplicates, and sorts up to 1,000 unique record types', async () => {
+    const items = Array.from({ length: 1_000 }, (_, index) => ({
+      name: `record_${String(999 - index).padStart(4, '0')}`,
     }))
-    items.push({ name: 'record_0000' })
+    items.push({ name: 'record_0000' }, { name: 'record_0999' })
     mockListRecordTypes.mockResolvedValueOnce(success({ items }))
 
     const response = await POST(request(RECORD_TYPES_BODY), {})
@@ -248,6 +248,21 @@ describe('POST /api/tools/netsuite/objects', () => {
     expect(body.objects).toHaveLength(1_000)
     expect((body.objects as { id: string }[]).at(0)?.id).toBe('record_0000')
     expect((body.objects as { id: string }[]).at(-1)?.id).toBe('record_0999')
+  })
+
+  it('fails closed instead of returning a partial record-type catalog', async () => {
+    mockListRecordTypes.mockResolvedValueOnce(
+      success({
+        items: Array.from({ length: 1_001 }, (_, index) => ({ name: `record_${index}` })),
+      })
+    )
+
+    const response = await POST(request(RECORD_TYPES_BODY), {})
+
+    expect(response.status).toBe(502)
+    expect(await json(response)).toEqual({
+      error: 'NetSuite returned an invalid object-discovery response.',
+    })
   })
 
   it('fails closed on a malformed provider envelope', async () => {

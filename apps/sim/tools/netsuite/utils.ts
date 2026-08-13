@@ -412,7 +412,9 @@ async function sendSuiteTalkRequest(
   const hasBody = serializedBody !== undefined
   if (hasBody) {
     if (!headers['Content-Type']) headers['Content-Type'] = 'application/json'
-    headers['X-NetSuite-PropertyNameValidation'] = 'error'
+    if (request.path.startsWith('/services/rest/record/')) {
+      headers['X-NetSuite-PropertyNameValidation'] = 'error'
+    }
   }
   return fetch(url, {
     method: request.method,

@@ -238,13 +238,15 @@ const SOURCE_MATRIX: SourceMatrixEntry[] = [
   {
     id: 'netsuite_get_record',
     source: GET_RECORD_SOURCE,
+    additionalSources: [FORM_SOURCE],
     method: 'GET',
     path: '/services/rest/record/v1/customer/A%2FB',
-    query: { expandSubResources: 'true' },
+    query: { expand: 'salesRep', expandSubResources: 'true' },
     successStatus: 200,
     execute: invoke(netsuiteGetRecordTool, {
       recordType: 'customer',
       recordId: 'A/B',
+      expand: 'salesRep',
       expandSubResources: true,
     }),
   },
@@ -662,7 +664,7 @@ describe('NetSuite operation contracts', () => {
       if (entry.body !== undefined && !expectedHeaders['Content-Type']) {
         expectedHeaders['Content-Type'] = 'application/json'
       }
-      if (entry.body !== undefined) {
+      if (entry.body !== undefined && entry.path.startsWith('/services/rest/record/')) {
         expectedHeaders['X-NetSuite-PropertyNameValidation'] = 'error'
       }
       expect(

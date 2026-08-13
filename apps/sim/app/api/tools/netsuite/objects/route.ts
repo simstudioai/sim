@@ -78,11 +78,19 @@ function dedupeAndSort(objects: NetSuiteSelectorObject[]): NetSuiteSelectorObjec
 }
 
 function normalizeRecordTypes(data: unknown): NetSuiteSelectorObject[] {
-  const objects = requireItems(data, 'record-type catalog').map((item) => {
+  const objects: NetSuiteSelectorObject[] = []
+  const names = new Set<string>()
+  for (const item of requireItems(data, 'record-type catalog')) {
     const name = requireString(item.name, 'record type name', MAX_ID_LENGTH)
-    return { id: name, label: name, detail: null }
-  })
-  return dedupeAndSort(objects).slice(0, MAX_RECORD_TYPES)
+    if (!names.has(name)) {
+      if (names.size >= MAX_RECORD_TYPES) {
+        throw new Error('NetSuite returned too many record types')
+      }
+      names.add(name)
+      objects.push({ id: name, label: name, detail: null })
+    }
+  }
+  return dedupeAndSort(objects)
 }
 
 function taskIdFromHref(href: unknown, origin: string, jobId: string): string {
