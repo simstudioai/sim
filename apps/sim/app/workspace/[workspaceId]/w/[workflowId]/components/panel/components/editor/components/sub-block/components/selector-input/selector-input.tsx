@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from 'react'
 import { Tooltip } from '@sim/emcn'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import { SelectorCombobox } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/selector-combobox/selector-combobox'
 import { useSelectorSetup } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-selector-setup'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -22,7 +21,6 @@ interface SelectorInputProps {
   isPreview?: boolean
   previewValue?: any
   previewContextValues?: Record<string, any>
-  canonicalModeOverrides?: CanonicalModeOverrides
   overrides?: SelectorOverrides
 }
 
@@ -33,7 +31,6 @@ export function SelectorInput({
   isPreview = false,
   previewValue,
   previewContextValues,
-  canonicalModeOverrides,
   overrides,
 }: SelectorInputProps) {
   const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
@@ -46,12 +43,7 @@ export function SelectorInput({
     allowSearch,
     disabled: selectorDisabled,
     dependencyValues,
-  } = useSelectorSetup(blockId, subBlock, {
-    disabled,
-    isPreview,
-    previewContextValues,
-    canonicalModeOverrides,
-  })
+  } = useSelectorSetup(blockId, subBlock, { disabled, isPreview, previewContextValues })
 
   const selectorContext = overrides?.transformContext
     ? overrides.transformContext(autoContext, dependencyValues)

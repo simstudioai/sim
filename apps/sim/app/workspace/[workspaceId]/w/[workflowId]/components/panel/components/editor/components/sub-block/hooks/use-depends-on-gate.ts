@@ -5,11 +5,9 @@ import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
   buildCanonicalIndex,
-  type CanonicalModeOverrides,
   isNonEmptyValue,
   normalizeDependencyValue,
   parseDependsOn,
-  resolveActiveDependencyValue,
   resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
@@ -28,18 +26,11 @@ import { useDependencyBlockType } from './use-dependency-block-type'
 export function useDependsOnGate(
   blockId: string,
   subBlock: SubBlockConfig,
-  opts?: {
-    disabled?: boolean
-    isPreview?: boolean
-    previewContextValues?: Record<string, any>
-    canonicalModeOverrides?: CanonicalModeOverrides
-    strictCanonicalDependencies?: boolean
-  }
+  opts?: { disabled?: boolean; isPreview?: boolean; previewContextValues?: Record<string, any> }
 ) {
   const disabledProp = opts?.disabled ?? false
   const isPreview = opts?.isPreview ?? false
   const previewContextValues = opts?.previewContextValues
-  const strictCanonicalDependencies = opts?.strictCanonicalDependencies ?? false
 
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
   const blockState = useWorkflowStore((state) => state.blocks[blockId])
@@ -54,7 +45,7 @@ export function useDependsOnGate(
     () => buildCanonicalIndex(blockConfig?.subBlocks || []),
     [blockConfig?.subBlocks]
   )
-  const canonicalModeOverrides = opts?.canonicalModeOverrides ?? blockState?.data?.canonicalModes
+  const canonicalModeOverrides = blockState?.data?.canonicalModes
 
   // Parse dependsOn config to get all/any field lists
   const { allFields, anyFields, allDependsOnFields } = useMemo(
@@ -69,17 +60,17 @@ export function useDependsOnGate(
     (state: ReturnType<typeof useSubBlockStore.getState>) => {
       if (allDependsOnFields.length === 0) return {} as Record<string, unknown>
 
-      const resolveValue = strictCanonicalDependencies
-        ? resolveActiveDependencyValue
-        : resolveDependencyValue
-
       // If previewContextValues are provided (e.g., tool parameters), use those first
       if (previewContextValues) {
         const map: Record<string, unknown> = {}
         for (const key of allDependsOnFields) {
-          map[key] = normalizeDependencyValue(
-            resolveValue(key, previewContextValues, canonicalIndex, canonicalModeOverrides)
+          const resolvedValue = resolveDependencyValue(
+            key,
+            previewContextValues,
+            canonicalIndex,
+            canonicalModeOverrides
           )
+          map[key] = normalizeDependencyValue(resolvedValue)
         }
         return map
       }
@@ -96,9 +87,13 @@ export function useDependsOnGate(
       const blockValues = (workflowValues as any)[blockId] || {}
       const map: Record<string, unknown> = {}
       for (const key of allDependsOnFields) {
-        map[key] = normalizeDependencyValue(
-          resolveValue(key, blockValues, canonicalIndex, canonicalModeOverrides)
+        const resolvedValue = resolveDependencyValue(
+          key,
+          blockValues,
+          canonicalIndex,
+          canonicalModeOverrides
         )
+        map[key] = normalizeDependencyValue(resolvedValue)
       }
       return map
     },
@@ -109,25 +104,24 @@ export function useDependsOnGate(
       blockId,
       canonicalIndex,
       canonicalModeOverrides,
-      strictCanonicalDependencies,
     ]
   )
 
   // Get values for all dependency fields (both all and any)
   // Use isEqual to prevent re-renders when dependency values haven't actually changed
-  const dependencyValues = useStoreWithEqualityFn(useSubBlockStore, dependencySelector, isEqual)
+  const dependencyValuesMap = useStoreWithEqualityFn(useSubBlockStore, dependencySelector, isEqual)
 
   const depsSatisfied = useMemo(() => {
     // Check all fields (AND logic) - all must be satisfied
     const allSatisfied =
-      allFields.length === 0 || allFields.every((key) => isNonEmptyValue(dependencyValues[key]))
+      allFields.length === 0 || allFields.every((key) => isNonEmptyValue(dependencyValuesMap[key]))
 
     // Check any fields (OR logic) - at least one must be satisfied
     const anySatisfied =
-      anyFields.length === 0 || anyFields.some((key) => isNonEmptyValue(dependencyValues[key]))
+      anyFields.length === 0 || anyFields.some((key) => isNonEmptyValue(dependencyValuesMap[key]))
 
     return allSatisfied && anySatisfied
-  }, [allFields, anyFields, dependencyValues])
+  }, [allFields, anyFields, dependencyValuesMap])
 
   // Block everything except the credential field itself until dependencies are set
   const blocked =
@@ -140,7 +134,7 @@ export function useDependsOnGate(
     depsSatisfied,
     blocked,
     finalDisabled,
-    dependencyValues,
+    dependencyValues: dependencyValuesMap,
     canonicalIndex,
   }
 }

@@ -18,12 +18,10 @@ import { TokenServiceAccountValidationError } from '@/lib/credentials/token-serv
 
 const {
   mockCheckWorkspaceAccess,
-  mockGetCredentialActorContext,
   mockGetCredentialCreationWorkspaceContext,
   mockVerifyAndBuildServiceAccountSecret,
 } = vi.hoisted(() => ({
   mockCheckWorkspaceAccess: vi.fn(),
-  mockGetCredentialActorContext: vi.fn(),
   mockGetCredentialCreationWorkspaceContext: vi.fn(),
   mockVerifyAndBuildServiceAccountSecret: vi.fn(),
 }))
@@ -41,10 +39,6 @@ vi.mock('@/lib/credentials/environment', () => ({
 
 vi.mock('@/lib/credentials/oauth', () => ({
   syncWorkspaceOAuthCredentialsForUser: vi.fn(),
-}))
-
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mockGetCredentialActorContext,
 }))
 
 vi.mock('@/lib/oauth', () => ({
@@ -138,15 +132,9 @@ describe('POST /api/credentials', () => {
       memberUserIds: ['user-1'],
       canWrite: true,
     })
-    mockGetCredentialActorContext.mockResolvedValue({
-      member: null,
-      hasWorkspaceAccess: true,
-      canWriteWorkspace: true,
-      isAdmin: true,
-    })
   })
 
-  describe('service-account credentials', () => {
+  describe('client-credential service accounts', () => {
     it('forwards clientId, clientSecret, and orgId to the secret builder on create', async () => {
       mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
         providerId: 'zoom-service-account',
@@ -250,136 +238,6 @@ describe('POST /api/credentials', () => {
           privateKey: '-----BEGIN PRIVATE KEY-----key',
         })
       )
-    })
-
-    it.each([
-      {
-        family: 'client-credential',
-        providerId: 'zoom-service-account',
-        fields: {
-          orgId: 'zoom-account',
-          clientId: 'new-client-id',
-          clientSecret: 'new-client-secret',
-        },
-      },
-      {
-        family: 'token-paste',
-        providerId: 'snowflake-service-account',
-        fields: {
-          domain: 'acme.snowflakecomputing.com',
-          apiToken: 'new-programmatic-access-token',
-        },
-      },
-      {
-        family: 'Google JSON-key',
-        providerId: 'google-service-account',
-        fields: {
-          serviceAccountJson: JSON.stringify({
-            type: 'service_account',
-            client_email: 'automation@example.iam.gserviceaccount.com',
-            private_key: 'new-private-key',
-            project_id: 'example-project',
-          }),
-        },
-      },
-      {
-        family: 'Atlassian',
-        providerId: 'atlassian-service-account',
-        fields: { domain: 'example.atlassian.net', apiToken: 'new-atlassian-token' },
-      },
-      {
-        family: 'Slack different-ID',
-        providerId: 'slack-custom-bot',
-        fields: {
-          id: '33333333-4444-4555-8666-777777777777',
-          signingSecret: 'new-slack-signing-secret',
-          botToken: 'xoxb-new-slack-bot-token',
-        },
-      },
-    ])(
-      'conflicts for an existing $family service account instead of dropping new secrets',
-      async ({ providerId, fields }) => {
-        const displayName = 'Production automation'
-        mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
-          providerId,
-          encryptedServiceAccountKey: 'new-secret-ciphertext',
-          displayName,
-          auditMetadata: {},
-          principal: null,
-        })
-        queueTableRows(credential, [
-          {
-            id: 'existing-credential',
-            workspaceId: WORKSPACE_ID,
-            type: 'service_account',
-            displayName,
-            providerId,
-          },
-        ])
-
-        const response = await POST(
-          createMockRequest('POST', {
-            workspaceId: WORKSPACE_ID,
-            type: 'service_account',
-            providerId,
-            displayName,
-            ...fields,
-          })
-        )
-        const body = await response.json()
-
-        expect(response.status).toBe(409)
-        expect(body.code).toBe('duplicate_display_name')
-        expect(dbChainMockFns.update).not.toHaveBeenCalled()
-        expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-      }
-    )
-
-    it('preserves an exact-ID Slack custom-bot create replay', async () => {
-      const credentialId = '22222222-3333-4444-8555-666666666666'
-      const existing = {
-        id: credentialId,
-        workspaceId: WORKSPACE_ID,
-        type: 'service_account',
-        displayName: 'Production Slack Bot',
-        description: null,
-        providerId: 'slack-custom-bot',
-        accountId: null,
-        envKey: null,
-        envOwnerUserId: null,
-        encryptedServiceAccountKey: 'existing-secret-ciphertext',
-        createdBy: 'user-1',
-        createdAt: new Date('2026-08-11T00:00:00.000Z'),
-        updatedAt: new Date('2026-08-11T00:00:00.000Z'),
-      }
-      mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
-        providerId: 'slack-custom-bot',
-        encryptedServiceAccountKey: 'replayed-secret-ciphertext',
-        displayName: existing.displayName,
-        auditMetadata: {},
-        principal: null,
-      })
-      queueTableRows(credential, [existing])
-
-      const response = await POST(
-        createMockRequest('POST', {
-          id: credentialId,
-          workspaceId: WORKSPACE_ID,
-          type: 'service_account',
-          providerId: 'slack-custom-bot',
-          displayName: existing.displayName,
-          signingSecret: 'slack-signing-secret',
-          botToken: 'xoxb-slack-bot-token',
-        })
-      )
-
-      const body = await response.json()
-      expect({ status: response.status, body }).toMatchObject({
-        status: 200,
-        body: { credential: { id: credentialId } },
-      })
-      expect(dbChainMockFns.update).not.toHaveBeenCalled()
-      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     })
 
     it('maps a verification failure to a 400 with the validation code', async () => {

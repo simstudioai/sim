@@ -3,7 +3,6 @@
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
-import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig } from '@/blocks/types'
 import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
 import { usePersonalEnvironment } from '@/hooks/queries/environment'
@@ -27,12 +26,7 @@ import { useSubBlockValue } from './use-sub-block-value'
 export function useSelectorSetup(
   blockId: string,
   subBlock: SubBlockConfig,
-  opts?: {
-    disabled?: boolean
-    isPreview?: boolean
-    previewContextValues?: Record<string, any>
-    canonicalModeOverrides?: CanonicalModeOverrides
-  }
+  opts?: { disabled?: boolean; isPreview?: boolean; previewContextValues?: Record<string, any> }
 ) {
   const params = useParams()
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
@@ -41,10 +35,11 @@ export function useSelectorSetup(
 
   const { data: envVariables = {} } = usePersonalEnvironment()
 
-  const { finalDisabled, dependencyValues, canonicalIndex } = useDependsOnGate(blockId, subBlock, {
-    ...opts,
-    strictCanonicalDependencies: true,
-  })
+  const { finalDisabled, dependencyValues, canonicalIndex } = useDependsOnGate(
+    blockId,
+    subBlock,
+    opts
+  )
 
   const [impersonateUserEmail] = useSubBlockValue<string | null>(blockId, 'impersonateUserEmail')
 

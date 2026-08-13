@@ -7,7 +7,6 @@ import type { NextRequest } from 'next/server'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('CredentialDeletion')
-const DIRECT_CREDENTIAL_PARAMETER_IDS = new Set([...CREDENTIAL_SUBBLOCK_IDS, 'oauthCredential'])
 
 export type CredentialDeleteReason =
   | 'oauth_disconnect'
@@ -267,8 +266,9 @@ interface ClearResult {
 
 /**
  * Recursively walks a JSON value and clears credential references matching
- * `credentialId`. Recognizes credential subBlock entries and established direct
- * credential parameter aliases in nested tool and frozen workflow state.
+ * `credentialId`. Recognizes the two reference shapes used in workflow state:
+ * subBlock entries (`{id: 'credential'|'manualCredential'|'triggerCredentials', value}`)
+ * and tool params (`{credential: <id>, ...}` inside a tool's `params` object).
  * Returns the original reference when nothing matched so callers can skip writes.
  */
 export function clearCredentialInValue(input: unknown, credentialId: string): ClearResult {
@@ -295,7 +295,7 @@ export function clearCredentialInValue(input: unknown, credentialId: string): Cl
         changed = true
         continue
       }
-      if (DIRECT_CREDENTIAL_PARAMETER_IDS.has(key) && value === credentialId) {
+      if (key === 'credential' && value === credentialId) {
         next[key] = ''
         changed = true
         continue

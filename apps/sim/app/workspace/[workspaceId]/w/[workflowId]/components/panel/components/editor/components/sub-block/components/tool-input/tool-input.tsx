@@ -2151,7 +2151,6 @@ export const ToolInput = memo(function ToolInput({
                             toolParams={tool.params}
                             onParamChange={handleParamChange}
                             disabled={disabled}
-                            canonicalModeOverrides={toolScopedOverrides}
                             canonicalToggle={canonicalToggleProp}
                           />
                         </ActiveSearchTargetProvider>

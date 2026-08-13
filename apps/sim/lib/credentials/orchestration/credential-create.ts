@@ -16,6 +16,7 @@ import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
 } from '@/lib/credentials/service-account-secret'
+import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -301,16 +302,30 @@ export async function performCreateCredential(
 
     if (existingCredential) {
       /**
-       * Every service-account create carries fresh secret material that must be
-       * stored. The only replay with an externally stable identity is Slack's
-       * exact pre-generated credential id; every other name collision must fail
-       * instead of returning the old row and silently discarding the new secret.
+       * A retried custom-bot create with the SAME pre-generated id is an
+       * idempotent replay and falls through to the normal existing-credential
+       * path. Any other name collision must fail loudly: returning the existing
+       * row as success would orphan the new id already embedded in the user's
+       * Slack Request URL (Slack would post to a URL no credential resolves).
        */
-      const isExactSlackReplay =
+      if (
         resolvedProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID &&
-        Boolean(params.id) &&
-        existingCredential.id === params.id
-      if (type === 'service_account' && !isExactSlackReplay) {
+        params.id &&
+        existingCredential.id !== params.id
+      ) {
+        return failure(
+          `A Slack bot named "${resolvedDisplayName}" already exists in this workspace. Give this bot a different name.`,
+          'conflict',
+          { providerErrorCode: 'duplicate_display_name' }
+        )
+      }
+
+      /**
+       * Token service-account creates always carry a fresh token that must be
+       * stored — falling through to the existing-credential path would return
+       * the old credential as success and silently drop the submitted token.
+       */
+      if (resolvedProviderId && isTokenServiceAccountProviderId(resolvedProviderId)) {
         return failure(
           `A credential named "${resolvedDisplayName}" already exists in this workspace. Give this one a different name.`,
           'conflict',

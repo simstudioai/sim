@@ -43,42 +43,19 @@ describe('clearCredentialInValue', () => {
     expect(result.value).toBe(input)
   })
 
-  it('clears recognized credential aliases inside nested Agent tools', () => {
+  it('clears nested tools[].params.credential', () => {
     const input = {
-      blocks: {
-        agent: {
-          type: 'agent',
-          subBlocks: {
-            tools: {
-              id: 'tools',
-              value: [
-                {
-                  type: 'netsuite_get_record',
-                  params: {
-                    credential: TARGET,
-                    manualCredential: TARGET,
-                    oauthCredential: TARGET,
-                    recordType: TARGET,
-                  },
-                },
-                { type: 'slack_message', params: { oauthCredential: OTHER } },
-              ],
-            },
-          },
-        },
-      },
+      id: 'tools',
+      value: [
+        { type: 'gmail_send', params: { credential: TARGET, to: 'a@b.com' } },
+        { type: 'slack_message', params: { credential: OTHER, channel: '#x' } },
+      ],
     }
     const result = clearCredentialInValue(input, TARGET)
     expect(result.changed).toBe(true)
-    const value = result.value as typeof input
-    const [netSuite, slack] = value.blocks.agent.subBlocks.tools.value
-    expect(netSuite.params).toEqual({
-      credential: '',
-      manualCredential: '',
-      oauthCredential: '',
-      recordType: TARGET,
-    })
-    expect(slack.params.oauthCredential).toBe(OTHER)
+    const value = result.value as { value: Array<{ params: { credential: string } }> }
+    expect(value.value[0].params.credential).toBe('')
+    expect(value.value[1].params.credential).toBe(OTHER)
   })
 
   it('walks workflow_blocks-style keyed subBlocks structure', () => {
@@ -98,44 +75,26 @@ describe('clearCredentialInValue', () => {
     expect(value.tools.value[0].params.credential).toBe('')
   })
 
-  it('clears established direct aliases in deployment and frozen workflow shapes', () => {
+  it('walks deployment-style nested blocks structure', () => {
     const input = {
-      deployment: {
-        blocks: {
-          trigger: {
-            subBlocks: {
-              triggerCredentials: { id: 'triggerCredentials', value: TARGET },
-            },
+      blocks: {
+        block1: {
+          subBlocks: {
+            credential: { id: 'credential', value: TARGET },
           },
         },
-      },
-      frozen: {
-        workflow: {
-          blocks: [
-            {
-              config: {
-                params: {
-                  triggerCredentials: TARGET,
-                  customBotCredential: TARGET,
-                  manualBotCredential: TARGET,
-                  providerCredentialLabel: TARGET,
-                },
-              },
-            },
-          ],
+        block2: {
+          subBlocks: {
+            other: { id: 'other', value: 'unrelated' },
+          },
         },
       },
     }
     const result = clearCredentialInValue(input, TARGET)
     expect(result.changed).toBe(true)
     const value = result.value as typeof input
-    expect(value.deployment.blocks.trigger.subBlocks.triggerCredentials.value).toBe('')
-    expect(value.frozen.workflow.blocks[0].config.params).toEqual({
-      triggerCredentials: '',
-      customBotCredential: '',
-      manualBotCredential: '',
-      providerCredentialLabel: TARGET,
-    })
+    expect(value.blocks.block1.subBlocks.credential.value).toBe('')
+    expect(value.blocks.block2.subBlocks.other.value).toBe('unrelated')
   })
 
   it('returns same reference when no changes are made', () => {

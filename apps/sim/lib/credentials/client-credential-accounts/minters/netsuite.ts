@@ -1,4 +1,5 @@
-import { createPrivateKey, type KeyObject, randomUUID } from 'node:crypto'
+import { createPrivateKey, type KeyObject } from 'node:crypto'
+import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { SignJWT } from 'jose'
 import {
@@ -229,7 +230,7 @@ export async function mintNetSuiteServiceAccountToken(
       .setProtectedHeader({ typ: 'JWT', alg: algorithm, kid: certificateId })
       .setIssuer(clientId)
       .setAudience(tokenUrl)
-      .setJti(randomUUID())
+      .setJti(generateId())
       .setIssuedAt(now)
       .setExpirationTime(now + JWT_ASSERTION_LIFETIME_SECONDS)
       .sign(privateKey)
