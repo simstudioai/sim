@@ -4,7 +4,7 @@ import {
   v2ListKnowledgeDocumentsContract,
   v2UploadKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v2/knowledge'
-import { cursorScopeKey, unorderedJsonScopePart } from '@/lib/api/cursor-binding'
+import { cursorScopeKey, unorderedScopeOf } from '@/lib/api/cursor-binding'
 import {
   defineV2BodyLifecycleRoute,
   defineV2JsonRoute,
@@ -40,17 +40,25 @@ export const revalidate = 0
 
 const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
 
-/** Every param that changes which documents, in which order, this list returns. */
+/**
+ * Every param that changes which documents, in which order, this list returns.
+ *
+ * `tagFilters` binds through the contract's parser, not the raw query text: the
+ * schema defaults `operator` to `eq`, so `{tagName}` and `{tagName, operator}`
+ * are one filter to the query and must be one scope to the cursor. An
+ * unparseable value binds raw — that request is about to 400 anyway.
+ */
 function documentCursorFilters(
   knowledgeBaseId: string,
   query: { workspaceId: string; enabledFilter?: string; search?: string; tagFilters?: string }
 ) {
+  const parsed = parseV2KnowledgeTagFiltersParam(query.tagFilters)
   return cursorScopeKey({
     knowledgeBaseId,
     workspaceId: query.workspaceId,
     enabledFilter: query.enabledFilter,
     search: query.search,
-    tagFilters: unorderedJsonScopePart(query.tagFilters),
+    tagFilters: parsed.success ? unorderedScopeOf(parsed.filters) : query.tagFilters,
   })
 }
 

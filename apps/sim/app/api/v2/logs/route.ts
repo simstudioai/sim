@@ -6,6 +6,7 @@ import {
 } from '@/lib/api/contracts/v2/logs'
 import {
   cursorScopeKey,
+  instantScopePart,
   parseUnorderedList,
   UNREADABLE_CURSOR_MESSAGE,
   unorderedScopePart,
@@ -49,8 +50,8 @@ function logCursorFilters(query: {
     workflowIds: unorderedScopePart(query.workflowIds),
     triggers: unorderedScopePart(query.triggers),
     level: query.level,
-    startDate: query.startDate,
-    endDate: query.endDate,
+    startDate: instantScopePart(query.startDate),
+    endDate: instantScopePart(query.endDate),
     runId: query.runId,
     minDurationMs: query.minDurationMs,
     maxDurationMs: query.maxDurationMs,

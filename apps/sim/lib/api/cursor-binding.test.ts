@@ -2,10 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { parseV2KnowledgeTagFiltersParam } from '@/lib/api/contracts/v2/knowledge'
 import {
   cursorScopeKey,
+  instantScopePart,
   parseUnorderedList,
-  unorderedJsonScopePart,
+  unorderedScopeOf,
   unorderedScopePart,
 } from '@/lib/api/cursor-binding'
 import {
@@ -230,21 +232,63 @@ describe('unordered filter scope parts', () => {
    * refused a cursor for a page that was genuinely the next one.
    */
   it('treats an AND-conjoined filter array as a set', () => {
-    const ab = '[{"name":"a","value":"1"},{"name":"b","value":"2"}]'
-    const ba = '[{"name":"b","value":"2"},{"name":"a","value":"1"}]'
+    const ab = [
+      { name: 'a', value: '1' },
+      { name: 'b', value: '2' },
+    ]
+    const ba = [
+      { name: 'b', value: '2' },
+      { name: 'a', value: '1' },
+    ]
 
-    expect(unorderedJsonScopePart(ab)).toBe(unorderedJsonScopePart(ba))
-    expect(unorderedJsonScopePart('[{"name":"a"},{"name":"a"}]')).toBe(
-      unorderedJsonScopePart('[{"name":"a"}]')
+    expect(unorderedScopeOf(ab)).toBe(unorderedScopeOf(ba))
+    expect(unorderedScopeOf([{ name: 'a' }, { name: 'a' }])).toBe(unorderedScopeOf([{ name: 'a' }]))
+    expect(unorderedScopeOf(ab)).not.toBe(unorderedScopeOf([{ name: 'a', value: '1' }]))
+  })
+
+  /**
+   * The scope binds the parsed filter, so a field the caller omitted and the
+   * schema default it parses to are one value by the time they are hashed.
+   * Fingerprinting the raw query text instead refused a cursor whenever a
+   * caller spelled a default explicitly. Asserted through the contract's own
+   * parser, since the defaulting is what makes the two equal.
+   */
+  it('binds a defaulted field and its omission alike', () => {
+    const omitted = parseV2KnowledgeTagFiltersParam('[{"tagName":"a","value":"1"}]')
+    const explicit = parseV2KnowledgeTagFiltersParam(
+      '[{"tagName":"a","value":"1","operator":"eq"}]'
     )
-    expect(unorderedJsonScopePart(ab)).not.toBe(
-      unorderedJsonScopePart('[{"name":"a","value":"1"}]')
+    const different = parseV2KnowledgeTagFiltersParam(
+      '[{"tagName":"a","value":"1","operator":"gt"}]'
+    )
+
+    expect(omitted.success && explicit.success && different.success).toBe(true)
+    expect(unorderedScopeOf(omitted.success ? omitted.filters : null)).toBe(
+      unorderedScopeOf(explicit.success ? explicit.filters : null)
+    )
+    expect(unorderedScopeOf(omitted.success ? omitted.filters : null)).not.toBe(
+      unorderedScopeOf(different.success ? different.filters : null)
     )
   })
 
-  it('binds an unparseable filter by its raw spelling', () => {
-    expect(unorderedJsonScopePart('{not json')).toBe('{not json')
-    expect(unorderedJsonScopePart(undefined)).toBeUndefined()
+  it('has no scope for an absent filter', () => {
+    expect(unorderedScopeOf(undefined)).toBeUndefined()
+  })
+
+  /**
+   * A window bound selects by instant, and `z.string().datetime()` admits every
+   * sub-second spelling of one, so binding the text refused a cursor for the
+   * same window written a different way.
+   */
+  it('binds a window bound by its instant, not its spelling', () => {
+    expect(instantScopePart('2026-01-01T00:00:00Z')).toBe(
+      instantScopePart('2026-01-01T00:00:00.000Z')
+    )
+    expect(instantScopePart('2026-01-01T00:00:00Z')).not.toBe(
+      instantScopePart('2026-01-01T00:00:01Z')
+    )
+    expect(instantScopePart('not-a-date')).toBe('not-a-date')
+    expect(instantScopePart(undefined)).toBeUndefined()
   })
 
   it('still separates genuinely different sets', () => {

@@ -95,26 +95,38 @@ export function parseUnorderedList(raw: string | undefined): string[] | undefine
 }
 
 /**
- * Canonical form of a JSON-encoded filter array whose members are AND-conjoined.
+ * Canonical form of an AND-conjoined filter set.
  *
- * {@link canonicalJson} preserves array order, which is right for a sequence but
- * wrong for a set: clauses that compile to `and(...)` select the same rows in any
- * order, so binding to the order a caller happened to write them refuses a cursor
- * for a page that is genuinely the next one. Members are canonicalized, then
- * de-duplicated and sorted — `A AND A` selects what `A` does.
+ * Takes the value the query acts on, never the caller's raw text. Two spellings
+ * that parse to one filter — an omitted field and its schema default, a
+ * different key order — must fingerprint alike, and only the parsed value knows
+ * that. Pass the output of the contract's own parser.
  *
- * A non-array or unparseable value binds by its raw spelling: the request
- * carrying it is about to fail validation anyway.
+ * {@link canonicalJson} preserves array order, which is right for a sequence and
+ * wrong for a set: clauses compiled into `and(...)` select the same rows in any
+ * order. Members are canonicalized, then de-duplicated and sorted, so `A AND A`
+ * binds like `A` and clause order stops mattering.
  */
-export function unorderedJsonScopePart(raw: string | undefined): string | undefined {
+export function unorderedScopeOf(value: unknown): string | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) return canonicalJson(value)
+  return `[${[...new Set(value.map(canonicalJson))].sort().join(',')}]`
+}
+
+/**
+ * Canonical form of a timestamp filter: the instant, not the caller's spelling.
+ *
+ * A window bound selects rows by the instant it names, and one instant has many
+ * valid ISO 8601 spellings — `…00Z` and `…00.000Z` differ only in sub-second
+ * precision, and both pass `z.string().datetime()`. Binding the text refuses a
+ * cursor for the same window written a different way.
+ *
+ * An unparseable value binds by its spelling; that request fails validation.
+ */
+export function instantScopePart(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return canonicalJson(parsed)
-    return `[${[...new Set(parsed.map(canonicalJson))].sort().join(',')}]`
-  } catch {
-    return raw
-  }
+  const parsed = Date.parse(raw)
+  return Number.isNaN(parsed) ? raw : new Date(parsed).toISOString()
 }
 
 /**

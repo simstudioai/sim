@@ -3,7 +3,11 @@ import {
   v2ListWorkflowRunsContract,
   v2WorkflowRunListStatusValueSchema,
 } from '@/lib/api/contracts/v2/workflows'
-import { cursorScopeKey, REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
+import {
+  cursorScopeKey,
+  instantScopePart,
+  REFILTERED_CURSOR_MESSAGE,
+} from '@/lib/api/cursor-binding'
 import { INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -24,8 +28,8 @@ function runCursorFilters(
     workflowId,
     status: query.status,
     trigger: query.trigger,
-    startDate: query.startDate,
-    endDate: query.endDate,
+    startDate: instantScopePart(query.startDate),
+    endDate: instantScopePart(query.endDate),
   })
 }
 

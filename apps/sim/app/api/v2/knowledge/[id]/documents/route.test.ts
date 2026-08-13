@@ -398,6 +398,35 @@ describe('GET /api/v2/knowledge/[id]/documents', () => {
     expect(mockListDocuments).not.toHaveBeenCalled()
   })
 
+  /**
+   * `tagFilters` binds through the contract's parser, so spellings that parse to
+   * one filter share one scope. The schema defaults `operator` to `eq` and AND
+   * is commutative, so omitting the operator, stating it, and reordering the
+   * clauses all name the same sequence and must all resume.
+   */
+  it.each([
+    [
+      'the default operator stated explicitly',
+      '[{"tagName":"a","value":"1","operator":"eq"},{"tagName":"b","value":"2","operator":"eq"}]',
+    ],
+    ['the clauses reordered', '[{"tagName":"b","value":"2"},{"tagName":"a","value":"1"}]'],
+  ])('resumes a tag-filter cursor with %s', async (_label, replayFilters) => {
+    const mintFilters = '[{"tagName":"a","value":"1"},{"tagName":"b","value":"2"}]'
+    const minted = await list(
+      `workspaceId=${WORKSPACE_ID}&limit=1&tagFilters=${encodeURIComponent(mintFilters)}`
+    )
+    const { nextCursor } = await minted.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    mockListDocuments.mockClear()
+    const resumed = await list(
+      `workspaceId=${WORKSPACE_ID}&limit=1&tagFilters=${encodeURIComponent(replayFilters)}&cursor=${encodeURIComponent(nextCursor)}`
+    )
+
+    expect(resumed.status).toBe(200)
+    expect(mockListDocuments).toHaveBeenCalled()
+  })
+
   it('resumes a cursor replayed under the filters it was minted with', async () => {
     const minted = await list(`workspaceId=${WORKSPACE_ID}&limit=1&search=support`)
     const { nextCursor } = await minted.json()
