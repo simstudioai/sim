@@ -453,6 +453,40 @@ describe('checkAndBillOverageThreshold', () => {
     )
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
     expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(1)
+    expect(mockEnqueueOutboxEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      'stripe.threshold-overage-invoice',
+      expect.objectContaining({
+        creditSummary: {
+          type: 'usage_charge',
+          creditsUsed: 50_000,
+          prepaidCreditsApplied: 0,
+          creditsBilled: 50_000,
+        },
+      })
+    )
+  })
+
+  it('snapshots prepaid and billed credits on a threshold invoice', async () => {
+    queuePersonalReads()
+    queueLockedStats(lockedStatsRow({ creditBalance: '50' }))
+    mockCalculateSubscriptionOverage.mockResolvedValue(250)
+
+    await checkAndBillOverageThreshold('user-1')
+
+    expect(mockEnqueueOutboxEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      'stripe.threshold-overage-invoice',
+      expect.objectContaining({
+        amountCents: 20_000,
+        creditSummary: {
+          type: 'usage_charge',
+          creditsUsed: 50_000,
+          prepaidCreditsApplied: 10_000,
+          creditsBilled: 40_000,
+        },
+      })
+    )
   })
 
   it('emits audit and analytics once when a retry finds overage already settled', async () => {

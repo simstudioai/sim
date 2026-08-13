@@ -6,6 +6,16 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetPlanByName, mockResolveDefaultPaymentMethod, stripeMock } = vi.hoisted(() => {
   const stripeMock = {
+    invoiceItems: {
+      create: vi.fn(),
+    },
+    invoices: {
+      create: vi.fn(),
+      finalizeInvoice: vi.fn(),
+      pay: vi.fn(),
+      retrieve: vi.fn(),
+      update: vi.fn(),
+    },
     subscriptions: {
       retrieve: vi.fn(),
       update: vi.fn(),
@@ -33,6 +43,8 @@ vi.mock('@/lib/billing/stripe-payment-method', () => ({
 import { billingOutboxHandlers, OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 
 const seatSyncHandler = billingOutboxHandlers[OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS]
+const thresholdInvoiceHandler =
+  billingOutboxHandlers[OUTBOX_EVENT_TYPES.STRIPE_THRESHOLD_OVERAGE_INVOICE]
 
 const ctx = {
   eventId: 'evt-1',
@@ -200,5 +212,80 @@ describe('stripeSyncSubscriptionSeats outbox handler', () => {
 
     expect(stripeMock.subscriptions.retrieve).not.toHaveBeenCalled()
     expect(stripeMock.subscriptions.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('stripeThresholdOverageInvoice outbox handler', () => {
+  const payload = {
+    customerId: 'cus-1',
+    stripeSubscriptionId: 'sub-1',
+    amountCents: 20_000,
+    description: 'Usage threshold reached',
+    itemDescription: 'Usage overage',
+    billingPeriod: '2026-08',
+    invoiceIdemKeyStem: 'invoice-stem',
+    itemIdemKeyStem: 'item-stem',
+    metadata: { type: 'overage_threshold_billing' },
+  }
+  const thresholdCtx = {
+    ...ctx,
+    eventType: OUTBOX_EVENT_TYPES.STRIPE_THRESHOLD_OVERAGE_INVOICE,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockResolveDefaultPaymentMethod.mockResolvedValue({ paymentMethodId: 'pm-1' })
+    stripeMock.invoices.create.mockResolvedValue({ id: 'in-1' })
+    stripeMock.invoices.finalizeInvoice.mockResolvedValue({ id: 'in-1', status: 'open' })
+    stripeMock.invoices.pay.mockResolvedValue({ id: 'in-1', status: 'paid' })
+    stripeMock.invoices.retrieve.mockResolvedValue({
+      custom_fields: [],
+      id: 'in-1',
+      status: 'draft',
+    })
+    stripeMock.invoices.update.mockResolvedValue({ id: 'in-1' })
+    stripeMock.invoiceItems.create.mockResolvedValue({ id: 'ii-1' })
+  })
+
+  it('adds the queued credit summary to the Stripe invoice', async () => {
+    await thresholdInvoiceHandler(
+      {
+        ...payload,
+        creditSummary: {
+          type: 'usage_charge',
+          creditsUsed: 50_000,
+          prepaidCreditsApplied: 10_000,
+          creditsBilled: 40_000,
+        },
+      },
+      thresholdCtx
+    )
+
+    const invoiceParams = stripeMock.invoices.create.mock.calls[0][0]
+    expect(invoiceParams).not.toHaveProperty('custom_fields')
+    expect(stripeMock.invoices.update).toHaveBeenCalledWith(
+      'in-1',
+      {
+        custom_fields: [
+          {
+            name: 'Credit usage',
+            value: '50,000 used; 10,000 prepaid; 40,000 billed',
+          },
+        ],
+      },
+      {
+        idempotencyKey: 'invoice-credit-summary:in-1:usage_charge:50000:10000:40000',
+      }
+    )
+  })
+
+  it('continues processing legacy queued events without a credit summary', async () => {
+    await thresholdInvoiceHandler(payload, thresholdCtx)
+
+    const invoiceParams = stripeMock.invoices.create.mock.calls[0][0]
+    expect(invoiceParams).not.toHaveProperty('custom_fields')
+    expect(stripeMock.invoices.retrieve).not.toHaveBeenCalled()
+    expect(stripeMock.invoices.update).not.toHaveBeenCalled()
   })
 })

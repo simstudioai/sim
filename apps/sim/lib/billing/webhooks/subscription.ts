@@ -5,6 +5,10 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import {
+  attachInvoiceCreditSummary,
+  usageChargeCreditSummary,
+} from '@/lib/billing/invoice-credit-summary'
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -357,6 +361,10 @@ export async function handleSubscriptionDeleted(
           const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId)
           const customerId = stripeSubscription.customer as string
           const cents = Math.round(remainingOverage * 100)
+          const creditSummary = usageChargeCreditSummary({
+            prepaidCreditsAppliedDollars: 0,
+            billedDollars: remainingOverage,
+          })
           const endedAt = stripeSubscription.ended_at || Math.floor(Date.now() / 1000)
           const billingPeriod = new Date(endedAt * 1000).toISOString().slice(0, 7)
 
@@ -379,6 +387,15 @@ export async function handleSubscriptionDeleted(
             },
             { idempotencyKey: invoiceIdemKey }
           )
+
+          if (!overageInvoice.id) {
+            throw new Error('Stripe created final overage invoice without id')
+          }
+          await attachInvoiceCreditSummary({
+            stripe,
+            invoice: overageInvoice.id,
+            summary: creditSummary,
+          })
 
           await stripe.invoiceItems.create(
             {

@@ -14,6 +14,7 @@ import {
   getOrganizationSubscriptionUsable,
 } from '@/lib/billing/core/subscription'
 import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
+import { usageChargeCreditSummary } from '@/lib/billing/invoice-credit-summary'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import {
   hasUsableSubscriptionAccess,
@@ -437,6 +438,10 @@ export async function checkAndBillOverageThreshold(
         }
 
         const amountCents = Math.round(amountToBill * 100)
+        const creditSummary = usageChargeCreditSummary({
+          prepaidCreditsAppliedDollars: creditsApplied,
+          billedDollars: amountToBill,
+        })
 
         await tx
           .update(userStats)
@@ -454,6 +459,7 @@ export async function checkAndBillOverageThreshold(
           billingPeriod,
           invoiceIdemKeyStem: `threshold-overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
           itemIdemKeyStem: `threshold-overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
+          creditSummary,
           metadata: {
             type: 'overage_threshold_billing',
             userId,
@@ -814,6 +820,10 @@ async function checkAndBillOrganizationOverageThreshold(
         }
 
         const amountCents = Math.round(amountToBill * 100)
+        const creditSummary = usageChargeCreditSummary({
+          prepaidCreditsAppliedDollars: creditsApplied,
+          billedDollars: amountToBill,
+        })
 
         // Bump billed tracker and enqueue Stripe invoice atomically.
         // See user-path above for the full retry-invariant reasoning.
@@ -833,6 +843,7 @@ async function checkAndBillOrganizationOverageThreshold(
           billingPeriod,
           invoiceIdemKeyStem: `threshold-overage-org-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
           itemIdemKeyStem: `threshold-overage-org-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
+          creditSummary,
           metadata: {
             type: 'overage_threshold_billing_org',
             organizationId,

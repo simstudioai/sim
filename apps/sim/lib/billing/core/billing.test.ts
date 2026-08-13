@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMock, dbChainMockFns } from '@sim/testing'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -45,11 +45,16 @@ vi.mock('@/lib/billing/credits/daily-refresh', () => ({
   getOrgMemberRefreshBounds: vi.fn(),
 }))
 
-import { getPersonalBillingSummary } from '@/lib/billing/core/billing'
+import {
+  calculateSubscriptionOverage,
+  calculateSubscriptionUsage,
+  getPersonalBillingSummary,
+} from '@/lib/billing/core/billing'
 
 describe('getPersonalBillingSummary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mockEnsureUserStatsExists.mockResolvedValue(undefined)
     mockResolveBillingInterval.mockReturnValue('year')
     mockComputeDailyRefreshConsumed.mockResolvedValue(3)
@@ -122,5 +127,77 @@ describe('getPersonalBillingSummary', () => {
       }),
       dbChainMock.db
     )
+  })
+})
+
+describe('subscription usage calculation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockComputeDailyRefreshConsumed.mockResolvedValue(1.175)
+    mockGetBillingPeriodUsageCost.mockResolvedValue(2.175)
+  })
+
+  it('returns gross and effective personal usage without changing overage math', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        currentPeriodCost: '29',
+        proPeriodCostSnapshot: '0',
+        proPeriodCostSnapshotAt: null,
+      },
+    ])
+
+    const periodStart = new Date('2026-07-01T00:00:00.000Z')
+    const periodEnd = new Date('2026-08-01T00:00:00.000Z')
+    const result = await calculateSubscriptionUsage({
+      id: 'personal-sub',
+      plan: 'pro_6000',
+      referenceId: 'user-1',
+      periodStart,
+      periodEnd,
+    })
+
+    expect(result).toEqual({
+      totalUsage: 31.175,
+      effectiveUsage: 30,
+      dailyRefreshDeduction: 1.175,
+      totalOverage: 0,
+    })
+    expect(mockGetBillingPeriodUsageCost).toHaveBeenCalledWith(
+      { type: 'user', id: 'user-1' },
+      { start: periodStart, end: periodEnd }
+    )
+  })
+
+  it('keeps the enterprise overage fast path at zero', async () => {
+    await expect(
+      calculateSubscriptionOverage({
+        id: 'enterprise-sub',
+        plan: 'enterprise',
+        referenceId: 'org-1',
+      })
+    ).resolves.toBe(0)
+
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it('preserves the existing personal overage result', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        currentPeriodCost: '39',
+        proPeriodCostSnapshot: '0',
+        proPeriodCostSnapshotAt: null,
+      },
+    ])
+
+    await expect(
+      calculateSubscriptionOverage({
+        id: 'personal-sub',
+        plan: 'pro_6000',
+        referenceId: 'user-1',
+        periodStart: new Date('2026-07-01T00:00:00.000Z'),
+        periodEnd: new Date('2026-08-01T00:00:00.000Z'),
+      })
+    ).resolves.toBe(10)
   })
 })

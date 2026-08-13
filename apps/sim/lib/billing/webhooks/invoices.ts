@@ -17,13 +17,22 @@ import {
   renderPaymentFailedEmail,
 } from '@/components/emails'
 import { BILLING_LOCK_TIMEOUT_MS } from '@/lib/billing/constants'
-import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
+import {
+  calculateSubscriptionOverage,
+  calculateSubscriptionUsage,
+  isSubscriptionOrgScoped,
+} from '@/lib/billing/core/billing'
 import {
   COPILOT_USAGE_SOURCES,
   getBillingPeriodUsageCostByUser,
 } from '@/lib/billing/core/usage-log'
 import { addCredits, getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
+import {
+  attachInvoiceCreditSummary,
+  periodUsageCreditSummary,
+  usageChargeCreditSummary,
+} from '@/lib/billing/invoice-credit-summary'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -81,6 +90,16 @@ function getSubscriptionLinePeriod(
   return {
     periodStart: new Date(subscriptionLine.period.start * 1000),
     periodEnd: new Date(subscriptionLine.period.end * 1000),
+  }
+}
+
+function getInvoiceUsagePeriod(
+  invoice: Stripe.Invoice
+): { periodStart: Date; periodEnd: Date } | null {
+  if (!invoice.period_start || !invoice.period_end) return null
+  return {
+    periodStart: new Date(invoice.period_start * 1000),
+    periodEnd: new Date(invoice.period_end * 1000),
   }
 }
 
@@ -197,6 +216,68 @@ async function resolveInvoiceSubscription(
     ...subscriptionContext,
     stripeSubscriptionId: subscriptionContext.stripeSubscriptionId,
     sub: records[0],
+  }
+}
+
+/** Adds a period usage snapshot while a subscription-cycle invoice is still editable. */
+export async function handleInvoiceCreated(event: Stripe.Event): Promise<void> {
+  const eventInvoice = event.data.object as Stripe.Invoice
+  if (eventInvoice.billing_reason !== 'subscription_cycle' || !eventInvoice.id) return
+  const invoiceId = eventInvoice.id
+
+  try {
+    const stripe = requireStripeClient()
+    const invoice = await stripe.invoices.retrieve(invoiceId)
+    if (invoice.status !== 'draft') {
+      logger.info('Subscription-cycle invoice is no longer editable', {
+        invoiceId: invoice.id,
+        status: invoice.status,
+      })
+      return
+    }
+
+    const resolvedInvoice = await resolveInvoiceSubscription(invoice, 'invoice.created')
+    if (!resolvedInvoice) return
+
+    const invoicePeriod = getInvoiceUsagePeriod(invoice)
+    if (!invoicePeriod) {
+      logger.warn('Subscription-cycle invoice is missing its usage period', {
+        invoiceId: invoice.id,
+        stripeSubscriptionId: resolvedInvoice.stripeSubscriptionId,
+      })
+      return
+    }
+
+    const usage = await calculateSubscriptionUsage({
+      ...resolvedInvoice.sub,
+      periodStart: invoicePeriod.periodStart,
+      periodEnd: invoicePeriod.periodEnd,
+    })
+    const summary = periodUsageCreditSummary(usage.effectiveUsage)
+    const attachment = await attachInvoiceCreditSummary({
+      stripe,
+      invoice,
+      summary,
+    })
+    if (attachment.status !== 'updated') {
+      return
+    }
+
+    logger.info('Added credit usage to subscription-cycle invoice', {
+      invoiceId: invoice.id,
+      stripeSubscriptionId: resolvedInvoice.stripeSubscriptionId,
+      creditsUsed: summary.creditsUsed,
+      grossCreditsUsed: periodUsageCreditSummary(usage.totalUsage).creditsUsed,
+      dailyRefreshCreditsApplied: periodUsageCreditSummary(usage.dailyRefreshDeduction).creditsUsed,
+      periodStart: invoicePeriod.periodStart,
+      periodEnd: invoicePeriod.periodEnd,
+    })
+  } catch (error) {
+    logger.error('Failed to add credit usage to subscription-cycle invoice', {
+      eventId: event.id,
+      invoiceId,
+      error,
+    })
   }
 }
 
@@ -1263,6 +1344,10 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
         if (amountToBillStripe > 0) {
           const customerId = String(invoice.customer)
           const cents = Math.round(amountToBillStripe * 100)
+          const creditSummary = usageChargeCreditSummary({
+            prepaidCreditsAppliedDollars: creditsApplied,
+            billedDollars: amountToBillStripe,
+          })
           const itemIdemKey = `overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
           const invoiceIdemKey = `overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
           const finalizeIdemKey = `overage-finalize:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
@@ -1288,10 +1373,20 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
             { idempotencyKey: invoiceIdemKey }
           )
 
+          const draftId = overageInvoice.id
+          if (typeof draftId !== 'string' || draftId.length === 0) {
+            throw new Error('Stripe created overage invoice without id')
+          }
+          await attachInvoiceCreditSummary({
+            stripe,
+            invoice: draftId,
+            summary: creditSummary,
+          })
+
           await stripe.invoiceItems.create(
             {
               customer: customerId,
-              invoice: overageInvoice.id,
+              invoice: draftId,
               amount: cents,
               currency: 'usd',
               description: `Usage Based Overage – ${billingPeriod}`,
@@ -1304,36 +1399,28 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
             { idempotencyKey: itemIdemKey }
           )
 
-          const draftId = overageInvoice.id
-          if (typeof draftId !== 'string' || draftId.length === 0) {
-            logger.error('Stripe created overage invoice without id; aborting finalize')
-          } else {
-            const finalized = await stripe.invoices.finalizeInvoice(
-              draftId,
-              {},
-              { idempotencyKey: finalizeIdemKey }
-            )
-            if (
-              effectiveCollectionMethod === 'charge_automatically' &&
-              finalized.status === 'open'
-            ) {
-              try {
-                const payId = finalized.id
-                if (typeof payId !== 'string' || payId.length === 0) {
-                  logger.error('Finalized invoice missing id')
-                  throw new Error('Finalized invoice missing id')
-                }
-                await stripe.invoices.pay(
-                  payId,
-                  { payment_method: defaultPaymentMethod },
-                  { idempotencyKey: payIdemKey }
-                )
-              } catch (payError) {
-                logger.error('Failed to auto-pay overage invoice', {
-                  error: payError,
-                  invoiceId: finalized.id,
-                })
+          const finalized = await stripe.invoices.finalizeInvoice(
+            draftId,
+            {},
+            { idempotencyKey: finalizeIdemKey }
+          )
+          if (effectiveCollectionMethod === 'charge_automatically' && finalized.status === 'open') {
+            try {
+              const payId = finalized.id
+              if (typeof payId !== 'string' || payId.length === 0) {
+                logger.error('Finalized invoice missing id')
+                throw new Error('Finalized invoice missing id')
               }
+              await stripe.invoices.pay(
+                payId,
+                { payment_method: defaultPaymentMethod },
+                { idempotencyKey: payIdemKey }
+              )
+            } catch (payError) {
+              logger.error('Failed to auto-pay overage invoice', {
+                error: payError,
+                invoiceId: finalized.id,
+              })
             }
           }
         }

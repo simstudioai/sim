@@ -3,6 +3,10 @@ import { member, subscription as subscriptionTable, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
+import {
+  attachInvoiceCreditSummary,
+  type InvoiceCreditSummary,
+} from '@/lib/billing/invoice-credit-summary'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { getPlanByName } from '@/lib/billing/plans'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
@@ -64,6 +68,7 @@ interface StripeThresholdOverageInvoicePayload {
   /** Stripe idempotency key stem — we append the outbox event id for per-retry safety. */
   invoiceIdemKeyStem: string
   itemIdemKeyStem: string
+  creditSummary?: InvoiceCreditSummary
   metadata?: Record<string, string>
 }
 
@@ -264,7 +269,6 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
   const itemIdemKey = `${payload.itemIdemKeyStem}:${ctx.eventId}`
   const finalizeIdemKey = `${payload.invoiceIdemKeyStem}:finalize:${ctx.eventId}`
   const payIdemKey = `${payload.invoiceIdemKeyStem}:pay:${ctx.eventId}`
-
   // `auto_advance: false` + explicit finalize mirrors pre-refactor
   // behavior: we control exactly when the invoice finalizes, so it
   // doesn't silently convert to paid/open on Stripe's schedule while
@@ -283,6 +287,14 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
 
   if (!invoice.id) {
     throw new Error('Stripe returned invoice without id')
+  }
+
+  if (payload.creditSummary) {
+    await attachInvoiceCreditSummary({
+      stripe,
+      invoice: invoice.id,
+      summary: payload.creditSummary,
+    })
   }
 
   await stripe.invoiceItems.create(

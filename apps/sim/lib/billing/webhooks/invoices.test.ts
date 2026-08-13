@@ -6,14 +6,24 @@ import {
   dbChainMockFns,
   resetDbChainMock,
   stripeClientMock,
+  stripeClientMockFns,
   stripePaymentMethodMock,
   urlsMockFns,
 } from '@sim/testing'
 import type Stripe from 'stripe'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBlockOrgMembers, mockUnblockOrgMembers } = vi.hoisted(() => ({
+const {
+  mockBlockOrgMembers,
+  mockCalculateSubscriptionUsage,
+  mockStripeInvoicesRetrieve,
+  mockStripeInvoicesUpdate,
+  mockUnblockOrgMembers,
+} = vi.hoisted(() => ({
   mockBlockOrgMembers: vi.fn(),
+  mockCalculateSubscriptionUsage: vi.fn(),
+  mockStripeInvoicesRetrieve: vi.fn(),
+  mockStripeInvoicesUpdate: vi.fn(),
   mockUnblockOrgMembers: vi.fn(),
 }))
 
@@ -25,6 +35,7 @@ vi.mock('@/components/emails', () => ({
 
 vi.mock('@/lib/billing/core/billing', () => ({
   calculateSubscriptionOverage: vi.fn(),
+  calculateSubscriptionUsage: mockCalculateSubscriptionUsage,
   isSubscriptionOrgScoped: vi.fn().mockResolvedValue(true),
 }))
 
@@ -94,6 +105,7 @@ vi.mock('@/lib/messaging/email/validation', () => ({
 }))
 
 import {
+  handleInvoiceCreated,
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
   resetUsageForSubscription,
@@ -135,7 +147,7 @@ function installSelectResponseQueue() {
 }
 
 function createInvoiceEvent(
-  type: 'invoice.payment_failed' | 'invoice.payment_succeeded',
+  type: 'invoice.created' | 'invoice.payment_failed' | 'invoice.payment_succeeded',
   invoice: Partial<Stripe.Invoice>
 ): Stripe.Event {
   return createMockStripeEvent(type, invoice)
@@ -149,7 +161,116 @@ describe('invoice billing recovery', () => {
     installSelectResponseQueue()
     urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
     mockBlockOrgMembers.mockResolvedValue(2)
+    mockCalculateSubscriptionUsage.mockResolvedValue({
+      totalUsage: 21.175,
+      effectiveUsage: 20,
+      dailyRefreshDeduction: 1.175,
+      totalOverage: 0,
+    })
+    mockStripeInvoicesUpdate.mockResolvedValue({ id: 'in_cycle_1' })
     mockUnblockOrgMembers.mockResolvedValue(2)
+    stripeClientMockFns.mockRequireStripeClient.mockReturnValue({
+      billingPortal: {
+        sessions: {
+          create: vi.fn().mockResolvedValue({ url: 'https://stripe.test/portal' }),
+        },
+      },
+      invoices: {
+        retrieve: mockStripeInvoicesRetrieve,
+        update: mockStripeInvoicesUpdate,
+      },
+    })
+  })
+
+  it('adds period credit usage to a draft subscription-cycle invoice', async () => {
+    queueSelectResponse({
+      limitResult: [
+        {
+          id: 'sub-db-1',
+          plan: 'team_8000',
+          referenceId: 'org-1',
+          stripeSubscriptionId: 'sub_stripe_1',
+        },
+      ],
+    })
+
+    const invoice = {
+      billing_reason: 'subscription_cycle',
+      custom_fields: [{ name: 'PO number', value: 'PO-123' }],
+      description: 'August subscription',
+      id: 'in_cycle_1',
+      lines: {
+        data: [
+          {
+            parent: {
+              type: 'subscription_item_details',
+              subscription_item_details: { subscription: 'sub_stripe_1' },
+            },
+            period: { start: 1_754_006_400, end: 1_756_684_800 },
+          },
+        ],
+      },
+      metadata: { existing: 'value' },
+      parent: { subscription_details: { subscription: 'sub_stripe_1' } },
+      period_end: 1_754_006_400,
+      period_start: 1_751_328_000,
+      status: 'draft',
+    } satisfies Partial<Stripe.Invoice>
+    mockStripeInvoicesRetrieve.mockResolvedValue(invoice)
+
+    await handleInvoiceCreated(createInvoiceEvent('invoice.created', invoice))
+
+    expect(mockCalculateSubscriptionUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'sub-db-1',
+        periodStart: new Date(1_751_328_000_000),
+        periodEnd: new Date(1_754_006_400_000),
+      })
+    )
+    expect(mockStripeInvoicesUpdate).toHaveBeenCalledWith(
+      'in_cycle_1',
+      expect.objectContaining({
+        custom_fields: [
+          { name: 'PO number', value: 'PO-123' },
+          { name: 'Credits used', value: '4,000' },
+        ],
+      }),
+      { idempotencyKey: 'invoice-credit-summary:in_cycle_1:period_usage:4000' }
+    )
+  })
+
+  it('does not delay invoice finalization when optional enrichment fails', async () => {
+    mockStripeInvoicesRetrieve.mockRejectedValue(new Error('Stripe unavailable'))
+
+    await expect(
+      handleInvoiceCreated(
+        createInvoiceEvent('invoice.created', {
+          billing_reason: 'subscription_cycle',
+          id: 'in_cycle_1',
+        })
+      )
+    ).resolves.toBeUndefined()
+
+    expect(mockStripeInvoicesUpdate).not.toHaveBeenCalled()
+  })
+
+  it('uses current Stripe state and skips invoices that already finalized', async () => {
+    mockStripeInvoicesRetrieve.mockResolvedValue({
+      billing_reason: 'subscription_cycle',
+      id: 'in_cycle_1',
+      status: 'open',
+    })
+
+    await handleInvoiceCreated(
+      createInvoiceEvent('invoice.created', {
+        billing_reason: 'subscription_cycle',
+        id: 'in_cycle_1',
+        status: 'draft',
+      })
+    )
+
+    expect(mockCalculateSubscriptionUsage).not.toHaveBeenCalled()
+    expect(mockStripeInvoicesUpdate).not.toHaveBeenCalled()
   })
 
   it('blocks org members when a metadata-backed invoice payment fails', async () => {

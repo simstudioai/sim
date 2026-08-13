@@ -7,6 +7,10 @@ import { getPlanPricing } from '@/lib/billing/core/billing'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { canPurchaseCredits } from '@/lib/billing/credits/balance'
+import {
+  attachInvoiceCreditSummary,
+  creditPurchaseSummary,
+} from '@/lib/billing/invoice-credit-summary'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getCustomerId, resolveDefaultPaymentMethod } from '@/lib/billing/stripe-payment-method'
@@ -162,6 +166,7 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
 
     const amountCents = Math.round(amountDollars * 100)
     const idempotencyKey = `credit-purchase:${requestId}`
+    const creditSummary = creditPurchaseSummary(amountDollars)
 
     const creditMetadata = {
       type: 'credit_purchase',
@@ -184,6 +189,16 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
       { idempotencyKey: `${idempotencyKey}-invoice` }
     )
 
+    if (!invoice.id) {
+      return { success: false, error: 'Failed to create invoice' }
+    }
+
+    await attachInvoiceCreditSummary({
+      stripe,
+      invoice: invoice.id,
+      summary: creditSummary,
+    })
+
     // Add line item
     await stripe.invoiceItems.create(
       {
@@ -198,10 +213,6 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
     )
 
     // Finalize and pay
-    if (!invoice.id) {
-      return { success: false, error: 'Failed to create invoice' }
-    }
-
     const finalized = await stripe.invoices.finalizeInvoice(
       invoice.id,
       {},
