@@ -22,6 +22,13 @@ const logger = createLogger('AgiloftNlpSearchAPI')
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
+  /**
+   * Captured for the outer catch, which sits outside the scope the parsed body
+   * lives in. Anything relayed from there can still carry upstream text, and
+   * these operations put the credentials on the request itself.
+   */
+  let credentials: { login: string; password: string } | undefined
+
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
@@ -53,6 +60,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
+    credentials = params
 
     let result: AgiloftNlpSearchResponse
     try {
@@ -117,17 +125,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
       }
 
-      logger.error(`[${requestId}] Error running Agiloft NLP search:`, error)
-      return NextResponse.json(
-        { success: false, error: redactAgiloftSecrets(toError(error).message, params) },
-        { status: 500 }
-      )
+      const described = redactAgiloftSecrets(toError(error).message, params)
+      logger.error(`[${requestId}] Error running Agiloft NLP search`, { error: described })
+      return NextResponse.json({ success: false, error: described }, { status: 500 })
     }
 
     return NextResponse.json(result)
   } catch (error) {
-    logger.error(`[${requestId}] Error running Agiloft NLP search:`, error)
+    const described = credentials
+      ? redactAgiloftSecrets(toError(error).message, credentials)
+      : toError(error).message
+    logger.error(`[${requestId}] Error running Agiloft NLP search`, { error: described })
 
-    return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
+    return NextResponse.json({ success: false, error: described }, { status: 500 })
   }
 })

@@ -35,6 +35,13 @@ const AGILOFT_EXCEPTION = /EW[A-Za-z]*Exception/
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
+  /**
+   * Captured for the outer catch, which sits outside the scope the parsed body
+   * lives in. Anything relayed from there can still carry upstream text, and
+   * these operations put the credentials on the request itself.
+   */
+  let credentials: { login: string; password: string } | undefined
+
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
@@ -66,6 +73,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
+    credentials = params
 
     let fieldValues: Record<string, unknown>
     try {
@@ -109,7 +117,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } catch (error) {
       logger.warn(`[${requestId}] Rejected Agiloft instance URL`, { error })
       return NextResponse.json(
-        { success: false, output: { id: null, fields: {} }, error: toError(error).message },
+        {
+          success: false,
+          output: { id: null, fields: {} },
+          error: redactAgiloftSecrets(toError(error).message, params),
+        },
         { status: 400 }
       )
     }
@@ -239,8 +251,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(result)
   } catch (error) {
-    logger.error(`[${requestId}] Error creating Agiloft record:`, error)
+    const described = credentials
+      ? redactAgiloftSecrets(toError(error).message, credentials)
+      : toError(error).message
+    logger.error(`[${requestId}] Error creating Agiloft record`, { error: described })
 
-    return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
+    return NextResponse.json({ success: false, error: described }, { status: 500 })
   }
 })
