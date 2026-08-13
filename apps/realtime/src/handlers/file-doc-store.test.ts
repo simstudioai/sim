@@ -201,13 +201,26 @@ describe('FileDocStore', () => {
     const doc = new Y.Doc()
     await store.attachRoom(NAME, doc)
 
-    // Build a streak of two failures (retries back off ~0.5s, then ~1s).
+    // Build a streak of two failures. Waited for rather than slept through: on a loaded machine a
+    // fixed window can pass with fewer failures than the streak this test needs.
     state.backing!.readerClosed = true
-    await sleep(800)
-    // Redis comes back. Wait past the pending backoff so a read actually lands — and it returns
-    // nothing new, which is the idle case this test is about.
+    const beforeStreak = state.backing!.reads
+    await vi.waitFor(() => expect(state.backing!.reads).toBeGreaterThanOrEqual(beforeStreak + 2), {
+      timeout: 5000,
+      interval: 25,
+    })
+
+    // Redis comes back. Wait for a read to actually LAND — `xRead` only throws while the reader is
+    // closed, so the next one to arrive is the idle read whose return ends the streak. Sleeping a
+    // fixed 1s instead lets a slow machine finish the window with the pending backoff still
+    // outstanding, leaving the streak alive and the assertion below measuring a delay this test
+    // never meant to produce.
     state.backing!.readerClosed = false
-    await sleep(1000)
+    const beforeIdle = state.backing!.reads
+    await vi.waitFor(() => expect(state.backing!.reads).toBeGreaterThan(beforeIdle), {
+      timeout: 5000,
+      interval: 25,
+    })
 
     // A fresh blip must retry at the START of the backoff curve, not partway up it. Assert the DELAY
     // itself: counting attempts inside a fixed window cannot tell the two apart, because the jittered
