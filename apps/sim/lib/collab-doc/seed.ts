@@ -1,11 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import * as Y from 'yjs'
 import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
-import { hashMarkdown, loadFreshCollabDocState } from './collab-state'
-import { canonicalizeYDoc, markdownToYDoc } from './converter'
+import {
+  type CachedCollabDocState,
+  hashMarkdown,
+  loadCollabDocState,
+  saveCollabDocState,
+} from './collab-state'
+import { applyMarkdownToYDoc, canonicalizeYDoc, markdownToYDoc } from './converter'
 
 const logger = createLogger('FileDocSeed')
 
@@ -74,28 +80,30 @@ export async function buildFileDocSeed(
   const version = (record.contentUpdatedAt ?? record.updatedAt).getTime()
   const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_SEED_BYTES })
 
-  // Cold-start fast path: if we hold a cached Yjs binary derived from THIS exact markdown, apply it
-  // directly (the Hocuspocus load-document pattern) instead of re-converting. This preserves the CRDT's
-  // client ids across reopens — no duplicated content, no split-brain — and skips the server-side
-  // headless conversion. A stale/absent cache (markdown edited externally, or first ever open) falls
-  // through to the conversion below, and the next persist refreshes the cache.
-  //
+  const sourceHash = hashMarkdown(buffer)
+
   // Best-effort read: the cache is an optimization over the durable markdown we already hold, so a
   // transient DB error (or a not-yet-migrated cache table) must fall through to conversion rather than
-  // block the cold open — symmetric with persist's best-effort cache write.
+  // block the cold open — symmetric with the best-effort write below.
+  let stored: CachedCollabDocState | null = null
   try {
-    const cached = await loadFreshCollabDocState(fileId, hashMarkdown(buffer))
-    if (cached) return { update: canonicalSeedUpdate(cached), version }
+    stored = await loadCollabDocState(fileId)
   } catch (error) {
     logger.warn(`Failed to read cached collab doc state for file ${fileId}`, {
       error: getErrorMessage(error),
     })
   }
 
-  const markdown = buffer.toString('utf-8')
-  const { frontmatter, body } = splitFrontmatter(markdown)
+  // Cold-start fast path: the stored document already projects to THIS markdown, so apply it verbatim
+  // (the Hocuspocus load-document pattern) instead of re-converting.
+  if (stored?.sourceHash === sourceHash) {
+    return { update: canonicalSeedUpdate(stored.docState), version }
+  }
 
-  const ydoc = markdownToYDoc(body)
+  const { frontmatter, body } = splitFrontmatter(buffer.toString('utf-8'))
+  // The markdown moved on out-of-band (a copilot write, the content API, a file tool) — bring the
+  // STORED document up to it rather than building a second one. See {@link resumeDocument}.
+  const ydoc = resumeDocument(fileId, stored?.docState, body)
   try {
     const config = ydoc.getMap(FILE_DOC_SEED.configMap)
     // Mark the document seeded IN the same doc, so the client's readiness gate
@@ -105,8 +113,54 @@ export async function buildFileDocSeed(
     // Carry the frontmatter in the doc (not the body) so it merges across clients and a later
     // server-side edit can update it — the editor re-attaches this on autosave.
     config.set(FILE_DOC_SEED.frontmatterKey, frontmatter)
-    return { update: Y.encodeStateAsUpdate(ydoc), version }
+    // Mint an identity only for a document that has none; a resumed one keeps the identity its clients
+    // already know it by.
+    if (typeof config.get(FILE_DOC_SEED.docIdKey) !== 'string') {
+      config.set(FILE_DOC_SEED.docIdKey, generateId())
+    }
+    const update = Y.encodeStateAsUpdate(ydoc)
+    // Store it NOW, not at the next persist. Until this row exists every cold open builds the document
+    // again from markdown, minting a new identity each time — so a file that is opened but never edited
+    // has a different document on every open, and any client that outlives a room (a laptop that slept
+    // past the shared stream's TTL) reconnects into one and merges its content in twice.
+    try {
+      await saveCollabDocState(fileId, update, sourceHash)
+    } catch (error) {
+      logger.warn(`Failed to store the collaborative document for file ${fileId}`, {
+        error: getErrorMessage(error),
+      })
+    }
+    return { update, version }
   } finally {
     ydoc.destroy()
+  }
+}
+
+/**
+ * The file's collaborative document, brought up to `body`.
+ *
+ * Two Yjs documents built from the same markdown are NOT the same document: their items carry
+ * different client ids, so merging them appends one to the other — the file, twice. Anything that
+ * rebuilds a document from markdown therefore mints a new identity, and any client still holding the
+ * previous one corrupts the file the moment it reconnects. So a document is built exactly once and
+ * every later change is applied INTO it as a CRDT diff (the same path a copilot edit takes), which is
+ * what keeps one file to one document for its whole life.
+ */
+function resumeDocument(fileId: string, stored: Uint8Array | undefined, body: string): Y.Doc {
+  if (!stored) return markdownToYDoc(body)
+  const ydoc = new Y.Doc()
+  try {
+    Y.applyUpdate(ydoc, stored)
+    applyMarkdownToYDoc(ydoc, body)
+    return ydoc
+  } catch (error) {
+    // The stored document is the file's identity, but it is still a CACHE: an undecodable one must not
+    // take the file's markdown down with it. Build a new document — which mints a new identity, so a
+    // client still holding the old one is refused rather than merged (see FILE_DOC_SEED.docIdKey).
+    logger.warn(`Stored collaborative document for file ${fileId} is unusable; rebuilding it`, {
+      error: getErrorMessage(error),
+    })
+    ydoc.destroy()
+    return markdownToYDoc(body)
   }
 }

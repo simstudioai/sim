@@ -11,6 +11,25 @@ import { encodeFilenameForHeader, getSecureFileHeaders } from '@/app/api/files/u
 export const dynamic = 'force-dynamic'
 
 /**
+ * How long the browser may reuse an embedded image, by how the request addressed it (see
+ * {@link ReadWorkspaceInlineFileResult.addressedBy}).
+ *
+ * A `key` names one storage object and a content write never rewrites one, so those bytes are
+ * immutable and the browser needs no round trip — which is the difference between an embedded image
+ * reappearing instantly and it being downloaded again. Every document render asks for the same image
+ * at least twice (ProseMirror's own DOM, then the React node view) and every editor mounts twice (the
+ * read-only placeholder, then the live editor), so revalidating each time meant re-fetching the whole
+ * image on every open and reload — measured at ~1 MB per open on a real document, with the image area
+ * blank until it landed. `private` keeps it out of shared caches: the bytes are authorized per user.
+ *
+ * A `fileId` names the FILE, and its bytes move under it on every edit, so that form keeps revalidating.
+ */
+const INLINE_CACHE_CONTROL = {
+  key: 'private, max-age=31536000, immutable',
+  fileId: 'private, no-cache, must-revalidate',
+} as const
+
+/**
  * GET /api/workspaces/[id]/files/inline?key=<cloudKey>|fileId=<id>
  *
  * Serves an authenticated workspace-scoped image. Authentication and the
@@ -29,12 +48,12 @@ export const GET = defineInternalBinaryRoute({
     fileId: query.fileId,
   }),
   useCase: readWorkspaceInlineFile,
-  present: ({ file, stream }) => {
+  present: ({ file, stream, addressedBy }) => {
     const secure = getSecureFileHeaders(file.name, file.type)
     const headers = new Headers({
       'Content-Type': secure.contentType,
       'Content-Disposition': `${secure.disposition}; ${encodeFilenameForHeader(file.name)}`,
-      'Cache-Control': 'private, no-cache, must-revalidate',
+      'Cache-Control': INLINE_CACHE_CONTROL[addressedBy],
       'X-Content-Type-Options': 'nosniff',
     })
     if (secure.contentType === 'image/svg+xml') {

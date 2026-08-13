@@ -7,10 +7,11 @@ import { prosemirrorJSONToYDoc } from '@tiptap/y-tiptap'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 
-const { mockGetWorkspaceFile, mockFetchBuffer, mockLoadFresh } = vi.hoisted(() => ({
+const { mockGetWorkspaceFile, mockFetchBuffer, mockLoadState, mockSaveState } = vi.hoisted(() => ({
   mockGetWorkspaceFile: vi.fn(),
   mockFetchBuffer: vi.fn(),
-  mockLoadFresh: vi.fn(),
+  mockLoadState: vi.fn(),
+  mockSaveState: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
@@ -22,7 +23,8 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 // tests cover the markdown → Yjs conversion path (the cache-hit fast path has its own test below).
 vi.mock('./collab-state', () => ({
   hashMarkdown: () => 'test-source-hash',
-  loadFreshCollabDocState: mockLoadFresh,
+  loadCollabDocState: mockLoadState,
+  saveCollabDocState: mockSaveState,
 }))
 
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
@@ -44,8 +46,9 @@ describe('buildFileDocSeed', () => {
       context: 'workspace',
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     })
-    // Default: no cached binary → the conversion path runs (the case these tests cover).
-    mockLoadFresh.mockResolvedValue(null)
+    // Default: nothing stored → the conversion path runs (the case these tests cover).
+    mockLoadState.mockResolvedValue(null)
+    mockSaveState.mockResolvedValue(undefined)
   })
 
   it('builds a seed whose applied update reproduces the file body (through the client engine)', async () => {
@@ -68,7 +71,7 @@ describe('buildFileDocSeed', () => {
     cachedDoc.getText('marker').insert(0, 'cached')
     const cached = Y.encodeStateAsUpdate(cachedDoc)
     mockFetchBuffer.mockResolvedValue(Buffer.from('# Anything', 'utf-8'))
-    mockLoadFresh.mockResolvedValue(cached)
+    mockLoadState.mockResolvedValue({ docState: cached, sourceHash: 'test-source-hash' })
 
     const seed = await buildFileDocSeed('ws-1', 'file-1')
 
@@ -95,7 +98,7 @@ describe('buildFileDocSeed', () => {
     )
     const cached = Y.encodeStateAsUpdate(stale)
     mockFetchBuffer.mockResolvedValue(Buffer.from('# T\n\nbody\n\n- a\n- b', 'utf-8'))
-    mockLoadFresh.mockResolvedValue(cached)
+    mockLoadState.mockResolvedValue({ docState: cached, sourceHash: 'test-source-hash' })
 
     const seed = await buildFileDocSeed('ws-1', 'file-1')
 
@@ -115,7 +118,7 @@ describe('buildFileDocSeed', () => {
     // The cache is a best-effort optimization over the durable markdown we already hold; a transient DB
     // error or a not-yet-migrated cache table must convert, not abort the seed.
     mockFetchBuffer.mockResolvedValue(Buffer.from('# Title\n\ntext.', 'utf-8'))
-    mockLoadFresh.mockRejectedValue(new Error('cache table missing'))
+    mockLoadState.mockRejectedValue(new Error('cache table missing'))
 
     const seed = await buildFileDocSeed('ws-1', 'file-1')
     expect(seed).not.toBeNull()
@@ -166,5 +169,117 @@ describe('buildFileDocSeed', () => {
     // Propagates instead of returning null — the relay must retry, never seed blank over a real file.
     await expect(buildFileDocSeed('ws-1', 'file-1')).rejects.toThrow('db down')
     expect(mockGetWorkspaceFile).toHaveBeenCalledWith('ws-1', 'file-1', { throwOnError: true })
+  })
+})
+
+/**
+ * One file, ONE collaborative document, for its whole life.
+ *
+ * Two documents built from the same markdown are not the same document to Yjs — their items carry
+ * different client ids — so a client still holding the first merges the two into the file twice over,
+ * and the relay persists that. The guard is never to build a second one: every load resumes the stored
+ * document, and a client checks the identity it is offered before it syncs.
+ */
+describe('buildFileDocSeed — document identity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetWorkspaceFile.mockResolvedValue({
+      id: 'file-1',
+      name: 'note.md',
+      key: 'k',
+      context: 'workspace',
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    })
+    mockLoadState.mockResolvedValue(null)
+    mockSaveState.mockResolvedValue(undefined)
+  })
+
+  const docIdOf = (update: Uint8Array): unknown => {
+    const doc = new Y.Doc()
+    try {
+      Y.applyUpdate(doc, update)
+      return doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)
+    } finally {
+      doc.destroy()
+    }
+  }
+
+  it('stores the document it builds, so the next open resumes it rather than building another', async () => {
+    // Until this row exists, a file that is opened but never edited gets a NEW document on every open.
+    mockFetchBuffer.mockResolvedValue(Buffer.from('# Title\n\nbody', 'utf-8'))
+
+    const seed = await buildFileDocSeed('ws-1', 'file-1')
+
+    expect(mockSaveState).toHaveBeenCalledWith('file-1', seed!.update, 'test-source-hash')
+    expect(typeof docIdOf(seed!.update)).toBe('string')
+  })
+
+  it('keeps the stored document’s identity when the markdown changed out-of-band', async () => {
+    // A copilot write (or the content API) moved the markdown on, so the stored binary is stale. It must
+    // be UPDATED, not replaced: the identity — and the client ids under it — have to survive.
+    const stored = markdownToYDoc('# Title\n\nbody')
+    stored.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-original')
+    mockLoadState.mockResolvedValue({
+      docState: Y.encodeStateAsUpdate(stored),
+      sourceHash: 'a-hash-from-before-the-external-write',
+    })
+    mockFetchBuffer.mockResolvedValue(Buffer.from('# Title\n\nbody\n\nadded externally', 'utf-8'))
+
+    const seed = await buildFileDocSeed('ws-1', 'file-1')
+
+    expect(docIdOf(seed!.update)).toBe('doc-original')
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, seed!.update)
+    expect(yDocToMarkdown(doc)).toBe(serializeMarkdownBody('# Title\n\nbody\n\nadded externally'))
+    doc.destroy()
+    stored.destroy()
+  })
+
+  it('a client holding the resumed document merges it back without duplicating the file', async () => {
+    // The end-to-end property, stated the way it fails: a tab that outlived its room reconnects and
+    // syncs. Building a second document here appends the whole file to itself, on both sides.
+    const original = markdownToYDoc('# Title\n\nfirst\n\nsecond')
+    original.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-original')
+    const client = new Y.Doc()
+    Y.applyUpdate(client, Y.encodeStateAsUpdate(original))
+
+    mockLoadState.mockResolvedValue({
+      docState: Y.encodeStateAsUpdate(original),
+      sourceHash: 'stale-after-an-external-write',
+    })
+    mockFetchBuffer.mockResolvedValue(Buffer.from('# Title\n\nfirst\n\nsecond', 'utf-8'))
+
+    const seed = await buildFileDocSeed('ws-1', 'file-1')
+    Y.applyUpdate(client, seed!.update)
+
+    expect(yDocToMarkdown(client)).toBe(serializeMarkdownBody('# Title\n\nfirst\n\nsecond'))
+    client.destroy()
+    original.destroy()
+  })
+
+  it('rebuilds from markdown when the stored document is unusable, rather than failing the seed', async () => {
+    mockLoadState.mockResolvedValue({
+      docState: new Uint8Array([9, 9, 9, 9]),
+      sourceHash: 'stale',
+    })
+    mockFetchBuffer.mockResolvedValue(Buffer.from('# Title\n\nbody', 'utf-8'))
+
+    const seed = await buildFileDocSeed('ws-1', 'file-1')
+
+    expect(seed).not.toBeNull()
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, seed!.update)
+    expect(yDocToMarkdown(doc)).toBe(serializeMarkdownBody('# Title\n\nbody'))
+    doc.destroy()
+  })
+
+  it('still seeds when the document cannot be stored (the write is best-effort)', async () => {
+    mockFetchBuffer.mockResolvedValue(Buffer.from('# Title', 'utf-8'))
+    mockSaveState.mockRejectedValue(new Error('db down'))
+
+    const seed = await buildFileDocSeed('ws-1', 'file-1')
+
+    expect(seed).not.toBeNull()
+    expect(typeof docIdOf(seed!.update)).toBe('string')
   })
 })

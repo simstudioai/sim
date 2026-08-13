@@ -18,10 +18,12 @@
  *   client receives each update exactly once, from its own task's local broadcast — no adapter
  *   amplification, and every task's doc stays converged. (Awareness/presence stay on the adapter: they
  *   are ephemeral and need no convergence or replay.)
- * - {@link attachRoom} does a synchronous catch-up read from the head of the stream when a task first
- *   opens a file, so a late-joining task (the normal case under autoscaling) loads the current shared
- *   state before its first client syncs. Catch-up + tail are seamless: the tailer resumes from the
- *   exact id catch-up stopped at.
+ * - {@link attachRoom} reads the stream from the head when a task first opens a file, and the relay
+ *   AWAITS it before attaching a client, so a late-joining task (the normal case under autoscaling)
+ *   holds the current shared state before its first client syncs — a client must never watch the
+ *   catch-up land entry by entry, which is the document's edit history replaying on screen. Catch-up +
+ *   tail are seamless: the tailer resumes from the exact id catch-up stopped at, and {@link catchUp}
+ *   can re-run at any time for a caller that must converge without waiting on the tailer.
  * - The one-time seed is written via the atomic {@link seedIfEmpty} (append-iff-empty in one Redis
  *   step), so exactly one task ever writes the seed cluster-wide (the fix for split-brain) — even if two
  *   tasks race. {@link shouldSeed} is a Redis lock + empty-stream check layered on top ONLY as an
@@ -185,6 +187,18 @@ function applyEntryToDoc(
   }
 }
 
+/**
+ * Whether stream id `id` sorts after `than`. A Redis stream id is `<ms>-<seq>`, so a lexicographic
+ * compare is wrong the moment the millisecond part changes digit length (`'9999-0' > '10000-0'`);
+ * compare the two parts numerically instead. The initial `'0'` (nothing applied) has no `-seq` part,
+ * which reads as sequence 0 — before every real entry.
+ */
+function isAfterStreamId(id: string, than: string): boolean {
+  const [ms, seq = '0'] = id.split('-')
+  const [thanMs, thanSeq = '0'] = than.split('-')
+  return Number(ms) === Number(thanMs) ? Number(seq) > Number(thanSeq) : Number(ms) > Number(thanMs)
+}
+
 /** Whether a doc carries the seed flag (mirrors the relay's `isDocSeeded`), so the store can tell the
  * one-time seed transition from a real post-seed edit without re-implementing the check divergently. */
 function isDocSeeded(doc: Y.Doc): boolean {
@@ -260,10 +274,9 @@ export class FileDocStore {
   }
 
   /**
-   * Register a locally-opened room and load the shared state into its doc: read the whole stream from
-   * the head, apply every entry (origin {@link REDIS_ORIGIN}), and remember the last id so the tailer
-   * resumes exactly after it. A brand-new file has an empty stream and loads nothing (it is seeded
-   * shortly after, via {@link shouldSeed}). No-op when disabled.
+   * Register a locally-opened room and load the shared state into its doc ({@link catchUp}). A
+   * brand-new file has an empty stream and loads nothing (it is seeded shortly after, via
+   * {@link shouldSeed}). No-op when disabled.
    */
   async attachRoom(name: string, doc: Y.Doc): Promise<void> {
     if (!this.enabled || !this.write) return
@@ -277,12 +290,31 @@ export class FileDocStore {
       realEdited: false,
     }
     this.rooms.set(name, room)
+    await this.catchUp(name)
+  }
+
+  /**
+   * PULL the shared state into a registered room: read the stream and apply every entry the doc has
+   * not integrated yet (origin {@link REDIS_ORIGIN}), advancing `lastId` so the tailer resumes exactly
+   * after it. This is the ONLY way a room loads shared state, so a caller that must not depend on the
+   * tailer's asynchronous push — the join, which may not serve a client a half-assembled document —
+   * can converge on demand. Idempotent and safe to call repeatedly; no-op when disabled or the room is
+   * not registered (a fast open→close detached it). Never throws.
+   */
+  async catchUp(name: string): Promise<void> {
+    if (!this.enabled || !this.write) return
+    const room = this.rooms.get(name)
+    if (!room) return
     try {
       const entries = await this.write.xRange(streamKey(name), '-', '+')
       for (const entry of entries) {
-        // The room can be detached + its doc destroyed while catch-up is in flight (a fast open→close);
-        // stop touching it the moment that happens.
+        // The room can be detached + its doc destroyed while the read is in flight (a fast
+        // open→close); stop touching it the moment that happens.
         if (this.rooms.get(name) !== room) return
+        // Applying a Yjs update twice is a no-op, but `applyEntry`'s bookkeeping is not: re-applying
+        // the SEED after `seededObserved` latched would count it as a post-seed edit and let a
+        // compaction snapshot claim content no user ever typed. Skip what this room already holds.
+        if (!isAfterStreamId(entry.id, room.lastId)) continue
         this.applyEntry(room, entry.id, entry.message)
       }
       await this.write.expire(streamKey(name), STREAM_TTL_SEC)

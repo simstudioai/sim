@@ -16,6 +16,8 @@ import { createWorkspaceFileContract } from '@/lib/api/contracts/workspace-files
 import {
   useCreateWorkspaceFile,
   useWorkspaceFileContent,
+  useWorkspaceFiles,
+  type WorkspaceFileContentResult,
   workspaceFilesKeys,
 } from '@/hooks/queries/workspace-files'
 
@@ -205,19 +207,20 @@ describe('useWorkspaceFileContent stale storage key', () => {
       })
     )
     const { queryClient, unmount } = renderContentHook()
-    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+    const refetchQueries = vi.spyOn(queryClient, 'refetchQueries')
 
     await act(async () => {
       await sleep(50)
     })
 
     expect(fetchCount).toBe(1)
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: workspaceFilesKeys.workspaceLists('ws-1'),
-    })
+    expect(refetchQueries).toHaveBeenCalledWith(
+      { queryKey: workspaceFilesKeys.workspaceLists('ws-1') },
+      { cancelRefetch: true }
+    )
     // The RECORD is re-resolved, never this query — re-driving the read against the same dead key
     // is what would spin.
-    expect(invalidateQueries).toHaveBeenCalledTimes(1)
+    expect(refetchQueries).toHaveBeenCalledTimes(1)
     unmount()
   })
 
@@ -230,14 +233,14 @@ describe('useWorkspaceFileContent stale storage key', () => {
       })
     )
     const { queryClient, unmount } = renderContentHook()
-    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+    const refetchQueries = vi.spyOn(queryClient, 'refetchQueries')
 
     await act(async () => {
       await sleep(50)
     })
 
     expect(fetchCount).toBe(1)
-    expect(invalidateQueries).not.toHaveBeenCalled()
+    expect(refetchQueries).not.toHaveBeenCalled()
     unmount()
   })
 })
@@ -269,6 +272,118 @@ describe('useCreateWorkspaceFile', () => {
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: workspaceFilesKeys.storageInfo(),
     })
+    unmount()
+  })
+})
+
+/**
+ * The rotation costs one request; it must not cost a lie. Between the 404 and the record re-resolving,
+ * the surface is mid-recovery — reporting a failure there paints "Failed to load file content" over a
+ * document that lands a few hundred milliseconds later, gone before the reader can act on it.
+ */
+describe('useWorkspaceFileContent while a superseded key is being re-resolved', () => {
+  /** Mounts the content read alongside the record query the recovery re-resolves, so the second list
+   *  fetch can be held open and the recovery window observed from the outside. */
+  function renderDuringRecovery(): {
+    getResult: () => WorkspaceFileContentResult
+    resolveRecord: () => void
+    unmount: () => void
+  } {
+    let releaseRecord: () => void = () => {}
+    let call = 0
+    mockRequestJson.mockImplementation(async () => {
+      // First call is the initial record load; the one the 404 triggers is held open.
+      if (++call > 1) await new Promise<void>((resolve) => (releaseRecord = resolve))
+      return { success: true, files: [] }
+    })
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const root: Root = createRoot(document.createElement('div'))
+    let result: WorkspaceFileContentResult | undefined
+
+    function Probe() {
+      useWorkspaceFiles('ws-1')
+      result = useWorkspaceFileContent('ws-1', 'file-1', 'workspace/ws-1/123-abc-doc.md', false)
+      return null
+    }
+
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <Probe />
+        </QueryClientProvider>
+      )
+    })
+
+    return {
+      getResult: () => {
+        if (!result) throw new Error('Content hook did not render')
+        return result
+      },
+      resolveRecord: () => releaseRecord(),
+      unmount: () => {
+        act(() => root.unmount())
+        queryClient.clear()
+      },
+    }
+  }
+
+  function serve404() {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        fetchCount += 1
+        return new Response('{"error":"FileNotFoundError"}', { status: 404 })
+      })
+    )
+  }
+
+  it('reports still-loading, not failed, while the record is being re-resolved', async () => {
+    serve404()
+    const { getResult, resolveRecord, unmount } = renderDuringRecovery()
+    await act(async () => {
+      await sleep(50)
+    })
+
+    expect(getResult().error).toBeNull()
+    expect(getResult().isLoading).toBe(true)
+
+    resolveRecord()
+    unmount()
+  })
+
+  it('surfaces the failure once the record comes back unchanged — the object is really gone', async () => {
+    serve404()
+    const { getResult, resolveRecord, unmount } = renderDuringRecovery()
+    await act(async () => {
+      await sleep(50)
+    })
+
+    await act(async () => {
+      resolveRecord()
+      await sleep(50)
+    })
+
+    expect(getResult().error).not.toBeNull()
+    expect(getResult().isLoading).toBe(false)
+    unmount()
+  })
+
+  it('never masks a failure that is not a superseded key', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        fetchCount += 1
+        return new Response('nope', { status: 500 })
+      })
+    )
+    const { getResult, resolveRecord, unmount } = renderDuringRecovery()
+    await act(async () => {
+      await sleep(50)
+    })
+
+    expect(getResult().error).not.toBeNull()
+    resolveRecord()
     unmount()
   })
 })

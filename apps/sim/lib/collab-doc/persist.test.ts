@@ -4,25 +4,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 
-const { mockGetWorkspaceFile, mockFetchBuffer, mockUpdateContent, mockSaveState } = vi.hoisted(
-  () => ({
-    mockGetWorkspaceFile: vi.fn(),
-    mockFetchBuffer: vi.fn(),
-    mockUpdateContent: vi.fn(),
-    mockSaveState: vi.fn(),
-  })
-)
+const {
+  mockGetWorkspaceFile,
+  mockFetchBuffer,
+  mockUpdateContent,
+  mockSaveState,
+  mockStateSourceHash,
+  ContentVersionConflictError,
+} = vi.hoisted(() => ({
+  mockGetWorkspaceFile: vi.fn(),
+  mockFetchBuffer: vi.fn(),
+  mockUpdateContent: vi.fn(),
+  mockSaveState: vi.fn(),
+  mockStateSourceHash: vi.fn(),
+  ContentVersionConflictError: class ContentVersionConflictError extends Error {},
+}))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  ContentVersionConflictError: class ContentVersionConflictError extends Error {},
+  ContentVersionConflictError,
   getWorkspaceFile: mockGetWorkspaceFile,
   fetchWorkspaceFileBuffer: mockFetchBuffer,
   updateWorkspaceFileContent: mockUpdateContent,
 }))
 
 vi.mock('./collab-state', () => ({
-  hashMarkdown: () => 'test-source-hash',
+  hashMarkdown: (buffer: Buffer) => `hash:${buffer.toString('utf-8')}`,
   saveCollabDocState: mockSaveState,
+  collabDocStateSourceHash: mockStateSourceHash,
 }))
 
 import { markdownToYDoc, yDocToFileMarkdown } from './converter'
@@ -53,6 +61,7 @@ describe('persistFileDoc — no-op writes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSaveState.mockResolvedValue(undefined)
+    mockStateSourceHash.mockResolvedValue(null)
   })
 
   function stubFile(durable: Buffer) {
@@ -105,7 +114,11 @@ describe('persistFileDoc — no-op writes', () => {
 
     await persistFileDoc('ws-1', 'file-1', 'user-1', stateOf(md), VERSION.getTime())
 
-    expect(mockSaveState).toHaveBeenCalledWith('file-1', expect.anything(), 'test-source-hash')
+    expect(mockSaveState).toHaveBeenCalledWith(
+      'file-1',
+      expect.anything(),
+      `hash:${projectionOf(md).toString('utf-8')}`
+    )
   })
 
   it('writes when the content actually changed', async () => {
@@ -166,5 +179,93 @@ describe('persistFileDoc — no-op writes', () => {
     await persistFileDoc('ws-1', 'file-1', 'user-1', stateOf(md), VERSION.getTime())
 
     expect(mockUpdateContent).toHaveBeenCalledTimes(1)
+  })
+})
+
+/**
+ * The If-Match token is a REMEMBERED timestamp — held in the relay's room (lost with the room) and in a
+ * cluster key written best-effort — so a relay that exits just after a successful write comes back with
+ * a version older than the file's. Every persist then fails the CAS, and because a conflict neither
+ * writes nor advances the token, the document can never be persisted again: the durable markdown
+ * freezes, and every reload paints that stale markdown before the live document corrects it on screen.
+ */
+describe('persistFileDoc — a stale token is not an out-of-band write', () => {
+  const NEWER = new Date(VERSION.getTime() + 60_000)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockSaveState.mockResolvedValue(undefined)
+  })
+
+  /** The file is at `NEWER` (durable = `durableMd`), while the caller still believes `VERSION`. */
+  function stubConflict(durableMd: string) {
+    const durable = projectionOf(durableMd)
+    mockGetWorkspaceFile.mockResolvedValue({
+      id: 'file-1',
+      name: 'note.md',
+      key: 'k',
+      // A different size than the projection under test, so the no-op compare never short-circuits.
+      size: durable.length + 999,
+      updatedAt: NEWER,
+      contentUpdatedAt: NEWER,
+    })
+    mockFetchBuffer.mockResolvedValue(durable)
+    mockUpdateContent.mockImplementation(async (..._args: unknown[]) => {
+      const options = _args[5] as { expectedUpdatedAt?: Date }
+      if (options?.expectedUpdatedAt?.getTime() !== NEWER.getTime()) {
+        throw new ContentVersionConflictError('stale')
+      }
+      return { contentUpdatedAt: new Date(NEWER.getTime() + 1), updatedAt: NEWER }
+    })
+    return durable
+  }
+
+  it('writes anyway when the file still holds the bytes this document last projected', async () => {
+    const durable = stubConflict('a\n\nb')
+    // The cached doc state was tagged with exactly these bytes: nobody else has written since.
+    mockStateSourceHash.mockResolvedValue(`hash:${durable.toString('utf-8')}`)
+
+    const result = await persistFileDoc(
+      'ws-1',
+      'file-1',
+      'user-1',
+      stateOf('a\n\nb\n\nmoved'),
+      VERSION.getTime()
+    )
+
+    expect(result).toEqual({ status: 'persisted', version: NEWER.getTime() + 1 })
+    // Once with the stale token (rejected), once with the file's real version.
+    expect(mockUpdateContent).toHaveBeenCalledTimes(2)
+  })
+
+  it('still refuses when the file holds someone else’s content', async () => {
+    stubConflict('a\n\nb')
+    mockStateSourceHash.mockResolvedValue('hash:something this document never wrote')
+
+    const result = await persistFileDoc(
+      'ws-1',
+      'file-1',
+      'user-1',
+      stateOf('a\n\nb\n\nmoved'),
+      VERSION.getTime()
+    )
+
+    expect(result).toEqual({ status: 'conflict' })
+    expect(mockUpdateContent).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses when nothing was ever cached, so there is no proof of authorship', async () => {
+    stubConflict('a\n\nb')
+    mockStateSourceHash.mockResolvedValue(null)
+
+    const result = await persistFileDoc(
+      'ws-1',
+      'file-1',
+      'user-1',
+      stateOf('a\n\nb\n\nmoved'),
+      VERSION.getTime()
+    )
+
+    expect(result).toEqual({ status: 'conflict' })
   })
 })

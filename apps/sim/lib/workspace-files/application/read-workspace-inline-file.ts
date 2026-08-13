@@ -21,9 +21,20 @@ export interface ReadWorkspaceInlineFileInput {
 export interface ReadWorkspaceInlineFileResult {
   file: WorkspaceFileRecord
   stream: ReadableStream<Uint8Array>
+  /**
+   * How the caller addressed the file, which decides whether the response may be cached.
+   *
+   * `key` names a storage object, and a content write never rewrites one — it uploads under a fresh
+   * key and repoints the row, so the lookup that resolved this request (an exact match on the CURRENT
+   * key) either found bytes that can never change or found nothing at all. The response is therefore
+   * immutable. `fileId` names the FILE, whose bytes move as it is edited, so those responses must keep
+   * revalidating.
+   */
+  addressedBy: 'key' | 'fileId'
 }
 
 async function executeReadWorkspaceInlineFile({
+  input,
   context,
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.readContent,
@@ -36,7 +47,11 @@ async function executeReadWorkspaceInlineFile({
   if (!file) throw new OrchestrationError('not_found', 'Not found')
 
   const stream = await downloadFileStream({ key: file.key, context: 'workspace' })
-  return { file, stream: nodeReadableToWebStream(stream) }
+  return {
+    file,
+    stream: nodeReadableToWebStream(stream),
+    addressedBy: input.key ? 'key' : 'fileId',
+  }
 }
 
 export const readWorkspaceInlineFile = defineAuthorizedWorkspaceFileUseCase({

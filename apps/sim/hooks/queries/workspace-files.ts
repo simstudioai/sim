@@ -3,7 +3,13 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { backoffWithJitter } from '@sim/utils/retry'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useIsFetching,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { fileStorageStatusContract } from '@/lib/api/contracts/storage-transfer'
@@ -227,19 +233,33 @@ class StaleStorageKeyError extends Error {
  * over without a single client-visible event. Recovering on the 404 makes the rotation cost exactly
  * one request instead of stranding the reader on a dead key until a full reload.
  *
- * Invalidates the RECORD, never the failed query: the refetched list either hands back a new key —
- * which re-keys the read onto a fresh cache entry that fetches once — or the same one, in which case
- * nothing refetches and the failure stands. That asymmetry is what makes this loop-proof, and it is
- * why a genuinely deleted file settles instead of retrying: the list simply stops containing it.
+ * Re-reads the RECORD, never the failed query: the refetched list either hands back a new key — which
+ * re-keys the read onto a fresh cache entry that fetches once — or the same one, in which case nothing
+ * refetches and the failure stands. That asymmetry is what makes this loop-proof, and it is why a
+ * genuinely deleted file settles instead of retrying: the list simply stops containing it.
+ *
+ * Both details below exist because this runs from inside the failing read's own `queryFn`, and each was
+ * measured: without them the recovery is requested and no fetch happens at all, so the reader is left
+ * on the dead key showing a failure until something unrelated (a window focus, another consumer)
+ * happens to re-resolve the record.
  */
 function useStaleKeyRecovery(workspaceId: string): (error: unknown) => void {
   const queryClient = useQueryClient()
   return useCallback(
     (error: unknown) => {
       if (!workspaceId || !(error instanceof StaleStorageKeyError)) return
-      void queryClient.invalidateQueries({
-        queryKey: workspaceFilesKeys.workspaceLists(workspaceId),
-      })
+      // Off this fetch's own cycle (one microtask): a refetch asked for from inside a `queryFn` — where
+      // this catch sits — is dropped by react-query, silently. This is what turned "one extra request"
+      // into "no recovery at all".
+      //
+      // `cancelRefetch` because a re-resolution has to OBSERVE the rotation: a record read already in
+      // flight was started before it, so it can only hand back the key we already know is dead.
+      void Promise.resolve().then(() =>
+        queryClient.refetchQueries(
+          { queryKey: workspaceFilesKeys.workspaceLists(workspaceId) },
+          { cancelRefetch: true }
+        )
+      )
     },
     [queryClient, workspaceId]
   )
@@ -287,10 +307,10 @@ export function useWorkspaceFileContent(
     refetchInterval?: number | false | (() => number | false)
     refetchOnWindowFocus?: boolean
   }
-) {
+): WorkspaceFileContentResult {
   const source = useFileContentSource()
   const recoverStaleKey = useStaleKeyRecovery(workspaceId)
-  return useQuery({
+  const query = useQuery({
     queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text', key),
     queryFn: async ({ signal }) => {
       try {
@@ -305,6 +325,46 @@ export function useWorkspaceFileContent(
     refetchOnWindowFocus: options?.refetchOnWindowFocus === false ? false : 'always',
     refetchInterval: options?.refetchInterval ?? false,
   })
+  return {
+    data: query.data,
+    ...useStaleKeyRecoveryState(workspaceId, query.isLoading, query.error),
+  }
+}
+
+export interface WorkspaceFileContentResult {
+  data: string | undefined
+  /** True while there is nothing to show yet — including the re-resolution window below. */
+  isLoading: boolean
+  /** The failure worth showing the reader, or `null` while the address is still being re-resolved. */
+  error: Error | null
+}
+
+/**
+ * Present a superseded storage key as STILL LOADING rather than as a failure.
+ *
+ * A stale key is not a dead end and is not the reader's problem: the object moved, and the 404 has
+ * already triggered {@link useStaleKeyRecovery}, which re-resolves the record — the moment a new key
+ * arrives the read is re-keyed onto a fresh cache entry and fetches again. Painting "Failed to load
+ * file content" in that window reports a failure the surface is actively recovering from, and the
+ * content lands a few hundred milliseconds later, so the message is gone before it can be acted on.
+ *
+ * The window is bounded by a FACT, never a timer: the re-resolution is in flight. If the refetched
+ * record hands back the same key — the object is genuinely gone, not moved — the recovery ends, the
+ * error surfaces, and the reader sees a real failure.
+ */
+function useStaleKeyRecoveryState(
+  workspaceId: string,
+  isLoading: boolean,
+  error: unknown
+): { isLoading: boolean; error: Error | null } {
+  const resolvingRecord = useIsFetching({
+    queryKey: workspaceFilesKeys.workspaceLists(workspaceId),
+  })
+  const recovering = error instanceof StaleStorageKeyError && resolvingRecord > 0
+  return {
+    isLoading: isLoading || recovering,
+    error: recovering ? null : ((error as Error) ?? null),
+  }
 }
 
 /**

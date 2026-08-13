@@ -7,7 +7,7 @@ import {
   getWorkspaceFile,
   updateWorkspaceFileContent,
 } from '@/lib/uploads/contexts/workspace'
-import { hashMarkdown, saveCollabDocState } from './collab-state'
+import { collabDocStateSourceHash, hashMarkdown, saveCollabDocState } from './collab-state'
 import { canonicalizeYDoc, yDocToFileMarkdown } from './converter'
 
 const logger = createLogger('FileDocPersist')
@@ -113,7 +113,7 @@ export async function persistFileDoc(
     }
   }
 
-  try {
+  const write = async (ifMatch: number): Promise<PersistFileDocResult> => {
     const updated = await updateWorkspaceFileContent(
       workspaceId,
       fileId,
@@ -124,7 +124,7 @@ export async function persistFileDoc(
         // This write IS the projection of the live doc, so re-merging it into that same doc would loop.
         syncLiveDoc: false,
         // If-Match: only if the durable file is still at the version the live doc synced from.
-        expectedUpdatedAt: expectedVersion !== undefined ? new Date(expectedVersion) : undefined,
+        expectedUpdatedAt: new Date(ifMatch),
         secretProvenancePolicy: { mode: 'preserve' },
       }
     )
@@ -150,15 +150,60 @@ export async function persistFileDoc(
       status: 'persisted',
       version: (updated.contentUpdatedAt ?? updated.updatedAt).getTime(),
     }
+  }
+
+  try {
+    return await write(expectedVersion)
   } catch (error) {
     if (!(error instanceof ContentVersionConflictError)) throw error
-    // Out-of-band content change since the live doc last synced — DON'T clobber. The relay leaves the
-    // durable content authoritative and does NOT re-persist or advance its synced version here (a later
-    // flush reconciles once the chokepoint merge lands), so it reads nothing off this result beyond the
-    // `conflict` status — no durable version re-read is needed.
+    return recoverFromVersionConflict(workspaceId, fileId, markdownBuffer, write)
+  }
+}
+
+/**
+ * A stale If-Match does not prove someone else wrote the file — so ask the CONTENT, not the clock.
+ *
+ * The relay's token is a remembered timestamp: it lives in the room (lost when the room is dropped) and
+ * in a cluster key written best-effort, so a process that dies in the moments after a successful write
+ * comes back holding a version older than the file's. Every later persist then fails the CAS, and
+ * because a conflict deliberately neither writes nor advances the token, the room can never persist
+ * again: the session's edits stay in the stream, the durable markdown freezes at the last write, and
+ * every reload renders that stale markdown before the live document corrects it on screen.
+ *
+ * The guard exists to protect content the live document has never seen. The file's own bytes settle
+ * that directly: if they hash to what this document last projected ({@link collabDocStateSourceHash},
+ * written with every successful persist), then nothing out-of-band exists and the write is safe — retry
+ * it once against the file's current version. If they hash to anything else, the change is real, the
+ * conflict stands, and the durable content stays authoritative exactly as before.
+ */
+async function recoverFromVersionConflict(
+  workspaceId: string,
+  fileId: string,
+  markdownBuffer: Buffer,
+  write: (ifMatch: number) => Promise<PersistFileDocResult>
+): Promise<PersistFileDocResult> {
+  const conflict = (): PersistFileDocResult => {
     logger.warn(
       `Persist conflict for file ${fileId}; durable content changed out-of-band since sync`
     )
     return { status: 'conflict' }
+  }
+  try {
+    const current = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
+    if (!current) return { status: 'missing' }
+    const durable = await fetchWorkspaceFileBuffer(current)
+    if (hashMarkdown(durable) !== (await collabDocStateSourceHash(fileId))) return conflict()
+    logger.info(
+      `Persist token for file ${fileId} was stale, not the file; re-syncing and writing the projection`
+    )
+    return await write((current.contentUpdatedAt ?? current.updatedAt).getTime())
+  } catch (error) {
+    // Including a SECOND conflict: something wrote the file during the recovery, which is the very
+    // change the guard exists for.
+    if (error instanceof ContentVersionConflictError) return conflict()
+    logger.warn(`Persist conflict recovery failed for file ${fileId}`, {
+      error: getErrorMessage(error),
+    })
+    return conflict()
   }
 }
