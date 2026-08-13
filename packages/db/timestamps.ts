@@ -67,6 +67,16 @@ export const UTC_CONNECTION_PARAMETERS = { TimeZone: 'UTC' } as const
  * never selected by postgres.js's type inference (a `Date` infers as 1184), so
  * the serializer exists only to keep the entry self-consistent for an explicit
  * `sql.typed` bind.
+ *
+ * It does not decide the instant for a drizzle read. `drizzle()` registers its
+ * own transparent parser over oid 1114 when it wraps a client, replacing this
+ * entry, and every client in this repo is wrapped — so on those paths a naive
+ * value arrives at drizzle as the raw wire string and `PgTimestamp`'s mapper
+ * (`new Date(value + '+0000')`) supplies the UTC reading instead. Both routes
+ * yield the same instant, which is why the clobbering is harmless rather than a
+ * defect. The entry is kept because it is the only thing pinning the read for a
+ * client used as raw postgres.js, and `timestamps.test.ts` asserts the
+ * composition of both layers rather than the registration alone.
  */
 export const UTC_TIMESTAMP_TYPES = {
   utcTimestamp: {

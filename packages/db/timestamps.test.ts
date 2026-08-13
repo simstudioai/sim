@@ -15,6 +15,8 @@ import {
   UTC_TIMESTAMP_TYPES,
   withUtcTimestamps,
 } from '@sim/db/timestamps'
+import { pgTable, timestamp } from 'drizzle-orm/pg-core'
+import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { describe, expect, it } from 'vitest'
 
@@ -27,20 +29,32 @@ const TIMESTAMP_OID = 1114
 const NAIVE_WIRE_VALUE = '2026-08-13 02:44:03.42'
 const NAIVE_WIRE_INSTANT = '2026-08-13T02:44:03.420Z'
 
+/** Stands in for any `timestamp without time zone` column in `schema.ts`. */
+const naiveColumn = pgTable('probe', { at: timestamp('at') }).at
+
 function isProcessInUtc(): boolean {
   return new Date().getTimezoneOffset() === 0
 }
 
+type TimestampParser = (value: string) => unknown
+
 /**
- * The parser postgres.js would actually apply to oid 1114 for a client built
- * with `options`. Constructing a client does not open a connection, so this
- * reads the real resolved configuration without touching a database.
+ * Builds a postgres.js client the way `db.ts` does and returns the parser it
+ * resolves for oid 1114. Constructing a client does not open a connection, so
+ * this reads the real resolved configuration without touching a database.
+ *
+ * `wrapInDrizzle` selects whether that is the parser the driver starts with or
+ * the one it ends up with after `drizzle()` has registered its own. Production
+ * is always the latter: every client in this repo is handed straight to
+ * `drizzle()`.
  */
-function resolveTimestampParser(options: Parameters<typeof postgres>[1]) {
-  const client = postgres('postgres://user@localhost:5432/db', options)
-  return (client.options as { parsers: Record<number, (value: string) => unknown> }).parsers[
-    TIMESTAMP_OID
-  ]
+function resolveTimestampParser(wrapInDrizzle: boolean): TimestampParser {
+  const client = postgres(
+    'postgres://user@localhost:5432/db',
+    withUtcTimestamps({ connection: { application_name: 'test' } })
+  )
+  if (wrapInDrizzle) drizzle(client, {})
+  return (client.options as { parsers: Record<number, TimestampParser> }).parsers[TIMESTAMP_OID]
 }
 
 describe('naive timestamp UTC pinning', () => {
@@ -50,6 +64,11 @@ describe('naive timestamp UTC pinning', () => {
 
   it('pins the session TimeZone so every writer stores the same wall clock', () => {
     expect(UTC_CONNECTION_PARAMETERS.TimeZone).toBe('UTC')
+  })
+
+  it('keeps the session TimeZone when a caller sets its own connection params', () => {
+    const merged = withUtcTimestamps({ connection: { application_name: 'sub-pool' } })
+    expect(merged.connection).toEqual({ application_name: 'sub-pool', TimeZone: 'UTC' })
   })
 
   it('reads a naive timestamp as UTC rather than the process zone', () => {
@@ -67,15 +86,42 @@ describe('naive timestamp UTC pinning', () => {
     )
   })
 
-  it('is what a client built through withUtcTimestamps actually applies', () => {
-    const parse = resolveTimestampParser(
-      withUtcTimestamps({ connection: { application_name: 'test' } })
-    )
+  it('registers the UTC parser on a bare postgres.js client', () => {
+    const parse = resolveTimestampParser(false)
     expect((parse(NAIVE_WIRE_VALUE) as Date).toISOString()).toBe(NAIVE_WIRE_INSTANT)
   })
 
-  it('keeps the session TimeZone when a caller sets its own connection params', () => {
-    const merged = withUtcTimestamps({ connection: { application_name: 'sub-pool' } })
-    expect(merged.connection).toEqual({ application_name: 'sub-pool', TimeZone: 'UTC' })
+  /**
+   * `drizzle()` installs its own transparent parser over the oids it maps,
+   * including 1114, so the entry `withUtcTimestamps` registered is replaced the
+   * moment a client is wrapped. Every client in this repo is wrapped, which
+   * makes the registration above true but not load-bearing — asserting only the
+   * registration passes whether or not the parser has any effect. This pins the
+   * fact the next case depends on, so a drizzle version that stops clobbering
+   * turns the file red instead of silently changing which layer decides the
+   * instant.
+   */
+  it('has that parser overwritten by drizzle, so registration alone proves nothing', () => {
+    const parse = resolveTimestampParser(true)
+    expect(parse(NAIVE_WIRE_VALUE)).toBe(NAIVE_WIRE_VALUE)
+  })
+
+  /**
+   * What actually carries the read-side guarantee for a drizzle client:
+   * `PgTimestamp.mapFromDriverValue` appends `+0000` to a naive string, so the
+   * recovered instant is UTC regardless of which parser won the oid. Both
+   * branches are asserted together because the composition is the contract —
+   * the read must not depend on which of the two layers got there first.
+   */
+  it('recovers the same UTC instant through either parser once drizzle maps it', () => {
+    const throughDrizzleParser = naiveColumn.mapFromDriverValue(
+      resolveTimestampParser(true)(NAIVE_WIRE_VALUE)
+    )
+    const throughUtcParser = naiveColumn.mapFromDriverValue(
+      resolveTimestampParser(false)(NAIVE_WIRE_VALUE)
+    )
+
+    expect(throughDrizzleParser.toISOString()).toBe(NAIVE_WIRE_INSTANT)
+    expect(throughUtcParser.toISOString()).toBe(NAIVE_WIRE_INSTANT)
   })
 })

@@ -118,6 +118,10 @@ Return `nextCursor: null` on the last page and only then. Never construct a curs
 
 ## Rule 4 — reject what you do not implement
 
+**Every contract declares a `query`, even when the endpoint takes none** — `query: noInputSchema` (`z.object({}).strict()`), never omission. `parseRequest` validates the query slice only when the contract declares one, so an omitted `query` means "never look at the query string", not "takes no query params". The two were indistinguishable, which is how 69 contracts ended up accepting anything without anyone deciding they should: `GET /workflows/{id}?bogus=1` answered 200 while every list answered 400 for the same shape. `query-declaration.test.ts` sweeps the tree so contract 70 fails at authoring time rather than shipping unvalidated.
+
+Declaring them is a **deliberate tightening** of endpoints that previously ignored an unknown param. It was weighed and kept: the v2 body slice on those same endpoints was already strict, so the split was arbitrary rather than a promise to callers; a mistyped param that is silently dropped is the bug class this rule exists to prevent; and no first-party caller sends an undeclared v2 query param (the two SDKs send only `includeOutput`/`selectedOutputs`, both declared; the UI makes no v2 calls at all; `requestJson` appends nothing implicitly and no v2 cache buster exists). Third-party callers appending a tracking tag or cache buster do break, which is why `api-reference/getting-started.mdx` documents the behavior rather than leaving it to be discovered from a 400.
+
 Query and body schemas are **`.strict()`** — and `.strict()` binds the **top level only**. A strict body containing a non-strict nested object still drops unknown keys one level down, which is the headline `filter` bug at a smaller scale: `sort: [{ field, direction, nulls: 'last' }]` answered 200 and ordered by the default. Strictness belongs on the shared nested schema (`sortSpecSchema`'s element, `tableViewConfigSchema`), not restated per body.
 
 Before tightening a schema that is **also** a response or a stored blob, make the read canonical first. `table_views.config` is schemaless JSONB, so a legacy row carrying a retired key would fail a newly strict response parse and become a 500; `normalizeStoredViewConfig` projects the stored blob onto the declared keys so the tightening is safe in both directions. Zod strips unknown keys by default, so a non-strict schema answers `?limit=1` with 200 and the whole set — the caller believes it bounded the response and it did not. That is a contract lie, and on an uncapped list it is also an unbounded-response risk.
@@ -206,6 +210,7 @@ Run this against any new or changed v2 endpoint.
 - [ ] Success body is exactly `{data}` or `{data, nextCursor}`; failures are exactly `{error:{code,message,details?}}`.
 - [ ] Route uses a shared builder; no hand-built `NextResponse.json`.
 - [ ] Query and body schemas are `.strict()`.
+- [ ] The contract declares a `query` — `noInputSchema` when the endpoint takes no query params, never omission.
 - [ ] No caller-supplied value can produce a 500 — check every numeric param reaches SQL as a validated integer, and that any bound value passed as an argument to a SQL function carries an explicit type.
 - [ ] `limit` comes from `v2PaginationFields`, not a hand-written `z.coerce.number()`.
 - [ ] If the response carries `nextCursor`, the query accepts `limit` + `cursor` and the query actually applies them.

@@ -47,6 +47,7 @@
     "check:icon-paths": "bun run scripts/check-icon-paths.ts",
     "check:migrations": "bun run scripts/check-migrations-safety.ts",
     "check:native-typecheck": "bun run scripts/check-native-typecheck.ts",
+    "check:source-text": "bun run scripts/check-source-text.ts",
     "check:audits": "bun run scripts/run-audits.ts",
     "check:desktop-bridge": "bun run scripts/check-desktop-bridge-contract.ts --check",
     "check:desktop-ipc": "bun run scripts/check-desktop-ipc-contract.ts",
