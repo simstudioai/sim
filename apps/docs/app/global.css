@@ -1529,6 +1529,27 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   overflow-wrap: break-word !important;
 }
 
+/* Status-code tabs in the example panel. These are numeric literals and read as
+   code everywhere else on the page — including the Response header's own status
+   trigger — but fumadocs renders the strip in the body sans face. Language tabs
+   sit in a different container and stay sans: those are product names, not code. */
+#nd-page:has(.api-page-header) .flex.gap-3\.5.overflow-x-auto.not-prose > button {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 0.78125rem;
+  font-weight: 400;
+}
+
+/* fumadocs renders a handful of lucide glyphs on API pages that we cannot reach
+   through its client-component overrides (the heading anchor and the code-block
+   copy button). emcn draws at 1.55; lucide ships at 2, so those few icons read
+   noticeably heavier than every icon around them. Match the weight so the set
+   looks like one family. */
+#nd-page svg[class*="lucide"],
+#nd-docs-layout svg[class*="lucide"] {
+  stroke-width: 1.55;
+}
+
 /* Callout/alert — transparent background, no shadow, hide colored bar, add padding */
 div.rounded-xl.border.bg-fd-card.shadow-md:has(> [role="none"]) {
   background-color: transparent !important;
