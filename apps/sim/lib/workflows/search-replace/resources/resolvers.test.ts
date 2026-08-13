@@ -119,30 +119,6 @@ describe('dedupeOverlappingWorkflowSearchMatches', () => {
       secondMatch,
     ])
   })
-})
-
-describe('workflowSearchMatchMatchesQuery', () => {
-  it('does not keep structured resource matches alive from only block or field label text', () => {
-    const selectorMatch = createMatch({
-      id: 'selector-resource',
-      blockName: 'Testy',
-      fieldTitle: 'Select Presentation',
-      subBlockId: 'presentationId',
-      subBlockType: 'file-selector',
-      kind: 'file',
-      rawValue: 'opaque-presentation-id',
-      searchText: 'opaque-presentation-id',
-      range: undefined,
-      resource: { kind: 'file', key: 'opaque-presentation-id' },
-    })
-
-    expect(
-      workflowSearchMatchMatchesQuery({ ...selectorMatch, displayLabel: 'Gucci Case' }, 'Test')
-    ).toBe(false)
-    expect(
-      workflowSearchMatchMatchesQuery({ ...selectorMatch, displayLabel: 'Gucci Case' }, 'Gucci')
-    ).toBe(true)
-  })
 
   /**
    * The bucketed dedupe replaced an O(n^2) linear rescan. This pins it to a
@@ -395,5 +371,29 @@ describe('workflowSearchMatchMatchesQuery', () => {
         referenceDedupe(matches).map((m) => m.id)
       )
     })
+  })
+})
+
+describe('workflowSearchMatchMatchesQuery', () => {
+  it('does not keep structured resource matches alive from only block or field label text', () => {
+    const selectorMatch = createMatch({
+      id: 'selector-resource',
+      blockName: 'Testy',
+      fieldTitle: 'Select Presentation',
+      subBlockId: 'presentationId',
+      subBlockType: 'file-selector',
+      kind: 'file',
+      rawValue: 'opaque-presentation-id',
+      searchText: 'opaque-presentation-id',
+      range: undefined,
+      resource: { kind: 'file', key: 'opaque-presentation-id' },
+    })
+
+    expect(
+      workflowSearchMatchMatchesQuery({ ...selectorMatch, displayLabel: 'Gucci Case' }, 'Test')
+    ).toBe(false)
+    expect(
+      workflowSearchMatchMatchesQuery({ ...selectorMatch, displayLabel: 'Gucci Case' }, 'Gucci')
+    ).toBe(true)
   })
 })
