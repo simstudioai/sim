@@ -92,21 +92,33 @@ describe('workspace list prefetches', () => {
   })
 
   describe('prefetchFilesBrowser', () => {
-    it('primes both file + folder keys the client hooks read', async () => {
-      const files = [{ id: 'f-1' }]
+    it('primes the folder key the client hook reads', async () => {
       const folders = [{ id: 'folder-1' }]
-      mockListWorkspaceFilesWithShares.mockResolvedValue(files)
       mockListWorkspaceFileFolders.mockResolvedValue(folders)
       const client = makeClient()
 
       await prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID)
 
-      expect(mockListWorkspaceFilesWithShares).toHaveBeenCalledWith(WORKSPACE_ID, 'active')
       expect(mockListWorkspaceFileFolders).toHaveBeenCalledWith(WORKSPACE_ID, { scope: 'active' })
-      expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual(files)
       expect(client.getQueryData(workspaceFileFolderKeys.list(WORKSPACE_ID, 'active'))).toEqual(
         folders
       )
+    })
+
+    /**
+     * The FILE LIST is deliberately not primed here — `prefetchWorkspaceSidebar` owns it, because the
+     * sidebar reads that query on every workspace route and therefore registers it before any page
+     * renders. `HydrationBoundary` hands an already-seen query to a `useEffect`, which SSR never runs,
+     * so a page-level prefetch of this key costs a request per render and still cannot reach the server
+     * render. Restoring it here would reintroduce exactly that.
+     */
+    it('leaves the file list to the layout rather than re-reading it per page', async () => {
+      const client = makeClient()
+
+      await prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID)
+
+      expect(mockListWorkspaceFilesWithShares).not.toHaveBeenCalled()
+      expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toBeUndefined()
     })
 
     /**
@@ -120,7 +132,7 @@ describe('workspace list prefetches', () => {
       await prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID)
 
       expect(client.getQueryCache().getAll()).toHaveLength(0)
-      expect(mockListWorkspaceFilesWithShares).not.toHaveBeenCalled()
+      expect(mockListWorkspaceFileFolders).not.toHaveBeenCalled()
     })
   })
 

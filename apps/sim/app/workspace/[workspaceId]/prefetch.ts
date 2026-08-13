@@ -7,6 +7,7 @@ import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { listFoldersForWorkspace } from '@/lib/folders/queries'
 import { getUserProfile } from '@/lib/users/queries'
 import { listWorkflowsForUser } from '@/lib/workflows/queries'
+import { listWorkspaceFilesWithShares } from '@/lib/workspace-files/queries'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { getWorkspacePermissionsForAuthorizedViewer } from '@/lib/workspaces/permissions/utils'
@@ -25,6 +26,10 @@ import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow, WORKFLOW_LIST_STALE_TIME } from '@/hooks/queries/utils/workflow-list-query'
 import { normalizeWorkspacesResponse } from '@/hooks/queries/utils/workspace-list-query'
 import { WORKSPACE_PERMISSIONS_STALE_TIME, workspaceKeys } from '@/hooks/queries/workspace'
+import {
+  WORKSPACE_FILES_LIST_STALE_TIME,
+  workspaceFilesKeys,
+} from '@/hooks/queries/workspace-files'
 import {
   WORKSPACE_HOST_CONTEXT_STALE_TIME,
   workspaceHostKeys,
@@ -159,6 +164,22 @@ export async function prefetchWorkspaceSidebar(
         return rows.map(mapFolder)
       },
       staleTime: FOLDER_LIST_STALE_TIME,
+    }),
+    /**
+     * The sidebar reads the workspace's files for its search modal, on EVERY workspace route — so this
+     * query is registered by sidebar chrome before any page renders. That ordering is why it has to be
+     * prefetched HERE and not only by the Files pages: `HydrationBoundary` hydrates a query the cache
+     * has already seen from a `useEffect`, which never runs during SSR, so a page-level boundary can
+     * only ever hand this entry to the client. Seeding it with the layout's own boundary — the first
+     * one to render — is what lets the server paint the Files browser and the open file's header
+     * populated instead of shipping a spinner and resolving it a beat later on the client.
+     *
+     * Same key + shape as {@link prefetchFilesBrowser}, so whichever runs is a no-op for the other.
+     */
+    queryClient.prefetchQuery({
+      queryKey: workspaceFilesKeys.list(workspaceId, 'active'),
+      queryFn: () => listWorkspaceFilesWithShares(workspaceId, 'active'),
+      staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
     }),
     queryClient.prefetchQuery({
       queryKey: workspaceKeys.permissions(workspaceId),

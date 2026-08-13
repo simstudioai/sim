@@ -21,9 +21,21 @@ export interface ReadWorkspaceInlineFileInput {
 export interface ReadWorkspaceInlineFileResult {
   file: WorkspaceFileRecord
   stream: ReadableStream<Uint8Array>
+  /**
+   * Whether the URL that produced this response names the exact storage object it streamed — the only
+   * condition under which the bytes may be cached, since a content write never rewrites an object (it
+   * uploads under a fresh key and repoints the row).
+   *
+   * It is deliberately not "the caller passed a key": the key is resolved to a file and the file's
+   * CURRENT key is what gets streamed, so a rotation landing between those two reads would serve the
+   * new bytes under a URL naming the old object — cached, that would be wrong forever. A `fileId`
+   * request names the FILE, whose bytes move as it is edited, and is never content-addressed.
+   */
+  contentAddressed: boolean
 }
 
 async function executeReadWorkspaceInlineFile({
+  input,
   context,
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.readContent,
@@ -36,7 +48,11 @@ async function executeReadWorkspaceInlineFile({
   if (!file) throw new OrchestrationError('not_found', 'Not found')
 
   const stream = await downloadFileStream({ key: file.key, context: 'workspace' })
-  return { file, stream: nodeReadableToWebStream(stream) }
+  return {
+    file,
+    stream: nodeReadableToWebStream(stream),
+    contentAddressed: input.key !== undefined && input.key === file.key,
+  }
 }
 
 export const readWorkspaceInlineFile = defineAuthorizedWorkspaceFileUseCase({
