@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
@@ -44,7 +45,15 @@ interface NetSuiteRequest {
   query?: Record<string, string | number | boolean | undefined>
   headers?: Record<string, string>
   body?: unknown
-  responseLocation?: 'resource' | 'async-job'
+  /**
+   * How a `Location` response header is treated. Oracle documents the header
+   * for {@link https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_1545141395.html create}
+   * and {@link https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_1545142173.html update},
+   * so `resource` requires it. Upsert and transform also produce a record but
+   * Oracle documents no response headers for them, so `resource-optional`
+   * surfaces the header when NetSuite sends it without failing when it does not.
+   */
+  responseLocation?: 'resource' | 'resource-optional' | 'async-job'
 }
 
 /**
@@ -813,7 +822,7 @@ function validateResponseLocation(
     ) {
       return {}
     }
-    if (mode === 'resource') {
+    if (mode === 'resource' || mode === 'resource-optional') {
       return parsed.pathname.startsWith('/services/rest/record/v1/') ? { location } : {}
     }
     if (parsed.search) return {}
@@ -891,8 +900,7 @@ function sanitizeErrorText(value: string, auth?: NetSuiteAuthParams): string {
     const secret = credential.trim()
     if (secret.length >= 3) sanitized = sanitized.split(secret).join('[REDACTED]')
   }
-  const trimmed = sanitized.replace(/\s+/g, ' ').trim()
-  return trimmed.slice(0, 900) || 'Unknown error'
+  return truncate(sanitized.replace(/\s+/g, ' ').trim(), 900) || 'Unknown error'
 }
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {

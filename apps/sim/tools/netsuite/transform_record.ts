@@ -54,6 +54,7 @@ export const netsuiteTransformRecordTool: ToolConfig<
           { value: params.targetRecordType, label: 'Target record type' }
         ),
         success: { status: 204, body: 'none' },
+        responseLocation: 'resource-optional',
         body: params.body ?? {},
       }),
       signal
@@ -64,6 +65,11 @@ export const netsuiteTransformRecordTool: ToolConfig<
       type: 'json',
       description: 'Empty for the documented HTTP 204 No Content response',
       nullable: true,
+    },
+    location: {
+      type: 'string',
+      description: 'URL of the transformed record, when NetSuite returns a Location header',
+      optional: true,
     },
   },
 }

@@ -234,6 +234,49 @@ describe('POST /api/tools/netsuite/objects', () => {
     })
   })
 
+  it('skips non-self task link relationships instead of failing discovery', async () => {
+    const href = `${ORIGIN}/services/rest/async/v1/job/job-1/task/task-1`
+    mockGetAsyncStatus.mockResolvedValueOnce(
+      success({
+        items: [
+          {
+            links: [
+              { rel: 'canonical', href: `${ORIGIN}/services/rest/async/v1/job/job-1` },
+              { rel: 'self', href },
+            ],
+          },
+        ],
+      })
+    )
+
+    const response = await POST(
+      request({ ...RECORD_TYPES_BODY, kind: 'async_tasks', jobId: 'job-1' }),
+      {}
+    )
+
+    expect(response.status).toBe(200)
+    expect(await json(response)).toEqual({
+      objects: [{ id: 'task-1', label: 'task-1', detail: null }],
+    })
+  })
+
+  it('fails discovery when a task entry has no self link', async () => {
+    mockGetAsyncStatus.mockResolvedValueOnce(
+      success({
+        items: [
+          { links: [{ rel: 'canonical', href: `${ORIGIN}/services/rest/async/v1/job/job-1` }] },
+        ],
+      })
+    )
+
+    const response = await POST(
+      request({ ...RECORD_TYPES_BODY, kind: 'async_tasks', jobId: 'job-1' }),
+      {}
+    )
+
+    expect(response.status).toBe(502)
+  })
+
   it('normalizes, deduplicates, and sorts up to 1,000 unique record types', async () => {
     const items = Array.from({ length: 1_000 }, (_, index) => ({
       name: `record_${String(999 - index).padStart(4, '0')}`,

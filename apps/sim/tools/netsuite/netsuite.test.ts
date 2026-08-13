@@ -286,6 +286,7 @@ const SOURCE_MATRIX: SourceMatrixEntry[] = [
     path: '/services/rest/record/v1/customer/eid:EXT-7',
     body: { companyName: 'Acme' },
     successStatus: 204,
+    locationPath: '/services/rest/record/v1/customer/647',
     execute: invoke(netsuiteUpsertRecordTool, {
       recordType: 'customer',
       externalId: 'EXT-7',
@@ -391,6 +392,7 @@ const SOURCE_MATRIX: SourceMatrixEntry[] = [
     path: '/services/rest/record/v1/salesOrder/3/!transform/invoice',
     body: { memo: 'Automated' },
     successStatus: 204,
+    locationPath: '/services/rest/record/v1/invoice/912',
     execute: invoke(netsuiteTransformRecordTool, {
       recordType: 'salesOrder',
       recordId: '3',
@@ -751,6 +753,33 @@ describe('NetSuite operation contracts', () => {
     )
   })
 
+  it('treats the upsert and transform Location header as optional', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 204 }))
+    )
+
+    const upserted = await invoke(netsuiteUpsertRecordTool, {
+      recordType: 'customer',
+      externalId: 'EXT-7',
+      body: { companyName: 'Acme' },
+    })()
+    const transformed = await invoke(netsuiteTransformRecordTool, {
+      recordType: 'salesOrder',
+      recordId: '3',
+      targetRecordType: 'invoice',
+      body: { memo: 'Automated' },
+    })()
+
+    // Oracle documents the Location header for create and update but not for
+    // upsert or transform, so a response without it must still succeed.
+    for (const result of [upserted, transformed]) {
+      expect(result.success).toBe(true)
+      expect(result.output?.status).toBe(204)
+      expect(result.output?.location).toBeUndefined()
+    }
+  })
+
   it('validates required metadata items and optional catalog and record-type links', async () => {
     const cases = [
       { body: { items: [{ name: 'customer' }] }, success: true },
@@ -897,7 +926,13 @@ describe('NetSuite operation contracts', () => {
     ]
     expect(NetSuiteBlock.outputs.location.condition).toEqual({
       field: 'operation',
-      value: ['netsuite_create_record', 'netsuite_update_record', ...batchIds],
+      value: [
+        'netsuite_create_record',
+        'netsuite_update_record',
+        'netsuite_upsert_record',
+        'netsuite_transform_record',
+        ...batchIds,
+      ],
     })
     expect(NetSuiteBlock.outputs.jobId.condition).toEqual({
       field: 'operation',
@@ -1046,6 +1081,8 @@ describe('NetSuite operation contracts', () => {
       if (
         tool.id === 'netsuite_create_record' ||
         tool.id === 'netsuite_update_record' ||
+        tool.id === 'netsuite_upsert_record' ||
+        tool.id === 'netsuite_transform_record' ||
         batchToolIds.has(tool.id)
       ) {
         expected.push('location')

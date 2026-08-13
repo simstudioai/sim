@@ -85,6 +85,8 @@ const BATCH_OPERATIONS = [
 const LOCATION_OPERATIONS = [
   'netsuite_create_record',
   'netsuite_update_record',
+  'netsuite_upsert_record',
+  'netsuite_transform_record',
   ...BATCH_OPERATIONS,
 ]
 

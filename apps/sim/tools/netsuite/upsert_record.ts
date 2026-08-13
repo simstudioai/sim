@@ -44,6 +44,7 @@ export const netsuiteUpsertRecordTool: ToolConfig<NetSuiteUpsertRecordParams, Ne
           { value: `eid:${requiredTrim(params.externalId, 'External ID')}`, label: 'External ID' }
         ),
         success: { status: 204, body: 'none' },
+        responseLocation: 'resource-optional',
         body: params.body,
       }),
       signal
@@ -54,6 +55,11 @@ export const netsuiteUpsertRecordTool: ToolConfig<NetSuiteUpsertRecordParams, Ne
       type: 'json',
       description: 'Empty for the documented HTTP 204 No Content response',
       nullable: true,
+    },
+    location: {
+      type: 'string',
+      description: 'URL of the created or updated record, when NetSuite returns a Location header',
+      optional: true,
     },
   },
 }

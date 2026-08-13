@@ -152,10 +152,14 @@ function normalizeAsyncTasks(
     if (!Array.isArray(item.links) || item.links.length === 0 || !item.links.every(isPlainRecord)) {
       throw new Error('NetSuite returned malformed asynchronous task links')
     }
-    for (const link of item.links) {
-      if (link.rel !== 'self') {
-        throw new Error('NetSuite returned an unexpected asynchronous task link relationship')
-      }
+    // Oracle documents a `self` link per task but never guarantees it is the
+    // only relationship on the entry, so additional rels are skipped rather
+    // than failing the whole picker.
+    const selfLinks = item.links.filter((link) => link.rel === 'self')
+    if (selfLinks.length === 0) {
+      throw new Error('NetSuite returned an asynchronous task without a self link')
+    }
+    for (const link of selfLinks) {
       const id = taskIdFromHref(link.href, origin, jobId)
       if (!objects.has(id)) {
         if (objects.size >= MAX_ASYNC_TASKS) {

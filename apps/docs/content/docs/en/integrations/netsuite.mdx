@@ -159,6 +159,7 @@ Create or update a NetSuite record by external ID with PUT.
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
 | `data` | json | Empty for the documented HTTP 204 No Content response |
+| `location` | string | URL of the created or updated record, when NetSuite returns a Location header |
 
 ### NetSuite Delete Record
 
@@ -327,6 +328,7 @@ Transform a supported source record into another NetSuite record type.
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status returned by NetSuite |
 | `data` | json | Empty for the documented HTTP 204 No Content response |
+| `location` | string | URL of the transformed record, when NetSuite returns a Location header |
 
 ### NetSuite Batch Get Records
 
