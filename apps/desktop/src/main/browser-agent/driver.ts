@@ -174,6 +174,29 @@ function invalidateSnapshot(state = driverScopeState()): void {
   state.snapshotCaptureEpoch++
 }
 
+/**
+ * Cross-document navigation counters, bumped by tab instrumentation. A live
+ * SPA rewrites its URL with pushState/replaceState between a snapshot and the
+ * input dispatched from it, so URL equality cannot distinguish "the document
+ * the model saw is gone" from routine same-document churn — only a real
+ * document swap increments these.
+ */
+const crossDocumentNavigations = new WeakMap<WebContents, number>()
+const crossDocumentFrameNavigations = new WeakMap<WebContents, Map<string, number>>()
+
+function navigationEpoch(contents: WebContents): number {
+  return crossDocumentNavigations.get(contents) ?? 0
+}
+
+function frameEpochKey(processId: number, routingId: number): string {
+  return `${processId}:${routingId}`
+}
+
+function frameNavigationEpoch(contents: WebContents, frame: WebFrameMain): number {
+  const key = frameEpochKey(frame.processId, frame.routingId)
+  return crossDocumentFrameNavigations.get(contents)?.get(key) ?? 0
+}
+
 const driverScopeStates = new Map<string, DriverScopeState>()
 const driverScopeAliases = new Map<string, string>()
 const CANCELLED_TOOL_TTL_MS = 5 * 60_000
@@ -312,6 +335,7 @@ function instrumentTab(contents: WebContents): void {
   contents.on(
     'did-navigate',
     inScope(() => {
+      crossDocumentNavigations.set(contents, navigationEpoch(contents) + 1)
       if (session.automationTab()?.view.webContents === contents) {
         invalidateSnapshot()
       }
@@ -320,6 +344,21 @@ function instrumentTab(contents: WebContents): void {
       pushTabsState()
     })
   )
+  contents.on(
+    'did-frame-navigate',
+    inScope(
+      (_event, _url, _httpResponseCode, _httpStatusText, _isMainFrame, processId, routingId) => {
+        const frames = crossDocumentFrameNavigations.get(contents) ?? new Map<string, number>()
+        const key = frameEpochKey(processId, routingId)
+        frames.set(key, (frames.get(key) ?? 0) + 1)
+        crossDocumentFrameNavigations.set(contents, frames)
+      }
+    )
+  )
+  // Same-document navigation deliberately does NOT invalidate the snapshot: a
+  // live SPA (Slack) pushStates continuously, and invalidating here made every
+  // ref die between snapshot and act. Element-level identity checks and the
+  // in-page ref resolver keep individual actions honest instead.
   for (const event of [
     'did-navigate-in-page',
     'page-title-updated',
@@ -330,12 +369,6 @@ function instrumentTab(contents: WebContents): void {
     contents.on(
       event as 'did-navigate',
       inScope(() => {
-        if (
-          event === 'did-navigate-in-page' &&
-          session.automationTab()?.view.webContents === contents
-        ) {
-          invalidateSnapshot()
-        }
         pushPageState(contents)
         pushTabsState()
       })
@@ -1037,14 +1070,14 @@ function pageTargetForElement(contents: WebContents, elementId: number): PageExe
   return target
 }
 
-function assertActiveContents(contents: WebContents, expectedUrl?: string): void {
+function assertActiveContents(contents: WebContents, expectedNavigationEpoch?: number): void {
   const active = session.automationTab()
   if (
     session.automationTabClaimedByUser() ||
     !active ||
     active.view.webContents !== contents ||
     contents.isDestroyed() ||
-    (expectedUrl !== undefined && contents.getURL() !== expectedUrl)
+    (expectedNavigationEpoch !== undefined && navigationEpoch(contents) !== expectedNavigationEpoch)
   ) {
     throw new ToolError('The active tab or page changed before input could be dispatched.')
   }
@@ -1089,7 +1122,7 @@ function sameWebFrame(left: WebFrameMain, right: WebFrameMain): boolean {
 function assertFocusedTargetUnchanged(
   contents: WebContents,
   target: PageExecutionTarget,
-  expectedFrameUrl?: string
+  expectedFrameNavigationEpoch?: number
 ): void {
   const focused = focusedPageTarget(contents)
   const unchanged =
@@ -1106,7 +1139,8 @@ function assertFocusedTargetUnchanged(
     if (
       frame.isDestroyed() ||
       frame.detached ||
-      (expectedFrameUrl !== undefined && frame.url !== expectedFrameUrl) ||
+      (expectedFrameNavigationEpoch !== undefined &&
+        frameNavigationEpoch(contents, frame) !== expectedFrameNavigationEpoch) ||
       !contents.mainFrame.framesInSubtree.some((candidate) => sameWebFrame(candidate, frame))
     ) {
       throw new ToolError(
@@ -1154,16 +1188,25 @@ async function prepareTypingSurface(
   target: PageExecutionTarget,
   elementId: number,
   moveFocus: boolean,
-  executionDeadline?: number
+  executionDeadline?: number,
+  settleGraceMs = 0
 ): Promise<Record<string, unknown>> {
   const prepared = unwrapPageResult(
-    await execInPage(
-      target,
-      focusElementForTyping,
-      [elementId, moveFocus],
-      false,
-      executionDeadline
-    )
+    settleGraceMs > 0
+      ? await execInPageWithSettleGrace(
+          target,
+          focusElementForTyping,
+          [elementId, moveFocus],
+          executionDeadline,
+          settleGraceMs
+        )
+      : await execInPage(
+          target,
+          focusElementForTyping,
+          [elementId, moveFocus],
+          false,
+          executionDeadline
+        )
   )
   if (
     !isRecordLike(prepared) ||
@@ -1176,6 +1219,43 @@ async function prepareTypingSurface(
     throw new ToolError('Could not verify and focus that editable element.')
   }
   return prepared
+}
+
+const TRANSIENT_PROBE_ERRORS = new Set(['stale', 'not-visible', 'not-editable'])
+const SETTLE_GRACE_MS = 1_000
+const SETTLE_PROBE_INTERVAL_MS = 250
+
+/**
+ * First-touch page probe with a short settle grace. A live view re-rendering
+ * under the agent (Slack's virtualized sidebar, its late-mounting composer)
+ * can transiently report an element as stale, invisible, or not yet editable
+ * while its replacement mounts one frame later. These call sites run before
+ * anything is dispatched, so a bounded reprobe safely turns that churn into a
+ * recovery instead of a dead ref.
+ */
+async function execInPageWithSettleGrace<Args extends unknown[], Result>(
+  target: PageExecutionTarget,
+  fn: (...args: Args) => Result,
+  args: Args,
+  executionDeadline?: number,
+  graceMs = SETTLE_GRACE_MS
+): Promise<Result> {
+  const graceDeadline = Date.now() + graceMs
+  for (;;) {
+    const result = await execInPage(target, fn, args, false, executionDeadline)
+    const code =
+      isRecordLike(result) && typeof result.error === 'string' ? String(result.error) : null
+    if (
+      code === null ||
+      !TRANSIENT_PROBE_ERRORS.has(code) ||
+      Date.now() + SETTLE_PROBE_INTERVAL_MS > graceDeadline ||
+      (executionDeadline !== undefined &&
+        Date.now() + SETTLE_PROBE_INTERVAL_MS >= executionDeadline)
+    ) {
+      return result
+    }
+    await sleep(SETTLE_PROBE_INTERVAL_MS)
+  }
 }
 
 function pointFromPrepared(prepared: Record<string, unknown>): { x: number; y: number } {
@@ -1522,7 +1602,7 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
   invalidateSnapshot(state)
   const captureEpoch = state.snapshotCaptureEpoch
   const capturedTabId = tab.id
-  const capturedUrl = contents.getURL()
+  const capturedNavigationEpoch = navigationEpoch(contents)
   const targets = new Map<number, PageExecutionTarget>()
   const targetLineIndexes = new Map<number, number>()
   const stillCurrent = (): boolean => {
@@ -1532,7 +1612,9 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
       active?.id === capturedTabId &&
       active.view.webContents === contents &&
       !contents.isDestroyed() &&
-      contents.getURL() === capturedUrl
+      // Same-document URL drift (SPA pushState) must not abort the capture;
+      // only a cross-document navigation makes the collected refs meaningless.
+      navigationEpoch(contents) === capturedNavigationEpoch
     )
   }
 
@@ -1957,11 +2039,10 @@ async function executeToolInner(
       if (!targetFrame) {
         assertCurrentExecution()
         const first = unwrapPageResult(
-          await execInPage(
+          await execInPageWithSettleGrace(
             target,
             clickElement,
             [elementId, false, false],
-            false,
             executionDeadline
           )
         )
@@ -2010,7 +2091,12 @@ async function executeToolInner(
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
         const focused = unwrapPageResult(
-          await execInPage(target, clickElement, [elementId, false, true], false, executionDeadline)
+          await execInPageWithSettleGrace(
+            target,
+            clickElement,
+            [elementId, false, true],
+            executionDeadline
+          )
         )
         if (!isRecordLike(focused)) throw new ToolError('Could not resolve that click target.')
         prepared = focused
@@ -2292,7 +2378,16 @@ async function executeToolInner(
       // synthetic value-setter when CDP is unavailable.
       assertCurrentExecution()
       assertElementActionCurrent(contents, elementId, target)
-      const initialSurface = await prepareTypingSurface(target, elementId, true, executionDeadline)
+      // The settle grace covers a composer whose real contenteditable mounts a
+      // beat after the surrounding view renders (Slack); nothing has been
+      // dispatched yet, so reprobing is safe.
+      const initialSurface = await prepareTypingSurface(
+        target,
+        elementId,
+        true,
+        executionDeadline,
+        SETTLE_GRACE_MS
+      )
       assertCurrentExecution()
       assertElementActionCurrent(contents, elementId, target)
       if (targetFrame) {
@@ -2591,9 +2686,10 @@ async function executeToolInner(
       const requestedKey = requireStr(params, 'key')
       const combo = parseKeyCombo(requestedKey)
       const contents = session.requireAutomationTab().view.webContents
-      const pressedPageUrl = contents.getURL()
+      const pressedNavigationEpoch = navigationEpoch(contents)
       let target: PageExecutionTarget = focusedPageTarget(contents)
-      let pressedFrameUrl = target === contents ? undefined : (target as WebFrameMain).url
+      let pressedFrameEpoch =
+        target === contents ? undefined : frameNavigationEpoch(contents, target as WebFrameMain)
       // Pasting would move the user's clipboard into the page, where the next
       // snapshot reports it as an ordinary field value — clipboards routinely
       // hold a password copied out of a password manager. Copy and cut would
@@ -2612,7 +2708,8 @@ async function executeToolInner(
       const dispatchTarget = focusedPageTarget(contents)
       if (dispatchTarget !== target) {
         target = dispatchTarget
-        pressedFrameUrl = target === contents ? undefined : (target as WebFrameMain).url
+        pressedFrameEpoch =
+          target === contents ? undefined : frameNavigationEpoch(contents, target as WebFrameMain)
         beforePage = await pageActionState(target, true)
         beforeElement = await activeElementState(target)
       }
@@ -2648,8 +2745,8 @@ async function executeToolInner(
       let fallbackState: Record<string, unknown> = {}
       try {
         assertCurrentExecution()
-        assertActiveContents(contents, pressedPageUrl)
-        assertFocusedTargetUnchanged(contents, target, pressedFrameUrl)
+        assertActiveContents(contents, pressedNavigationEpoch)
+        assertFocusedTargetUnchanged(contents, target, pressedFrameEpoch)
         await dispatchKeyCombo(contents, combo)
       } catch (error) {
         if (error instanceof KeyDispatchError && error.keyDownDispatched) {
@@ -2661,8 +2758,8 @@ async function executeToolInner(
         // CDP unavailable (debugger detached): synthetic DOM fallback. It
         // cannot trigger default editing actions, so say so in the result.
         assertCurrentExecution()
-        assertActiveContents(contents, pressedPageUrl)
-        assertFocusedTargetUnchanged(contents, target, pressedFrameUrl)
+        assertActiveContents(contents, pressedNavigationEpoch)
+        assertFocusedTargetUnchanged(contents, target, pressedFrameEpoch)
         const fallbackSecrecy = await execInPage(target, activeElementSecrecy, []).catch(
           () => 'opaque'
         )
@@ -2673,8 +2770,8 @@ async function executeToolInner(
           )
         }
         assertCurrentExecution()
-        assertActiveContents(contents, pressedPageUrl)
-        assertFocusedTargetUnchanged(contents, target, pressedFrameUrl)
+        assertActiveContents(contents, pressedNavigationEpoch)
+        assertFocusedTargetUnchanged(contents, target, pressedFrameEpoch)
         const fallback = unwrapPageResult(
           await execInPage(
             target,

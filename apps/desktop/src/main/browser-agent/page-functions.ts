@@ -109,6 +109,7 @@ export function collectSnapshot(startingElementId = 0): unknown {
     '[onclick]',
     '[contenteditable="true"]',
     '[contenteditable=""]',
+    '[contenteditable="plaintext-only"]',
   ].join(', ')
   const landmarkSelector = [
     'nav',
@@ -593,13 +594,26 @@ export function collectSnapshot(startingElementId = 0): unknown {
 
   /**
    * React commonly replaces a control's DOM node while preserving its
-   * semantics. Recover only when the old page URL and a strong semantic
+   * semantics. Recover only when the old page origin and a strong semantic
    * fingerprint still identify one candidate; a weak or ambiguous match is a
    * real stale ref, never permission to click something nearby.
    */
   window.__simAgentResolveElement = (id: number) => {
     const locator = locators[id]
     if (!locator) return null
+
+    // Origin, not full URL: a live SPA rewrites its path with pushState
+    // between snapshot and act (Slack does so continuously), while the
+    // element the model chose is often still the same mounted node. The
+    // origin still pins the document/frame; the role/name/attribute and
+    // ancestor/context signatures below pin the element itself.
+    const pageOriginOf = (url: string): string => {
+      try {
+        return new URL(url).origin
+      } catch {
+        return url
+      }
+    }
 
     const stableAttributes = [
       'id',
@@ -620,7 +634,7 @@ export function collectSnapshot(startingElementId = 0): unknown {
     const identityMatches = (candidate: Element, connected = false): boolean => {
       if (
         candidate.tagName.toUpperCase() !== locator.tag ||
-        pageUrlFor(candidate) !== locator.url ||
+        pageOriginOf(pageUrlFor(candidate)) !== pageOriginOf(locator.url) ||
         roleFor(candidate) !== locator.role
       ) {
         return false
@@ -1028,7 +1042,7 @@ export function clickElement(
       addCandidate(el)
       for (const candidate of Array.from(
         el.querySelectorAll<HTMLElement>(
-          'input, textarea, [contenteditable="true"], [contenteditable=""]'
+          'input, textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"]'
         )
       )) {
         addCandidate(candidate)
@@ -1244,7 +1258,7 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
   addEditable(el)
   for (const candidate of Array.from(
     el.querySelectorAll<HTMLElement>(
-      'input, textarea, [contenteditable="true"], [contenteditable=""]'
+      'input, textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"]'
     )
   )) {
     addEditable(candidate)
@@ -1770,7 +1784,7 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
   addEditable(el)
   for (const candidate of Array.from(
     el.querySelectorAll<HTMLElement>(
-      'input, textarea, [contenteditable="true"], [contenteditable=""]'
+      'input, textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"]'
     )
   )) {
     addEditable(candidate)

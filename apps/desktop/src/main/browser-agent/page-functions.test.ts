@@ -769,6 +769,38 @@ describe('collectSnapshot', () => {
     expect(focusElementForTyping(ref)).toEqual({ error: 'stale' })
   })
 
+  it('keeps a connected ref usable after a same-document URL change', () => {
+    document.body.innerHTML = '<button data-testid="composer-send">Send</button>'
+    const button = visible(document.querySelector('button') as HTMLButtonElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Send')
+    let clicked = false
+    button.addEventListener('click', () => {
+      clicked = true
+    })
+
+    window.history.pushState({}, '', '/client/T123/C456')
+
+    expect(clickElement(ref)).toMatchObject({ dispatched: true, refRecovered: false })
+    expect(clicked).toBe(true)
+  })
+
+  it('recovers a replaced ref after a same-document URL change', () => {
+    document.body.innerHTML = '<button data-testid="messages-tab">Messages</button>'
+    const original = visible(document.querySelector('button') as HTMLButtonElement)
+    const ref = refFor(outlineOf(collectSnapshot()), 'Messages')
+    const replacement = visible(original.cloneNode(true) as HTMLButtonElement)
+    let clicked = false
+    replacement.addEventListener('click', () => {
+      clicked = true
+    })
+
+    window.history.pushState({}, '', '/client/T123/C456')
+    original.replaceWith(replacement)
+
+    expect(clickElement(ref)).toMatchObject({ dispatched: true, refRecovered: true })
+    expect(clicked).toBe(true)
+  })
+
   it('refuses to recover a ref when replacement is ambiguous', () => {
     document.body.innerHTML = '<button>Close</button>'
     const original = visible(document.querySelector('button') as HTMLButtonElement)

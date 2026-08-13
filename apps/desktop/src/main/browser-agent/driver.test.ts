@@ -1732,4 +1732,146 @@ describe('credential protection', () => {
         'Element ids are not valid in this tab. Call browser_snapshot and use an id from that result.',
     })
   })
+
+  /** Fires every instrumentation listener registered for a WebContents event. */
+  function emitContentsEvent(
+    contents: Awaited<ReturnType<typeof openPage>>,
+    event: string,
+    ...args: unknown[]
+  ): void {
+    for (const [name, listener] of vi.mocked(contents.on).mock.calls) {
+      if (name === event) (listener as (...listenerArgs: unknown[]) => void)({}, ...args)
+    }
+  }
+
+  it('keeps element ids across a same-document (SPA) navigation', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+
+    emitContentsEvent(contents, 'did-navigate-in-page')
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(result).toMatchObject({ ok: true, result: { dispatched: true } })
+  })
+
+  it('still invalidates element ids on a cross-document navigation', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+
+    emitContentsEvent(contents, 'did-navigate')
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(result).toEqual({
+      ok: false,
+      error:
+        'Element ids are not valid in this tab. Call browser_snapshot and use an id from that result.',
+    })
+  })
+
+  it('tolerates same-document URL churn during a keypress', async () => {
+    const contents = await openPage()
+    let urlReads = 0
+    vi.mocked(contents.getURL).mockImplementation(() =>
+      ++urlReads === 1 ? 'https://example.com/channel-a' : 'https://example.com/channel-b'
+    )
+    respondWith(contents, {
+      activeElementSecrecy: 'safe',
+      readActiveElementState: {},
+      readPageActionState: {
+        url: 'https://example.com/channel-a',
+        title: 'Example',
+        focus: 'body',
+        mutationRevision: 0,
+        dialogs: [],
+        scroll: [0],
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Escape' })
+
+    expect(result.ok).toBe(true)
+    expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
+  })
+
+  it('aborts a keypress when a cross-document navigation lands mid-flight', async () => {
+    const contents = await openPage()
+    let navigated = false
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'activeElementSecrecy')) return Promise.resolve('safe')
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) {
+        if (!navigated) {
+          navigated = true
+          emitContentsEvent(contents, 'did-navigate')
+        }
+        return Promise.resolve({
+          url: 'https://example.com/login',
+          title: 'Example',
+          focus: 'body',
+          mutationRevision: 0,
+          dialogs: [],
+          scroll: [0],
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Escape' })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/active tab or page changed/)
+    expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(0)
+  })
+
+  it('waits for a late-mounting editor before typing', async () => {
+    const contents = await openPage()
+    let focusReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'focusElementForTyping')) {
+        focusReads++
+        return Promise.resolve(
+          focusReads === 1
+            ? { error: 'not-editable' }
+            : { focused: true, kind: 'contenteditable', x: 24, y: 48 }
+        )
+      }
+      if (isPageCall(expression, 'activeElementSecrecy')) return Promise.resolve('safe')
+      if (isPageCall(expression, 'readActiveElementState')) {
+        return Promise.resolve({ activeElement: 'div', valueLength: 5 })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_type', {
+      elementId: 0,
+      text: 'hello',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(focusReads).toBeGreaterThan(1)
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
+  })
+
+  it('reprobes a transiently stale click target before giving up', async () => {
+    const contents = await openPage()
+    let clickReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'clickElement')) {
+        clickReads++
+        return Promise.resolve(
+          clickReads === 1
+            ? { error: 'stale' }
+            : { dispatched: false, x: 24, y: 48, element: 'Channel row' }
+        )
+      }
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) return Promise.resolve({})
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(result).toMatchObject({ ok: true, result: { dispatched: true } })
+    expect(clickReads).toBeGreaterThan(1)
+  })
 })
