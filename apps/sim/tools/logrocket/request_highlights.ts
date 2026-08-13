@@ -86,7 +86,7 @@ export const requestHighlightsTool: ToolConfig<
      */
     modelInput: {
       mode: 'project',
-      select: (params) => (params.question ? { question: params.question } : {}),
+      select: (params) => (params.question?.trim() ? { question: params.question } : {}),
     },
     url: (params) => buildAppUrl(params, 'highlights/').toString(),
     method: 'POST',
@@ -97,24 +97,34 @@ export const requestHighlightsTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = {}
 
-      if (!params.userEmail && !params.userID) {
+      /*
+       * Trim before testing presence: a whitespace-only value from an upstream
+       * block is not an identity, and forwarding it would have LogRocket reject
+       * the request instead of failing here with a usable message.
+       */
+      const userEmail = params.userEmail?.trim()
+      const userID = params.userID?.trim()
+      const question = params.question?.trim()
+      const webhookURL = params.webhookURL?.trim()
+
+      if (!userEmail && !userID) {
         throw new Error(
           'LogRocket Request Highlights: provide either a user email or a user ID to summarize'
         )
       }
 
-      if (params.userEmail) body.userEmail = params.userEmail
-      if (params.userID) body.userID = params.userID
-      if (params.question) body.question = params.question
-      if (params.webhookURL) body.webhookURL = params.webhookURL
+      if (userEmail) body.userEmail = userEmail
+      if (userID) body.userID = userID
+      if (question) body.question = question
+      if (webhookURL) body.webhookURL = webhookURL
 
       /*
        * The API requires both bounds whenever timeRange is present, so a partial
        * or non-numeric window fails loudly rather than silently widening the
        * search to the user's entire session history.
        */
-      const hasStart = Boolean(params.startMs)
-      const hasEnd = Boolean(params.endMs)
+      const hasStart = Boolean(params.startMs?.trim())
+      const hasEnd = Boolean(params.endMs?.trim())
       if (hasStart !== hasEnd) {
         throw new Error('LogRocket Request Highlights: startMs and endMs must be provided together')
       }
