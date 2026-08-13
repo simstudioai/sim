@@ -30,7 +30,7 @@ describe('GET /api/workspaces/[id]/files/inline', () => {
     mockReadInline.mockResolvedValue({
       file: { name: 'photo.png', type: 'image/png', size: PNG.length },
       stream: new Blob([new Uint8Array(PNG)]).stream(),
-      addressedBy: 'fileId',
+      contentAddressed: false,
     })
   })
 
@@ -66,11 +66,11 @@ describe('GET /api/workspaces/[id]/files/inline', () => {
    * rendered by two editors (the read-only placeholder, then the live one) and each renders the image
    * twice, so the image was fetched again on every one of those passes.
    */
-  it('lets the browser keep an image addressed by storage key', async () => {
+  it('lets the browser keep an image whose URL names the object that was streamed', async () => {
     mockReadInline.mockResolvedValue({
       file: { name: 'photo.png', type: 'image/png', size: PNG.length },
       stream: new Blob([new Uint8Array(PNG)]).stream(),
-      addressedBy: 'key',
+      contentAddressed: true,
     })
 
     const res = await GET(req('key=workspace%2Fws-1%2Fphoto.png'), params)

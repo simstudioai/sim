@@ -41,16 +41,54 @@ export interface FileDocSeed {
  * that ever repairs it. Running the round-trip here is that repair, and it doubles as the bound on this
  * branch: the cached path never calls `parseMarkdownToDoc`, so it is the one way into a room that the
  * parse-side limits do not cover. Returns the original bytes untouched when the snapshot is already
- * canonical (the common case) — no re-encode — and a fresh encode, preserving the CRDT's client ids, when
- * it repaired one.
+ * canonical AND already named (the common case) — no re-encode — and a fresh encode, preserving the
+ * CRDT's client ids, when it had to repair or name one.
+ *
+ * Naming happens here too, not only where a document is built: a document stored before identities
+ * existed is returned by this path on every open, so if it were skipped here those files would never
+ * acquire one and the join-ack guard could never fire for them — which is the population most likely to
+ * have a tab that outlived its room. `changed` tells the caller to store what it got back, so the
+ * identity is minted ONCE and every later open agrees with it (a re-minted one would make the guard
+ * refuse a client holding the very same document).
  */
-function canonicalSeedUpdate(cached: Uint8Array): Uint8Array {
+function prepareCachedSeed(cached: Uint8Array): { update: Uint8Array; changed: boolean } {
   const doc = new Y.Doc()
   try {
     Y.applyUpdate(doc, cached)
-    return canonicalizeYDoc(doc) ? Y.encodeStateAsUpdate(doc) : cached
+    const repaired = canonicalizeYDoc(doc)
+    const named = ensureDocumentIdentity(doc)
+    return repaired || named
+      ? { update: Y.encodeStateAsUpdate(doc), changed: true }
+      : { update: cached, changed: false }
   } finally {
     doc.destroy()
+  }
+}
+
+/**
+ * Give a document an identity if it has none, and report whether it needed one. A resumed document
+ * keeps the identity its clients already know it by — re-minting would make the join-ack guard refuse
+ * a client that holds this exact document.
+ */
+function ensureDocumentIdentity(ydoc: Y.Doc): boolean {
+  const config = ydoc.getMap(FILE_DOC_SEED.configMap)
+  if (typeof config.get(FILE_DOC_SEED.docIdKey) === 'string') return false
+  config.set(FILE_DOC_SEED.docIdKey, generateId())
+  return true
+}
+
+/** Store the file's collaborative document. Best-effort: the durable markdown is the source of truth. */
+async function storeDocument(
+  fileId: string,
+  update: Uint8Array,
+  sourceHash: string
+): Promise<void> {
+  try {
+    await saveCollabDocState(fileId, update, sourceHash)
+  } catch (error) {
+    logger.warn(`Failed to store the collaborative document for file ${fileId}`, {
+      error: getErrorMessage(error),
+    })
   }
 }
 
@@ -97,7 +135,11 @@ export async function buildFileDocSeed(
   // Cold-start fast path: the stored document already projects to THIS markdown, so apply it verbatim
   // (the Hocuspocus load-document pattern) instead of re-converting.
   if (stored?.sourceHash === sourceHash) {
-    return { update: canonicalSeedUpdate(stored.docState), version }
+    const prepared = prepareCachedSeed(stored.docState)
+    // Store a repair or a freshly-minted identity so the next open finds it done — and, for the
+    // identity, so every open names the SAME document.
+    if (prepared.changed) await storeDocument(fileId, prepared.update, sourceHash)
+    return { update: prepared.update, version }
   }
 
   const { frontmatter, body } = splitFrontmatter(buffer.toString('utf-8'))
@@ -113,23 +155,13 @@ export async function buildFileDocSeed(
     // Carry the frontmatter in the doc (not the body) so it merges across clients and a later
     // server-side edit can update it — the editor re-attaches this on autosave.
     config.set(FILE_DOC_SEED.frontmatterKey, frontmatter)
-    // Mint an identity only for a document that has none; a resumed one keeps the identity its clients
-    // already know it by.
-    if (typeof config.get(FILE_DOC_SEED.docIdKey) !== 'string') {
-      config.set(FILE_DOC_SEED.docIdKey, generateId())
-    }
+    ensureDocumentIdentity(ydoc)
     const update = Y.encodeStateAsUpdate(ydoc)
     // Store it NOW, not at the next persist. Until this row exists every cold open builds the document
     // again from markdown, minting a new identity each time — so a file that is opened but never edited
     // has a different document on every open, and any client that outlives a room (a laptop that slept
     // past the shared stream's TTL) reconnects into one and merges its content in twice.
-    try {
-      await saveCollabDocState(fileId, update, sourceHash)
-    } catch (error) {
-      logger.warn(`Failed to store the collaborative document for file ${fileId}`, {
-        error: getErrorMessage(error),
-      })
-    }
+    await storeDocument(fileId, update, sourceHash)
     return { update, version }
   } finally {
     ydoc.destroy()

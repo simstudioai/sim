@@ -69,6 +69,9 @@ describe('buildFileDocSeed', () => {
     // repaired on the way through and this would assert the fast path while never taking it.
     const cachedDoc = markdownToYDoc('# Anything')
     cachedDoc.getText('marker').insert(0, 'cached')
+    // Named, as anything the current seed stored would be — an unnamed document is rewritten once to
+    // give it an identity, which has its own test below.
+    cachedDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-already-named')
     const cached = Y.encodeStateAsUpdate(cachedDoc)
     mockFetchBuffer.mockResolvedValue(Buffer.from('# Anything', 'utf-8'))
     mockLoadState.mockResolvedValue({ docState: cached, sourceHash: 'test-source-hash' })
@@ -271,6 +274,35 @@ describe('buildFileDocSeed — document identity', () => {
     Y.applyUpdate(doc, seed!.update)
     expect(yDocToMarkdown(doc)).toBe(serializeMarkdownBody('# Title\n\nbody'))
     doc.destroy()
+  })
+
+  /**
+   * A document stored before identities existed is returned by the fast path on every open, so if it
+   * were named only where documents are BUILT those files would never acquire one — and the join-ack
+   * guard could never fire for them, which is the population most likely to have a tab that outlived
+   * its room. Naming it must also be stored, or every open would name it differently and the guard
+   * would refuse a client holding the very same document.
+   */
+  it('names a stored document that predates identities, once, and keeps that name', async () => {
+    const legacy = markdownToYDoc('# Legacy')
+    mockFetchBuffer.mockResolvedValue(Buffer.from('# Legacy', 'utf-8'))
+    mockLoadState.mockResolvedValue({
+      docState: Y.encodeStateAsUpdate(legacy),
+      sourceHash: 'test-source-hash',
+    })
+
+    const first = await buildFileDocSeed('ws-1', 'file-1')
+    const docId = docIdOf(first!.update)
+    expect(typeof docId).toBe('string')
+    expect(mockSaveState).toHaveBeenCalledWith('file-1', first!.update, 'test-source-hash')
+
+    // The next open finds it named and hands back the stored bytes untouched.
+    mockSaveState.mockClear()
+    mockLoadState.mockResolvedValue({ docState: first!.update, sourceHash: 'test-source-hash' })
+    const second = await buildFileDocSeed('ws-1', 'file-1')
+    expect(docIdOf(second!.update)).toBe(docId)
+    expect(mockSaveState).not.toHaveBeenCalled()
+    legacy.destroy()
   })
 
   it('still seeds when the document cannot be stored (the write is best-effort)', async () => {

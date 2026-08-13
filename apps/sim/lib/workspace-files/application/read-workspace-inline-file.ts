@@ -22,15 +22,16 @@ export interface ReadWorkspaceInlineFileResult {
   file: WorkspaceFileRecord
   stream: ReadableStream<Uint8Array>
   /**
-   * How the caller addressed the file, which decides whether the response may be cached.
+   * Whether the URL that produced this response names the exact storage object it streamed — the only
+   * condition under which the bytes may be cached, since a content write never rewrites an object (it
+   * uploads under a fresh key and repoints the row).
    *
-   * `key` names a storage object, and a content write never rewrites one — it uploads under a fresh
-   * key and repoints the row, so the lookup that resolved this request (an exact match on the CURRENT
-   * key) either found bytes that can never change or found nothing at all. The response is therefore
-   * immutable. `fileId` names the FILE, whose bytes move as it is edited, so those responses must keep
-   * revalidating.
+   * It is deliberately not "the caller passed a key": the key is resolved to a file and the file's
+   * CURRENT key is what gets streamed, so a rotation landing between those two reads would serve the
+   * new bytes under a URL naming the old object — cached, that would be wrong forever. A `fileId`
+   * request names the FILE, whose bytes move as it is edited, and is never content-addressed.
    */
-  addressedBy: 'key' | 'fileId'
+  contentAddressed: boolean
 }
 
 async function executeReadWorkspaceInlineFile({
@@ -50,7 +51,7 @@ async function executeReadWorkspaceInlineFile({
   return {
     file,
     stream: nodeReadableToWebStream(stream),
-    addressedBy: input.key ? 'key' : 'fileId',
+    contentAddressed: input.key !== undefined && input.key === file.key,
   }
 }
 
