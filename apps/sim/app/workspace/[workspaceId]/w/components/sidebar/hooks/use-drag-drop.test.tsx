@@ -327,6 +327,43 @@ describe('useDragDrop spring-open revert', () => {
     expect(expandedFolders.has('folder-1')).toBe(true)
   })
 
+  /**
+   * The spring-open timer is armed for 400ms, so a drag ending just before it fires leaves it
+   * pending. Relying on the effect cleanup to cancel it would let it land after the drag-end
+   * collapse had already emptied the set — re-adding the folder for the *next* drag to close, by
+   * which point the user had opened it themselves.
+   */
+  it('does not spring-open a folder when the drag ends before the timer fires', () => {
+    act(() => {
+      latest.handleDragStart(null)
+    })
+    act(() => {
+      latest
+        .createFolderDragHandlers('folder-1', null)
+        .onDragOver(fakeFolderDragOverEvent() as never)
+    })
+
+    /**
+     * Deliberately outside `act`: the race only exists while React has scheduled the drag-end state
+     * changes but not yet committed them, so the effect cleanup has not run and the timer is still
+     * armed. Wrapping this in `act` would flush the commit first and cancel the timer via the
+     * cleanup, hiding the very gap under test.
+     */
+    latest.handleDragEnd()
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+
+    expect(mockSetExpanded).not.toHaveBeenCalledWith('folder-1', true)
+    expect(expandedFolders.has('folder-1')).toBe(false)
+
+    // Nothing was left behind for a later drag to collapse.
+    act(() => {
+      latest.handleDragEnd()
+    })
+    expect(mockSetExpanded).not.toHaveBeenCalledWith('folder-1', false)
+  })
+
   it('never closes a folder the user had already opened themselves', () => {
     expandedFolders.add('folder-1')
 

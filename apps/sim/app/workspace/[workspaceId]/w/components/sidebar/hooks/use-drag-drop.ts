@@ -732,6 +732,16 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     setDropIndicator(null)
     draggedSourceFolderRef.current = null
     setHoverFolderId(null)
+    /**
+     * Disarmed here rather than left to the effect cleanup, which only runs once React commits the
+     * state changes above. A timer due within that gap would otherwise fire after the collapse
+     * below, spring-opening a folder for a drag that already ended and leaving it in the set for
+     * the next drag to close — a folder the user, by then, opened themselves.
+     */
+    if (hoverExpandTimerRef.current) {
+      clearTimeout(hoverExpandTimerRef.current)
+      hoverExpandTimerRef.current = null
+    }
     collapseAutoExpandedFolders()
   }, [collapseAutoExpandedFolders])
 
