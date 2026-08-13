@@ -145,20 +145,16 @@ function describeFileReadTarget(segments: string[]): string {
 }
 
 /**
- * Labels a docs/ corpus read as `<Section>/<page>` (e.g. `Workflows/agent` for
- * docs/workflows/blocks/agent.mdx). Top-level pages show just their capitalized
- * name (e.g. `Getting-started` for docs/getting-started.mdx).
+ * Labels a docs/ corpus read as `<section>/<page>` (e.g. `workflows/agent` for
+ * docs/workflows/blocks/agent.mdx). Top-level pages show just their name (e.g.
+ * `getting-started` for docs/getting-started.mdx).
  */
 function describeDocsReadTarget(segments: string[]): string {
   const rest = segments.slice(1)
   if (rest.length === 0) return 'docs'
   const leaf = stripExtension(rest[rest.length - 1])
-  if (rest.length === 1) return capitalizeFirst(leaf)
-  return `${capitalizeFirst(rest[0])}/${leaf}`
-}
-
-function capitalizeFirst(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1)
+  if (rest.length === 1) return leaf
+  return `${rest[0]}/${leaf}`
 }
 
 function getLeafResourceSegment(segments: string[]): string {
