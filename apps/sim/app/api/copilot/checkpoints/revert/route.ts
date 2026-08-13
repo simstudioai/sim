@@ -1,7 +1,10 @@
 import { db } from '@sim/db'
 import { workflowCheckpoints, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  WorkflowLockedError,
+} from '@sim/platform-authz/workflow'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { revertCopilotCheckpointContract } from '@/lib/api/contracts/copilot'
@@ -15,8 +18,11 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  parseWorkflowStateForPersistence,
+  saveWorkflowNormalizedState,
+} from '@/lib/workflows/persistence/save-normalized-state'
 import { isUuidV4 } from '@/executor/constants'
 
 const logger = createLogger('CheckpointRevertAPI')
@@ -121,28 +127,49 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Invalid workflow ID format' }, { status: 400 })
     }
 
-    const stateResponse = await fetch(
-      `${getInternalApiBaseUrl()}/api/workflows/${checkpoint.workflowId}/state`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Cookie: request.headers.get('Cookie') || '',
-        },
-        body: JSON.stringify(cleanedState),
-      }
-    )
-
-    if (!stateResponse.ok) {
-      const errorData = await stateResponse.text()
-      logger.error(`[${tracker.requestId}] Failed to apply checkpoint state: ${errorData}`)
+    /**
+     * The checkpoint blob is persisted JSONB, so it goes through the same
+     * schema the PUT state contract applies before it is written back — the
+     * validation the removed HTTP hop used to provide.
+     */
+    const parsedState = parseWorkflowStateForPersistence(cleanedState)
+    if (!parsedState.success) {
+      logger.error(
+        `[${tracker.requestId}] Checkpoint state failed validation`,
+        parsedState.error.issues
+      )
       return NextResponse.json(
         { error: 'Failed to revert workflow to checkpoint' },
         { status: 500 }
       )
     }
 
-    const result = await stateResponse.json()
+    /**
+     * A locked workflow used to surface here as a non-OK PUT response, so it
+     * still resolves to the same revert failure rather than the generic
+     * outer-catch message. Every other throw keeps propagating, matching the
+     * old transport-error path.
+     */
+    const saveResult = await saveWorkflowNormalizedState({
+      requestId: tracker.requestId,
+      workflowId: checkpoint.workflowId,
+      userId,
+      state: parsedState.data,
+    }).catch((error) => {
+      if (error instanceof WorkflowLockedError) {
+        return { success: false as const, status: error.status, error: error.message }
+      }
+      throw error
+    })
+
+    if (!saveResult.success) {
+      logger.error(`[${tracker.requestId}] Failed to apply checkpoint state: ${saveResult.error}`)
+      return NextResponse.json(
+        { error: 'Failed to revert workflow to checkpoint' },
+        { status: 500 }
+      )
+    }
+
     logger.info(
       `[${tracker.requestId}] Successfully reverted workflow ${checkpoint.workflowId} to checkpoint ${checkpointId}`
     )

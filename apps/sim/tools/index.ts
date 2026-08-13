@@ -56,6 +56,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
+import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
@@ -1702,8 +1703,6 @@ async function executeToolImplementation(
         `[${requestId}] Tool ${toolId} needs access token for credential: ${contextParams.credential}`
       )
       try {
-        const baseUrl = getInternalApiBaseUrl()
-
         const workflowId = contextParams._context?.workflowId
         const userId = contextParams._context?.userId
 
@@ -1724,51 +1723,86 @@ async function executeToolImplementation(
           }
         }
 
-        logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
+        /**
+         * The acting user asserted alongside an internal token. Only sent when the
+         * run enforces credential access, matching the `userId` query param the HTTP
+         * surface accepted — it never widens access, it only pins the assertion to
+         * the token subject.
+         */
+        const callerUserId =
+          userId && contextParams._context?.enforceCredentialAccess ? userId : undefined
 
-        const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
-        if (workflowId) {
-          tokenUrlObj.searchParams.set('workflowId', workflowId)
-        }
-        if (userId && contextParams._context?.enforceCredentialAccess) {
-          tokenUrlObj.searchParams.set('userId', userId)
-        }
+        let data: CredentialTokenPayload
 
-        // Always send Content-Type; add internal auth on server-side runs
-        const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
         if (typeof window === 'undefined') {
-          try {
-            const internalToken = await generateInternalToken(userId)
-            tokenHeaders.Authorization = `Bearer ${internalToken}`
-          } catch (_e) {
-            // Swallow token generation errors; the request will fail and be reported upstream
+          // Server-side runs resolve the credential through the same application
+          // operation the route calls, rather than minting an internal JWT and
+          // POSTing to ourselves through the load balancer. The synthesized
+          // `AuthResult` is exactly what verifying that self-issued token would
+          // have produced, so authorization, refresh, and audit are unchanged —
+          // including failing closed when the run carries no user id.
+          const { resolveCredentialToken } = await import('@/lib/oauth/token-resolution')
+          const result = await resolveCredentialToken(
+            { success: true, authType: 'internal_jwt', ...(userId ? { userId } : {}) },
+            {
+              requestId,
+              credentialId: contextParams.credential as string,
+              workflowId,
+              scopes: tokenPayload.scopes,
+              impersonateEmail: tokenPayload.impersonateEmail,
+              callerUserId,
+            }
+          )
+
+          if (!result.ok) {
+            logger.error(`[${requestId}] Token fetch failed for ${toolId}:`, {
+              status: result.status,
+              error: result.error,
+            })
+            const toolLabel = tool?.name || toolId
+            throw new Error(`Failed to obtain credential for ${toolLabel}: ${result.error}`)
           }
-        }
 
-        const response = await fetch(tokenUrlObj.toString(), {
-          method: 'POST',
-          headers: tokenHeaders,
-          body: JSON.stringify(tokenPayload),
-        })
+          data = result.token
+        } else {
+          const baseUrl = getInternalApiBaseUrl()
+          logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
 
-        if (!response.ok) {
-          const errorText = await response.text()
-          logger.error(`[${requestId}] Token fetch failed for ${toolId}:`, {
-            status: response.status,
-            error: errorText,
+          const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
+          if (workflowId) {
+            tokenUrlObj.searchParams.set('workflowId', workflowId)
+          }
+          if (callerUserId) {
+            tokenUrlObj.searchParams.set('userId', callerUserId)
+          }
+
+          // boundary-raw-fetch: browser-side tool runs authenticate with the session cookie against the same-origin token route
+          const response = await fetch(tokenUrlObj.toString(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(tokenPayload),
           })
-          let parsedError = errorText
-          try {
-            const parsed = JSON.parse(errorText)
-            if (parsed.error) parsedError = parsed.error
-          } catch {
-            // Use raw text
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            logger.error(`[${requestId}] Token fetch failed for ${toolId}:`, {
+              status: response.status,
+              error: errorText,
+            })
+            let parsedError = errorText
+            try {
+              const parsed = JSON.parse(errorText)
+              if (parsed.error) parsedError = parsed.error
+            } catch {
+              // Use raw text
+            }
+            const toolLabel = tool?.name || toolId
+            throw new Error(`Failed to obtain credential for ${toolLabel}: ${parsedError}`)
           }
-          const toolLabel = tool?.name || toolId
-          throw new Error(`Failed to obtain credential for ${toolLabel}: ${parsedError}`)
+
+          data = (await response.json()) as CredentialTokenPayload
         }
 
-        const data = await response.json()
         contextParams.accessToken = data.accessToken
         if (data.idToken) {
           contextParams.idToken = data.idToken

@@ -1,0 +1,197 @@
+import { db } from '@sim/db'
+import { workflow } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import {
+  assertWorkflowMutable,
+  authorizeWorkflowByWorkspacePermission,
+} from '@sim/platform-authz/workflow'
+import { eq } from 'drizzle-orm'
+import type { z } from 'zod'
+import {
+  type WorkflowStateContractOutput,
+  workflowStateSchema,
+} from '@/lib/api/contracts/workflows'
+import { env } from '@/lib/core/config/env'
+import { getSocketServerUrl } from '@/lib/core/utils/urls'
+import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
+import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
+import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
+
+const logger = createLogger('WorkflowStatePersistence')
+
+export type SaveWorkflowNormalizedStateResult =
+  | { success: true; warnings: string[] }
+  | { success: false; status: number; error: string; details?: string }
+
+/**
+ * Validates an untrusted workflow-state blob against the same schema the
+ * `PUT /api/workflows/[id]/state` contract applies. In-process callers holding a
+ * persisted blob (e.g. a copilot checkpoint) run it through here so they get the
+ * identical coercion and rejection the HTTP hop used to give them.
+ */
+export function parseWorkflowStateForPersistence(
+  value: unknown
+): z.ZodSafeParseResult<WorkflowStateContractOutput> {
+  return workflowStateSchema.safeParse(value)
+}
+
+/**
+ * Writes a complete workflow state to the normalized tables.
+ *
+ * Owns everything the state write means: write authorization, the mutability
+ * (lock) check, block/edge preparation, the row-locked save transaction, the
+ * `lastSynced`/variables update, custom-tool extraction, and the socket-server
+ * notification. Every surface that replaces a workflow's state — the PUT route
+ * and the copilot checkpoint revert — calls this, so none of those steps can be
+ * skipped by going through a different door.
+ *
+ * @throws WorkflowLockedError when the workflow is not mutable.
+ */
+export async function saveWorkflowNormalizedState(params: {
+  requestId: string
+  workflowId: string
+  userId: string
+  state: WorkflowStateContractOutput
+}): Promise<SaveWorkflowNormalizedStateResult> {
+  const { requestId, workflowId, userId, state } = params
+
+  const authorization = await authorizeWorkflowByWorkspacePermission({
+    workflowId,
+    userId,
+    action: 'write',
+  })
+  const workflowData = authorization.workflow
+
+  if (!workflowData) {
+    logger.warn(`[${requestId}] Workflow ${workflowId} not found for state update`)
+    return { success: false, status: 404, error: 'Workflow not found' }
+  }
+
+  if (!authorization.allowed) {
+    logger.warn(
+      `[${requestId}] User ${userId} denied permission to update workflow state ${workflowId}`
+    )
+    return {
+      success: false,
+      status: authorization.status || 403,
+      error: authorization.message || 'Access denied',
+    }
+  }
+
+  await assertWorkflowMutable(workflowId)
+
+  const { state: preparedState, warnings: preparationWarnings } =
+    prepareWorkflowStateForPersistence({
+      blocks: state.blocks as Record<string, BlockState>,
+      edges: state.edges as WorkflowState['edges'],
+    })
+
+  const workflowState = {
+    ...preparedState,
+    lastSaved: state.lastSaved || Date.now(),
+    isDeployed: state.isDeployed || false,
+    deployedAt: state.deployedAt,
+  }
+
+  const saveResult = await db.transaction(async (tx) => {
+    await tx
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1)
+      .for('update')
+
+    const result = await saveWorkflowToNormalizedTables(
+      workflowId,
+      workflowState as WorkflowState,
+      tx
+    )
+
+    if (!result.success) return result
+
+    const updateData: {
+      lastSynced: Date
+      updatedAt: Date
+      variables?: typeof state.variables
+    } = {
+      lastSynced: new Date(),
+      updatedAt: new Date(),
+    }
+
+    if (state.variables !== undefined) {
+      updateData.variables = state.variables
+    }
+
+    await tx.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
+
+    return result
+  })
+
+  if (!saveResult.success) {
+    logger.error(`[${requestId}] Failed to save workflow ${workflowId} state:`, saveResult.error)
+    return {
+      success: false,
+      status: 500,
+      error: 'Failed to save workflow state',
+      details: saveResult.error,
+    }
+  }
+
+  try {
+    const workspaceId = workflowData.workspaceId
+    if (workspaceId) {
+      const { saved, errors } = await extractAndPersistCustomTools(
+        workflowState,
+        workspaceId,
+        userId
+      )
+
+      if (saved > 0) {
+        logger.info(`[${requestId}] Persisted ${saved} custom tool(s) to database`, { workflowId })
+      }
+
+      if (errors.length > 0) {
+        logger.warn(`[${requestId}] Some custom tools failed to persist`, { errors, workflowId })
+      }
+    } else {
+      logger.warn(`[${requestId}] Workflow has no workspaceId, skipping custom tools persistence`, {
+        workflowId,
+      })
+    }
+  } catch (error) {
+    logger.error(`[${requestId}] Failed to persist custom tools`, { error, workflowId })
+  }
+
+  await notifySocketServer(requestId, workflowId)
+
+  return { success: true, warnings: preparationWarnings }
+}
+
+/**
+ * Best-effort nudge so connected editors reload the workflow. Never fails the
+ * write — the state is already committed by the time this runs.
+ */
+async function notifySocketServer(requestId: string, workflowId: string): Promise<void> {
+  try {
+    const notifyResponse = await fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': env.INTERNAL_API_SECRET,
+      },
+      body: JSON.stringify({ workflowId }),
+    })
+
+    if (!notifyResponse.ok) {
+      logger.warn(
+        `[${requestId}] Failed to notify Socket.IO server about workflow ${workflowId} update`
+      )
+    }
+  } catch (notificationError) {
+    logger.warn(
+      `[${requestId}] Error notifying Socket.IO server about workflow ${workflowId} update`,
+      notificationError
+    )
+  }
+}
