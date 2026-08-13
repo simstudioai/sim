@@ -111,7 +111,7 @@ List exported session files from the LogRocket Data Export API. Returns download
 | --------- | ---- | ----------- |
 | `sessions` | array | Exported session files |
 |   ↳ `url` | string | Download URL for the JSON Lines export file |
-| `cursor` | number | Cursor for the next page of results |
+| `cursor` | string | Opaque cursor for the next page of results |
 
 ### LogRocket Get Audit Logs
 
@@ -138,7 +138,7 @@ Export audit log entries from LogRocket, recording who viewed sessions and what 
 |   ↳ `user` | string | Email or system ID of the actor |
 |   ↳ `action` | string | Action taken, e.g. Viewed session |
 |   ↳ `description` | string | Action details, e.g. the session ID |
-| `cursor` | number | Cursor for the next page of results |
+| `cursor` | string | Opaque cursor for the next page of results |
 | `hasNext` | boolean | Whether more audit logs exist beyond this page |
 
 ### LogRocket Identify User

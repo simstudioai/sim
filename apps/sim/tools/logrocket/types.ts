@@ -69,7 +69,7 @@ export interface LogRocketListExportedSessionsParams extends LogRocketBaseParams
 export interface LogRocketListExportedSessionsResponse extends ToolResponse {
   output: {
     sessions: Array<{ url: string | null }>
-    cursor: number | null
+    cursor: string | null
   }
 }
 
@@ -90,7 +90,7 @@ export interface LogRocketGetAuditLogsResponse extends ToolResponse {
       action: string | null
       description: string | null
     }>
-    cursor: number | null
+    cursor: string | null
     hasNext: boolean
   }
 }

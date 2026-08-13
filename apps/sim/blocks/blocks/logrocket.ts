@@ -1,7 +1,7 @@
 import { LogRocketIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 
-/*
+/**
  * A highlights request identifies its subject by email or user ID — either one
  * alone is a valid identity, so the card sentence takes whichever is filled.
  * These are mutually exclusive alternates rather than a canonical
@@ -380,8 +380,8 @@ export const LogRocketBlock: BlockConfig = {
         'Audit log entries (time, createdDate, user, action, description) (get_audit_logs)',
     },
     cursor: {
-      type: 'number',
-      description: 'Cursor for the next page (list_exported_sessions, get_audit_logs)',
+      type: 'string',
+      description: 'Opaque cursor for the next page (list_exported_sessions, get_audit_logs)',
     },
     hasNext: {
       type: 'boolean',

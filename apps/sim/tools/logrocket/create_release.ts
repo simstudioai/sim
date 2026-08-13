@@ -69,7 +69,7 @@ export const createReleaseTool: ToolConfig<
     body: (params) => ({ version: params.version.trim() }),
   },
 
-  /*
+  /**
    * The executor rejects any non-2xx before this runs, so a duplicate version
    * (HTTP 409) surfaces as a tool error rather than a quiet no-op, and reaching
    * here means the release was registered. Only the echoed version is reported —

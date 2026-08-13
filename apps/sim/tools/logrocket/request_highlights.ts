@@ -79,7 +79,7 @@ export const requestHighlightsTool: ToolConfig<
   },
 
   request: {
-    /*
+    /**
      * Galileo Highlights answers `question` with an LLM, so that string is the
      * only model-visible field here. The identity, time-window, and webhook
      * fields are lookup and control inputs that never reach the model.
@@ -96,6 +96,12 @@ export const requestHighlightsTool: ToolConfig<
     }),
     body: (params) => {
       const body: Record<string, unknown> = {}
+
+      if (!params.userEmail && !params.userID) {
+        throw new Error(
+          'LogRocket Request Highlights: provide either a user email or a user ID to summarize'
+        )
+      }
 
       if (params.userEmail) body.userEmail = params.userEmail
       if (params.userID) body.userID = params.userID
@@ -119,6 +125,9 @@ export const requestHighlightsTool: ToolConfig<
           throw new Error(
             'LogRocket Request Highlights: startMs and endMs must be milliseconds since epoch'
           )
+        }
+        if (startMs >= endMs) {
+          throw new Error('LogRocket Request Highlights: startMs must be earlier than endMs')
         }
         body.timeRange = { startMs, endMs }
       }

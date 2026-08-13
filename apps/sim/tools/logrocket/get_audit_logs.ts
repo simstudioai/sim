@@ -68,7 +68,7 @@ export const getAuditLogsTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = (await throwOnError(response, 'LogRocket Audit Log API')) as {
       has_next?: boolean
-      cursor?: number
+      cursor?: string | number
       logs?: Array<{
         time?: string
         created_date?: string
@@ -90,7 +90,7 @@ export const getAuditLogsTool: ToolConfig<
       success: true,
       output: {
         logs,
-        cursor: data?.cursor ?? null,
+        cursor: data?.cursor === undefined || data.cursor === null ? null : String(data.cursor),
         hasNext: data?.has_next ?? false,
       },
     }
@@ -112,8 +112,8 @@ export const getAuditLogsTool: ToolConfig<
       },
     },
     cursor: {
-      type: 'number',
-      description: 'Cursor for the next page of results',
+      type: 'string',
+      description: 'Opaque cursor for the next page of results',
       optional: true,
     },
     hasNext: {

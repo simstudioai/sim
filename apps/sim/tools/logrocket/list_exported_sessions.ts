@@ -74,7 +74,7 @@ export const listExportedSessionsTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = (await throwOnError(response, 'LogRocket Data Export API')) as {
-      cursor?: number
+      cursor?: string | number
       sessions?: Array<{ url?: string }>
     } | null
 
@@ -86,7 +86,7 @@ export const listExportedSessionsTool: ToolConfig<
       success: true,
       output: {
         sessions,
-        cursor: data?.cursor ?? null,
+        cursor: data?.cursor === undefined || data.cursor === null ? null : String(data.cursor),
       },
     }
   },
@@ -103,8 +103,8 @@ export const listExportedSessionsTool: ToolConfig<
       },
     },
     cursor: {
-      type: 'number',
-      description: 'Cursor for the next page of results',
+      type: 'string',
+      description: 'Opaque cursor for the next page of results',
       optional: true,
     },
   },
