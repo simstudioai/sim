@@ -118,7 +118,12 @@ async function selectWorkspaceWithOwner(
  * single query.
  *
  * Outside a Server Component render React evaluates this normally and retains
- * nothing, so API routes and background work are unaffected.
+ * nothing, so API routes and background work are unaffected — verified against this
+ * Next version in both dev and production builds.
+ *
+ * The row this returns is SHARED by every consumer in the render, including the
+ * `workspace` on each viewer's access result. Treat it as immutable: an in-place edit
+ * would poison every gate that reads it for the rest of the pass.
  */
 const readWorkspaceWithOwner = cache(
   (workspaceId: string): Promise<WorkspaceWithOwner | null> =>

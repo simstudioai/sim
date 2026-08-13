@@ -527,6 +527,8 @@ describe('workspace list prefetches', () => {
 
       expect(mockListWorkspaceFilesWithShares).toHaveBeenCalledWith(WORKSPACE_ID, 'active', {
         maxRows: WORKSPACE_FILE_SEED_MAX,
+        /** A failed read must reach the catch, not degrade to a cached empty list. */
+        throwOnError: true,
       })
       expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual(files)
     })

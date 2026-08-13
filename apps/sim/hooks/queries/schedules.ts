@@ -249,6 +249,11 @@ export function useRedeployWorkflowSchedule() {
       const { workflowId, blockId } = data
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: scheduleKeys.schedule(workflowId, blockId) }),
+        /**
+         * A redeploy recreates the schedule, so the id-keyed reads go stale too. They are
+         * a separate subtree from `schedule(workflowId, blockId)`, which does not cover them.
+         */
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.byIds() }),
         queryClient.invalidateQueries({ queryKey: deploymentKeys.info(workflowId) }),
         queryClient.invalidateQueries({ queryKey: deploymentKeys.versions(workflowId) }),
       ])

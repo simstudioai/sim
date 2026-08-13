@@ -129,6 +129,33 @@ describe('useDeleteColumn optimistic update', () => {
     expect(ctx?.rowSnapshots?.length).toBeGreaterThan(0)
   })
 
+  /**
+   * The `find` cache hangs off the same `rowsRoot` parent as the paged rows but holds
+   * `{matches, truncated}` — no `pages`, no `rows`. A cache walk starting at the shared
+   * parent reaches it and throws inside `onMutate`, rejecting the mutation before it ever
+   * reaches the server: search a table, dismiss the search, then edit a cell.
+   */
+  it('survives a cached search result hanging off the shared rows prefix', async () => {
+    setCache(tableKeys.detail(TABLE_ID), {
+      id: TABLE_ID,
+      schema: { columns: [{ name: 'age', type: 'number' }] },
+    })
+    setCache(ROWS_KEY, {
+      rows: [{ id: 'r1', data: { age: 1 } }],
+      totalCount: 1,
+    })
+    setCache(tableKeys.find(TABLE_ID, 'q'), { matches: [{ rowId: 'r1', column: 'age' }] })
+
+    const hook = useDeleteColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+
+    await expect(hook.onMutate?.('age')).resolves.toBeDefined()
+
+    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(ROWS_KEY)
+    expect(rows?.rows[0]?.data).toEqual({})
+    /** The find entry is match coordinates, not row values — it must be left untouched. */
+    expect(getCache<{ matches: unknown[] }>(tableKeys.find(TABLE_ID, 'q'))?.matches).toHaveLength(1)
+  })
+
   it('rolls back schema and rows on error using snapshots', async () => {
     const originalDetail = {
       id: TABLE_ID,

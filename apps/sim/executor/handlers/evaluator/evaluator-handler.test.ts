@@ -145,6 +145,37 @@ describe('EvaluatorBlockHandler', () => {
     expect(handler.canHandle(nonEvalBlock)).toBe(false)
   })
 
+  /**
+   * The admission checks the removed `/api/providers` hop owned. Mirrors the router's
+   * coverage — both handlers reach the provider through the same shared entry point.
+   */
+  const admissionInputs = {
+    content: 'Evaluate this.',
+    metrics: [{ name: 'score1', description: 'First score', range: { min: 0, max: 10 } }],
+    model: 'gpt-4o',
+    apiKey: 'test-api-key',
+  }
+
+  it('refuses to reach the provider without an execution subject', async () => {
+    mockContext.userId = undefined
+
+    await expect(handler.execute(mockContext, mockBlock, admissionInputs)).rejects.toThrow(
+      'Unauthorized'
+    )
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
+  it('refuses to reach the provider when the subject lost workspace access', async () => {
+    mockContext.workspaceId = 'test-workspace'
+    mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: false })
+
+    await expect(handler.execute(mockContext, mockBlock, admissionInputs)).rejects.toThrow(
+      'Forbidden'
+    )
+    expect(mockCheckWorkspaceAccess).toHaveBeenCalledWith('test-workspace', 'test-user')
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
   it('should execute evaluator block correctly with basic inputs', async () => {
     const inputs = {
       content: 'This is the content to evaluate.',

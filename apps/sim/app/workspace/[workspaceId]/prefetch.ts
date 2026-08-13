@@ -130,6 +130,12 @@ async function seedWorkspaceFiles(queryClient: QueryClient, workspaceId: string)
   try {
     const files = await listWorkspaceFilesWithShares(workspaceId, 'active', {
       maxRows: WORKSPACE_FILE_SEED_MAX,
+      /**
+       * A failed read must reach the catch below, not degrade to an empty list: seeding
+       * `[]` would cache "this workspace has no files" as authoritative for the entry's
+       * lifetime, which is worse than seeding nothing and letting the client fetch.
+       */
+      throwOnError: true,
     })
     if (!files) return
     queryClient.setQueryData(workspaceFilesKeys.list(workspaceId, 'active'), files)

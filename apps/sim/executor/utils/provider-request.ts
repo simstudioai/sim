@@ -60,17 +60,32 @@ export async function executeBlockProviderRequest({
    * model-emitted tool calls, and the route this replaces never carried one.
    * Router and evaluator requests declare no tools, so passing the executor's
    * context here would widen the trusted surface without changing any outcome.
+   *
+   * The whole runtime context is omitted when there is no registry, rather than
+   * passed carrying `undefined`. `executeProviderTool` reads a present context with
+   * an absent registry as "provenance was expected and is missing" and fails the
+   * call closed with no error text — unreachable while these blocks declare no
+   * tools, but a silent failure the day one does.
    */
   const response = await executeProviderRequest(
     providerId,
     { ...request, userId: ctx.userId },
-    { resolvedSecretTraceRegistry }
+    resolvedSecretTraceRegistry ? { resolvedSecretTraceRegistry } : undefined
   )
 
-  if (response instanceof ReadableStream || (response !== null && 'stream' in response)) {
+  if (
+    response instanceof ReadableStream ||
+    (typeof response === 'object' && response !== null && 'stream' in response)
+  ) {
     logger.error('Provider returned a stream for a non-streaming block request', { providerId })
     throw new Error('Provider returned a streaming response for a non-streaming request')
   }
+
+  logger.info('Provider request completed', {
+    providerId,
+    model: request.model,
+    workflowId: ctx.workflowId,
+  })
 
   return response
 }
