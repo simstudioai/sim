@@ -66,6 +66,7 @@ vi.mock('@/lib/uploads/upload-session/provider', () => ({
   uploadStorageProvider: vi.fn(() => 's3'),
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
 import {
   abortUploadSession,
@@ -75,6 +76,7 @@ import {
   createUploadPartUrls,
   createUploadSession,
   createUploadSessionAuthBinding,
+  expectedUploadPartSize,
   getOwnedUploadSession,
   getPrincipalKnowledgeDocumentUploadSession,
   UPLOAD_SESSION_PART_SIZE,
@@ -652,6 +654,32 @@ describe('upload sessions', () => {
         localOrigin: 'http://localhost:3000',
       })
     ).rejects.toMatchObject({ code: 'validation' })
+  })
+
+  /**
+   * The part-number path segment of a signed part URL is caller-editable, so
+   * the size lookup is a request boundary. It has to classify an out-of-range
+   * part as a validation failure for the data-plane route to answer 400 rather
+   * than falling through to its generic 500.
+   */
+  it('classifies an out-of-range part number as a validation failure', () => {
+    const multipart = sessionRecord({
+      method: 'multipart',
+      partSize: UPLOAD_SESSION_PART_SIZE,
+      partCount: 2,
+      fileSize: UPLOAD_SESSION_PART_SIZE + 1,
+    })
+
+    expect(expectedUploadPartSize(multipart, 1)).toBe(UPLOAD_SESSION_PART_SIZE)
+    expect(expectedUploadPartSize(multipart, 2)).toBe(1)
+    expect(() => expectedUploadPartSize(multipart, 3)).toThrow(OrchestrationError)
+    expect(() => expectedUploadPartSize(multipart, 3)).toThrow('partNumber must be between 1 and 2')
+    try {
+      expectedUploadPartSize(multipart, 3)
+      expect.unreachable('out-of-range part number must throw')
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'validation' })
+    }
   })
 
   it('loads ownership from PostgreSQL and rejects a mismatched token', async () => {

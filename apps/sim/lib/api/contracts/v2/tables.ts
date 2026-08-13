@@ -390,24 +390,23 @@ export const v2TableColumnInputSchema = z
   .strict()
   .superRefine(refineColumnOptions)
 
-const v2InitialTableColumnInputSchema = z
-  .object({
-    ...v2TableColumnInputShape,
-    workflowGroupId: z
-      .string()
-      .optional()
-      .describe('Workflow group initially associated with the column.'),
-  })
-  .strict()
-  .superRefine(refineColumnOptions)
-
+/**
+ * Initial columns take the same shape as every other v2 column input.
+ *
+ * They deliberately cannot name a workflow group: v2 has no way to declare one
+ * on this body and mints group ids server-side, so any id a caller supplied
+ * would necessarily dangle. A dangling `workflowGroupId` is a schema invariant
+ * violation, and `createTable` does not check it while every later schema
+ * mutation does — so accepting the field made the table's own columns and
+ * groups permanently unaddable, with no update body field able to clear it.
+ */
 export const v2CreateTableBodySchema = v1CreateTableBodySchema
   .omit({ folderId: true, schema: true })
   .extend({
     schema: z
       .object({
         columns: z
-          .array(v2InitialTableColumnInputSchema)
+          .array(v2TableColumnInputSchema)
           .min(1, 'Table must have at least one column')
           .max(
             TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,

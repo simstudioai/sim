@@ -1965,22 +1965,22 @@
             "name": "workspaceId",
             "in": "query",
             "required": true,
-            "description": "Workspace in which the secret is available.",
+            "description": "Workspace the request is authorized against. A workspace secret is deleted from it; a personal secret is deleted for the caller in all of their workspaces.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Workspace in which the secret is available."
+              "description": "Workspace the request is authorized against. A workspace secret is deleted from it; a personal secret is deleted for the caller in all of their workspaces."
             }
           },
           {
             "name": "scope",
             "in": "query",
             "required": true,
-            "description": "Whether the secret belongs to the workspace or the caller.",
+            "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace.",
             "schema": {
               "type": "string",
               "enum": ["workspace", "personal"],
-              "description": "Whether the secret belongs to the workspace or the caller."
+              "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
             }
           }
         ],
@@ -4088,7 +4088,7 @@
           "scope": {
             "type": "string",
             "enum": ["workspace", "personal"],
-            "description": "Whether the secret belongs to the workspace or the caller."
+            "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
           },
           "role": {
             "type": "string",
@@ -4184,12 +4184,12 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
-            "description": "Workspace in which the secret is available."
+            "description": "Workspace the request is authorized against. A workspace secret is written to it; a personal secret is written to the caller and is available in all of their workspaces."
           },
           "scope": {
             "type": "string",
             "enum": ["workspace", "personal"],
-            "description": "Whether the secret belongs to the workspace or the caller."
+            "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
           },
           "value": {
             "type": "string",
@@ -4224,7 +4224,7 @@
           "scope": {
             "type": "string",
             "enum": ["workspace", "personal"],
-            "description": "Whether the secret belongs to the workspace or the caller."
+            "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
           },
           "deleted": {
             "type": "boolean",

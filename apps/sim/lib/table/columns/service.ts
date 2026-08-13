@@ -39,6 +39,7 @@ import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutati
 import type { DbTransaction } from '@/lib/table/planner'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
+import { assertValidSchema } from '@/lib/table/schema-invariants'
 import { selectValueToNames } from '@/lib/table/select-values'
 import { withLockedTable } from '@/lib/table/service'
 import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
@@ -57,7 +58,6 @@ import type {
   UpdateColumnTypeData,
 } from '@/lib/table/types'
 import { validateColumnDefinition } from '@/lib/table/validation'
-import { assertValidSchema } from '@/lib/table/workflow-columns'
 import { stripGroupDeps } from '@/lib/table/workflow-group-deps'
 
 const logger = createLogger('TableColumnService')
