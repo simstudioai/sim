@@ -34,11 +34,15 @@ vi.mock('@/lib/billing/storage', () => ({
   resolveStorageBillingContext: mockResolveBillingContext,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  generateWorkspaceFileKey: vi.fn(
-    (workspaceId: string, fileName: string) => `workspace/${workspaceId}/final-${fileName}`
-  ),
-}))
+vi.mock('@/lib/uploads/contexts/workspace', async () => {
+  const { buildStorageKeySegment } = await import('@/lib/uploads/core/storage-key')
+  return {
+    generateWorkspaceFileKey: vi.fn(
+      (workspaceId: string, fileName: string) =>
+        `workspace/${workspaceId}/${buildStorageKeySegment('final-', fileName)}`
+    ),
+  }
+})
 
 vi.mock('@/lib/uploads/upload-session/cleanup', () => ({
   maybeCleanupLocalUploadArtifacts: vi.fn().mockResolvedValue({ scanned: 0, removed: 0 }),
@@ -56,6 +60,7 @@ vi.mock('@/lib/uploads/upload-session/provider', () => ({
   uploadStorageProvider: vi.fn(() => 's3'),
 }))
 
+import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
 import {
   abortUploadSession,
   assertUploadSessionAuthBinding,
@@ -135,6 +140,42 @@ describe('upload sessions', () => {
       workspaceId: WORKSPACE_ID,
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
     })
+  })
+
+  // Local storage stores an object's metadata sidecar beside it, under the
+  // object's own name, so the whole key + suffix must fit one path component.
+  // Three purposes built their key by hand and admitted a 255-character name
+  // straight into it: the session was created, its transfer URL issued, and
+  // every request against it then failed with an unclassifiable 500.
+  it.each([
+    ['workspace_file', {}],
+    ['knowledge_document', { knowledgeBaseId: 'kb-1' }],
+    ['table_import', {}],
+    ['profile_picture', {}],
+    ['workspace_logo', {}],
+    ['mothership_attachment', {}],
+    ['execution_attachment', { workflowId: 'workflow-1', executionId: 'execution-1' }],
+  ])('bounds the %s key so its local sidecar still fits', async (purpose, extra) => {
+    dbChainMockFns.returning.mockResolvedValue([uploadRow({ purpose })])
+
+    await createUploadSession({
+      id: 'upload-1',
+      workspaceId: WORKSPACE_ID,
+      userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      purpose: purpose as Parameters<typeof createUploadSession>[0]['purpose'],
+      fileName: `${'a'.repeat(251)}.txt`,
+      contentType: 'text/plain',
+      fileSize: 4,
+      localOrigin: 'http://localhost:3000',
+      ...extra,
+    } as Parameters<typeof createUploadSession>[0])
+
+    const { finalKey } = dbChainMockFns.values.mock.calls[0][0]
+    const lastComponent = finalKey.slice(finalKey.lastIndexOf('/') + 1)
+    expect(
+      Buffer.byteLength(`${lastComponent}${LOCAL_UPLOAD_METADATA_SUFFIX}`, 'utf-8')
+    ).toBeLessThanOrEqual(255)
   })
 
   it('allocates distinct keys for same-named execution attachments', async () => {

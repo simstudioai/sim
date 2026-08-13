@@ -8,6 +8,7 @@ import {
   USE_GCS_STORAGE,
   USE_S3_STORAGE,
 } from '@/lib/uploads/config'
+import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
 import type { AzureMultipartPart, BlobConfig } from '@/lib/uploads/providers/blob/types'
 import type { GcsConfig, GcsMultipartPart } from '@/lib/uploads/providers/gcs/types'
 import type { S3Config, S3MultipartPart } from '@/lib/uploads/providers/s3/types'
@@ -24,9 +25,6 @@ import type {
 import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('StorageService')
-
-/** Sidecar attached to local objects promoted through the upload-session transport. */
-export const LOCAL_UPLOAD_METADATA_SUFFIX = '.upload-metadata.json'
 
 /**
  * Create a Blob config from StorageConfig

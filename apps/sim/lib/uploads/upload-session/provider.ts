@@ -22,11 +22,11 @@ import {
   USE_S3_STORAGE,
 } from '@/lib/uploads/config'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
+import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
 import {
   createBlobConfig,
   createGcsConfig,
   createS3Config,
-  LOCAL_UPLOAD_METADATA_SUFFIX,
 } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
 import type { UploadStorageProvider } from '@/lib/uploads/upload-session/types'
@@ -512,9 +512,11 @@ export async function writeLocalPutObject(params: {
 }): Promise<void> {
   const { Readable, Transform } = await import('node:stream')
   const destination = localObjectPath(params.key)
-  const temporary = `${destination}.${params.uploadId}-${generateId()}.tmp`
-  const temporaryMetadata = `${temporary}${LOCAL_UPLOAD_METADATA_SUFFIX}`
-  await mkdir(dirname(destination), { recursive: true })
+  const { object: temporary, metadata: temporaryMetadata } = localStagedPaths(params.uploadId)
+  await Promise.all([
+    mkdir(dirname(destination), { recursive: true }),
+    mkdir(dirname(temporary), { recursive: true }),
+  ])
   let bytes = 0
   const counter = new Transform({
     transform(chunk: Buffer, _encoding, callback) {
@@ -602,8 +604,41 @@ export async function writeLocalMultipartPart(params: {
   }
 }
 
+/**
+ * Roots the local data plane owns inside the upload directory.
+ *
+ * Both hold work-in-progress rather than stored objects, so both are swept by
+ * the local cleanup job. Naming them here keeps that sweep and the writers
+ * agreeing on one set — a root known only to its writer accumulates forever.
+ */
+export const LOCAL_MULTIPART_ROOT = '.multipart'
+export const LOCAL_STAGING_ROOT = '.staging'
+
 function localPartsDirectory(uploadId: string): string {
-  return join(UPLOAD_DIR_SERVER, '.multipart', uploadId)
+  return join(UPLOAD_DIR_SERVER, LOCAL_MULTIPART_ROOT, uploadId)
+}
+
+/**
+ * Paths for an object being staged before it is published at its final key.
+ *
+ * Staged names are derived from the upload id alone, never from the
+ * destination. A temporary built as `destination + suffix` inherits the
+ * destination's length and then adds to it, so a key that fits `NAME_MAX`
+ * exactly still failed with `ENAMETOOLONG`: that is the 500 the upload-session
+ * PUT returned for any file name past roughly 125 characters, and the identical
+ * failure multipart `complete` returned while assembling one. Deriving the
+ * staged name from a fixed-width id removes the arithmetic rather than
+ * re-budgeting it — no suffix added here can depend on the caller's file name,
+ * so no future suffix can reintroduce the overflow.
+ *
+ * The staging root sits inside `UPLOAD_DIR_SERVER`, which keeps publication a
+ * same-filesystem `link` and lets the cleanup sweep reclaim what a crashed
+ * request left behind — artifacts written next to the destination were never
+ * swept at all.
+ */
+function localStagedPaths(uploadId: string): { object: string; metadata: string } {
+  const object = join(UPLOAD_DIR_SERVER, LOCAL_STAGING_ROOT, `${uploadId}-${generateId()}.tmp`)
+  return { object, metadata: `${object}${LOCAL_UPLOAD_METADATA_SUFFIX}` }
 }
 
 function localPartPath(uploadId: string, partNumber: number): string {
@@ -626,9 +661,11 @@ async function assembleLocalParts(
   metadata: Record<string, string>
 ): Promise<void> {
   const destination = localObjectPath(key)
-  const temporary = `${destination}.${uploadId}-${generateId()}.tmp`
-  const temporaryMetadata = `${temporary}${LOCAL_UPLOAD_METADATA_SUFFIX}`
-  await mkdir(dirname(destination), { recursive: true })
+  const { object: temporary, metadata: temporaryMetadata } = localStagedPaths(uploadId)
+  await Promise.all([
+    mkdir(dirname(destination), { recursive: true }),
+    mkdir(dirname(temporary), { recursive: true }),
+  ])
   try {
     for (const part of parts) {
       await pipeline(

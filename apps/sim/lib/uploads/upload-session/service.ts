@@ -15,6 +15,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateUniqueExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
   MAX_WORKSPACE_FILE_SIZE,
@@ -41,7 +42,6 @@ import type {
   UploadStorageProvider,
   UploadTransferMethod,
 } from '@/lib/uploads/upload-session/types'
-import { sanitizeFileName } from '@/executor/constants'
 
 export const UPLOAD_SESSION_PUT_MAX_BYTES = 50 * 1024 * 1024
 export const UPLOAD_SESSION_PART_SIZE = 8 * 1024 * 1024
@@ -1200,7 +1200,7 @@ function resolveUploadStorage(
     case 'table_import':
       return {
         storageContext: 'table-import',
-        finalKey: `table-import/${params.workspaceId}/${id}/${sanitizeFileName(params.fileName)}`,
+        finalKey: `table-import/${params.workspaceId}/${id}/${buildStorageKeySegment('', params.fileName)}`,
       }
     case 'knowledge_document':
       return {
@@ -1210,12 +1210,12 @@ function resolveUploadStorage(
     case 'profile_picture':
       return {
         storageContext: 'profile-pictures',
-        finalKey: `profile-pictures/${id}-${sanitizeFileName(params.fileName)}`,
+        finalKey: `profile-pictures/${buildStorageKeySegment(`${id}-`, params.fileName)}`,
       }
     case 'workspace_logo':
       return {
         storageContext: 'workspace-logos',
-        finalKey: `workspace-logos/${params.workspaceId}/${id}-${sanitizeFileName(params.fileName)}`,
+        finalKey: `workspace-logos/${params.workspaceId}/${buildStorageKeySegment(`${id}-`, params.fileName)}`,
       }
     case 'mothership_attachment':
       return {

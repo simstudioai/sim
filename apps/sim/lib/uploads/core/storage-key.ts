@@ -8,6 +8,40 @@ import { sanitizeFileName } from '@/executor/constants'
  */
 const MAX_STORAGE_KEY_SEGMENT_BYTES = 255
 
+/** Sidecar attached to local objects promoted through the upload-session transport. */
+export const LOCAL_UPLOAD_METADATA_SUFFIX = '.upload-metadata.json'
+
+/**
+ * Every suffix local storage appends to a stored object's own path component.
+ *
+ * The key's last component is not the only component derived from a file name.
+ * Local storage writes siblings named after the object plus a fixed suffix, and
+ * `NAME_MAX` bounds those siblings too — so the budget a name may spend is
+ * `255 − the longest suffix`, not 255. Reserving that here is what makes the
+ * reservation survive a second sidecar: adding an entry to this list shrinks
+ * every key builder's budget at once, while a suffix invented at the write site
+ * silently reopens the overflow this module exists to close.
+ *
+ * Transient artifacts are deliberately absent. The local upload provider stages
+ * them under a path derived from the upload id alone, so no temporary name
+ * inherits the file name's length and none needs a reservation here.
+ *
+ * Every entry is ASCII, so `length` is its byte count.
+ */
+const LOCAL_OBJECT_SIDECAR_SUFFIXES = [LOCAL_UPLOAD_METADATA_SUFFIX] as const
+
+const MAX_SIDECAR_SUFFIX_BYTES = Math.max(
+  ...LOCAL_OBJECT_SIDECAR_SUFFIXES.map((suffix) => suffix.length)
+)
+
+/**
+ * Bytes a key's last component may occupy, sidecars accounted for.
+ *
+ * Exported so a store-shaped test can assert the invariant end to end rather
+ * than restate the arithmetic.
+ */
+export const MAX_STORAGE_KEY_NAME_BYTES = MAX_STORAGE_KEY_SEGMENT_BYTES - MAX_SIDECAR_SUFFIX_BYTES
+
 /**
  * Longest trailing `.ext` worth preserving through a truncation. Beyond this
  * the dot is part of the name, not a type marker, and keeping it would eat the
@@ -54,15 +88,19 @@ function fitStorageKeyName(safeName: string, budget: number): string {
  * a store rejects. The name in a key is a debugging convenience — the row's
  * `originalName` is the identity — so truncating it costs nothing.
  *
+ * The budget is {@link MAX_STORAGE_KEY_NAME_BYTES}, not `NAME_MAX` itself: local
+ * storage stores sidecars beside the object under the object's own name, and a
+ * component that fills `NAME_MAX` exactly leaves its sidecar nowhere to go.
+ *
  * @param prefix Fixed leading text of the component (uniquifier, timestamp).
  *   Must itself leave room for at least one character of the name.
  * @param fileName Raw caller-supplied name; sanitized here.
  */
 export function buildStorageKeySegment(prefix: string, fileName: string): string {
-  const budget = MAX_STORAGE_KEY_SEGMENT_BYTES - prefix.length
+  const budget = MAX_STORAGE_KEY_NAME_BYTES - prefix.length
   if (budget < 1) {
     throw new Error(
-      `Storage key prefix of ${prefix.length} bytes leaves no room for a file name within ${MAX_STORAGE_KEY_SEGMENT_BYTES} bytes`
+      `Storage key prefix of ${prefix.length} bytes leaves no room for a file name within ${MAX_STORAGE_KEY_NAME_BYTES} bytes`
     )
   }
   return `${prefix}${fitStorageKeyName(sanitizeFileName(fileName), budget)}`
