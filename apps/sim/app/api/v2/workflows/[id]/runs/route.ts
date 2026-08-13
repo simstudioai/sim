@@ -3,8 +3,11 @@ import {
   v2ListWorkflowRunsContract,
   v2WorkflowRunListStatusValueSchema,
 } from '@/lib/api/contracts/v2/workflows'
-import { cursorScopeKey, instantScopePart } from '@/lib/api/cursor-binding'
-import { INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
+import {
+  cursorScopeKey,
+  instantScopePart,
+  UNREADABLE_CURSOR_MESSAGE,
+} from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
@@ -53,7 +56,7 @@ export const GET = defineV2JsonRoute({
         Number.isNaN(cursorDate.getTime()) ||
         typeof cursorRowId !== 'string')
     ) {
-      throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
+      throw new OrchestrationError('validation', UNREADABLE_CURSOR_MESSAGE)
     }
 
     return {

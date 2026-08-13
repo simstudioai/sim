@@ -75,6 +75,7 @@ vi.mock('@/lib/workflows/application/resolve-workflow-outputs', () => ({
   loadResolvedWorkflowOutputs: mocks.loadWorkflowOutputs,
 }))
 
+import { v2WorkflowGroupSchema } from '@/lib/api/contracts/v2/tables'
 import {
   addWorkflowTableGroupOutput,
   createTableEnrichmentGroup,
@@ -305,6 +306,33 @@ describe('workflow and enrichment Table application commands', () => {
     expect(mocks.addGroup).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
     expect(mocks.signal).not.toHaveBeenCalled()
+  })
+
+  it('stores an empty workflowId for a public enrichment group that omits it', async () => {
+    const result = await createTableGroupUseCase.execute({
+      principal,
+      input: {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        group: {
+          type: 'enrichment',
+          enrichmentId: 'company-domain',
+          name: 'Company Domain',
+          outputs: [{ blockId: '', path: '', outputId: 'domain', columnName: 'domain' }],
+        },
+        outputColumns: [{ name: 'domain', type: 'string' }],
+      },
+    })
+
+    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
+    expect(mocks.addGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        group: expect.objectContaining({ id: 'generated-id', workflowId: '' }),
+      }),
+      'request-1'
+    )
+    expect(result.group.workflowId).toBe('')
+    expect(v2WorkflowGroupSchema.safeParse(result.group).success).toBe(true)
   })
 
   it('preserves the internal create contract for an invalid related workflow', async () => {

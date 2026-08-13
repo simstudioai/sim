@@ -1,5 +1,5 @@
 import { v2ListAuditLogsContract } from '@/lib/api/contracts/v2/audit-logs'
-import { cursorScopeKey, instantScopePart } from '@/lib/api/cursor-binding'
+import { cursorScopeKey, instantScopePart, unorderedScopePart } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -27,7 +27,7 @@ function auditLogCursorFilters(query: {
     organizationId: query.organizationId,
     includeDeparted: query.includeDeparted,
     action: query.action,
-    resourceType: query.resourceType,
+    resourceType: unorderedScopePart(query.resourceType),
     resourceId: query.resourceId,
     workspaceId: query.workspaceId,
     actorEmail: query.actorEmail,

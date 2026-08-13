@@ -1788,6 +1788,40 @@ function bulkUpdateValidationError(
   return schemaValidation.valid ? null : schemaValidation.errors.join(', ')
 }
 
+/**
+ * Validates the patch on its own, before any row is scanned, so a value the
+ * column type cannot store is answered the same way whether the filter matches
+ * rows or none. {@link validateBulkUpdateMatches} only runs once a page comes
+ * back, which left a zero-match filter reporting success for a value the write
+ * would never have accepted.
+ *
+ * Restricted to the columns the caller actually supplied a non-null value for:
+ * absent columns must not raise a missing-required error on a partial patch,
+ * and a patched null is left to the merged-row check that already polices it.
+ * Pre-existing stored values are not in scope here at all, so the patched-keys
+ * narrowing the merged check relies on is untouched.
+ */
+function validateBulkUpdatePatch(
+  table: TableDefinition,
+  patch: RowData,
+  policy: UncoercibleValuePolicy | undefined
+): void {
+  const suppliedColumns = table.schema.columns.filter((column) => {
+    const value = patch[getColumnId(column)]
+    return value !== null && value !== undefined
+  })
+  if (suppliedColumns.length === 0) return
+
+  const validation = coerceRowToSchema(
+    { ...patch },
+    { ...table.schema, columns: suppliedColumns },
+    policy
+  )
+  if (!validation.valid) {
+    throw new OrchestrationError('validation', validation.errors.join(', '))
+  }
+}
+
 /** Validates a bounded page of rows against a bulk merge patch. */
 function validateBulkUpdateMatches(
   table: TableDefinition,
@@ -1963,6 +1997,7 @@ export async function updateRowsByFilter(
   )
 
   coerceRowValues(data.data, table.schema, options.uncoercibleValues)
+  validateBulkUpdatePatch(table, data.data, options.uncoercibleValues)
   const uniqueColumns = getUniqueColumns(table.schema)
   const uniqueColumnsInUpdate = uniqueColumns.filter((col) => getColumnId(col) in data.data)
   const patchJson = JSON.stringify(data.data)

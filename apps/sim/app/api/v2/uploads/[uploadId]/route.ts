@@ -8,12 +8,7 @@ import {
   getOwnedUploadSession,
   uploadSessionObjectMetadata,
 } from '@/lib/uploads/upload-session/service'
-import {
-  v2Error,
-  v2HttpError,
-  v2UploadDataPlaneError,
-  v2ValidationError,
-} from '@/app/api/v2/lib/response'
+import { v2Error, v2HttpError, v2UploadDataPlaneError } from '@/app/api/v2/lib/response'
 
 interface LocalPutRouteParams {
   params: Promise<{ uploadId: string }>

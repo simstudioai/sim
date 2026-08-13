@@ -76,6 +76,73 @@ describe('v2 knowledge contracts', () => {
   })
 })
 
+function parseTagFilter(filter: unknown) {
+  return v2SearchKnowledgeContract.body?.safeParse({
+    workspaceId: 'workspace-1',
+    knowledgeBaseIds: ['kb-1'],
+    query: 'support',
+    tagFilters: [filter],
+  })
+}
+
+/**
+ * An operator the builders do not implement used to be admitted here and then
+ * diverge downstream: the document list dropped the predicate and answered with
+ * the whole knowledge base, while search fell through to equality. The same trap
+ * the search body closed with `.strict()` was left open in the array element, so
+ * a mis-cased `valueto` was stripped and its `between` filter lost its bound.
+ */
+describe('v2 knowledge search tag filter', () => {
+  it('rejects an operator no field type implements', () => {
+    expect(
+      parseTagFilter({ tagName: 'category', operator: 'nosuchop', value: 'billing' })?.success
+    ).toBe(false)
+  })
+
+  it('rejects "between" with no valueTo', () => {
+    const parsed = parseTagFilter({ tagName: 'score', operator: 'between', value: 1 })
+    expect(parsed?.success).toBe(false)
+    expect(issueMessages(parsed as never)).toContain(
+      'valueTo is required when operator is "between"'
+    )
+  })
+
+  it('rejects a mis-cased valueTo instead of stripping it', () => {
+    expect(
+      parseTagFilter({ tagName: 'score', operator: 'between', value: 1, valueto: 5 })?.success
+    ).toBe(false)
+  })
+
+  it.each([
+    'eq',
+    'neq',
+    'contains',
+    'not_contains',
+    'starts_with',
+    'ends_with',
+    'gt',
+    'gte',
+    'lt',
+    'lte',
+  ])('still accepts the implemented operator %s', (operator) => {
+    expect(parseTagFilter({ tagName: 'category', operator, value: 'billing' })?.success).toBe(true)
+  })
+
+  it('still accepts a bounded between filter', () => {
+    expect(
+      parseTagFilter({ tagName: 'score', operator: 'between', value: 1, valueTo: 5 })?.success
+    ).toBe(true)
+  })
+
+  it('still defaults a filter that names no operator', () => {
+    const parsed = parseTagFilter({ tagName: 'category', value: 'billing' })
+    expect(parsed?.success).toBe(true)
+    expect(
+      (parsed as { data: { tagFilters: { operator: string }[] } }).data.tagFilters[0].operator
+    ).toBe('eq')
+  })
+})
+
 /**
  * The document list inherited `limit` and `search` from the v1 shape, so it was
  * the one v2 list whose bounds and messages diverged from every sibling. An
