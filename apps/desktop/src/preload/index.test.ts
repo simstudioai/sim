@@ -32,6 +32,8 @@ describe('desktop preload bridge', () => {
     await exposed.browserAgent.setPanelOccluded(true, 'chat-default')
     await exposed.browserAgent.setPanelOccluded(false, 'chat-explicit-false', false)
     await exposed.browserAgent.setPanelOccluded(true, 'chat-force', true)
+    await exposed.browserAgent.getSearchSuggestions?.('sim ai')
+    await exposed.settings.setBrowserSearchSuggestionsEnabled?.(false)
 
     expect(invoke.mock.calls).toEqual([
       ['browser-agent:cancel-tool', 'tool-1', 'chat-default'],
@@ -39,6 +41,8 @@ describe('desktop preload bridge', () => {
       ['browser-agent:set-panel-occluded', true, 'chat-default', false],
       ['browser-agent:set-panel-occluded', false, 'chat-explicit-false', false],
       ['browser-agent:set-panel-occluded', true, 'chat-force', true],
+      ['browser-agent:search-suggestions', 'sim ai'],
+      ['desktop:settings:set-browser-search-suggestions', false],
     ])
   })
 })

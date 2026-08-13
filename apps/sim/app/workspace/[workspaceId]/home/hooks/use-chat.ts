@@ -30,7 +30,7 @@ import { onOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
 import {
   cancelActiveBrowserTools,
   initBrowserAgentTransport,
-  sendBrowserPanelAction,
+  openUrlInNewBrowserTab,
 } from '@/lib/browser-agent/transport'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
@@ -1188,8 +1188,22 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
   return true
 }
 
+export interface ResourceEventOptions {
+  activate?: boolean
+}
+
+export type ResourceEventHandler = (resourceId: string, options?: ResourceEventOptions) => void
+
+export function shouldActivateResourceEvent(
+  activeResourceId: string | null,
+  resourceId: string,
+  options?: ResourceEventOptions
+): boolean {
+  return options?.activate === true || !activeResourceId || activeResourceId === resourceId
+}
+
 export interface UseChatOptions {
-  onResourceEvent?: (resourceId: string) => void
+  onResourceEvent?: ResourceEventHandler
   apiPath?: string
   stopPath?: string
   workflowId?: string
@@ -1923,14 +1937,20 @@ export function useChat(
     [workspaceId]
   )
 
-  const openBrowserResource = useCallback(() => {
-    addResource({
-      type: 'browser',
-      id: BROWSER_SESSION_RESOURCE_ID,
-      title: 'Browser',
-    })
-    onResourceEventRef.current?.(BROWSER_SESSION_RESOURCE_ID)
-  }, [addResource])
+  const openBrowserResource = useCallback(
+    (activate = false) => {
+      addResource({
+        type: 'browser',
+        id: BROWSER_SESSION_RESOURCE_ID,
+        title: 'Browser',
+      })
+      onResourceEventRef.current?.(
+        BROWSER_SESSION_RESOURCE_ID,
+        activate ? { activate: true } : undefined
+      )
+    },
+    [addResource]
+  )
 
   const getResourceActivityTracker = useCallback(
     (generation: number, targetChatId?: string) => {
@@ -2046,8 +2066,12 @@ export function useChat(
   // (message components dispatch the request; this hook owns the resource).
   useEffect(() => {
     return onOpenInBrowserPanel((url) => {
-      openBrowserResource()
-      sendBrowserPanelAction('navigate', { url }, desktopScopeIdRef.current)
+      openBrowserResource(true)
+      void openUrlInNewBrowserTab(url, desktopScopeIdRef.current).catch((error) => {
+        logger.warn('Failed to open chat link in a new browser tab', {
+          error: getErrorMessage(error),
+        })
+      })
     })
   }, [openBrowserResource])
 

@@ -18,6 +18,10 @@ vi.mock('@/main/browser-import', () => ({
   })),
 }))
 
+vi.mock('@/main/browser-search/suggestions', () => ({
+  getSearchSuggestions: vi.fn(async () => ['sim ai workflow']),
+}))
+
 const { terminalThemeProfile } = vi.hoisted(() => ({
   terminalThemeProfile: {
     id: 'iterm2:ocean',
@@ -124,6 +128,7 @@ import {
   importChromePasswords,
   listChromeImportProfiles,
 } from '@/main/browser-import'
+import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { trackInputActivity } from '@/main/input-activity'
 import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilesystemService } from '@/main/local-filesystem'
@@ -252,6 +257,7 @@ describe('registerIpcHandlers', () => {
     vi.mocked(listChromeImportProfiles).mockClear()
     vi.mocked(importChromeCookies).mockClear()
     vi.mocked(importChromePasswords).mockClear()
+    vi.mocked(getSearchSuggestions).mockClear()
     vi.mocked(findCachedTerminalThemeProfile).mockClear()
     vi.mocked(listTerminalThemeProfiles).mockClear()
     vi.mocked(credentialsAvailable).mockClear()
@@ -282,6 +288,7 @@ describe('registerIpcHandlers', () => {
       settings: {
         getPreferences: vi.fn(() => DEFAULT_DESKTOP_PREFERENCES),
         setPreference: vi.fn(),
+        setBrowserSearchSuggestionsEnabled: vi.fn(),
         setAppearancePreference: vi.fn(),
         setBrowserDefaultZoom: vi.fn(),
         setTerminalDefaultZoom: vi.fn(),
@@ -323,6 +330,22 @@ describe('registerIpcHandlers', () => {
     expect(await invoke.get('desktop:open-external')?.(appEvent, 'javascript:alert(1)')).toBe(false)
     expect(await invoke.get('desktop:open-external')?.(appEvent, 42)).toBe(false)
     expect(shell.openExternal).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps live search suggestions behind the app origin and privacy preference', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('browser-agent:search-suggestions')
+
+    expect(await handler?.(evilEvent, 'sim ai')).toEqual([])
+
+    expect(await handler?.(appEvent, 'sim ai')).toEqual(['sim ai workflow'])
+    expect(getSearchSuggestions).toHaveBeenCalledWith('sim ai')
+
+    vi.mocked(deps.settings.getPreferences).mockReturnValue({
+      ...DEFAULT_DESKTOP_PREFERENCES,
+      browserSearchSuggestionsEnabled: false,
+    })
+    expect(await handler?.(appEvent, 'sim ai')).toEqual([])
   })
 
   it('restricts the OAuth connect handoff to the app origin', async () => {

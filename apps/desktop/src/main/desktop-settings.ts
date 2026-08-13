@@ -36,6 +36,7 @@ export function isDesktopPreferenceKey(value: unknown): value is DesktopPreferen
 export interface DesktopSettingsService {
   getPreferences(): DesktopPreferences
   setPreference(key: DesktopPreferenceKey, value: boolean): DesktopPreferences
+  setBrowserSearchSuggestionsEnabled(enabled: boolean): DesktopPreferences
   setAppearancePreference(
     key: DesktopAppearanceSettingKey,
     value: DesktopAppearanceTheme
@@ -90,6 +91,7 @@ function readPreferences(
     autoDownloadUpdates: config.get('autoDownloadUpdates') ?? true,
     trayEnabled: config.get('trayEnabled') ?? true,
     browserEnabled: config.get('browserEnabled') ?? true,
+    browserSearchSuggestionsEnabled: config.get('browserSearchSuggestionsEnabled') ?? true,
     terminalEnabled: config.get('terminalEnabled') ?? true,
     browserTheme: isDesktopAppearanceTheme(browserTheme) ? browserTheme : 'app',
     browserDefaultZoom: isDesktopZoomPercent(browserDefaultZoom) ? browserDefaultZoom : 100,
@@ -151,6 +153,11 @@ export function createDesktopSettingsService(
         default:
           break
       }
+      return read()
+    },
+    setBrowserSearchSuggestionsEnabled(enabled) {
+      deps.config.set('browserSearchSuggestionsEnabled', enabled)
+      deps.config.flush()
       return read()
     },
     setAppearancePreference(key, value) {

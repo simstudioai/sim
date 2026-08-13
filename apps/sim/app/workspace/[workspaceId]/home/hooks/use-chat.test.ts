@@ -13,6 +13,7 @@ import {
   panelForExecutingClientTool,
   reconcileLiveAssistantTurn,
   selectReconnectReplayState,
+  shouldActivateResourceEvent,
   waitForDetachedChatResolution,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type {
@@ -29,6 +30,20 @@ vi.mock('next/navigation', () => ({
     refresh: vi.fn(),
   }),
 }))
+
+describe('shouldActivateResourceEvent', () => {
+  it('keeps background agent activity from replacing another selected resource', () => {
+    expect(shouldActivateResourceEvent('file-1', 'browser-session')).toBe(false)
+  })
+
+  it('allows an explicit user action to replace another selected resource', () => {
+    expect(
+      shouldActivateResourceEvent('file-1', 'browser-session', {
+        activate: true,
+      })
+    ).toBe(true)
+  })
+})
 
 function userMessage(id: string): PersistedMessage {
   return {
