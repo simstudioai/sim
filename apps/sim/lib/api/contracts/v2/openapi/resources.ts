@@ -21,8 +21,6 @@ import {
   FULL_SET_LIST,
   HEAD_MIRRORS_GET,
   RATE_LIMIT_HEADERS,
-  RESOURCE_BODY_ERRORS,
-  RESOURCE_CONFLICT_BODY_ERRORS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
   V2_API_KEY_SECURITY,
@@ -30,6 +28,7 @@ import {
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
+  withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   v2DeleteSecretContract,
@@ -214,7 +213,7 @@ function resourceOperation(
   }
 }
 
-const routes = [
+const declaredRoutes = [
   defineOpenApiRoute(
     v2GetWorkspaceContract,
     resourceOperation('Workspaces', {
@@ -307,7 +306,7 @@ const routes = [
       summary: 'Create MCP Server',
       description:
         'Register an MCP server in a workspace. The endpoint URL is the server identity, so a URL already registered here is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{id}` instead. Registration never connects to the endpoint: the server comes back `disconnected` and stays unavailable until `GET /api/v2/mcp-servers/{id}/tools` succeeds.',
-      errors: RESOURCE_CONFLICT_BODY_ERRORS,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The MCP server was registered.' },
     }),
     {
@@ -375,7 +374,7 @@ const routes = [
       summary: 'Update MCP Server',
       description:
         'Update the supplied MCP server fields. Omitted fields are retained, except where a field says otherwise. Any change that invalidates authentication revokes the stored OAuth grant, resets `connectionStatus` to `disconnected`, and clears `lastConnected` and `lastError`, so the server must be rediscovered.',
-      errors: RESOURCE_BODY_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'The updated MCP server.' },
     }),
     {
@@ -497,7 +496,7 @@ const routes = [
       operationId: 'createSkill',
       summary: 'Create Skill',
       description: `Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_CONFLICT_BODY_ERRORS,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The skill was created.' },
     }),
     {
@@ -563,7 +562,7 @@ const routes = [
       operationId: 'updateSkill',
       summary: 'Update Skill',
       description: `Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_CONFLICT_BODY_ERRORS,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated skill.' },
     }),
     {
@@ -654,7 +653,7 @@ const routes = [
       summary: 'Create Custom Tool',
       description:
         'Create a code-backed custom tool in a workspace. Its title must be unique because tools resolve by title at call time.',
-      errors: RESOURCE_CONFLICT_BODY_ERRORS,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The custom tool was created.' },
     }),
     {
@@ -720,7 +719,7 @@ const routes = [
       summary: 'Update Custom Tool',
       description:
         'Update the supplied custom tool fields. Omitted fields retain their stored values, and titles must remain unique within the workspace.',
-      errors: RESOURCE_CONFLICT_BODY_ERRORS,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated custom tool.' },
     }),
     {
@@ -836,7 +835,7 @@ const routes = [
       operationId: 'setSecret',
       summary: 'Set Secret',
       description: `Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_BODY_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: {
         byStatus: {
           200: { description: 'The existing secret value was replaced.' },
@@ -914,6 +913,8 @@ const routes = [
     }
   ),
 ] as const
+
+const routes = declaredRoutes.map(withRequestBodyErrors)
 
 export const resourcesOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-resources.json',

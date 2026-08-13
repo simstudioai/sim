@@ -13,6 +13,7 @@ import {
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_ERRORS,
+  withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   v2AddTableColumnContract,
@@ -64,7 +65,6 @@ import {
   defineOpenApiDocument,
   defineOpenApiRoute,
   type OpenApiOperationMetadata,
-  type OpenApiRouteDefinition,
   type OpenApiSuccessMetadata,
 } from '@/lib/api/openapi/types'
 
@@ -1579,28 +1579,6 @@ const declaredRoutes = [
     }
   ),
 ] as const
-
-/**
- * Publishes `413` on every operation that accepts a request body.
- *
- * The v2 JSON builder reads the body through `parseJsonBody` under
- * `DEFAULT_MAX_JSON_BODY_BYTES` (50 MB) BEFORE schema validation, rendering
- * `V2_PARSE_DEFAULTS.payloadTooLargeResponse`. That makes the status reachable
- * on every body-carrying operation, not just the two that set a tighter
- * `maxBodyBytes` of their own — and a status a caller can receive but the spec
- * does not declare is an unhandled branch in every generated client.
- *
- * Deliberately one-directional: it adds `413` where a body exists and never
- * removes it where none does, because several bodyless reads publish `413` for
- * the folder-tree materialization ceiling instead.
- */
-function withRequestBodyErrors(route: OpenApiRouteDefinition): OpenApiRouteDefinition {
-  if (!route.contract.body || route.operation.errors.includes('PayloadTooLarge')) return route
-  return {
-    ...route,
-    operation: { ...route.operation, errors: [...route.operation.errors, 'PayloadTooLarge'] },
-  }
-}
 
 const routes = declaredRoutes.map(withRequestBodyErrors)
 

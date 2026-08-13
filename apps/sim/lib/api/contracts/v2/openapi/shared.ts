@@ -3,6 +3,7 @@ import { v2ErrorResponseSchema } from '@/lib/api/contracts/v2/shared'
 import type {
   OpenApiErrorResponse,
   OpenApiHeader,
+  OpenApiRouteDefinition,
   OpenApiSecurityScheme,
 } from '@/lib/api/openapi/types'
 
@@ -153,33 +154,25 @@ export const RESOURCE_MUTATION_ERRORS = [
 ] as const satisfies readonly ErrorResponseId[]
 
 /**
- * The two sets below add the `413` that every body-carrying operation can emit.
+ * Adds the `413` a body-carrying operation can emit.
  *
- * It is not a property of the resource but of the request: `parseRequest` reads
- * the JSON body through `parseJsonBody` under `DEFAULT_MAX_JSON_BODY_BYTES`
- * before schema validation runs, and the v2 builders supply
- * `V2_PARSE_DEFAULTS.payloadTooLargeResponse`, so a body over
- * the cap is answered `413` on any route whose contract declares one. That made
- * `413` reachable-but-unpublished across a whole family, which is the mirror of
- * the defect these sets exist to prevent — a caller cannot handle a status the
- * spec never mentions.
+ * `parseRequest` reads the JSON body under `DEFAULT_MAX_JSON_BODY_BYTES` before
+ * schema validation, and the v2 builders supply
+ * `V2_PARSE_DEFAULTS.payloadTooLargeResponse`, so an oversized body is a real
+ * `413` on any route whose contract declares one — and a status a caller can
+ * receive but the spec omits is an unhandled branch in every generated client.
  *
- * Reachability is not automatic, so these are opt-in rather than folded into the
- * base sets. An operation with no request body cannot emit this `413` at all,
- * and neither can one whose handler reads its payload through a path that
- * applies no cap; documenting it there would publish a response that can never
- * arrive.
+ * Derived from the contract rather than chosen per operation, so a new body
+ * route cannot forget it. One-directional: it never removes a `413` from a
+ * bodyless read, several of which publish one for the folder-tree ceiling.
  */
-export const RESOURCE_BODY_ERRORS = [
-  ...RESOURCE_ERRORS,
-  'PayloadTooLarge',
-] as const satisfies readonly ErrorResponseId[]
-
-/** {@link RESOURCE_CONFLICT_ERRORS} plus the body-size `413`. */
-export const RESOURCE_CONFLICT_BODY_ERRORS = [
-  ...RESOURCE_CONFLICT_ERRORS,
-  'PayloadTooLarge',
-] as const satisfies readonly ErrorResponseId[]
+export function withRequestBodyErrors(route: OpenApiRouteDefinition): OpenApiRouteDefinition {
+  if (!route.contract.body || route.operation.errors.includes('PayloadTooLarge')) return route
+  return {
+    ...route,
+    operation: { ...route.operation, errors: [...route.operation.errors, 'PayloadTooLarge'] },
+  }
+}
 
 export const V2_API_KEY_SECURITY = [{ apiKey: [] }] as const
 
