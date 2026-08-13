@@ -12,11 +12,12 @@ import {
   DiffWorkflows,
   FunctionExecute,
   GenerateApiKey,
+  GetAccountBilling,
   GetBlockOutputs,
   GetBlockUpstreamReferences,
   GetDeployedWorkflowState,
   GetDeploymentLog,
-  GetPlatformActions,
+  GetEnterpriseContext,
   GetWorkflowData,
   GetWorkflowRunOptions,
   Glob as GlobTool,
@@ -51,6 +52,8 @@ import {
   UpdateDeploymentVersion,
   UpdateWorkspaceMcpServer,
 } from '@/lib/copilot/generated/tool-catalog-v1'
+import { executeGetAccountBilling } from '@/lib/copilot/tools/handlers/account'
+import { executeGetEnterpriseContext } from '@/lib/copilot/tools/handlers/enterprise-context'
 import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
 import { getRegisteredServerToolNames } from '@/lib/copilot/tools/server/router'
 import { executeDeployCustomBlock } from '../tools/handlers/deployment/custom-block'
@@ -81,7 +84,6 @@ import { executeManageSandbox } from '../tools/handlers/management/manage-sandbo
 import { executeManageSkill } from '../tools/handlers/management/manage-skill'
 import { executeMaterializeFile } from '../tools/handlers/materialize-file'
 import { executeOAuthGetAuthLink, executeOAuthRequestAccess } from '../tools/handlers/oauth'
-import { executeGetPlatformActions } from '../tools/handlers/platform'
 import { executeOpenResource } from '../tools/handlers/resources'
 import { executeRestoreResource } from '../tools/handlers/restore-resource'
 import { executeRunCode } from '../tools/handlers/run-code'
@@ -136,6 +138,8 @@ function h(fn: (params: any, context: any) => Promise<any>): ToolHandler {
 function buildHandlerMap(): Record<string, ToolHandler> {
   return {
     [ListUserWorkspaces.id]: h((_p, c) => executeListUserWorkspaces(c)),
+    [GetAccountBilling.id]: h((_p, c) => executeGetAccountBilling(c)),
+    [GetEnterpriseContext.id]: h((_p, c) => executeGetEnterpriseContext(c)),
     [GetWorkflowData.id]: h(executeGetWorkflowData),
     [GetWorkflowRunOptions.id]: h(executeGetWorkflowRunOptions),
     [GetBlockOutputs.id]: h(executeGetBlockOutputs),
@@ -192,7 +196,6 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [OauthRequestAccess.id]: h(executeOAuthRequestAccess),
     [OpenResource.id]: h(executeOpenResource),
     [RestoreResource.id]: h(executeRestoreResource),
-    [GetPlatformActions.id]: h(executeGetPlatformActions),
     [ListIntegrationTools.id]: h(executeListIntegrationTools),
     [MaterializeFile.id]: h(executeMaterializeFile),
     [FunctionExecute.id]: h(executeFunctionExecute),

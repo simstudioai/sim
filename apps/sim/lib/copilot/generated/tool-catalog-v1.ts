@@ -56,12 +56,13 @@ export interface ToolCatalogEntry {
     | 'generate_audio'
     | 'generate_image'
     | 'generate_video'
+    | 'get_account_billing'
     | 'get_block_outputs'
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
     | 'get_deployment_log'
+    | 'get_enterprise_context'
     | 'get_page_contents'
-    | 'get_platform_actions'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
     | 'glob'
@@ -86,6 +87,7 @@ export interface ToolCatalogEntry {
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
+    | 'platform'
     | 'promote_to_live'
     | 'query_logs'
     | 'query_user_table'
@@ -102,7 +104,7 @@ export interface ToolCatalogEntry {
     | 'run_workflow_until_block'
     | 'scrape_page'
     | 'search'
-    | 'search_documentation'
+    | 'search_docs'
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
@@ -177,12 +179,13 @@ export interface ToolCatalogEntry {
     | 'generate_audio'
     | 'generate_image'
     | 'generate_video'
+    | 'get_account_billing'
     | 'get_block_outputs'
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
     | 'get_deployment_log'
+    | 'get_enterprise_context'
     | 'get_page_contents'
-    | 'get_platform_actions'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
     | 'glob'
@@ -207,6 +210,7 @@ export interface ToolCatalogEntry {
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
+    | 'platform'
     | 'promote_to_live'
     | 'query_logs'
     | 'query_user_table'
@@ -223,7 +227,7 @@ export interface ToolCatalogEntry {
     | 'run_workflow_until_block'
     | 'scrape_page'
     | 'search'
-    | 'search_documentation'
+    | 'search_docs'
     | 'search_integration_tools'
     | 'search_knowledge_base'
     | 'search_library_docs'
@@ -259,6 +263,7 @@ export interface ToolCatalogEntry {
     | 'file'
     | 'knowledge'
     | 'media'
+    | 'platform'
     | 'run'
     | 'search'
     | 'table'
@@ -2922,6 +2927,14 @@ export const GenerateVideo: ToolCatalogEntry = {
   capabilities: ['file_input', 'file_output', 'generated_media'],
 }
 
+export const GetAccountBilling: ToolCatalogEntry = {
+  id: 'get_account_billing',
+  name: 'get_account_billing',
+  route: 'sim',
+  mode: 'async',
+  parameters: { type: 'object', properties: {} },
+}
+
 export const GetBlockOutputs: ToolCatalogEntry = {
   id: 'get_block_outputs',
   name: 'get_block_outputs',
@@ -2999,6 +3012,14 @@ export const GetDeploymentLog: ToolCatalogEntry = {
   },
 }
 
+export const GetEnterpriseContext: ToolCatalogEntry = {
+  id: 'get_enterprise_context',
+  name: 'get_enterprise_context',
+  route: 'sim',
+  mode: 'async',
+  parameters: { type: 'object', properties: {} },
+}
+
 export const GetPageContents: ToolCatalogEntry = {
   id: 'get_page_contents',
   name: 'get_page_contents',
@@ -3024,14 +3045,6 @@ export const GetPageContents: ToolCatalogEntry = {
     },
     required: ['urls'],
   },
-}
-
-export const GetPlatformActions: ToolCatalogEntry = {
-  id: 'get_platform_actions',
-  name: 'get_platform_actions',
-  route: 'sim',
-  mode: 'async',
-  parameters: { type: 'object', properties: {} },
 }
 
 export const GetWorkflowData: ToolCatalogEntry = {
@@ -3127,12 +3140,12 @@ export const Grep: ToolCatalogEntry = {
       path: {
         type: 'string',
         description:
-          "Optional scope. A prefix (e.g. 'workflows/', 'environment/', 'internal/') searches the VFS map under it. An exact single-file path under files/ or uploads/ (optionally with /content) searches that file's content only; folders and multi-file trees are rejected for content search.",
+          "Optional scope. A prefix (e.g. 'workflows/', 'environment/', 'internal/') searches the VFS map under it. An exact supported single-file path searches that file's content; folders and multi-file trees are rejected for content search.",
       },
       pattern: {
         type: 'string',
         description:
-          "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, memories) by default; searches a single file's extracted text when path is one files/ or uploads/ file leaf.",
+          "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, memories) by default, or an exact supported file leaf's content when path selects one.",
       },
       toolTitle: {
         type: 'string',
@@ -3877,6 +3890,26 @@ export const OpenResource: ToolCatalogEntry = {
   },
 }
 
+export const Platform: ToolCatalogEntry = {
+  id: 'platform',
+  name: 'platform',
+  route: 'subagent',
+  mode: 'async',
+  parameters: {
+    properties: {
+      task: {
+        description:
+          "A fully self-contained question about Sim — the platform agent sees none of this conversation, so include every name, id, constraint, and prior finding it needs. Example: 'what is the minimum schedule-trigger interval, and does it differ by plan?' or 'does the agent block persist memory across runs?'.",
+        type: 'string',
+      },
+    },
+    required: ['task'],
+    type: 'object',
+  },
+  subagentId: 'platform',
+  internal: true,
+}
+
 export const PromoteToLive: ToolCatalogEntry = {
   id: 'promote_to_live',
   name: 'promote_to_live',
@@ -4559,21 +4592,21 @@ export const Search: ToolCatalogEntry = {
   internal: true,
 }
 
-export const SearchDocumentation: ToolCatalogEntry = {
-  id: 'search_documentation',
-  name: 'search_documentation',
+export const SearchDocs: ToolCatalogEntry = {
+  id: 'search_docs',
+  name: 'search_docs',
   route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
     properties: {
-      query: { type: 'string', description: 'The search query' },
-      topK: {
-        type: 'number',
+      path: {
+        type: 'string',
         description:
-          'Number of results to return (default 10). Not clamped — keep it small, since each result is a full doc chunk.',
-        default: 10,
+          'Optional docs/ VFS path (a page such as docs/workflows/blocks/agent.mdx, or a section such as docs/workflows) that limits the search scope',
       },
+      query: { type: 'string', description: 'The search query' },
+      topK: { type: 'number', description: 'Number of results (default 5, max 25)', default: 5 },
     },
     required: ['query'],
   },
@@ -6555,12 +6588,13 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [GenerateAudio.id]: GenerateAudio,
   [GenerateImage.id]: GenerateImage,
   [GenerateVideo.id]: GenerateVideo,
+  [GetAccountBilling.id]: GetAccountBilling,
   [GetBlockOutputs.id]: GetBlockOutputs,
   [GetBlockUpstreamReferences.id]: GetBlockUpstreamReferences,
   [GetDeployedWorkflowState.id]: GetDeployedWorkflowState,
   [GetDeploymentLog.id]: GetDeploymentLog,
+  [GetEnterpriseContext.id]: GetEnterpriseContext,
   [GetPageContents.id]: GetPageContents,
-  [GetPlatformActions.id]: GetPlatformActions,
   [GetWorkflowData.id]: GetWorkflowData,
   [GetWorkflowRunOptions.id]: GetWorkflowRunOptions,
   [Glob.id]: Glob,
@@ -6585,6 +6619,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [OauthGetAuthLink.id]: OauthGetAuthLink,
   [OauthRequestAccess.id]: OauthRequestAccess,
   [OpenResource.id]: OpenResource,
+  [Platform.id]: Platform,
   [PromoteToLive.id]: PromoteToLive,
   [QueryLogs.id]: QueryLogs,
   [QueryUserTable.id]: QueryUserTable,
@@ -6601,7 +6636,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [RunWorkflowUntilBlock.id]: RunWorkflowUntilBlock,
   [ScrapePage.id]: ScrapePage,
   [Search.id]: Search,
-  [SearchDocumentation.id]: SearchDocumentation,
+  [SearchDocs.id]: SearchDocs,
   [SearchIntegrationTools.id]: SearchIntegrationTools,
   [SearchKnowledgeBase.id]: SearchKnowledgeBase,
   [SearchLibraryDocs.id]: SearchLibraryDocs,

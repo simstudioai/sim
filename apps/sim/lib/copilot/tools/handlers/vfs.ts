@@ -4,6 +4,14 @@ import { resolveCopilotKnowledgePrincipal } from '@/lib/copilot/application/exec
 import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
+import {
+  couldMatchDocsScope,
+  DocsCorpusError,
+  globDocs,
+  grepDocs,
+  isDocsPath,
+  readDocsPage,
+} from '@/lib/copilot/docs/docs-corpus'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
@@ -126,6 +134,42 @@ async function canReturnWorkspaceFileValue(
   return true
 }
 
+/**
+ * Trim an oversized docs page to a whole-line prefix that fits the
+ * inline budget, preserving the true `totalLines` so the model can page through
+ * the rest with offset/limit. Returns null when not even one line fits — a
+ * single line longer than the cap — so the caller can fail instead of returning
+ * an over-cap payload as success. The notice offers grep as an alternative to
+ * another read because either operation fetches the page once.
+ */
+function truncateDocsPageToInlineCap(page: { content: string; totalLines: number }): {
+  output: { content: string; totalLines: number }
+  returnedLines: number
+} | null {
+  const lines = page.content.split('\n')
+  const notice = (shown: number) =>
+    `\n\n[Page truncated: returned lines 1-${shown} of ${page.totalLines}. To continue, read this path with offset: ${shown} and limit: ${shown}; reduce the limit if that window is still too large. To jump straight to a section, grep this path INSTEAD of reading it — grep is the same single fetch and returns only matching lines with their numbers.]`
+
+  let kept = lines.length
+  while (kept > 0) {
+    const content = `${lines.slice(0, kept).join('\n')}${notice(kept)}`
+    if (
+      serializedResultSize({ content, totalLines: page.totalLines }) <= TOOL_RESULT_MAX_INLINE_CHARS
+    ) {
+      return { output: { content, totalLines: page.totalLines }, returnedLines: kept }
+    }
+    kept = Math.floor(kept / 2)
+  }
+  return null
+}
+
+/**
+ * Routes grep by content source. `docs/<page>` uses one network-backed docs
+ * page; `uploads/<file>` uses one chat-scoped upload; workspace file paths use
+ * one authorized file; all remaining paths use the materialized in-memory VFS.
+ * External and dynamic file contents are therefore opt-in and single-target,
+ * while an unscoped grep searches only static VFS resources and metadata.
+ */
 export async function executeVfsGrep(
   params: Record<string, unknown>,
   context: ExecutionContext
@@ -152,16 +196,11 @@ export async function executeVfsGrep(
       context: (params.context as number) ?? 0,
     }
 
-    // Routing mirrors read/glob:
-    //  - uploads/<file>  -> grep one chat upload's content (chat-scoped)
-    //  - files/<file>    -> grep one workspace file's content (one file only)
-    //  - everything else -> grep the in-memory VFS map (workflow JSON, metadata)
-    // Chat uploads are opt-in like recently-deleted/: they are never in the VFS
-    // map, so an unscoped grep can't touch them — only an explicit uploads/<file>
-    // path does, and only one upload at a time.
     let result: GrepMatch[] | string[] | GrepCountEntry[]
     let provenanceFile: WorkspaceFileSecretProvenanceIdentity | undefined
-    if (isChatUploadGrepPath(rawPath)) {
+    if (rawPath !== undefined && isDocsPath(rawPath)) {
+      result = await grepDocs(rawPath, pattern, grepOptions, context.abortSignal)
+    } else if (isChatUploadGrepPath(rawPath)) {
       if (!context.chatId) {
         return { success: false, error: 'No chat context available for uploads/' }
       }
@@ -223,8 +262,8 @@ export async function executeVfsGrep(
   } catch (err) {
     // Expected single-file scoping / no-text / too-large conditions: surface the
     // message verbatim instead of logging an internal failure.
-    if (err instanceof WorkspaceFileGrepError) {
-      logger.debug('vfs_grep workspace file rejected', {
+    if (err instanceof WorkspaceFileGrepError || err instanceof DocsCorpusError) {
+      logger.debug('vfs_grep single-file scope rejected', {
         pattern,
         path: rawPath,
         error: err.message,
@@ -255,6 +294,12 @@ export async function executeVfsGlob(
   }
 
   try {
+    if (couldMatchDocsScope(pattern)) {
+      const files = globDocs(pattern)
+      logger.debug('vfs_glob docs result', { pattern, fileCount: files.length })
+      return { success: true, output: { files } }
+    }
+
     const vfs = await getGatedVFS(context)
     let files = vfs.glob(pattern)
 
@@ -321,6 +366,34 @@ export async function executeVfsRead(
         ...result,
         content: lines.slice(start, end).join('\n'),
       }
+    }
+
+    if (isDocsPath(path)) {
+      const page = await readDocsPage(path, context.abortSignal)
+      const windowed = applyWindow(page)
+      if (serializedResultSize(windowed) > TOOL_RESULT_MAX_INLINE_CHARS) {
+        if (offset !== undefined || limit !== undefined) {
+          return {
+            success: false,
+            error: `${path} is still too large over the requested window. Narrow offset/limit, or grep this page for the section you need.`,
+          }
+        }
+        const truncated = truncateDocsPageToInlineCap(page)
+        if (!truncated) {
+          return {
+            success: false,
+            error: `${path} is too large to return inline even truncated. Grep this page for the section you need.`,
+          }
+        }
+        logger.debug('vfs_read truncated oversized docs page', {
+          path,
+          totalLines: page.totalLines,
+          returnedLines: truncated.returnedLines,
+        })
+        return { success: true, output: truncated.output }
+      }
+      logger.debug('vfs_read resolved docs page', { path, totalLines: page.totalLines })
+      return { success: true, output: windowed }
     }
 
     // Handle chat-scoped uploads via the uploads/ virtual prefix.
@@ -482,6 +555,10 @@ export async function executeVfsRead(
       output: result,
     }
   } catch (err) {
+    if (err instanceof DocsCorpusError) {
+      logger.debug('vfs_read docs page rejected', { path, error: err.message })
+      return { success: false, error: err.message }
+    }
     logger.error('vfs_read failed', {
       path,
       error: toError(err).message,

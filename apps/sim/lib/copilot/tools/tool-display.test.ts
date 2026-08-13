@@ -76,6 +76,25 @@ describe('getToolDisplayTitle natural-language coverage', () => {
     expect(getToolDisplayTitle('list_workspace_mcp_servers')).toBe('Listing MCP servers')
     expect(getToolDisplayTitle('oauth_get_auth_link')).toBe('Getting authorization link')
     expect(getToolDisplayTitle('diff_workflows')).toBe('Comparing workflows')
+    expect(getToolDisplayTitle('get_enterprise_context')).toBe('Checking enterprise access')
+  })
+
+  it('includes the query in search_docs titles', () => {
+    expect(getToolDisplayTitle('search_docs')).toBe('Searching Sim docs')
+    expect(getToolDisplayTitle('search_docs', { query: 'loop blocks iteration' })).toBe(
+      'Searching Sim docs for "loop blocks iteration"'
+    )
+    expect(
+      getToolCompletedTitle(
+        getToolDisplayTitle('search_docs', { query: 'how to read workflow logs' })
+      )
+    ).toBe('Searched Sim docs for "how to read workflow logs"')
+    expect(
+      getToolDisplayTitle('search_docs', {
+        query:
+          'reference block outputs connection tags blockname.field pass data between blocks in a workflow',
+      })?.length
+    ).toBeLessThanOrEqual('Searching Sim docs for ""'.length + 60 + '...'.length)
   })
 
   it('falls back to running code for function_execute without a title', () => {

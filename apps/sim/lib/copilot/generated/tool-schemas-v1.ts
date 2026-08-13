@@ -2821,6 +2821,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  get_account_billing: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
   get_block_outputs: {
     parameters: {
       type: 'object',
@@ -2890,6 +2897,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  get_enterprise_context: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
   get_page_contents: {
     parameters: {
       type: 'object',
@@ -2915,13 +2929,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['urls'],
-    },
-    resultSchema: undefined,
-  },
-  get_platform_actions: {
-    parameters: {
-      type: 'object',
-      properties: {},
     },
     resultSchema: undefined,
   },
@@ -3007,12 +3014,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         path: {
           type: 'string',
           description:
-            "Optional scope. A prefix (e.g. 'workflows/', 'environment/', 'internal/') searches the VFS map under it. An exact single-file path under files/ or uploads/ (optionally with /content) searches that file's content only; folders and multi-file trees are rejected for content search.",
+            "Optional scope. A prefix (e.g. 'workflows/', 'environment/', 'internal/') searches the VFS map under it. An exact supported single-file path searches that file's content; folders and multi-file trees are rejected for content search.",
         },
         pattern: {
           type: 'string',
           description:
-            "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, memories) by default; searches a single file's extracted text when path is one files/ or uploads/ file leaf.",
+            "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, memories) by default, or an exact supported file leaf's content when path selects one.",
         },
         toolTitle: {
           type: 'string',
@@ -3735,6 +3742,20 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  platform: {
+    parameters: {
+      properties: {
+        task: {
+          description:
+            "A fully self-contained question about Sim — the platform agent sees none of this conversation, so include every name, id, constraint, and prior finding it needs. Example: 'what is the minimum schedule-trigger interval, and does it differ by plan?' or 'does the agent block persist memory across runs?'.",
+          type: 'string',
+        },
+      },
+      required: ['task'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   promote_to_live: {
     parameters: {
       type: 'object',
@@ -4403,19 +4424,23 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  search_documentation: {
+  search_docs: {
     parameters: {
       type: 'object',
       properties: {
+        path: {
+          type: 'string',
+          description:
+            'Optional docs/ VFS path (a page such as docs/workflows/blocks/agent.mdx, or a section such as docs/workflows) that limits the search scope',
+        },
         query: {
           type: 'string',
           description: 'The search query',
         },
         topK: {
           type: 'number',
-          description:
-            'Number of results to return (default 10). Not clamped — keep it small, since each result is a full doc chunk.',
-          default: 10,
+          description: 'Number of results (default 5, max 25)',
+          default: 5,
         },
       },
       required: ['query'],

@@ -49,6 +49,7 @@ export async function runHeadlessCopilotLifecycle(
       try {
         result = await runCopilotLifecycle(requestPayload, {
           ...options,
+          interactive: false,
           trace,
           simRequestId,
           otelContext,
