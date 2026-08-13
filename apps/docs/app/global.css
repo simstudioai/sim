@@ -1312,13 +1312,18 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   font-family: var(--font-mono-stack);
 }
 
-/* Underline deferred to hover so links don't read heavier than a plain scalar
-   in the same box. The button that *is* the slot needs its own rule: it cannot
-   `inherit`, which would pull the row's 14px sans back in. */
+/* Everything inside a type token inherits the token's own face, size, and ink.
+   Applied to every descendant, not just the links: a union's `|` separator is a
+   classless `span`, so the page-wide `span:not(.font-mono)` rule assigned it the
+   body sans face and one chip rendered in two faces. Anything fumadocs nests in
+   here later is covered by the same reset.
+   Underline is deferred to hover so links don't read heavier than a plain scalar
+   in the same box. The button that *is* the slot needs its own rule below: it
+   cannot `inherit`, which would pull the row's 14px sans back in. */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground
-  :is(a, button) {
+  * {
   text-decoration: none;
   color: inherit;
   font-size: inherit;
