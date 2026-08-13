@@ -35,7 +35,7 @@ function mountSurroundingMenu() {
   surroundingMenuItem = item
 }
 
-function renderMenu(onClose: () => void) {
+function renderMenu(onClose: () => void, onDelete: () => void = () => {}) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   mountSurroundingMenu()
   plainButton = document.createElement('button')
@@ -50,7 +50,7 @@ function renderMenu(onClose: () => void) {
         position={{ x: 10, y: 10 }}
         menuRef={{ current: null }}
         onClose={onClose}
-        onDelete={() => {}}
+        onDelete={onDelete}
         showRename={false}
         showDuplicate={false}
       />
@@ -92,6 +92,23 @@ describe('sidebar context menu dismissal', () => {
 
     expect(onClose).not.toHaveBeenCalled()
     expect(contextMenuIsOpen()).toBe(true)
+  })
+
+  it('still runs an item action after a surrounding menu took focus', () => {
+    const onClose = vi.fn()
+    const onDelete = vi.fn()
+    renderMenu(onClose, onDelete)
+
+    focusOutside(surroundingMenuItem)
+    act(() => {
+      const deleteItem = Array.from(document.querySelectorAll('[role="menuitem"]')).find(
+        (item) => item.textContent === 'Delete'
+      )
+      ;(deleteItem as HTMLElement | undefined)?.click()
+    })
+
+    expect(onDelete).toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalled()
   })
 
   it('closes when focus leaves for an element outside any menu', () => {
