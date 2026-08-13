@@ -320,3 +320,136 @@ describe('saved-view ceiling', () => {
     await expect(create()).resolves.toMatchObject({ id: 'view-100' })
   })
 })
+
+/**
+ * A saved config's column references are stored as stable column ids, but the
+ * v2 wire is column-NAME-keyed like every other v2 row/data surface. The write
+ * path translates; anything it cannot resolve is a caller mistake and must be
+ * refused rather than stored and quietly dropped on the next read.
+ */
+describe('view config column-reference normalization', () => {
+  const columns: ColumnDefinition[] = [
+    { id: 'col_a', name: 'Name', type: 'text' },
+    { id: 'col_b', name: 'Email', type: 'text' },
+  ]
+  const storedRow = {
+    id: 'view-1',
+    tableId: 'table-1',
+    workspaceId: 'ws-1',
+    name: 'My View',
+    config: {},
+    isDefault: false,
+    createdBy: 'user-1',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockWithLockedTable.mockImplementation(
+      async (_tableId: string, mutate: (table: unknown, trx: unknown) => unknown) =>
+        mutate({ id: 'table-1' }, db)
+    )
+  })
+
+  function insertedConfig(): TableViewConfig {
+    const [values] = dbChainMockFns.values.mock.calls.at(-1) as [{ config: TableViewConfig }]
+    return values.config
+  }
+
+  function create(config: TableViewConfig) {
+    return createTableView({
+      tableId: 'table-1',
+      workspaceId: 'ws-1',
+      name: 'My View',
+      config,
+      userId: 'user-1',
+      columns,
+    })
+  }
+
+  it('stores a name-keyed sort as column ids instead of discarding it', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await create({ sort: [{ field: 'Name', direction: 'desc' }] })
+
+    expect(insertedConfig().sort).toEqual([{ field: 'col_a', direction: 'desc' }])
+  })
+
+  it('stores a name-keyed filter and layout as column ids', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await create({
+      filter: { all: [{ field: 'Email', op: 'eq', value: 'x@example.com' }] },
+      columnOrder: ['Email', 'Name'],
+      hiddenColumns: ['Name'],
+      pinnedColumns: ['Email'],
+      columnWidths: { Name: 200 },
+    })
+
+    expect(insertedConfig()).toEqual({
+      filter: { all: [{ field: 'col_b', op: 'eq', value: 'x@example.com' }] },
+      columnOrder: ['col_b', 'col_a'],
+      hiddenColumns: ['col_a'],
+      pinnedColumns: ['col_b'],
+      columnWidths: { col_a: 200 },
+    })
+  })
+
+  it('leaves an already id-keyed config untouched', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await create({
+      sort: [{ field: 'col_b', direction: 'asc' }],
+      filter: { all: [{ field: 'col_a', op: 'eq', value: 'x' }] },
+    })
+
+    expect(insertedConfig()).toEqual({
+      sort: [{ field: 'col_b', direction: 'asc' }],
+      filter: { all: [{ field: 'col_a', op: 'eq', value: 'x' }] },
+    })
+  })
+
+  it('refuses a filter on a column that does not exist', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      create({ filter: { all: [{ field: 'ghost', op: 'eq', value: 'x' }] } })
+    ).rejects.toMatchObject({ name: 'TableViewValidationError' })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('refuses a sort on a column that does not exist', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(create({ sort: [{ field: 'ghost', direction: 'asc' }] })).rejects.toMatchObject({
+      name: 'TableViewValidationError',
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('refuses a nonexistent filter column on a configPatch too', async () => {
+    queueTableRows(tableViews, [{ id: 'view-1' }])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        configPatch: { filter: { all: [{ field: 'ghost', op: 'eq', value: 'x' }] } },
+        columns,
+      })
+    ).rejects.toMatchObject({ name: 'TableViewValidationError' })
+  })
+
+  it('keeps a sort on a system row column, which is sortable but not in schema.columns', () => {
+    expect(
+      pruneViewConfig({ sort: [{ field: 'createdAt', direction: 'desc' }] }, columns).sort
+    ).toEqual([{ field: 'createdAt', direction: 'desc' }])
+  })
+})

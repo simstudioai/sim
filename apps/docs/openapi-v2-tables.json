@@ -5470,7 +5470,7 @@
         "type": "object",
         "properties": {
           "columnWidths": {
-            "description": "Column widths keyed by stable column identifier.",
+            "description": "Column widths keyed by column name.",
             "type": "object",
             "propertyNames": {
               "type": "string"
@@ -5481,21 +5481,21 @@
             }
           },
           "columnOrder": {
-            "description": "Stable column identifiers in display order.",
+            "description": "Column names in display order.",
             "type": "array",
             "items": {
               "type": "string"
             }
           },
           "pinnedColumns": {
-            "description": "Stable identifiers of pinned columns.",
+            "description": "Names of pinned columns.",
             "type": "array",
             "items": {
               "type": "string"
             }
           },
           "hiddenColumns": {
-            "description": "Stable identifiers of hidden columns.",
+            "description": "Names of hidden columns.",
             "type": "array",
             "items": {
               "type": "string"
@@ -5604,7 +5604,7 @@
             "type": "object",
             "properties": {
               "columnWidths": {
-                "description": "Column widths keyed by stable column identifier.",
+                "description": "Column widths keyed by column name or stable column identifier.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -5615,21 +5615,21 @@
                 }
               },
               "columnOrder": {
-                "description": "Stable column identifiers in display order.",
+                "description": "Columns in display order, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
               },
               "pinnedColumns": {
-                "description": "Stable identifiers of pinned columns.",
+                "description": "Pinned columns, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
               },
               "hiddenColumns": {
-                "description": "Stable identifiers of hidden columns.",
+                "description": "Hidden columns, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -5717,7 +5717,7 @@
             "type": "object",
             "properties": {
               "columnWidths": {
-                "description": "Column widths keyed by stable column identifier.",
+                "description": "Column widths keyed by column name or stable column identifier.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -5728,21 +5728,21 @@
                 }
               },
               "columnOrder": {
-                "description": "Stable column identifiers in display order.",
+                "description": "Columns in display order, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
               },
               "pinnedColumns": {
-                "description": "Stable identifiers of pinned columns.",
+                "description": "Pinned columns, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
               },
               "hiddenColumns": {
-                "description": "Stable identifiers of hidden columns.",
+                "description": "Hidden columns, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -5797,7 +5797,7 @@
             "type": "object",
             "properties": {
               "columnWidths": {
-                "description": "Column widths keyed by stable column identifier.",
+                "description": "Column widths keyed by column name or stable column identifier.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -5808,21 +5808,21 @@
                 }
               },
               "columnOrder": {
-                "description": "Stable column identifiers in display order.",
+                "description": "Columns in display order, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
               },
               "pinnedColumns": {
-                "description": "Stable identifiers of pinned columns.",
+                "description": "Pinned columns, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
               },
               "hiddenColumns": {
-                "description": "Stable identifiers of hidden columns.",
+                "description": "Hidden columns, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"

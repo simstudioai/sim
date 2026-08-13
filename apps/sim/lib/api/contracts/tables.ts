@@ -1912,11 +1912,33 @@ export const tableEventStreamContract = defineRouteContract({
 
 /**
  * A saved view's stored shape: `TableMetadata`'s column layout plus the row
- * predicate and sort. Every column reference is a stable column id, so a rename
- * never invalidates a view.
+ * predicate and sort.
+ *
+ * Every column reference is STORED as a stable column id, so a rename never
+ * invalidates a view — but a write may reference a column either way, and
+ * `normalizeViewConfigForStorage` resolves a name to its id before the config is
+ * persisted. That is what lets the name-keyed v2 surface and the id-keyed
+ * first-party UI write the same blob. A read is presented in the reading
+ * surface's own vocabulary.
  */
 export const tableViewConfigSchema = tableMetadataSchema
   .extend({
+    columnWidths: z
+      .record(z.string(), z.number().positive())
+      .optional()
+      .describe('Column widths keyed by column name or stable column identifier.'),
+    columnOrder: z
+      .array(z.string())
+      .optional()
+      .describe('Columns in display order, by name or stable identifier.'),
+    pinnedColumns: z
+      .array(z.string())
+      .optional()
+      .describe('Pinned columns, by name or stable identifier.'),
+    hiddenColumns: z
+      .array(z.string())
+      .optional()
+      .describe('Hidden columns, by name or stable identifier.'),
     // The v2 predicate/sort grammar — same wire as the query routes, so a saved
     // view gets the same strictness and depth bounds as a live filter, and its
     // config can later feed the v2 surfaces without conversion.

@@ -4,7 +4,11 @@ import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { RowData, TableDefinition, TablePredicate, TableSchema } from '@/lib/table'
 import { getMaxRowsPerTable } from '@/lib/table/billing'
-import { getColumnId } from '@/lib/table/column-keys'
+import {
+  buildColumnNameById,
+  getColumnId,
+  remapViewConfigColumnRefs,
+} from '@/lib/table/column-keys'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
@@ -12,7 +16,7 @@ import {
   validateStoragePredicate,
 } from '@/lib/table/query-builder/validate'
 import { predicateToStorage } from '@/lib/table/select-values'
-import type { Filter, TableLockKind } from '@/lib/table/types'
+import type { ColumnDefinition, Filter, TableLockKind } from '@/lib/table/types'
 import type { TableView } from '@/lib/table/views/service'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
 import { CSV_IMPORT_PROXY_BODY_CAP_BYTES, normalizeColumn } from '@/app/api/table/utils'
@@ -143,15 +147,27 @@ export async function toApiTables(
 }
 
 /**
- * Normalized public view shape. Identical to the stored view except that the
- * timestamps are ISO strings, matching every other v2 payload.
+ * Normalized public view shape: ISO timestamps, and a `config` whose column
+ * references are presented as column **names**.
+ *
+ * A view stores every column reference as a stable id so a rename cannot orphan
+ * it — but the v2 surface is name-keyed everywhere else (row `data`, query
+ * predicates, sort fields, and workflow groups via `presentV2WorkflowGroup`),
+ * and a caller who never sees a `col_…` id cannot round-trip a config it reads
+ * back into a create. The write path translates in the other direction, so the
+ * pair is symmetric. A ref naming no current column (a since-deleted column in
+ * a saved filter) is left as-is.
  */
-export function toApiView(view: TableView, createdByEmail: string | null) {
+export function toApiView(
+  view: TableView,
+  createdByEmail: string | null,
+  columns: ColumnDefinition[]
+) {
   return {
     id: view.id,
     tableId: view.tableId,
     name: view.name,
-    config: view.config,
+    config: remapViewConfigColumnRefs(view.config, buildColumnNameById(columns)),
     isDefault: view.isDefault,
     createdByEmail,
     createdAt: toIso(view.createdAt),

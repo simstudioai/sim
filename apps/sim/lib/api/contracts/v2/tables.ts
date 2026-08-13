@@ -1043,8 +1043,22 @@ const v2TableViewPredicateOutputSchema = z
     'Recursive saved predicate tree. Runtime validation uses the canonical predicate schema.'
   ) as z.ZodType<z.output<typeof predicateSchema>>
 
+/**
+ * Every column reference in a v2 view config — the layout keys, `sort[].field`,
+ * and each `filter` leaf `field` — is a column **NAME**, like row `data`, query
+ * predicates, and workflow groups on this surface. The stored blob keys on
+ * stable column ids so a rename cannot orphan a view; the route translates in
+ * both directions, so a config reads back in the vocabulary it was written in.
+ */
 export const v2TableViewConfigSchema = tableMetadataSchema
   .extend({
+    columnWidths: z
+      .record(z.string(), z.number().positive())
+      .optional()
+      .describe('Column widths keyed by column name.'),
+    columnOrder: z.array(z.string()).optional().describe('Column names in display order.'),
+    pinnedColumns: z.array(z.string()).optional().describe('Names of pinned columns.'),
+    hiddenColumns: z.array(z.string()).optional().describe('Names of hidden columns.'),
     filter: v2TableViewPredicateOutputSchema
       .nullable()
       .optional()

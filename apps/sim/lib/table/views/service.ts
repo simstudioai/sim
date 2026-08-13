@@ -14,10 +14,20 @@ import { tableViews } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, count, eq, ne, sql } from 'drizzle-orm'
-import { getColumnId } from '@/lib/table/column-keys'
+import {
+  buildColumnIdByName,
+  getColumnId,
+  remapViewConfigColumnRefs,
+} from '@/lib/table/column-keys'
 import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableViewsChanged } from '@/lib/table/events'
 import { filterRulesToPredicate, filterToRules } from '@/lib/table/query-builder/converters'
+import {
+  SYSTEM_COLUMN_FIELDS,
+  validateStoragePredicate,
+  validateStorageSortSpec,
+} from '@/lib/table/query-builder/validate'
 import { withLockedTable } from '@/lib/table/service'
 import type {
   ColumnDefinition,
@@ -79,11 +89,48 @@ export function pruneViewConfig(
     pruned.columnWidths = widths
   }
   if (config.sort) {
-    const sort = config.sort.filter((s) => live.has(s.field))
+    // `live` holds column ids only. `createdAt`/`updatedAt`/`id` are sortable
+    // row-level columns that are not in `schema.columns`, so without this a view
+    // sorted by one of them would prune to "no sort at all" on every read.
+    const sort = config.sort.filter((s) => live.has(s.field) || SYSTEM_COLUMN_FIELDS.has(s.field))
     pruned.sort = sort.length > 0 ? sort : null
   }
 
   return pruned
+}
+
+/**
+ * Canonicalizes a caller-supplied config for storage: every column reference is
+ * rewritten to the column's stable **id**, then the row-selecting parts are
+ * validated against the live schema.
+ *
+ * Two vocabularies reach this write. The first-party UI authors ids; the v2
+ * public surface is column-NAME-keyed like every other v2 row/data surface (see
+ * `presentV2WorkflowGroup`, which converts the same way on the way out). The
+ * rewrite is a lookup with pass-through, so an id, a system column, and a name
+ * all land on the one keying `pruneViewConfig` and the query layer read.
+ *
+ * `filter` and `sort` are then validated: a predicate or sort naming no column
+ * is one the query routes answer 400 for, so storing it would save a view that
+ * can never load. Column LAYOUT is deliberately not validated — it auto-saves as
+ * the user drags, and racing a concurrent column delete must self-heal through
+ * {@link pruneViewConfig}, not fail the drag.
+ */
+export function normalizeViewConfigForStorage(
+  config: TableViewConfig,
+  columns: ColumnDefinition[]
+): TableViewConfig {
+  const stored = remapViewConfigColumnRefs(config, buildColumnIdByName(columns))
+  try {
+    if (stored.filter) validateStoragePredicate(stored.filter, columns)
+    if (stored.sort) validateStorageSortSpec(stored.sort, columns)
+  } catch (error) {
+    if (error instanceof TableQueryValidationError) {
+      throw new TableViewValidationError(error.message)
+    }
+    throw error
+  }
+  return stored
 }
 
 /**
@@ -239,6 +286,7 @@ export interface CreateTableViewData {
  */
 export async function createTableView(data: CreateTableViewData): Promise<TableView> {
   const name = normalizeName(data.name)
+  const config = normalizeViewConfigForStorage(data.config, data.columns)
 
   const row = await withLockedTable(data.tableId, async (_table, trx) => {
     const [existing] = await trx
@@ -261,7 +309,7 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
         tableId: data.tableId,
         workspaceId: data.workspaceId,
         name,
-        config: data.config,
+        config,
         createdBy: data.userId,
       })
       .returning()
@@ -297,11 +345,18 @@ export interface UpdateTableViewData {
  * can't each replace the whole blob from their own stale snapshot.
  */
 export async function updateTableView(data: UpdateTableViewData): Promise<TableView | null> {
+  const config =
+    data.config === undefined ? undefined : normalizeViewConfigForStorage(data.config, data.columns)
+  const configPatch =
+    data.configPatch === undefined
+      ? undefined
+      : normalizeViewConfigForStorage(data.configPatch, data.columns)
+
   const patch: Partial<typeof tableViews.$inferInsert> = { updatedAt: new Date() }
   if (data.name !== undefined) patch.name = normalizeName(data.name)
-  if (data.config !== undefined) patch.config = data.config
-  if (data.configPatch !== undefined) {
-    patch.config = sql`${tableViews.config} || ${JSON.stringify(data.configPatch)}::jsonb`
+  if (config !== undefined) patch.config = config
+  if (configPatch !== undefined) {
+    patch.config = sql`${tableViews.config} || ${JSON.stringify(configPatch)}::jsonb`
   }
   if (data.isDefault !== undefined) patch.isDefault = data.isDefault
 
@@ -325,8 +380,7 @@ export async function updateTableView(data: UpdateTableViewData): Promise<TableV
 
     const nextName = data.name === undefined ? existing.name : normalizeName(data.name)
     const storedConfig = (existing.config ?? {}) as TableViewConfig
-    const nextConfig =
-      data.config ?? (data.configPatch ? { ...storedConfig, ...data.configPatch } : storedConfig)
+    const nextConfig = config ?? (configPatch ? { ...storedConfig, ...configPatch } : storedConfig)
     const nextIsDefault = data.isDefault ?? existing.isDefault
     const changed =
       nextName !== existing.name ||
