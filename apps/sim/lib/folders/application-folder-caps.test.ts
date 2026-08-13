@@ -24,6 +24,12 @@ vi.mock('@/lib/folders/queries', () => ({
   loadActiveFolderPathIndex: mocks.loadFolderIndex,
   resolveFolderPathFromIndex: (index: { idByPath: Map<string, string> }, path: string) =>
     path === '/' ? null : index.idByPath.get(path),
+  resolveFolderPathFilter: (index: { idByPath: Map<string, string> }, path: string | undefined) => {
+    if (path === undefined) return { kind: 'unfiltered' }
+    if (path === '/') return { kind: 'folder', folderId: null }
+    const folderId = index.idByPath.get(path)
+    return folderId === undefined ? { kind: 'noMatch' } : { kind: 'folder', folderId }
+  },
 }))
 vi.mock('@/lib/workflows/application/context', () => ({
   resolveActiveWorkspaceApplicationContext: mocks.resolveWorkflowWorkspace,
@@ -174,5 +180,75 @@ describe('workflow and table application folder caps', () => {
       undefined,
       { maxRows: MAX_FOLDERS_PER_WORKSPACE }
     )
+  })
+})
+
+/**
+ * A `folderPath` that names no active folder is a filter nothing satisfies, not
+ * a missing collection. Answering `404 Folder not found` made the folder filter
+ * the only one of each list's filters whose miss was an error rather than an
+ * empty page, and turned a folder deleted mid-walk into a failed pagination
+ * loop. The row query must not run at all: without a folder id there is nothing
+ * to constrain it, so issuing it would return the whole unfiltered set.
+ */
+describe('a list folder filter that matches no folder', () => {
+  const MISSING = '/does-not-exist'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolvePermission.mockResolvedValue('read')
+    mocks.resolveWorkflowWorkspace.mockResolvedValue(context)
+    mocks.resolveTableWorkspace.mockResolvedValue(context)
+    mocks.resolveWorkspaceFileWorkspace.mockResolvedValue(context)
+    mocks.loadFolderIndex.mockResolvedValue(folderIndex)
+  })
+
+  it('returns an empty workflow page without querying rows', async () => {
+    const result = await listWorkflows.execute({
+      principal,
+      input: {
+        workspaceId: context.workspaceId,
+        folderPath: MISSING,
+        deployedOnly: false,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        limit: 25,
+      },
+    })
+
+    expect(result).toMatchObject({ workflows: [], nextCursorKeys: null })
+    expect(mocks.listWorkflows).not.toHaveBeenCalled()
+  })
+
+  it('returns an empty table page without querying rows', async () => {
+    const result = await listTablesUseCase.execute({
+      principal,
+      input: {
+        workspaceId: context.workspaceId,
+        folderPath: MISSING,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        limit: 25,
+      },
+    })
+
+    expect(result).toMatchObject({ tables: [], nextKeys: null })
+    expect(mocks.listTables).not.toHaveBeenCalled()
+  })
+
+  it('returns an empty file page without querying rows', async () => {
+    const result = await queryWorkspaceFilePage.execute({
+      principal,
+      input: {
+        workspaceId: context.workspaceId,
+        folderPath: MISSING,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        limit: 25,
+      },
+    })
+
+    expect(result).toMatchObject({ files: [], nextKeys: null })
+    expect(mocks.queryWorkspaceFiles).not.toHaveBeenCalled()
   })
 })

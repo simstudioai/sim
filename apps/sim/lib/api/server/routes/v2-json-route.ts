@@ -140,6 +140,15 @@ export const v2InvalidJsonResponse = () => v2Error('BAD_REQUEST', 'Request body 
 export const V2_PARSE_DEFAULTS = {
   payloadTooLargeResponse: v2PayloadTooLargeResponse,
   invalidJsonResponse: v2InvalidJsonResponse,
+  /**
+   * `?limit=` is not `limit` omitted, and v2 already says so on the two params
+   * whose schema happens to catch it: `search` and `cursor` both reject a blank
+   * and tell the caller to omit the parameter. Applying the rule at the surface
+   * rather than per schema is what makes it true for every param — including the
+   * coerced ones, where the blank has already become `0` or a default by the
+   * time a schema sees the value.
+   */
+  rejectBlankQueryValues: true,
 } as const
 
 export interface V2ErrorPolicy {

@@ -104,6 +104,36 @@ describe('/api/v2/files', () => {
     expect(mocks.queryFiles).not.toHaveBeenCalled()
   })
 
+  /**
+   * `?limit=` is not `limit` omitted. `Number('') === 0`, and this list clamps
+   * out-of-range values, so the blank used to reach the query as `LIMIT 1` and
+   * return a single row where the omitted param returns a hundred — a silently
+   * wrong page, not an error. Whitespace-only is the same value.
+   */
+  it.each(['limit=', 'limit=%20', 'sortBy=', 'cursor='])(
+    'rejects the blank query value %s instead of coercing it',
+    async (param) => {
+      const response = await GET(
+        new NextRequest(`http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}&${param}`)
+      )
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error.code).toBe('BAD_REQUEST')
+      expect(mocks.queryFiles).not.toHaveBeenCalled()
+    }
+  )
+
+  it('still applies the documented default when limit is omitted entirely', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}`)
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.queryFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ limit: 100 }) })
+    )
+  })
+
   it('rejects an unauthenticated request', async () => {
     v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
 

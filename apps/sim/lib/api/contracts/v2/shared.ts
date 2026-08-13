@@ -78,7 +78,22 @@ import {
  *   from the `sortOrder` *param* on purpose.
  * - **Filters** — resource-specific and enumerated, reusing the names already
  *   on the surface (`scope`, `folderPath`, `deployedOnly`, `type`, `providerId`,
- *   `resourceType`). No generic filter expression.
+ *   `resourceType`). No generic filter expression. A filter value that matches
+ *   nothing is an empty page, never an error — including a `folderPath` naming
+ *   no folder ({@link V2_FOLDER_FILTER_MISS}), which used to be this family's
+ *   one 404 and is now the same empty page as `workflowIds` naming no workflow.
+ *
+ * ## Blank query values
+ *
+ * A param sent with no value (`?limit=`, `?search=`, `?limit=%20`) is a 400
+ * naming it. It is not the same request as an omitted param, and no schema can
+ * see the difference on its own: `z.coerce.number()` reads `''` as `0`, so
+ * `?limit=` on the lists that clamp became `LIMIT 1` — one row where the omitted
+ * param gives a hundred — and `?minCost=` on `GET /logs` became a live
+ * `cost >= 0` filter. `search` and `cursor` already rejected a blank because
+ * their schemas happened to be strict enough; the rule is enforced for every
+ * param at the surface instead (`V2_PARSE_DEFAULTS.rejectBlankQueryValues`,
+ * applied to the raw query before coercion), so a param added later inherits it.
  *
  * Every one of these is pushed into SQL, except on `GET /skills` (which narrows the
  * static builtin registry with the same search term, merges it into the DB rows,
@@ -424,6 +439,21 @@ export const v2SearchSchema = z
   .max(V2_SEARCH_MAX_LENGTH, 'search is too long')
   .optional()
   .describe('Case-insensitive substring search on the resource name.')
+
+/**
+ * Appended to every list folder-filter description.
+ *
+ * A folder filter is a filter: a path naming no active folder narrows the result
+ * to nothing, exactly as `workflowIds` naming no workflow does. These lists used
+ * to answer `404 Folder not found` instead, which reported a missing collection
+ * for a collection that exists, broke a pagination walk when a folder was
+ * deleted mid-walk, and made a list a folder-existence oracle. The sibling
+ * folder lists already answered a non-matching `parentPath` with an empty page.
+ * Mutations keep their 404 — creating into or moving to a folder that does not
+ * exist has no empty-set reading.
+ */
+export const V2_FOLDER_FILTER_MISS =
+  'A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.'
 
 export const v2SortOrderSchema = z.enum(LIST_SORT_ORDERS).describe('Sort direction.')
 

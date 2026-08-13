@@ -26,6 +26,7 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
+import { searchFilter } from '@/lib/api/list-query'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   assertBillingAttributionSnapshot,
@@ -1683,7 +1684,7 @@ export async function getDocuments(
   }
 
   if (search) {
-    whereConditions.push(sql`LOWER(${document.filename}) LIKE LOWER(${`%${search}%`})`)
+    whereConditions.push(searchFilter(document.filename, search))
   }
 
   if (tagFilters && tagFilters.length > 0) {

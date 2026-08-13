@@ -17,6 +17,7 @@ import {
   v1SearchTagFilterSchema,
 } from '@/lib/api/contracts/v1/knowledge'
 import {
+  V2_FOLDER_FILTER_MISS,
   v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
@@ -578,7 +579,7 @@ export const v2ListKnowledgeBasesQuerySchema = z
     workspaceId: workspaceIdSchema.describe('Workspace whose knowledge bases should be listed.'),
     folderPath: v2FolderPathInputSchema
       .optional()
-      .describe('Restrict results to knowledge bases in this folder.'),
+      .describe(`Restrict results to knowledge bases in this folder. ${V2_FOLDER_FILTER_MISS}`),
     search: v2SearchSchema,
     ...v2SortFields(v2KnowledgeBaseSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
     ...v2PaginationFields({ description: 'Maximum knowledge bases to return per page.' }),

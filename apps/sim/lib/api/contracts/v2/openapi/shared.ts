@@ -45,7 +45,11 @@ const FORBIDDEN_DESCRIPTION =
   'The caller lacks the rights this operation requires. When the cause is one a caller can act on, `error.details.code` names it. A resource in a workspace the caller cannot reach at all answers `404` instead, so absence and denial are indistinguishable.'
 
 export const ERROR_RESPONSES = {
-  BadRequest: { status: 400, description: 'The request is invalid.' },
+  BadRequest: {
+    status: 400,
+    description:
+      'The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.',
+  },
   Unauthorized: { status: 401, description: 'The API key is missing or invalid.' },
   UsageLimitExceeded: {
     status: 402,
