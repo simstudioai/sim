@@ -42,6 +42,16 @@ body {
   --text-small: 13px;
   --text-base: 15px;
   --text-md: 16px;
+
+  /* Code-token size for the API reference: the type chips and the metadata
+     beside them. A step between --text-xs and --text-small, named because nine
+     rules have to agree on it. */
+  --text-code: 0.78125rem;
+
+  /* The monospace stack, resolved once. Declared here rather than repeated at
+     each callsite so a face change is one edit, not eleven. */
+  --font-mono-stack: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
 /* Pure white light mode background */
@@ -220,28 +230,15 @@ body {
   --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
-/* Scrollbars — platform thumb tokens, transparent track */
+/* Scrollbars — platform thumb tokens, transparent track.
+   Standard properties only: specifying a non-auto `scrollbar-width` or
+   `scrollbar-color` makes Chromium ignore every `::-webkit-scrollbar*` rule on
+   that element, and Firefox never supported them, so a webkit block here would
+   be dead everywhere it was meant to apply. Hover shading is not expressible
+   through the standard properties and is dropped rather than faked. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb-color) transparent;
-}
-
-*::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  background-color: var(--scrollbar-thumb-color);
-  border-radius: 9999px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background-color: var(--scrollbar-thumb-hover-color);
 }
 
 /* Font family utilities */
@@ -251,8 +248,7 @@ body {
 }
 
 .font-mono {
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono-stack);
 }
 
 /* Platform UI font — Season Sans, used by the chip chrome to match the main app */
@@ -672,8 +668,7 @@ aside[data-sidebar],
 code,
 pre,
 pre code {
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono-stack);
 }
 
 /* Inline code — neutral colors aligned with sim design system */
@@ -1176,7 +1171,7 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   gap: 0.25rem;
   height: 1.25rem;
   padding: 0 0.25rem;
-  font-size: 0.78125rem;
+  font-size: var(--text-code);
   line-height: 1.25rem;
   font-weight: 400;
   color: var(--text-secondary);
@@ -1185,9 +1180,11 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   cursor: pointer;
   border-radius: 0.375rem;
   transition: color 0.15s;
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono-stack);
 }
+/* Carries the same id-qualified prefix as the base rule above; without it the
+   base rule outranks this one and the trigger never changes colour on hover. */
+#nd-page:has(.api-page-header) button.response-section-dropdown-trigger:hover,
 .response-section-dropdown-trigger:hover {
   color: var(--color-fd-foreground);
 }
@@ -1251,15 +1248,14 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
    the upper one despite being the same string. Both are pinned here. */
 #nd-page:has(.api-page-header) span.response-section-content-type,
 .response-section-content-type {
-  font-size: 0.78125rem;
+  font-size: var(--text-code);
   line-height: 1.25rem;
   font-weight: 400;
   color: var(--text-secondary);
   background: none;
   border: none;
   padding: 0;
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono-stack);
 }
 
 /* Response schema container — remove border to match Path Parameters style */
@@ -1309,11 +1305,10 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   color: var(--text-body);
   padding: 0 0.3125rem;
   border-radius: 0.375rem;
-  font-size: 0.78125rem;
+  font-size: var(--text-code);
   line-height: 1;
   font-weight: 400;
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono-stack);
 }
 
 /* Union members and schema references carry their own underline, which makes
@@ -1357,7 +1352,7 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   > span.text-sm.font-mono.text-fd-muted-foreground
   > span {
   margin: 0 0.375rem;
-  color: var(--text-muted, var(--text-secondary));
+  color: var(--text-muted);
 }
 
 /* Hide the "*" inside the name span — we'll add "required" as a ::after on the flex row */
@@ -1376,11 +1371,10 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   display: inline-flex;
   align-items: center;
   color: var(--badge-error-text);
-  font-size: 0.78125rem;
+  font-size: var(--text-code);
   line-height: 1.25rem;
   font-weight: 400;
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono-stack);
 }
 /* Optional "?" indicator — hide it */
 #nd-page:has(.api-page-header)
@@ -1415,10 +1409,10 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   > span.text-sm.font-mono.text-fd-muted-foreground {
   order: 2;
   font-size: 0;
-  padding: 0 !important;
-  background: none !important;
-  border: none !important;
-  height: auto !important;
+  padding: 0;
+  background: none;
+  border: none;
+  height: auto;
   line-height: 0;
 }
 #nd-page:has(.api-page-header)
@@ -1426,11 +1420,10 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground::after {
   content: "string";
-  font-size: 0.78125rem;
+  font-size: var(--text-code);
   line-height: 1;
   font-weight: 400;
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono-stack);
   background-color: var(--surface-4);
   border: 1px solid var(--border-1);
   color: var(--text-body);
@@ -1449,11 +1442,10 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   display: inline-flex;
   align-items: center;
   color: var(--text-secondary);
-  font-size: 0.78125rem;
+  font-size: var(--text-code);
   line-height: 1.25rem;
   font-weight: 400;
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono-stack);
 }
 
 /* "required" marker via ::after on the auth flex row */
@@ -1463,14 +1455,18 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   display: inline-flex;
   align-items: center;
   color: var(--badge-error-text);
-  font-size: 0.78125rem;
+  font-size: var(--text-code);
   line-height: 1.25rem;
   font-weight: 400;
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono-stack);
 }
-/* Hide "In: header" text below auth property — redundant with the header badge */
-#nd-page:has(.api-page-header) div.my-4 .prose-no-margin p:has(> code) {
+/* Hide the trailing "In: header" line below an auth property — redundant with
+   the header marker on the row itself. Matched by position, not by shape:
+   fumadocs emits the description first and this line last, and every scheme
+   description in our specs mentions a status code, so a `p:has(> code)` match
+   also hides the description — which is the whole explanation of personal vs
+   workspace-scoped keys. */
+#nd-page:has(.api-page-header) div.my-4 .prose-no-margin > p:last-child:has(> code) {
   display: none !important;
 }
 
@@ -1507,21 +1503,10 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   border: none !important;
   padding: 0 !important;
   color: var(--text-secondary) !important;
-  font-size: 0.78125rem !important;
+  font-size: var(--text-code) !important;
   line-height: 1.25rem !important;
   font-weight: 400 !important;
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace !important;
-}
-
-/* Object/array type triggers only need their order here — the type-token rule
-   above owns their chrome. They previously carried a second, divergent chip
-   definition (--surface-5, 11px sans, weight 500), which is why a union or a
-   schema reference rendered a different size, weight, and face than the plain
-   scalar sitting next to it. */
-#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
-#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
-  order: 2;
+  font-family: var(--font-mono-stack) !important;
 }
 
 /* Section headings (Authorization, Path Parameters, etc.) — consistent top spacing */
@@ -1543,18 +1528,20 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
    trigger — but fumadocs renders the strip in the body sans face. Language tabs
    sit in a different container and stay sans: those are product names, not code. */
 #nd-page:has(.api-page-header) .flex.gap-3\.5.overflow-x-auto.not-prose > button {
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
-  font-size: 0.78125rem;
+  font-family: var(--font-mono-stack);
+  font-size: var(--text-code);
   font-weight: 400;
 }
 
-/* fumadocs renders a handful of lucide glyphs on API pages that we cannot reach
-   through its client-component overrides (the heading anchor and the code-block
-   copy button). emcn draws at 1.55; lucide ships at 2, so those few icons read
-   noticeably heavier than every icon around them. Match the weight so the set
-   looks like one family. */
-#nd-page svg[class*="lucide"],
+/* Any lucide glyph fumadocs still renders itself — the heading anchor and the
+   code-block copy button on API pages, and whatever else its chrome draws.
+   emcn strokes at 1.55 and lucide ships at 2, so those icons read noticeably
+   heavier than every icon around them.
+   Deliberately layout-wide rather than API-scoped: the goal is one icon weight
+   across the docs. The glyphs themselves can be replaced properly by passing
+   `renderHeading` and `renderCodeBlock` to `createAPIPage` — the app already
+   owns emcn-based Heading and CodeBlock components for MDX pages — which would
+   retire this rule. */
 #nd-docs-layout svg[class*="lucide"] {
   stroke-width: 1.55;
 }

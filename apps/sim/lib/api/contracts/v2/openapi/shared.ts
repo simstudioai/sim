@@ -144,7 +144,7 @@ export const V2_API_KEY_SECURITY_SCHEMES = {
     in: 'header',
     name: 'X-API-Key',
     description:
-      'Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those.',
+      'Your Sim API key, personal or workspace-scoped. Generate one under Settings > API Keys. Operations that reject workspace keys say so in their own description.',
   },
 } as const satisfies Readonly<Record<string, OpenApiSecurityScheme>>
 
