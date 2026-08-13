@@ -19,6 +19,18 @@ export const credentialOperations = {
     workspaceApiKey: 'deny',
     principalKinds: ['personal_api_key'],
   }),
+  createServiceAccount: defineWorkspaceOperation({
+    id: 'credentials.service_accounts.create',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: ['personal_api_key'],
+  }),
+  delete: defineWorkspaceOperation({
+    id: 'credentials.delete',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['personal_api_key'],
+  }),
   launchConnection: defineWorkspaceOperation({
     id: 'credentials.connections.launch',
     minimumRole: 'write',

@@ -32,7 +32,10 @@ import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialOrchestration')
 
+export { deleteConnectionCredential } from '@/lib/credentials/deletion'
 export {
+  type CreateServiceAccountCredentialParams,
+  createServiceAccountCredential,
   isProviderOutageCode,
   type PerformCreateCredentialParams,
   type PerformCreateCredentialResult,

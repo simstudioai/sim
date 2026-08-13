@@ -3,16 +3,16 @@ import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import {
-  type CredentialProviderCatalogEntry,
   listCredentialProviderCatalog,
-  requireAvailableCredentialProvider,
+  type OAuthCredentialProviderCatalogEntry,
+  requireAvailableOAuthCredentialProvider,
 } from '@/lib/credentials/application/provider-catalog'
 import { getWorkspaceCredential } from '@/lib/credentials/queries'
 import { credentialProviderMatchesService } from '@/lib/oauth/utils'
 import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export interface ResolvedCredentialConnectionTarget {
-  provider: CredentialProviderCatalogEntry
+  provider: OAuthCredentialProviderCatalogEntry
   providerId: string
   credentialId?: string
   displayName?: string
@@ -32,7 +32,7 @@ export async function resolveCredentialConnectionTarget(params: {
   const catalog = await listCredentialProviderCatalog(principal, context)
   if (providerId) {
     return {
-      provider: requireAvailableCredentialProvider(catalog, providerId),
+      provider: requireAvailableOAuthCredentialProvider(catalog, providerId),
       providerId,
     }
   }
@@ -61,11 +61,15 @@ export async function resolveCredentialConnectionTarget(params: {
     )
   }
 
-  const provider = catalog.find((entry) =>
-    credentialProviderMatchesService(credentialProviderId, {
-      providerId: entry.authorizationOptions[0].providerId,
-      additionalProviderIds: entry.authorizationOptions.slice(1).map((option) => option.providerId),
-    })
+  const provider = catalog.find(
+    (entry): entry is OAuthCredentialProviderCatalogEntry =>
+      entry.type === 'oauth' &&
+      credentialProviderMatchesService(credentialProviderId, {
+        providerId: entry.authorizationOptions[0].providerId,
+        additionalProviderIds: entry.authorizationOptions
+          .slice(1)
+          .map((option) => option.providerId),
+      })
   )
   if (!provider) {
     throw new OrchestrationError('validation', `Unknown OAuth provider: ${credentialProviderId}`)

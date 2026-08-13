@@ -39,7 +39,7 @@
     },
     {
       "name": "Credentials",
-      "description": "Discover OAuth providers, connect or reconnect accounts, and list connections without secret material."
+      "description": "Discover providers, create service-account credentials, connect or reconnect OAuth accounts, disconnect credentials, and list connections without secret material."
     },
     {
       "name": "Secrets",
@@ -1562,7 +1562,7 @@
       "get": {
         "operationId": "listCredentials",
         "summary": "List Credentials",
-        "description": "List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are not exposed.",
+        "description": "List OAuth and service-account connections visible to the caller. Secret material is never returned.",
         "tags": ["Credentials"],
         "parameters": [
           {
@@ -1703,30 +1703,118 @@
             "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
+      },
+      "post": {
+        "operationId": "createServiceAccountCredential",
+        "summary": "Create Service-Account Credential",
+        "description": "Verify and store one service-account credential. Use provider discovery to select a service-account provider and submit its required fields. Secret fields are write-only and are never returned. A retried source match returns the existing credential with 200; a newly created credential returns 201. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Credentials"],
+        "requestBody": {
+          "required": true,
+          "description": "Provider identifier, optional display metadata, and the write-only fields declared by provider discovery.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateServiceAccountCredentialRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "An existing credential matched the verified source.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateServiceAccountCredentialResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The service-account credential was created.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateServiceAccountCredentialResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
       }
     },
-    "/api/v2/credential-providers": {
+    "/api/v2/credentials/providers": {
       "get": {
         "operationId": "listCredentialProviders",
         "summary": "List Credential Providers",
-        "description": "List catalogued OAuth services and whether each is available to the caller in this workspace and deployment. Authorization options contain the exact provider IDs accepted by the connection endpoint. The bounded set is returned in one page; `nextCursor` is always null.",
+        "description": "List catalogued OAuth and service-account connection methods and whether each is available to the caller in this workspace and deployment. OAuth authorization options contain the exact provider IDs accepted by the browser connection endpoint; service-account methods list the exact create-body fields and mark secret fields write-only. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Credentials"],
         "parameters": [
           {
             "name": "workspaceId",
             "in": "query",
             "required": true,
-            "description": "Workspace used to evaluate OAuth availability and integration policy.",
+            "description": "Workspace used to evaluate credential-provider availability and integration policy.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Workspace used to evaluate OAuth availability and integration policy."
+              "description": "Workspace used to evaluate credential-provider availability and integration policy."
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OAuth provider catalog with caller-specific availability.",
+            "description": "Credential provider catalog with caller-specific availability.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -1770,7 +1858,7 @@
         }
       }
     },
-    "/api/v2/credential-connections": {
+    "/api/v2/credentials/connections": {
       "post": {
         "operationId": "createCredentialConnection",
         "summary": "Create Credential Connection",
@@ -1826,6 +1914,83 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/credentials/{credentialId}": {
+      "delete": {
+        "operationId": "deleteCredential",
+        "summary": "Disconnect Credential",
+        "description": "Disconnect an OAuth or service-account credential and clear its stored workflow, deployment, paused-run, knowledge-connector, and webhook references. Credential admin access is required. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["Credentials"],
+        "parameters": [
+          {
+            "name": "credentialId",
+            "in": "path",
+            "required": true,
+            "description": "Credential to disconnect.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Credential to disconnect."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace expected to own the credential.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace expected to own the credential."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The credential was disconnected.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteCredentialResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -4210,78 +4375,245 @@
         ]
       },
       "V2CredentialProvider": {
-        "type": "object",
-        "properties": {
-          "serviceId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255,
-            "description": "Stable OAuth service identifier."
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255,
-            "description": "OAuth service display name."
-          },
-          "description": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 1000,
-            "description": "OAuth service description."
-          },
-          "providerFamily": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255,
-            "description": "Owning provider family identifier."
-          },
-          "available": {
-            "type": "boolean",
-            "description": "Whether this caller can start the OAuth flow in the current deployment."
-          },
-          "supportsReconnect": {
-            "type": "boolean",
-            "description": "Whether existing credentials for this service can be reconnected."
-          },
-          "authorizationOptions": {
-            "minItems": 1,
-            "maxItems": 10,
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "providerId": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 255,
-                  "description": "Exact OAuth provider identifier accepted by the connection endpoint."
-                },
-                "label": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 255,
-                  "description": "Human-readable authorization-server label."
-                }
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "oauth",
+                "description": "Browser-based OAuth connection method."
               },
-              "required": ["providerId", "label"],
-              "additionalProperties": false
+              "serviceId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Stable credential-provider identifier."
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Credential provider display name."
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000,
+                "description": "Credential provider description."
+              },
+              "providerFamily": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Owning provider family identifier."
+              },
+              "available": {
+                "type": "boolean",
+                "description": "Whether this caller can connect the provider in the current deployment."
+              },
+              "supportsReconnect": {
+                "type": "boolean",
+                "description": "Whether existing credentials for this service can be reconnected."
+              },
+              "authorizationOptions": {
+                "minItems": 1,
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "providerId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255,
+                      "description": "Exact OAuth provider identifier accepted by the connection endpoint."
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255,
+                      "description": "Human-readable authorization-server label."
+                    }
+                  },
+                  "required": ["providerId", "label"],
+                  "additionalProperties": false
+                },
+                "description": "Authorization servers available for this OAuth service."
+              }
             },
-            "description": "Authorization servers available for this OAuth service."
+            "required": [
+              "type",
+              "serviceId",
+              "name",
+              "description",
+              "providerFamily",
+              "available",
+              "supportsReconnect",
+              "authorizationOptions"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "service_account",
+                "description": "Direct service-account credential method."
+              },
+              "serviceId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Stable credential-provider identifier."
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Credential provider display name."
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000,
+                "description": "Credential provider description."
+              },
+              "providerFamily": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Owning provider family identifier."
+              },
+              "available": {
+                "type": "boolean",
+                "description": "Whether this caller can connect the provider in the current deployment."
+              },
+              "providerId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Exact service-account provider ID accepted by credential creation."
+              },
+              "docsUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "Setup guide for the provider."
+              },
+              "helpText": {
+                "description": "Provider-specific setup guidance.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "requiresClientGeneratedCredentialId": {
+                "type": "boolean",
+                "description": "Whether the caller must generate and submit the credential ID before setup."
+              },
+              "fields": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255,
+                      "description": "Exact create-body field name."
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255,
+                      "description": "Human-readable field label."
+                    },
+                    "placeholder": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1000,
+                      "description": "Suggested input placeholder."
+                    },
+                    "required": {
+                      "type": "boolean",
+                      "description": "Whether the field is required for the selected flow."
+                    },
+                    "secret": {
+                      "type": "boolean",
+                      "description": "Whether the submitted field is write-only secret material."
+                    },
+                    "multiline": {
+                      "type": "boolean",
+                      "description": "Whether the field is intended for multi-line input."
+                    },
+                    "requiredForAuthMethods": {
+                      "description": "Authentication methods for which this field is required.",
+                      "minItems": 1,
+                      "maxItems": 10,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      }
+                    },
+                    "options": {
+                      "description": "Fixed values accepted by a selector field.",
+                      "minItems": 1,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255,
+                            "description": "Submitted option value."
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 255,
+                            "description": "Human-readable option label."
+                          }
+                        },
+                        "required": ["value", "label"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "hint": {
+                      "description": "Provider-specific setup guidance.",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": ["id", "label", "placeholder", "required", "secret", "multiline"],
+                  "additionalProperties": false
+                },
+                "description": "Create-body fields accepted by this provider. Secret fields are write-only."
+              }
+            },
+            "required": [
+              "type",
+              "serviceId",
+              "name",
+              "description",
+              "providerFamily",
+              "available",
+              "providerId",
+              "docsUrl",
+              "requiresClientGeneratedCredentialId",
+              "fields"
+            ],
+            "additionalProperties": false
           }
-        },
-        "required": [
-          "serviceId",
-          "name",
-          "description",
-          "providerFamily",
-          "available",
-          "supportsReconnect",
-          "authorizationOptions"
         ],
-        "additionalProperties": false,
         "title": "Credential Provider",
-        "description": "An OAuth service that may be connected to a workspace."
+        "description": "An OAuth or service-account connection method available to a workspace."
       },
       "ListCredentialProvidersResponse": {
         "type": "object",
@@ -4308,11 +4640,12 @@
         "required": ["data", "nextCursor"],
         "additionalProperties": false,
         "title": "List credential providers response",
-        "description": "OAuth providers and their authorization-server options.",
+        "description": "OAuth and service-account connection methods.",
         "examples": [
           {
             "data": [
               {
+                "type": "oauth",
                 "serviceId": "salesforce",
                 "name": "Salesforce",
                 "description": "Connect to Salesforce CRM data and operations.",
@@ -4329,9 +4662,206 @@
                     "label": "Sandbox"
                   }
                 ]
+              },
+              {
+                "type": "service_account",
+                "serviceId": "zoom-service-account",
+                "providerId": "zoom-service-account",
+                "name": "Zoom server-to-server app",
+                "description": "Connect Zoom with a server-to-server app.",
+                "providerFamily": "zoom",
+                "available": true,
+                "docsUrl": "https://docs.sim.ai/integrations/zoom-service-account",
+                "requiresClientGeneratedCredentialId": false,
+                "fields": [
+                  {
+                    "id": "clientId",
+                    "label": "Client ID",
+                    "placeholder": "Paste the client ID",
+                    "required": true,
+                    "secret": false,
+                    "multiline": false
+                  },
+                  {
+                    "id": "clientSecret",
+                    "label": "Client secret",
+                    "placeholder": "Paste the client secret",
+                    "required": true,
+                    "secret": true,
+                    "multiline": false
+                  },
+                  {
+                    "id": "orgId",
+                    "label": "Account ID",
+                    "placeholder": "Paste the account ID",
+                    "required": true,
+                    "secret": false,
+                    "multiline": false
+                  }
+                ]
               }
             ],
             "nextCursor": null
+          }
+        ]
+      },
+      "CreateServiceAccountCredentialResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Credential"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Create service-account credential response",
+        "description": "Verified credential metadata without secret material.",
+        "examples": [
+          {
+            "data": {
+              "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+              "type": "service_account",
+              "displayName": "Zoom service account",
+              "description": null,
+              "providerId": "zoom-service-account",
+              "accountId": null,
+              "hasServiceAccountKey": true,
+              "role": "admin",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
+            }
+          }
+        ]
+      },
+      "CreateServiceAccountCredentialRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace that will own the credential."
+          },
+          "type": {
+            "type": "string",
+            "const": "service_account",
+            "description": "Service-account credential discriminator."
+          },
+          "providerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Exact service-account provider ID returned by provider discovery."
+          },
+          "displayName": {
+            "description": "Optional name; providers may derive one from the verified account identity.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "description": "Optional credential description.",
+            "type": "string",
+            "maxLength": 500
+          },
+          "id": {
+            "description": "Required only when provider discovery requests a client-generated ID.",
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "serviceAccountJson": {
+            "description": "Write-only Google service-account JSON key.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536
+          },
+          "apiToken": {
+            "description": "Write-only provider API token.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "domain": {
+            "description": "Provider account domain.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "signingSecret": {
+            "description": "Write-only webhook signing secret.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "botToken": {
+            "description": "Write-only bot token.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "clientId": {
+            "description": "OAuth client identifier.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "clientSecret": {
+            "description": "Write-only OAuth client secret.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "orgId": {
+            "description": "Provider organization ID.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "dataCenter": {
+            "description": "Provider data center.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "authMethod": {
+            "description": "Provider authentication method.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "privateKey": {
+            "description": "Write-only PEM private key.",
+            "writeOnly": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "username": {
+            "description": "Provider run-as username.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        "required": ["workspaceId", "type", "providerId"],
+        "additionalProperties": false,
+        "title": "Create service-account credential request",
+        "description": "Provider identifier, optional display metadata, and the write-only fields declared by provider discovery.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "type": "service_account",
+            "providerId": "zoom-service-account",
+            "displayName": "Zoom automation",
+            "clientId": "YOUR_CLIENT_ID",
+            "clientSecret": "YOUR_CLIENT_SECRET",
+            "orgId": "YOUR_ACCOUNT_ID"
           }
         ]
       },
@@ -4390,7 +4920,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 255,
-                "description": "Exact provider ID returned by the credential-provider catalog."
+                "description": "Exact OAuth provider ID returned by credential-provider discovery."
               },
               "displayName": {
                 "type": "string",
@@ -4423,6 +4953,46 @@
         ],
         "title": "Create credential connection body",
         "description": "For a new connection, provide providerId and displayName. For a reconnect, provide only credentialId; the existing display name is preserved."
+      },
+      "V2CredentialDeleteData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Disconnected credential identifier."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the credential was disconnected."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete credential data",
+        "description": "Credential disconnection acknowledgement."
+      },
+      "DeleteCredentialResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2CredentialDeleteData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Disconnect credential response",
+        "description": "Acknowledgement that the credential was disconnected.",
+        "examples": [
+          {
+            "data": {
+              "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+              "deleted": true
+            }
+          }
+        ]
       },
       "V2Secret": {
         "type": "object",

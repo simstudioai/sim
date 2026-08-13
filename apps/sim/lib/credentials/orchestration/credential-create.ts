@@ -5,9 +5,9 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
-import type { NextRequest } from 'next/server'
 import { normalizeCredentialEnvKey } from '@/lib/api/contracts/credentials'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
+import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import { getCredentialCreationWorkspaceContext } from '@/lib/credentials/environment'
@@ -81,7 +81,7 @@ export interface PerformCreateCredentialParams {
    * secrets exist, so the id must be known up front.
    */
   id?: string
-  request?: NextRequest
+  request?: OrchestrationRequestContext
 }
 
 export interface PerformCreateCredentialResult {
@@ -95,6 +95,8 @@ export interface PerformCreateCredentialResult {
   credential?: CredentialRow
   /** False when an existing credential matched the source and was returned instead. */
   created?: boolean
+  /** Verified provider identity metadata for the application audit projection. */
+  auditMetadata?: Record<string, unknown>
 }
 
 interface ExistingCredentialSourceParams {
@@ -190,14 +192,17 @@ function failure(
   return { success: false, error, errorCode, ...extra }
 }
 
-export async function performCreateCredential(
-  params: PerformCreateCredentialParams
+async function createCredentialRecord(
+  params: PerformCreateCredentialParams,
+  options: { authorizeWorkspace: boolean }
 ): Promise<PerformCreateCredentialResult> {
   const { workspaceId, type, userId } = params
 
   try {
-    const workspaceAccess = await checkWorkspaceAccess(workspaceId, userId)
-    if (!workspaceAccess.canWrite) {
+    const workspaceAccess = options.authorizeWorkspace
+      ? await checkWorkspaceAccess(workspaceId, userId)
+      : undefined
+    if (workspaceAccess && !workspaceAccess.canWrite) {
       return failure('Write permission required', 'forbidden')
     }
 
@@ -332,7 +337,7 @@ export async function performCreateCredential(
       }
 
       const access = await getCredentialActorContext(existingCredential.id, userId, {
-        workspaceAccess,
+        ...(workspaceAccess ? { workspaceAccess } : {}),
       })
 
       if (!access.member && !access.isAdmin) {
@@ -484,37 +489,7 @@ export async function performCreateCredential(
       .where(eq(credential.id, credentialId))
       .limit(1)
 
-    captureServerEvent(
-      userId,
-      'credential_connected',
-      { credential_type: type, provider_id: resolvedProviderId ?? type, workspace_id: workspaceId },
-      {
-        groups: { workspace: workspaceId },
-        setOnce: { first_credential_connected_at: new Date().toISOString() },
-      }
-    )
-
-    recordAudit({
-      workspaceId,
-      actorId: userId,
-      actorName: params.actorName ?? undefined,
-      actorEmail: params.actorEmail ?? undefined,
-      action: AuditAction.CREDENTIAL_CREATED,
-      resourceType: AuditResourceType.CREDENTIAL,
-      resourceId: credentialId,
-      resourceName: resolvedDisplayName,
-      description: `Created ${type} credential "${resolvedDisplayName}"`,
-      metadata: {
-        // Provider metadata spreads first so this path's own keys stay
-        // authoritative and can never be shadowed, matching the update path.
-        ...extraAuditMetadata,
-        credentialType: type,
-        providerId: resolvedProviderId,
-      },
-      request: params.request,
-    })
-
-    return { success: true, credential: created, created: true }
+    return { success: true, credential: created, created: true, auditMetadata: extraAuditMetadata }
   } catch (error: unknown) {
     if (error instanceof AtlassianValidationError) {
       logger.warn(`Atlassian credential rejected: ${error.code}`, {
@@ -568,6 +543,64 @@ export async function performCreateCredential(
     logger.error('Failed to create credential', { error })
     return failure('Internal server error', 'internal')
   }
+}
+
+export type CreateServiceAccountCredentialParams = Omit<
+  PerformCreateCredentialParams,
+  'type' | 'actorName' | 'actorEmail'
+> & { providerId: string }
+
+/** Creates and verifies one service-account credential without surface side effects. */
+export function createServiceAccountCredential(
+  params: CreateServiceAccountCredentialParams
+): Promise<PerformCreateCredentialResult> {
+  return createCredentialRecord(
+    { ...params, type: 'service_account' },
+    { authorizeWorkspace: false }
+  )
+}
+
+/** Preserves the legacy internal surface's analytics and audit behavior. */
+export async function performCreateCredential(
+  params: PerformCreateCredentialParams
+): Promise<PerformCreateCredentialResult> {
+  const result = await createCredentialRecord(params, { authorizeWorkspace: true })
+  if (!result.success || !result.created) return result
+  if (!result.credential) throw new Error('Credential creation succeeded without a credential')
+
+  captureServerEvent(
+    params.userId,
+    'credential_connected',
+    {
+      credential_type: result.credential.type,
+      provider_id: result.credential.providerId ?? result.credential.type,
+      workspace_id: result.credential.workspaceId,
+    },
+    {
+      groups: { workspace: result.credential.workspaceId },
+      setOnce: { first_credential_connected_at: new Date().toISOString() },
+    }
+  )
+
+  recordAudit({
+    workspaceId: result.credential.workspaceId,
+    actorId: params.userId,
+    actorName: params.actorName ?? undefined,
+    actorEmail: params.actorEmail ?? undefined,
+    action: AuditAction.CREDENTIAL_CREATED,
+    resourceType: AuditResourceType.CREDENTIAL,
+    resourceId: result.credential.id,
+    resourceName: result.credential.displayName,
+    description: `Created ${result.credential.type} credential "${result.credential.displayName}"`,
+    metadata: {
+      ...result.auditMetadata,
+      credentialType: result.credential.type,
+      providerId: result.credential.providerId,
+    },
+    request: params.request,
+  })
+
+  return result
 }
 
 /**

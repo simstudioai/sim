@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/credentials/application/provider-catalog', () => ({
   listCredentialProviderCatalog: mocks.listCatalog,
-  requireAvailableCredentialProvider: (
+  requireAvailableOAuthCredentialProvider: (
     catalog: Array<{
       available: boolean
       authorizationOptions: Array<{ providerId: string }>
@@ -59,6 +59,7 @@ const context = {
   billedAccountUserId: 'billing-owner-1',
 }
 const salesforceProvider = {
+  type: 'oauth' as const,
   serviceId: 'salesforce',
   name: 'Salesforce',
   description: 'Connect Salesforce.',

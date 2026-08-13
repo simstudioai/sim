@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { workspaceCredentialRoleSchema } from '@/lib/api/contracts/credentials'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
@@ -10,6 +10,11 @@ import {
   v2SortFields,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
+import {
+  getServiceAccountRequiredFields,
+  SERVICE_ACCOUNT_REQUIRED_FIELDS,
+} from '@/lib/credentials/service-account-fields'
+import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 
 /** Public credentials are authenticated connections, never raw environment secrets. */
 export const v2CredentialTypeSchema = z
@@ -45,27 +50,69 @@ export const v2CredentialSchema = z
   })
 export type V2Credential = z.output<typeof v2CredentialSchema>
 
-export const v2CredentialProviderAuthorizationOptionSchema = z.object({
-  providerId: z
-    .string()
-    .min(1, 'providerId cannot be empty')
-    .max(255, 'providerId must be at most 255 characters')
-    .describe('Exact OAuth provider identifier accepted by the connection endpoint.'),
-  label: z.string().min(1).max(255).describe('Human-readable authorization-server label.'),
-})
+export const v2CredentialProviderAuthorizationOptionSchema = z
+  .object({
+    providerId: z
+      .string()
+      .min(1, 'providerId cannot be empty')
+      .max(255, 'providerId must be at most 255 characters')
+      .describe('Exact OAuth provider identifier accepted by the connection endpoint.'),
+    label: z
+      .string()
+      .min(1, 'label cannot be empty')
+      .max(255, 'label must be at most 255 characters')
+      .describe('Human-readable authorization-server label.'),
+  })
+  .strict()
 export type V2CredentialProviderAuthorizationOption = z.output<
   typeof v2CredentialProviderAuthorizationOptionSchema
 >
 
-export const v2CredentialProviderSchema = z
+export const v2CredentialProviderFieldOptionSchema = z
   .object({
-    serviceId: z.string().min(1).max(255).describe('Stable OAuth service identifier.'),
-    name: z.string().min(1).max(255).describe('OAuth service display name.'),
-    description: z.string().min(1).max(1000).describe('OAuth service description.'),
-    providerFamily: z.string().min(1).max(255).describe('Owning provider family identifier.'),
-    available: z
-      .boolean()
-      .describe('Whether this caller can start the OAuth flow in the current deployment.'),
+    value: z.string().min(1).max(255).describe('Submitted option value.'),
+    label: z.string().min(1).max(255).describe('Human-readable option label.'),
+  })
+  .strict()
+
+export const v2CredentialProviderFieldSchema = z
+  .object({
+    id: z.string().min(1).max(255).describe('Exact create-body field name.'),
+    label: z.string().min(1).max(255).describe('Human-readable field label.'),
+    placeholder: z.string().min(1).max(1000).describe('Suggested input placeholder.'),
+    required: z.boolean().describe('Whether the field is required for the selected flow.'),
+    secret: z.boolean().describe('Whether the submitted field is write-only secret material.'),
+    multiline: z.boolean().describe('Whether the field is intended for multi-line input.'),
+    requiredForAuthMethods: z
+      .array(z.string().min(1).max(64))
+      .min(1)
+      .max(10)
+      .optional()
+      .describe('Authentication methods for which this field is required.'),
+    options: z
+      .array(v2CredentialProviderFieldOptionSchema)
+      .min(1)
+      .max(20)
+      .optional()
+      .describe('Fixed values accepted by a selector field.'),
+    hint: z.string().min(1).max(2000).optional().describe('Provider-specific setup guidance.'),
+  })
+  .strict()
+
+const v2CredentialProviderBaseShape = {
+  serviceId: z.string().min(1).max(255).describe('Stable credential-provider identifier.'),
+  name: z.string().min(1).max(255).describe('Credential provider display name.'),
+  description: z.string().min(1).max(1000).describe('Credential provider description.'),
+  providerFamily: z.string().min(1).max(255).describe('Owning provider family identifier.'),
+  available: z
+    .boolean()
+    .describe('Whether this caller can connect the provider in the current deployment.'),
+} as const
+
+export const v2OAuthCredentialProviderSchema = z
+  .object({
+    type: z.literal('oauth').describe('Browser-based OAuth connection method.'),
+    ...v2CredentialProviderBaseShape,
     supportsReconnect: z
       .boolean()
       .describe('Whether existing credentials for this service can be reconnected.'),
@@ -75,10 +122,39 @@ export const v2CredentialProviderSchema = z
       .max(10)
       .describe('Authorization servers available for this OAuth service.'),
   })
+  .strict()
+
+export const v2ServiceAccountCredentialProviderSchema = z
+  .object({
+    type: z.literal('service_account').describe('Direct service-account credential method.'),
+    ...v2CredentialProviderBaseShape,
+    providerId: z
+      .string()
+      .min(1)
+      .max(255)
+      .describe('Exact service-account provider ID accepted by credential creation.'),
+    docsUrl: z.string().url().describe('Setup guide for the provider.'),
+    helpText: z.string().min(1).max(2000).optional().describe('Provider-specific setup guidance.'),
+    requiresClientGeneratedCredentialId: z
+      .boolean()
+      .describe('Whether the caller must generate and submit the credential ID before setup.'),
+    fields: z
+      .array(v2CredentialProviderFieldSchema)
+      .min(1)
+      .max(20)
+      .describe('Create-body fields accepted by this provider. Secret fields are write-only.'),
+  })
+  .strict()
+
+export const v2CredentialProviderSchema = z
+  .discriminatedUnion('type', [
+    v2OAuthCredentialProviderSchema,
+    v2ServiceAccountCredentialProviderSchema,
+  ])
   .meta({
     id: 'V2CredentialProvider',
     title: 'Credential Provider',
-    description: 'An OAuth service that may be connected to a workspace.',
+    description: 'An OAuth or service-account connection method available to a workspace.',
   })
 export type V2CredentialProvider = z.output<typeof v2CredentialProviderSchema>
 
@@ -104,11 +180,6 @@ export const v2ListCredentialsQuerySchema = z
   .strict()
 export type V2ListCredentialsQuery = z.output<typeof v2ListCredentialsQuerySchema>
 
-/**
- * Lists OAuth and service-account connections, keyset-paginated over the active
- * sort. Credential mutations are intentionally absent. Nothing capped the
- * per-workspace set before pagination, so the response grew without bound.
- */
 export const v2ListCredentialsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/credentials',
@@ -122,7 +193,7 @@ export const v2ListCredentialsContract = defineRouteContract({
 export const v2ListCredentialProvidersQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe(
-      'Workspace used to evaluate OAuth availability and integration policy.'
+      'Workspace used to evaluate credential-provider availability and integration policy.'
     ),
   })
   .strict()
@@ -130,7 +201,7 @@ export type V2ListCredentialProvidersQuery = z.output<typeof v2ListCredentialPro
 
 export const v2ListCredentialProvidersContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/credential-providers',
+  path: '/api/v2/credentials/providers',
   query: v2ListCredentialProvidersQuerySchema,
   response: {
     mode: 'json',
@@ -146,7 +217,7 @@ const v2CreateCredentialConnectionByProviderSchema = z
       .trim()
       .min(1, 'providerId cannot be empty')
       .max(255, 'providerId must be at most 255 characters')
-      .describe('Exact provider ID returned by the credential-provider catalog.'),
+      .describe('Exact OAuth provider ID returned by credential-provider discovery.'),
     displayName: z
       .string({ error: 'displayName is required' })
       .trim()
@@ -202,10 +273,180 @@ export type V2CreateCredentialConnectionResponse = z.output<
 
 export const v2CreateCredentialConnectionContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/credential-connections',
+  path: '/api/v2/credentials/connections',
+  query: noInputSchema,
   body: v2CreateCredentialConnectionBodySchema,
   response: {
     mode: 'json',
     schema: v2CreateCredentialConnectionResponseSchema,
+  },
+})
+
+const v2ServiceAccountSecretFieldsShape = {
+  serviceAccountJson: z
+    .string()
+    .min(1)
+    .max(65_536)
+    .optional()
+    .describe('Write-only Google service-account JSON key.')
+    .meta({ writeOnly: true }),
+  apiToken: z
+    .string()
+    .trim()
+    .min(1)
+    .max(8192)
+    .optional()
+    .describe('Write-only provider API token.')
+    .meta({ writeOnly: true }),
+  domain: z.string().trim().min(1).max(2048).optional().describe('Provider account domain.'),
+  signingSecret: z
+    .string()
+    .trim()
+    .min(1)
+    .max(8192)
+    .optional()
+    .describe('Write-only webhook signing secret.')
+    .meta({ writeOnly: true }),
+  botToken: z
+    .string()
+    .trim()
+    .min(1)
+    .max(8192)
+    .optional()
+    .describe('Write-only bot token.')
+    .meta({ writeOnly: true }),
+  clientId: z.string().trim().min(1).max(512).optional().describe('OAuth client identifier.'),
+  clientSecret: z
+    .string()
+    .trim()
+    .min(1)
+    .max(1024)
+    .optional()
+    .describe('Write-only OAuth client secret.')
+    .meta({ writeOnly: true }),
+  orgId: z.string().trim().min(1).max(255).optional().describe('Provider organization ID.'),
+  dataCenter: z.string().trim().min(1).max(32).optional().describe('Provider data center.'),
+  authMethod: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .optional()
+    .describe('Provider authentication method.'),
+  privateKey: z
+    .string()
+    .trim()
+    .min(1)
+    .max(8192)
+    .optional()
+    .describe('Write-only PEM private key.')
+    .meta({ writeOnly: true }),
+  username: z.string().trim().min(1).max(255).optional().describe('Provider run-as username.'),
+} as const
+
+export const v2CreateServiceAccountCredentialBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that will own the credential.'),
+    type: z.literal('service_account').describe('Service-account credential discriminator.'),
+    providerId: z
+      .string({ error: 'providerId is required' })
+      .trim()
+      .min(1, 'providerId cannot be empty')
+      .max(255, 'providerId must be at most 255 characters')
+      .describe('Exact service-account provider ID returned by provider discovery.'),
+    displayName: z
+      .string()
+      .trim()
+      .min(1, 'displayName cannot be empty')
+      .max(255, 'displayName must be at most 255 characters')
+      .optional()
+      .describe('Optional name; providers may derive one from the verified account identity.'),
+    description: z
+      .string()
+      .trim()
+      .max(500, 'description must be at most 500 characters')
+      .optional()
+      .describe('Optional credential description.'),
+    id: z
+      .string()
+      .uuid('id must be a valid UUID')
+      .optional()
+      .describe('Required only when provider discovery requests a client-generated ID.'),
+    ...v2ServiceAccountSecretFieldsShape,
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (!Object.hasOwn(SERVICE_ACCOUNT_REQUIRED_FIELDS, body.providerId)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['providerId'],
+        message: `Unknown service-account provider: ${body.providerId}`,
+      })
+      return
+    }
+    if (body.providerId === SLACK_CUSTOM_BOT_PROVIDER_ID && !body.id) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['id'],
+        message: `id is required for ${SLACK_CUSTOM_BOT_PROVIDER_ID} credentials`,
+      })
+    }
+    for (const field of getServiceAccountRequiredFields(body.providerId)) {
+      if (!body[field]) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [field],
+          message: `${field} is required for ${body.providerId} credentials`,
+        })
+      }
+    }
+  })
+export type V2CreateServiceAccountCredentialBody = z.input<
+  typeof v2CreateServiceAccountCredentialBodySchema
+>
+
+export const v2CreateServiceAccountCredentialContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/credentials',
+  query: noInputSchema,
+  body: v2CreateServiceAccountCredentialBodySchema,
+  response: {
+    mode: 'json',
+    status: [200, 201],
+    schema: v2DataResponse(v2CredentialSchema),
+  },
+})
+
+export const v2CredentialParamsSchema = z
+  .object({
+    credentialId: nonEmptyIdSchema.max(255).describe('Credential to disconnect.'),
+  })
+  .strict()
+
+export const v2DeleteCredentialQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace expected to own the credential.'),
+  })
+  .strict()
+
+export const v2CredentialDeleteDataSchema = z
+  .object({
+    id: nonEmptyIdSchema.describe('Disconnected credential identifier.'),
+    deleted: z.literal(true).describe('Whether the credential was disconnected.'),
+  })
+  .meta({
+    id: 'V2CredentialDeleteData',
+    title: 'Delete credential data',
+    description: 'Credential disconnection acknowledgement.',
+  })
+
+export const v2DeleteCredentialContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/credentials/[credentialId]',
+  params: v2CredentialParamsSchema,
+  query: v2DeleteCredentialQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2CredentialDeleteDataSchema),
   },
 })

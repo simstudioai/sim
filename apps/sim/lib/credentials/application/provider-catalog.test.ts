@@ -44,7 +44,11 @@ vi.mock('@/lib/oauth/utils', () => ({
   getServiceConfigByServiceId: mocks.getServiceConfigByServiceId,
 }))
 
-import { listCredentialProviderCatalog } from '@/lib/credentials/application/provider-catalog'
+import {
+  listCredentialProviderCatalog,
+  requireAvailableServiceAccountCredentialProvider,
+  type ServiceAccountCredentialProviderCatalogEntry,
+} from '@/lib/credentials/application/provider-catalog'
 
 const personalPrincipal = {
   kind: 'personal_api_key' as const,
@@ -74,11 +78,12 @@ const services = [
     authType: 'oauth' as const,
   },
   {
-    serviceId: 'service-account-only',
-    providerId: 'service-account-only',
-    name: 'Service account',
-    description: 'Not OAuth.',
-    baseProvider: 'test',
+    serviceId: 'claude-platform',
+    providerId: 'claude-platform-service-account',
+    serviceAccountProviderId: 'claude-platform-service-account',
+    name: 'Claude Platform',
+    description: 'Run Claude Platform Managed Agents from your workflows.',
+    baseProvider: 'claude-platform',
     authType: 'service_account' as const,
   },
 ]
@@ -98,6 +103,8 @@ describe('listCredentialProviderCatalog', () => {
     })
     mocks.createVisibility.mockReturnValue({
       isOAuthServiceVisible: (service: { serviceId: string }) => service.serviceId === 'salesforce',
+      isCredentialVisible: ({ providerId }: { providerId: string }) =>
+        providerId === 'claude-platform-service-account',
     })
     mocks.getServiceConfigByServiceId.mockImplementation((serviceId: string) => {
       if (serviceId === 'salesforce') {
@@ -118,6 +125,7 @@ describe('listCredentialProviderCatalog', () => {
 
     expect(catalog).toEqual([
       {
+        type: 'oauth',
         serviceId: 'salesforce',
         name: 'Salesforce',
         description: 'Connect Salesforce.',
@@ -130,6 +138,7 @@ describe('listCredentialProviderCatalog', () => {
         ],
       },
       {
+        type: 'oauth',
         serviceId: 'trello',
         name: 'Trello',
         description: 'Connect Trello.',
@@ -137,6 +146,28 @@ describe('listCredentialProviderCatalog', () => {
         available: false,
         supportsReconnect: false,
         authorizationOptions: [{ providerId: 'trello', label: 'Trello' }],
+      },
+      {
+        type: 'service_account',
+        serviceId: 'claude-platform-service-account',
+        providerId: 'claude-platform-service-account',
+        name: 'Claude Platform API key',
+        description: 'Connect Claude Platform with a API key.',
+        providerFamily: 'claude-platform',
+        available: true,
+        docsUrl: 'https://docs.sim.ai/integrations/managed-agent',
+        requiresClientGeneratedCredentialId: false,
+        fields: [
+          {
+            id: 'apiToken',
+            label: 'API key',
+            placeholder: 'sk-ant-...',
+            required: true,
+            secret: true,
+            multiline: false,
+            hint: 'Claude Platform API keys usually start with sk-ant-.',
+          },
+        ],
       },
     ])
     expect(mocks.createVisibility).toHaveBeenCalledWith(
@@ -172,5 +203,35 @@ describe('listCredentialProviderCatalog', () => {
     await expect(listCredentialProviderCatalog(personalPrincipal, context)).rejects.toThrow(
       'OAuth provider salesforce-sandbox is missing its authorization option label'
     )
+  })
+})
+
+describe('requireAvailableServiceAccountCredentialProvider', () => {
+  const provider: ServiceAccountCredentialProviderCatalogEntry = {
+    type: 'service_account',
+    serviceId: 'zoom-service-account',
+    providerId: 'zoom-service-account',
+    name: 'Zoom server-to-server app',
+    description: 'Connect Zoom with a server-to-server app.',
+    providerFamily: 'zoom',
+    available: true,
+    docsUrl: 'https://docs.sim.ai/integrations/zoom-service-account',
+    requiresClientGeneratedCredentialId: false,
+    fields: [],
+  }
+
+  it('returns an available service-account provider', () => {
+    expect(requireAvailableServiceAccountCredentialProvider([provider], provider.providerId)).toBe(
+      provider
+    )
+  })
+
+  it('rejects a service-account provider hidden by workspace policy', () => {
+    expect(() =>
+      requireAvailableServiceAccountCredentialProvider(
+        [{ ...provider, available: false }],
+        provider.providerId
+      )
+    ).toThrow('Service-account provider is unavailable: zoom-service-account')
   })
 })
