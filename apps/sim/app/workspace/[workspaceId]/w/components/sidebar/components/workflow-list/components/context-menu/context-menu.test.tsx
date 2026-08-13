@@ -13,7 +13,7 @@ import { act } from 'react'
 import { sleep } from '@sim/utils/helpers'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ContextMenu } from './context-menu'
+import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
