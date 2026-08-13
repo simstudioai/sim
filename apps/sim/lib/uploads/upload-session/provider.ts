@@ -1,5 +1,6 @@
 import { createReadStream, createWriteStream } from 'node:fs'
 import {
+  copyFile,
   link,
   mkdir,
   readdir,
@@ -705,15 +706,48 @@ async function listLocalMultipartParts(uploadId: string): Promise<CompletedUploa
   return parts
 }
 
+/**
+ * Names a staged artifact at its final path, refusing to overwrite one already
+ * there.
+ *
+ * `link` is what makes that atomic: it either creates the name or fails
+ * `EEXIST`, and no reader ever observes a half-written object under the final
+ * key. It also requires both paths to sit on one filesystem. Staging beside the
+ * destination guaranteed that; a single `.staging` root does not, because a
+ * volume mounted under part of the uploads tree puts the two on different
+ * devices and `link` answers `EXDEV`.
+ *
+ * The fallback copies onto the destination's own device first and links from
+ * there, so the create-or-fail step still decides the final name and the
+ * no-overwrite guarantee survives — a plain copy to the destination would give
+ * that up. The copy's own name is derived from a fresh id, never from the
+ * destination, so it inherits none of the destination's path-component length.
+ */
+async function linkLocalArtifact(source: string, destination: string): Promise<void> {
+  try {
+    await link(source, destination)
+    return
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error
+  }
+  const sameDeviceCopy = join(dirname(destination), `.${generateId()}.publish`)
+  try {
+    await copyFile(source, sameDeviceCopy)
+    await link(sameDeviceCopy, destination)
+  } finally {
+    await rm(sameDeviceCopy, { force: true })
+  }
+}
+
 async function publishLocalObject(
   temporary: string,
   temporaryMetadata: string,
   destination: string,
   destinationMetadata: string
 ): Promise<void> {
-  await link(temporary, destination)
+  await linkLocalArtifact(temporary, destination)
   try {
-    await link(temporaryMetadata, destinationMetadata)
+    await linkLocalArtifact(temporaryMetadata, destinationMetadata)
   } catch (error) {
     await rm(destination, { force: true })
     throw error

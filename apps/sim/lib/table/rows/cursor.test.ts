@@ -218,5 +218,27 @@ describe('tokens minted before the filter stamp', () => {
     expect(() => assertCursorQueryBinding(decoded, { predicate: ACTIVE })).toThrow(
       /Restart paging without the cursor/
     )
+    /**
+     * The code, not just the wording, is what a bumped `CURSOR_VERSION` would
+     * cost: every in-flight token would fail `INVALID_CURSOR` at decode instead,
+     * including the unfiltered ones that resume fine today.
+     */
+    try {
+      assertCursorQueryBinding(decoded, { predicate: ACTIVE })
+      expect.unreachable('a re-filtered replay must be refused')
+    } catch (e) {
+      expect((e as TableQueryValidationError).code).toBe('CURSOR_FILTER_CONFLICT')
+    }
+  })
+
+  /**
+   * The version a token minted today carries. Pinned so a bump is a deliberate
+   * edit here rather than a silent one that strands every cursor a running
+   * deploy already handed out.
+   */
+  it('mints tokens at the version the previous deploy could already read', () => {
+    const token = encodeCursor({ lastRow: ROW, keysetValid: true, nextOffset: 10 })
+
+    expect(JSON.parse(Buffer.from(token, 'base64url').toString('utf8')).v).toBe(1)
   })
 })

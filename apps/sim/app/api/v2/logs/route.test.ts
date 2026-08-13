@@ -24,6 +24,7 @@ vi.mock('@/lib/logs/application/list-public-logs', () => ({
   listPublicLogs: { operation: { id: 'logs.list' }, execute: mocks.execute },
 }))
 
+import { UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { cursorFilterScope, encodeScopedCursor } from '@/app/api/v2/lib/response'
 import { GET } from '@/app/api/v2/logs/route'
@@ -216,7 +217,14 @@ describe('GET /api/v2/logs', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
-  /** Neither param exists on this operation, so naming them sends the caller nowhere. */
+  /**
+   * An undecodable token says nothing about which param changed, and this
+   * operation declares neither `sortBy` nor `sortOrder` under a `.strict()`
+   * query schema — so the sort-mismatch message would answer one 400 with
+   * advice that earns a second. The message is asserted exactly rather than by
+   * absence: "does not say sortBy" is satisfied by almost any wording, including
+   * one that tells the caller nothing at all.
+   */
   it('names the params a rejected cursor is actually bound to', async () => {
     const response = await GET(
       new NextRequest(
@@ -225,6 +233,8 @@ describe('GET /api/v2/logs', () => {
     )
 
     const body = await response.json()
+    expect(body.error.message).toBe(UNREADABLE_CURSOR_MESSAGE)
+    expect(body.error.message).toContain('Restart pagination without a cursor')
     expect(body.error.message).not.toContain('sortBy')
     expect(body.error.message).not.toContain('sortOrder')
   })

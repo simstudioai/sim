@@ -195,6 +195,14 @@ export function requireHeadAuthorizableUseCase(
  * produced — 400, 401, 403, 404, 429 — and only an authorized caller reaches the
  * 200. What a `HEAD` never reaches is the use case's business phase, so the
  * outbound connection, the row write, and the audit event stay unfired.
+ *
+ * A use case with no `authorize` is refused here rather than skipped. Both
+ * builders that call this already refuse such a route at module load through
+ * {@link requireHeadAuthorizableUseCase}, and they are its only callers, so the
+ * refusal is unreachable through them. It is not written as a comment because
+ * the alternative — an optional call — degrades a missing phase into exactly the
+ * bodiless 200 this function exists to stop, and it does so silently. Failing
+ * closed makes an authorization that actually ran the only route to that 200.
  */
 export async function v2HeadAuthorizationResponse(args: {
   useCase: Pick<OperationUseCase<ApplicationOperation, unknown, unknown>, 'authorize'>
@@ -203,8 +211,14 @@ export async function v2HeadAuthorizationResponse(args: {
   request: NextRequest
   errorPolicy: V2ErrorPolicy
 }): Promise<NextResponse> {
+  const { authorize } = args.useCase
+  if (typeof authorize !== 'function') {
+    throw new Error(
+      'HEAD on a route that is not head-safe reached a use case with no authorize(); answering 200 would leak the existence of a resource the GET never authorized.'
+    )
+  }
   try {
-    await args.useCase.authorize?.({
+    await authorize({
       principal: args.principal,
       input: args.input,
       request: args.request,

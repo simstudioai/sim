@@ -35,6 +35,7 @@ import {
   defineV2JsonRoute,
   type V2ErrorPolicy,
   v2ApiKeyAuth,
+  v2HeadAuthorizationResponse,
   v2OrchestrationErrorPolicy,
   v2RateLimits,
 } from '@/lib/api/server/routes/v2-json-route'
@@ -622,5 +623,24 @@ describe('defineV2JsonRoute HEAD on a route that is not head-safe', () => {
 
   it('refuses at definition time to build the route when the use case cannot authorize', () => {
     expect(() => createHeadHandler({ omitAuthorize: true })).toThrow(/authorize/)
+  })
+
+  /**
+   * The definition-time guard is what a route hits, and it covers both builders
+   * that answer a `HEAD` this way. This pins the responder's own behaviour if it
+   * is ever reached another way: a missing authorization phase has to fail,
+   * because skipping it hands back the bodiless 200 for a resource nothing
+   * authorized — the leak the guard exists to prevent, restored.
+   */
+  it('refuses to answer 200 when the authorization phase is missing', async () => {
+    await expect(
+      v2HeadAuthorizationResponse({
+        useCase: { authorize: undefined },
+        principal,
+        input: { widgetId: 'widget-1', workspaceId: 'workspace-1' },
+        request: headRequest(),
+        errorPolicy: v2OrchestrationErrorPolicy,
+      })
+    ).rejects.toThrow(/authorize/)
   })
 })

@@ -34,6 +34,14 @@ vi.mock('@/lib/billing/storage', () => ({
   resolveStorageBillingContext: mockResolveBillingContext,
 }))
 
+/**
+ * Stands in for the workspace-files barrel, which pulls the whole file manager.
+ * The stub still builds its key through the real {@link buildStorageKeySegment},
+ * so the shared name budget below is genuinely exercised — but the prefix is the
+ * stub's own, so the two workspace-keyed purposes below prove nothing about
+ * `generateWorkspaceFileKey`'s prefix. That one is measured against the real
+ * function in `contexts/workspace/workspace-file-manager.test.ts`.
+ */
 vi.mock('@/lib/uploads/contexts/workspace', async () => {
   const { buildStorageKeySegment } = await import('@/lib/uploads/core/storage-key')
   return {
