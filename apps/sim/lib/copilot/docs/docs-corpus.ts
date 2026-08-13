@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { backoffWithJitter } from '@sim/utils/retry'
+import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { foldDocsIndexPath } from '@/lib/copilot/docs/docs-path'
 import { DOCS_MANIFEST } from '@/lib/copilot/generated/docs-manifest'
 import type { GrepCountEntry, GrepMatch, GrepOptions } from '@/lib/copilot/vfs/operations'
@@ -121,12 +121,43 @@ type DocsFetchResult =
   /** The site will not serve this path however many times we ask. */
   | { outcome: 'missing' }
   /** Transient: 5xx, 429, network error, or timeout. */
-  | { outcome: 'unavailable' }
+  | { outcome: 'unavailable'; retryAfterMs: number | null }
 
-async function fetchDocsPageOnce(url: string): Promise<DocsFetchResult> {
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw toError(signal.reason ?? 'Docs request aborted')
+  }
+}
+
+async function sleepForRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    await sleep(delayMs)
+    return
+  }
+
+  throwIfAborted(signal)
+  let abortListener: (() => void) | undefined
+  const aborted = new Promise<never>((_resolve, reject) => {
+    abortListener = () => reject(toError(signal.reason ?? 'Docs request aborted'))
+    signal.addEventListener('abort', abortListener, { once: true })
+    if (signal.aborted) abortListener()
+  })
+
+  try {
+    await Promise.race([sleep(delayMs), aborted])
+  } finally {
+    if (abortListener) signal.removeEventListener('abort', abortListener)
+  }
+}
+
+async function fetchDocsPageOnce(url: string, signal?: AbortSignal): Promise<DocsFetchResult> {
+  throwIfAborted(signal)
+  const timeoutSignal = AbortSignal.timeout(FETCH_ATTEMPT_TIMEOUT_MS)
+  const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
+
   try {
     const response = await fetch(url, {
-      signal: AbortSignal.timeout(FETCH_ATTEMPT_TIMEOUT_MS),
+      signal: requestSignal,
       headers: { Accept: 'text/markdown, text/plain' },
     })
     if (!response.ok) {
@@ -136,23 +167,30 @@ async function fetchDocsPageOnce(url: string): Promise<DocsFetchResult> {
         response.status < 500 &&
         response.status !== 408 &&
         response.status !== 429
-      return { outcome: permanent ? 'missing' : 'unavailable' }
+      if (permanent) return { outcome: 'missing' }
+      return {
+        outcome: 'unavailable',
+        retryAfterMs: parseRetryAfter(response.headers.get('retry-after')),
+      }
     }
     return { outcome: 'ok', content: await response.text() }
   } catch (err) {
+    throwIfAborted(signal)
     logger.warn('Docs page fetch failed', { url, error: toError(err).message })
-    return { outcome: 'unavailable' }
+    return { outcome: 'unavailable', retryAfterMs: null }
   }
 }
 
-async function fetchDocsPage(path: string): Promise<DocsFetchResult> {
+async function fetchDocsPage(path: string, signal?: AbortSignal): Promise<DocsFetchResult> {
   const key = normalizeDocsPath(path)
   if (!docsKeyView.has(key)) return { outcome: 'missing' }
   const url = `${DOCS_BASE_URL}/${key.slice(DOCS_PREFIX.length)}`
   for (let attempt = 1; ; attempt++) {
-    const result = await fetchDocsPageOnce(url)
+    throwIfAborted(signal)
+    const result = await fetchDocsPageOnce(url, signal)
+    throwIfAborted(signal)
     if (result.outcome !== 'unavailable' || attempt >= FETCH_MAX_ATTEMPTS) return result
-    await sleep(backoffWithJitter(attempt, null))
+    await sleepForRetry(backoffWithJitter(attempt, result.retryAfterMs), signal)
   }
 }
 
@@ -161,7 +199,7 @@ async function fetchDocsPage(path: string): Promise<DocsFetchResult> {
  * conditions (directory path, unknown page, site unreachable) so the handler can
  * surface the message verbatim.
  */
-export async function readDocsPage(path: string): Promise<DocsPage> {
+export async function readDocsPage(path: string, signal?: AbortSignal): Promise<DocsPage> {
   const key = normalizeDocsPath(path)
   if (!docsKeyView.has(key)) {
     if (isDocsDir(key)) {
@@ -172,7 +210,7 @@ export async function readDocsPage(path: string): Promise<DocsPage> {
       `Docs page not found: ${path}. Use glob("docs/**") to list the docs corpus.`
     )
   }
-  const result = await fetchDocsPage(key)
+  const result = await fetchDocsPage(key, signal)
   if (result.outcome === 'missing') {
     throw new DocsCorpusError(
       `${key} is in the docs index but ${DOCS_BASE_URL} does not serve it — the page was likely moved or removed. Use glob("docs/**") to find the current path; retrying will not help.`
@@ -194,7 +232,8 @@ export async function readDocsPage(path: string): Promise<DocsPage> {
 export async function grepDocs(
   path: string,
   pattern: string,
-  options?: GrepOptions
+  options?: GrepOptions,
+  signal?: AbortSignal
 ): Promise<GrepMatch[] | string[] | GrepCountEntry[]> {
   const key = normalizeDocsPath(path)
   if (!docsKeyView.has(key)) {
@@ -207,6 +246,6 @@ export async function grepDocs(
       `"${path}" is not a docs page. Use glob("docs/**") to list the docs corpus.`
     )
   }
-  const page = await readDocsPage(key)
+  const page = await readDocsPage(key, signal)
   return grepReadResult(key, page, pattern, key, options)
 }

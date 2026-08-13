@@ -726,7 +726,12 @@ describe('vfs handlers docs corpus routing', () => {
   })
 
   it('reads a docs page via the live-site fetch, not the workspace VFS', async () => {
-    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => 'line one\nline two' })
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      text: async () => 'line one\nline two',
+    })
 
     const result = await executeVfsRead({ path: DOCS_PAGE }, GREP_CTX)
 
@@ -750,6 +755,7 @@ describe('vfs handlers docs corpus routing', () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
+      headers: new Headers(),
       text: async () => 'alpha\ncron beta\ngamma',
     })
 
@@ -776,6 +782,7 @@ describe('vfs handlers docs corpus routing', () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
+      headers: new Headers(),
       text: async () => Array.from({ length: totalLines }, () => line).join('\n'),
     })
 
@@ -794,6 +801,7 @@ describe('vfs handlers docs corpus routing', () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
+      headers: new Headers(),
       text: async () => 'z'.repeat(TOOL_RESULT_MAX_INLINE_CHARS + 1000),
     })
 
@@ -809,6 +817,7 @@ describe('vfs handlers docs corpus routing', () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
+      headers: new Headers(),
       text: async () => Array.from({ length: totalLines }, () => line).join('\n'),
     })
 
@@ -816,5 +825,18 @@ describe('vfs handlers docs corpus routing', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('still too large over the requested window')
+  })
+
+  it('forwards caller cancellation to docs read and grep without fetching', async () => {
+    const controller = new AbortController()
+    controller.abort(new Error('user stopped docs tool'))
+    const context = { ...GREP_CTX, abortSignal: controller.signal }
+
+    const read = await executeVfsRead({ path: DOCS_PAGE }, context)
+    const grep = await executeVfsGrep({ pattern: 'agent', path: DOCS_PAGE }, context)
+
+    expect(read).toEqual({ success: false, error: 'user stopped docs tool' })
+    expect(grep).toEqual({ success: false, error: 'user stopped docs tool' })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

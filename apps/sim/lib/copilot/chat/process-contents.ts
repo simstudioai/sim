@@ -338,7 +338,14 @@ export async function processContextsServer(
           return { type: 'docs', tag: ctx.label ? `@${ctx.label}` : '@', content }
         } catch (e) {
           logger.error('Failed to process docs context', e)
-          return null
+          return {
+            type: 'docs',
+            tag: ctx.label ? `@${ctx.label}` : '@',
+            content: JSON.stringify({
+              results: [],
+              note: 'Documentation search is temporarily unavailable. Do not infer that the docs lack this topic; retry search_docs or browse docs/** later.',
+            }),
+          }
         }
       }
       return null

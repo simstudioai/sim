@@ -52,8 +52,9 @@ function shortfallNote(outcome: Awaited<ReturnType<typeof searchDocs>>): string 
 
 /**
  * Vector search over Sim's product documentation, scoped to the same pages the
- * agent can `read` from the `docs/` VFS tree. Search-agent only; the corpus
- * logic lives in `@/lib/copilot/docs/docs-search`.
+ * agent can `read` from the `docs/` VFS tree. Normal delegation exposes it to
+ * the platform agent; the `@Docs` compatibility path also invokes it directly.
+ * Corpus logic lives in `@/lib/copilot/docs/docs-search`.
  */
 export const searchDocsServerTool: BaseServerTool<SearchDocsParams, SearchDocsOutput> = {
   name: SearchDocs.id,

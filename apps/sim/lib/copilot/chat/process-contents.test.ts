@@ -373,6 +373,34 @@ describe('processContextsServer - docs contexts', () => {
       expect.objectContaining({ workspaceId: 'ws-1', chatId: 'chat-1' })
     )
   })
+
+  it('preserves an explicit unavailable note when docs search fails', async () => {
+    searchDocsExecute.mockRejectedValue(new Error('embedding service unavailable'))
+
+    const result = await processContextsServer(
+      [{ kind: 'docs', label: 'Docs' }],
+      'user-1',
+      '@Docs explain schedules',
+      'ws-1',
+      'chat-1',
+      new ResolvedSecretTraceRegistry()
+    )
+
+    expect(result).toEqual([
+      {
+        type: 'docs',
+        tag: '@Docs',
+        content: JSON.stringify({
+          results: [],
+          note: 'Documentation search is temporarily unavailable. Do not infer that the docs lack this topic; retry search_docs or browse docs/** later.',
+        }),
+      },
+    ])
+    expect(mockProcessContentsLogger.error).toHaveBeenCalledWith(
+      'Failed to process docs context',
+      expect.any(Error)
+    )
+  })
 })
 
 describe('processContextsServer - MCP contexts', () => {

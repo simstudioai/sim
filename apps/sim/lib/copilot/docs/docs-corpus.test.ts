@@ -3,8 +3,12 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockSleep } = vi.hoisted(() => ({
+  mockSleep: vi.fn(() => Promise.resolve()),
+}))
+
 vi.mock('@sim/utils/helpers', () => ({
-  sleep: vi.fn(() => Promise.resolve()),
+  sleep: mockSleep,
 }))
 
 import {
@@ -18,6 +22,15 @@ import {
 import { DOCS_MANIFEST } from '@/lib/copilot/generated/docs-manifest'
 
 const SAMPLE_PAGE = DOCS_MANIFEST.find((path) => path === 'workflows/blocks/agent.mdx')
+
+function fetchResponse(status: number, content = '', headers: HeadersInit = {}) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: new Headers(headers),
+    text: async () => content,
+  }
+}
 
 describe('docs corpus scoping', () => {
   it('recognizes docs paths', () => {
@@ -75,6 +88,8 @@ describe('readDocsPage', () => {
 
   beforeEach(() => {
     fetchMock.mockReset()
+    mockSleep.mockReset()
+    mockSleep.mockResolvedValue(undefined)
     vi.stubGlobal('fetch', fetchMock)
   })
 
@@ -84,7 +99,7 @@ describe('readDocsPage', () => {
 
   it('fetches the manifest path verbatim from the docs site', async () => {
     expect(SAMPLE_PAGE).toBeDefined()
-    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => '# Agent\n\nbody' })
+    fetchMock.mockResolvedValue(fetchResponse(200, '# Agent\n\nbody'))
 
     const page = await readDocsPage(`docs/${SAMPLE_PAGE}`)
 
@@ -104,7 +119,7 @@ describe('readDocsPage', () => {
   })
 
   it('surfaces a docs-site outage as a retryable error after exhausting retries', async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 502, text: async () => '' })
+    fetchMock.mockResolvedValue(fetchResponse(502))
     await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/could not be reached/)
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
@@ -118,7 +133,7 @@ describe('readDocsPage', () => {
   it('recovers when a transient failure clears on retry', async () => {
     fetchMock
       .mockRejectedValueOnce(new Error('socket hang up'))
-      .mockResolvedValue({ ok: true, status: 200, text: async () => '# Agent\n\nbody' })
+      .mockResolvedValue(fetchResponse(200, '# Agent\n\nbody'))
 
     const page = await readDocsPage(`docs/${SAMPLE_PAGE}`)
 
@@ -127,7 +142,7 @@ describe('readDocsPage', () => {
   })
 
   it('reports a page the site no longer serves as permanent, without retrying', async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 404, text: async () => '' })
+    fetchMock.mockResolvedValue(fetchResponse(404))
     const error = await readDocsPage(`docs/${SAMPLE_PAGE}`).catch((e) => e)
     expect(error).toBeInstanceOf(DocsCorpusError)
     expect(error.message).toMatch(/does not serve it/)
@@ -136,16 +151,49 @@ describe('readDocsPage', () => {
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
-  it('still treats 429 as retryable rather than permanent', async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 429, text: async () => '' })
+  it('honors Retry-After while retrying a 429 response', async () => {
+    fetchMock.mockResolvedValue(fetchResponse(429, '', { 'Retry-After': '7' }))
+    await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/could not be reached/)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(mockSleep).toHaveBeenNthCalledWith(1, 7_000)
+    expect(mockSleep).toHaveBeenNthCalledWith(2, 7_000)
+  })
+
+  it('treats 408 as retryable rather than a missing page', async () => {
+    fetchMock.mockResolvedValue(fetchResponse(408))
     await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/could not be reached/)
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
-  it('treats 408 as retryable rather than a missing page', async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 408, text: async () => '' })
-    await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/could not be reached/)
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+  it('aborts an in-flight fetch without retrying', async () => {
+    const controller = new AbortController()
+    fetchMock.mockImplementation((_url: string, init: RequestInit) => {
+      const signal = init.signal as AbortSignal
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+
+    const request = readDocsPage(`docs/${SAMPLE_PAGE}`, controller.signal)
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    controller.abort(new Error('user stopped docs read'))
+
+    await expect(request).rejects.toThrow('user stopped docs read')
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(mockSleep).not.toHaveBeenCalled()
+  })
+
+  it('aborts retry backoff before starting another fetch', async () => {
+    const controller = new AbortController()
+    fetchMock.mockResolvedValue(fetchResponse(502))
+    mockSleep.mockImplementationOnce(() => new Promise<void>(() => {}))
+
+    const request = readDocsPage(`docs/${SAMPLE_PAGE}`, controller.signal)
+    await vi.waitFor(() => expect(mockSleep).toHaveBeenCalledOnce())
+    controller.abort(new Error('user stopped docs retry'))
+
+    await expect(request).rejects.toThrow('user stopped docs retry')
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 })
 
@@ -163,11 +211,7 @@ describe('grepDocs', () => {
   })
 
   it('greps exactly one page for a page path', async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => 'intro line\nsystemPrompt matters\ntail',
-    })
+    fetchMock.mockResolvedValue(fetchResponse(200, 'intro line\nsystemPrompt matters\ntail'))
 
     const matches = await grepDocs(`docs/${SAMPLE_PAGE}`, 'systemPrompt')
 

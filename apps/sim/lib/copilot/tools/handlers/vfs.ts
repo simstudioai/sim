@@ -199,7 +199,7 @@ export async function executeVfsGrep(
     let result: GrepMatch[] | string[] | GrepCountEntry[]
     let provenanceFile: WorkspaceFileSecretProvenanceIdentity | undefined
     if (rawPath !== undefined && isDocsPath(rawPath)) {
-      result = await grepDocs(rawPath, pattern, grepOptions)
+      result = await grepDocs(rawPath, pattern, grepOptions, context.abortSignal)
     } else if (isChatUploadGrepPath(rawPath)) {
       if (!context.chatId) {
         return { success: false, error: 'No chat context available for uploads/' }
@@ -369,7 +369,7 @@ export async function executeVfsRead(
     }
 
     if (isDocsPath(path)) {
-      const page = await readDocsPage(path)
+      const page = await readDocsPage(path, context.abortSignal)
       const windowed = applyWindow(page)
       if (serializedResultSize(windowed) > TOOL_RESULT_MAX_INLINE_CHARS) {
         if (offset !== undefined || limit !== undefined) {
