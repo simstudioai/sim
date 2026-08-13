@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   createDocument: vi.fn(),
   createPartUrls: vi.fn(),
   createUpload: vi.fn(),
+  failUndispatched: vi.fn(),
   findBound: vi.fn(),
   getUpload: vi.fn(),
   processQueue: vi.fn(),
@@ -46,6 +47,10 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveActiveKnowledgeBaseContext: mocks.resolveContext,
+}))
+
+vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
+  failUndispatchedDocumentProcessing: mocks.failUndispatched,
 }))
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
@@ -195,6 +200,7 @@ describe('knowledge-document upload application lifecycle', () => {
     mocks.findBound.mockResolvedValue({ status: 'absent' })
     mocks.createDocument.mockResolvedValue(DOCUMENT)
     mocks.processQueue.mockResolvedValue(undefined)
+    mocks.failUndispatched.mockResolvedValue(true)
   })
 
   it('admits, binds, and records ownership before returning upload credentials', async () => {
@@ -436,6 +442,86 @@ describe('knowledge-document upload application lifecycle', () => {
     expect(mocks.createDocument).toHaveBeenCalledTimes(1)
     expect(mocks.processQueue).toHaveBeenCalledTimes(1)
     expect(mocks.recordAudit).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * A completed session with a `completedFileId` replays into `loadCompleted`,
+   * which never dispatches, and nothing sweeps `pending`. Leaving the document
+   * there strands it with no retry and no signal, so the failure is recorded on
+   * the row — the state `retryProcessing` accepts.
+   */
+  it('marks the document failed when its processing dispatch never got off the ground', async () => {
+    mocks.processQueue.mockRejectedValue(new Error('queue unavailable'))
+    mocks.completeUpload.mockImplementation(
+      async (params: {
+        session: UploadSessionRecord
+        finalize: (session: UploadSessionRecord) => Promise<{
+          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
+          completedFileId?: string
+        }>
+      }) => {
+        const finalized = await params.finalize(params.session)
+        return {
+          session: { ...params.session, status: 'completed' as const },
+          value: finalized.value,
+          alreadyCompleted: false,
+        }
+      }
+    )
+
+    await completeKnowledgeDocumentUpload.execute({
+      principal: PRINCIPAL,
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        uploadId: 'upload-1',
+        uploadToken: 'token',
+        source: 'api',
+      },
+      request: REQUEST,
+    })
+
+    expect(mocks.failUndispatched).toHaveBeenCalledWith({
+      documentId: DOCUMENT.id,
+      knowledgeBaseId: 'knowledge-1',
+      error: 'queue unavailable',
+    })
+  })
+
+  /** Recording the failure is itself best-effort; it must not resurface as a 500. */
+  it('still completes when the dispatch failure cannot be recorded', async () => {
+    mocks.processQueue.mockRejectedValue(new Error('queue unavailable'))
+    mocks.failUndispatched.mockRejectedValue(new Error('database unavailable'))
+    mocks.completeUpload.mockImplementation(
+      async (params: {
+        session: UploadSessionRecord
+        finalize: (session: UploadSessionRecord) => Promise<{
+          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
+          completedFileId?: string
+        }>
+      }) => {
+        const finalized = await params.finalize(params.session)
+        return {
+          session: { ...params.session, status: 'completed' as const },
+          value: finalized.value,
+          alreadyCompleted: false,
+        }
+      }
+    )
+
+    const result = await completeKnowledgeDocumentUpload.execute({
+      principal: PRINCIPAL,
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        uploadId: 'upload-1',
+        uploadToken: 'token',
+        source: 'api',
+      },
+      request: REQUEST,
+    })
+
+    expect(result.value.document).toEqual(DOCUMENT)
   })
 
   /**

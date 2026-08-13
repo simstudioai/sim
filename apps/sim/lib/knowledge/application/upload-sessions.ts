@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
 import { authorizeWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -18,6 +19,7 @@ import {
   resolveActiveKnowledgeBaseContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { failUndispatchedDocumentProcessing } from '@/lib/knowledge/documents/processing-claim'
 import {
   createSingleDocument,
   type DocumentData,
@@ -45,6 +47,9 @@ import { validateFileType } from '@/lib/uploads/utils/validation'
 const logger = createLogger('KnowledgeUploadSessions')
 
 const PROCESSING_DISPATCH_FAILURE_MESSAGE = 'Knowledge document processing dispatch failed'
+
+/** Keeps a driver or provider message from filling the document row's error column. */
+const DISPATCH_FAILURE_MESSAGE_MAX_LENGTH = 500
 
 export class KnowledgeDocumentUnsupportedMediaTypeError extends Error {
   constructor(message: string) {
@@ -390,7 +395,7 @@ interface PendingProcessingDispatch {
 /**
  * Queues indexing for a document the completion has already made durable.
  *
- * It runs after `completeUploadSession` resolves, and a failure is logged
+ * It runs after `completeUploadSession` resolves, and a failure is recorded
  * rather than raised, because by that point the caller's request has already
  * succeeded: the object is stored, the document row exists, and the session is
  * marked completed. Raising here used to fail the completion `POST` with a 500
@@ -398,11 +403,14 @@ interface PendingProcessingDispatch {
  * the same request — answered `200 completed`, so the 500 described nothing the
  * caller could act on.
  *
- * The dispatch outcome is not lost by being swallowed. `processDocumentsWithQueue`
- * marks the document `failed` with its error when processing itself breaks, and
- * a document that was never picked up stays `pending`; both are visible on the
- * document the completion returns and on every subsequent read of it. A
- * `pending` document is re-queued by the finalization-recovery path above.
+ * The dispatch outcome is not lost by going unraised. `processDocumentsWithQueue`
+ * marks the document `failed` with its error when processing itself breaks. When
+ * the dispatch never got off the ground the document would instead be left at
+ * `pending`, which nothing sweeps and which `retryProcessing` refuses, so
+ * {@link failUndispatchedDocumentProcessing} records the failure on the row.
+ * Either way the error is visible on every subsequent read of the document, and
+ * the document can be re-queued through
+ * `PATCH /api/knowledge/{id}/documents/{documentId}` with `retryProcessing`.
  */
 async function queueKnowledgeDocumentProcessing(
   dispatch: PendingProcessingDispatch,
@@ -424,12 +432,27 @@ async function queueKnowledgeDocumentProcessing(
       dispatch.billingAttribution
     )
   } catch (error) {
+    const failureMessage = getErrorMessage(error, 'Document processing dispatch failed')
     logger.error(PROCESSING_DISPATCH_FAILURE_MESSAGE, {
       requestId,
       documentId: dispatch.document.id,
       knowledgeBaseId: dispatch.knowledgeBaseId,
-      error: getErrorMessage(error),
+      error: failureMessage,
     })
+    try {
+      await failUndispatchedDocumentProcessing({
+        documentId: dispatch.document.id,
+        knowledgeBaseId: dispatch.knowledgeBaseId,
+        error: truncate(failureMessage, DISPATCH_FAILURE_MESSAGE_MAX_LENGTH),
+      })
+    } catch (markError) {
+      logger.error('Failed to record a knowledge document dispatch failure', {
+        requestId,
+        documentId: dispatch.document.id,
+        knowledgeBaseId: dispatch.knowledgeBaseId,
+        error: getErrorMessage(markError),
+      })
+    }
   }
 }
 
