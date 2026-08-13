@@ -328,8 +328,18 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
      * never completes, so only the success path has to move it. A request with
      * nothing to rank — no query text, or no candidate rows — is `skipped` rather
      * than `unavailable`: the reranker was never the obstacle. Anything else that
-     * was asked for and did not run is `unavailable`, including a request that
-     * reaches here with no model, which no HTTP contract can now produce.
+     * was asked for and did not produce a usable ordering is `unavailable`,
+     * including a request that reaches here with no model, which no HTTP contract
+     * can now produce.
+     *
+     * A call that returns without raising but hands back an empty ordering counts
+     * as `unavailable` too, and it is not the reranker "matching nothing":
+     * `rerank` asks for `top_n` over a non-empty document list, so a provider that
+     * ranked them returns one entry per document. Empty means the response carried
+     * nothing usable — no results, or only indices outside the batch, which
+     * `rerank` drops. The caller is left in vector order with no `rerankerScore`,
+     * which is exactly what `unavailable` promises, and retrying is exactly the
+     * right advice.
      */
     let rerankerStatus: RerankerStatus = !input.rerankerEnabled
       ? 'not_requested'

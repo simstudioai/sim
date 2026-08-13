@@ -332,15 +332,14 @@ describe('generated OpenAPI documents', () => {
 })
 
 /**
- * Documented error sets for the knowledge and files/audit families.
+ * Documented error sets.
  *
- * Scoped to those two documents deliberately: they are the families this pass
- * audited, and the same sweep over tables and resources still reports gaps that
- * belong to their owners.
+ * The 413 sweep runs over all seven documents rather than the two families it
+ * first audited: the gaps the narrower scope was written around are closed, and
+ * leaving it narrow would let a new body-carrying operation in any other family
+ * ship without publishing the 413 its body read raises.
  */
-describe('knowledge and files documented error sets', () => {
-  const SCOPED_DOCUMENTS = [knowledgeOpenApiDocument, filesAuditOpenApiDocument] as const
-
+describe('documented error sets', () => {
   /**
    * A v2 JSON route whose contract declares a body reads that body through
    * `parseJsonBody` under `DEFAULT_MAX_JSON_BODY_BYTES` *before* schema
@@ -352,7 +351,7 @@ describe('knowledge and files documented error sets', () => {
    * directional.
    */
   it.each(
-    SCOPED_DOCUMENTS.flatMap((document) =>
+    DOCUMENTS.flatMap((document) =>
       document.routes
         .filter((route) => route.contract.body !== undefined)
         .map((route) => [route.operation.operationId, route.operation.errors] as const)

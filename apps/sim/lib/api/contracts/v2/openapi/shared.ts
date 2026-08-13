@@ -257,6 +257,14 @@ export const WORKSPACE_API_KEY_DENIED =
  * {@link WORKSPACE_API_KEY_DENIED} for an operation behind the resource-concealment
  * error policy, which rewrites the authorization failure to a not-found response so
  * the caller learns nothing about the resource.
+ *
+ * Published on no operation today: every one audited so far refuses a workspace
+ * key through its principal-kind list, which raises an error the concealment
+ * policy does not rewrite, so all of them say 403. Kept because a concealed
+ * operation that denies the key through the policy itself would need this exact
+ * wording, and because `scripts/openapi/documents.test.ts` asserts the file-share
+ * description does not carry it — inlining the string there would let the guard
+ * and the wording it guards drift apart.
  */
 export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
   'A workspace API key is rejected as `404` rather than `403`, because unauthorized resources are concealed; use a personal API key.'

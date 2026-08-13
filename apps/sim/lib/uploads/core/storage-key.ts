@@ -12,6 +12,18 @@ const MAX_STORAGE_KEY_SEGMENT_BYTES = 255
 export const LOCAL_UPLOAD_METADATA_SUFFIX = '.upload-metadata.json'
 
 /**
+ * Roots the local data plane owns inside the upload directory.
+ *
+ * Both hold work-in-progress rather than stored objects, so both are swept by
+ * the local cleanup job. They live beside the other local-artifact names rather
+ * than in the data-plane provider so the sweep can name what it reclaims
+ * without importing the transport that writes it; a root known only to its
+ * writer accumulates forever.
+ */
+export const LOCAL_MULTIPART_ROOT = '.multipart'
+export const LOCAL_STAGING_ROOT = '.staging'
+
+/**
  * Every suffix local storage appends to a stored object's own path component.
  *
  * The key's last component is not the only component derived from a file name.

@@ -189,16 +189,12 @@ function cacheLimits(workspaceId: string, limits: TablePlanLimits): void {
  * `row limit` token for a substring match to find it, which made the wording
  * load-bearing.
  *
- * The 400 disagrees with the sibling ceiling on how many tables a workspace may
- * hold, which answers 403 with `error.details.code`
- * `WORKSPACE_RESOURCE_LIMIT_REACHED`. Two ceilings of the same kind reporting as
- * different statuses is a real inconsistency, and 409 is arguably the right
- * answer for both: the request is well formed and the caller is authorized, and
- * the conflict is with the collection's current state, which the caller can
- * clear. It is not changed here because this error is reachable from the
- * internal surface as well, where the 400 is shipped and not behind the v2
- * flag — unifying the two is a deliberate cross-surface change, not part of a
- * v2-only pass.
+ * The canonical record of the two table ceilings disagreeing on status: this one
+ * answers 400 and the workspace table ceiling answers 403
+ * (`WORKSPACE_RESOURCE_LIMIT_REACHED`), where 409 arguably fits both. Both are
+ * left as shipped — this error is also reachable from the internal surface,
+ * which is not behind the v2 flag, so unifying them is a deliberate
+ * cross-surface change rather than part of a v2-only pass.
  */
 export class TableRowLimitError extends OrchestrationError {
   constructor(readonly limit: number) {

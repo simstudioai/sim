@@ -19,8 +19,18 @@ export function generateColumnName(columns: ReadonlyArray<{ name: string }>): st
 }
 
 /**
- * Coerce a raw input value to the appropriate type for a column.
- * Throws on invalid JSON.
+ * Coerce a value a person typed or pasted into a cell to that column's type.
+ * Throws on invalid JSON, and answers `null` for everything else the column
+ * type refuses.
+ *
+ * `null` is what the server would store for the same value, which is the point:
+ * the optimistic cache and the row that comes back agree. It deliberately does
+ * not consult `ColumnTypeDefinition.salvage`, which reads a refused value
+ * lossily — a multiselect paste naming one option that no longer exists blanks
+ * the cell here rather than storing the members that did resolve. Salvage is
+ * reserved for writes with no caller to answer, and this one has one: a person
+ * watching the cell, who is better served seeing the paste refused than seeing
+ * part of it silently kept.
  */
 export function cleanCellValue(
   value: unknown,

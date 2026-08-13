@@ -21,11 +21,9 @@ export const revalidate = 0
  * fallback: it retains the timestamp of a deployment that has since been
  * undeployed, so reading it would report a deploy time alongside
  * `isDeployed: false`.
- */
-/**
- * Deliberately head-safe despite issuing a write.
  *
- * Reading a workflow can trigger a migrate-on-read `workflow_blocks` update when
+ * Deliberately head-safe despite issuing a write. Reading a workflow can trigger
+ * a migrate-on-read `workflow_blocks` update when
  * `applyBlockMigrations` upgrades a stored block. That write is convergent: it is
  * conditional on a migration actually applying, idempotent, and would be issued by
  * the next ordinary read regardless, so a `HEAD` only brings it forward.

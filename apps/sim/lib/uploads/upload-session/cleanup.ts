@@ -2,7 +2,7 @@ import type { Dirent } from 'node:fs'
 import { opendir, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
-import { LOCAL_MULTIPART_ROOT, LOCAL_STAGING_ROOT } from '@/lib/uploads/upload-session/provider'
+import { LOCAL_MULTIPART_ROOT, LOCAL_STAGING_ROOT } from '@/lib/uploads/core/storage-key'
 
 export const LOCAL_UPLOAD_CLEANUP_INTERVAL_MS = 15 * 60 * 1000
 export const LOCAL_UPLOAD_ARTIFACT_TTL_MS = 25 * 60 * 60 * 1000

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { columnTypeOf } from '@/lib/table/column-types'
 import {
   cleanCellValue,
   dateValueToLocalParts,
@@ -158,6 +159,32 @@ describe('cleanCellValue', () => {
     // A part matching no option is refused rather than silently dropped: this helper
     // runs the same registry coercion the server does, and the server now rejects it.
     expect(cleanCellValue('Nope', column)).toBeNull()
+    expect(cleanCellValue('Bug, Nope', column)).toBeNull()
+  })
+
+  /**
+   * The refusal above is `coerce`'s, not the last word the registry has on the
+   * value: `salvage` reads the same paste as the one option that resolved. That
+   * reading is reserved for writes with no caller to answer — a CSV row, a block
+   * output — and a typed cell has one, so this helper must not reach for it. The
+   * pairing is asserted rather than described so a future helper that "improves"
+   * the paste by salvaging it fails here.
+   */
+  it('refuses a partial multiselect paste the registry could still salvage', () => {
+    const column = {
+      name: 'tags',
+      type: 'select',
+      multiple: true,
+      options: [
+        { id: 'opt_a', name: 'Bug' },
+        { id: 'opt_b', name: 'Docs' },
+      ],
+    } as const
+
+    expect(columnTypeOf(column).salvage?.('Bug, Nope', column)).toEqual({
+      ok: true,
+      value: ['opt_a'],
+    })
     expect(cleanCellValue('Bug, Nope', column)).toBeNull()
   })
 })

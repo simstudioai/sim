@@ -178,6 +178,43 @@ describe('upload sessions', () => {
     ).toBeLessThanOrEqual(255)
   })
 
+  /**
+   * A knowledge document the pipeline provably refuses is rejected on admission
+   * whichever route carries it: the direct upload use case rejects a zero-byte
+   * buffer, and the session path refuses the same file before it hands out a
+   * transfer URL for it. `workspace_file` is the deliberate exception — an empty
+   * file is a legitimate thing to keep in a workspace — so pinning both keeps
+   * the split a decision rather than an omission.
+   */
+  it.each([
+    ['knowledge_document', { knowledgeBaseId: 'kb-1' }, true],
+    ['workspace_file', {}, false],
+  ])(
+    'admits a zero-byte %s only where an empty file is legitimate',
+    async (purpose, extra, refused) => {
+      dbChainMockFns.returning.mockResolvedValue([uploadRow({ purpose })])
+
+      const create = createUploadSession({
+        id: 'upload-1',
+        workspaceId: WORKSPACE_ID,
+        userId: 'user-1',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        purpose: purpose as Parameters<typeof createUploadSession>[0]['purpose'],
+        fileName: 'empty.txt',
+        contentType: 'text/plain',
+        fileSize: 0,
+        localOrigin: 'http://localhost:3000',
+        ...(extra as object),
+      } as Parameters<typeof createUploadSession>[0])
+
+      if (refused) {
+        await expect(create).rejects.toThrow('fileSize must be a positive integer')
+      } else {
+        await expect(create).resolves.toBeDefined()
+      }
+    }
+  )
+
   it('allocates distinct keys for same-named execution attachments', async () => {
     dbChainMockFns.returning
       .mockResolvedValueOnce([

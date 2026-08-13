@@ -22,7 +22,11 @@ import {
   USE_S3_STORAGE,
 } from '@/lib/uploads/config'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
-import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
+import {
+  LOCAL_MULTIPART_ROOT,
+  LOCAL_STAGING_ROOT,
+  LOCAL_UPLOAD_METADATA_SUFFIX,
+} from '@/lib/uploads/core/storage-key'
 import {
   createBlobConfig,
   createGcsConfig,
@@ -603,16 +607,6 @@ export async function writeLocalMultipartPart(params: {
     })
   }
 }
-
-/**
- * Roots the local data plane owns inside the upload directory.
- *
- * Both hold work-in-progress rather than stored objects, so both are swept by
- * the local cleanup job. Naming them here keeps that sweep and the writers
- * agreeing on one set — a root known only to its writer accumulates forever.
- */
-export const LOCAL_MULTIPART_ROOT = '.multipart'
-export const LOCAL_STAGING_ROOT = '.staging'
 
 function localPartsDirectory(uploadId: string): string {
   return join(UPLOAD_DIR_SERVER, LOCAL_MULTIPART_ROOT, uploadId)
