@@ -444,6 +444,11 @@ const TOOL_TITLES: Record<string, string> = {
   user_table: 'Managing table',
   run_code: 'Running code',
   query_user_table: 'Querying table',
+  table_manage: 'Managing table',
+  table_rows: 'Editing table rows',
+  table_columns: 'Editing table columns',
+  table_automations: 'Managing table automations',
+  table_enrichments: 'Managing table enrichments',
   workspace_file: 'Editing file',
   edit_content: 'Applying file content',
   create_workflow: 'Creating workflow',
@@ -682,6 +687,11 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'knowledge_base':
       return knowledgeBaseTitle(args)
     case 'query_user_table':
+    case 'table_manage':
+    case 'table_rows':
+    case 'table_columns':
+    case 'table_automations':
+    case 'table_enrichments':
       return queryUserTableTitle(args)
     case 'search_knowledge_base':
       return searchKnowledgeBaseTitle(args)

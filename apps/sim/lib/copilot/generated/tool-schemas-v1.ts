@@ -1971,7 +1971,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         enrichmentId: {
           type: 'string',
           description:
-            "Which enrichment to run. Discover the full set and each one's inputs/outputs via user_table.list_enrichments.",
+            "Which enrichment to run. Discover the full set and each one's inputs/outputs via table_enrichments.list_enrichments.",
           enum: [
             'work-email',
             'phone-number',
@@ -4748,6 +4748,579 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       type: 'object',
     },
     resultSchema: undefined,
+  },
+  table_automations: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Arguments for the operation',
+          properties: {
+            autoRun: {
+              type: 'boolean',
+              description:
+                "On add: true fires dep-satisfied rows immediately (only when the user explicitly asked); default false stages silently. On update: toggles the group's auto-fire on dep satisfaction.",
+            },
+            blockId: {
+              type: 'string',
+              description: 'Source block ID inside the workflow (add_workflow_group_output)',
+            },
+            columnName: {
+              type: 'string',
+              description:
+                'Target column name: required for delete_workflow_group_output (the bound column to drop); optional for add_workflow_group_output (auto-derived from path)',
+            },
+            dependencies: {
+              type: 'object',
+              description:
+                'Dependencies before a row runs: { columns?: string[] } of input column names that must be filled. Output columns of upstream groups are valid; a group cannot depend on its own outputs.',
+              properties: {
+                columns: {
+                  type: 'array',
+                  description:
+                    'Input column names that must be filled before the group runs a row.',
+                  items: {
+                    type: 'string',
+                  },
+                },
+              },
+            },
+            deploymentMode: {
+              type: 'string',
+              description:
+                'Which workflow version rows execute: "live" (default, editable draft — edits take effect immediately) or "deployed" (latest active deployment; fails if the workflow was never deployed).',
+              enum: ['live', 'deployed'],
+            },
+            groupId: {
+              type: 'string',
+              description:
+                'Workflow group ID (required for update_workflow_group, delete_workflow_group, add_workflow_group_output, delete_workflow_group_output)',
+            },
+            groupIds: {
+              type: 'array',
+              description: 'Workflow group IDs to fire (required for run_column, non-empty)',
+              items: {
+                type: 'string',
+              },
+            },
+            mappingUpdates: {
+              type: 'array',
+              description:
+                'Surgical per-output remap for update_workflow_group: each entry repoints ONE existing output column to a new (blockId, path) without touching the rest. Stale cells clear and backfill from saved execution logs where possible. Discover valid pairs via list_workflow_outputs first.',
+              items: {
+                type: 'object',
+                properties: {
+                  blockId: {
+                    type: 'string',
+                    description: 'New source block ID for this column.',
+                  },
+                  columnName: {
+                    type: 'string',
+                    description:
+                      'The existing output column to remap (must be bound to this group).',
+                  },
+                  path: {
+                    type: 'string',
+                    description: 'New dotted output path on the new block.',
+                  },
+                },
+                required: ['columnName', 'blockId', 'path'],
+              },
+            },
+            name: {
+              type: 'string',
+              description: 'Display name for the group (optional on add/update)',
+            },
+            outputPath: {
+              type: 'string',
+              description:
+                'Write this call\'s result to a NEW workspace file instead of returning it (e.g. "files/export.csv"). On success the tool result is REPLACED by a file receipt (fileId, vfsPath, size) — set it only when the file IS the goal. ".csv" serializes rows as a CSV table; ".json"/".txt"/".md"/".html" write pretty-printed JSON of the full result envelope. Missing parent folders are created; an existing path fails.',
+            },
+            outputs: {
+              type: 'array',
+              description:
+                'Outputs to surface as columns for add_workflow_group: each { blockId, path, columnName?, columnType? }; columnName auto-derives from path, columnType from the leaf type. Validated against list_workflow_outputs — invalid picks return the valid options. For update_workflow_group prefer add/delete_workflow_group_output and mappingUpdates; pass outputs only to restructure the whole set.',
+              items: {
+                type: 'object',
+                properties: {
+                  blockId: {
+                    type: 'string',
+                    description: 'Source block ID inside the workflow.',
+                  },
+                  columnName: {
+                    type: 'string',
+                    description:
+                      'Optional target column name; auto-derived from the path when omitted.',
+                  },
+                  columnType: {
+                    type: 'string',
+                    description: 'Optional column type; defaults from the leaf type when omitted.',
+                    enum: ['string', 'number', 'boolean', 'date', 'json'],
+                  },
+                  path: {
+                    type: 'string',
+                    description: 'Dotted output path on the block.',
+                  },
+                },
+                required: ['blockId', 'path'],
+              },
+            },
+            path: {
+              type: 'string',
+              description: 'Dotted output path on the block (add_workflow_group_output)',
+            },
+            rowId: {
+              type: 'string',
+              description: 'Row ID for cancel_table_runs with scope "row".',
+            },
+            rowIds: {
+              type: 'array',
+              description:
+                'Optional row scope for run_column: only these rows are candidates (server eligibility still applies); omit for the whole table.',
+              items: {
+                type: 'string',
+              },
+            },
+            runMode: {
+              type: 'string',
+              description:
+                'Run mode for run_column: "incomplete" (default) re-runs only rows with no output or a last failure; "all" re-runs every dep-satisfied row.',
+              enum: ['incomplete', 'all'],
+            },
+            scope: {
+              type: 'string',
+              description:
+                'Cancellation scope for cancel_table_runs: "all" (whole table) or "row" (requires rowId).',
+              enum: ['all', 'row'],
+            },
+            tableId: {
+              type: 'string',
+              description: 'Table ID (required for everything except list_workflow_outputs)',
+            },
+            workflowId: {
+              type: 'string',
+              description:
+                'Workflow ID (required for add_workflow_group and list_workflow_outputs)',
+            },
+          },
+        },
+        operation: {
+          type: 'string',
+          description: 'The automation operation to perform',
+          enum: [
+            'list_workflow_outputs',
+            'add_workflow_group',
+            'update_workflow_group',
+            'delete_workflow_group',
+            'add_workflow_group_output',
+            'delete_workflow_group_output',
+            'run_column',
+            'cancel_table_runs',
+          ],
+        },
+      },
+      required: ['operation', 'args'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Operation-specific result payload.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome summary.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
+  },
+  table_columns: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Arguments for the operation',
+          properties: {
+            column: {
+              type: 'object',
+              description:
+                'Column definition for add_column: { name, type, unique?, position? }; select (enum) columns also take { options: [names], multiple?: true } — options is required for select.',
+            },
+            columnName: {
+              type: 'string',
+              description:
+                'Column name (required for rename_column and update_column; single-column delete_column)',
+            },
+            columnNames: {
+              type: 'array',
+              description:
+                'Array of column names to delete at once (preferred for multi-column delete_column)',
+            },
+            multiple: {
+              type: 'boolean',
+              description:
+                'Whether a select cell may hold several options (default false). Switching true → false fails if any row has more than one selected.',
+            },
+            newName: {
+              type: 'string',
+              description: 'New column name (required for rename_column)',
+            },
+            newType: {
+              type: 'string',
+              description:
+                'New column type for update_column: string, number, boolean, date, json, select. Converting to select also requires options; conversion fails if an existing cell value matches no option. A multiple select round-trips through text as a comma-separated cell.',
+            },
+            options: {
+              type: 'array',
+              description:
+                'Choices for a select (enum) column as display names, e.g. ["Open", "Closed"]. Required when creating or converting to select. On update_column this REPLACES the whole list, matched BY NAME — send the full list including options you keep; omitting one deletes it and clears its cells. Max 100.',
+              items: {
+                type: 'string',
+              },
+            },
+            outputPath: {
+              type: 'string',
+              description:
+                'Write this call\'s result to a NEW workspace file instead of returning it (e.g. "files/export.csv"). On success the tool result is REPLACED by a file receipt (fileId, vfsPath, size) — set it only when the file IS the goal. ".csv" serializes rows as a CSV table; ".json"/".txt"/".md"/".html" write pretty-printed JSON of the full result envelope. Missing parent folders are created; an existing path fails.',
+            },
+            tableId: {
+              type: 'string',
+              description: 'Table ID (required for every operation)',
+            },
+            unique: {
+              type: 'boolean',
+              description:
+                'Set or clear the column unique constraint (update_column; not supported on select columns)',
+            },
+          },
+          required: ['tableId'],
+        },
+        operation: {
+          type: 'string',
+          description: 'The column operation to perform',
+          enum: ['add_column', 'rename_column', 'delete_column', 'update_column'],
+        },
+      },
+      required: ['operation', 'args'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Operation-specific result payload.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome summary.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
+  },
+  table_enrichments: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Arguments for the operation',
+          properties: {
+            autoRun: {
+              type: 'boolean',
+              description:
+                'true fires dep-satisfied rows immediately on add (only when the user explicitly asked); default false stages silently — fire later via table_automations run_column.',
+            },
+            dependencies: {
+              type: 'object',
+              description:
+                'Optional dependency override: { columns?: string[] }; omit to default to the mapped input columns.',
+              properties: {
+                columns: {
+                  type: 'array',
+                  description:
+                    'Input column names that must be filled before the enrichment runs a row.',
+                  items: {
+                    type: 'string',
+                  },
+                },
+              },
+            },
+            enrichmentId: {
+              type: 'string',
+              description:
+                'Enrichment registry ID for add_enrichment — discover via list_enrichments (e.g. work-email, phone-number, company-domain, company-info).',
+            },
+            inputMappings: {
+              type: 'array',
+              description:
+                'For add_enrichment: binds each enrichment input to an existing table column, as { inputName, columnName } where inputName is the enrichment input id from list_enrichments. Provide one for every required input.',
+              items: {
+                type: 'object',
+                properties: {
+                  columnName: {
+                    type: 'string',
+                    description: 'Existing table column that supplies this input.',
+                  },
+                  inputName: {
+                    type: 'string',
+                    description: 'Enrichment input id to bind (from list_enrichments).',
+                  },
+                },
+                required: ['inputName', 'columnName'],
+              },
+            },
+            name: {
+              type: 'string',
+              description:
+                "Optional display name for the enrichment column group; defaults to the enrichment's registry name.",
+            },
+            outputColumnNames: {
+              type: 'object',
+              description:
+                'Optional output column name overrides, as { "<outputId>": "<columnName>" }; omit for defaults.',
+              additionalProperties: {
+                type: 'string',
+                description: 'Target column name for this enrichment output id.',
+              },
+            },
+            outputPath: {
+              type: 'string',
+              description:
+                'Write this call\'s result to a NEW workspace file instead of returning it (e.g. "files/export.csv"). On success the tool result is REPLACED by a file receipt (fileId, vfsPath, size) — set it only when the file IS the goal. ".csv" serializes rows as a CSV table; ".json"/".txt"/".md"/".html" write pretty-printed JSON of the full result envelope. Missing parent folders are created; an existing path fails.',
+            },
+            tableId: {
+              type: 'string',
+              description: 'Table ID (required for add_enrichment)',
+            },
+          },
+        },
+        operation: {
+          type: 'string',
+          description: 'The enrichment operation to perform',
+          enum: ['list_enrichments', 'add_enrichment'],
+        },
+      },
+      required: ['operation', 'args'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Operation-specific result payload.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome summary.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
+  },
+  table_manage: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Arguments for the operation',
+          properties: {
+            description: {
+              type: 'string',
+              description: 'Table description (optional for create)',
+            },
+            filePath: {
+              type: 'string',
+              description:
+                'Canonical workspace file VFS path for create_from_file / import_file, e.g. files/{path}/{name}',
+            },
+            mapping: {
+              type: 'object',
+              description:
+                'Optional explicit CSV-header → table-column mapping for import_file, as { "csvHeader": "columnName" | null }. null skips that header; omit a header to auto-map by sanitized name.',
+              additionalProperties: {
+                type: ['string', 'null'],
+                description: 'Target column name on the table; null skips that CSV header.',
+              },
+            },
+            mode: {
+              type: 'string',
+              description:
+                'Import mode for import_file: append (default) adds rows; replace truncates existing rows in a transaction first.',
+              enum: ['append', 'replace'],
+            },
+            name: {
+              type: 'string',
+              description: 'Table name (required for create)',
+            },
+            newName: {
+              type: 'string',
+              description: 'New table name (required for rename)',
+            },
+            outputPath: {
+              type: 'string',
+              description:
+                'Write this call\'s result to a NEW workspace file instead of returning it (e.g. "files/export.csv"). On success the tool result is REPLACED by a file receipt (fileId, vfsPath, size) — set it only when the file IS the goal. ".csv" serializes rows as a CSV table; ".json"/".txt"/".md"/".html" write pretty-printed JSON of the full result envelope. Missing parent folders are created; an existing path fails.',
+            },
+            schema: {
+              type: 'object',
+              description:
+                'Table schema with a columns array (required for create). Each column: { name, type, unique? }; a select (enum) column also requires options (display names) and takes multiple?.',
+            },
+            tableId: {
+              type: 'string',
+              description: 'Table ID (required for import_file and rename)',
+            },
+          },
+        },
+        operation: {
+          type: 'string',
+          description: 'The lifecycle operation to perform',
+          enum: ['create', 'create_from_file', 'import_file', 'rename'],
+        },
+      },
+      required: ['operation', 'args'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Operation-specific result payload.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome summary.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
+  },
+  table_rows: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Arguments for the operation',
+          properties: {
+            columnName: {
+              type: 'string',
+              description: 'Column to set when using the values map format of batch_update_rows',
+            },
+            data: {
+              type: 'object',
+              description:
+                'Row data as column → value pairs (required for insert_row, update_row; the patch object for update_rows_by_filter). Select (enum) cells take the option NAME.',
+            },
+            filter: {
+              type: 'object',
+              description:
+                'Predicate filter for update_rows_by_filter / delete_rows_by_filter: {"all":[...]} (AND) or {"any":[...]} (OR) of {field, op, value} leaves or nested groups. Ops: eq, ne, gt, gte, lt, lte, in, nin, like, ilike (* wildcard), nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. in/nin take a non-empty array. Single-select columns match by eq/ne/in/nin; multiple-select by contains/ncontains — values are option NAMES.',
+            },
+            limit: {
+              type: 'number',
+              description:
+                'Optional cap on affected rows for the by-filter operations; omit to act on every match.',
+            },
+            outputPath: {
+              type: 'string',
+              description:
+                'Write this call\'s result to a NEW workspace file instead of returning it (e.g. "files/export.csv"). On success the tool result is REPLACED by a file receipt (fileId, vfsPath, size) — set it only when the file IS the goal. ".csv" serializes rows as a CSV table; ".json"/".txt"/".md"/".html" write pretty-printed JSON of the full result envelope. Missing parent folders are created; an existing path fails.',
+            },
+            position: {
+              type: 'integer',
+              description:
+                'Zero-based index at which to insert the row (optional, insert_row only). Rows at and below shift down; omit to append.',
+            },
+            rowId: {
+              type: 'string',
+              description: 'Row ID (required for update_row, delete_row)',
+            },
+            rowIds: {
+              type: 'array',
+              description: 'Array of row IDs to delete (required for batch_delete_rows)',
+              items: {
+                type: 'string',
+              },
+            },
+            rows: {
+              type: 'array',
+              description: 'Array of row data objects (required for batch_insert_rows)',
+            },
+            tableId: {
+              type: 'string',
+              description: 'Table ID (required for every operation)',
+            },
+            updates: {
+              type: 'array',
+              description:
+                'Array of per-row updates: [{ rowId, data: { col: val } }] (batch_update_rows format a)',
+            },
+            values: {
+              type: 'object',
+              description:
+                'Map of rowId → value for single-column batch update (batch_update_rows format b, with columnName)',
+            },
+          },
+          required: ['tableId'],
+        },
+        operation: {
+          type: 'string',
+          description: 'The row operation to perform',
+          enum: [
+            'insert_row',
+            'batch_insert_rows',
+            'update_row',
+            'batch_update_rows',
+            'delete_row',
+            'batch_delete_rows',
+            'update_rows_by_filter',
+            'delete_rows_by_filter',
+          ],
+        },
+      },
+      required: ['operation', 'args'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Operation-specific result payload.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome summary.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
   },
   terminal: {
     parameters: {

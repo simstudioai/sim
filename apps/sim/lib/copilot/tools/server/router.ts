@@ -48,6 +48,11 @@ import { generateAudioServerTool } from '@/lib/copilot/tools/server/media/genera
 import { generateVideoServerTool } from '@/lib/copilot/tools/server/media/generate-video'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
 import { queryUserTableServerTool } from '@/lib/copilot/tools/server/table/query-user-table'
+import { tableAutomationsServerTool } from '@/lib/copilot/tools/server/table/table-automations'
+import { tableColumnsServerTool } from '@/lib/copilot/tools/server/table/table-columns'
+import { tableEnrichmentsServerTool } from '@/lib/copilot/tools/server/table/table-enrichments'
+import { tableManageServerTool } from '@/lib/copilot/tools/server/table/table-manage'
+import { tableRowsServerTool } from '@/lib/copilot/tools/server/table/table-rows'
 import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
@@ -172,6 +177,11 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [enrichmentRunServerTool.name]: enrichmentRunServerTool,
   [userTableServerTool.name]: userTableServerTool,
   [queryUserTableServerTool.name]: queryUserTableServerTool,
+  [tableManageServerTool.name]: tableManageServerTool,
+  [tableRowsServerTool.name]: tableRowsServerTool,
+  [tableColumnsServerTool.name]: tableColumnsServerTool,
+  [tableAutomationsServerTool.name]: tableAutomationsServerTool,
+  [tableEnrichmentsServerTool.name]: tableEnrichmentsServerTool,
   [workspaceFileServerTool.name]: workspaceFileServerTool,
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,

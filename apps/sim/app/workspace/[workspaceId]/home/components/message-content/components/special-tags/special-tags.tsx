@@ -1442,7 +1442,50 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
     segments.push({ type: 'text', content })
   }
 
+  if (!isStreaming) {
+    recoverTrailingBareOptions(segments)
+  }
+
   return { segments, hasPendingTag }
+}
+/**
+ * Recovers a trailing bare-JSON options payload the model emitted WITHOUT the
+ * `<options>` wrapper (observed when an automation prompt asks the model to
+ * "(re)send suggested actions" and it answers with the JSON as content). The
+ * shape check is strict — a non-empty object whose every value is
+ * { title, description } with numeric-string keys — so ordinary JSON in prose
+ * cannot false-positive. Only a message's FINAL text segment is considered,
+ * mirroring the tag contract (options go last), and only when no options tag
+ * already parsed. Never applied mid-stream: a partial JSON tail must not
+ * flicker between prose and a card.
+ */
+function recoverTrailingBareOptions(segments: ContentSegment[]): void {
+  const last = segments[segments.length - 1]
+  if (!last || last.type !== 'text') return
+  if (segments.some((segment) => segment.type === 'options')) return
+  const text = last.content
+  if (!text.trimEnd().endsWith('}')) return
+  // The payload nests objects, so the START brace is the first one from which
+  // the remainder parses — probe brace positions left to right (bounded).
+  let start = -1
+  let parsed: unknown
+  let probe = text.indexOf('{')
+  for (let attempts = 0; probe !== -1 && attempts < 20; attempts++) {
+    try {
+      parsed = JSON.parse(text.slice(probe).trim())
+      start = probe
+      break
+    } catch {
+      probe = text.indexOf('{', probe + 1)
+    }
+  }
+  if (start === -1) return
+  if (!isOptionsTagData(parsed) || Object.keys(parsed as object).length === 0) return
+  if (!Object.keys(parsed as object).every((key) => /^\d+$/.test(key))) return
+  const prefix = text.slice(0, start).replace(/\s+$/, '')
+  segments.pop()
+  if (prefix) segments.push({ type: 'text', content: prefix })
+  segments.push({ type: 'options', data: parsed })
 }
 
 interface SpecialTagsProps {
