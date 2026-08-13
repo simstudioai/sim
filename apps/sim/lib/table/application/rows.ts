@@ -92,11 +92,10 @@ interface TableScopedInput {
    * the Copilot table tools, and the executor's Table block all drop the
    * unknown key and blank the uncoercible cell. Read-only use cases ignore it.
    */
-  strictWrite?: boolean
 }
 
 /** The write policy `strictWrite` selects, for the row-service primitives. */
-function rowWriteOptions(input: TableScopedInput): RowWriteOptions {
+function rowWriteOptions(input: { strictWrite: boolean }): RowWriteOptions {
   return input.strictWrite ? { uncoercibleValues: 'reject' } : {}
 }
 
@@ -419,6 +418,8 @@ export const readTableRow = defineAuthorizedTableUseCase({
 })
 
 interface CreateSingleTableRowInput extends TableScopedInput {
+  /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
+  strictWrite: boolean
   kind: 'single'
   data: RowData
   position?: number
@@ -428,6 +429,8 @@ interface CreateSingleTableRowInput extends TableScopedInput {
 }
 
 interface CreateBatchTableRowsInput extends TableScopedInput {
+  /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
+  strictWrite: boolean
   kind: 'batch'
   rows: RowData[]
   orderKeys?: string[]
@@ -527,6 +530,8 @@ export const createTableRows = defineAuthorizedTableUseCase({
 const MAX_REPLACE_TABLE_ROWS = 10_000
 
 export interface ReplaceTableRowsInput extends TableScopedInput {
+  /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
+  strictWrite: boolean
   rows: RowData[]
   secretProvenance?: Array<TableRowSecretProvenanceWrite | undefined>
 }
@@ -735,6 +740,8 @@ export const replaceProjectedWireRows = defineAuthorizedTableUseCase({
 })
 
 export interface UpdateTableRowInput extends TableScopedInput {
+  /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
+  strictWrite: boolean
   rowId: string
   data: RowData
   secretProvenance?: TableRowSecretProvenanceWrite
@@ -784,6 +791,8 @@ export const updateTableRow = defineAuthorizedTableUseCase({
 })
 
 export interface UpdateTableRowsInput extends TableScopedInput {
+  /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
+  strictWrite: boolean
   filter: TablePredicate
   data: RowData
   limit?: number
@@ -907,6 +916,8 @@ export const deleteTableRows = defineAuthorizedTableUseCase({
 })
 
 export interface UpsertTableRowInput extends TableScopedInput {
+  /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
+  strictWrite: boolean
   data: RowData
   conflictTarget?: string
   secretProvenance?: TableRowSecretProvenanceWrite

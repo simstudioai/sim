@@ -21,42 +21,63 @@ function containsNulByte(root: unknown): boolean {
       continue
     }
     if (isPlainRecord(value)) {
-      for (const [key, entry] of Object.entries(value)) {
+      for (const key of Object.keys(value)) {
         if (containsNulCharacter(key)) return true
-        stack.push(entry)
+        stack.push(value[key])
       }
     }
   }
   return false
 }
 
+/** A visited node, linked to its parent so a path is only ever built on a hit. */
+interface NulScanFrame {
+  value: unknown
+  key: PropertyKey | null
+  parent: NulScanFrame | null
+}
+
+/** Walks parent links back to the root. Runs once, only for the offending node. */
+function framePath(frame: NulScanFrame): PropertyKey[] {
+  const path: PropertyKey[] = []
+  for (let node: NulScanFrame | null = frame; node?.parent; node = node.parent) {
+    if (node.key !== null) path.push(node.key)
+  }
+  return path.reverse()
+}
+
 /**
- * Second pass, run only once a NUL is known to be present, so the common case
- * never pays for path bookkeeping. Returns the path of the first offending
- * string, matching the shape Zod reports for a failed field.
+ * Second pass, run only once a NUL is known to be present. Returns the path of
+ * the first offending string, matching the shape Zod reports for a failed field.
+ *
+ * Frames carry a parent link rather than a copied path. Copying `[...path, key]`
+ * per child costs O(nodes x depth), which a caller controls directly: v2 row
+ * cell values are `z.unknown()`, so a 200KB body of nested arrays reaches this
+ * scan at depth 100k and blocked the event loop for ~28s. Parent links make it
+ * linear, and the path is materialized once for the node actually reported.
  */
 function findNulBytePath(root: unknown): PropertyKey[] {
-  const stack: { value: unknown; path: PropertyKey[] }[] = [{ value: root, path: [] }]
+  const stack: NulScanFrame[] = [{ value: root, key: null, parent: null }]
   while (stack.length > 0) {
     const frame = stack.pop()
     if (!frame) break
-    const { value, path } = frame
+    const { value } = frame
     if (typeof value === 'string') {
-      if (containsNulCharacter(value)) return path
+      if (containsNulCharacter(value)) return framePath(frame)
       continue
     }
     if (Array.isArray(value)) {
       for (let index = value.length - 1; index >= 0; index -= 1) {
-        stack.push({ value: value[index], path: [...path, index] })
+        stack.push({ value: value[index], key: index, parent: frame })
       }
       continue
     }
     if (isPlainRecord(value)) {
-      const entries = Object.entries(value)
-      for (let index = entries.length - 1; index >= 0; index -= 1) {
-        const [key, entry] = entries[index]
-        if (containsNulCharacter(key)) return [...path, key]
-        stack.push({ value: entry, path: [...path, key] })
+      const keys = Object.keys(value)
+      for (let index = keys.length - 1; index >= 0; index -= 1) {
+        const key = keys[index]
+        if (containsNulCharacter(key)) return [...framePath(frame), key]
+        stack.push({ value: value[key], key, parent: frame })
       }
     }
   }
