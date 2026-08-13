@@ -3,6 +3,7 @@ import {
   v2ListWorkflowVersionsContract,
   v2WorkflowVersionCursorSchema,
 } from '@/lib/api/contracts/v2/workflows'
+import { UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
@@ -24,7 +25,7 @@ export const GET = defineV2JsonRoute({
       ? v2WorkflowVersionCursorSchema.safeParse(decodeCursor(query.cursor))
       : undefined
     if (decoded && !decoded.success) {
-      throw new OrchestrationError('validation', 'Invalid cursor')
+      throw new OrchestrationError('validation', UNREADABLE_CURSOR_MESSAGE)
     }
     return {
       workflowId: params.id,

@@ -2,6 +2,7 @@ import {
   v2ListWorkspaceMembersContract,
   v2WorkspaceMemberCursorSchema,
 } from '@/lib/api/contracts/v2/workspaces'
+import { UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -25,7 +26,7 @@ export const GET = defineV2JsonRoute({
       ? v2WorkspaceMemberCursorSchema.safeParse(decodeCursor(query.cursor))
       : undefined
     if (decoded && !decoded.success) {
-      throw new OrchestrationError('validation', 'Invalid cursor')
+      throw new OrchestrationError('validation', UNREADABLE_CURSOR_MESSAGE)
     }
     return {
       workspaceId: params.workspaceId,

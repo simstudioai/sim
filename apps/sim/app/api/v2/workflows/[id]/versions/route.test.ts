@@ -12,6 +12,7 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 
 const mocks = vi.hoisted(() => ({
   listVersions: vi.fn(),
@@ -103,6 +104,12 @@ describe('GET /api/v2/workflows/[id]/versions', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.listVersions).not.toHaveBeenCalled()
+    /**
+     * The undecodable-token message, not the sort-mismatch one: this list
+     * declares no `sortBy`/`sortOrder`, so naming them would answer a 400 with
+     * advice that earns a second.
+     */
+    expect((await response.json()).error.message).toBe(UNREADABLE_CURSOR_MESSAGE)
   })
 
   /**
