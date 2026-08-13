@@ -12,10 +12,10 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { addTableColumn, deleteColumn } from '@/lib/table'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import { performUpdateTableColumn } from '@/lib/table/orchestration'
+import { normalizeColumn } from '@/lib/table/wire'
 import {
   accessError,
   checkAccess,
-  normalizeColumn,
   orchestrationErrorResponse,
   orchestrationOutcomeErrorResponse,
   tableLockErrorResponse,

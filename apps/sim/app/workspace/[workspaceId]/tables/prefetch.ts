@@ -1,8 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { listFoldersForWorkspace } from '@/lib/folders/queries'
-import type { TableDefinition } from '@/lib/table'
+import { listTables } from '@/lib/table'
+import { toTableListItem } from '@/lib/table/wire'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
-import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
 import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
 import { TABLE_LIST_STALE_TIME, tableKeys } from '@/hooks/queries/utils/table-keys'
@@ -15,16 +15,20 @@ import { TABLE_LIST_STALE_TIME, tableKeys } from '@/hooks/queries/utils/table-ke
  * only placed correctly relative to the folder rows it sits beside, so
  * prefetching one without the other still flashes an ungrouped list.
  *
- * Folders read the data layer and are mapped with the same `mapFolder` the hook
- * applies, matching the workspace sidebar prefetch. That read carries no
- * authorization of its own, so the viewer is proved first;
- * `getWorkspaceHostContextForViewer` is `cache`d and the layout has already
- * resolved it for this request, so it costs no additional queries.
+ * Both read the data layer directly, with no internal HTTP hop. Folders are
+ * mapped with the same `mapFolder` the hook applies, matching the workspace
+ * sidebar prefetch. Tables go through {@link toTableListItem}, the projection
+ * `GET /api/table` itself returns — table definitions carry `Date` fields whose
+ * *serialized* form is what the client caches, and the list contract's response
+ * schema is a passthrough that neither coerces nor strips, so seeding raw rows
+ * would put `Date` objects under a key a client fetch fills with ISO strings.
  *
- * Table definitions carry `Date` fields whose serialized wire shape is what the
- * client hook caches, so the list still goes through the `/api/table` route —
- * see {@link prefetchInternalJson}. Converting it needs the payload shaped to
- * the route's response contract, not just read from the data layer.
+ * Neither read carries authorization of its own, so the viewer is proved first.
+ * `getWorkspaceHostContextForViewer` resolves the same effective workspace
+ * permission the route's own check does (both bottom out in
+ * `checkWorkspaceAccess`), and it is `cache`d and already resolved by the layout
+ * for this request, so it costs no additional queries. A viewer without access
+ * caches nothing and the client fetch reaches the route for the real 403.
  */
 export async function prefetchTables(
   queryClient: QueryClient,
@@ -34,18 +38,16 @@ export async function prefetchTables(
   const hostContext = userId ? await getWorkspaceHostContextForViewer(workspaceId, userId) : null
 
   await Promise.all([
-    queryClient.prefetchQuery({
-      queryKey: tableKeys.list(workspaceId, 'active'),
-      queryFn: async () => {
-        const response = await prefetchInternalJson<{ data: { tables: TableDefinition[] } }>(
-          `/api/table?workspaceId=${workspaceId}&scope=active`
-        )
-        return response.data.tables
-      },
-      staleTime: TABLE_LIST_STALE_TIME,
-    }),
     ...(hostContext
       ? [
+          queryClient.prefetchQuery({
+            queryKey: tableKeys.list(workspaceId, 'active'),
+            queryFn: async () => {
+              const tables = await listTables(workspaceId, { scope: 'active' })
+              return tables.map(toTableListItem)
+            },
+            staleTime: TABLE_LIST_STALE_TIME,
+          }),
           queryClient.prefetchQuery({
             queryKey: folderKeys.list(workspaceId, 'active', 'table'),
             queryFn: async () => {
@@ -56,6 +58,6 @@ export async function prefetchTables(
           }),
         ]
       : []),
-    prefetchResourceListChrome(queryClient, workspaceId, 'table'),
+    prefetchResourceListChrome(queryClient, workspaceId, 'table', userId),
   ])
 }

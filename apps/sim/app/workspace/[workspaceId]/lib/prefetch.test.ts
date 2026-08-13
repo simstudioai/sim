@@ -5,17 +5,27 @@ import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockAuthenticate,
   mockGetWorkspaceHostContextForViewer,
+  mockGetWorkspaceMemberProfiles,
+  mockKnowledgePresenterList,
   mockListFoldersForWorkspace,
+  mockListInternalKnowledgeBases,
+  mockListPinnedItemsForUser,
+  mockListTables,
   mockListWorkspaceFileFolders,
   mockListWorkspaceFilesWithShares,
-  mockPrefetchInternalJson,
 } = vi.hoisted(() => ({
+  mockAuthenticate: vi.fn(),
   mockGetWorkspaceHostContextForViewer: vi.fn(),
+  mockGetWorkspaceMemberProfiles: vi.fn(),
+  mockKnowledgePresenterList: vi.fn(),
   mockListFoldersForWorkspace: vi.fn(),
+  mockListInternalKnowledgeBases: vi.fn(),
+  mockListPinnedItemsForUser: vi.fn(),
+  mockListTables: vi.fn(),
   mockListWorkspaceFileFolders: vi.fn(),
   mockListWorkspaceFilesWithShares: vi.fn(),
-  mockPrefetchInternalJson: vi.fn(),
 }))
 
 vi.mock('@/lib/workspaces/host-context', () => ({
@@ -30,9 +40,37 @@ vi.mock('@/lib/workspace-files/queries', () => ({
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
   listWorkspaceFileFolders: mockListWorkspaceFileFolders,
 }))
-
-vi.mock('@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch', () => ({
-  prefetchInternalJson: mockPrefetchInternalJson,
+vi.mock('@/lib/pinned-items/queries', () => ({
+  listPinnedItemsForUser: mockListPinnedItemsForUser,
+}))
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getWorkspaceMemberProfiles: mockGetWorkspaceMemberProfiles,
+}))
+/**
+ * The barrel is mocked rather than `@/lib/table/wire`, so the prefetch's real
+ * `toTableListItem` projection runs and the wire-shape assertions below are
+ * meaningful rather than mocked away.
+ */
+vi.mock('@/lib/table', () => ({
+  listTables: mockListTables,
+}))
+/**
+ * `typeMetadataOf` is the one leaf of the real wire projection that reaches the
+ * column-type registry, and through it every type module's icon and editor. Stub
+ * that leaf only, so `toTableListItem`'s timestamp, `metadata`, and job
+ * normalization stay under test rather than being mocked away wholesale.
+ */
+vi.mock('@/lib/table/column-types', () => ({
+  typeMetadataOf: () => ({}),
+}))
+vi.mock('@/lib/api/server/routes', () => ({
+  internalSessionAuth: { authenticate: mockAuthenticate },
+}))
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
+  listInternalKnowledgeBases: { execute: mockListInternalKnowledgeBases },
+}))
+vi.mock('@/lib/knowledge/api/internal-route', () => ({
+  internalKnowledgePresenters: { list: mockKnowledgePresenterList },
 }))
 
 vi.mock('@sim/emcn', () => ({
@@ -40,7 +78,6 @@ vi.mock('@sim/emcn', () => ({
 }))
 
 import { prefetchFilesBrowser } from '@/app/workspace/[workspaceId]/files/prefetch'
-import { prefetchHomeLists } from '@/app/workspace/[workspaceId]/home/prefetch'
 import { prefetchKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/prefetch'
 import { prefetchTables } from '@/app/workspace/[workspaceId]/tables/prefetch'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
@@ -65,6 +102,12 @@ describe('workspace list prefetches', () => {
     mockListFoldersForWorkspace.mockResolvedValue([])
     mockListWorkspaceFilesWithShares.mockResolvedValue([])
     mockListWorkspaceFileFolders.mockResolvedValue([])
+    mockListPinnedItemsForUser.mockResolvedValue([])
+    mockGetWorkspaceMemberProfiles.mockResolvedValue([])
+    mockListTables.mockResolvedValue([])
+    mockAuthenticate.mockResolvedValue({ kind: 'session', userId: USER_ID, sessionId: 'sess-1' })
+    mockListInternalKnowledgeBases.mockResolvedValue({ knowledgeBases: [] })
+    mockKnowledgePresenterList.mockReturnValue({ success: true, data: [] })
   })
 
   describe.each([
@@ -93,16 +136,12 @@ describe('workspace list prefetches', () => {
         updatedAt: '2026-01-02T00:00:00.000Z',
         deletedAt: null,
       }
-      mockPrefetchInternalJson.mockResolvedValue({ data: { tables: [] } })
       mockListFoldersForWorkspace.mockResolvedValue([folderRow])
       const client = makeClient()
 
       await run(client)
 
       expect(mockListFoldersForWorkspace).toHaveBeenCalledWith(WORKSPACE_ID, 'active', resourceType)
-      expect(mockPrefetchInternalJson).not.toHaveBeenCalledWith(
-        expect.stringContaining('/api/folders')
-      )
       const cached = client.getQueryData(
         folderKeys.list(WORKSPACE_ID, 'active', resourceType)
       ) as Array<{
@@ -115,7 +154,6 @@ describe('workspace list prefetches', () => {
     })
 
     it('skips the folder read when the viewer cannot be proved', async () => {
-      mockPrefetchInternalJson.mockResolvedValue({ data: { tables: [] } })
       mockGetWorkspaceHostContextForViewer.mockResolvedValue(null)
       const client = makeClient()
 
@@ -129,32 +167,100 @@ describe('workspace list prefetches', () => {
   })
 
   describe('prefetchKnowledgeBases', () => {
-    it('primes the exact key useKnowledgeBasesQuery reads and unwraps data', async () => {
-      const bases = [{ id: 'kb-1' }]
-      mockPrefetchInternalJson.mockResolvedValue({ data: bases })
+    /**
+     * The bases list is a protected read behind an application operation, so the prefetch runs
+     * the same use case the route declares, with a principal from the same auth policy —
+     * rather than reaching past it to a manager.
+     */
+    it('runs the route’s own use case with a session principal', async () => {
       const client = makeClient()
 
       await prefetchKnowledgeBases(client, WORKSPACE_ID, USER_ID)
 
-      expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-        `/api/knowledge?workspaceId=${WORKSPACE_ID}&scope=active`
-      )
-      expect(client.getQueryData(knowledgeKeys.list(WORKSPACE_ID, 'active'))).toEqual(bases)
+      expect(mockAuthenticate).toHaveBeenCalled()
+      expect(mockListInternalKnowledgeBases).toHaveBeenCalledWith({
+        principal: { kind: 'session', userId: USER_ID, sessionId: 'sess-1' },
+        input: { workspaceId: WORKSPACE_ID, scope: 'active' },
+      })
+      expect(client.getQueryData(knowledgeKeys.list(WORKSPACE_ID, 'active'))).toEqual([])
+    })
+
+    it('caches nothing when the session principal cannot be built', async () => {
+      mockAuthenticate.mockRejectedValue(new Error('Unauthorized'))
+      const client = makeClient()
+
+      await prefetchKnowledgeBases(client, WORKSPACE_ID, USER_ID)
+
+      expect(mockListInternalKnowledgeBases).not.toHaveBeenCalled()
+      expect(client.getQueryData(knowledgeKeys.list(WORKSPACE_ID, 'active'))).toBeUndefined()
     })
   })
 
   describe('prefetchTables', () => {
-    it('primes the exact key useTablesList reads and unwraps data.tables', async () => {
-      const tables = [{ id: 't-1' }]
-      mockPrefetchInternalJson.mockResolvedValue({ data: { tables } })
+    const TABLE_ROW = {
+      id: 't-1',
+      name: 'people',
+      description: null,
+      schema: { columns: [{ id: 'c1', name: 'name', type: 'string' }] },
+      metadata: { columnWidths: { c1: 120 } },
+      rowCount: 3,
+      maxRows: 10_000,
+      workspaceId: WORKSPACE_ID,
+      folderId: null,
+      createdBy: 'u-1',
+      locks: {
+        schemaLocked: false,
+        insertLocked: false,
+        updateLocked: false,
+        deleteLocked: false,
+      },
+      archivedAt: null,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+    }
+
+    it('reads tables from the data layer rather than over the wire', async () => {
+      mockListTables.mockResolvedValue([TABLE_ROW])
       const client = makeClient()
 
       await prefetchTables(client, WORKSPACE_ID, USER_ID)
 
-      expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-        `/api/table?workspaceId=${WORKSPACE_ID}&scope=active`
-      )
-      expect(client.getQueryData(tableKeys.list(WORKSPACE_ID, 'active'))).toEqual(tables)
+      expect(mockListTables).toHaveBeenCalledWith(WORKSPACE_ID, { scope: 'active' })
+    })
+
+    /**
+     * `listTablesContract`'s response schema is a passthrough `z.custom`, so a client fetch
+     * caches the route's JSON verbatim. Seeding the raw data-layer row would put `Date`s and
+     * the server-only `metadata` field under a key the hook never sees them on.
+     */
+    it('seeds the wire shape a client fetch caches, not the raw data-layer row', async () => {
+      mockListTables.mockResolvedValue([TABLE_ROW])
+      const client = makeClient()
+
+      await prefetchTables(client, WORKSPACE_ID, USER_ID)
+
+      const [cached] = client.getQueryData(tableKeys.list(WORKSPACE_ID, 'active')) as Array<
+        Record<string, unknown>
+      >
+      expect(cached.createdAt).toBe('2026-01-01T00:00:00.000Z')
+      expect(cached.updatedAt).toBe('2026-01-02T00:00:00.000Z')
+      expect(cached.archivedAt).toBeNull()
+      expect(cached).not.toHaveProperty('metadata')
+      expect(cached.schema).toEqual({
+        columns: [{ id: 'c1', name: 'name', type: 'string', required: false, unique: false }],
+      })
+      expect(cached.jobStatus).toBeNull()
+      expect(cached.jobRowsProcessed).toBe(0)
+    })
+
+    it('caches no tables when the viewer cannot be proved', async () => {
+      mockGetWorkspaceHostContextForViewer.mockResolvedValue(null)
+      const client = makeClient()
+
+      await prefetchTables(client, WORKSPACE_ID, USER_ID)
+
+      expect(mockListTables).not.toHaveBeenCalled()
+      expect(client.getQueryData(tableKeys.list(WORKSPACE_ID, 'active'))).toBeUndefined()
     })
   })
 
@@ -229,75 +335,44 @@ describe('workspace list prefetches', () => {
 
     for (const { name, run, resourceType } of chromeCases) {
       it(`primes pinned ids (${resourceType} + folder) and members for ${name}`, async () => {
-        const pinnedItems = [{ id: 'p-1', resourceId: 'r-1' }]
-        const members = [{ userId: 'u-1', name: 'Ada' }]
-        mockPrefetchInternalJson.mockImplementation(async (path: string) => {
-          if (path.startsWith('/api/pinned-items')) return { pinnedItems }
-          if (path.endsWith('/members')) return { members }
-          if (path.includes('/folders')) return { folders: [] }
-          return { success: true, files: [], data: { tables: [] } }
-        })
+        /**
+         * Distinct fixtures per key: identical ones would still pass if the two pin
+         * namespaces were crossed.
+         */
+        const resourcePins = [{ id: 'p-1', resourceType, resourceId: 'r-1' }]
+        const folderPins = [{ id: 'p-2', resourceType: 'folder' as const, resourceId: 'fld-1' }]
+        const members = [{ userId: 'u-1', name: 'Ada', image: null }]
+        mockListPinnedItemsForUser.mockImplementation(
+          async (_userId: string, _workspaceId: string, type: string) =>
+            type === 'folder' ? folderPins : resourcePins
+        )
+        mockGetWorkspaceMemberProfiles.mockResolvedValue(members)
         const client = makeClient()
 
         await run(client)
 
-        expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-          `/api/pinned-items?workspaceId=${WORKSPACE_ID}&resourceType=${resourceType}`
-        )
-        expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-          `/api/pinned-items?workspaceId=${WORKSPACE_ID}&resourceType=folder`
-        )
-        expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-          `/api/workspaces/${WORKSPACE_ID}/members`
-        )
+        expect(mockListPinnedItemsForUser).toHaveBeenCalledWith(USER_ID, WORKSPACE_ID, resourceType)
+        expect(mockListPinnedItemsForUser).toHaveBeenCalledWith(USER_ID, WORKSPACE_ID, 'folder')
+        expect(mockGetWorkspaceMemberProfiles).toHaveBeenCalledWith(WORKSPACE_ID)
         expect(client.getQueryData(pinnedItemKeys.list(WORKSPACE_ID, resourceType))).toEqual(
-          pinnedItems
+          resourcePins
         )
-        expect(client.getQueryData(pinnedItemKeys.list(WORKSPACE_ID, 'folder'))).toEqual(
-          pinnedItems
-        )
+        expect(client.getQueryData(pinnedItemKeys.list(WORKSPACE_ID, 'folder'))).toEqual(folderPins)
         expect(client.getQueryData(workspaceKeys.members(WORKSPACE_ID))).toEqual(members)
       })
+
+      it(`caches no chrome for ${name} when the viewer cannot be proved`, async () => {
+        mockGetWorkspaceHostContextForViewer.mockResolvedValue(null)
+        const client = makeClient()
+
+        await run(client)
+
+        expect(mockListPinnedItemsForUser).not.toHaveBeenCalled()
+        expect(mockGetWorkspaceMemberProfiles).not.toHaveBeenCalled()
+        expect(client.getQueryData(pinnedItemKeys.list(WORKSPACE_ID, resourceType))).toBeUndefined()
+        expect(client.getQueryData(workspaceKeys.members(WORKSPACE_ID))).toBeUndefined()
+      })
     }
-  })
-
-  describe('prefetchHomeLists', () => {
-    it('primes folder + file keys, mapping folder rows to the client shape', async () => {
-      const folderRow = {
-        id: 'folder-1',
-        name: 'Docs',
-        userId: 'u-1',
-        workspaceId: WORKSPACE_ID,
-        parentId: null,
-        resourceType: 'workflow',
-        locked: false,
-        sortOrder: 0,
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-02T00:00:00.000Z',
-        deletedAt: null,
-      }
-      const files = [{ id: 'f-1' }]
-      mockPrefetchInternalJson.mockImplementation(async (path: string) =>
-        path.startsWith('/api/folders') ? { folders: [folderRow] } : { success: true, files }
-      )
-      const client = makeClient()
-
-      mockListWorkspaceFilesWithShares.mockResolvedValue(files)
-
-      await prefetchHomeLists(client, WORKSPACE_ID, USER_ID)
-
-      /**
-       * Folders are hydrated by the workspace sidebar prefetch under this same
-       * key, so repeating them here would be a second read of data the layout
-       * already has.
-       */
-      expect(mockPrefetchInternalJson).not.toHaveBeenCalled()
-      expect(mockListFoldersForWorkspace).not.toHaveBeenCalled()
-      expect(client.getQueryData(folderKeys.list(WORKSPACE_ID, 'active'))).toBeUndefined()
-
-      expect(mockListWorkspaceFilesWithShares).toHaveBeenCalledWith(WORKSPACE_ID, 'active')
-      expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual(files)
-    })
   })
 
   describe('graceful failure', () => {
@@ -313,11 +388,6 @@ describe('workspace list prefetches', () => {
         tableKeys.list(WORKSPACE_ID, 'active'),
       ],
       [
-        'prefetchHomeLists',
-        (client: QueryClient) => prefetchHomeLists(client, WORKSPACE_ID, USER_ID),
-        folderKeys.list(WORKSPACE_ID, 'active'),
-      ],
-      [
         'prefetchFilesBrowser',
         (client: QueryClient) => prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID),
         workspaceFilesKeys.list(WORKSPACE_ID, 'active'),
@@ -325,8 +395,13 @@ describe('workspace list prefetches', () => {
     ] as const)(
       '%s does not throw when the fetcher rejects (page still renders, client refetches)',
       async (_name, prefetch, queryKey) => {
-        mockPrefetchInternalJson.mockRejectedValue(new Error('500'))
-        mockListWorkspaceFilesWithShares.mockRejectedValue(new Error('500'))
+        const boom = new Error('500')
+        mockListWorkspaceFilesWithShares.mockRejectedValue(boom)
+        mockListFoldersForWorkspace.mockRejectedValue(boom)
+        mockListTables.mockRejectedValue(boom)
+        mockListInternalKnowledgeBases.mockRejectedValue(boom)
+        mockListPinnedItemsForUser.mockRejectedValue(boom)
+        mockGetWorkspaceMemberProfiles.mockRejectedValue(boom)
         const client = makeClient()
 
         await expect(prefetch(client)).resolves.toBeUndefined()

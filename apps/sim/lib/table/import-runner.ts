@@ -38,8 +38,8 @@ import { assertRowDelete, assertRowInsert, assertSchemaMutable } from '@/lib/tab
 import type { DbTransaction } from '@/lib/table/planner'
 import { nextImportStartOrderKey, nextImportStartPosition } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
+import { normalizeColumn } from '@/lib/table/wire'
 import { deleteFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
-import { normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportRunner')
 
