@@ -5,6 +5,7 @@ import {
   assertWorkflowMutable,
   authorizeWorkflowByWorkspacePermission,
   WorkflowLockedError,
+  type WorkflowWorkspaceAuthorizationResult,
 } from '@sim/platform-authz/workflow'
 import { eq } from 'drizzle-orm'
 import type { z } from 'zod'
@@ -25,10 +26,8 @@ export type SaveWorkflowNormalizedStateResult =
   | { success: false; status: number; error: string; details?: string }
 
 /**
- * Validates an untrusted workflow-state blob against the same schema the
- * `PUT /api/workflows/[id]/state` contract applies. In-process callers holding a
- * persisted blob (e.g. a copilot checkpoint) run it through here so they get the
- * identical coercion and rejection the HTTP hop used to give them.
+ * Validates an untrusted state blob against the same schema `PUT /api/workflows/[id]/state`
+ * applies, so in-process callers get the coercion and rejection the HTTP hop gave them.
  */
 export function parseWorkflowStateForPersistence(
   value: unknown
@@ -37,31 +36,31 @@ export function parseWorkflowStateForPersistence(
 }
 
 /**
- * Writes a complete workflow state to the normalized tables.
- *
- * Owns everything the state write means: write authorization, the mutability
- * (lock) check, block/edge preparation, the row-locked save transaction, the
- * `lastSynced`/variables update, custom-tool extraction, and the socket-server
- * notification. Every surface that replaces a workflow's state — the PUT route
- * and the copilot checkpoint revert — calls this, so none of those steps can be
+ * Writes a complete workflow state to the normalized tables: write authorization,
+ * the lock check, block/edge preparation, the row-locked save transaction,
+ * `lastSynced`/variables, custom-tool extraction, and the socket notification.
+ * Every surface that replaces a workflow's state calls this, so no step can be
  * skipped by going through a different door.
  *
- * Every refusal, the workflow lock included, comes back as a failure result so
- * callers need only one branch to present.
+ * Every refusal, the lock included, comes back as a failure result — callers need
+ * one branch.
+ *
+ * `authorization` lets a caller that already resolved the same decision hand it in
+ * rather than pay for it twice; it must be the `write` decision for this workflow
+ * and user.
  */
 export async function saveWorkflowNormalizedState(params: {
   requestId: string
   workflowId: string
   userId: string
   state: WorkflowStateContractOutput
+  authorization?: WorkflowWorkspaceAuthorizationResult
 }): Promise<SaveWorkflowNormalizedStateResult> {
   const { requestId, workflowId, userId, state } = params
 
-  const authorization = await authorizeWorkflowByWorkspacePermission({
-    workflowId,
-    userId,
-    action: 'write',
-  })
+  const authorization =
+    params.authorization ??
+    (await authorizeWorkflowByWorkspacePermission({ workflowId, userId, action: 'write' }))
   const workflowData = authorization.workflow
 
   if (!workflowData) {

@@ -457,10 +457,8 @@ async function resolveOrganizationEnterprisePlan(organizationId: string): Promis
  * Check if an organization has an enterprise plan
  * Used for Access Control (Permission Groups) feature gating
  *
- * Request-memoized: settings renders gate several sections on the same
- * organization's plan, and the plan cannot change mid-render. Outside a Server
- * Component render React evaluates the resolver normally, so routes, tools, and
- * background work re-read exactly as before.
+ * Request-memoized: a settings render gates several sections on the same
+ * organization's plan, and it cannot change mid-render.
  */
 export const isOrganizationOnEnterprisePlan = cache(resolveOrganizationEnterprisePlan)
 
@@ -621,11 +619,10 @@ async function hasWorkspaceTierAccess(
  * Shared by the inbox (Sim Mailer), live sync, and custom sandboxes, which all
  * sit on the same entitlement tier.
  *
- * Request-memoized because those features are gated side by side on the same
- * settings render, each otherwise repeating the identical workspace and
- * subscription reads. The per-feature deployment and env short-circuits live in
- * the exported wrappers and still run per call. Outside a Server Component
- * render React evaluates this normally.
+ * Request-memoized: these features are gated side by side on one settings render,
+ * each otherwise repeating the identical workspace and subscription reads. The
+ * per-feature deployment and env short-circuits live in the wrappers and still run
+ * per call.
  */
 const hasMaxTierWorkspaceAccess = cache(
   (workspaceId: string): Promise<boolean> => hasWorkspaceTierAccess(workspaceId, isMaxTier)

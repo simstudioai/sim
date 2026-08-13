@@ -66,11 +66,9 @@ export async function authorizeCredentialUse(
 }
 
 /**
- * Credential authorization for a caller whose authentication has already been
- * resolved. {@link authorizeCredentialUse} is the HTTP-request wrapper over
- * this; in-process callers (the tool executor) construct the same
- * {@link AuthResult} directly instead of re-authenticating over HTTP, so both
- * paths run one identical authorization rule.
+ * Credential authorization for an already-authenticated caller.
+ * {@link authorizeCredentialUse} is the HTTP wrapper; in-process callers build the same
+ * {@link AuthResult} directly, so both paths run one identical rule.
  */
 export async function authorizeCredentialUseForAuth(
   auth: AuthResult,

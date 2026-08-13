@@ -1,9 +1,6 @@
 /**
- * React Query key factory for subscription and billing reads.
- *
- * Lives in this standalone module — like {@link file://./workspace-usage-keys.ts} — so
- * the shared billing invalidations can reference it without importing the hook module
- * that consumes those invalidations, which would close an import cycle between the two.
+ * React Query key factory for subscription and billing reads. Standalone so the shared
+ * billing invalidations can use it without closing an import cycle through the hook module.
  */
 export const subscriptionKeys = {
   all: ['subscription'] as const,

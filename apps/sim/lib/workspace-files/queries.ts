@@ -16,16 +16,13 @@ import {
  *
  * Callers authorize the viewer against `workspaceId` first.
  *
- * `maxRows` bounds the result for a caller that will only use the list if the whole
- * workspace fits a payload budget: the read stops one row past the budget and returns
- * `null` on overflow rather than the prefix, which is what stops a caller presenting a
- * truncated read as the workspace's files. The two reads still run concurrently — the
- * workspaces under the budget are the common case, and serializing them to save a share
- * read on the rare oversized one would tax every normal request to do it.
+ * `maxRows` bounds the result for a caller that only uses the list if the whole workspace
+ * fits a payload budget: on overflow it returns `null` rather than the prefix, so a
+ * truncated read is never presented as the workspace's files. The two reads still run
+ * concurrently, since under-budget workspaces are the common case.
  *
- * `throwOnError` propagates a failed file read instead of letting it degrade to an empty
- * list. A caller seeding a cache needs that distinction: an empty list would be cached
- * as authoritative, telling the user the workspace has no files.
+ * `throwOnError` propagates a failed file read instead of degrading to an empty list,
+ * which a cache seed would store as authoritative.
  */
 export async function listWorkspaceFilesWithShares(
   workspaceId: string,
@@ -36,8 +33,8 @@ export async function listWorkspaceFilesWithShares(
   const [files, shares] = await Promise.all([
     listWorkspaceFiles(workspaceId, {
       scope,
-      ...(maxRows === undefined ? {} : { limit: maxRows + 1 }),
-      ...(options?.throwOnError ? { throwOnError: true } : {}),
+      limit: maxRows === undefined ? undefined : maxRows + 1,
+      throwOnError: options?.throwOnError,
     }),
     getWorkspaceShares('file', workspaceId),
   ])

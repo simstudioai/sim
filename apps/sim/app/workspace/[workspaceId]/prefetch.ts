@@ -93,38 +93,22 @@ async function seedWorkspaceList(
 }
 
 /**
- * How many files the layout is willing to inline into the document.
+ * How many files the layout is willing to inline into the document. Seeded on EVERY
+ * workspace route, so at ~500 bytes of JSON per file this budgets the entry at ~150 KB.
  *
- * The file list is seeded on EVERY workspace route (see the call site), so its cost is
- * paid per navigation into the app, not per visit to Files. At roughly 500 bytes of
- * serialized JSON per file, this budgets the entry at ~150 KB; a workspace with
- * thousands of files would otherwise push more than a megabyte of HTML ahead of first
- * paint on the logs, settings, and editor routes that never read it.
- *
- * A workspace above the budget seeds NOTHING rather than a prefix: the sidebar search
- * filters this list client-side and the Files browser renders it as the workspace's
- * files, so a truncated seed would silently hide files. Those workspaces fetch the
- * complete list from the route instead — which for a list that large is also the
- * cheaper first paint.
+ * A workspace above the budget seeds NOTHING rather than a prefix: the sidebar filters
+ * this list client-side, so a truncated seed would silently hide files.
  */
 export const WORKSPACE_FILE_SEED_MAX = 300
 
 /**
- * Seeds the workspace's file list, which the sidebar's search modal reads on EVERY
- * workspace route — so this query is registered by sidebar chrome before any page
- * renders. That ordering is why it has to be seeded HERE and not only by the Files
- * pages: `HydrationBoundary` hydrates a query the cache has already seen from a
- * `useEffect`, which never runs during SSR, so a page-level boundary can only ever hand
- * this entry to the client. Seeding it with the layout's own boundary — the first one to
- * render — is what lets the server paint the Files browser and the open file's header
- * populated instead of shipping a spinner and resolving it a beat later on the client.
+ * Seeds the workspace's file list, which sidebar chrome registers on EVERY workspace
+ * route. It must be seeded HERE, not by the Files pages: `HydrationBoundary` defers a
+ * query the cache has already seen to a `useEffect`, which SSR never runs.
  *
- * Seeded rather than prefetched so it can decline to create an entry at all when the
- * workspace exceeds {@link WORKSPACE_FILE_SEED_MAX}: `prefetchQuery` always creates one,
- * and a partial one would be read as the whole list.
- *
- * Parsed through the same response contract `GET /api/workspaces/[id]/files` validates
- * against, so a seeded entry is identical to what the client hook would cache.
+ * Seeded rather than prefetched so it can decline to create an entry at all above
+ * {@link WORKSPACE_FILE_SEED_MAX} — `prefetchQuery` always creates one, and a partial
+ * entry would be read as the whole list. Parsed through the route's response contract.
  */
 async function seedWorkspaceFiles(queryClient: QueryClient, workspaceId: string): Promise<void> {
   try {

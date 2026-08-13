@@ -107,23 +107,15 @@ async function selectWorkspaceWithOwner(
 }
 
 /**
- * Request-memoized plain workspace read, keyed by id alone. A single Server
- * Component render pass resolves the same workspace row through several
- * independent gates, so without this the row is re-read once per gate.
+ * Request-memoized plain workspace read, keyed by id alone. One render pass resolves the
+ * same row through several independent gates.
  *
- * Keyed on the id and not on archived visibility on purpose: the gates disagree
- * about whether they want archived workspaces, and memoizing that argument would
- * give each answer its own entry and dedupe nothing. Reading the superset once
- * and applying the caller's visibility below is what makes the two agree on a
- * single query.
+ * Keyed on the id and NOT on archived visibility: the gates disagree about archived
+ * workspaces, so memoizing that argument would give each answer its own entry and dedupe
+ * nothing.
  *
- * Outside a Server Component render React evaluates this normally and retains
- * nothing, so API routes and background work are unaffected — verified against this
- * Next version in both dev and production builds.
- *
- * The row this returns is SHARED by every consumer in the render, including the
- * `workspace` on each viewer's access result. Treat it as immutable: an in-place edit
- * would poison every gate that reads it for the rest of the pass.
+ * The returned row is SHARED by every consumer in the render. Treat it as immutable — an
+ * in-place edit poisons every gate that reads it for the rest of the pass.
  */
 const readWorkspaceWithOwner = cache(
   (workspaceId: string): Promise<WorkspaceWithOwner | null> =>

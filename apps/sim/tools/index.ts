@@ -1743,7 +1743,7 @@ async function executeToolImplementation(
           // including failing closed when the run carries no user id.
           const { resolveCredentialToken } = await import('@/lib/oauth/token-resolution')
           const result = await resolveCredentialToken(
-            { success: true, authType: 'internal_jwt', ...(userId ? { userId } : {}) },
+            { success: true, authType: 'internal_jwt', userId },
             {
               requestId,
               credentialId: contextParams.credential as string,

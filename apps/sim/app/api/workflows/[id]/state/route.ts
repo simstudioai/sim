@@ -1,10 +1,7 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import {
-  authorizeWorkflowByWorkspacePermission,
-  WorkflowLockedError,
-} from '@sim/platform-authz/workflow'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -132,10 +129,6 @@ export const PUT = withRouteHandler(
 
       return NextResponse.json({ success: true, warnings: result.warnings }, { status: 200 })
     } catch (error: any) {
-      if (error instanceof WorkflowLockedError) {
-        return NextResponse.json({ error: error.message }, { status: error.status })
-      }
-
       const elapsed = Date.now() - startTime
       logger.error(
         `[${requestId}] Error saving workflow ${workflowId} state after ${elapsed}ms`,

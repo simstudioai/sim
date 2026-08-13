@@ -43,9 +43,8 @@ export async function verifyEffectiveSuperUser(userId: string): Promise<{
  * tolerates the replica's bounded staleness (admin role rarely changes). Falls back
  * to the primary when no replica is configured.
  *
- * Request-memoized: an account-settings render checks the same viewer in both
- * the layout and the page. Outside a Server Component render React evaluates
- * the reader normally, so routes and feature-flag lookups are unaffected.
+ * Request-memoized: an account-settings render checks the same viewer in both the
+ * layout and the page.
  */
 export const isPlatformAdmin = cache(async (userId: string): Promise<boolean> => {
   const [row] = await dbReplica

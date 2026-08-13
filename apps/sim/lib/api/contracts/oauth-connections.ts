@@ -91,7 +91,7 @@ export const oauthTokenPostQuerySchema = z.object({
   userId: z.string().min(1).optional(),
 })
 
-export const oauthTokenResponseSchema = z.object({
+const oauthTokenResponseSchema = z.object({
   accessToken: z.string(),
   idToken: z.string().optional(),
   instanceUrl: z.string().optional(),

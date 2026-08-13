@@ -837,10 +837,6 @@ function withOptimisticAutoFireExec(groups: WorkflowGroup[], row: TableRow): Tab
  * shared parent, and handing this updater a `find` entry — a flat
  * {@link TableFindResult}, not pages — throws on `old.pages` inside `onMutate`, so
  * the whole cell edit would reject before reaching the server.
- *
- * A consequence worth knowing: an open search-results view is therefore left to its
- * own refetch rather than patched here, since it holds a different shape. Patching
- * it too would need its own updater keyed on {@link tableKeys.find}.
  */
 function patchCachedRows(
   queryClient: ReturnType<typeof useQueryClient>,

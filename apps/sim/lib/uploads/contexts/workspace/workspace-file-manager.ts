@@ -1153,11 +1153,8 @@ function workspaceFileScopeCondition(workspaceId: string, scope: WorkspaceFileSc
 }
 
 /**
- * The columns {@link mapWorkspaceFileRecord} actually reads. The list reads below are
- * workspace-wide, so `select()` would pull five columns no reader projects — `context`,
- * `chatId`, `messageId`, `displayName`, `secretProvenanceVersion` — for every row of the
- * scan. Narrowing here is invisible on the wire (the route contract already strips them)
- * and cuts what the database ships per row.
+ * The columns {@link mapWorkspaceFileRecord} reads. These list reads are workspace-wide,
+ * so `select()` would ship five unprojected columns for every row of the scan.
  */
 const workspaceFileListColumns = {
   id: workspaceFiles.id,

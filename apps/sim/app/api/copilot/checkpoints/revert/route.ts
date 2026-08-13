@@ -140,6 +140,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       workflowId: checkpoint.workflowId,
       userId,
       state: parsedState.data,
+      /** Already resolved above; re-deriving it would repeat 2-3 sequential reads. */
+      authorization,
     })
 
     if (!saveResult.success) {

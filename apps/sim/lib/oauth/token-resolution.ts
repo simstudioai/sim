@@ -20,18 +20,14 @@ import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 const logger = createLogger('OAuthTokenResolution')
 
 /**
- * Minimal duck type of the inbound HTTP request, used only so audit rows can
- * record the caller's IP and user agent. In-process callers have no inbound
- * request and omit it; the row is then written without forensic headers.
+ * Duck type of the inbound request, used only so audit rows record IP and user agent.
+ * In-process callers omit it.
  */
 export interface CredentialAuditRequest {
   headers: { get(name: string): string | null }
 }
 
-/**
- * Token material a resolved credential yields. It is the route's response body, so it
- * comes from the contract rather than a parallel declaration that could drift from it.
- */
+/** Token material a resolved credential yields; taken from the contract so it cannot drift. */
 export type CredentialTokenPayload = OAuthTokenResponse
 
 export interface ResolveCredentialTokenInput {
@@ -65,7 +61,6 @@ function recordCredentialAccess(params: {
   resourceId: string
   providerId: string | null | undefined
   credentialType: 'oauth' | 'service_account'
-  extraMetadata?: Record<string, unknown>
   auditRequest?: CredentialAuditRequest
 }): void {
   const { actorId, workspaceId, resourceId, providerId, credentialType } = params
@@ -79,7 +74,6 @@ function recordCredentialAccess(params: {
     metadata: {
       provider: providerId,
       credentialType,
-      ...params.extraMetadata,
     },
     request: params.auditRequest,
   })
@@ -96,12 +90,9 @@ function recordCredentialAccess(params: {
 }
 
 /**
- * Projects a stored OAuth credential plus its (possibly refreshed) access token
- * into the wire payload every surface returns. Provider-specific hosts live in
- * the credential's scope string and are extracted through shared, allowlisted
- * helpers — never a local regex, since these values are injected into tool
- * calls that carry the token. Zoho Desk's data-center-scoped REST base is one
- * such value, surfaced as `apiDomain` so callers never assume a host.
+ * Projects a stored OAuth credential plus its access token into the wire payload.
+ * Provider hosts come out of the scope string through shared allowlisted helpers, never a
+ * local regex — these values are injected into tool calls that carry the token.
  */
 function buildOAuthTokenPayload(
   credential: { providerId: string; scope?: string | null; idToken?: string | null },
@@ -160,14 +151,9 @@ export async function completeOAuthCredentialToken(params: {
 }
 
 /**
- * Authorized application operation behind `POST /api/auth/oauth/token`.
- *
- * Given an already-authenticated caller, authorizes use of the credential,
- * mints or refreshes its token, records the credential-access trail, and
- * returns either the token payload or the exact status/error the HTTP surface
- * projects. Every surface that needs a credential token — the route and the
- * in-process tool executor — goes through here, so authorization, token
- * refresh, and audit cannot drift between them.
+ * Authorized application operation behind `POST /api/auth/oauth/token`. Every surface that
+ * needs a credential token — the route and the in-process tool executor — goes through
+ * here, so authorization, refresh, and audit cannot drift between them.
  *
  * @param auth Result of authenticating the caller (session or internal JWT).
  */
@@ -196,14 +182,16 @@ export async function resolveCredentialToken(
       return { ok: false, status: 400, error: 'impersonateEmail must be a valid email address' }
     }
 
-    const resolved = await resolveOAuthAccountId(credentialId)
+    /**
+     * Both branches below authorize with the same arguments, and neither read depends
+     * on the other, so they resolve together — this runs per credentialed tool call.
+     */
+    const [resolved, authz] = await Promise.all([
+      resolveOAuthAccountId(credentialId),
+      authorizeCredentialUseForAuth(auth, { credentialId, workflowId, callerUserId }),
+    ])
 
     if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
-      const authz = await authorizeCredentialUseForAuth(auth, {
-        credentialId,
-        workflowId,
-        callerUserId,
-      })
       if (!authz.ok) {
         return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
       }
@@ -223,7 +211,7 @@ export async function resolveCredentialToken(
           recordCredentialAccess({
             actorId: saActorId,
             workspaceId: saWorkspaceId,
-            resourceId: resolved.credentialId ?? credentialId,
+            resourceId: resolved.credentialId,
             providerId: resolved.providerId,
             credentialType: 'service_account',
             auditRequest,
@@ -279,11 +267,6 @@ export async function resolveCredentialToken(
       }
     }
 
-    const authz = await authorizeCredentialUseForAuth(auth, {
-      credentialId,
-      workflowId,
-      callerUserId,
-    })
     if (!authz.ok || !authz.credentialOwnerUserId) {
       return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
     }
