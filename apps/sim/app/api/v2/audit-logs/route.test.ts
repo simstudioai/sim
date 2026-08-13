@@ -179,6 +179,55 @@ describe('v2 audit-log routes', () => {
     })
   })
 
+  /**
+   * `resourceType` is split into an `inArray` downstream, so its spelling is a
+   * set the query acts on rather than the exact string the caller sent. The
+   * cursor must bind the members, not the text.
+   */
+  it.each([
+    ['reordered', 'workflow,file'],
+    ['respaced', 'file,%20workflow'],
+    ['repeated', 'file,workflow,file'],
+  ])('resumes a cursor whose resourceType set is %s', async (_label, respelled) => {
+    const minted = await listLogs(
+      new NextRequest(
+        'http://localhost:3000/api/v2/audit-logs?organizationId=org-1&resourceType=file,workflow'
+      )
+    )
+    const { nextCursor } = await minted.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    mocks.list.mockClear()
+    const resumed = await listLogs(
+      new NextRequest(
+        `http://localhost:3000/api/v2/audit-logs?organizationId=org-1&resourceType=${respelled}&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(resumed.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalled()
+  })
+
+  it('still refuses a cursor replayed under a different resourceType set', async () => {
+    const minted = await listLogs(
+      new NextRequest(
+        'http://localhost:3000/api/v2/audit-logs?organizationId=org-1&resourceType=file,workflow'
+      )
+    )
+    const { nextCursor } = await minted.json()
+
+    mocks.list.mockClear()
+    const replayed = await listLogs(
+      new NextRequest(
+        `http://localhost:3000/api/v2/audit-logs?organizationId=org-1&resourceType=file,knowledge&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(replayed.status).toBe(400)
+    expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
   it('projects typed admin-policy failures without leaking internals', async () => {
     mocks.list.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Admin required'))
 

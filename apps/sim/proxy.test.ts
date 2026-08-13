@@ -11,6 +11,9 @@ vi.mock('@/lib/core/config/env', () =>
 
 import { resolveApiCorsPolicy } from '@/proxy'
 
+const EXPOSED_HEADERS =
+  'Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
+
 function makeRequest(pathname: string, origin?: string): NextRequest {
   return {
     nextUrl: { pathname },
@@ -27,6 +30,7 @@ describe('resolveApiCorsPolicy', () => {
       credentials: false,
       methods: 'GET, POST, OPTIONS',
       headers: 'Content-Type, Authorization, Accept',
+      exposeHeaders: EXPOSED_HEADERS,
     })
   })
 
@@ -46,6 +50,7 @@ describe('resolveApiCorsPolicy', () => {
         credentials: true,
         methods: 'GET, POST, PUT, OPTIONS',
         headers: 'Content-Type, X-Requested-With',
+        exposeHeaders: EXPOSED_HEADERS,
       })
     }
   })
@@ -132,6 +137,38 @@ describe('resolveApiCorsPolicy', () => {
         'Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id',
       headers: expect.stringContaining('Authorization'),
     })
+  })
+
+  /**
+   * `X-Run-Id` is emitted by the v2 execute route alone, and that route is
+   * wildcard-origin so browsers can call it — a policy that omits the exposed
+   * headers leaves the run id, and a 429's `Retry-After`, unreadable to exactly
+   * the callers the route exists for.
+   */
+  it('exposes the response headers on the v2 execute policy, not just the default one', () => {
+    const execute = resolveApiCorsPolicy(
+      makeRequest('/api/v2/workflows/workflow-123/execute', 'https://other.example')
+    )
+    expect(execute.exposeHeaders).toBe(EXPOSED_HEADERS)
+    expect(execute.exposeHeaders).toContain('X-Run-Id')
+    expect(execute.exposeHeaders).toContain('Retry-After')
+
+    const fallback = resolveApiCorsPolicy(makeRequest('/api/files/uploads'))
+    expect(fallback.exposeHeaders).toBe(execute.exposeHeaders)
+  })
+
+  it('exposes the response headers on every matched rule, so a new rule cannot drop them', () => {
+    const paths = [
+      '/api/auth/oauth2/token',
+      '/api/mcp/copilot',
+      '/api/chat/abc',
+      '/api/workflows/wf/execute',
+      '/api/v2/workflows/wf/execute',
+      '/api/files/uploads',
+    ]
+    for (const path of paths) {
+      expect(resolveApiCorsPolicy(makeRequest(path)).exposeHeaders).toBe(EXPOSED_HEADERS)
+    }
   })
 
   it('never pairs wildcard origin with credentials (CORS spec invariant)', () => {

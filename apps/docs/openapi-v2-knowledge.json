@@ -2743,9 +2743,22 @@
           },
           "operator": {
             "default": "eq",
-            "description": "Comparison operator; valid operators depend on the field type.",
+            "description": "Comparison operator; valid operators depend on the field type. Text tags accept eq, neq, contains, not_contains, starts_with, ends_with; number and date tags accept eq, neq, gt, gte, lt, lte, between; boolean tags accept eq, neq. An operator the tag's field type does not implement is rejected, never ignored.",
             "examples": ["eq"],
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "eq",
+              "neq",
+              "contains",
+              "not_contains",
+              "starts_with",
+              "ends_with",
+              "gt",
+              "gte",
+              "lt",
+              "lte",
+              "between"
+            ]
           },
           "value": {
             "anyOf": [
@@ -2763,7 +2776,7 @@
             "examples": ["billing"]
           },
           "valueTo": {
-            "description": "Upper bound for the `between` operator.",
+            "description": "Upper bound for the `between` operator, and required whenever that operator is used.",
             "anyOf": [
               {
                 "type": "string"
@@ -2775,6 +2788,7 @@
           }
         },
         "required": ["tagName", "value"],
+        "additionalProperties": false,
         "title": "Knowledge search tag filter",
         "description": "A structured tag filter applied to knowledge search."
       },
