@@ -29,6 +29,8 @@ export async function createConnectDraft(params: {
   credentialId?: string
   /** Reconnect only: the credential's actual name, so audit records stay accurate. */
   displayName?: string
+  /** Whether an explicitly requested name distinguishes this new-connection intent. */
+  displayNameDefinesIntent?: boolean
 }): Promise<CreatedConnectDraft> {
   const { userId, workspaceId, providerId, credentialId } = params
 
@@ -67,6 +69,12 @@ export async function createConnectDraft(params: {
       and(eq(pendingCredentialDraft.userId, userId), lt(pendingCredentialDraft.expiresAt, now))
     )
   const id = generateId()
+  const sameTarget = credentialId
+    ? eq(pendingCredentialDraft.credentialId, credentialId)
+    : isNull(pendingCredentialDraft.credentialId)
+  const sameIntent = params.displayNameDefinesIntent
+    ? and(sameTarget, eq(pendingCredentialDraft.displayName, displayName))
+    : sameTarget
   const [draft] = await db
     .insert(pendingCredentialDraft)
     .values({
@@ -86,12 +94,7 @@ export async function createConnectDraft(params: {
         pendingCredentialDraft.workspaceId,
       ],
       set: { expiresAt, createdAt: now },
-      setWhere: and(
-        eq(pendingCredentialDraft.displayName, displayName),
-        credentialId
-          ? eq(pendingCredentialDraft.credentialId, credentialId)
-          : isNull(pendingCredentialDraft.credentialId)
-      ),
+      setWhere: sameIntent,
     })
     .returning({ id: pendingCredentialDraft.id, expiresAt: pendingCredentialDraft.expiresAt })
 

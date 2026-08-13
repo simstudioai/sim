@@ -42,6 +42,7 @@ export const createCredentialConnection = defineAuthorizedWorkspaceUseCase({
       providerId: target.providerId,
       credentialId: target.credentialId,
       displayName,
+      displayNameDefinesIntent: input.providerId !== undefined,
     })
     const authorizationUrl = new URL('/api/auth/oauth2/authorize', getBaseUrl())
     authorizationUrl.searchParams.set('draftId', draft.id)

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, drizzleOrmMock, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGenerateId } = vi.hoisted(() => ({
@@ -28,6 +28,7 @@ describe('createConnectDraft', () => {
       workspaceId: 'workspace-1',
       providerId: 'google-email',
       displayName: 'Work Gmail',
+      displayNameDefinesIntent: true,
     })
 
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
@@ -41,6 +42,26 @@ describe('createConnectDraft', () => {
     expect(conflict?.set).not.toHaveProperty('credentialId')
     expect(conflict?.setWhere).toBeDefined()
     expect(result).toEqual({ id: 'active-draft-id', expiresAt })
+  })
+
+  it('refreshes a reconnect target when its mutable display name changes', async () => {
+    const expiresAt = new Date('2026-08-13T20:15:00.000Z')
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'active-draft-id', expiresAt }])
+
+    await expect(
+      createConnectDraft({
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        providerId: 'google-email',
+        credentialId: 'credential-1',
+        displayName: 'Renamed Gmail',
+      })
+    ).resolves.toEqual({ id: 'active-draft-id', expiresAt })
+
+    expect(drizzleOrmMock.eq).not.toHaveBeenCalledWith(
+      schemaMock.pendingCredentialDraft.displayName,
+      'Renamed Gmail'
+    )
   })
 
   it('fails fast when an active draft has a different connection intent', async () => {
