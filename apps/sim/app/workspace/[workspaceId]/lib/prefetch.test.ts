@@ -97,10 +97,7 @@ vi.mock('@sim/emcn', () => ({
 
 import { prefetchFilesBrowser } from '@/app/workspace/[workspaceId]/files/prefetch'
 import { prefetchKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/prefetch'
-import {
-  prefetchWorkspaceSidebar,
-  WORKSPACE_FILE_SEED_MAX,
-} from '@/app/workspace/[workspaceId]/prefetch'
+import { prefetchWorkspaceSidebar } from '@/app/workspace/[workspaceId]/prefetch'
 import { prefetchTables } from '@/app/workspace/[workspaceId]/tables/prefetch'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
@@ -357,11 +354,10 @@ describe('workspace list prefetches', () => {
     })
 
     /**
-     * The FILE LIST is deliberately not primed here — `prefetchWorkspaceSidebar` owns it, because the
-     * sidebar reads that query on every workspace route and therefore registers it before any page
-     * renders. `HydrationBoundary` hands an already-seen query to a `useEffect`, which SSR never runs,
-     * so a page-level prefetch of this key costs a request per render and still cannot reach the server
-     * render. Restoring it here would reintroduce exactly that.
+     * The FILE LIST is deliberately not primed here — `prefetchWorkspaceSidebar` owns it. The
+     * sidebar registers that query on every workspace route (a disabled query still registers), and
+     * `HydrationBoundary` hands an already-registered query to a `useEffect` SSR never runs, so a
+     * page-level seed costs a read per render and still cannot reach the server render.
      */
     it('leaves the file list to the layout rather than re-reading it per page', async () => {
       const client = makeClient()
@@ -514,38 +510,17 @@ describe('workspace list prefetches', () => {
     })
 
     /**
-     * The file list is seeded on every workspace route, so it is the one entry whose size
-     * scales with a workspace's content on routes that never read it. The budget is passed
-     * down rather than applied here, so the read can stop before the share join.
+     * The layout is the only boundary that can reach the server render for this key, so it is the
+     * one that seeds it — see the note on the entry itself.
      */
-    it('seeds the file list, bounded by the document payload budget', async () => {
+    it('seeds the workspace file list', async () => {
       const files = [{ id: 'file-1', name: 'a.txt' }]
       mockListWorkspaceFilesWithShares.mockResolvedValue(files)
       const client = makeClient()
 
       await prefetchWorkspaceSidebar(client, WORKSPACE_ID, USER_ID, HOST_CONTEXT, null)
 
-      expect(mockListWorkspaceFilesWithShares).toHaveBeenCalledWith(WORKSPACE_ID, 'active', {
-        maxRows: WORKSPACE_FILE_SEED_MAX,
-        /** A failed read must reach the catch, not degrade to a cached empty list. */
-        throwOnError: true,
-      })
       expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual(files)
-    })
-
-    /**
-     * The load-bearing half of the budget: a workspace over it seeds NOTHING rather than the
-     * prefix that was read. The sidebar search filters this list client-side and the Files
-     * browser renders it as the workspace's files, so a truncated seed would silently hide
-     * files — the client fetch must reach the route for the complete list instead.
-     */
-    it('seeds nothing when the workspace exceeds the budget', async () => {
-      mockListWorkspaceFilesWithShares.mockResolvedValue(null)
-      const client = makeClient()
-
-      await prefetchWorkspaceSidebar(client, WORKSPACE_ID, USER_ID, HOST_CONTEXT, null)
-
-      expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toBeUndefined()
     })
 
     /** A failed file read is an optimization loss, not a render failure. */
