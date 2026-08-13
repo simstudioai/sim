@@ -1,6 +1,7 @@
 import { generateId } from '@sim/utils/id'
 import { randomFloat } from '@sim/utils/random'
-import { isUuid, sanitizeFileName } from '@/executor/constants'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
+import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
 /**
@@ -24,7 +25,7 @@ export interface ExecutionContext {
  */
 export function generateLargeValuePayloadKey(context: ExecutionContext, id: string): string {
   const { workspaceId, workflowId, executionId } = context
-  const safeFileName = sanitizeFileName(`large-value-${id}.json`)
+  const safeFileName = buildStorageKeySegment('', `large-value-${id}.json`)
   return `execution/${workspaceId}/${workflowId}/${executionId}/${safeFileName}`
 }
 
@@ -37,7 +38,10 @@ export function generateLargeValuePayloadKey(context: ExecutionContext, id: stri
  * loop), which the deterministic key would overwrite. The unique id is its own
  * path segment rather than a filename prefix so the last segment stays the
  * original name — presigned URLs carry no content-disposition, so that segment
- * is what a consumer sees.
+ * is what a consumer sees. It is still bounded by
+ * {@link buildStorageKeySegment}: a name past one path component's byte limit
+ * is `ENAMETOOLONG` on local storage, and an unreadable 500 beats a slightly
+ * shortened display name.
  *
  * Large-value payloads, whose ids are already unique, keep using
  * {@link generateLargeValuePayloadKey}.
@@ -47,7 +51,7 @@ export function generateUniqueExecutionFileKey(
   fileName: string
 ): string {
   const { workspaceId, workflowId, executionId } = context
-  const safeFileName = sanitizeFileName(fileName)
+  const safeFileName = buildStorageKeySegment('', fileName)
   return `execution/${workspaceId}/${workflowId}/${executionId}/${generateId()}/${safeFileName}`
 }
 

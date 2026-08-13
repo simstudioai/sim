@@ -13,6 +13,7 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import {
+  isMultipartFieldValidationError,
   isPayloadSizeLimitError,
   MAX_MULTIPART_OVERHEAD_BYTES,
   readFileToBufferWithLimit,
@@ -167,6 +168,9 @@ export const POST = defineV2BodyLifecycleRoute({
       })
     } catch (error) {
       if (isPayloadSizeLimitError(error)) throw error
+      if (isMultipartFieldValidationError(error)) {
+        throw new OrchestrationError('validation', error.message)
+      }
       throw new OrchestrationError('validation', 'Request body must be valid multipart form data')
     }
 

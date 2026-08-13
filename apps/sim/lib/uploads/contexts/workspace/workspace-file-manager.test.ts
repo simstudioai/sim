@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   findWorkspaceFileRecord,
+  generateWorkspaceFileKey,
   normalizeWorkspaceFileReference,
   type WorkspaceFileRecord,
 } from './workspace-file-manager'
@@ -88,5 +89,16 @@ describe('workspace file reference normalization', () => {
     expect(findWorkspaceFileRecord([legalFile], 'files/Finance%2FLegal/contract.pdf/content')).toBe(
       legalFile
     )
+  })
+})
+
+describe('workspace file storage keys', () => {
+  it('keeps the last key component within one path component for the longest admitted name', () => {
+    const key = generateWorkspaceFileKey('ws_123', `${'a'.repeat(251)}.txt`)
+    const lastSegment = key.slice(key.lastIndexOf('/') + 1)
+
+    expect(Buffer.byteLength(lastSegment, 'utf-8')).toBeLessThanOrEqual(255)
+    expect(key.startsWith('workspace/ws_123/')).toBe(true)
+    expect(lastSegment.endsWith('.txt')).toBe(true)
   })
 })

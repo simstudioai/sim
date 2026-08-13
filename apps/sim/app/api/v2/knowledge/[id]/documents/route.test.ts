@@ -20,6 +20,7 @@ const {
   mockPlatformUploaded,
   mockCapture,
   mockIsPayloadSizeLimitError,
+  mockIsMultipartFieldValidationError,
 } = vi.hoisted(() => ({
   mockAdmitUpload: vi.fn(),
   mockUploadDocument: vi.fn(),
@@ -28,6 +29,7 @@ const {
   mockPlatformUploaded: vi.fn(),
   mockCapture: vi.fn(),
   mockIsPayloadSizeLimitError: vi.fn(),
+  mockIsMultipartFieldValidationError: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
@@ -56,6 +58,7 @@ vi.mock('@/lib/knowledge/application/documents', () => ({
 vi.mock('@/lib/core/utils/stream-limits', () => ({
   MAX_MULTIPART_OVERHEAD_BYTES: 1024 * 1024,
   isPayloadSizeLimitError: mockIsPayloadSizeLimitError,
+  isMultipartFieldValidationError: mockIsMultipartFieldValidationError,
   readFormDataWithLimit: mockReadFormData,
   readFileToBufferWithLimit: mockReadFile,
 }))
@@ -89,6 +92,7 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     v2RouteMocks.gate.mockResolvedValue(null)
     mockIsPayloadSizeLimitError.mockReturnValue(false)
+    mockIsMultipartFieldValidationError.mockReturnValue(false)
     v2RouteMocks.authenticate.mockResolvedValue({
       principal: PRINCIPAL,
       rolloutUserId: 'user-1',
@@ -213,6 +217,24 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
     })
     expect(mockUploadDocument).not.toHaveBeenCalled()
     expect(mockPlatformUploaded).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an unstorable multipart field as its own bad request', async () => {
+    const error = new Error(
+      'Multipart file name for field "file" cannot contain a NUL character (U+0000)'
+    )
+    mockReadFormData.mockRejectedValueOnce(error)
+    mockIsMultipartFieldValidationError.mockImplementation(
+      (candidate: unknown) => candidate === error
+    )
+
+    const response = await POST(buildRequest(), { params: Promise.resolve({ id: 'kb-1' }) })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: { code: 'BAD_REQUEST', message: error.message },
+    })
+    expect(mockUploadDocument).not.toHaveBeenCalled()
   })
 
   it('preserves bounded multipart rejection and stops before the upload operation', async () => {

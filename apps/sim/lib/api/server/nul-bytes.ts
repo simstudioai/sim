@@ -1,4 +1,5 @@
 import { isPlainRecord } from '@sim/utils/object'
+import { containsNulCharacter } from '@sim/utils/string'
 import { ZodError } from 'zod'
 
 /**
@@ -15,9 +16,11 @@ import { ZodError } from 'zod'
  * break real payloads to fix nothing. Lone surrogates are also left alone: the
  * driver's UTF-8 encoder substitutes `U+FFFD` rather than throwing, so they are
  * a data-fidelity question, not an availability one. NUL is the only value in
- * this class, and it is rejected on its own.
+ * this class, and it is rejected on its own. The predicate itself is
+ * `containsNulCharacter` in `@sim/utils/string`, shared with the multipart
+ * field scan and the canonical folder-path decoder, which reject the same value
+ * at boundaries this scan cannot see.
  */
-const NUL = '\u0000'
 
 /**
  * Cheap existence scan used on every request. Descends only into arrays and
@@ -30,7 +33,7 @@ function containsNulByte(root: unknown): boolean {
   while (stack.length > 0) {
     const value = stack.pop()
     if (typeof value === 'string') {
-      if (value.includes(NUL)) return true
+      if (containsNulCharacter(value)) return true
       continue
     }
     if (Array.isArray(value)) {
@@ -39,7 +42,7 @@ function containsNulByte(root: unknown): boolean {
     }
     if (isPlainRecord(value)) {
       for (const [key, entry] of Object.entries(value)) {
-        if (key.includes(NUL)) return true
+        if (containsNulCharacter(key)) return true
         stack.push(entry)
       }
     }
@@ -59,7 +62,7 @@ function findNulBytePath(root: unknown): PropertyKey[] {
     if (!frame) break
     const { value, path } = frame
     if (typeof value === 'string') {
-      if (value.includes(NUL)) return path
+      if (containsNulCharacter(value)) return path
       continue
     }
     if (Array.isArray(value)) {
@@ -72,7 +75,7 @@ function findNulBytePath(root: unknown): PropertyKey[] {
       const entries = Object.entries(value)
       for (let index = entries.length - 1; index >= 0; index -= 1) {
         const [key, entry] = entries[index]
-        if (key.includes(NUL)) return [...path, key]
+        if (containsNulCharacter(key)) return [...path, key]
         stack.push({ value: entry, path: [...path, key] })
       }
     }
