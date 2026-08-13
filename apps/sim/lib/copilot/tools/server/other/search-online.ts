@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { SearchOnline } from '@/lib/copilot/generated/tool-catalog-v1'
+import { WebSearch } from '@/lib/copilot/generated/tool-catalog-v1'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
@@ -31,7 +31,7 @@ interface SearchResponse {
 }
 
 export const searchOnlineServerTool: BaseServerTool<OnlineSearchParams, SearchResponse> = {
-  name: SearchOnline.id,
+  name: WebSearch.id,
   async execute(params: OnlineSearchParams, context?: ServerToolContext): Promise<SearchResponse> {
     const logger = createLogger('SearchOnlineServerTool')
     const { query, num = 10, type = 'search', gl, hl } = params

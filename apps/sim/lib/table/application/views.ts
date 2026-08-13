@@ -43,7 +43,7 @@ export const listTableViewsUseCase = defineAuthorizedTableUseCase({
       (context.table.schema as TableSchema).columns,
       context.workspaceId
     )
-    return { views }
+    return { views, table: context.table }
   },
 })
 
@@ -62,7 +62,7 @@ export const readTableViewUseCase = defineAuthorizedTableUseCase({
       context.workspaceId
     )
     if (!view) throw new OrchestrationError('not_found', 'View not found')
-    return { view }
+    return { view, table: context.table }
   },
 })
 

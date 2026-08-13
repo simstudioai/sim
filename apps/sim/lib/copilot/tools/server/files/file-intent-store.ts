@@ -12,7 +12,7 @@ export type PendingFileIntent = {
   chatId?: string
   messageId?: string
   // The invoking file subagent's channel id (its outer tool_use id). Lets
-  // edit_content consume the intent for ITS OWN file subagent instead of the
+  // apply_file_edit consume the intent for ITS OWN file subagent instead of the
   // latest in the message, so two file agents writing concurrently never cross
   // their content into each other's file.
   channelId?: string

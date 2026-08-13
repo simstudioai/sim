@@ -13,7 +13,7 @@ import {
 } from '@/lib/workspace-files/application/write-workspace-file-by-path'
 
 const logger = createLogger('CreateFileServerTool')
-const CREATE_FILE_TOOL_ID = 'create_file'
+const CREATE_FILE_TOOL_ID = 'create_empty_file'
 
 interface CreateFileArgs {
   fileName: string
@@ -48,7 +48,10 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     const explicitType = params.contentType || (nested?.contentType as string) || undefined
     const outputFile = params.outputs?.files?.[0]
     if (!outputFile?.path && !fileName) {
-      return { success: false, message: 'create_file requires outputs.files[0].path or fileName' }
+      return {
+        success: false,
+        message: 'create_empty_file requires outputs.files[0].path or fileName',
+      }
     }
     const outputPath =
       outputFile?.path ?? (fileName.startsWith('files/') ? fileName : `files/${fileName}`)
@@ -77,7 +80,7 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
               exactName: true,
             })
 
-      logger.info('File created via create_file', {
+      logger.info('File created via create_empty_file', {
         fileId: result.id,
         name: result.vfsPath,
         contentType,

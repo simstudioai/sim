@@ -262,7 +262,7 @@ export async function executeDeployCustomBlock(
       return {
         success: false,
         error:
-          'Workflow must be deployed before publishing as a custom block. Use deploy_api first.',
+          'Workflow must be deployed before publishing as a custom block. Use deploy_as_api first.',
       }
     }
     // Curation is required on publish: every consumer-visible field must be one

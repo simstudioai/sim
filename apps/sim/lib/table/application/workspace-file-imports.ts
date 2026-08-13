@@ -144,7 +144,7 @@ async function resolveSafeSourceFile(
     if (reference.replace(/^\/+/, '').startsWith('uploads/')) {
       throw new OrchestrationError(
         'validation',
-        `Cannot import "${reference}": chat uploads are not workspace files. Use materialize_file to save it to a files/... path first, then pass that canonical path.`
+        `Cannot import "${reference}": chat uploads are not workspace files. Use save_upload to save it to a files/... path first, then pass that canonical path.`
       )
     }
     throw new OrchestrationError(

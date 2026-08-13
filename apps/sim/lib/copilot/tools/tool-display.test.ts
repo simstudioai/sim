@@ -4,9 +4,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   FfmpegOperationValues,
-  KnowledgeBaseOperationValues,
-  MaterializeFileOperationValues,
+  ManageKnowledgeBaseOperationValues,
   QueryUserTableOperationValues,
+  SaveUploadOperationValues,
   SearchKnowledgeBaseOperationValues,
   TOOL_CATALOG,
   type ToolCatalogEntry,
@@ -65,22 +65,22 @@ describe('humanizeToolName', () => {
 
   it('keeps canonical acronym casing', () => {
     expect(humanizeToolName('create_workspace_mcp_server')).toBe('Create Workspace MCP Server')
-    expect(humanizeToolName('deploy_api')).toBe('Deploy API')
+    expect(humanizeToolName('deploy_as_api')).toBe('Deploy As API')
     expect(humanizeToolName('oauth_request_access')).toBe('OAuth Request Access')
   })
 })
 
 describe('getToolDisplayTitle natural-language coverage', () => {
   it('gives gerund titles to tools that previously fell through to humanize', () => {
-    expect(getToolDisplayTitle('deploy_api')).toBe('Deploying API')
+    expect(getToolDisplayTitle('deploy_as_api')).toBe('Deploying API')
     expect(getToolDisplayTitle('list_workspace_mcp_servers')).toBe('Listing MCP servers')
     expect(getToolDisplayTitle('oauth_get_auth_link')).toBe('Getting authorization link')
     expect(getToolDisplayTitle('diff_workflows')).toBe('Comparing workflows')
   })
 
-  it('falls back to running code for function_execute without a title', () => {
-    expect(getToolDisplayTitle('function_execute')).toBe('Running code')
-    expect(getToolDisplayTitle('function_execute', { title: 'Crunching numbers' })).toBe(
+  it('falls back to running code for run_function without a title', () => {
+    expect(getToolDisplayTitle('run_function')).toBe('Running code')
+    expect(getToolDisplayTitle('run_function', { title: 'Crunching numbers' })).toBe(
       'Crunching numbers'
     )
   })
@@ -141,14 +141,14 @@ describe('getToolDisplayTitle natural-language coverage', () => {
 
 describe('getToolDisplayTitle for deployments', () => {
   it.each([
-    ['deploy_api', undefined, 'Deploying API'],
-    ['deploy_api', { action: 'deploy' }, 'Deploying API'],
-    ['deploy_api', { action: 'undeploy' }, 'Undeploying API'],
-    ['deploy_chat', { action: 'deploy' }, 'Deploying chat'],
-    ['deploy_chat', { action: 'undeploy' }, 'Undeploying chat'],
-    ['deploy_custom_block', { action: 'deploy' }, 'Deploying custom block'],
-    ['deploy_custom_block', { action: 'undeploy' }, 'Undeploying custom block'],
-    ['deploy_mcp', undefined, 'Deploying MCP tool'],
+    ['deploy_as_api', undefined, 'Deploying API'],
+    ['deploy_as_api', { action: 'deploy' }, 'Deploying API'],
+    ['deploy_as_api', { action: 'undeploy' }, 'Undeploying API'],
+    ['deploy_as_chat', { action: 'deploy' }, 'Deploying chat'],
+    ['deploy_as_chat', { action: 'undeploy' }, 'Undeploying chat'],
+    ['publish_custom_block', { action: 'deploy' }, 'Deploying custom block'],
+    ['publish_custom_block', { action: 'undeploy' }, 'Undeploying custom block'],
+    ['deploy_as_mcp', undefined, 'Deploying MCP tool'],
     ['redeploy', undefined, 'Redeploying API'],
   ])('uses the action and deployment type for %s', (toolName, args, expected) => {
     expect(getToolDisplayTitle(toolName, args)).toBe(expected)
@@ -216,19 +216,21 @@ describe('mvDisplayVerb', () => {
 describe('getToolDisplayTitle for the vfs verbs', () => {
   it('shows the created file name', () => {
     expect(
-      getToolDisplayTitle('create_file', {
+      getToolDisplayTitle('create_empty_file', {
         outputs: {
           files: [{ path: 'files/Reports/Quarterly%20Report.pdf', mode: 'create' }],
         },
       })
     ).toBe('Creating Quarterly Report.pdf')
-    expect(getToolDisplayTitle('create_file', { fileName: 'notes.md' })).toBe('Creating notes.md')
+    expect(getToolDisplayTitle('create_empty_file', { fileName: 'notes.md' })).toBe(
+      'Creating notes.md'
+    )
     expect(
-      getToolDisplayTitle('create_file', {
+      getToolDisplayTitle('create_empty_file', {
         outputs: { files: [{ path: 'files/notes.md', mode: 'overwrite' }] },
       })
     ).toBe('Overwriting notes.md')
-    expect(getToolDisplayTitle('create_file')).toBe('Creating file')
+    expect(getToolDisplayTitle('create_empty_file')).toBe('Creating file')
   })
 
   it('titles rm from toolTitle, falling back to the paths', () => {
@@ -305,7 +307,7 @@ describe('getToolDisplayTitle for managed resources', () => {
       },
       'Creating lookupWeather',
     ],
-    ['manage_mcp_tool', { operation: 'edit', config: { name: 'Linear' } }, 'Updating Linear'],
+    ['manage_mcp_connection', { operation: 'edit', config: { name: 'Linear' } }, 'Updating Linear'],
     ['manage_skill', { operation: 'delete', name: 'sales-research' }, 'Deleting sales-research'],
     [
       'manage_credential',
@@ -318,7 +320,7 @@ describe('getToolDisplayTitle for managed resources', () => {
     ],
     ['rm', { paths: ['workflows/Marketing/Q3%20Campaigns'] }, 'Deleting Q3 Campaigns'],
     ['manage_custom_tool', { operation: 'list' }, 'Viewing custom tools'],
-    ['manage_mcp_tool', { operation: 'list' }, 'Viewing MCP servers'],
+    ['manage_mcp_connection', { operation: 'list' }, 'Viewing MCP servers'],
     ['manage_skill', { operation: 'list' }, 'Viewing skills'],
   ])('uses verb + resource name for %s', (toolName, args, expected) => {
     expect(getToolDisplayTitle(toolName, args)).toBe(expected)
@@ -335,15 +337,15 @@ describe('getToolDisplayTitle for operation-driven tools', () => {
   })
 
   it('covers every knowledge-base operation with its actual verb and resource', () => {
-    for (const operation of KnowledgeBaseOperationValues) {
-      expect(getToolDisplayTitle('knowledge_base', { operation })).not.toBe(
+    for (const operation of ManageKnowledgeBaseOperationValues) {
+      expect(getToolDisplayTitle('manage_knowledge_base', { operation })).not.toBe(
         'Managing knowledge base'
       )
     }
-    expect(getToolDisplayTitle('knowledge_base', { operation: 'query' })).toBe(
+    expect(getToolDisplayTitle('manage_knowledge_base', { operation: 'query' })).toBe(
       'Searching knowledge base'
     )
-    expect(getToolDisplayTitle('knowledge_base', { operation: 'sync_connector' })).toBe(
+    expect(getToolDisplayTitle('manage_knowledge_base', { operation: 'sync_connector' })).toBe(
       'Syncing knowledge base connector'
     )
   })
@@ -381,19 +383,19 @@ describe('getToolDisplayTitle for operation-driven tools', () => {
   })
 
   it('distinguishes saving uploads from importing workflows', () => {
-    for (const operation of MaterializeFileOperationValues) {
+    for (const operation of SaveUploadOperationValues) {
       expect(
-        getToolDisplayTitle('materialize_file', { operation, fileNames: ['Lead Router.json'] })
+        getToolDisplayTitle('save_upload', { operation, fileNames: ['Lead Router.json'] })
       ).not.toBe('Preparing file')
     }
     expect(
-      getToolDisplayTitle('materialize_file', {
+      getToolDisplayTitle('save_upload', {
         operation: 'save',
         fileNames: ['Quarterly Report.pdf'],
       })
     ).toBe('Saving Quarterly Report.pdf')
     expect(
-      getToolDisplayTitle('materialize_file', {
+      getToolDisplayTitle('save_upload', {
         operation: 'import',
         fileNames: ['Lead Router.json'],
       })

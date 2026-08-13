@@ -181,7 +181,7 @@ describe('copilot go stream helpers', () => {
     expect(decodeJsonStringPrefix('partial \\u26')).toBe('partial ')
   })
 
-  it('extracts the streamed edit_content prefix from partial JSON', () => {
+  it('extracts the streamed apply_file_edit prefix from partial JSON', () => {
     expect(extractEditContent('{"content":"hello\\nwor')).toBe('hello\nwor')
     expect(extractEditContent('{"content":"tab\\tvalue"}')).toBe('tab\tvalue')
   })
@@ -216,7 +216,7 @@ describe('copilot go stream helpers', () => {
     })
   })
 
-  it('hydrates path-based workspace_file edits into file preview events before edit_content streams', async () => {
+  it('hydrates path-based prepare_file_edit edits into file preview events before apply_file_edit streams', async () => {
     listAllWorkspaceFilesMock.mockResolvedValue({
       files: [{ id: 'file-1', name: 'notes.md', folderPath: null }],
     })
@@ -229,7 +229,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'workspace-file-path-1',
-        toolName: 'workspace_file',
+        toolName: 'prepare_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.call,
@@ -248,7 +248,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'workspace-file-path-1',
-        toolName: 'workspace_file',
+        toolName: 'prepare_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
@@ -267,7 +267,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'edit-content-path-1',
-        toolName: 'edit_content',
+        toolName: 'apply_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.args_delta,
@@ -282,7 +282,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'edit-content-path-1',
-        toolName: 'edit_content',
+        toolName: 'apply_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
@@ -378,7 +378,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'workspace-file-alias-1',
-        toolName: 'workspace_file',
+        toolName: 'prepare_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.call,
@@ -397,7 +397,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'edit-content-alias-1',
-        toolName: 'edit_content',
+        toolName: 'apply_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.args_delta,
@@ -412,7 +412,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'edit-content-alias-1',
-        toolName: 'edit_content',
+        toolName: 'apply_file_edit',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
@@ -492,7 +492,7 @@ describe('copilot go stream helpers', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'tool-result-dedupe',
-        toolName: 'search_online',
+        toolName: 'web_search',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
@@ -541,7 +541,7 @@ describe('copilot go stream helpers', () => {
     expect(context.toolCalls.get('tool-result-dedupe')).toEqual(
       expect.objectContaining({
         id: 'tool-result-dedupe',
-        name: 'search_online',
+        name: 'web_search',
         status: MothershipStreamV1ToolOutcome.success,
         result: { success: true, output: { value: 'ok' } },
       })

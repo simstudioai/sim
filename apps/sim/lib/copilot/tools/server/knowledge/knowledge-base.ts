@@ -10,7 +10,7 @@ import {
   messageForCopilotKnowledgeError,
   requireCopilotKnowledgeWorkspaceId,
 } from '@/lib/copilot/application/execute-knowledge-use-case'
-import { KnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
+import { ManageKnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import {
   assertServerToolNotAborted,
@@ -252,7 +252,7 @@ function isKnowledgeDocumentTagValueAssignment(
  * Knowledge base tool for copilot to create, list, and get knowledge bases
  */
 export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, KnowledgeBaseResult> = {
-  name: KnowledgeBase.id,
+  name: ManageKnowledgeBase.id,
   async execute(
     params: KnowledgeBaseArgs,
     context?: ServerToolContext
@@ -1070,7 +1070,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
       }
     } catch (error) {
       const errorMessage = getErrorMessage(error, 'Unknown error occurred')
-      logger.error('Error in knowledge_base tool', {
+      logger.error('Error in manage_knowledge_base tool', {
         operation,
         error: projectToolErrorMessageForCopilot(errorMessage, context.resolvedSecretTraceRegistry),
         userId: context.userId,

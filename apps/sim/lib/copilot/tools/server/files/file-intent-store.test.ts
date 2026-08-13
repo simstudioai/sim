@@ -47,11 +47,11 @@ describe('file-intent-store channel scoping', () => {
       })
     )
 
-    // edit_content from channel F1 must get fileA — NOT the latest (fileB).
+    // apply_file_edit from channel F1 must get fileA — NOT the latest (fileB).
     const a = await consumeLatestFileIntent(ws, { ...scope, channelId: 'F1' })
     expect(a?.fileId).toBe('fileA')
 
-    // edit_content from channel F2 gets fileB.
+    // apply_file_edit from channel F2 gets fileB.
     const b = await consumeLatestFileIntent(ws, { ...scope, channelId: 'F2' })
     expect(b?.fileId).toBe('fileB')
   })

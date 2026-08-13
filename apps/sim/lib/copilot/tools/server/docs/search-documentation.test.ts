@@ -9,7 +9,7 @@ const { mockGenerateSearchEmbedding } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/copilot/generated/tool-catalog-v1', () => ({
-  SearchDocumentation: { id: 'search_documentation' },
+  SearchSimDocs: { id: 'search_sim_docs' },
 }))
 vi.mock('@/lib/knowledge/embeddings', () => ({
   generateSearchEmbedding: mockGenerateSearchEmbedding,

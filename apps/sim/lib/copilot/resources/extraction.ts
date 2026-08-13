@@ -1,18 +1,18 @@
 import {
-  CreateFile,
+  CreateEmptyFile,
   CreateWorkflow,
-  DownloadToWorkspaceFile,
+  DownloadFile,
   EditWorkflow,
   Ffmpeg,
-  FunctionExecute,
   GenerateAudio,
   GenerateImage,
   GenerateVideo,
   Knowledge,
-  KnowledgeBase,
+  ManageKnowledgeBase,
+  PrepareFileEdit,
   Rm,
+  RunFunction,
   UserTable,
-  WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { MothershipResource, MothershipResourceType } from './types'
 
@@ -21,13 +21,13 @@ type ResourceType = MothershipResourceType
 
 const RESOURCE_TOOL_NAMES: Set<string> = new Set([
   UserTable.id,
-  CreateFile.id,
-  WorkspaceFile.id,
-  DownloadToWorkspaceFile.id,
+  CreateEmptyFile.id,
+  PrepareFileEdit.id,
+  DownloadFile.id,
   CreateWorkflow.id,
   EditWorkflow.id,
-  FunctionExecute.id,
-  KnowledgeBase.id,
+  RunFunction.id,
+  ManageKnowledgeBase.id,
   Knowledge.id,
   GenerateImage.id,
   GenerateVideo.id,
@@ -110,8 +110,8 @@ export function extractResourcesFromToolResult(
       return []
     }
 
-    case CreateFile.id:
-    case WorkspaceFile.id: {
+    case CreateEmptyFile.id:
+    case PrepareFileEdit.id: {
       const file = asRecord(data.file)
       if (file.id) {
         return [{ type: 'file', id: file.id as string, title: (file.name as string) || 'File' }]
@@ -124,7 +124,7 @@ export function extractResourcesFromToolResult(
       return []
     }
 
-    case FunctionExecute.id: {
+    case RunFunction.id: {
       if (result.tableId) {
         return [
           {
@@ -146,7 +146,7 @@ export function extractResourcesFromToolResult(
       return []
     }
 
-    case DownloadToWorkspaceFile.id:
+    case DownloadFile.id:
     case GenerateImage.id:
     case GenerateVideo.id:
     case GenerateAudio.id:
@@ -181,7 +181,7 @@ export function extractResourcesFromToolResult(
       return []
     }
 
-    case KnowledgeBase.id: {
+    case ManageKnowledgeBase.id: {
       if (READ_ONLY_KB_OPS.has(getOperation(params) ?? '')) return []
 
       const args = asRecord(params?.args)
@@ -225,9 +225,9 @@ export function extractResourcesFromToolResult(
 }
 
 const DELETE_CAPABLE_TOOL_RESOURCE_TYPE: Record<string, ResourceType> = {
-  [WorkspaceFile.id]: 'file',
+  [PrepareFileEdit.id]: 'file',
   [UserTable.id]: 'table',
-  [KnowledgeBase.id]: 'knowledgebase',
+  [ManageKnowledgeBase.id]: 'knowledgebase',
   // rm spans categories, so unlike every other entry its resource type comes
   // from each outcome's kind rather than from this map. The entry exists so
   // hasDeleteCapability(rm) holds; the rm case below ignores this value.
@@ -241,7 +241,7 @@ const RM_KIND_RESOURCE_TYPE: Record<string, ResourceType> = {
   workflow: 'workflow',
   workflow_folder: 'folder',
   table: 'table',
-  knowledge_base: 'knowledgebase',
+  manage_knowledge_base: 'knowledgebase',
 }
 
 export function hasDeleteCapability(toolName: string): boolean {
@@ -281,7 +281,7 @@ export function extractDeletedResourcesFromToolResult(
         return [{ type, id, title: leaf ? decodeURIComponent(leaf) : 'Deleted resource' }]
       })
     }
-    case WorkspaceFile.id: {
+    case PrepareFileEdit.id: {
       if (operation !== 'delete') return []
       const target = getWorkspaceFileTarget(params)
       const fileId = (data.id as string) ?? (target.fileId as string) ?? (args.fileId as string)
@@ -306,7 +306,7 @@ export function extractDeletedResourcesFromToolResult(
       return []
     }
 
-    case KnowledgeBase.id: {
+    case ManageKnowledgeBase.id: {
       if (operation !== 'delete') return []
       const deleted = Array.isArray(data.deleted) ? data.deleted : []
       const resources = deleted.flatMap((entry): ChatResource[] => {

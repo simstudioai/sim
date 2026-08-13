@@ -184,12 +184,15 @@ export async function executeManageMcpTool(
       }
     }
 
-    return { success: false, error: `Unsupported operation for manage_mcp_tool: ${operation}` }
+    return {
+      success: false,
+      error: `Unsupported operation for manage_mcp_connection: ${operation}`,
+    }
   } catch (error) {
     logger.error(
       context.messageId
-        ? `manage_mcp_tool execution failed [messageId:${context.messageId}]`
-        : 'manage_mcp_tool execution failed',
+        ? `manage_mcp_connection execution failed [messageId:${context.messageId}]`
+        : 'manage_mcp_connection execution failed',
       {
         operation,
         workspaceId,

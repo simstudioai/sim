@@ -449,36 +449,37 @@ const TOOL_TITLES: Record<string, string> = {
   table_columns: 'Editing table columns',
   table_automations: 'Managing table automations',
   table_enrichments: 'Managing table enrichments',
-  workspace_file: 'Editing file',
-  edit_content: 'Applying file content',
+  table_views: 'Managing table views',
+  prepare_file_edit: 'Editing file',
+  apply_file_edit: 'Applying file content',
   create_workflow: 'Creating workflow',
   edit_workflow: 'Editing workflow',
-  knowledge_base: 'Managing knowledge base',
+  manage_knowledge_base: 'Managing knowledge base',
   search_knowledge_base: 'Searching knowledge base',
   open_resource: 'Opening resource',
   generate_image: 'Generating image',
   generate_video: 'Generating video',
   generate_audio: 'Generating audio',
   ffmpeg: 'Processing media',
-  check_deployment_status: 'Checking deployment status',
-  create_file: 'Creating file',
+  get_deployment_status: 'Checking deployment status',
+  create_empty_file: 'Creating file',
   create_file_folder: 'Creating folder',
   create_workspace_mcp_server: 'Creating MCP server',
   delete_workspace_mcp_server: 'Deleting MCP server',
-  deploy_api: 'Deploying API',
-  deploy_chat: 'Deploying chat',
-  deploy_custom_block: 'Deploying custom block',
-  deploy_mcp: 'Deploying MCP tool',
+  deploy_as_api: 'Deploying API',
+  deploy_as_chat: 'Deploying chat',
+  publish_custom_block: 'Deploying custom block',
+  deploy_as_mcp: 'Deploying MCP tool',
   diff_workflows: 'Comparing workflows',
-  download_to_workspace_file: 'Downloading file',
-  function_execute: 'Running code',
+  download_file: 'Downloading file',
+  run_function: 'Running code',
   complete_scheduled_task: 'Completing scheduled task',
   generate_api_key: 'Generating API key',
   get_block_outputs: 'Getting block outputs',
   get_block_upstream_references: 'Getting block references',
   get_deployed_workflow_state: 'Getting deployed workflow',
-  get_deployment_log: 'Getting deployment logs',
-  get_platform_actions: 'Getting platform actions',
+  list_deployment_versions: 'Getting deployment logs',
+  get_ui_reference: 'Getting platform actions',
   get_scheduled_task_logs: 'Reading scheduled task logs',
   get_workflow_data: 'Getting workflow data',
   get_workflow_run_options: 'Getting run options',
@@ -487,7 +488,7 @@ const TOOL_TITLES: Record<string, string> = {
   list_user_workspaces: 'Listing workspaces',
   list_workspace_mcp_servers: 'Listing MCP servers',
   load_deployment: 'Loading deployment',
-  materialize_file: 'Preparing file',
+  save_upload: 'Preparing file',
   manage_sandbox: 'Managing sandbox',
   manage_scheduled_task: 'Managing scheduled task',
   move_file: 'Moving file',
@@ -503,8 +504,7 @@ const TOOL_TITLES: Record<string, string> = {
   restore_resource: 'Restoring resource',
   run_block: 'Running block',
   scheduled_task: 'Managing scheduled task',
-  search_documentation: 'Searching documentation',
-  search_patterns: 'Searching patterns',
+  search_sim_docs: 'Searching documentation',
   set_block_enabled: 'Toggling block',
   set_environment_variables: 'Setting environment variables',
   set_global_workflow_variables: 'Setting workflow variables',
@@ -532,7 +532,7 @@ const TOOL_TITLES: Record<string, string> = {
   auth: 'Auth Agent',
   knowledge: 'Knowledge Agent',
   table: 'Table Agent',
-  agent: 'Tools Agent',
+  extensions: 'Extensions Agent',
   research: 'Research Agent',
   scout: 'Scout Agent',
   search: 'Search Agent',
@@ -676,15 +676,15 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
   }
 
   switch (name) {
-    case 'deploy_api':
+    case 'deploy_as_api':
       return deploymentTitle(args, 'API')
-    case 'deploy_chat':
+    case 'deploy_as_chat':
       return deploymentTitle(args, 'chat')
-    case 'deploy_custom_block':
+    case 'publish_custom_block':
       return deploymentTitle(args, 'custom block')
     case 'ffmpeg':
       return ffmpegTitle(args)
-    case 'knowledge_base':
+    case 'manage_knowledge_base':
       return knowledgeBaseTitle(args)
     case 'query_user_table':
     case 'table_manage':
@@ -692,6 +692,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'table_columns':
     case 'table_automations':
     case 'table_enrichments':
+    case 'table_views':
       return queryUserTableTitle(args)
     case 'search_knowledge_base':
       return searchKnowledgeBaseTitle(args)
@@ -701,7 +702,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return manageScheduledTaskTitle(args)
     case 'user_table':
       return userTableTitle(args)
-    case 'materialize_file':
+    case 'save_upload':
       return materializeFileTitle(args)
     case 'open_resource':
       return openResourceTitle(args)
@@ -771,7 +772,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     }
     case 'set_global_workflow_variables':
       return setGlobalWorkflowVariablesTitle(args)
-    case 'create_file':
+    case 'create_empty_file':
       return createFileTitle(args)
     case 'share_file': {
       const action = stringArg(args, 'action') || 'share'
@@ -799,7 +800,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const target = firstStringArg(args, 'serverName', 'name', 'title')
       return `Deleting ${target || 'MCP server'}`
     }
-    case 'search_online': {
+    case 'web_search': {
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `Searching online for ${target}` : 'Searching online'
     }
@@ -838,7 +839,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         summarizeTargets(stringArrayArg(args, 'paths').map(pathLeaf), 'resource')
       return target ? `Deleting ${target}` : 'Deleting'
     }
-    case 'enrichment_run': {
+    case 'run_enrichment': {
       const subject = nestedStringArg(
         args,
         'inputs',
@@ -850,7 +851,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       )
       return subject ? `Searching for ${subject}` : 'Searching'
     }
-    case 'scrape_page': {
+    case 'web_scrape': {
       const url = stringArg(args, 'url')
       return url ? `Scraping ${url}` : 'Scraping page'
     }
@@ -886,11 +887,11 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const reason = stringArg(args, 'reason')
       return reason ? `Waiting for you: ${reason}` : 'Waiting for you in the browser'
     }
-    case 'crawl_website': {
+    case 'web_crawl': {
       const url = stringArg(args, 'url')
       return url ? `Crawling ${url}` : 'Crawling website'
     }
-    case 'get_page_contents': {
+    case 'web_fetch': {
       const urls = stringArrayArg(args, 'urls')
       if (urls.length === 1) return `Getting ${urls[0]}`
       if (urls.length > 1) return `Getting ${urls.length} pages`
@@ -910,7 +911,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         list: { verb: 'Viewing', resource: 'custom tools' },
       })
     }
-    case 'manage_mcp_tool': {
+    case 'manage_mcp_connection': {
       const target =
         firstStringArg(args, 'serverName', 'name', 'title') ||
         nestedStringArg(args, 'config', 'name')
@@ -957,9 +958,10 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       }
       break
     }
-    case 'workspace_file':
-    case 'function_execute': {
-      const title = name === 'workspace_file' ? workspaceFileTitle(args) : stringArg(args, 'title')
+    case 'prepare_file_edit':
+    case 'run_function': {
+      const title =
+        name === 'prepare_file_edit' ? workspaceFileTitle(args) : stringArg(args, 'title')
       if (title) return title
       break
     }

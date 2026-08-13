@@ -1,7 +1,7 @@
 import type { ChatContext } from '@/stores/panel'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
-const EDIT_CONTENT_TOOL_ID = 'edit_content'
+const EDIT_CONTENT_TOOL_ID = 'apply_file_edit'
 const RUN_SUBAGENT_ID = 'run'
 
 export type {
@@ -191,7 +191,10 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   search: 'Search Agent',
   superagent: 'Superagent',
   run: 'Run Agent',
-  agent: 'Tools Agent',
+  // The extensions subagent's wire/scope AgentID stays `agent` (pre-rename);
+  // `extensions` is its current model-facing trigger tool name.
+  agent: 'Extensions Agent',
+  extensions: 'Extensions Agent',
   // `job` retained as a backward-compat alias so historical transcripts still render a label.
   job: 'Job Agent',
   file: 'File Agent',

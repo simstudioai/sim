@@ -144,17 +144,17 @@ describe('reduceEvent — tool lifecycle', () => {
 
   it('accumulates streaming args across deltas', () => {
     const m = apply([
-      toolCall(1, 'tc-1', 'workspace_file'),
+      toolCall(1, 'tc-1', 'prepare_file_edit'),
       envelope(2, 'tool', {
         phase: 'args_delta',
         toolCallId: 'tc-1',
-        toolName: 'workspace_file',
+        toolName: 'prepare_file_edit',
         argumentsDelta: '{"a":',
       }),
       envelope(3, 'tool', {
         phase: 'args_delta',
         toolCallId: 'tc-1',
-        toolName: 'workspace_file',
+        toolName: 'prepare_file_edit',
         argumentsDelta: '1}',
       }),
     ])
@@ -164,11 +164,11 @@ describe('reduceEvent — tool lifecycle', () => {
 
   it('clears streamingArgs once the result settles the tool', () => {
     const m = apply([
-      toolCall(1, 'tc-1', 'workspace_file'),
+      toolCall(1, 'tc-1', 'prepare_file_edit'),
       envelope(2, 'tool', {
         phase: 'args_delta',
         toolCallId: 'tc-1',
-        toolName: 'workspace_file',
+        toolName: 'prepare_file_edit',
         argumentsDelta: '{"operation":"create"',
       }),
       toolResult(3, 'tc-1', true),
@@ -213,11 +213,11 @@ describe('reduceEvent — tool lifecycle', () => {
 
   it('ignores preview phases (decoupled from tool status)', () => {
     const m = apply([
-      toolCall(1, 'tc-1', 'workspace_file'),
+      toolCall(1, 'tc-1', 'prepare_file_edit'),
       envelope(2, 'tool', {
         previewPhase: 'file_preview_content',
         toolCallId: 'tc-1',
-        toolName: 'workspace_file',
+        toolName: 'prepare_file_edit',
         content: 'x',
         contentMode: 'delta',
         fileName: 'f',
@@ -270,8 +270,8 @@ describe('reduceEvent — subagent lifecycle', () => {
     const m = apply([
       spanStart(1, 'S1', 'file', 'tc-a'),
       spanStart(2, 'S2', 'file', 'tc-b'),
-      toolCall(3, 'wf-a', 'workspace_file', { lane: 'subagent', spanId: 'S1' }),
-      toolCall(4, 'wf-b', 'workspace_file', { lane: 'subagent', spanId: 'S2' }),
+      toolCall(3, 'wf-a', 'prepare_file_edit', { lane: 'subagent', spanId: 'S1' }),
+      toolCall(4, 'wf-b', 'prepare_file_edit', { lane: 'subagent', spanId: 'S2' }),
       toolResult(5, 'wf-a', true),
       spanEnd(6, 'S1', 'file'),
       toolResult(7, 'wf-b', true),
@@ -327,7 +327,7 @@ describe('reduceEvent — idempotency', () => {
   it('rebuilds the identical model when replayed into a fresh model', () => {
     const events = [
       spanStart(1, 'S1', 'file', 'tc-file'),
-      toolCall(2, 'wf', 'workspace_file', { lane: 'subagent', spanId: 'S1' }),
+      toolCall(2, 'wf', 'prepare_file_edit', { lane: 'subagent', spanId: 'S1' }),
       toolResult(3, 'wf', true),
       spanEnd(4, 'S1', 'file'),
       complete(5),
@@ -340,42 +340,42 @@ describe('reduceEvent — idempotency', () => {
   })
 })
 
-describe('reduceEvent — edit_content row merge', () => {
-  it('folds an edit_content write into its span workspace_file row', () => {
+describe('reduceEvent — apply_file_edit row merge', () => {
+  it('folds an apply_file_edit write into its span prepare_file_edit row', () => {
     const sub: Scope = { lane: 'subagent', spanId: 'S1' }
     const m = apply([
       spanStart(1, 'S1', 'file', 'tc-file'),
-      toolCall(2, 'wf-1', 'workspace_file', sub),
+      toolCall(2, 'wf-1', 'prepare_file_edit', sub),
       toolResult(3, 'wf-1', true, undefined, sub),
-      toolCall(4, 'ec-1', 'edit_content', sub),
+      toolCall(4, 'ec-1', 'apply_file_edit', sub),
     ])
-    // No separate edit_content node; the workspace_file row reopened for the edit.
+    // No separate apply_file_edit node; the prepare_file_edit row reopened for the edit.
     expect(m.nodes.has('ec-1')).toBe(false)
     expect(tool(m, 'wf-1').status).toBe('running')
     expect(m.toolAlias.get('ec-1')).toBe('wf-1')
   })
 
-  it('settles the merged row on the edit_content result', () => {
+  it('settles the merged row on the apply_file_edit result', () => {
     const sub: Scope = { lane: 'subagent', spanId: 'S1' }
     const m = apply([
       spanStart(1, 'S1', 'file', 'tc-file'),
-      toolCall(2, 'wf-1', 'workspace_file', sub),
-      toolCall(3, 'ec-1', 'edit_content', sub),
+      toolCall(2, 'wf-1', 'prepare_file_edit', sub),
+      toolCall(3, 'ec-1', 'apply_file_edit', sub),
       toolResult(4, 'ec-1', true, undefined, sub),
     ])
     expect(tool(m, 'wf-1').status).toBe('success')
     expect(m.nodes.has('ec-1')).toBe(false)
   })
 
-  it('folds an edit_content result that raced ahead of its call into the merged row', () => {
+  it('folds an apply_file_edit result that raced ahead of its call into the merged row', () => {
     const sub: Scope = { lane: 'subagent', spanId: 'S1' }
     const m = apply([
       spanStart(1, 'S1', 'file', 'tc-file'),
-      toolCall(2, 'wf-1', 'workspace_file', sub),
-      // Result for edit_content arrives BEFORE its call (buffered under ec-1)...
+      toolCall(2, 'wf-1', 'prepare_file_edit', sub),
+      // Result for apply_file_edit arrives BEFORE its call (buffered under ec-1)...
       toolResult(3, 'ec-1', true, undefined, sub),
       // ...then the call lands and aliases ec-1 -> wf-1, draining the buffer.
-      toolCall(4, 'ec-1', 'edit_content', sub),
+      toolCall(4, 'ec-1', 'apply_file_edit', sub),
     ])
     expect(tool(m, 'wf-1').status).toBe('success')
     expect(tool(m, 'wf-1').result?.success).toBe(true)
@@ -386,13 +386,13 @@ describe('reduceEvent — edit_content row merge', () => {
     const sub: Scope = { lane: 'subagent', spanId: 'S1' }
     const m = apply([
       spanStart(1, 'S1', 'file', 'tc-file'),
-      // Section 1: the workspace_file row is reopened by its edit_content, but the
+      // Section 1: the prepare_file_edit row is reopened by its apply_file_edit, but the
       // edit's closing result is reordered/dropped — wf-1 is left running.
-      toolCall(2, 'wf-1', 'workspace_file', sub),
+      toolCall(2, 'wf-1', 'prepare_file_edit', sub),
       toolResult(3, 'wf-1', true, undefined, sub),
-      toolCall(4, 'ec-1', 'edit_content', sub),
+      toolCall(4, 'ec-1', 'apply_file_edit', sub),
       // Section 2 opens before section 1's edit result lands.
-      toolCall(5, 'wf-2', 'workspace_file', sub),
+      toolCall(5, 'wf-2', 'prepare_file_edit', sub),
     ])
     // The previous section settles instead of spinning until the turn terminal...
     expect(tool(m, 'wf-1').status).toBe('success')
@@ -498,7 +498,7 @@ describe('turn-terminal propagation', () => {
     // A file subagent opened but no span end arrived (mid-stream error/disconnect).
     const m = apply([
       spanStart(1, 'S1', 'file', 'tc-file'),
-      toolCall(2, 'wf-1', 'workspace_file', { lane: 'subagent', spanId: 'S1' }),
+      toolCall(2, 'wf-1', 'prepare_file_edit', { lane: 'subagent', spanId: 'S1' }),
     ])
     expect(agent(m, 'S1').endSeq).toBeUndefined()
     applyTurnTerminal(m, 'error')

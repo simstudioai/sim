@@ -115,7 +115,7 @@ describe('toolWatchdogTimeoutMs', () => {
     expect(toolWatchdogTimeoutMs('read')).toBe(TOOL_WATCHDOG_DEFAULT_MS)
   })
 
-  it.each(['deploy_api', 'deploy_chat', 'deploy_mcp', 'redeploy', 'promote_to_live'])(
+  it.each(['deploy_as_api', 'deploy_as_chat', 'deploy_as_mcp', 'redeploy', 'promote_to_live'])(
     'does not undercut deployment tool %s with the default watchdog',
     (toolName) => {
       expect(toolWatchdogTimeoutMs(toolName)).toBe(TOOL_WATCHDOG_LONG_RUNNING_MS)

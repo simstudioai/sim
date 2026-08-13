@@ -134,7 +134,7 @@ export async function generateParameterSchemaForWorkflow(
 
 /**
  * Load a workflow's active deployed state and return its start-trigger input
- * format fields. Shared so callers (e.g. the copilot `deploy_mcp` tool) can
+ * format fields. Shared so callers (e.g. the copilot `deploy_as_mcp` tool) can
  * build a parameter schema from the same input source the deploy modal uses.
  */
 export async function getDeployedWorkflowInputFormat(

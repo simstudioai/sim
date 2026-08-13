@@ -282,7 +282,7 @@ describe('async tool repository single-row semantics', () => {
       const existingRow = {
         runId: 'run-1',
         toolCallId: 'tool-1',
-        toolName: 'function_execute',
+        toolName: 'run_function',
         args: { language: 'javascript', code: 'return {{FIRST_SECRET}}' },
         status,
       }
@@ -291,7 +291,7 @@ describe('async tool repository single-row semantics', () => {
       const result = await upsertAsyncToolCall({
         runId: 'run-1',
         toolCallId: 'tool-1',
-        toolName: 'function_execute',
+        toolName: 'run_function',
         args: { language: 'javascript', code: 'return {{SECOND_SECRET}}' },
         status: 'pending',
       })

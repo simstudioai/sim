@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
     createFromFile: { operation: { id: 'tables.imports.create_from_workspace_file' } },
     createWorkflowGroup: { operation: { id: 'tables.groups.create' } },
     deleteTables: { operation: { id: 'tables.delete' } },
-    importFile: { operation: { id: 'tables.imports.workspace_file' } },
+    importFile: { operation: { id: 'tables.imports.prepare_file_edit' } },
     replaceProjectedRows: { operation: { id: 'tables.rows.replace' } },
     updateWorkflowGroup: { operation: { id: 'tables.groups.update' } },
   },

@@ -81,7 +81,7 @@ const {
 })
 
 vi.mock('@/lib/copilot/generated/tool-catalog-v1', () => ({
-  KnowledgeBase: { id: 'knowledge_base' },
+  ManageKnowledgeBase: { id: 'manage_knowledge_base' },
 }))
 vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: {
@@ -224,7 +224,7 @@ function expectDelegatedPrincipal(call: unknown): void {
   })
 }
 
-describe('knowledge_base trusted application delegation', () => {
+describe('manage_knowledge_base trusted application delegation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockReadKnowledgeBase.mockResolvedValue({ knowledgeBase: KNOWLEDGE_BASE, folderPath: '/' })
@@ -754,7 +754,7 @@ describe('knowledge_base trusted application delegation', () => {
   )
 })
 
-describe('knowledge_base add_file delegation', () => {
+describe('manage_knowledge_base add_file delegation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAddWorkspaceFiles.mockResolvedValue({

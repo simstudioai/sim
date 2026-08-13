@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { FunctionExecute, RunCode } from '@/lib/copilot/generated/tool-catalog-v1'
+import { RunCode, RunFunction } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   projectToolResultForCopilot,
   TOOL_RESULT_UNAVAILABLE_ERROR,
@@ -20,7 +20,7 @@ function createRegistry(): ResolvedSecretTraceRegistry {
 }
 
 describe('projectToolResultForCopilot', () => {
-  it.each([FunctionExecute.id, RunCode.id])(
+  it.each([RunFunction.id, RunCode.id])(
     'projects active exact and embedded secrets for %s without mutating runtime output',
     (toolName) => {
       const registry = createRegistry()

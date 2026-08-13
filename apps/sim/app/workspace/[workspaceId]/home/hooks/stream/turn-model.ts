@@ -121,7 +121,7 @@ export interface TurnModel {
   >
   /**
    * Maps a tool call id to another tool node it folds into. Used for the
-   * `edit_content` -> `workspace_file` row merge so the write streams into the
+   * `apply_file_edit` -> `prepare_file_edit` row merge so the write streams into the
    * single "writing" row rather than a second row.
    */
   toolAlias: Map<string, string>
@@ -142,16 +142,16 @@ export function createTurnModel(): TurnModel {
   }
 }
 
-const WORKSPACE_FILE_TOOL = 'workspace_file'
-const EDIT_CONTENT_TOOL = 'edit_content'
+const WORKSPACE_FILE_TOOL = 'prepare_file_edit'
+const EDIT_CONTENT_TOOL = 'apply_file_edit'
 
-/** Resolves a tool call id through the alias map (e.g. edit_content -> its workspace_file row). */
+/** Resolves a tool call id through the alias map (e.g. apply_file_edit -> its prepare_file_edit row). */
 export function resolveToolId(model: TurnModel, id: string): string {
   return model.toolAlias.get(id) ?? id
 }
 
 /**
- * Finds the most recent `workspace_file` tool node in a span so an `edit_content`
+ * Finds the most recent `prepare_file_edit` tool node in a span so an `apply_file_edit`
  * write folds into it (the single "writing" row). Co-location in the file
  * subagent's span is the link — no coupling to preview phases. The caller
  * reopens whatever this returns, including an already-settled row (an edit after
@@ -169,11 +169,11 @@ function findWorkspaceFileNodeInSpan(model: TurnModel, spanId: string): ToolNode
 }
 
 /**
- * The file agent writes a file as strictly sequential `workspace_file` +
- * `edit_content` section pairs, waiting for each to finish before the next. So
- * when a new section's `workspace_file` opens, any earlier `workspace_file` row
+ * The file agent writes a file as strictly sequential `prepare_file_edit` +
+ * `apply_file_edit` section pairs, waiting for each to finish before the next. So
+ * when a new section's `prepare_file_edit` opens, any earlier `prepare_file_edit` row
  * still `running` in the same span is a completed section whose closing
- * `edit_content` result was reordered or dropped — finalize it as success so its
+ * `apply_file_edit` result was reordered or dropped — finalize it as success so its
  * "writing" spinner resolves when the next section starts, instead of lingering
  * until the turn-terminal sweep. A no-op on the happy path (prior rows already
  * settled on their own result).
@@ -331,8 +331,8 @@ function appendText(
 /**
  * Applies a result that raced ahead of its tool `call` (buffered under `fromId`)
  * onto `node`, then clears the buffer. Used by the normal call path and by the
- * edit_content -> workspace_file merge, where the buffer is keyed by the
- * edit_content id but folds into the workspace_file row.
+ * apply_file_edit -> prepare_file_edit merge, where the buffer is keyed by the
+ * apply_file_edit id but folds into the prepare_file_edit row.
  */
 function drainBufferedResult(model: TurnModel, fromId: string, node: ToolNode): void {
   const buffered = model.bufferedResults.get(fromId)
@@ -473,12 +473,12 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
       ensureSubagentLane(model, spanId, scope, seq, tsMs)
       const phase = payload.phase
       if (phase === MothershipStreamV1ToolPhase.call) {
-        // edit_content folds into its span's workspace_file row (the write
+        // apply_file_edit folds into its span's prepare_file_edit row (the write
         // continues in the single "writing" row), reopening it for the edit.
         if (toolName === EDIT_CONTENT_TOOL) {
-          // A re-emitted edit_content call (same tool call id — duplicate/replay)
+          // A re-emitted apply_file_edit call (same tool call id — duplicate/replay)
           // must keep its ORIGINAL target row. Re-running the span lookup can
-          // return a newer workspace_file, and folding into that would leave the
+          // return a newer prepare_file_edit, and folding into that would leave the
           // first (already reopened) row running with no result ever closing it —
           // a spinner stuck until the turn-terminal sweep. So once aliased, reuse.
           const aliasedId = model.toolAlias.get(rawToolCallId)
@@ -492,7 +492,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
             parent.status = 'running'
             parent.result = undefined
             // A result that raced ahead of this call was buffered under the
-            // edit_content id; fold it into the reopened workspace_file row.
+            // apply_file_edit id; fold it into the reopened prepare_file_edit row.
             drainBufferedResult(model, rawToolCallId, parent)
             break
           }

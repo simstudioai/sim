@@ -321,13 +321,13 @@ describe('vfs mv/cp', () => {
       expect(result.error).toContain('across categories')
     })
 
-    it('rejects uploads with a materialize_file pointer', async () => {
+    it('rejects uploads with a save_upload pointer', async () => {
       const result = await executeVfsMv(
         { sources: ['uploads/data.csv'], destination: 'files/data.csv' },
         context
       )
       expect(result.success).toBe(false)
-      expect(result.error).toContain('materialize_file')
+      expect(result.error).toContain('save_upload')
     })
 
     it('rejects read-only categories', async () => {

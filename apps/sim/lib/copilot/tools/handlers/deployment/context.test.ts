@@ -33,7 +33,7 @@ describe('getCopilotDeploymentIdempotencyKey', () => {
   it('separates deployment intents within the same execution', () => {
     const context = { executionId: 'execution-1', toolCallId: 'call-1' }
 
-    expect(getCopilotDeploymentIdempotencyKey(context, 'deploy_api')).not.toBe(
+    expect(getCopilotDeploymentIdempotencyKey(context, 'deploy_as_api')).not.toBe(
       getCopilotDeploymentIdempotencyKey(context, 'redeploy')
     )
   })

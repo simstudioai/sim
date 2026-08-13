@@ -41,7 +41,7 @@ export interface ToolCallState {
    * For a subagent-scoped tool call, the invoking subagent's channel id (its
    * outer tool_use id, = event.scope.parentToolCallId). Captured at dispatch so
    * the executor can thread it into the server tool context and scope the
-   * workspace_file -> edit_content intent handoff per file subagent. Undefined
+   * prepare_file_edit -> apply_file_edit intent handoff per file subagent. Undefined
    * for main-lane tool calls.
    */
   parentToolCallId?: string

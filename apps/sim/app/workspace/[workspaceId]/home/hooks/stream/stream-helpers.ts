@@ -2,30 +2,30 @@ import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import {
   CallIntegrationTool,
-  CrawlWebsite,
-  CreateFile,
+  CreateEmptyFile,
   CreateWorkflow,
-  DeployApi,
-  DeployChat,
-  DeployMcp,
+  DeployAsApi,
+  DeployAsChat,
+  DeployAsMcp,
   EditWorkflow,
-  FunctionExecute,
   Glob,
   Grep,
   ManageCredential,
   ManageCustomTool,
-  ManageMcpTool,
+  ManageMcpConnection,
   ManageSkill,
+  PrepareFileEdit,
+  PrepareFileEditOperation,
   QueryLogs,
   Redeploy,
   Rm,
   RunFromBlock,
+  RunFunction,
   RunWorkflow,
   RunWorkflowUntilBlock,
-  ScrapePage,
-  SearchOnline,
-  WorkspaceFile,
-  WorkspaceFileOperation,
+  WebCrawl,
+  WebScrape,
+  WebSearch,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/copilot/tools/tool-display'
@@ -40,9 +40,9 @@ const logger = createLogger('StreamHelpers')
 export const FILE_SUBAGENT_ID = 'file'
 
 export const DEPLOY_TOOL_NAMES: Set<string> = new Set([
-  DeployApi.id,
-  DeployChat.id,
-  DeployMcp.id,
+  DeployAsApi.id,
+  DeployAsChat.id,
+  DeployAsMcp.id,
   Redeploy.id,
 ])
 
@@ -139,13 +139,13 @@ function resolveWorkspaceFileDisplayTitle(
   let verb = 'Writing'
 
   switch (operation) {
-    case WorkspaceFileOperation.append:
+    case PrepareFileEditOperation.append:
       verb = 'Adding'
       break
-    case WorkspaceFileOperation.patch:
+    case PrepareFileEditOperation.patch:
       verb = 'Editing'
       break
-    case WorkspaceFileOperation.update:
+    case PrepareFileEditOperation.update:
       verb = 'Writing'
       break
   }
@@ -270,11 +270,11 @@ export function resolveStreamingToolDisplayTitle(
   name: string,
   streamingArgs: string
 ): string | undefined {
-  if (name === FunctionExecute.id) {
+  if (name === RunFunction.id) {
     return functionExecuteTitle(matchStreamingStringArg(streamingArgs, 'title'))
   }
 
-  if (name === WorkspaceFile.id) {
+  if (name === PrepareFileEdit.id) {
     return resolveWorkspaceFileDisplayTitle(
       matchStreamingStringArg(streamingArgs, 'operation'),
       matchStreamingStringArg(streamingArgs, 'title'),
@@ -282,7 +282,7 @@ export function resolveStreamingToolDisplayTitle(
     )
   }
 
-  if (name === CreateFile.id) {
+  if (name === CreateEmptyFile.id) {
     const target =
       matchStreamingStringArg(streamingArgs, 'path') ??
       matchStreamingStringArg(streamingArgs, 'fileName')
@@ -299,7 +299,7 @@ export function resolveStreamingToolDisplayTitle(
     return workflowId ? resolveToolDisplayTitle(name, { workflowId }) : undefined
   }
 
-  if (name === SearchOnline.id) {
+  if (name === WebSearch.id) {
     const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
     return toolTitle ? `Searching online for ${toolTitle}` : undefined
   }
@@ -349,12 +349,12 @@ export function resolveStreamingToolDisplayTitle(
     return toolTitle ? `Deleting ${toolTitle}` : undefined
   }
 
-  if (name === ScrapePage.id) {
+  if (name === WebScrape.id) {
     const url = matchStreamingStringArg(streamingArgs, 'url')
     return url ? `Scraping ${url}` : undefined
   }
 
-  if (name === CrawlWebsite.id) {
+  if (name === WebCrawl.id) {
     const url = matchStreamingStringArg(streamingArgs, 'url')
     return url ? `Crawling ${url}` : undefined
   }
@@ -363,7 +363,7 @@ export function resolveStreamingToolDisplayTitle(
     return resolveStreamingManagedResourceTitle(name, streamingArgs, ['toolTitle', 'title', 'name'])
   }
 
-  if (name === ManageMcpTool.id) {
+  if (name === ManageMcpConnection.id) {
     return resolveStreamingManagedResourceTitle(name, streamingArgs, [
       'serverName',
       'name',

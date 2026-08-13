@@ -48,25 +48,23 @@ describe('copilot tool executor fallback', () => {
     isSimExecuted.mockReturnValue(true)
     isClientExecuted.mockReturnValue(false)
     const handler = vi.fn().mockResolvedValue({ success: true })
-    registerHandler('function_execute', handler)
+    registerHandler('run_function', handler)
 
     await expect(
-      executeTool('function_execute', { code: 'return 1' }, { userId: 'user-1', workflowId: '' })
+      executeTool('run_function', { code: 'return 1' }, { userId: 'user-1', workflowId: '' })
     ).resolves.toEqual({
       success: false,
-      error:
-        "Permission denied: function_execute requires write access. You have 'none' permission.",
+      error: "Permission denied: run_function requires write access. You have 'none' permission.",
     })
     await expect(
       executeTool(
-        'function_execute',
+        'run_function',
         { code: 'return 1' },
         { userId: 'user-1', workflowId: '', userPermission: 'read' }
       )
     ).resolves.toEqual({
       success: false,
-      error:
-        "Permission denied: function_execute requires write access. You have 'read' permission.",
+      error: "Permission denied: run_function requires write access. You have 'read' permission.",
     })
     expect(handler).not.toHaveBeenCalled()
   })
@@ -77,11 +75,11 @@ describe('copilot tool executor fallback', () => {
     isSimExecuted.mockReturnValue(true)
     isClientExecuted.mockReturnValue(false)
     const handler = vi.fn().mockResolvedValue({ success: true, output: 'ok' })
-    registerHandler('function_execute', handler)
+    registerHandler('run_function', handler)
 
     await expect(
       executeTool(
-        'function_execute',
+        'run_function',
         { code: 'return 1' },
         { userId: 'user-1', workflowId: '', userPermission: 'write' }
       )
@@ -263,13 +261,13 @@ describe('copilot tool executor fallback', () => {
     expect(executeAppTool).toHaveBeenCalledWith('unknown_client_tool', expect.any(Object))
   })
 
-  it('converts function_execute timeout from seconds to milliseconds for copilot calls', async () => {
+  it('converts run_function timeout from seconds to milliseconds for copilot calls', async () => {
     isKnownTool.mockReturnValue(false)
     isSimExecuted.mockReturnValue(false)
     executeAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
 
     await executeTool(
-      'function_execute',
+      'run_function',
       { code: 'return 1', timeout: 7 },
       {
         userId: 'user-1',
@@ -280,7 +278,7 @@ describe('copilot tool executor fallback', () => {
     )
 
     expect(executeAppTool).toHaveBeenCalledWith(
-      'function_execute',
+      'run_function',
       expect.objectContaining({
         timeout: 7000,
         _context: expect.objectContaining({
@@ -296,12 +294,12 @@ describe('copilot tool executor fallback', () => {
     )
   })
 
-  it('converts function_execute timeout before invoking its registered Sim handler', async () => {
+  it('converts run_function timeout before invoking its registered Sim handler', async () => {
     isKnownTool.mockReturnValue(true)
     isSimExecuted.mockReturnValue(true)
     isClientExecuted.mockReturnValue(false)
     const handler = vi.fn().mockResolvedValue({ success: true, output: { result: 'ok' } })
-    registerHandler('function_execute', handler)
+    registerHandler('run_function', handler)
 
     const context = {
       userId: 'user-1',
@@ -309,7 +307,7 @@ describe('copilot tool executor fallback', () => {
       workspaceId: 'ws-1',
       copilotToolExecution: true,
     }
-    await executeTool('function_execute', { code: 'return 1', timeout: 7 }, context)
+    await executeTool('run_function', { code: 'return 1', timeout: 7 }, context)
 
     expect(handler).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -321,13 +319,13 @@ describe('copilot tool executor fallback', () => {
     expect(executeAppTool).not.toHaveBeenCalled()
   })
 
-  it('defaults copilot function_execute timeout to 10 seconds when omitted', async () => {
+  it('defaults copilot run_function timeout to 10 seconds when omitted', async () => {
     isKnownTool.mockReturnValue(false)
     isSimExecuted.mockReturnValue(false)
     executeAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
 
     await executeTool(
-      'function_execute',
+      'run_function',
       { code: 'return 1' },
       {
         userId: 'user-1',
@@ -338,7 +336,7 @@ describe('copilot tool executor fallback', () => {
     )
 
     expect(executeAppTool).toHaveBeenCalledWith(
-      'function_execute',
+      'run_function',
       expect.objectContaining({
         timeout: 10_000,
       }),
@@ -351,13 +349,13 @@ describe('copilot tool executor fallback', () => {
     )
   })
 
-  it('defaults copilot function_execute timeout to 10 seconds when invalid', async () => {
+  it('defaults copilot run_function timeout to 10 seconds when invalid', async () => {
     isKnownTool.mockReturnValue(false)
     isSimExecuted.mockReturnValue(false)
     executeAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
 
     await executeTool(
-      'function_execute',
+      'run_function',
       { code: 'return 1', timeout: 0 },
       {
         userId: 'user-1',
@@ -368,7 +366,7 @@ describe('copilot tool executor fallback', () => {
     )
 
     expect(executeAppTool).toHaveBeenCalledWith(
-      'function_execute',
+      'run_function',
       expect.objectContaining({
         timeout: 10_000,
       }),
@@ -381,13 +379,13 @@ describe('copilot tool executor fallback', () => {
     )
   })
 
-  it('does not let copilot function_execute timeout exceed the default execution limit', async () => {
+  it('does not let copilot run_function timeout exceed the default execution limit', async () => {
     isKnownTool.mockReturnValue(false)
     isSimExecuted.mockReturnValue(false)
     executeAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
 
     await executeTool(
-      'function_execute',
+      'run_function',
       { code: 'return 1', timeout: 10_000 },
       {
         userId: 'user-1',
@@ -398,7 +396,7 @@ describe('copilot tool executor fallback', () => {
     )
 
     expect(executeAppTool).toHaveBeenCalledWith(
-      'function_execute',
+      'run_function',
       expect.objectContaining({
         timeout: DEFAULT_EXECUTION_TIMEOUT_MS,
       }),

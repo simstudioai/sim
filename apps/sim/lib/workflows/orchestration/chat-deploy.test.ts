@@ -46,7 +46,7 @@ describe('performChatDeploy password guards', () => {
   })
 
   /**
-   * The copilot `deploy_chat` tool reaches this function without a route
+   * The copilot `deploy_as_chat` tool reaches this function without a route
    * contract, so these guards are the only thing standing between an agent and
    * a deployment nobody can log into.
    */

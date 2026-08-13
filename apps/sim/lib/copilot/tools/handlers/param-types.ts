@@ -302,6 +302,8 @@ export interface OpenResourceItem {
   type?: OpenResourceType
   id?: string
   path?: string
+  /** Saved-view id or exact name to open a table pinned to (table type only). */
+  view?: string
 }
 
 export interface OpenResourceParams {
@@ -315,4 +317,5 @@ export interface ValidOpenResourceParams {
   type: OpenResourceType
   id?: string
   path?: string
+  view?: string
 }

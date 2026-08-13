@@ -115,6 +115,13 @@ interface TableProps {
    * context to resolve it — stays on today's Filter/Sort bar.
    */
   viewsEnabled?: boolean
+  /**
+   * Saved view to adopt on first seed instead of the table's default —
+   * embedded mode only, set when the agent opened this table pinned to a
+   * view. Participates only in the one-time adoption branch, so it never
+   * fights a later user switch.
+   */
+  initialViewId?: string
 }
 
 /**
@@ -213,6 +220,7 @@ function isSameViewConfig(a: TableViewConfig, b: TableViewConfig): boolean {
  */
 export function Table({
   embedded,
+  initialViewId,
   workspaceId: propWorkspaceId,
   tableId: propTableId,
   tableLocksEnabled = false,
@@ -546,7 +554,9 @@ export function Table({
         !views.some((view) => view.id === activeViewId)
 
       if (activeViewId === null || inheritedParams) {
-        const defaultView = views.find((view) => view.isDefault)
+        const pinnedView =
+          embedded && initialViewId ? views.find((view) => view.id === initialViewId) : undefined
+        const defaultView = pinnedView ?? views.find((view) => view.isDefault)
         // `sort` rides the same host URL, so when the view id is inherited the
         // sort beside it is too — not local work, and it must not suppress the
         // default view's own sort.

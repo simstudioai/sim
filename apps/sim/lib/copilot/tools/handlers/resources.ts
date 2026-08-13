@@ -6,7 +6,9 @@ import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { getLogById } from '@/lib/logs/service'
+import type { TableSchema } from '@/lib/table'
 import { getTableById } from '@/lib/table/service'
+import { getTableView } from '@/lib/table/views/service'
 import {
   findWorkspaceFileRecord,
   type WorkspaceFileRecord,
@@ -76,6 +78,21 @@ async function resolveResource(
       return { error: `Table not found in the current workspace.` }
     resourceId = tbl.id
     title = tbl.name
+    if (item.view) {
+      const view = await getTableView(
+        item.view.trim(),
+        tbl.id,
+        (tbl.schema as TableSchema).columns,
+        context.workspaceId ?? undefined
+      )
+      if (!view) {
+        return {
+          error: `No view with id "${item.view.trim()}" on table "${tbl.name}". View ids are listed in the table's views.json.`,
+        }
+      }
+      title = `${tbl.name} — ${view.name}`
+      return { type: resourceType, id: resourceId, title, viewId: view.id }
+    }
   }
   if (resourceType === 'knowledgebase') {
     if (!item.id) return { error: 'knowledgebase resources require `id`.' }
@@ -174,5 +191,8 @@ function validateOpenResourceItem(
   if (!item.id && !(item.type === 'file' && item.path)) {
     return { success: false, error: `${item.type} resources require \`id\`` }
   }
-  return { success: true, params: { type: item.type, id: item.id, path: item.path } }
+  return {
+    success: true,
+    params: { type: item.type, id: item.id, path: item.path, view: item.view },
+  }
 }

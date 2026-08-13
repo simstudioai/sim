@@ -211,7 +211,7 @@ export async function executeDeployApi(
       description: versionDescription,
       name: versionName,
       requestId: generateRequestId(),
-      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_api'),
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_as_api'),
     })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to deploy workflow' }
@@ -377,7 +377,7 @@ export async function executeDeployChat(
       includeThinking: params.includeThinking,
       includeToolCalls: params.includeToolCalls,
       requestId: generateRequestId(),
-      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_chat'),
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_as_chat'),
     })
 
     const baseUrl = getBaseUrl()
@@ -591,7 +591,7 @@ export async function executeRedeploy(
       description: versionDescription,
       name: versionName,
       requestId: generateRequestId(),
-      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_api'),
+      idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_as_api'),
     })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to redeploy workflow' }

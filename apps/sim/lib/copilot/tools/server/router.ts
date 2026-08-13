@@ -2,19 +2,19 @@ import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
-  CreateFile,
-  DownloadToWorkspaceFile,
+  CreateEmptyFile,
+  DownloadFile,
   Ffmpeg,
   GenerateAudio,
   GenerateImage,
   GenerateVideo,
-  KnowledgeBase,
   ManageCredential,
   ManageCustomTool,
-  ManageMcpTool,
+  ManageKnowledgeBase,
+  ManageMcpConnection,
   ManageSkill,
+  PrepareFileEdit,
   UserTable,
-  WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { copilotToolCanWrite } from '@/lib/copilot/tools/permissions'
 import {
@@ -53,6 +53,7 @@ import { tableColumnsServerTool } from '@/lib/copilot/tools/server/table/table-c
 import { tableEnrichmentsServerTool } from '@/lib/copilot/tools/server/table/table-enrichments'
 import { tableManageServerTool } from '@/lib/copilot/tools/server/table/table-manage'
 import { tableRowsServerTool } from '@/lib/copilot/tools/server/table/table-rows'
+import { tableViewsServerTool } from '@/lib/copilot/tools/server/table/table-views'
 import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
@@ -90,7 +91,7 @@ const VISIBILITY_GATED_TOOLS = new Set([
 ])
 
 const WRITE_ACTIONS: Record<string, string[]> = {
-  [KnowledgeBase.id]: [
+  [ManageKnowledgeBase.id]: [
     'create',
     'add_file',
     'update',
@@ -133,19 +134,19 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'add_enrichment',
   ],
   [ManageCustomTool.id]: ['add', 'edit', 'delete'],
-  [ManageMcpTool.id]: ['add', 'edit', 'delete'],
+  [ManageMcpConnection.id]: ['add', 'edit', 'delete'],
   [ManageSkill.id]: ['add', 'edit', 'delete'],
   [ManageCredential.id]: ['rename', 'delete'],
-  [WorkspaceFile.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
+  [PrepareFileEdit.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
   [editContentServerTool.name]: ['*'],
-  [CreateFile.id]: ['*'],
+  [CreateEmptyFile.id]: ['*'],
   rename_file: ['*'],
   [shareFileServerTool.name]: ['*'],
   move_file: ['*'],
   create_file_folder: ['*'],
   rename_file_folder: ['*'],
   move_file_folder: ['*'],
-  [DownloadToWorkspaceFile.id]: ['*'],
+  [DownloadFile.id]: ['*'],
   [GenerateImage.id]: ['generate'],
   [GenerateVideo.id]: ['generate'],
   [GenerateAudio.id]: ['generate'],
@@ -182,6 +183,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [tableColumnsServerTool.name]: tableColumnsServerTool,
   [tableAutomationsServerTool.name]: tableAutomationsServerTool,
   [tableEnrichmentsServerTool.name]: tableEnrichmentsServerTool,
+  [tableViewsServerTool.name]: tableViewsServerTool,
   [workspaceFileServerTool.name]: workspaceFileServerTool,
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,

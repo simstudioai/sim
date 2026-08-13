@@ -60,7 +60,7 @@ export interface PerformChatDeployResult {
  * Deploys a chat: deploys the underlying workflow via `performFullDeploy`,
  * encrypts passwords, creates or updates the chat record, fires telemetry,
  * and records an audit entry. Both the chat API route and the copilot
- * `deploy_chat` tool must use this function.
+ * `deploy_as_chat` tool must use this function.
  */
 export async function performChatDeploy(
   params: ChatDeployPayload
@@ -81,7 +81,7 @@ export async function performChatDeploy(
 
   /**
    * Validate the password here rather than only at the HTTP boundary. The
-   * copilot `deploy_chat` tool reaches this function without going through a
+   * copilot `deploy_as_chat` tool reaches this function without going through a
    * route contract, so a whitespace-only or over-long password would otherwise
    * be encrypted and stored — and neither can ever be submitted through the
    * chat login form, permanently locking visitors out of the deployment.
@@ -171,7 +171,7 @@ export async function performChatDeploy(
   /**
    * A password-protected chat must end up with a stored password. Both HTTP
    * routes already reject this; without the same guard here a copilot
-   * `deploy_chat` call could create one with no password, which fails closed at
+   * `deploy_as_chat` call could create one with no password, which fails closed at
    * login with an opaque "Authentication configuration error".
    */
   if (authType === 'password' && !encryptedPassword && !existingDeployment?.password) {
@@ -309,7 +309,7 @@ export interface PerformChatUndeployResult {
 
 /**
  * Undeploys a chat: deletes the chat record and records an audit entry.
- * Both the chat manage DELETE route and the copilot `deploy_chat` undeploy
+ * Both the chat manage DELETE route and the copilot `deploy_as_chat` undeploy
  * action must use this function.
  */
 export async function performChatUndeploy(

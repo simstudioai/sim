@@ -1,5 +1,5 @@
 /**
- * Static content for the get_platform_actions tool.
+ * Static content for the get_ui_reference tool.
  * Contains the Sim platform quick reference and keyboard shortcuts.
  */
 export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboard Shortcuts

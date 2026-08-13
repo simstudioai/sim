@@ -4,10 +4,10 @@ import { ShimmerText } from '@/components/ui'
 import {
   BrowserRequestTakeover,
   CallIntegrationTool,
+  PrepareFileEdit,
   Read as ReadTool,
   Terminal as TerminalTool,
   Wait as WaitTool,
-  WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
@@ -138,7 +138,7 @@ export function ToolCallItem({
   }, [toolName, params, streamingArgs])
 
   const liveWorkspaceFileTitle = useMemo(() => {
-    if (toolName !== WorkspaceFile.id || !streamingArgs) return null
+    if (toolName !== PrepareFileEdit.id || !streamingArgs) return null
     const titleMatch = streamingArgs.match(/"title"\s*:\s*"([^"]+)"/)
     if (!titleMatch?.[1]) return null
     const opMatch = streamingArgs.match(/"operation"\s*:\s*"(\w+)"/)

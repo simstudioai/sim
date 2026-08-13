@@ -87,7 +87,7 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
+import { Read as ReadTool, RunFunction } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   prePersistClientExecutableToolCall,
   sseHandlers,
@@ -244,7 +244,7 @@ describe('sse-handlers tool lifecycle', () => {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'deploy-1',
-        toolName: 'deploy_api',
+        toolName: 'deploy_as_api',
         arguments: { versionName: 'v2' },
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
@@ -259,7 +259,7 @@ describe('sse-handlers tool lifecycle', () => {
     expect(upsertAsyncToolCall).toHaveBeenCalledWith({
       runId: 'run-1',
       toolCallId: 'deploy-1',
-      toolName: 'deploy_api',
+      toolName: 'deploy_as_api',
       args: { versionName: 'v2' },
       status: MothershipStreamV1AsyncToolRecordStatus.pending,
     })
@@ -330,14 +330,14 @@ describe('sse-handlers tool lifecycle', () => {
     context.runId = 'run-1'
     context.toolPermissions = {
       enabled: true,
-      autoAllowed: new Set(['deploy_api']),
+      autoAllowed: new Set(['deploy_as_api']),
     }
 
     const event = {
       type: MothershipStreamV1EventType.tool,
       payload: {
         toolCallId: 'deploy-2',
-        toolName: 'deploy_api',
+        toolName: 'deploy_as_api',
         arguments: {},
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
@@ -562,7 +562,7 @@ describe('sse-handlers tool lifecycle', () => {
         type: MothershipStreamV1EventType.tool,
         payload: {
           toolCallId: 'tool-function',
-          toolName: FunctionExecute.id,
+          toolName: RunFunction.id,
           arguments: { code: 'return {{SECRET}}' },
           executor: MothershipStreamV1ToolExecutor.sim,
           mode: MothershipStreamV1ToolMode.async,
@@ -1097,7 +1097,7 @@ describe('sse-handlers tool lifecycle', () => {
         type: MothershipStreamV1EventType.tool,
         payload: {
           toolCallId: 'function-finalized-args',
-          toolName: FunctionExecute.id,
+          toolName: RunFunction.id,
           arguments: { language: 'javascript', code: 'return {{STALE_SECRET}}' },
           executor: MothershipStreamV1ToolExecutor.sim,
           mode: MothershipStreamV1ToolMode.async,
@@ -1115,7 +1115,7 @@ describe('sse-handlers tool lifecycle', () => {
         type: MothershipStreamV1EventType.tool,
         payload: {
           toolCallId: 'function-finalized-args',
-          toolName: FunctionExecute.id,
+          toolName: RunFunction.id,
           arguments: { language: 'javascript', code: 'return 1' },
           executor: MothershipStreamV1ToolExecutor.sim,
           mode: MothershipStreamV1ToolMode.async,
@@ -1130,7 +1130,7 @@ describe('sse-handlers tool lifecycle', () => {
     await sleep(0)
 
     expect(executeTool).toHaveBeenCalledWith(
-      FunctionExecute.id,
+      RunFunction.id,
       { language: 'javascript', code: 'return 1' },
       expect.any(Object)
     )

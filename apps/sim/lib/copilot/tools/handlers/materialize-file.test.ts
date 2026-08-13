@@ -223,19 +223,19 @@ describe('executeMaterializeFile - unsupported operation', () => {
     )
 
     expect(result.success).toBe(false)
-    expect(result.error).toContain('Unsupported materialize_file operation "table"')
+    expect(result.error).toContain('Unsupported save_upload operation "table"')
     expect(result.error).toContain('table subagent')
     expect(mockFindUpload).not.toHaveBeenCalled()
   })
 
-  it('rejects the knowledge_base operation and points to the knowledge subagent', async () => {
+  it('rejects the manage_knowledge_base operation and points to the knowledge subagent', async () => {
     const result = await executeMaterializeFile(
-      { fileNames: ['data.csv'], operation: 'knowledge_base' },
+      { fileNames: ['data.csv'], operation: 'manage_knowledge_base' },
       context
     )
 
     expect(result.success).toBe(false)
-    expect(result.error).toContain('Unsupported materialize_file operation "knowledge_base"')
+    expect(result.error).toContain('Unsupported save_upload operation "manage_knowledge_base"')
     expect(result.error).toContain('knowledge subagent')
     expect(mockFindUpload).not.toHaveBeenCalled()
   })

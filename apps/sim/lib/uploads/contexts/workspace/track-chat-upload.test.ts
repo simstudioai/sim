@@ -417,7 +417,7 @@ describe('trackChatUpload', () => {
 
     /**
      * The ownership lookup and the write are separate statements, so a
-     * concurrent `materialize_file` can flip the row to context='workspace'
+     * concurrent `save_upload` can flip the row to context='workspace'
      * in between. The UPDATE must re-assert every ownership predicate rather
      * than matching on the captured row id alone, or it would drag a saved
      * workspace file back into chat scope.

@@ -4,7 +4,7 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/typ
 /**
  * Guards a post-tool output-redirection sink against read-only principals.
  *
- * `function_execute`, `user_table`, and `read` are read-allowed for execution
+ * `run_function`, `user_table`, and `read` are read-allowed for execution
  * (they don't mutate the workspace themselves), so the router's `WRITE_ACTIONS`
  * gate in `tools/server/router.ts` lets read-only collaborators run them. But
  * their output-redirection declarations (`outputs.files`, `outputTable`)
@@ -12,7 +12,7 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/typ
  * Those writes must satisfy the same write gate as the dedicated mutation tools.
  *
  * Returns a denial `ToolCallResult` when the caller lacks write access (so the
- * agent surfaces the same `Permission denied` outcome it gets from `create_file`
+ * agent surfaces the same `Permission denied` outcome it gets from `create_empty_file`
  * / `user_table` writes), or `null` when the write may proceed.
  */
 export function denyOutputWriteWithoutWritePermission(

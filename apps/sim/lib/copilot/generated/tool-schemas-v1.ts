@@ -10,18 +10,37 @@ export interface ToolRuntimeSchemaEntry {
 }
 
 export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
-  agent: {
+  apply_file_edit: {
     parameters: {
+      type: 'object',
       properties: {
-        request: {
-          description: 'What tool/skill/MCP action is needed.',
+        content: {
           type: 'string',
+          description:
+            'The text content to write. For append: text to append. For update: full replacement text. For patch with search_replace: the replacement text. For patch with anchored: the insert/replacement text.',
         },
       },
-      required: ['request'],
-      type: 'object',
+      required: ['content'],
     },
-    resultSchema: undefined,
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description:
+            'Optional operation metadata such as file id, file name, size, and content type.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable summary of the outcome.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the content was applied successfully.',
+        },
+      },
+      required: ['success', 'message'],
+    },
   },
   auth: {
     parameters: {
@@ -1106,18 +1125,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  check_deployment_status: {
-    parameters: {
-      type: 'object',
-      properties: {
-        workflowId: {
-          type: 'string',
-          description: 'Workflow ID to check (defaults to current workflow)',
-        },
-      },
-    },
-    resultSchema: undefined,
-  },
   cp: {
     parameters: {
       type: 'object',
@@ -1145,42 +1152,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  crawl_website: {
-    parameters: {
-      type: 'object',
-      properties: {
-        exclude_paths: {
-          type: 'array',
-          description: 'Skip URLs matching these patterns',
-          items: {
-            type: 'string',
-          },
-        },
-        include_paths: {
-          type: 'array',
-          description: 'Only crawl URLs matching these patterns',
-          items: {
-            type: 'string',
-          },
-        },
-        limit: {
-          type: 'number',
-          description: 'Maximum pages to crawl (default 10, max 50)',
-        },
-        max_depth: {
-          type: 'number',
-          description: 'How deep to follow links (default 2)',
-        },
-        url: {
-          type: 'string',
-          description: 'Starting URL to crawl from',
-        },
-      },
-      required: ['url'],
-    },
-    resultSchema: undefined,
-  },
-  create_file: {
+  create_empty_file: {
     parameters: {
       type: 'object',
       properties: {
@@ -1328,7 +1300,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  deploy_api: {
+  deploy_as_api: {
     parameters: {
       type: 'object',
       properties: {
@@ -1382,7 +1354,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         deploymentType: {
           type: 'string',
           description:
-            'Deployment surface this result describes. For deploy_api and redeploy this is always "api".',
+            'Deployment surface this result describes. For deploy_as_api and redeploy this is always "api".',
         },
         examples: {
           type: 'object',
@@ -1412,7 +1384,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       ],
     },
   },
-  deploy_chat: {
+  deploy_as_chat: {
     parameters: {
       type: 'object',
       properties: {
@@ -1526,7 +1498,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         deploymentType: {
           type: 'string',
           description:
-            'Deployment surface this result describes. For deploy_chat this is always "chat".',
+            'Deployment surface this result describes. For deploy_as_chat this is always "chat".',
         },
         examples: {
           type: 'object',
@@ -1547,7 +1519,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         success: {
           type: 'boolean',
-          description: 'Whether the deploy_chat action completed successfully.',
+          description: 'Whether the deploy_as_chat action completed successfully.',
         },
         version: {
           type: 'number',
@@ -1571,134 +1543,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       ],
     },
   },
-  deploy_custom_block: {
-    parameters: {
-      type: 'object',
-      properties: {
-        action: {
-          type: 'string',
-          description: 'Whether to publish (deploy) or unpublish (undeploy) the custom block',
-          enum: ['deploy', 'undeploy'],
-          default: 'deploy',
-        },
-        description: {
-          type: 'string',
-          description: 'Short description shown in the block picker, max 280 characters',
-        },
-        exposedOutputs: {
-          type: 'array',
-          description:
-            "Outputs the block exposes, each mapping a child block output path to a friendly name (use get_block_outputs for valid paths). Omit to expose the terminal block's whole result",
-          items: {
-            type: 'object',
-            properties: {
-              blockId: {
-                type: 'string',
-                description: 'Block UUID inside the workflow',
-              },
-              name: {
-                type: 'string',
-                description: 'Friendly output name shown on the block',
-              },
-              path: {
-                type: 'string',
-                description:
-                  "Dot-path into that block's output (from get_block_outputs relativeOutputs)",
-              },
-            },
-            required: ['blockId', 'path', 'name'],
-          },
-        },
-        iconUrl: {
-          type: 'string',
-          description:
-            'Optional icon image for the block: a workspace file VFS path (e.g. "files/icon.png", copied into public icon storage at publish) or an https image URL. Omit to use the organization\'s default icon',
-        },
-        inputs: {
-          type: 'array',
-          description:
-            "Optional per-input placeholder overrides. Input names and types are derived from the workflow's input trigger and cannot be changed here",
-          items: {
-            type: 'object',
-            properties: {
-              id: {
-                type: 'string',
-                description: 'Stable id of the input trigger field',
-              },
-              placeholder: {
-                type: 'string',
-                description: "Placeholder text shown in the block's input field",
-              },
-            },
-            required: ['id'],
-          },
-        },
-        name: {
-          type: 'string',
-          description:
-            'Display name for the block, max 60 characters. REQUIRED the first time a workflow is published. When republishing an existing block, omit it to keep the current name or pass a new one to rename. Ignored for undeploy.',
-        },
-        workflowId: {
-          type: 'string',
-          description: 'Workflow ID (defaults to active workflow)',
-        },
-      },
-    },
-    resultSchema: {
-      type: 'object',
-      properties: {
-        action: {
-          type: 'string',
-          description: 'Action performed by the tool, such as "deploy" or "undeploy".',
-        },
-        blockId: {
-          type: 'string',
-          description: 'Custom block record ID.',
-        },
-        blockType: {
-          type: 'string',
-          description: 'Stable block type slug (custom_block_*) used in workflow state.',
-        },
-        deploymentConfig: {
-          type: 'object',
-          description:
-            "Structured deployment configuration keyed by surface name. Includes the block's type, name, description, icon, derived input fields, and exposed outputs.",
-        },
-        deploymentStatus: {
-          type: 'object',
-          description:
-            'Structured per-surface deployment status keyed by surface name, including customBlock and the underlying api surface when applicable.',
-        },
-        deploymentType: {
-          type: 'string',
-          description:
-            'Deployment surface this result describes. For deploy_custom_block this is always "custom_block".',
-        },
-        isDeployed: {
-          type: 'boolean',
-          description: 'Whether the custom block is published after this tool call.',
-        },
-        name: {
-          type: 'string',
-          description: 'Display name of the custom block.',
-        },
-        removed: {
-          type: 'boolean',
-          description: 'Whether the custom block was unpublished during an undeploy action.',
-        },
-        updated: {
-          type: 'boolean',
-          description: 'Whether an existing custom block was updated instead of created.',
-        },
-        workflowId: {
-          type: 'string',
-          description: 'Workflow ID the custom block is bound to.',
-        },
-      },
-      required: ['deploymentType', 'deploymentStatus'],
-    },
-  },
-  deploy_mcp: {
+  deploy_as_mcp: {
     parameters: {
       type: 'object',
       properties: {
@@ -1773,7 +1618,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         deploymentType: {
           type: 'string',
           description:
-            'Deployment surface this result describes. For deploy_mcp this is always "mcp".',
+            'Deployment surface this result describes. For deploy_as_mcp this is always "mcp".',
         },
         examples: {
           type: 'object',
@@ -1844,7 +1689,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  download_to_workspace_file: {
+  download_file: {
     parameters: {
       type: 'object',
       properties: {
@@ -1893,38 +1738,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  edit_content: {
-    parameters: {
-      type: 'object',
-      properties: {
-        content: {
-          type: 'string',
-          description:
-            'The text content to write. For append: text to append. For update: full replacement text. For patch with search_replace: the replacement text. For patch with anchored: the insert/replacement text.',
-        },
-      },
-      required: ['content'],
-    },
-    resultSchema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          description:
-            'Optional operation metadata such as file id, file name, size, and content type.',
-        },
-        message: {
-          type: 'string',
-          description: 'Human-readable summary of the outcome.',
-        },
-        success: {
-          type: 'boolean',
-          description: 'Whether the content was applied successfully.',
-        },
-      },
-      required: ['success', 'message'],
-    },
-  },
   edit_workflow: {
     parameters: {
       type: 'object',
@@ -1964,49 +1777,18 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  enrichment_run: {
+  extensions: {
     parameters: {
-      type: 'object',
       properties: {
-        enrichmentId: {
+        request: {
+          description: 'What tool/skill/MCP action is needed.',
           type: 'string',
-          description:
-            "Which enrichment to run. Discover the full set and each one's inputs/outputs via table_enrichments.list_enrichments.",
-          enum: [
-            'work-email',
-            'phone-number',
-            'company-domain',
-            'company-info',
-            'email-verification',
-          ],
-        },
-        inputs: {
-          type: 'object',
-          description:
-            'Map of the enrichment\'s input id → value, e.g. { "fullName": "Jane Doe", "companyDomain": "acme.com" }. Provide a value for every required input.',
         },
       },
-      required: ['enrichmentId', 'inputs'],
-    },
-    resultSchema: {
+      required: ['request'],
       type: 'object',
-      properties: {
-        matched: {
-          type: 'boolean',
-          description: 'True when a provider returned a non-empty result.',
-        },
-        provider: {
-          type: ['string', 'null'],
-          description:
-            'Internal label of the provider that produced the result (billing/diagnostics only — do NOT surface it to the user), or null on no match.',
-        },
-        result: {
-          type: 'object',
-          description: 'Mapped output values from the winning provider (empty object on no match).',
-        },
-      },
-      required: ['matched', 'result'],
     },
+    resultSchema: undefined,
   },
   ffmpeg: {
     parameters: {
@@ -2200,156 +1982,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       type: 'object',
-    },
-    resultSchema: undefined,
-  },
-  function_execute: {
-    parameters: {
-      type: 'object',
-      properties: {
-        code: {
-          type: 'string',
-          description:
-            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
-        },
-        inputs: {
-          type: 'object',
-          description:
-            'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
-          properties: {
-            directories: {
-              type: 'array',
-              description:
-                'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
-              items: {
-                type: 'object',
-                properties: {
-                  path: {
-                    type: 'string',
-                    description:
-                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description:
-                      'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
-                  },
-                },
-                required: ['path'],
-              },
-            },
-            files: {
-              type: 'array',
-              description: 'Workspace files to mount into the sandbox.',
-              items: {
-                type: 'object',
-                properties: {
-                  path: {
-                    type: 'string',
-                    description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description:
-                      'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
-                  },
-                },
-                required: ['path'],
-              },
-            },
-            tables: {
-              type: 'array',
-              description: 'Workspace tables to mount as CSV files.',
-              items: {
-                type: 'object',
-                properties: {
-                  path: {
-                    type: 'string',
-                    description: 'Canonical VFS table path when available.',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description: 'Optional full sandbox path for the mounted CSV.',
-                  },
-                  tableId: {
-                    type: 'string',
-                    description: 'Workspace table ID.',
-                  },
-                },
-              },
-            },
-          },
-        },
-        language: {
-          type: 'string',
-          description: 'Execution language.',
-          enum: ['javascript', 'python', 'shell'],
-        },
-        outputTable: {
-          type: 'string',
-          description:
-            'Table ID to overwrite with the code\'s return value. Code MUST return an array of objects where keys match column names. All existing rows are replaced. Example: "tbl_abc123"',
-        },
-        outputs: {
-          type: 'object',
-          description:
-            'Workspace files to create or overwrite from returned code results or sandbox-created files.',
-          properties: {
-            files: {
-              type: 'array',
-              description:
-                'File outputs. Missing parent folders are created automatically for create mode.',
-              items: {
-                type: 'object',
-                properties: {
-                  format: {
-                    type: 'string',
-                    description: 'Optional serialization format for returned values.',
-                    enum: ['json', 'csv', 'txt', 'md', 'html'],
-                  },
-                  mimeType: {
-                    type: 'string',
-                    description: 'Optional MIME type override when inference is not enough.',
-                  },
-                  mode: {
-                    type: 'string',
-                    description: 'Create a new file or overwrite an existing file at path.',
-                    enum: ['create', 'overwrite'],
-                  },
-                  path: {
-                    type: 'string',
-                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
-                  },
-                  sandboxPath: {
-                    type: 'string',
-                    description:
-                      'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
-                  },
-                },
-                required: ['path', 'mode'],
-              },
-            },
-          },
-        },
-        sandboxId: {
-          type: 'string',
-          description:
-            'Optional Sim sandbox id from agent/sandboxes/{name}.json. DEFAULT-FIRST: omit this whenever the documented default function_execute environment can do the job. Select a ready existing Sim sandbox only when a required third-party dependency, Debian system package, or managed CLI is known to be absent, or a default attempt failed specifically because it was missing. Never guess an id.',
-        },
-        timeout: {
-          type: 'number',
-          description:
-            'Maximum execution time in SECONDS (Sim converts to milliseconds). The sandbox stops execution and returns a timeout error after this duration. Defaults to 10 seconds and is capped at 300 seconds regardless of plan.',
-          default: 10,
-        },
-        title: {
-          type: 'string',
-          description:
-            'Short user-visible label for this execution, e.g. "Clean customer CSV", "Revenue chart", or "Query GitHub issues".',
-        },
-      },
-      required: ['code'],
     },
     resultSchema: undefined,
   },
@@ -2877,48 +2509,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_deployment_log: {
+  get_deployment_status: {
     parameters: {
       type: 'object',
       properties: {
         workflowId: {
           type: 'string',
-          description:
-            'Optional workflow ID. If not provided, uses the current workflow in context.',
+          description: 'Workflow ID to check (defaults to current workflow)',
         },
       },
     },
     resultSchema: undefined,
   },
-  get_page_contents: {
-    parameters: {
-      type: 'object',
-      properties: {
-        include_highlights: {
-          type: 'boolean',
-          description: 'Include key highlights (default false)',
-        },
-        include_summary: {
-          type: 'boolean',
-          description: 'Include AI-generated summary (default false)',
-        },
-        include_text: {
-          type: 'boolean',
-          description: 'Include full page text (default true)',
-        },
-        urls: {
-          type: 'array',
-          description: 'URLs to get content from (max 10)',
-          items: {
-            type: 'string',
-          },
-        },
-      },
-      required: ['urls'],
-    },
-    resultSchema: undefined,
-  },
-  get_platform_actions: {
+  get_ui_reference: {
     parameters: {
       type: 'object',
       properties: {},
@@ -3037,7 +2640,213 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  knowledge_base: {
+  list_deployment_versions: {
+    parameters: {
+      type: 'object',
+      properties: {
+        workflowId: {
+          type: 'string',
+          description:
+            'Optional workflow ID. If not provided, uses the current workflow in context.',
+        },
+      },
+    },
+    resultSchema: undefined,
+  },
+  list_integration_tools: {
+    parameters: {
+      properties: {
+        integration: {
+          description:
+            'The integration service name — the folder under components/integrations/ (e.g. "slack", "gmail", "google_sheets"). Returns every operation\'s id, name, and description for that service.',
+          type: 'string',
+        },
+      },
+      required: ['integration'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
+  list_user_workspaces: {
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    resultSchema: undefined,
+  },
+  list_workspace_mcp_servers: {
+    parameters: {
+      type: 'object',
+      properties: {
+        workspaceId: {
+          type: 'string',
+          description:
+            'Workspace ID. Required when no current workspace context is available, such as headless MCP calls.',
+        },
+      },
+    },
+    resultSchema: undefined,
+  },
+  load_deployment: {
+    parameters: {
+      type: 'object',
+      properties: {
+        version: {
+          type: 'string',
+          description:
+            'A string: a deployment version number (e.g. "5"), or "live" for the active deployment. (Unlike promote_to_live, which takes a numeric version, "live" is accepted here.)',
+        },
+        workflowId: {
+          type: 'string',
+          description:
+            'Optional workflow ID. If not provided, uses the current workflow in context.',
+        },
+      },
+      required: ['version'],
+    },
+    resultSchema: undefined,
+  },
+  load_integration_tool: {
+    parameters: {
+      properties: {
+        tool_ids: {
+          description:
+            'Exact integration tool ids to load before calling them, e.g. ["gmail_send_v2"]. Copy the "id" field verbatim from components/integrations/{service}/{operation}.json (including any version suffix).',
+          items: {
+            type: 'string',
+          },
+          type: 'array',
+        },
+      },
+      required: ['tool_ids'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
+  load_skill: {
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description:
+            "Skill name exactly as it appears in the Loadable Skills index (e.g. 'pptx-writing').",
+        },
+      },
+      required: ['name'],
+    },
+    resultSchema: undefined,
+  },
+  manage_credential: {
+    parameters: {
+      type: 'object',
+      properties: {
+        credentialId: {
+          type: 'string',
+          description: 'The credential ID (required for rename)',
+        },
+        credentialIds: {
+          type: 'array',
+          description: 'Array of credential IDs (for batch delete)',
+          items: {
+            type: 'string',
+          },
+        },
+        displayName: {
+          type: 'string',
+          description: 'New display name (required for rename)',
+        },
+        operation: {
+          type: 'string',
+          description: 'The operation to perform',
+          enum: ['rename', 'delete'],
+        },
+      },
+      required: ['operation'],
+    },
+    resultSchema: undefined,
+  },
+  manage_custom_tool: {
+    parameters: {
+      type: 'object',
+      properties: {
+        code: {
+          type: 'string',
+          description:
+            'The JavaScript code that executes when the tool is called (required for add). Parameters from schema are available as variables. Function body only - no signature or wrapping braces.',
+        },
+        operation: {
+          type: 'string',
+          description:
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
+          enum: ['add', 'edit', 'delete', 'list'],
+        },
+        schema: {
+          type: 'object',
+          description: 'The tool schema in OpenAI function calling format (required for add).',
+          properties: {
+            function: {
+              type: 'object',
+              description: 'The function definition',
+              properties: {
+                description: {
+                  type: 'string',
+                  description: 'What the function does',
+                },
+                name: {
+                  type: 'string',
+                  description: 'The function name (camelCase)',
+                },
+                parameters: {
+                  type: 'object',
+                  description: 'The function parameters schema',
+                  properties: {
+                    properties: {
+                      type: 'object',
+                      description: 'Parameter definitions as key-value pairs',
+                    },
+                    required: {
+                      type: 'array',
+                      description: 'Array of required parameter names',
+                      items: {
+                        type: 'string',
+                      },
+                    },
+                    type: {
+                      type: 'string',
+                      description: "Must be 'object'",
+                    },
+                  },
+                  required: ['type', 'properties'],
+                },
+              },
+              required: ['name', 'parameters'],
+            },
+            type: {
+              type: 'string',
+              description: "Must be 'function'",
+            },
+          },
+          required: ['type', 'function'],
+        },
+        toolId: {
+          type: 'string',
+          description:
+            "The ID of the custom tool. Get it from the `list` operation or the `id` field inside the tool's VFS file (agent/custom-tools/{name}.json — the filename is the display name, not the id); get_workflow_data also returns it where that tool is available. Do not guess or construct it. Required for edit and delete; omit for add and list.",
+        },
+        toolIds: {
+          type: 'array',
+          description: 'Array of custom tool IDs (for batch delete)',
+          items: {
+            type: 'string',
+          },
+        },
+      },
+      required: ['operation'],
+    },
+    resultSchema: undefined,
+  },
+  manage_knowledge_base: {
     parameters: {
       type: 'object',
       properties: {
@@ -3250,200 +3059,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
-  list_integration_tools: {
-    parameters: {
-      properties: {
-        integration: {
-          description:
-            'The integration service name — the folder under components/integrations/ (e.g. "slack", "gmail", "google_sheets"). Returns every operation\'s id, name, and description for that service.',
-          type: 'string',
-        },
-      },
-      required: ['integration'],
-      type: 'object',
-    },
-    resultSchema: undefined,
-  },
-  list_user_workspaces: {
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-    resultSchema: undefined,
-  },
-  list_workspace_mcp_servers: {
-    parameters: {
-      type: 'object',
-      properties: {
-        workspaceId: {
-          type: 'string',
-          description:
-            'Workspace ID. Required when no current workspace context is available, such as headless MCP calls.',
-        },
-      },
-    },
-    resultSchema: undefined,
-  },
-  load_deployment: {
-    parameters: {
-      type: 'object',
-      properties: {
-        version: {
-          type: 'string',
-          description:
-            'A string: a deployment version number (e.g. "5"), or "live" for the active deployment. (Unlike promote_to_live, which takes a numeric version, "live" is accepted here.)',
-        },
-        workflowId: {
-          type: 'string',
-          description:
-            'Optional workflow ID. If not provided, uses the current workflow in context.',
-        },
-      },
-      required: ['version'],
-    },
-    resultSchema: undefined,
-  },
-  load_integration_tool: {
-    parameters: {
-      properties: {
-        tool_ids: {
-          description:
-            'Exact integration tool ids to load before calling them, e.g. ["gmail_send_v2"]. Copy the "id" field verbatim from components/integrations/{service}/{operation}.json (including any version suffix).',
-          items: {
-            type: 'string',
-          },
-          type: 'array',
-        },
-      },
-      required: ['tool_ids'],
-      type: 'object',
-    },
-    resultSchema: undefined,
-  },
-  load_skill: {
-    parameters: {
-      type: 'object',
-      properties: {
-        name: {
-          type: 'string',
-          description:
-            "Skill name exactly as it appears in the Loadable Skills index (e.g. 'pptx-writing').",
-        },
-      },
-      required: ['name'],
-    },
-    resultSchema: undefined,
-  },
-  manage_credential: {
-    parameters: {
-      type: 'object',
-      properties: {
-        credentialId: {
-          type: 'string',
-          description: 'The credential ID (required for rename)',
-        },
-        credentialIds: {
-          type: 'array',
-          description: 'Array of credential IDs (for batch delete)',
-          items: {
-            type: 'string',
-          },
-        },
-        displayName: {
-          type: 'string',
-          description: 'New display name (required for rename)',
-        },
-        operation: {
-          type: 'string',
-          description: 'The operation to perform',
-          enum: ['rename', 'delete'],
-        },
-      },
-      required: ['operation'],
-    },
-    resultSchema: undefined,
-  },
-  manage_custom_tool: {
-    parameters: {
-      type: 'object',
-      properties: {
-        code: {
-          type: 'string',
-          description:
-            'The JavaScript code that executes when the tool is called (required for add). Parameters from schema are available as variables. Function body only - no signature or wrapping braces.',
-        },
-        operation: {
-          type: 'string',
-          description:
-            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — other manage_* tools may use create/update instead of add/edit.",
-          enum: ['add', 'edit', 'delete', 'list'],
-        },
-        schema: {
-          type: 'object',
-          description: 'The tool schema in OpenAI function calling format (required for add).',
-          properties: {
-            function: {
-              type: 'object',
-              description: 'The function definition',
-              properties: {
-                description: {
-                  type: 'string',
-                  description: 'What the function does',
-                },
-                name: {
-                  type: 'string',
-                  description: 'The function name (camelCase)',
-                },
-                parameters: {
-                  type: 'object',
-                  description: 'The function parameters schema',
-                  properties: {
-                    properties: {
-                      type: 'object',
-                      description: 'Parameter definitions as key-value pairs',
-                    },
-                    required: {
-                      type: 'array',
-                      description: 'Array of required parameter names',
-                      items: {
-                        type: 'string',
-                      },
-                    },
-                    type: {
-                      type: 'string',
-                      description: "Must be 'object'",
-                    },
-                  },
-                  required: ['type', 'properties'],
-                },
-              },
-              required: ['name', 'parameters'],
-            },
-            type: {
-              type: 'string',
-              description: "Must be 'function'",
-            },
-          },
-          required: ['type', 'function'],
-        },
-        toolId: {
-          type: 'string',
-          description:
-            "The ID of the custom tool. Get it from the `list` operation or the `id` field inside the tool's VFS file (agent/custom-tools/{name}.json — the filename is the display name, not the id); get_workflow_data also returns it where that tool is available. Do not guess or construct it. Required for edit and delete; omit for add and list.",
-        },
-        toolIds: {
-          type: 'array',
-          description: 'Array of custom tool IDs (for batch delete)',
-          items: {
-            type: 'string',
-          },
-        },
-      },
-      required: ['operation'],
-    },
-    resultSchema: undefined,
-  },
-  manage_mcp_tool: {
+  manage_mcp_connection: {
     parameters: {
       type: 'object',
       properties: {
@@ -3582,30 +3198,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  materialize_file: {
-    parameters: {
-      type: 'object',
-      properties: {
-        fileNames: {
-          type: 'array',
-          description:
-            'The names of the uploaded files to materialize (e.g. ["report.pdf", "data.csv"])',
-          items: {
-            type: 'string',
-          },
-        },
-        operation: {
-          type: 'string',
-          description:
-            'What to do with the file. "save" promotes it to a permanent files/ path. "import" imports a workflow JSON as a workspace workflow. "extract" decompresses a .zip upload into files/<archive>/. Defaults to "save".',
-          enum: ['save', 'import', 'extract'],
-          default: 'save',
-        },
-      },
-      required: ['fileNames'],
-    },
-    resultSchema: undefined,
-  },
   media: {
     parameters: {
       properties: {
@@ -3726,6 +3318,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 description: 'The resource type.',
                 enum: ['workflow', 'table', 'knowledgebase', 'file', 'log'],
               },
+              view: {
+                type: 'string',
+                description:
+                  'Saved table view to open pinned (type "table" only): a view id or exact view name from the table\'s views.json. The panel opens the table with that view\'s filter/sort active. Omit to open the table on its default view.',
+              },
             },
             required: ['type'],
           },
@@ -3734,6 +3331,129 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['resources'],
     },
     resultSchema: undefined,
+  },
+  prepare_file_edit: {
+    parameters: {
+      type: 'object',
+      properties: {
+        operation: {
+          type: 'string',
+          description: 'The file operation to perform.',
+          enum: ['append', 'update', 'patch'],
+        },
+        target: {
+          type: 'object',
+          description: 'Explicit file target. Use kind=path + path for existing files.',
+          properties: {
+            kind: {
+              type: 'string',
+              description: 'How the file target is identified.',
+              enum: ['path'],
+            },
+            path: {
+              type: 'string',
+              description:
+                'Canonical existing workspace file VFS path, e.g. "files/Reports/report.md". Required when target.kind=path.',
+            },
+          },
+          required: ['kind'],
+        },
+        title: {
+          type: 'string',
+          description:
+            'Required short UI label for this content unit, e.g. "Chapter 1", "Slide 3", or "Fix footer spacing".',
+        },
+        contentType: {
+          type: 'string',
+          description:
+            'Optional MIME type override. Usually omit and let the system infer from the target file extension.',
+          enum: [
+            'text/markdown',
+            'text/html',
+            'text/plain',
+            'application/json',
+            'text/csv',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/pdf',
+          ],
+        },
+        edit: {
+          type: 'object',
+          description:
+            'Patch metadata. Use strategy=search_replace for exact text replacement, or strategy=anchored for line-based inserts/replacements/deletions. The actual replacement/insert content is provided via the paired apply_file_edit tool call.',
+          properties: {
+            after_anchor: {
+              type: 'string',
+              description:
+                'Boundary line kept after inserted replacement content. Required for mode=replace_between.',
+            },
+            anchor: {
+              type: 'string',
+              description:
+                'Anchor line after which new content is inserted. Required for mode=insert_after.',
+            },
+            before_anchor: {
+              type: 'string',
+              description:
+                'Boundary line kept before inserted replacement content. Required for mode=replace_between.',
+            },
+            end_anchor: {
+              type: 'string',
+              description: 'First line to keep after deletion. Required for mode=delete_between.',
+            },
+            mode: {
+              type: 'string',
+              description: 'Anchored edit mode when strategy=anchored.',
+              enum: ['replace_between', 'insert_after', 'delete_between'],
+            },
+            occurrence: {
+              type: 'number',
+              description: '1-based occurrence for repeated anchor lines. Optional; defaults to 1.',
+            },
+            replaceAll: {
+              type: 'boolean',
+              description:
+                'When true and strategy=search_replace, replace every match instead of requiring a unique single match.',
+            },
+            search: {
+              type: 'string',
+              description:
+                'Exact text to find when strategy=search_replace. Must match exactly once unless replaceAll=true.',
+            },
+            start_anchor: {
+              type: 'string',
+              description: 'First line to delete. Required for mode=delete_between.',
+            },
+            strategy: {
+              type: 'string',
+              description: 'Patch strategy.',
+              enum: ['search_replace', 'anchored'],
+            },
+          },
+        },
+      },
+      required: ['operation', 'target', 'title'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description:
+            'Optional operation metadata such as file id, file name, size, and content type.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable summary of the outcome.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the file operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
   },
   promote_to_live: {
     parameters: {
@@ -3753,6 +3473,133 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['version'],
     },
     resultSchema: undefined,
+  },
+  publish_custom_block: {
+    parameters: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          description: 'Whether to publish (deploy) or unpublish (undeploy) the custom block',
+          enum: ['deploy', 'undeploy'],
+          default: 'deploy',
+        },
+        description: {
+          type: 'string',
+          description: 'Short description shown in the block picker, max 280 characters',
+        },
+        exposedOutputs: {
+          type: 'array',
+          description:
+            "Outputs the block exposes, each mapping a child block output path to a friendly name (use get_block_outputs for valid paths). Omit to expose the terminal block's whole result",
+          items: {
+            type: 'object',
+            properties: {
+              blockId: {
+                type: 'string',
+                description: 'Block UUID inside the workflow',
+              },
+              name: {
+                type: 'string',
+                description: 'Friendly output name shown on the block',
+              },
+              path: {
+                type: 'string',
+                description:
+                  "Dot-path into that block's output (from get_block_outputs relativeOutputs)",
+              },
+            },
+            required: ['blockId', 'path', 'name'],
+          },
+        },
+        iconUrl: {
+          type: 'string',
+          description:
+            'Optional icon image for the block: a workspace file VFS path (e.g. "files/icon.png", copied into public icon storage at publish) or an https image URL. Omit to use the organization\'s default icon',
+        },
+        inputs: {
+          type: 'array',
+          description:
+            "Optional per-input placeholder overrides. Input names and types are derived from the workflow's input trigger and cannot be changed here",
+          items: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'string',
+                description: 'Stable id of the input trigger field',
+              },
+              placeholder: {
+                type: 'string',
+                description: "Placeholder text shown in the block's input field",
+              },
+            },
+            required: ['id'],
+          },
+        },
+        name: {
+          type: 'string',
+          description:
+            'Display name for the block, max 60 characters. REQUIRED the first time a workflow is published. When republishing an existing block, omit it to keep the current name or pass a new one to rename. Ignored for undeploy.',
+        },
+        workflowId: {
+          type: 'string',
+          description: 'Workflow ID (defaults to active workflow)',
+        },
+      },
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          description: 'Action performed by the tool, such as "deploy" or "undeploy".',
+        },
+        blockId: {
+          type: 'string',
+          description: 'Custom block record ID.',
+        },
+        blockType: {
+          type: 'string',
+          description: 'Stable block type slug (custom_block_*) used in workflow state.',
+        },
+        deploymentConfig: {
+          type: 'object',
+          description:
+            "Structured deployment configuration keyed by surface name. Includes the block's type, name, description, icon, derived input fields, and exposed outputs.",
+        },
+        deploymentStatus: {
+          type: 'object',
+          description:
+            'Structured per-surface deployment status keyed by surface name, including customBlock and the underlying api surface when applicable.',
+        },
+        deploymentType: {
+          type: 'string',
+          description:
+            'Deployment surface this result describes. For publish_custom_block this is always "custom_block".',
+        },
+        isDeployed: {
+          type: 'boolean',
+          description: 'Whether the custom block is published after this tool call.',
+        },
+        name: {
+          type: 'string',
+          description: 'Display name of the custom block.',
+        },
+        removed: {
+          type: 'boolean',
+          description: 'Whether the custom block was unpublished during an undeploy action.',
+        },
+        updated: {
+          type: 'boolean',
+          description: 'Whether an existing custom block was updated instead of created.',
+        },
+        workflowId: {
+          type: 'string',
+          description: 'Workflow ID the custom block is bound to.',
+        },
+      },
+      required: ['deploymentType', 'deploymentStatus'],
+    },
   },
   query_logs: {
     parameters: {
@@ -3901,6 +3748,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'string',
               description: 'Table ID (required for all operations)',
             },
+            view: {
+              type: 'string',
+              description:
+                "Saved view to query through (query_rows only): a view id or exact view name from the table's views.json. The view's saved filter ANDs with any filter you pass (query-within-the-view); its saved sort applies only when you pass no order. Layout fields (hidden columns, widths) are ignored — full rows come back. Manage views via the table agent.",
+            },
           },
         },
         operation: {
@@ -4006,7 +3858,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         deploymentType: {
           type: 'string',
           description:
-            'Deployment surface this result describes. For deploy_api and redeploy this is always "api".',
+            'Deployment surface this result describes. For deploy_as_api and redeploy this is always "api".',
         },
         examples: {
           type: 'object',
@@ -4249,6 +4101,50 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  run_enrichment: {
+    parameters: {
+      type: 'object',
+      properties: {
+        enrichmentId: {
+          type: 'string',
+          description:
+            "Which enrichment to run. Discover the full set and each one's inputs/outputs via table_enrichments.list_enrichments.",
+          enum: [
+            'work-email',
+            'phone-number',
+            'company-domain',
+            'company-info',
+            'email-verification',
+          ],
+        },
+        inputs: {
+          type: 'object',
+          description:
+            'Map of the enrichment\'s input id → value, e.g. { "fullName": "Jane Doe", "companyDomain": "acme.com" }. Provide a value for every required input.',
+        },
+      },
+      required: ['enrichmentId', 'inputs'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        matched: {
+          type: 'boolean',
+          description: 'True when a provider returned a non-empty result.',
+        },
+        provider: {
+          type: ['string', 'null'],
+          description:
+            'Internal label of the provider that produced the result (billing/diagnostics only — do NOT surface it to the user), or null on no match.',
+        },
+        result: {
+          type: 'object',
+          description: 'Mapped output values from the winning provider (empty object on no match).',
+        },
+      },
+      required: ['matched', 'result'],
+    },
+  },
   run_from_block: {
     parameters: {
       type: 'object',
@@ -4278,6 +4174,156 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['workflowId', 'startBlockId'],
+    },
+    resultSchema: undefined,
+  },
+  run_function: {
+    parameters: {
+      type: 'object',
+      properties: {
+        code: {
+          type: 'string',
+          description:
+            'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with pre-installed CLI tools. Use each needed secret as {{VAR_NAME}}; the reference resolves to the value exactly as stored.',
+        },
+        inputs: {
+          type: 'object',
+          description:
+            'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+          properties: {
+            directories: {
+              type: 'array',
+              description:
+                'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            files: {
+              type: 'array',
+              description: 'Workspace files to mount into the sandbox.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description:
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                  },
+                },
+                required: ['path'],
+              },
+            },
+            tables: {
+              type: 'array',
+              description: 'Workspace tables to mount as CSV files.',
+              items: {
+                type: 'object',
+                properties: {
+                  path: {
+                    type: 'string',
+                    description: 'Canonical VFS table path when available.',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description: 'Optional full sandbox path for the mounted CSV.',
+                  },
+                  tableId: {
+                    type: 'string',
+                    description: 'Workspace table ID.',
+                  },
+                },
+              },
+            },
+          },
+        },
+        language: {
+          type: 'string',
+          description: 'Execution language.',
+          enum: ['javascript', 'python', 'shell'],
+        },
+        outputTable: {
+          type: 'string',
+          description:
+            'Table ID to overwrite with the code\'s return value. Code MUST return an array of objects where keys match column names. All existing rows are replaced. Example: "tbl_abc123"',
+        },
+        outputs: {
+          type: 'object',
+          description:
+            'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+          properties: {
+            files: {
+              type: 'array',
+              description:
+                'File outputs. Missing parent folders are created automatically for create mode.',
+              items: {
+                type: 'object',
+                properties: {
+                  format: {
+                    type: 'string',
+                    description: 'Optional serialization format for returned values.',
+                    enum: ['json', 'csv', 'txt', 'md', 'html'],
+                  },
+                  mimeType: {
+                    type: 'string',
+                    description: 'Optional MIME type override when inference is not enough.',
+                  },
+                  mode: {
+                    type: 'string',
+                    description: 'Create a new file or overwrite an existing file at path.',
+                    enum: ['create', 'overwrite'],
+                  },
+                  path: {
+                    type: 'string',
+                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
+                  },
+                  sandboxPath: {
+                    type: 'string',
+                    description:
+                      'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                  },
+                },
+                required: ['path', 'mode'],
+              },
+            },
+          },
+        },
+        sandboxId: {
+          type: 'string',
+          description:
+            'Optional Sim sandbox id from agent/sandboxes/{name}.json. DEFAULT-FIRST: omit this whenever the documented default run_function environment can do the job. Select a ready existing Sim sandbox only when a required third-party dependency, Debian system package, or managed CLI is known to be absent, or a default attempt failed specifically because it was missing. Never guess an id.',
+        },
+        timeout: {
+          type: 'number',
+          description:
+            'Maximum execution time in SECONDS (Sim converts to milliseconds). The sandbox stops execution and returns a timeout error after this duration. Defaults to 10 seconds and is capped at 300 seconds regardless of plan.',
+          default: 10,
+        },
+        title: {
+          type: 'string',
+          description:
+            'Short user-visible label for this execution, e.g. "Clean customer CSV", "Revenue chart", or "Query GitHub issues".',
+        },
+      },
+      required: ['code'],
     },
     resultSchema: undefined,
   },
@@ -4368,24 +4414,27 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  scrape_page: {
+  save_upload: {
     parameters: {
       type: 'object',
       properties: {
-        include_links: {
-          type: 'boolean',
-          description: 'Extract all links from the page (default false)',
+        fileNames: {
+          type: 'array',
+          description:
+            'The names of the uploaded files to materialize (e.g. ["report.pdf", "data.csv"])',
+          items: {
+            type: 'string',
+          },
         },
-        url: {
+        operation: {
           type: 'string',
-          description: 'The URL to scrape (must include https://)',
-        },
-        wait_for: {
-          type: 'string',
-          description: 'CSS selector to wait for before scraping (for JS-heavy pages)',
+          description:
+            'What to do with the file. "save" promotes it to a permanent files/ path. "import" imports a workflow JSON as a workspace workflow. "extract" decompresses a .zip upload into files/<archive>/. Defaults to "save".',
+          enum: ['save', 'import', 'extract'],
+          default: 'save',
         },
       },
-      required: ['url'],
+      required: ['fileNames'],
     },
     resultSchema: undefined,
   },
@@ -4400,25 +4449,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['task'],
       type: 'object',
-    },
-    resultSchema: undefined,
-  },
-  search_documentation: {
-    parameters: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'string',
-          description: 'The search query',
-        },
-        topK: {
-          type: 'number',
-          description:
-            'Number of results to return (default 10). Not clamped — keep it small, since each result is a full doc chunk.',
-          default: 10,
-        },
-      },
-      required: ['query'],
     },
     resultSchema: undefined,
   },
@@ -4519,65 +4549,22 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  search_online: {
+  search_sim_docs: {
     parameters: {
       type: 'object',
       properties: {
-        category: {
-          type: 'string',
-          description: 'Filter by category',
-          enum: [
-            'news',
-            'tweet',
-            'github',
-            'company',
-            'research paper',
-            'linkedin profile',
-            'pdf',
-            'personal site',
-          ],
-        },
-        include_text: {
-          type: 'boolean',
-          description: 'Include page text content (default true)',
-        },
-        num_results: {
-          type: 'number',
-          description: 'Number of results (default 10, max 25)',
-        },
         query: {
           type: 'string',
-          description: 'Natural language search query',
+          description: 'The search query',
         },
-        toolTitle: {
-          type: 'string',
+        topK: {
+          type: 'number',
           description:
-            "Required short UI label fragment (e.g. 'Slack integrations'), not a full sentence.",
+            'Number of results to return (default 10). Not clamped — keep it small, since each result is a full doc chunk.',
+          default: 10,
         },
       },
-      required: ['query', 'toolTitle'],
-    },
-    resultSchema: undefined,
-  },
-  search_patterns: {
-    parameters: {
-      type: 'object',
-      properties: {
-        limit: {
-          type: 'integer',
-          description: 'Maximum number of pattern examples to return per query (defaults to 3).',
-        },
-        queries: {
-          type: 'array',
-          description:
-            'Up to 3 descriptive strings explaining the workflow pattern(s) you need. Focus on intent and desired outcomes.',
-          items: {
-            type: 'string',
-            description: 'Example: "how to automate wealthbox meeting notes into follow-up tasks"',
-          },
-        },
-      },
-      required: ['queries'],
+      required: ['query'],
     },
     resultSchema: undefined,
   },
@@ -5322,6 +5309,88 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
+  table_views: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description: 'Arguments for the operation',
+          properties: {
+            filter: {
+              type: 'object',
+              description:
+                'Saved row predicate, same grammar as query_rows filters: {"all":[...]} / {"any":[...]} of {field, op, value} leaves with exact column NAMES. Omit or null for an unfiltered view.',
+            },
+            hiddenColumns: {
+              type: 'array',
+              description:
+                'Column names to hide in the UI when this view is active. Display-only — queries through the view still return every column.',
+              items: {
+                type: 'string',
+              },
+            },
+            isDefault: {
+              type: 'boolean',
+              description:
+                "Make this view the table's default (at most one per table; setting it clears the previous default).",
+            },
+            name: {
+              type: 'string',
+              description:
+                "View display name (required for create_view; optional rename on update_view). Free-form label, need not be unique — prefer distinct names so query_user_table's view argument can use them unambiguously.",
+            },
+            sort: {
+              type: 'array',
+              description:
+                'Saved ordered sort spec, e.g. [{"field":"due","direction":"asc"}], column NAMES. Omit or null for default ordering.',
+            },
+            tableId: {
+              type: 'string',
+              description: 'Table ID (required for every operation)',
+            },
+            viewId: {
+              type: 'string',
+              description:
+                'View ID (required for get_view, update_view, delete_view, set_default_view)',
+            },
+          },
+          required: ['tableId'],
+        },
+        operation: {
+          type: 'string',
+          description: 'The view operation to perform',
+          enum: [
+            'list_views',
+            'get_view',
+            'create_view',
+            'update_view',
+            'delete_view',
+            'set_default_view',
+          ],
+        },
+      },
+      required: ['operation', 'args'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Operation-specific result payload.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome summary.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the operation succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
+  },
   terminal: {
     parameters: {
       type: 'object',
@@ -5453,7 +5522,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         version: {
           type: 'number',
           description:
-            'The numeric deployment version number to update (use get_deployment_log to find it).',
+            'The numeric deployment version number to update (use list_deployment_versions to find it).',
         },
         workflowId: {
           type: 'string',
@@ -5883,6 +5952,130 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  web_crawl: {
+    parameters: {
+      type: 'object',
+      properties: {
+        exclude_paths: {
+          type: 'array',
+          description: 'Skip URLs matching these patterns',
+          items: {
+            type: 'string',
+          },
+        },
+        include_paths: {
+          type: 'array',
+          description: 'Only crawl URLs matching these patterns',
+          items: {
+            type: 'string',
+          },
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum pages to crawl (default 10, max 50)',
+        },
+        max_depth: {
+          type: 'number',
+          description: 'How deep to follow links (default 2)',
+        },
+        url: {
+          type: 'string',
+          description: 'Starting URL to crawl from',
+        },
+      },
+      required: ['url'],
+    },
+    resultSchema: undefined,
+  },
+  web_fetch: {
+    parameters: {
+      type: 'object',
+      properties: {
+        include_highlights: {
+          type: 'boolean',
+          description: 'Include key highlights (default false)',
+        },
+        include_summary: {
+          type: 'boolean',
+          description: 'Include AI-generated summary (default false)',
+        },
+        include_text: {
+          type: 'boolean',
+          description: 'Include full page text (default true)',
+        },
+        urls: {
+          type: 'array',
+          description: 'URLs to get content from (max 10)',
+          items: {
+            type: 'string',
+          },
+        },
+      },
+      required: ['urls'],
+    },
+    resultSchema: undefined,
+  },
+  web_scrape: {
+    parameters: {
+      type: 'object',
+      properties: {
+        include_links: {
+          type: 'boolean',
+          description: 'Extract all links from the page (default false)',
+        },
+        url: {
+          type: 'string',
+          description: 'The URL to scrape (must include https://)',
+        },
+        wait_for: {
+          type: 'string',
+          description: 'CSS selector to wait for before scraping (for JS-heavy pages)',
+        },
+      },
+      required: ['url'],
+    },
+    resultSchema: undefined,
+  },
+  web_search: {
+    parameters: {
+      type: 'object',
+      properties: {
+        category: {
+          type: 'string',
+          description: 'Filter by category',
+          enum: [
+            'news',
+            'tweet',
+            'github',
+            'company',
+            'research paper',
+            'linkedin profile',
+            'pdf',
+            'personal site',
+          ],
+        },
+        include_text: {
+          type: 'boolean',
+          description: 'Include page text content (default true)',
+        },
+        num_results: {
+          type: 'number',
+          description: 'Number of results (default 10, max 25)',
+        },
+        query: {
+          type: 'string',
+          description: 'Natural language search query',
+        },
+        toolTitle: {
+          type: 'string',
+          description:
+            "Required short UI label fragment (e.g. 'Slack integrations'), not a full sentence.",
+        },
+      },
+      required: ['query', 'toolTitle'],
+    },
+    resultSchema: undefined,
+  },
   workflow: {
     parameters: {
       properties: {
@@ -5908,128 +6101,5 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       type: 'object',
     },
     resultSchema: undefined,
-  },
-  workspace_file: {
-    parameters: {
-      type: 'object',
-      properties: {
-        operation: {
-          type: 'string',
-          description: 'The file operation to perform.',
-          enum: ['append', 'update', 'patch'],
-        },
-        target: {
-          type: 'object',
-          description: 'Explicit file target. Use kind=path + path for existing files.',
-          properties: {
-            kind: {
-              type: 'string',
-              description: 'How the file target is identified.',
-              enum: ['path'],
-            },
-            path: {
-              type: 'string',
-              description:
-                'Canonical existing workspace file VFS path, e.g. "files/Reports/report.md". Required when target.kind=path.',
-            },
-          },
-          required: ['kind'],
-        },
-        title: {
-          type: 'string',
-          description:
-            'Required short UI label for this content unit, e.g. "Chapter 1", "Slide 3", or "Fix footer spacing".',
-        },
-        contentType: {
-          type: 'string',
-          description:
-            'Optional MIME type override. Usually omit and let the system infer from the target file extension.',
-          enum: [
-            'text/markdown',
-            'text/html',
-            'text/plain',
-            'application/json',
-            'text/csv',
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/pdf',
-          ],
-        },
-        edit: {
-          type: 'object',
-          description:
-            'Patch metadata. Use strategy=search_replace for exact text replacement, or strategy=anchored for line-based inserts/replacements/deletions. The actual replacement/insert content is provided via the paired edit_content tool call.',
-          properties: {
-            after_anchor: {
-              type: 'string',
-              description:
-                'Boundary line kept after inserted replacement content. Required for mode=replace_between.',
-            },
-            anchor: {
-              type: 'string',
-              description:
-                'Anchor line after which new content is inserted. Required for mode=insert_after.',
-            },
-            before_anchor: {
-              type: 'string',
-              description:
-                'Boundary line kept before inserted replacement content. Required for mode=replace_between.',
-            },
-            end_anchor: {
-              type: 'string',
-              description: 'First line to keep after deletion. Required for mode=delete_between.',
-            },
-            mode: {
-              type: 'string',
-              description: 'Anchored edit mode when strategy=anchored.',
-              enum: ['replace_between', 'insert_after', 'delete_between'],
-            },
-            occurrence: {
-              type: 'number',
-              description: '1-based occurrence for repeated anchor lines. Optional; defaults to 1.',
-            },
-            replaceAll: {
-              type: 'boolean',
-              description:
-                'When true and strategy=search_replace, replace every match instead of requiring a unique single match.',
-            },
-            search: {
-              type: 'string',
-              description:
-                'Exact text to find when strategy=search_replace. Must match exactly once unless replaceAll=true.',
-            },
-            start_anchor: {
-              type: 'string',
-              description: 'First line to delete. Required for mode=delete_between.',
-            },
-            strategy: {
-              type: 'string',
-              description: 'Patch strategy.',
-              enum: ['search_replace', 'anchored'],
-            },
-          },
-        },
-      },
-      required: ['operation', 'target', 'title'],
-    },
-    resultSchema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          description:
-            'Optional operation metadata such as file id, file name, size, and content type.',
-        },
-        message: {
-          type: 'string',
-          description: 'Human-readable summary of the outcome.',
-        },
-        success: {
-          type: 'boolean',
-          description: 'Whether the file operation succeeded.',
-        },
-      },
-      required: ['success', 'message'],
-    },
   },
 }

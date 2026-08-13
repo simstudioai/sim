@@ -87,6 +87,7 @@ import {
   serializeSandboxCatalog,
   serializeSkill,
   serializeTableMeta,
+  serializeTableViews,
   serializeTriggerOverview,
   serializeTriggerSchema,
   serializeVersions,
@@ -125,6 +126,12 @@ import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { listTables } from '@/lib/table/service'
+import {
+  listTableViewsByWorkspace,
+  normalizeStoredViewConfig,
+  pruneViewConfig,
+  viewConfigIdsToNames,
+} from '@/lib/table/views/service'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { findWorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type {
@@ -1941,15 +1948,43 @@ export class WorkspaceVFS {
    */
   private async materializeTables(workspaceId: string): Promise<WorkspaceMdData['tables']> {
     try {
-      const [tables, folderPaths] = await Promise.all([
+      const [tables, folderPaths, viewsByTable] = await Promise.all([
         listTables(workspaceId),
         this.registerResourceFolders(workspaceId, 'table', 'tables'),
+        listTableViewsByWorkspace(workspaceId),
       ])
 
       for (const table of tables) {
         const safeName = sanitizeName(table.name)
         const folderPath = table.folderId ? folderPaths.get(table.folderId) : undefined
         const prefix = folderPath ? `tables/${folderPath}/${safeName}` : `tables/${safeName}`
+        const viewRows = viewsByTable.get(table.id) ?? []
+        if (viewRows.length > 0) {
+          const columns = table.schema.columns
+          this.files.set(
+            `${prefix}/views.json`,
+            serializeTableViews(
+              viewRows.map((row) => {
+                const config = viewConfigIdsToNames(
+                  pruneViewConfig(
+                    normalizeStoredViewConfig(row.config as Record<string, unknown>),
+                    columns
+                  ),
+                  columns
+                )
+                return {
+                  id: row.id,
+                  name: row.name,
+                  isDefault: row.isDefault,
+                  filter: config.filter ?? null,
+                  sort: config.sort ?? null,
+                  hiddenColumns: config.hiddenColumns,
+                  updatedAt: row.updatedAt,
+                }
+              })
+            )
+          )
+        }
         this.files.set(
           `${prefix}/meta.json`,
           serializeTableMeta({

@@ -184,7 +184,7 @@ describe('readChatUpload', () => {
 
     const result = await readChatUpload('bundle.zip', CHAT_ID)
 
-    expect(result?.content).toContain('materialize_file')
+    expect(result?.content).toContain('save_upload')
     expect(result?.content).toContain('extract')
     expect(mockReadFileRecord).not.toHaveBeenCalled()
   })
@@ -200,7 +200,7 @@ describe('readChatUpload', () => {
 
     const result = await readChatUpload('huge.zip', CHAT_ID)
 
-    expect(result?.content).toContain('materialize_file')
+    expect(result?.content).toContain('save_upload')
     expect(mockFetchBuffer).not.toHaveBeenCalled()
     expect(mockReadFileRecord).not.toHaveBeenCalled()
   })
@@ -243,7 +243,7 @@ describe('grepChatUpload', () => {
     const error = await grepChatUpload('bundle.zip', CHAT_ID, 'foo').catch((e) => e)
 
     expect(error).toBeInstanceOf(WorkspaceFileGrepError)
-    expect(error.message).toContain('materialize_file')
+    expect(error.message).toContain('save_upload')
     expect(error.message).toContain('extract')
     expect(mockReadFileRecord).not.toHaveBeenCalled()
   })

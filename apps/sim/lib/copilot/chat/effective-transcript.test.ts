@@ -242,7 +242,7 @@ describe('buildEffectiveChatTranscript', () => {
             payload: {
               phase: 'result',
               toolCallId: 'tool-1',
-              toolName: 'workspace_file',
+              toolName: 'prepare_file_edit',
               executor: 'go',
               mode: 'sync',
               success: false,
@@ -262,7 +262,7 @@ describe('buildEffectiveChatTranscript', () => {
         type: MothershipStreamV1EventType.tool,
         toolCall: expect.objectContaining({
           id: 'tool-1',
-          name: 'workspace_file',
+          name: 'prepare_file_edit',
           state: MothershipStreamV1CompletionStatus.cancelled,
         }),
       }),

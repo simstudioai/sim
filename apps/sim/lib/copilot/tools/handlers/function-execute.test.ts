@@ -247,7 +247,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     )
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
-      'function_execute',
+      'run_function',
       expect.objectContaining({
         envVars: { API_KEY: 'secret-value' },
         secretScope: 'selected',
@@ -272,7 +272,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
 
     expect(mockMaterializeCopilotCodeSecrets).not.toHaveBeenCalled()
     expect(mockExecuteTool).toHaveBeenCalledWith(
-      'function_execute',
+      'run_function',
       expect.objectContaining({ envVars: {}, secretScope: 'selected', mountedSecrets: [] }),
       { resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry) }
     )
@@ -295,7 +295,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
       names: ['TOKEN'],
     },
   ])(
-    'uses the shared $language compiler analysis before delegating source to function_execute',
+    'uses the shared $language compiler analysis before delegating source to run_function',
     async ({ language, code, names }) => {
       await executeFunctionExecute({ language, code }, context as never)
 
@@ -305,14 +305,14 @@ describe('executeFunctionExecute trace-secret provenance', () => {
         requestedNames: names,
       })
       expect(mockExecuteTool).toHaveBeenCalledWith(
-        'function_execute',
+        'run_function',
         expect.objectContaining({ code, language, mountedSecrets: names }),
         { resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry) }
       )
     }
   )
 
-  it('routes run_code shell commands through the same function_execute boundary', async () => {
+  it('routes run_code shell commands through the same run_function boundary', async () => {
     const code = 'printf %s "{{CLI_TOKEN}}"'
     const abortController = new AbortController()
 
@@ -332,7 +332,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
       requestedNames: ['CLI_TOKEN'],
     })
     expect(mockExecuteTool).toHaveBeenCalledWith(
-      'function_execute',
+      'run_function',
       expect.objectContaining({ code, language: 'shell', mountedSecrets: ['CLI_TOKEN'] }),
       {
         resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
@@ -342,7 +342,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     )
   })
 
-  it('uses the trusted Mothership profile for function_execute without accepting a param override', async () => {
+  it('uses the trusted Mothership profile for run_function without accepting a param override', async () => {
     await executeFunctionExecute(
       {
         code: 'return 1',
@@ -353,7 +353,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     )
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
-      'function_execute',
+      'run_function',
       expect.objectContaining({
         _context: expect.not.objectContaining({ sandboxProfile: expect.anything() }),
       }),
@@ -373,7 +373,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
 
     expect(mockHasWorkspaceSandboxAccess).toHaveBeenCalledWith('ws_1')
     expect(mockExecuteTool).toHaveBeenCalledWith(
-      'function_execute',
+      'run_function',
       expect.objectContaining({ sandboxId: 'sandbox-1' }),
       expect.objectContaining({ internalSandboxProfile: 'mothership' })
     )
@@ -1216,7 +1216,7 @@ describe('executeFunctionExecute unmountable namespaces', () => {
   it('keeps the uploads/ guidance intact', async () => {
     const message = await mountError({ inputFiles: ['uploads/report.json'] })
 
-    expect(message).toContain('materialize_file')
+    expect(message).toContain('save_upload')
   })
 
   it('still reports a genuine files/ miss as not found', async () => {

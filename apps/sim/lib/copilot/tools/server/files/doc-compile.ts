@@ -353,7 +353,7 @@ async function compileDocViaE2BPython(
 // `pptx`/`docx` instances, geometry constants, and fileId-based image helpers
 // (reading staged /home/user/inputs/<id> files). pptx also gets `iconImage`
 // (react-icons → sharp → PNG), which only works here because the E2B sandbox is
-// a full Linux VM. The agent's edit_content source runs inside an async IIFE so
+// a full Linux VM. The agent's apply_file_edit source runs inside an async IIFE so
 // top-level await (addImage/iconImage) works; the finalizer writes the binary.
 const PPTX_NODE_PREAMBLE = `
 const PptxGenJS = require('pptxgenjs');

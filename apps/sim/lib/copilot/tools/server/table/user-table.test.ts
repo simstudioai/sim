@@ -604,7 +604,7 @@ describe('userTableServerTool.import_file', () => {
     expect(mockBatchInsertRows).not.toHaveBeenCalled()
   })
 
-  it('points a chat-upload path at materialize_file instead of globbing files/', async () => {
+  it('points a chat-upload path at save_upload instead of globbing files/', async () => {
     mockResolveWorkspaceFileReference.mockResolvedValueOnce(null)
 
     const result = await userTableServerTool.execute(
@@ -616,7 +616,7 @@ describe('userTableServerTool.import_file', () => {
     )
 
     expect(result.success).toBe(false)
-    expect(result.message).toMatch(/materialize_file/)
+    expect(result.message).toMatch(/save_upload/)
     expect(result.message).not.toMatch(/glob\("files/)
   })
 

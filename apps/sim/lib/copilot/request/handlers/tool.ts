@@ -501,8 +501,8 @@ async function handleCallPhase(
   if (!toolCall) return
 
   // Capture the invoking subagent's channel id so the executor can thread it
-  // into the server tool context — this is what scopes the workspace_file ->
-  // edit_content intent handoff to one file subagent under concurrency.
+  // into the server tool context — this is what scopes the prepare_file_edit ->
+  // apply_file_edit intent handoff to one file subagent under concurrency.
   if (parentToolCallId) toolCall.parentToolCallId = parentToolCallId
 
   const readPath = typeof args?.path === 'string' ? args.path : undefined

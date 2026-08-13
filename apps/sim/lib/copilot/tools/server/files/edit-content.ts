@@ -30,10 +30,10 @@ type EditContentResult = {
 }
 
 export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentResult> = {
-  name: 'edit_content',
+  name: 'apply_file_edit',
   async execute(params: EditContentArgs, context?: ServerToolContext): Promise<EditContentResult> {
     if (!context?.userId) {
-      logger.error('Unauthorized attempt to use edit_content')
+      logger.error('Unauthorized attempt to use apply_file_edit')
       throw new Error('Authentication required')
     }
 
@@ -52,12 +52,12 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
           : undefined
 
     if (content === undefined) {
-      return { success: false, message: 'content is required for edit_content' }
+      return { success: false, message: 'content is required for apply_file_edit' }
     }
 
     // Consume the intent from THIS file subagent's channel (its outer tool_use
     // id), not just the latest in the message — otherwise two file agents
-    // writing concurrently would each grab whichever workspace_file landed last
+    // writing concurrently would each grab whichever prepare_file_edit landed last
     // and write their content into the wrong file. Falls back to latest-in-
     // message when no channel id is present (main-agent / legacy calls).
     const intent = await consumeLatestFileIntent(workspaceId, {
@@ -69,7 +69,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       return {
         success: false,
         message:
-          'No workspace_file context found. Call workspace_file first, wait for it to succeed, then call edit_content in the next step. Do not emit edit_content in parallel or in the same batch as workspace_file.',
+          'No prepare_file_edit context found. Call prepare_file_edit first, wait for it to succeed, then call apply_file_edit in the next step. Do not emit apply_file_edit in parallel or in the same batch as prepare_file_edit.',
       }
     }
 
@@ -259,7 +259,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
 
       const verb =
         operation === 'append' ? 'appended to' : operation === 'update' ? 'updated' : 'patched'
-      logger.info(`Workspace file ${verb} via copilot (edit_content)`, {
+      logger.info(`Workspace file ${verb} via copilot (apply_file_edit)`, {
         fileId: intent.fileId,
         name: fileRecord.name,
         operation,
@@ -284,7 +284,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
     } catch (error) {
       const safeMessage = messageForCopilotFileError(error, 'Failed to edit file content')
       const errorMessage = getErrorMessage(error, 'Unknown error occurred')
-      logger.error('Error in edit_content tool', {
+      logger.error('Error in apply_file_edit tool', {
         operation: intent.operation,
         fileId: intent.fileId,
         error: errorMessage,

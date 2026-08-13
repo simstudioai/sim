@@ -173,8 +173,8 @@ describe('resolveToolDisplay', () => {
   })
 
   it('falls back to a humanized tool label for generic tools', () => {
-    expect(resolveToolDisplay('deploy_api', ClientToolCallState.success)?.text).toBe(
-      'Executed Deploy API'
+    expect(resolveToolDisplay('deploy_as_api', ClientToolCallState.success)?.text).toBe(
+      'Executed Deploy As API'
     )
     expect(resolveToolDisplay('oauth-integrations', ClientToolCallState.success)?.text).toBe(
       'Executed OAuth Integrations'

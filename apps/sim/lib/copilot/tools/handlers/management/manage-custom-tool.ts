@@ -45,7 +45,7 @@ export async function executeManageCustomTool(
    * workspace — so a caller could name another workspace and have it
    * authorized against their own. `upsertCustomTools` does no authz of its own
    * (it only scopes queries by the id it is handed), so nothing downstream
-   * caught it. Matches manage_mcp_tool and manage_skill.
+   * caught it. Matches manage_mcp_connection and manage_skill.
    */
   const workspaceId = context.workspaceId
 

@@ -146,7 +146,7 @@ export async function writeWorkspaceFileByPath(args: {
   /**
    * Forwarded to {@link updateWorkspaceFileContent} on an overwrite. Defaults to `true` (stream a
    * markdown overwrite into any open collaborative editor). Pass `false` for a write whose content is
-   * only a placeholder — e.g. `create_file`'s empty shell, whose real content lands via a later write.
+   * only a placeholder — e.g. `create_empty_file`'s empty shell, whose real content lands via a later write.
    */
   syncLiveDoc?: boolean
   /** Private provenance for the exact bytes being written. */

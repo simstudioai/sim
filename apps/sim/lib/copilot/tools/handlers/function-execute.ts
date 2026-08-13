@@ -254,10 +254,10 @@ function unmountableNamespaceReason(filePath: string): string | null {
   const path = `${filePath.replace(/^\/+|\/+$/g, '')}/`
 
   if (path.startsWith('uploads/')) {
-    return 'uploads/ files are not mountable into the sandbox. Use materialize_file to save it to a files/... path first, then mount that canonical path.'
+    return 'uploads/ files are not mountable into the sandbox. Use save_upload to save it to a files/... path first, then mount that canonical path.'
   }
   if (path.startsWith('internal/tool-results/')) {
-    return 'tool-result artifacts are stored by the copilot backend, not in workspace storage, so read and grep reach them but the sandbox cannot. This path is correct — searching for a different one will not find anything. Either read or grep the artifact and inline the values you need in code, or re-run the tool that produced it with an output path under files/ (function_execute: outputs.files[].path, user_table: outputPath) and mount that files/... path.'
+    return 'tool-result artifacts are stored by the copilot backend, not in workspace storage, so read and grep reach them but the sandbox cannot. This path is correct — searching for a different one will not find anything. Either read or grep the artifact and inline the values you need in code, or re-run the tool that produced it with an output path under files/ (run_function: outputs.files[].path, user_table: outputPath) and mount that files/... path.'
   }
   if (path.startsWith('internal/')) {
     return 'internal/ paths are served by the copilot backend, not from workspace storage, so read and grep reach them but the sandbox cannot. This path is correct — read or grep it and inline the values you need in code instead of mounting it.'
@@ -417,7 +417,7 @@ export async function resolveInputFiles(
           `Input directory contains too many files (${descendants.length}). Maximum is ${MAX_MOUNTED_FILES}. Mount a smaller directory or individual files.`
         )
       }
-      logger.info('Mounting workspace directory for function_execute', {
+      logger.info('Mounting workspace directory for run_function', {
         vfsPath: dirPath,
         sandboxPath: mountRoot,
         fileCount: descendants.length,
@@ -745,7 +745,7 @@ export async function executeFunctionExecute(
     }
 
     try {
-      const result = await executeAppTool('function_execute', enrichedParams, {
+      const result = await executeAppTool('run_function', enrichedParams, {
         resolvedSecretTraceRegistry: mountedRegistry,
         ...(context.abortSignal ? { signal: context.abortSignal } : {}),
         ...(context.sandboxProfile ? { internalSandboxProfile: context.sandboxProfile } : {}),

@@ -3,7 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
-import { DownloadToWorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { DownloadFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -137,7 +137,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
   DownloadToWorkspaceFileArgs,
   DownloadToWorkspaceFileResult
 > = {
-  name: DownloadToWorkspaceFile.id,
+  name: DownloadFile.id,
   inputSchema: DownloadToWorkspaceFileArgsSchema,
   outputSchema: DownloadToWorkspaceFileResultSchema,
 

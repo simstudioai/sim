@@ -54,7 +54,7 @@ const MUTATE_CATEGORIES = new Set<string>(['files', 'workflows', 'tables', 'know
 
 const CATEGORY_REJECTIONS: Record<string, string> = {
   uploads:
-    'uploads/ files are chat-scoped and immutable. Use materialize_file to promote one into files/ first.',
+    'uploads/ files are chat-scoped and immutable. Use save_upload to promote one into files/ first.',
   'recently-deleted':
     'recently-deleted/ items cannot be moved or copied. Restore them with restore_resource first.',
 }

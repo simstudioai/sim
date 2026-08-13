@@ -1221,3 +1221,38 @@ export function serializeTriggerOverview(
   lines.push('')
   return lines.join('\n')
 }
+
+/**
+ * tables/{name}/views.json — the table's saved views in the column-NAME
+ * domain agents speak (stored configs are id-keyed; the caller translates).
+ * Layout-only fields (order, widths, pinned) are omitted: they are UI
+ * concerns and never change which rows a view selects.
+ */
+export function serializeTableViews(
+  views: Array<{
+    id: string
+    name: string
+    isDefault: boolean
+    filter?: unknown
+    sort?: unknown
+    hiddenColumns?: string[]
+    updatedAt: Date | string
+  }>
+): string {
+  return JSON.stringify(
+    {
+      views: views.map((view) => ({
+        id: view.id,
+        name: view.name,
+        isDefault: view.isDefault,
+        filter: view.filter ?? null,
+        sort: view.sort ?? null,
+        hiddenColumns: view.hiddenColumns?.length ? view.hiddenColumns : undefined,
+        updatedAt: view.updatedAt instanceof Date ? view.updatedAt.toISOString() : view.updatedAt,
+      })),
+      note: 'Query a view via query_user_table {operation: "query_rows", args: {tableId, view: "<view id>"}} — the saved filter ANDs with any extra filter you pass. Manage views via the table agent (table_views).',
+    },
+    null,
+    2
+  )
+}
