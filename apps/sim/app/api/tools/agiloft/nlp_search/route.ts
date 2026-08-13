@@ -73,7 +73,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
            * the two halves deliberately use different conventions. Do not
            * "correct" this to `parseEwRest` to match create.
            */
-          const payload = await readAlrestJson<Record<string, unknown>[]>(response)
+          const payload = await readAlrestJson<Record<string, unknown>[]>(response, params)
 
           /**
            * `result` is documented as an array, but a single-record or empty-object

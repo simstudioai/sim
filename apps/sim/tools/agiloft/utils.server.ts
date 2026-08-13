@@ -7,7 +7,12 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import type { AgiloftBaseParams, AgiloftCredentials } from '@/tools/agiloft/types'
-import { AGILOFT_LANG, agiloftAlrestBase, describeAgiloftError } from '@/tools/agiloft/utils'
+import {
+  AGILOFT_LANG,
+  agiloftAlrestBase,
+  describeAgiloftError,
+  redactAgiloftSecrets,
+} from '@/tools/agiloft/utils'
 import type { HttpMethod, ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgiloftAuthServer')
@@ -104,7 +109,12 @@ export async function agiloftLoginPinned(
     ),
   })
 
-  const text = await response.text()
+  /**
+   * Login posts the credentials in its form body, so an error page echoing the
+   * submitted parameters echoes them. Redacted while the text is still whole,
+   * before any of the messages below truncate it.
+   */
+  const text = redactAgiloftSecrets(await response.text(), params)
 
   if (!response.ok) {
     throw new Error(`Agiloft login failed (${response.status}): ${describeAgiloftError(text)}`)
@@ -237,12 +247,26 @@ export function isAgiloftRefusal(error: unknown): error is AgiloftAlrestError {
  * — whether it failed by status code, by `success: false`, or by returning
  * something that is not JSON at all.
  */
-export async function readAlrestJson<T>(response: SecureFetchResponse): Promise<T | undefined> {
-  const text = await response.text()
+export async function readAlrestJson<T>(
+  response: SecureFetchResponse,
+  credentials?: { login: string; password: string }
+): Promise<T | undefined> {
+  const rawText = await response.text()
+
+  /**
+   * Redacted here rather than by the caller, because the messages below embed a
+   * truncated slice of the body. Clipping first can cut through a credential and
+   * leave a prefix that a later full-value replace can no longer match, so the
+   * redaction has to happen while the text is still whole.
+   *
+   * `credentials` is passed by the operations that send them on the request
+   * itself; the rest authenticate with a bearer token and cannot echo one back.
+   */
+  const text = credentials ? redactAgiloftSecrets(rawText, credentials) : rawText
 
   let envelope: AlrestEnvelope<T>
   try {
-    envelope = JSON.parse(text)
+    envelope = JSON.parse(rawText)
   } catch {
     throw new AgiloftAlrestError(
       `Agiloft returned a non-JSON response (${response.status}): ${truncate(text, 300)}`
@@ -257,7 +281,9 @@ export async function readAlrestJson<T>(response: SecureFetchResponse): Promise<
         .join('; ') ||
       envelope.message ||
       describeAgiloftError(truncate(text, 300))
-    throw new AgiloftAlrestError(`Agiloft error: ${detail}`)
+    throw new AgiloftAlrestError(
+      `Agiloft error: ${credentials ? redactAgiloftSecrets(detail, credentials) : detail}`
+    )
   }
 
   return envelope.result

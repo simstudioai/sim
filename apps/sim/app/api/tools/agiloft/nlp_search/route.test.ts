@@ -222,3 +222,30 @@ describe('EWNLPSearch response', () => {
     expect(data.output.truncated).toBe(true)
   })
 })
+
+describe('EWNLPSearch credential handling at the truncation boundary', () => {
+  /**
+   * The shared alrest reader embeds a truncated slice of the body in its error.
+   * Clipping before redacting can cut through a credential and leave a prefix
+   * the route's later replace can no longer match, so the redaction has to
+   * happen while the text is still whole.
+   */
+  it('redacts a credential that would otherwise be clipped by truncation', async () => {
+    const filler = 'x'.repeat(290)
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      res({
+        ok: false,
+        status: 500,
+        text: `${filler}$password=${PLACEHOLDER_PASSWORD}`,
+      })
+    )
+
+    const response = await POST(createMockRequest('POST', baseBody))
+    const data = (await response.json()) as { error?: string }
+
+    expect(data.error).not.toContain(PLACEHOLDER_PASSWORD)
+    for (let cut = 6; cut < PLACEHOLDER_PASSWORD.length; cut++) {
+      expect(data.error).not.toContain(PLACEHOLDER_PASSWORD.slice(0, cut))
+    }
+  })
+})
