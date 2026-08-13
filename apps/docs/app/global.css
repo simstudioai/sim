@@ -1529,27 +1529,13 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   margin-bottom: 0.25rem !important;
 }
 
-/* Code examples in right column — wrap long lines instead of scrolling sideways.
-   fumadocs sizes the block with `w-max`, so it grows to its longest line inside
-   a ~400px scroller and `pre-wrap` alone never takes effect; the width cap is
-   what actually enables wrapping. `anywhere` breaks only a token that cannot
-   fit on its own line, unlike `break-all`, which would split every line at the
-   character that happens to land on the edge.
-   The right padding clears the floating copy button, which fumadocs positions
-   over the first line. */
-#nd-page:has(.api-page-header) pre {
-  width: 100% !important;
-  max-width: 100% !important;
-  padding-right: 2.25rem;
-  white-space: pre-wrap !important;
-  word-break: normal !important;
-  overflow-wrap: anywhere !important;
-}
-#nd-page:has(.api-page-header) pre code {
-  width: 100% !important;
-  word-break: normal !important;
-  overflow-wrap: anywhere !important;
-}
+/* Example-panel code scrolls sideways rather than wrapping, which is fumadocs'
+   own behaviour and is deliberate here: indentation carries the nesting depth
+   of a JSON body, and a wrapped continuation line restarts at column zero and
+   misreports that depth. A hanging indent would preserve it, but the lines are
+   laid out as flex rows and forcing them to blocks to get one breaks the line
+   rhythm. Long values are clipped instead, as they are in every other API
+   reference. */
 
 /* Status-code tabs in the example panel. These are numeric literals and read as
    code everywhere else on the page — including the Response header's own status
