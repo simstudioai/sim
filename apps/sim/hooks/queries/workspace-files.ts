@@ -521,6 +521,13 @@ export function useCloudStorageConfigured(enabled = true) {
     enabled,
     retry: false,
     staleTime: CLOUD_STORAGE_CONFIGURED_STALE_TIME,
+    /**
+     * Escapes the global `retryOnMount: false`: with an infinite `staleTime` and
+     * `retry: false`, one transient error leaves this query errored for the tab's lifetime,
+     * and the upload path reads "unknown" as "not configured" — disabling cloud uploads
+     * until a full reload. The key is global, so navigation cannot recover it.
+     */
+    retryOnMount: true,
   })
 }
 

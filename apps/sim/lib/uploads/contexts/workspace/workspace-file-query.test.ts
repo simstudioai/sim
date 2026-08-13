@@ -46,7 +46,10 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => 
   resolveWorkspaceFileFolderTarget: vi.fn(async () => null),
 }))
 
-import { queryWorkspaceFiles } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  listWorkspaceFiles,
+  queryWorkspaceFiles,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const WS = 'workspace-1'
 
@@ -203,5 +206,54 @@ describe('queryWorkspaceFiles', () => {
     await expect(
       queryWorkspaceFiles(WS, { ...DEFAULTS, sortBy: 'name', after: ['data.csv'] })
     ).rejects.toMatchObject({ code: 'validation' })
+  })
+})
+
+/**
+ * `listWorkspaceFiles` materializes a whole scope, so what it reads per row is
+ * multiplied by the size of the workspace. These assertions pin the two ways that
+ * stays bounded: the projection, and the optional row cap its one budgeted caller
+ * (the workspace layout's server seed) uses to detect an oversized workspace.
+ */
+describe('listWorkspaceFiles', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  const lastProjection = () =>
+    Object.keys((dbChainMockFns.select.mock.calls.at(-1)?.[0] ?? {}) as Record<string, unknown>)
+
+  it('projects only the columns the record mapper reads', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
+
+    await listWorkspaceFiles(WS)
+
+    const projected = lastProjection()
+    expect(projected).toEqual(
+      expect.arrayContaining(['id', 'key', 'originalName', 'sizeBytes', 'contentUpdatedAt'])
+    )
+    /** Columns no reader projects; `select()` would ship them for every row of the scan. */
+    expect(projected).not.toContain('context')
+    expect(projected).not.toContain('chatId')
+    expect(projected).not.toContain('messageId')
+    expect(projected).not.toContain('displayName')
+    expect(projected).not.toContain('secretProvenanceVersion')
+  })
+
+  it('reads the whole scope when no cap is given', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
+
+    await listWorkspaceFiles(WS)
+
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+  })
+
+  it('caps the rows read when the caller only needs to fit a budget', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
+
+    await listWorkspaceFiles(WS, { limit: 2 })
+
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
   })
 })

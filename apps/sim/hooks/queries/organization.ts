@@ -41,8 +41,8 @@ import {
 import { client } from '@/lib/auth/auth-client'
 import { isEnterprise, isPaid, isTeam } from '@/lib/billing/plan-helpers'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
-import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
 const logger = createLogger('OrganizationQueries')

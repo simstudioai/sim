@@ -11,17 +11,9 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
-import {
-  getCredential,
-  getOAuthToken,
-  refreshTokenIfNeeded,
-  resolveOAuthAccountId,
-  resolveServiceAccountToken,
-} from '@/lib/oauth/credential-service'
-import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
+import { getCredential, getOAuthToken } from '@/lib/oauth/credential-service'
+import { completeOAuthCredentialToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 
 export const dynamic = 'force-dynamic'
 
@@ -123,194 +115,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    if (!credentialId) {
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
-    }
-
-    const resolved = await resolveOAuthAccountId(credentialId)
-    if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
-      const authz = await authorizeCredentialUse(request, {
-        credentialId,
-        workflowId: workflowId ?? undefined,
-        requireWorkflowIdForInternal: false,
-        callerUserId,
-      })
-      if (!authz.ok) {
-        return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
-      }
-
-      const saActorId = authz.requesterUserId
-      const saWorkspaceId = resolved.workspaceId ?? authz.workspaceId ?? null
-      const emitServiceAccountAccess = () => {
-        if (!saActorId) return
-        recordAudit({
-          workspaceId: saWorkspaceId,
-          actorId: saActorId,
-          action: AuditAction.CREDENTIAL_ACCESSED,
-          resourceType: AuditResourceType.CREDENTIAL,
-          resourceId: resolved.credentialId ?? credentialId,
-          description: `Accessed service account credential for provider ${resolved.providerId ?? 'unknown'}`,
-          metadata: {
-            provider: resolved.providerId,
-            credentialType: 'service_account',
-          },
-          request,
-        })
-        captureServerEvent(
-          saActorId,
-          'credential_used',
-          {
-            credential_type: 'service_account',
-            provider_id: resolved.providerId ?? 'unknown',
-            ...(saWorkspaceId ? { workspace_id: saWorkspaceId } : {}),
-          },
-          saWorkspaceId ? { groups: { workspace: saWorkspaceId } } : undefined
-        )
-      }
-
-      try {
-        const result = await resolveServiceAccountToken(
-          resolved.credentialId,
-          resolved.providerId,
-          scopes ?? [],
-          impersonateEmail
-        )
-        emitServiceAccountAccess()
-        return NextResponse.json(
-          {
-            accessToken: result.accessToken,
-            cloudId: result.cloudId,
-            domain: result.domain,
-            instanceUrl: result.instanceUrl,
-            apiDomain: result.apiDomain,
-            authStyle: result.authStyle,
-          },
-          { status: 200 }
-        )
-      } catch (error) {
-        logger.error(`[${requestId}] Service account token error:`, error)
-        if (error instanceof TokenServiceAccountValidationError) {
-          // Classified provider outages are infra failures, not bad credentials.
-          if (error.code === 'provider_unavailable') {
-            return NextResponse.json(
-              { error: 'Credential provider is temporarily unavailable' },
-              { status: 502 }
-            )
-          }
-          // A stored host that no longer resolves is a configuration failure —
-          // surface the code so runtime consumers can say "check the host"
-          // instead of a generic auth error.
-          if (error.code === 'site_not_found') {
-            return NextResponse.json(
-              {
-                code: error.code,
-                error: 'Credential host not found — reconnect the credential with a valid host',
-              },
-              { status: 400 }
-            )
-          }
-          // A revoked/rotated-away or misconfigured stored secret — surface the
-          // code so runtime consumers can prompt to reconnect the credential
-          // rather than showing a generic auth failure.
-          if (error.code === 'invalid_credentials') {
-            return NextResponse.json(
-              {
-                code: error.code,
-                error: 'Credential rejected by the provider — reconnect the credential',
-              },
-              { status: 401 }
-            )
-          }
-        }
-        return NextResponse.json({ error: 'Failed to get service account token' }, { status: 401 })
-      }
-    }
-
-    const authz = await authorizeCredentialUse(request, {
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+    const result = await resolveCredentialToken(auth, {
+      requestId,
       credentialId,
       workflowId: workflowId ?? undefined,
-      requireWorkflowIdForInternal: false,
+      scopes,
+      impersonateEmail,
       callerUserId,
+      auditRequest: request,
     })
-    if (!authz.ok || !authz.credentialOwnerUserId) {
-      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
-    }
 
-    const resolvedCredentialId = authz.resolvedCredentialId || credentialId
-    const credential = await getCredential(
-      requestId,
-      resolvedCredentialId,
-      authz.credentialOwnerUserId
-    )
-
-    if (!credential) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-    }
-
-    const oauthActorId = authz.requesterUserId
-    const oauthWorkspaceId = authz.workspaceId ?? null
-
-    try {
-      const { accessToken } = await refreshTokenIfNeeded(
-        requestId,
-        credential,
-        resolvedCredentialId
-      )
-
-      if (oauthActorId) {
-        recordAudit({
-          workspaceId: oauthWorkspaceId,
-          actorId: oauthActorId,
-          action: AuditAction.CREDENTIAL_ACCESSED,
-          resourceType: AuditResourceType.CREDENTIAL,
-          resourceId: resolvedCredentialId,
-          description: `Accessed OAuth credential for provider ${credential.providerId}`,
-          metadata: {
-            provider: credential.providerId,
-            credentialType: 'oauth',
-          },
-          request,
-        })
-        captureServerEvent(
-          oauthActorId,
-          'credential_used',
-          {
-            credential_type: 'oauth',
-            provider_id: credential.providerId,
-            ...(oauthWorkspaceId ? { workspace_id: oauthWorkspaceId } : {}),
-          },
-          oauthWorkspaceId ? { groups: { workspace: oauthWorkspaceId } } : undefined
-        )
-      }
-
-      const instanceUrl = isSalesforceOAuthProviderId(credential.providerId)
-        ? extractSalesforceInstanceUrl(credential.scope)
-        : undefined
-
-      // Zoho Desk persists its data-center-specific REST base URL in the scope
-      // string (derived from the token response api_domain) so callers never
-      // assume a host. Surface it as apiDomain for tool param injection.
-      let apiDomain: string | undefined
-      if (credential.providerId === 'zoho-desk' && credential.scope) {
-        // Use the shared extractor, not a local regex: it also enforces https +
-        // the Zoho apex allowlist. This value is injected into EVERY tool call,
-        // so an unvalidated host here would receive the OAuth token.
-        apiDomain = extractZohoDeskBaseFromScope(credential.scope)
-      }
-
+    if (!result.ok) {
       return NextResponse.json(
-        {
-          accessToken,
-          idToken: credential.idToken || undefined,
-          ...(instanceUrl && { instanceUrl }),
-          ...(apiDomain && { apiDomain }),
-        },
-        { status: 200 }
+        { ...(result.code ? { code: result.code } : {}), error: result.error },
+        { status: result.status }
       )
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to refresh access token:`, error)
-      return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
     }
+
+    return NextResponse.json(result.token, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error getting access token`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -366,70 +189,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'No access token available' }, { status: 400 })
     }
 
-    const actorId = authz.requesterUserId
-    const workspaceId = authz.workspaceId ?? null
+    const result = await completeOAuthCredentialToken({
+      requestId,
+      credential,
+      resolvedCredentialId,
+      actorId: authz.requesterUserId,
+      workspaceId: authz.workspaceId ?? null,
+      auditRequest: request,
+    })
 
-    try {
-      const { accessToken } = await refreshTokenIfNeeded(
-        requestId,
-        credential,
-        resolvedCredentialId
-      )
-
-      if (actorId) {
-        recordAudit({
-          workspaceId,
-          actorId,
-          action: AuditAction.CREDENTIAL_ACCESSED,
-          resourceType: AuditResourceType.CREDENTIAL,
-          resourceId: resolvedCredentialId,
-          description: `Accessed OAuth credential for provider ${credential.providerId}`,
-          metadata: {
-            provider: credential.providerId,
-            credentialType: 'oauth',
-          },
-          request,
-        })
-        captureServerEvent(
-          actorId,
-          'credential_used',
-          {
-            credential_type: 'oauth',
-            provider_id: credential.providerId,
-            ...(workspaceId ? { workspace_id: workspaceId } : {}),
-          },
-          workspaceId ? { groups: { workspace: workspaceId } } : undefined
-        )
-      }
-
-      const instanceUrl = isSalesforceOAuthProviderId(credential.providerId)
-        ? extractSalesforceInstanceUrl(credential.scope)
-        : undefined
-
-      // Zoho Desk persists its data-center-specific REST base URL in the scope
-      // string (derived from the token response api_domain) so callers never
-      // assume a host. Surface it as apiDomain for tool param injection.
-      let apiDomain: string | undefined
-      if (credential.providerId === 'zoho-desk' && credential.scope) {
-        // Use the shared extractor, not a local regex: it also enforces https +
-        // the Zoho apex allowlist. This value is injected into EVERY tool call,
-        // so an unvalidated host here would receive the OAuth token.
-        apiDomain = extractZohoDeskBaseFromScope(credential.scope)
-      }
-
-      return NextResponse.json(
-        {
-          accessToken,
-          idToken: credential.idToken || undefined,
-          ...(instanceUrl && { instanceUrl }),
-          ...(apiDomain && { apiDomain }),
-        },
-        { status: 200 }
-      )
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to refresh access token:`, error)
-      return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
     }
+
+    return NextResponse.json(result.token, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching access token`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -61,7 +61,7 @@ import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { coerceValue } from '@/executor/utils/start-block'
-import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { scheduleUsageRefresh } from '@/hooks/queries/utils/invalidate-usage'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import {
   isExecutionStreamHttpError,
@@ -922,9 +922,7 @@ export function useWorkflowExecution() {
                 }
 
                 // Invalidate subscription queries to update usage
-                setTimeout(() => {
-                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
-                }, 1000)
+                scheduleUsageRefresh(queryClient)
 
                 safeEnqueue(encodeSSE({ event: 'final', data: result }))
                 // Note: Logs are already persisted server-side via execution-core.ts
@@ -1458,9 +1456,7 @@ export function useWorkflowExecution() {
                   setIsExecuting(activeWorkflowId, false)
                   setActiveBlocks(activeWorkflowId, new Set())
                 }
-                setTimeout(() => {
-                  queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
-                }, 1000)
+                scheduleUsageRefresh(queryClient)
               }
             },
 

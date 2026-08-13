@@ -832,6 +832,11 @@ function withOptimisticAutoFireExec(groups: WorkflowGroup[], row: TableRow): Tab
 /**
  * Apply a row-level transformation to all cached infinite row queries for this
  * table. Used for cell edits where positions don't change.
+ *
+ * Walks {@link tableKeys.infiniteRowsRoot} rather than `rowsRoot`: the latter is a
+ * shared parent, and handing this updater a `find` entry — a flat
+ * {@link TableFindResult}, not pages — throws on `old.pages` inside `onMutate`, so
+ * the whole cell edit would reject before reaching the server.
  */
 function patchCachedRows(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -839,7 +844,7 @@ function patchCachedRows(
   patchRow: (row: TableRow) => TableRow
 ) {
   queryClient.setQueriesData<InfiniteData<TableRowsResponse, TableRowsPageParam>>(
-    { queryKey: tableKeys.rowsRoot(tableId), exact: false },
+    { queryKey: tableKeys.infiniteRowsRoot(tableId), exact: false },
     (old) => {
       if (!old) return old
       return {
@@ -2187,7 +2192,7 @@ export async function snapshotAndMutateRows(
 ): Promise<RowsCacheSnapshots> {
   const scope = options?.onlyKey
     ? ({ queryKey: options.onlyKey, exact: true } as const)
-    : ({ queryKey: tableKeys.rowsRoot(tableId) } as const)
+    : ({ queryKey: tableKeys.infiniteRowsRoot(tableId) } as const)
   if (options?.cancelInFlight !== false) {
     await queryClient.cancelQueries(scope)
   }
