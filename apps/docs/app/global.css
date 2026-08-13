@@ -43,13 +43,10 @@ body {
   --text-base: 15px;
   --text-md: 16px;
 
-  /* Code-token size for the API reference: the type chips and the metadata
-     beside them. A step between --text-xs and --text-small, named because nine
-     rules have to agree on it. */
+  /* Code-token size for the API reference — a deliberate sixth step, between
+     --text-caption and --text-small, because the mono face reads small at 12px. */
   --text-code: 0.78125rem;
 
-  /* The monospace stack, resolved once. Declared here rather than repeated at
-     each callsite so a face change is one edit, not eleven. */
   --font-mono-stack: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
 }
@@ -144,7 +141,6 @@ body {
   --selection-dark: #264f78;
   --highlight-search-active: #f6ad55;
   --scrollbar-thumb-color: #c0c0c0;
-  --scrollbar-thumb-hover-color: #a8a8a8;
   --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
   --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.1);
   --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.11);
@@ -226,16 +222,13 @@ body {
   --code-line-number: #a8a8a8;
   --selection-bg: #264f78;
   --scrollbar-thumb-color: #5a5a5a;
-  --scrollbar-thumb-hover-color: #6a6a6a;
   --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
-/* Scrollbars — platform thumb tokens, transparent track.
-   Standard properties only: specifying a non-auto `scrollbar-width` or
-   `scrollbar-color` makes Chromium ignore every `::-webkit-scrollbar*` rule on
-   that element, and Firefox never supported them, so a webkit block here would
-   be dead everywhere it was meant to apply. Hover shading is not expressible
-   through the standard properties and is dropped rather than faked. */
+/* Scrollbars — platform thumb tokens, transparent track. A non-auto
+   `scrollbar-width`/`scrollbar-color` makes Chromium ignore every
+   `::-webkit-scrollbar*` rule on the element, so no webkit block here. Hover
+   shading is not expressible through the standard properties. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb-color) transparent;
@@ -908,10 +901,8 @@ video {
 }
 
 /* Ensure API reference pages use the same font as the rest of the docs.
-   `.font-mono` is excluded: parameter names, types, and paths are code tokens
-   and must stay monospace. Without the exclusion this rule outranks the
-   `.font-mono` class rule on specificity (id + element beats one class) and
-   every identifier on the page silently renders in the body sans face. */
+   `.font-mono` is excluded: this selector (id + element) outranks the
+   `.font-mono` class rule, so without it every code identifier renders sans. */
 #nd-page:has(.api-page-header),
 #nd-page:has(.api-page-header) h2,
 #nd-page:has(.api-page-header) h3,
@@ -1161,9 +1152,26 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   position: relative;
 }
 
-/* Status-code trigger. Sits directly beside the content-type label in the
-   Response header, so it carries the same face, size, and weight — the chevron
-   is what marks it as interactive, not extra typographic weight. */
+/* API-reference metadata face — the status trigger, the content-type label, the
+   `required` / `header` markers, and the status-code tabs. Defined once; each
+   consumer below adds only its own colour, content, and order. The `code.text-xs`
+   label further down needs `!important` to beat fumadocs and stays separate. */
+#nd-page:has(.api-page-header) button.response-section-dropdown-trigger,
+.response-section-dropdown-trigger,
+#nd-page:has(.api-page-header) span.response-section-content-type,
+.response-section-content-type,
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after,
+#nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::before,
+#nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after,
+#nd-page:has(.api-page-header) .flex.gap-3\.5.overflow-x-auto.not-prose > button {
+  font-size: var(--text-code);
+  line-height: 1.25rem;
+  font-weight: 400;
+  font-family: var(--font-mono-stack);
+}
+
+/* Status-code trigger — matches the content-type label beside it. */
 #nd-page:has(.api-page-header) button.response-section-dropdown-trigger,
 .response-section-dropdown-trigger {
   display: flex;
@@ -1171,22 +1179,18 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   gap: 0.25rem;
   height: 1.25rem;
   padding: 0 0.25rem;
-  font-size: var(--text-code);
-  line-height: 1.25rem;
-  font-weight: 400;
   color: var(--text-secondary);
   background: none;
   border: none;
   cursor: pointer;
   border-radius: 0.375rem;
   transition: color 0.15s;
-  font-family: var(--font-mono-stack);
 }
 /* Carries the same id-qualified prefix as the base rule above; without it the
    base rule outranks this one and the trigger never changes colour on hover. */
 #nd-page:has(.api-page-header) button.response-section-dropdown-trigger:hover,
 .response-section-dropdown-trigger:hover {
-  color: var(--color-fd-foreground);
+  color: var(--text-primary);
 }
 
 .response-section-chevron {
@@ -1234,7 +1238,7 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   color: var(--text-primary);
 }
 .response-section-dropdown-item-selected {
-  color: var(--color-fd-foreground);
+  color: var(--text-primary);
 }
 
 .response-section-check {
@@ -1242,20 +1246,15 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   height: 0.875rem;
 }
 
-/* Content-type label. The Response header renders this class while the Request
-   Body header renders a fumadocs `code.text-xs`; left alone the two sit at
-   different weights (400 vs 500) and faces, so the lower one reads lighter than
-   the upper one despite being the same string. Both are pinned here. */
+/* Content-type label. The Response header renders this class; the Request Body
+   header renders a fumadocs `code.text-xs`. Keep the two in sync — the same
+   string at different weights reads as one being lighter than the other. */
 #nd-page:has(.api-page-header) span.response-section-content-type,
 .response-section-content-type {
-  font-size: var(--text-code);
-  line-height: 1.25rem;
-  font-weight: 400;
   color: var(--text-secondary);
   background: none;
   border: none;
   padding: 0;
-  font-family: var(--font-mono-stack);
 }
 
 /* Response schema container — remove border to match Path Parameters style */
@@ -1280,18 +1279,20 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   order: 1;
 }
 
-/* Type token — order 2. One recipe for every shape the type slot takes:
-   a scalar (`string`), a union (`string | null`, a flex wrapper of links), and
-   a schema reference (`Workflow summary`, a button that opens the schema).
-   It reuses the docs inline-code recipe (--surface-4 + --border-1 + mono) so a
-   type reads as code wherever it appears, and the explicit 20px box height —
-   the platform ChipTag height — keeps a union the same height as a scalar
-   instead of the 26px its nested links would otherwise force. */
+/* Type token — order 2. Covers every shape the slot takes: scalar span, union
+   wrapper, schema-reference button, and the auth row's `::after` label. Reuses
+   the docs inline-code recipe, so a type reads as code wherever it appears; the
+   explicit 20px height keeps a union level with a scalar, which its nested
+   links would otherwise push to 26px. */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground,
 #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
-#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button),
+#nd-page:has(.api-page-header)
+  div.my-4
+  > .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground::after {
   order: 2;
   display: inline-flex;
   align-items: center;
@@ -1311,13 +1312,9 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   font-family: var(--font-mono-stack);
 }
 
-/* Union members and schema references carry their own underline, which makes
-   them read heavier than a plain scalar sitting in the identical box. Defer it
-   to hover so the affordance survives without breaking the row's even weight. */
-/* Nested union members inherit the token's own face and colour from the slot
-   above them. The reset must not be extended to a slot that *is* the button
-   (a schema reference), whose parent is the row — inheriting there would pull
-   the row's 14px sans back in and undo the token styling. */
+/* Underline deferred to hover so links don't read heavier than a plain scalar
+   in the same box. The button that *is* the slot needs its own rule: it cannot
+   `inherit`, which would pull the row's 14px sans back in. */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground
@@ -1343,10 +1340,8 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   text-underline-offset: 2px;
 }
 
-/* Union separator — a step below the members it divides, but still legible:
-   dimming the muted token further made `string | null` read as `string null`
-   on the dark chip fill, which loses the "or". Carries its own margin because
-   the slot has no gap. */
+/* Union separator — dimmed one step, no further: `string | null` started
+   reading as `string null` on the chip fill. Own margin; the slot has no gap. */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground
@@ -1360,10 +1355,8 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   display: none;
 }
 
-/* Required marker — order 3. Constraint metadata, not an error: it carries the
-   error *text* colour for scannability but no error fill, so a page of eight
-   required parameters does not read as eight alarms. Uncontained, so the type
-   token stays the only box on the row. */
+/* Required marker — order 3. Error text colour but no fill: eight required
+   params on one page should not read as eight alarms. */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
   content: "required";
@@ -1371,10 +1364,6 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   display: inline-flex;
   align-items: center;
   color: var(--badge-error-text);
-  font-size: var(--text-code);
-  line-height: 1.25rem;
-  font-weight: 400;
-  font-family: var(--font-mono-stack);
 }
 /* Optional "?" indicator — hide it */
 #nd-page:has(.api-page-header)
@@ -1398,11 +1387,9 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   > span.font-medium.font-mono.text-fd-primary {
   order: 1;
 }
-/* On an auth row the real type text is `<token>`, which is collapsed to zero
-   and replaced by the `::after` chip below. That makes this span a bare
-   wrapper, so it has to give up the whole type-token box it otherwise matches —
-   border and height included. Leaving those on wrapped the real chip in a
-   second, empty bordered box and pushed it right by the outer border and gap. */
+/* Auth rows collapse the real `<token>` text to zero and draw the chip in the
+   `::after` below, so this span is a bare wrapper: it must drop the type-token
+   box it matches, or the chip renders inside a second, empty bordered box. */
 #nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
@@ -1415,23 +1402,13 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   height: auto;
   line-height: 0;
 }
+/* Only the label — the box comes from the shared type-token rule above, which
+   this pseudo-element is a member of. */
 #nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground::after {
   content: "string";
-  font-size: var(--text-code);
-  line-height: 1;
-  font-weight: 400;
-  font-family: var(--font-mono-stack);
-  background-color: var(--surface-4);
-  border: 1px solid var(--border-1);
-  color: var(--text-body);
-  height: 1.25rem;
-  padding: 0 0.3125rem;
-  border-radius: 0.375rem;
-  display: inline-flex;
-  align-items: center;
 }
 
 /* "header" location via ::before on the auth flex row — uncontained metadata,
@@ -1442,10 +1419,6 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   display: inline-flex;
   align-items: center;
   color: var(--text-secondary);
-  font-size: var(--text-code);
-  line-height: 1.25rem;
-  font-weight: 400;
-  font-family: var(--font-mono-stack);
 }
 
 /* "required" marker via ::after on the auth flex row */
@@ -1455,17 +1428,10 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   display: inline-flex;
   align-items: center;
   color: var(--badge-error-text);
-  font-size: var(--text-code);
-  line-height: 1.25rem;
-  font-weight: 400;
-  font-family: var(--font-mono-stack);
 }
-/* Hide the trailing "In: header" line below an auth property — redundant with
-   the header marker on the row itself. Matched by position, not by shape:
-   fumadocs emits the description first and this line last, and every scheme
-   description in our specs mentions a status code, so a `p:has(> code)` match
-   also hides the description — which is the whole explanation of personal vs
-   workspace-scoped keys. */
+/* Hide the trailing "In: header" line — redundant with the header marker.
+   Matched by position, not shape: descriptions contain a `code` too (status
+   codes), so a bare `p:has(> code)` also hid the API-key description. */
 #nd-page:has(.api-page-header) div.my-4 .prose-no-margin > p:last-child:has(> code) {
   display: none !important;
 }
@@ -1493,10 +1459,8 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   border-color: var(--surface-active);
 }
 
-/* Body/Callback section "application/json" label — strip the inline-code chrome
-   and match `.response-section-content-type` exactly. These two render the same
-   string in the Request Body and Response headers; left divergent, the Response
-   one reads visibly lighter than the Request Body one on the same page. */
+/* Body/Callback "application/json" label — strip inline-code chrome and keep in
+   sync with `.response-section-content-type`; same string, two headers. */
 #nd-page:has(.api-page-header) .flex.gap-2.items-center.justify-between p.not-prose code.text-xs,
 #nd-page:has(.api-page-header) .flex.justify-between.gap-2.items-end p.not-prose code.text-xs {
   background: none !important;
@@ -1515,33 +1479,13 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   margin-bottom: 0.25rem !important;
 }
 
-/* Example-panel code scrolls sideways rather than wrapping, which is fumadocs'
-   own behaviour and is deliberate here: indentation carries the nesting depth
-   of a JSON body, and a wrapped continuation line restarts at column zero and
-   misreports that depth. A hanging indent would preserve it, but the lines are
-   laid out as flex rows and forcing them to blocks to get one breaks the line
-   rhythm. Long values are clipped instead, as they are in every other API
-   reference. */
+/* Example-panel code overflows rather than wraps: a wrapped line restarts at
+   column zero and misreports the JSON nesting depth. */
 
-/* Status-code tabs in the example panel. These are numeric literals and read as
-   code everywhere else on the page — including the Response header's own status
-   trigger — but fumadocs renders the strip in the body sans face. Language tabs
-   sit in a different container and stay sans: those are product names, not code. */
-#nd-page:has(.api-page-header) .flex.gap-3\.5.overflow-x-auto.not-prose > button {
-  font-family: var(--font-mono-stack);
-  font-size: var(--text-code);
-  font-weight: 400;
-}
-
-/* Any lucide glyph fumadocs still renders itself — the heading anchor and the
-   code-block copy button on API pages, and whatever else its chrome draws.
-   emcn strokes at 1.55 and lucide ships at 2, so those icons read noticeably
-   heavier than every icon around them.
-   Deliberately layout-wide rather than API-scoped: the goal is one icon weight
-   across the docs. The glyphs themselves can be replaced properly by passing
-   `renderHeading` and `renderCodeBlock` to `createAPIPage` — the app already
-   owns emcn-based Heading and CodeBlock components for MDX pages — which would
-   retire this rule. */
+/* fumadocs' own lucide glyphs (heading anchor, copy button) ship at stroke-width
+   2 while emcn strokes at 1.55, so they read heavier than everything near them.
+   Layout-wide on purpose: one icon weight across the docs. Retired once
+   createAPIPage is given renderHeading/renderCodeBlock. */
 #nd-docs-layout svg[class*="lucide"] {
   stroke-width: 1.55;
 }
@@ -1569,7 +1513,7 @@ div.not-prose.rounded-md.border.bg-fd-card.p-2 {
 div.rounded-xl.border.bg-fd-card.shadow-md:has(> [role="none"]) > svg {
   fill: none !important;
   color: var(--color-fd-foreground) !important;
-  stroke-width: 1.75 !important;
+  stroke-width: 1.55 !important;
   flex-shrink: 0;
   width: 1rem !important;
   height: 1rem !important;
