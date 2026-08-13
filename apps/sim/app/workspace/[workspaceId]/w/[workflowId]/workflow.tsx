@@ -4327,19 +4327,26 @@ const WorkflowContent = React.memo(
          * Focus the clicked block: animate the camera so the card centers in
          * the canvas frame. Plain clicks focus both regular cards and subflow
          * containers; multi-select keeps the camera still. Users who would
-         * rather keep their own framing turn this off in general settings.
-         * onNodeClick never fires after a drag.
+         * rather keep their own framing turn auto-focus off in general
+         * settings. onNodeClick never fires after a drag.
          */
         if (
           !embedded &&
           !isMultiSelect &&
-          isAutoFocusOnClickEnabled &&
           (node.type === 'workflowBlock' ||
             node.type === 'noteBlock' ||
             node.type === 'subflowNode')
         ) {
+          /**
+           * Marked whether or not the camera moves: with auto-focus on the
+           * click reframes the canvas, and with it off the click is the user
+           * deliberately keeping the framing they already have. Either way a
+           * later canvas re-init must not `fitView` over it.
+           */
           userFocusedWorkflowIdRef.current = activeWorkflowId ?? workflowIdParam
-          focusBlockInView(node)
+          if (isAutoFocusOnClickEnabled) {
+            focusBlockInView(node)
+          }
         }
       },
       [
