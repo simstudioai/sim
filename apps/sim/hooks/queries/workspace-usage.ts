@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { type QueryClient, useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   getWorkspaceCreditAvailabilityContract,
@@ -14,6 +14,19 @@ export const workspaceUsageKeys = {
     [...workspaceUsageKeys.creditAvailabilities(), workspaceId] as const,
   gates: () => [...workspaceUsageKeys.all, 'gate'] as const,
   gate: (workspaceId: string) => [...workspaceUsageKeys.gates(), workspaceId] as const,
+}
+
+/**
+ * Invalidates the workspace credit/usage reads after anything that moves the balance —
+ * a run that spends credits, a top-up, a plan change, or a usage-limit edit. Both
+ * families are keyed per workspace but derive from the same billing account, so the
+ * family prefixes (not a single workspace's key) are what has to be refetched.
+ */
+export function invalidateWorkspaceUsage(queryClient: QueryClient): Promise<void> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: workspaceUsageKeys.creditAvailabilities() }),
+    queryClient.invalidateQueries({ queryKey: workspaceUsageKeys.gates() }),
+  ]).then(() => undefined)
 }
 
 export const WORKSPACE_CREDIT_AVAILABILITY_STALE_TIME = 30 * 1000

@@ -27,7 +27,13 @@ export const scheduleKeys = {
   details: () => [...scheduleKeys.all, 'detail'] as const,
   schedule: (workflowId: string, blockId: string) =>
     [...scheduleKeys.details(), workflowId, blockId] as const,
-  byId: (scheduleId: string) => [...scheduleKeys.details(), scheduleId] as const,
+  /**
+   * By-id reads sit under their own segment rather than directly under `details()`:
+   * a bare `[...details(), scheduleId]` is a prefix of `schedule(scheduleId, blockId)`,
+   * so the two addressings of the same schedule would alias in the cache.
+   */
+  byIds: () => [...scheduleKeys.details(), 'by-id'] as const,
+  byId: (scheduleId: string) => [...scheduleKeys.byIds(), scheduleId] as const,
 }
 
 export type ScheduleData = WorkflowScheduleRow
@@ -196,7 +202,7 @@ export function useReactivateSchedule() {
         body: { action: 'reactivate' },
       })
 
-      return { workflowId, blockId, workspaceId }
+      return { scheduleId, workflowId, blockId, workspaceId }
     },
     onSuccess: ({ workflowId, blockId }) => {
       logger.info('Schedule reactivated', { workflowId, blockId })
@@ -206,9 +212,10 @@ export function useReactivateSchedule() {
     },
     onSettled: async (data) => {
       if (!data) return
-      const { workflowId, blockId, workspaceId } = data
+      const { scheduleId, workflowId, blockId, workspaceId } = data
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: scheduleKeys.schedule(workflowId, blockId) }),
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.byId(scheduleId) }),
         workspaceId
           ? queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
           : Promise.resolve(),

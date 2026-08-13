@@ -63,6 +63,7 @@ import { hasExecutionResult } from '@/executor/utils/errors'
 import { coerceValue } from '@/executor/utils/start-block'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { invalidateWorkspaceUsage } from '@/hooks/queries/workspace-usage'
 import {
   isExecutionStreamHttpError,
   SSEEventHandlerError,
@@ -924,6 +925,7 @@ export function useWorkflowExecution() {
                 // Invalidate subscription queries to update usage
                 setTimeout(() => {
                   queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
+                  void invalidateWorkspaceUsage(queryClient)
                 }, 1000)
 
                 safeEnqueue(encodeSSE({ event: 'final', data: result }))
@@ -1460,6 +1462,7 @@ export function useWorkflowExecution() {
                 }
                 setTimeout(() => {
                   queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
+                  void invalidateWorkspaceUsage(queryClient)
                 }, 1000)
               }
             },

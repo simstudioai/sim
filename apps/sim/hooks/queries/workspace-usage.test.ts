@@ -18,6 +18,7 @@ import {
 import {
   fetchWorkspaceCreditAvailability,
   fetchWorkspaceUsageGate,
+  invalidateWorkspaceUsage,
   WORKSPACE_CREDIT_AVAILABILITY_STALE_TIME,
   WORKSPACE_USAGE_GATE_STALE_TIME,
   workspaceUsageKeys,
@@ -64,5 +65,19 @@ describe('workspace usage gate query', () => {
       params: { id: 'workspace-b' },
       signal,
     })
+  })
+
+  it('invalidates both usage families so a spend or top-up refetches them', async () => {
+    const invalidateQueries = vi.fn().mockResolvedValue(undefined)
+    const queryClient = { invalidateQueries } as unknown as Parameters<
+      typeof invalidateWorkspaceUsage
+    >[0]
+
+    await invalidateWorkspaceUsage(queryClient)
+
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: workspaceUsageKeys.creditAvailabilities(),
+    })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: workspaceUsageKeys.gates() })
   })
 })
