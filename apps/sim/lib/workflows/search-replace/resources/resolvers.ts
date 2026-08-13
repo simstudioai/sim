@@ -146,7 +146,7 @@ function shouldPreferOverlappingMatch(
   return false
 }
 
-/** Kept indices for one overlap scope, plus the highest `range.end` among them. */
+/** Kept indices for one overlap scope, plus an upper bound on their `range.end`. */
 interface RangeMatchScopeBucket {
   indices: number[]
   maxEnd: number
@@ -168,11 +168,22 @@ function widenScopeBucket(bucket: RangeMatchScopeBucket, end: number): void {
  * insertion order and the scan stops at the first overlap, so this picks the
  * same candidate the linear scan did.
  *
- * `maxEnd` is the largest `range.end` currently kept in the bucket. A match
- * starting at or after it cannot overlap anything in that bucket, so the scan
- * is skipped. That keeps a single long field full of disjoint hits linear
- * instead of quadratic within its own bucket, to the extent its matches arrive
- * in ascending offset order; out-of-order producers just fall back to scanning.
+ * `maxEnd` is a monotonic high-water mark, not the exact current maximum: a
+ * replacement can swap in a range that ends earlier without lowering it. Only
+ * the upper bound is load-bearing. A match starting at or after it cannot
+ * overlap anything in the bucket, so the scan is skipped; a bound left too high
+ * only costs a scan that would have been skipped, never a wrong answer.
+ *
+ * Recomputing the exact maximum on every shrinking replacement is a net loss -
+ * it walks the bucket, which is the cost this is here to avoid, and staleness
+ * is capped at one token length because every range spans a matched token
+ * (`query.length`, or a reference's `rawValue.length`) rather than the field.
+ * Measured on the realistic overlap shape at 10k matches: 23ms as written,
+ * 45ms with the recompute, against 1010ms for the scan this replaced.
+ *
+ * The bound keeps a field full of disjoint hits linear instead of quadratic
+ * within its own bucket, to the extent its matches arrive in ascending offset
+ * order; out-of-order producers just fall back to scanning.
  *
  * It must be refreshed on the replacement path too, not only on append:
  * `shouldPreferOverlappingMatch` prefers the SHORTER range, and a shorter range
