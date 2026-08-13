@@ -138,6 +138,24 @@ describe('updateRow — partial merge', () => {
     expect(data?.values).not.toContain(JSON.stringify({ name: 'Alice', age: 31 }))
   })
 
+  it('holds only the patched keys to the strict policy when validating the merge', async () => {
+    // The merged row carries cells this request never sent. A legacy value in one
+    // of them belongs to an earlier write and must not decide this one.
+    const { coerceRowToSchema } = await import('@/lib/table/validation')
+    await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { age: 31 }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1'
+    )
+
+    expect(coerceRowToSchema).toHaveBeenCalledWith(
+      { name: 'Alice', age: 31 },
+      TABLE.schema,
+      'reject',
+      ['age']
+    )
+  })
+
   it('allows updating a single column without affecting others', async () => {
     const result = await updateRow(
       { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Bob' }, workspaceId: 'ws-1' },

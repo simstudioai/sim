@@ -136,11 +136,18 @@ describe('coerceRowToSchema — multiselect', () => {
     expect(data.col_tags).not.toEqual([])
   })
 
-  it('drops unmatched entries under the `null` policy', () => {
+  it('keeps the entries that resolve under the `null` policy', () => {
     const data: RowData = { col_tags: ['Alpha', 'opt_b', 'ghost'] }
     const result = coerceRowToSchema(data, schemaWith(multiselectColumn), 'null')
     expect(result.valid).toBe(true)
-    expect(data.col_tags).toBeNull()
+    expect(data.col_tags).toEqual(['opt_a', 'opt_b'])
+  })
+
+  it('nulls the cell under the `null` policy only when nothing resolves', () => {
+    const data: RowData = { col_tags: ['ghost'] }
+    const result = coerceRowToSchema(data, schemaWith(multiselectColumn), 'null')
+    expect(result.valid).toBe(true)
+    expect(data.col_tags).toEqual([])
   })
 
   it('wraps a single string into a one-element array', () => {
@@ -210,6 +217,51 @@ describe('coerceRowToSchema — uncoercible values are refused, not silently nul
   it('accepts an ISO-8601 string, which states its own unit', () => {
     const data: RowData = { col_d: '2020-09-13T12:26:40Z' }
     expect(coerceRowToSchema(data, schemaWith(dateColumn)).valid).toBe(true)
+  })
+
+  it('reads a bare epoch number as milliseconds under the `null` policy', () => {
+    const data: RowData = { col_d: 1600000000000 }
+    const result = coerceRowToSchema(data, schemaWith(dateColumn), 'null')
+    expect(result.valid).toBe(true)
+    expect(data.col_d).toBe('2020-09-13T12:26:40.000Z')
+  })
+
+  it('still nulls an out-of-range epoch number under the `null` policy', () => {
+    const data: RowData = { col_d: 1e20 }
+    const result = coerceRowToSchema(data, schemaWith(dateColumn), 'null')
+    expect(result.valid).toBe(true)
+    expect(data.col_d).toBeNull()
+  })
+})
+
+/**
+ * A partial update coerces the caller's patch and then validates the MERGED
+ * row, so the merged pass sees cells this write never touched. Those are
+ * storage, not caller input — a legacy cell that no longer fits its column must
+ * not fail an update of a different column, and must not be persisted either
+ * (the write only sends the patched keys).
+ */
+describe('coerceRowToSchema — merged row', () => {
+  const numberColumn: ColumnDefinition = { id: 'col_n', name: 'n', type: 'number' }
+  const stringColumn: ColumnDefinition = { id: 'col_s', name: 's', type: 'string' }
+  const schema = schemaWith(numberColumn, stringColumn)
+
+  it('does not fail an update over an untouched cell that no longer coerces', () => {
+    const merged: RowData = { col_n: 'legacy', col_s: 'new' }
+    const result = coerceRowToSchema(merged, schema, 'reject', ['col_s'])
+    expect(result.valid).toBe(true)
+  })
+
+  it('still refuses the same value when this write is the one supplying it', () => {
+    const merged: RowData = { col_n: 'legacy', col_s: 'new' }
+    const result = coerceRowToSchema(merged, schema, 'reject', ['col_n', 'col_s'])
+    expect(result.valid).toBe(false)
+    expect(merged.col_n).toBe('legacy')
+  })
+
+  it('treats every key as caller-supplied when no patch key set is given', () => {
+    const merged: RowData = { col_n: 'legacy', col_s: 'new' }
+    expect(coerceRowToSchema(merged, schema, 'reject').valid).toBe(false)
   })
 })
 

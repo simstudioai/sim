@@ -290,16 +290,44 @@ function coerceValueToColumnType(value: JsonValue, column: ColumnDefinition): Co
  *   in a 100k-row file must not fail the file. Nothing there has a caller to
  *   return a 400 to.
  *
- * A `required` column is never blanked under either policy — a null would fail
- * the required check immediately after.
+ * Under `null` a value the column type can still read lossily is kept rather
+ * than blanked — see `ColumnTypeDefinition.salvage`, which is why a CSV cell
+ * naming two live options and one deleted one imports as the two rather than as
+ * an empty cell. A `required` column is never blanked under either policy: a
+ * null would fail the required check immediately after.
  */
 export type UncoercibleValuePolicy = 'reject' | 'null'
+
+/**
+ * The keys of `data` this write's caller actually supplied, for when `data` is a
+ * MERGED row (stored cells overlaid with a patch) rather than the patch alone.
+ * Keys outside the set are pre-existing storage, so they fall back to the `null`
+ * policy whatever the caller's policy is: a legacy cell that no longer fits its
+ * column was written by an earlier request, and failing this one over it refuses
+ * an unrelated column's update — and, on a paged bulk job, refuses it after the
+ * earlier pages have already committed. The blanking stays in the in-memory
+ * copy; every merged-row caller persists only the patched keys.
+ *
+ * Omit it when every key in `data` is caller-supplied — a whole-row insert, or a
+ * patch validated on its own.
+ */
+export type PatchedKeys = ReadonlySet<string> | readonly string[]
+
+function policyResolver(
+  policy: UncoercibleValuePolicy,
+  patchedKeys: PatchedKeys | undefined
+): (key: string) => UncoercibleValuePolicy {
+  if (patchedKeys === undefined) return () => policy
+  const patched = patchedKeys instanceof Set ? patchedKeys : new Set(patchedKeys)
+  return (key) => (patched.has(key) ? policy : 'null')
+}
 
 /**
  * Coerces each present value in `data` toward its column's declared type **in
  * place**. Values that already match are untouched; unambiguous conversions
  * (e.g. `"1999"` → `1999`) are applied; values that cannot be coerced are
- * handled per {@link UncoercibleValuePolicy}.
+ * handled per {@link UncoercibleValuePolicy}, narrowed per key by
+ * {@link PatchedKeys}.
  *
  * Operates per-present-column, so it is safe on a partial patch (columns absent
  * from `data` are skipped — it never invents a missing-required-field error).
@@ -307,8 +335,10 @@ export type UncoercibleValuePolicy = 'reject' | 'null'
 export function coerceRowValues(
   data: RowData,
   schema: TableSchema,
-  policy: UncoercibleValuePolicy = 'reject'
+  policy: UncoercibleValuePolicy = 'reject',
+  patchedKeys?: PatchedKeys
 ): void {
+  const policyFor = policyResolver(policy, patchedKeys)
   for (const column of schema.columns) {
     const key = getColumnId(column)
     const value = data[key]
@@ -317,7 +347,14 @@ export function coerceRowValues(
     const coerced = coerceValueToColumnType(value, column)
     if (coerced.ok) {
       data[key] = coerced.value
-    } else if (policy === 'null' && !column.required) {
+      continue
+    }
+    if (policyFor(key) !== 'null') continue
+
+    const salvaged = columnTypeOf(column).salvage?.(value, column)
+    if (salvaged?.ok) {
+      data[key] = salvaged.value
+    } else if (!column.required) {
       data[key] = null
     }
   }
@@ -329,16 +366,19 @@ export function coerceRowValues(
  *
  * This is the write-path entry point — callers that persist a complete row use
  * it instead of {@link validateRowAgainstSchema} so the coercion and the check
- * that follows it can never disagree about what a cell holds. Callers persisting
- * only a partial patch should use {@link coerceRowValues} on the patch and
- * validate the merged row separately.
+ * that follows it can never disagree about what a cell holds.
+ *
+ * A caller validating a MERGED row — stored cells overlaid with a patch — passes
+ * the patch's keys as {@link PatchedKeys} so the strict policy applies to what
+ * this request sent and not to what was already there.
  */
 export function coerceRowToSchema(
   data: RowData,
   schema: TableSchema,
-  policy: UncoercibleValuePolicy = 'reject'
+  policy: UncoercibleValuePolicy = 'reject',
+  patchedKeys?: PatchedKeys
 ): ValidationResult {
-  coerceRowValues(data, schema, policy)
+  coerceRowValues(data, schema, policy, patchedKeys)
   return validateRowAgainstSchema(data, schema)
 }
 

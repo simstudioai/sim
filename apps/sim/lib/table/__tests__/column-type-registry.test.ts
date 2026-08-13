@@ -210,3 +210,53 @@ describe('metadata ownership', () => {
     }
   )
 })
+
+/**
+ * `salvage` is the escape hatch for the write paths that have no caller to
+ * answer: a computed cell, a CSV import row, the cell-write snapshot. There the
+ * alternative to a lossy reading is a blanked cell, so the registry may read
+ * looser than `coerce` — but only there, and only in that direction.
+ */
+describe('salvage — the machine-path reading', () => {
+  it('reads a bare epoch number as milliseconds for a date column', () => {
+    const column: ColumnDefinition = { name: 'd', type: 'date' }
+    expect(COLUMN_TYPE_REGISTRY.date.coerce(1700000000000 as never, column).ok).toBe(false)
+    expect(COLUMN_TYPE_REGISTRY.date.salvage?.(1700000000000 as never, column)).toEqual({
+      ok: true,
+      value: '2023-11-14T22:13:20.000Z',
+    })
+  })
+
+  it('refuses an out-of-range epoch rather than throwing on toISOString', () => {
+    const column: ColumnDefinition = { name: 'd', type: 'date' }
+    expect(COLUMN_TYPE_REGISTRY.date.salvage?.(1e20 as never, column)).toEqual({ ok: false })
+  })
+
+  it('keeps the resolvable members of a multiselect and drops the rest', () => {
+    const column: ColumnDefinition = {
+      id: 'col_tags',
+      name: 'tags',
+      type: 'select',
+      multiple: true,
+      options: [
+        { id: 'opt_a', name: 'Alpha' },
+        { id: 'opt_b', name: 'Beta' },
+      ],
+    }
+    expect(COLUMN_TYPE_REGISTRY.select.coerce(['Alpha', 'ghost'], column).ok).toBe(false)
+    expect(COLUMN_TYPE_REGISTRY.select.salvage?.(['Alpha', 'ghost'], column)).toEqual({
+      ok: true,
+      value: ['opt_a'],
+    })
+  })
+
+  it('has nothing partial to keep for a single select', () => {
+    const column: ColumnDefinition = {
+      id: 'col_status',
+      name: 'status',
+      type: 'select',
+      options: [{ id: 'opt_open', name: 'Open' }],
+    }
+    expect(COLUMN_TYPE_REGISTRY.select.salvage?.('ghost', column)).toEqual({ ok: false })
+  })
+})

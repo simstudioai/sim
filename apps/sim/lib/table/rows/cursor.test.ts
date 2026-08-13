@@ -192,3 +192,31 @@ describe('cursor↔filter binding', () => {
     expect(canonicalFilterKey({ filter: {} })).toBeUndefined()
   })
 })
+
+/**
+ * The filter stamp is additive, and the payload version is deliberately not
+ * bumped for it (see `CURSOR_VERSION`). These pin what a token minted by the
+ * previous deploy does when it is replayed after this one.
+ */
+describe('tokens minted before the filter stamp', () => {
+  function legacyToken(payload: Record<string, unknown>): string {
+    return Buffer.from(JSON.stringify({ ...payload, v: 1 })).toString('base64url')
+  }
+
+  it('still decodes, and still resumes an unfiltered read', () => {
+    const decoded = decodeCursor(legacyToken({ k: 'a1', i: 'row_1' }))
+    expect(decoded.after).toEqual({ orderKey: 'a1', id: 'row_1' })
+    expect(decoded.filterKey).toBeUndefined()
+    expect(() => assertCursorQueryBinding(decoded, {})).not.toThrow()
+  })
+
+  it('fails a filtered read with the filter conflict, not an unreadable cursor', () => {
+    const decoded = decodeCursor(legacyToken({ o: 100 }))
+    expect(() => assertCursorQueryBinding(decoded, { predicate: ACTIVE })).toThrow(
+      TableQueryValidationError
+    )
+    expect(() => assertCursorQueryBinding(decoded, { predicate: ACTIVE })).toThrow(
+      /Restart paging without the cursor/
+    )
+  })
+})
