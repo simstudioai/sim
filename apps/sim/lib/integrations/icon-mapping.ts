@@ -3,7 +3,7 @@
 // Maps block types to their icon component references for the integrations page
 
 import type { ComponentType, SVGProps } from 'react'
-import { Library } from '@sim/emcn/icons'
+import { Library, Rocket } from '@sim/emcn/icons'
 import {
   A2AIcon,
   AgentMailIcon,
@@ -135,6 +135,7 @@ import {
   LinkupIcon,
   LinqIcon,
   LogfireIcon,
+  LogRocketIcon,
   LoopsIcon,
   LumaIcon,
   MailchimpIcon,
@@ -203,7 +204,6 @@ import {
   ServiceNowIcon,
   SftpIcon,
   ShopifyIcon,
-  SimDeploymentsIcon,
   SimilarwebIcon,
   SimTriggerIcon,
   SixtyfourIcon,
@@ -305,7 +305,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   datadog: DatadogIcon,
   datagma: DatagmaIcon,
   daytona: DaytonaIcon,
-  deployments: SimDeploymentsIcon,
+  deployments: Rocket,
   devin: DevinIcon,
   discord: DiscordIcon,
   docusign: DocuSignIcon,
@@ -402,6 +402,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   linkup: LinkupIcon,
   linq: LinqIcon,
   logfire: LogfireIcon,
+  logrocket: LogRocketIcon,
   logs_v2: Library,
   loops: LoopsIcon,
   luma: LumaIcon,

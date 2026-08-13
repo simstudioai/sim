@@ -2450,6 +2450,14 @@ import {
   logfireSearchRecordsTool,
 } from '@/tools/logfire'
 import {
+  logrocketCreateReleaseTool,
+  logrocketGetAuditLogsTool,
+  logrocketGetHighlightsTool,
+  logrocketIdentifyUserTool,
+  logrocketListExportedSessionsTool,
+  logrocketRequestHighlightsTool,
+} from '@/tools/logrocket'
+import {
   logsGetExecutionTool,
   logsGetRunDetailsTool,
   logsGetTool,
@@ -5420,6 +5428,12 @@ export const tools: Record<string, ToolConfig> = {
   logfire_get_trace: logfireGetTraceTool,
   logfire_query: logfireQueryTool,
   logfire_search_records: logfireSearchRecordsTool,
+  logrocket_create_release: logrocketCreateReleaseTool,
+  logrocket_get_audit_logs: logrocketGetAuditLogsTool,
+  logrocket_get_highlights: logrocketGetHighlightsTool,
+  logrocket_identify_user: logrocketIdentifyUserTool,
+  logrocket_list_exported_sessions: logrocketListExportedSessionsTool,
+  logrocket_request_highlights: logrocketRequestHighlightsTool,
   logs_query: logsQueryTool,
   logs_query_runs: logsQueryRunsTool,
   logs_get: logsGetTool,

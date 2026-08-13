@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-12",
+  "updatedAt": "2026-08-13",
   "integrations": [
     {
       "type": "onepassword",
@@ -12044,6 +12044,49 @@
       "category": "tools",
       "integrationType": "observability",
       "tags": ["monitoring", "error-tracking", "incident-management"]
+    },
+    {
+      "type": "logrocket",
+      "slug": "logrocket",
+      "name": "LogRocket",
+      "description": "Summarize sessions, manage users, and tag releases in LogRocket",
+      "longDescription": "Integrate LogRocket into your workflow to request AI session highlights for a user, poll for the result, list exported session files, read the audit log, create or update user profiles, and register releases so source maps decode their stack traces.",
+      "bgColor": "#764ABC",
+      "iconName": "LogRocketIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/logrocket",
+      "operations": [
+        {
+          "name": "Request Highlights",
+          "description": "Start a Galileo session highlights job for a user. Returns a request ID to poll with LogRocket's Get Highlights operation."
+        },
+        {
+          "name": "Get Highlights",
+          "description": "Retrieve the result of a Galileo session highlights request. Status is PENDING until generation finishes, then READY or FAILED."
+        },
+        {
+          "name": "List Exported Sessions",
+          "description": "List exported session files from the LogRocket Data Export API. Returns download URLs for JSON Lines exports, oldest first, plus a cursor for the next page."
+        },
+        {
+          "name": "Get Audit Logs",
+          "description": "Export audit log entries from LogRocket, recording who viewed sessions and what actions were taken. Paginated with a cursor."
+        },
+        {
+          "name": "Identify User",
+          "description": "Create or update a LogRocket user profile with demographic, financial, and engagement traits."
+        },
+        {
+          "name": "Create Release",
+          "description": "Register a release version in LogRocket so uploaded source maps can decode stack traces for it. Fails with a conflict if the version already exists."
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "error-tracking", "data-analytics"]
     },
     {
       "type": "loops",
