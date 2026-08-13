@@ -539,6 +539,10 @@ export function useDeleteDocument() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
+      /** The knowledge-base list rows carry `docCount`, so removing a document changes them too. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.lists(),
+      })
     },
   })
 }
@@ -573,10 +577,16 @@ export function useBulkDocumentOperation() {
 
   return useMutation({
     mutationFn: bulkDocumentOperation,
-    onSettled: (_data, _error, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, operation }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
+      /** Only a bulk delete changes the `docCount` the knowledge-base list rows render. */
+      if (operation === 'delete') {
+        queryClient.invalidateQueries({
+          queryKey: knowledgeKeys.lists(),
+        })
+      }
     },
   })
 }

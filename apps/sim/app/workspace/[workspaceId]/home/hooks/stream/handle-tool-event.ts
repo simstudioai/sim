@@ -27,7 +27,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
-import { workflowKeys } from '@/hooks/queries/workflows'
+import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 
 type ToolEvent = Extract<PersistedStreamEventEnvelope, { type: 'tool' }>
 
@@ -58,7 +58,7 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
     if (deployedWorkflowId && typeof out?.isDeployed === 'boolean') {
       deps.queryClient.invalidateQueries({ queryKey: deploymentKeys.info(deployedWorkflowId) })
       deps.queryClient.invalidateQueries({ queryKey: deploymentKeys.versions(deployedWorkflowId) })
-      deps.queryClient.invalidateQueries({ queryKey: workflowKeys.list(deps.workspaceId) })
+      void invalidateWorkflowLists(deps.queryClient, deps.workspaceId)
     }
   }
 
@@ -66,7 +66,9 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
     deps.queryClient.invalidateQueries({ queryKey: folderKeys.list(deps.workspaceId) })
   }
   if (WORKFLOW_MUTATION_TOOL_NAMES.has(name) && isSuccess) {
-    deps.queryClient.invalidateQueries({ queryKey: workflowKeys.list(deps.workspaceId) })
+    // `rm` archives, so the archived list moves too — and the shared helper also
+    // refreshes the workflow selector lists that `@`-mentions and pickers read.
+    void invalidateWorkflowLists(deps.queryClient, deps.workspaceId, ['active', 'archived'])
   }
 
   const extractedResources =

@@ -11,6 +11,7 @@ import { readSSEStream } from '@/lib/core/utils/sse'
 import { shouldStripCodeFences, stripCodeFences } from '@/lib/wand/strip-code-fences'
 import type { GenerationType } from '@/blocks/types'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { invalidateWorkspaceUsage } from '@/hooks/queries/workspace-usage'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -302,6 +303,7 @@ export function useWand({
 
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
+          void invalidateWorkspaceUsage(queryClient)
         }, 1000)
       } catch (error: any) {
         if (error.name === 'AbortError') {
