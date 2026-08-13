@@ -70,7 +70,17 @@ export function useSelectorOptions(
     context: args.context,
     search: args.search,
   }
-  const isEnabled = args.enabled ?? (definition.enabled ? definition.enabled(queryArgs) : true)
+  /**
+   * `definition.enabled` mirrors the preconditions the definition's own `fetchList` /
+   * `fetchPage` assert (`ensureCredential`, `ensureKnowledgeBase`, an early `return []`),
+   * so it is a hard precondition for the *list*, not a default a caller may replace.
+   * A caller's `enabled` narrows further — it never widens — otherwise a card that only
+   * knows it has a selection runs a fetch that is guaranteed to reject and caches the
+   * rejection. Unlike {@link useSelectorOptionDetail}, resolving nothing here is never
+   * cheaper than the list's own preconditions, so there is no case for an override.
+   */
+  const isEnabled =
+    (args.enabled ?? true) && (definition.enabled ? definition.enabled(queryArgs) : true)
   const supportsPagination = Boolean(definition.fetchPage)
 
   const flatQuery = useQuery<SelectorOption[]>({
