@@ -117,6 +117,7 @@ export class RouterBlockHandler implements BlockHandler {
           credentialId: routerConfig.vertexCredential,
           actingUserId: ctx.userId,
           workspaceId: ctx.workspaceId,
+          workflowId: ctx.workflowId,
           callerLabel: 'vertex-router',
         })
       }
@@ -279,6 +280,7 @@ export class RouterBlockHandler implements BlockHandler {
           credentialId: routerConfig.vertexCredential,
           actingUserId: ctx.userId,
           workspaceId: ctx.workspaceId,
+          workflowId: ctx.workflowId,
           callerLabel: 'vertex-router',
         })
       }
