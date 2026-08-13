@@ -34,7 +34,7 @@ export default async function KnowledgePage({
    * data-layer reads need to authorize against.
    */
   const session = await getSession()
-  await prefetchKnowledgeBases(queryClient, workspaceId, session?.user?.id ?? '')
+  await prefetchKnowledgeBases(queryClient, workspaceId, session?.user?.id)
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

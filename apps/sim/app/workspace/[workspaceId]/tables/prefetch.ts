@@ -29,9 +29,9 @@ import { TABLE_LIST_STALE_TIME, tableKeys } from '@/hooks/queries/utils/table-ke
 export async function prefetchTables(
   queryClient: QueryClient,
   workspaceId: string,
-  userId: string
+  userId: string | undefined
 ): Promise<void> {
-  const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
+  const hostContext = userId ? await getWorkspaceHostContextForViewer(workspaceId, userId) : null
 
   await Promise.all([
     queryClient.prefetchQuery({

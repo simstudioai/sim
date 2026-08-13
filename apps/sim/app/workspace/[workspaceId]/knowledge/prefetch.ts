@@ -30,9 +30,9 @@ import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/u
 export async function prefetchKnowledgeBases(
   queryClient: QueryClient,
   workspaceId: string,
-  userId: string
+  userId: string | undefined
 ): Promise<void> {
-  const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
+  const hostContext = userId ? await getWorkspaceHostContextForViewer(workspaceId, userId) : null
 
   await Promise.all([
     queryClient.prefetchQuery({

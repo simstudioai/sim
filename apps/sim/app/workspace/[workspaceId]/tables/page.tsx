@@ -27,7 +27,7 @@ export default async function TablesPage({ params }: { params: Promise<{ workspa
    * data-layer reads need to authorize against.
    */
   const session = await getSession()
-  await prefetchTables(queryClient, workspaceId, session?.user?.id ?? '')
+  await prefetchTables(queryClient, workspaceId, session?.user?.id)
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
