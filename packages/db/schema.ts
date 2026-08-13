@@ -220,7 +220,7 @@ export const pinnedItem = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
-    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table' | 'folder'
+    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table' | 'folder' | 'workspace'
     resourceId: text('resource_id').notNull(),
     pinnedAt: timestamp('pinned_at').notNull().defaultNow(),
   },
@@ -294,6 +294,9 @@ export const workflowBlocks = pgTable(
     isWide: boolean('is_wide').notNull().default(false),
     advancedMode: boolean('advanced_mode').notNull().default(false),
     triggerMode: boolean('trigger_mode').notNull().default(false),
+    errorEnabled: boolean('error_enabled').notNull().default(false),
+    /** Opt-in {@link BlockRetryConfig}; NULL means the block never retries. */
+    retry: jsonb('retry'),
     locked: boolean('locked').notNull().default(false),
     height: decimal('height').notNull().default('0'),
 
@@ -408,7 +411,8 @@ export const workflowExecutionLogs = pgTable(
     ),
 
     level: text('level').notNull(), // 'info' | 'error'
-    status: text('status').notNull().default('running'), // 'running' | 'pending' | 'completed' | 'failed' | 'cancelled'
+    /** See `PERSISTED_WORKFLOW_EXECUTION_STATUSES` in `apps/sim/lib/logs/types.ts`. */
+    status: text('status').notNull().default('running'),
     trigger: text('trigger').notNull(), // 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 
     startedAt: timestamp('started_at').notNull(),
@@ -838,11 +842,6 @@ export const jobExecutionLogs = pgTable(
   })
 )
 
-/** Extracts the canonical credential ID persisted in webhook provider configuration. */
-export function webhookCredentialIdExpression(column: AnyPgColumn): SQL<string> {
-  return sql<string>`((${column})::jsonb ->> 'credentialId')`
-}
-
 export const webhook = pgTable(
   'webhook',
   {
@@ -861,15 +860,15 @@ export const webhook = pgTable(
     blockId: text('block_id'),
     /**
      * URL-addressable webhook path. NULL for shared-app providers (e.g. the
-     * native Slack OAuth trigger) whose events arrive on a single shared
+     * native Slack and TikTok triggers) whose events arrive on a single shared
      * endpoint and route by `routingKey` instead of a per-workflow path.
      */
     path: text('path'),
     /**
-     * Tenant routing key for shared-app providers. For `provider='slack_app'`
-     * this is the Slack `team_id`, derived server-side from the connected
-     * credential at deploy time — never user input. Inbound events match on
-     * this after HMAC verification.
+     * Tenant routing key for shared-app providers, such as Slack `team_id` or
+     * TikTok `open_id`, derived server-side from the connected credential at
+     * deploy time — never user input. Inbound events match on this after HMAC
+     * verification.
      */
     routingKey: text('routing_key'),
     provider: text('provider'), // e.g., "whatsapp", "github", etc.
@@ -901,11 +900,6 @@ export const webhook = pgTable(
       providerActiveWorkflowDeploymentIdx: index(
         'idx_webhook_on_provider_is_active_workflow_id_deploym_bdeed5468'
       ).on(table.provider, table.isActive, table.workflowId, table.deploymentVersionId),
-      tiktokCredentialIdIdx: index('webhook_tiktok_credential_id_idx')
-        .on(webhookCredentialIdExpression(table.providerConfig))
-        .where(
-          sql`${table.provider} = 'tiktok' AND ${table.isActive} = true AND ${table.archivedAt} IS NULL`
-        ),
       workflowBlockUpdatedDescIdx: index('idx_webhook_on_workflow_id_block_id_updated_at_desc').on(
         table.workflowId,
         table.blockId,
@@ -1624,6 +1618,15 @@ export const workspace = pgTable(
     forkedFromWorkspaceIdx: index('workspace_forked_from_workspace_id_idx').on(
       table.forkedFromWorkspaceId
     ),
+    /**
+     * Routes an unauthenticated AgentMail delivery to exactly one tenant's
+     * webhook secret. Unique so "one signature check per request" is a storage
+     * invariant rather than something the receiver has to defend against, and
+     * partial because only a small fraction of workspaces enable an inbox.
+     */
+    inboxProviderIdIdx: uniqueIndex('workspace_inbox_provider_id_idx')
+      .on(table.inboxProviderId)
+      .where(sql`${table.inboxProviderId} IS NOT NULL`),
   })
 )
 
@@ -1919,7 +1922,10 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
+    // contract-pending(after #6188 is fully deployed and sizeBytes is backfilled): drop size — new code dual-writes and reads sizeBytes first
     size: integer('size').notNull(),
+    /** Exact byte size for files above PostgreSQL's int4 ceiling; legacy rows fall back to `size`. */
+    sizeBytes: bigint('size_bytes', { mode: 'number' }),
     /**
      * Intrinsic pixel dimensions of an image file, captured lazily on first view (and stored so later
      * views reserve layout space before the image loads, via aspect-ratio). NULL for non-images and for
@@ -1981,6 +1987,80 @@ export const workspaceFiles = pgTable(
     workspaceDeletedAtPartialIdx: index('workspace_files_workspace_deleted_partial_idx')
       .on(table.workspaceId, table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+  })
+)
+
+export const uploadSessionStatusEnum = pgEnum('upload_session_status', [
+  'uploading',
+  'completing',
+  'finalizing',
+  'completed',
+  'aborting',
+  'aborted',
+  'failed',
+  'expired',
+])
+
+export const uploadSessionMethodEnum = pgEnum('upload_session_method', ['put', 'multipart'])
+
+export const uploadSessionProviderEnum = pgEnum('upload_session_provider', [
+  'local',
+  's3',
+  'blob',
+  'gcs',
+])
+
+export const uploadSessionPurposeEnum = pgEnum('upload_session_purpose', [
+  'workspace_file',
+  'table_import',
+  'knowledge_document',
+  'profile_picture',
+  'workspace_logo',
+  'mothership_attachment',
+  'execution_attachment',
+])
+
+/** Durable control-plane state for direct-to-provider PUT and multipart uploads. */
+export const uploadSession = pgTable(
+  'upload_session',
+  {
+    id: text('id').primaryKey(),
+    tokenHash: text('token_hash').notNull(),
+    userId: text('user_id').notNull(),
+    workspaceId: text('workspace_id'),
+    knowledgeBaseId: text('knowledge_base_id'),
+    workflowId: text('workflow_id'),
+    executionId: text('execution_id'),
+    purpose: uploadSessionPurposeEnum('purpose').notNull(),
+    method: uploadSessionMethodEnum('method').notNull(),
+    storageContext: text('storage_context').notNull(),
+    finalKey: text('final_key').notNull(),
+    storageProvider: uploadSessionProviderEnum('storage_provider').notNull(),
+    providerUploadId: text('provider_upload_id'),
+    providerObjectVersion: text('provider_object_version'),
+    fileName: text('file_name').notNull(),
+    contentType: text('content_type').notNull(),
+    fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+    partSize: integer('part_size'),
+    partCount: integer('part_count'),
+    status: uploadSessionStatusEnum('status').notNull().default('uploading'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    processingLeaseId: text('processing_lease_id'),
+    processingLeaseExpiresAt: timestamp('processing_lease_expires_at'),
+    completedFileId: text('completed_file_id'),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at').notNull(),
+    completedAt: timestamp('completed_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    tokenHashUnique: uniqueIndex('upload_session_token_hash_unique').on(table.tokenHash),
+    finalKeyUnique: uniqueIndex('upload_session_final_key_unique').on(table.finalKey),
+    statusExpiresAtIdx: index('upload_session_status_expires_at_idx').on(
+      table.status,
+      table.expiresAt
+    ),
   })
 )
 

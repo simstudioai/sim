@@ -63,19 +63,16 @@ export const GET = withRouteHandler(
       }
 
       /**
-       * Disclosure-only: a preview failure must never block viewing or
-       * accepting the invitation itself — but it also must not read as
-       * "nothing moves", so failures are flagged for the client to show a
-       * generic migration notice. Expired-but-still-pending rows get no
-       * preview — acceptance deterministically rejects them.
+       * Supplies the disclosure token acceptance is checked against, so a preview
+       * failure must never block viewing or accepting the invitation itself — the
+       * accept path simply runs without the guard. Expired-but-still-pending rows
+       * get no preview; acceptance deterministically rejects them.
        */
       let joinPreview = null
-      let joinPreviewUnavailable = false
       if (isInvitee && inv.status === 'pending' && !isInvitationExpired(inv)) {
         try {
           joinPreview = await getInvitationJoinPreview(session.user.id, inv)
         } catch (previewError) {
-          joinPreviewUnavailable = true
           logger.warn('Failed to compute invitation join preview', {
             invitationId: id,
             error: previewError,
@@ -85,7 +82,6 @@ export const GET = withRouteHandler(
 
       return NextResponse.json({
         joinPreview,
-        joinPreviewUnavailable,
         invitation: {
           id: inv.id,
           kind: inv.kind,

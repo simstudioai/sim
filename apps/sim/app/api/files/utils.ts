@@ -185,7 +185,7 @@ const SAFE_INLINE_TYPES = new Set([
 
 const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'js', 'css', 'xml'])
 
-function getSecureFileHeaders(filename: string, originalContentType: string) {
+export function getSecureFileHeaders(filename: string, originalContentType: string) {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
 
   if (FORCE_ATTACHMENT_EXTENSIONS.has(extension)) {
@@ -209,18 +209,47 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
   }
 }
 
+/**
+ * Percent-encode a filename as an RFC 8187 `ext-value`.
+ *
+ * `encodeURIComponent` alone is not enough: it leaves `'`, `(`, `)` and `*` raw, and
+ * none of those are `attr-char`. The apostrophe is the specific hazard — it is the
+ * delimiter in `UTF-8''name`, so a filename like `it's.pdf` would emit a third `'`
+ * and desync the parser.
+ */
+function encodeExtValue(filename: string): string {
+  return encodeURIComponent(filename).replace(
+    /['()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
+  )
+}
+
+/**
+ * Build the `filename` parameters for a Content-Disposition header.
+ *
+ * The name is attacker-controlled (it is the user's `originalName`), so it can never
+ * be interpolated raw: a `"` closes the quoted-string early and everything after it
+ * is parsed as further parameters. An injected `filename*` is the payload that
+ * matters, because RFC 6266 tells clients to prefer `filename*` over `filename` —
+ * so the attacker's value wins and the download lands under a name the product UI
+ * never showed. Both parameters are therefore always emitted from sanitized input:
+ * the quoted form keeps only printable ASCII minus `"` and `\`, and the `filename*`
+ * form is fully percent-encoded.
+ *
+ * `;` is neutralized too, even though a quoted string may legally contain one: the
+ * quoted parameter exists as the fallback for clients that do not implement
+ * `filename*`, and those are the same clients liable to split parameters on a bare
+ * `;` without honouring the quoting. The exact name still survives in `filename*`.
+ */
 export function encodeFilenameForHeader(storageKey: string): string {
   const filename = storageKey.split('/').pop() || storageKey
-
-  const hasNonAscii = /[^\x00-\x7F]/.test(filename)
-
-  if (!hasNonAscii) {
+  const asciiSafe = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\;]/g, '_')
+  // Unchanged input proves the name is printable ASCII with no `"` or `\`, so the
+  // quoted form alone is both safe and sufficient — `filename*` buys nothing here.
+  if (asciiSafe === filename) {
     return `filename="${filename}"`
   }
-
-  const encodedFilename = encodeURIComponent(filename)
-  const asciiSafe = filename.replace(/[^\x00-\x7F]/g, '_')
-  return `filename="${asciiSafe}"; filename*=UTF-8''${encodedFilename}`
+  return `filename="${asciiSafe}"; filename*=UTF-8''${encodeExtValue(filename)}`
 }
 
 export function createFileResponse(file: FileResponse): NextResponse {

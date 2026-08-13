@@ -146,6 +146,16 @@ Apply multiple updates to a form (add items, update info, change settings, etc.)
 |     ↳ `quizSettings` | object | Quiz settings |
 |       ↳ `isQuiz` | boolean | Whether the form is a quiz |
 |     ↳ `emailCollectionType` | string | Email collection type |
+|   ↳ `items` | array | The form items \(questions, sections, etc.\) |
+|     ↳ `itemId` | string | Item ID |
+|     ↳ `title` | string | Item title |
+|     ↳ `description` | string | Item description |
+|     ↳ `questionItem` | json | Question item configuration |
+|     ↳ `questionGroupItem` | json | Question group configuration |
+|     ↳ `pageBreakItem` | json | Page break configuration |
+|     ↳ `textItem` | json | Text item configuration |
+|     ↳ `imageItem` | json | Image item configuration |
+|     ↳ `videoItem` | json | Video item configuration |
 |   ↳ `revisionId` | string | The revision ID of the form |
 |   ↳ `responderUri` | string | The URI to share with responders |
 |   ↳ `linkedSheetId` | string | The ID of the linked Google Sheet |

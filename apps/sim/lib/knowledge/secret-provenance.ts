@@ -409,7 +409,7 @@ export async function loadKnowledgeDocumentSecretRegistry(
       tracked: row.secretProvenanceVersion === 1 || currentSourceFileProvenance !== undefined,
     }
   const registry = new ResolvedSecretTraceRegistry([], scope)
-  if (!(await importDurableSecretProvenance(registry, provenance))) {
+  if (!(await importDurableSecretProvenance(registry, provenance, undefined, 'knowledge'))) {
     throw new Error('Knowledge document secret provenance is unavailable')
   }
   return { registry, provenance, tracked: true }
@@ -458,7 +458,7 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
     documents.length > MAX_KNOWLEDGE_RESPONSE_PROVENANCE_ROWS ||
     chunks.length > MAX_KNOWLEDGE_RESPONSE_PROVENANCE_ROWS
   ) {
-    options.registry.markIncomplete()
+    options.registry.markIncomplete('knowledge-response-capacity-exceeded')
     return false
   }
 
@@ -480,14 +480,14 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
   const documentById = new Map(documentRows.map((row) => [row.id, row]))
   const chunkById = new Map(chunkRows.map((row) => [row.id, row]))
   if (documentById.size !== documentIds.length || chunkById.size !== chunkIds.length) {
-    options.registry.markIncomplete()
+    options.registry.markIncomplete('knowledge-row-missing')
     return false
   }
 
   for (const item of documents) {
     const row = documentById.get(item.id)
     if (!row) {
-      options.registry.markIncomplete()
+      options.registry.markIncomplete('knowledge-row-missing')
       return false
     }
     const source = createKnowledgeDocumentSourceValue(row)
@@ -496,14 +496,16 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
       createKnowledgeDocumentSourceValue(item.source)
     )
     if (!actualSourceHash || !expectedSourceHash || actualSourceHash !== expectedSourceHash) {
-      options.registry.markIncomplete()
+      options.registry.markIncomplete('knowledge-row-content-mismatch')
       return false
     }
     const provenance = filterKnowledgeDocumentMetadataSecretProvenance(
       readBoundKnowledgeDocumentSecretProvenance({ ...row, source }),
       source
     )
-    if (!(await importDurableSecretProvenance(options.registry, provenance, item.value))) {
+    if (
+      !(await importDurableSecretProvenance(options.registry, provenance, item.value, 'knowledge'))
+    ) {
       return false
     }
   }
@@ -511,11 +513,13 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
   for (const item of chunks) {
     const row = chunkById.get(item.id)
     if (!row || row.documentId !== item.documentId || row.content !== item.content) {
-      options.registry.markIncomplete()
+      options.registry.markIncomplete('knowledge-row-content-mismatch')
       return false
     }
     const provenance = readBoundKnowledgeEmbeddingSecretProvenance(row)
-    if (!(await importDurableSecretProvenance(options.registry, provenance, item.value))) {
+    if (
+      !(await importDurableSecretProvenance(options.registry, provenance, item.value, 'knowledge'))
+    ) {
       return false
     }
   }
@@ -567,7 +571,14 @@ export async function importKnowledgeSearchResultSecretProvenance(options: {
       return { imported: false, documentMetadata: {} }
     }
     const provenance = readBoundKnowledgeEmbeddingSecretProvenance(row)
-    if (!(await importDurableSecretProvenance(options.registry, provenance, result.content))) {
+    if (
+      !(await importDurableSecretProvenance(
+        options.registry,
+        provenance,
+        result.content,
+        'knowledge'
+      ))
+    ) {
       return { imported: false, documentMetadata: {} }
     }
   }

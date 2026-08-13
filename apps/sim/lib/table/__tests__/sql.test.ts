@@ -383,6 +383,76 @@ describe('SQL Builder', () => {
     })
   })
 
+  /**
+   * The value's JS *type* was checked, but never its content: any string was
+   * bound straight into `::timestamptz`, so Postgres raised
+   * `invalid input syntax for type timestamp with time zone` — an unclassified
+   * driver throw the route layer rendered as `500 INTERNAL_ERROR`.
+   */
+  describe('buildFilterClause > date bound must actually parse', () => {
+    const dateCols: ColumnDefinition[] = [{ name: 'birthDate', type: 'date' }]
+
+    it.each(['not-a-date', '', 'abc', '2020-13-45', '   '])(
+      'rejects %j as a range bound on a date column',
+      (bound) => {
+        expect(() =>
+          buildFilterClause({ birthDate: { $gt: bound } } as Filter, TABLE, dateCols)
+        ).toThrow(/column "birthDate" \(date\) requires a parseable date string/)
+      }
+    )
+
+    it.each(['$gt', '$gte', '$lt', '$lte'])('rejects an unparseable bound for %s', (operator) => {
+      expect(() =>
+        buildFilterClause({ birthDate: { [operator]: 'not-a-date' } } as Filter, TABLE, dateCols)
+      ).toThrow(/requires a parseable date string/)
+    })
+
+    it('still accepts the date shapes the column itself stores', () => {
+      for (const bound of ['2024-01-01', '2024-01-31T10:00:00Z', '2024-01-31T10:00:00+02:00']) {
+        expect(() =>
+          buildFilterClause({ birthDate: { $lte: bound } }, TABLE, dateCols)
+        ).not.toThrow()
+      }
+    })
+  })
+
+  describe('buildPredicateClause > system timestamp columns reject unparseable bounds', () => {
+    it.each(['gt', 'gte', 'lt', 'lte', 'eq', 'ne'])(
+      'rejects an unparseable createdAt bound for %s',
+      (op) => {
+        expect(() =>
+          buildPredicateClause(
+            { all: [{ field: 'createdAt', op, value: 'not-a-date' }] } as TablePredicate,
+            TABLE,
+            NO_COLUMNS
+          )
+        ).toThrow(/column "createdAt" requires a parseable date string/)
+      }
+    )
+
+    it('rejects an unparseable member of an `in` list', () => {
+      expect(() =>
+        buildPredicateClause(
+          {
+            all: [{ field: 'updatedAt', op: 'in', value: ['2024-01-01', 'not-a-date'] }],
+          } as TablePredicate,
+          TABLE,
+          NO_COLUMNS
+        )
+      ).toThrow(/column "updatedAt" requires a parseable date string/)
+    })
+
+    it('still accepts a real timestamp bound', () => {
+      expect(() =>
+        buildPredicateClause(
+          { all: [{ field: 'createdAt', op: 'gte', value: '2024-01-01T00:00:00Z' }] },
+          TABLE,
+          NO_COLUMNS
+        )
+      ).not.toThrow()
+    })
+  })
+
   describe('buildSortClause', () => {
     it('returns undefined for empty sort', () => {
       expect(buildSortClause({}, TABLE, NO_COLUMNS)).toBeUndefined()
@@ -495,10 +565,19 @@ describe('SQL Builder', () => {
       expect(out).not.toContain('ILIKE')
     })
 
-    it('negates multiselect membership for $ncontains', () => {
+    /**
+     * Multi-select `$ncontains` keeps null and absent cells, like every other
+     * negation on the surface: `data` itself is never NULL, so containment is
+     * FALSE — not NULL — for a missing key, and the negation is therefore TRUE.
+     * Multi-select is not an exception that excludes nulls, and the published
+     * `TablePredicate` description says so.
+     */
+    it('negates multiselect membership for $ncontains, keeping null and absent cells', () => {
       const out = render(buildFilterClause({ tags: { $ncontains: 'opt_a' } }, TABLE, [tagsCol]))
       expect(out).toContain('NOT (')
       expect(out).toContain('"tags":["opt_a"]')
+      expect(out).not.toContain('IS NOT NULL')
+      expect(out).not.toContain("? 'tags'")
     })
 
     it('rejects explicit equality on a multiselect — it could never match', () => {

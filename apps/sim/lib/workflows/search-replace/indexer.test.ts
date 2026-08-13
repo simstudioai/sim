@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
+import {
+  getToolInputParamConfigs,
+  indexWorkflowSearchMatches,
+} from '@/lib/workflows/search-replace/indexer'
 import { workflowSearchMatchMatchesQuery } from '@/lib/workflows/search-replace/resources'
 import {
   createSearchReplaceWorkflowFixture,
@@ -22,6 +25,37 @@ import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replac
 vi.unmock('@/tools/registry')
 
 describe('indexWorkflowSearchMatches', () => {
+  it('marks generic tool-param fallbacks as non-authoritative', () => {
+    expect(
+      getToolInputParamConfigs({
+        tool: { type: 'custom-tool', params: { apiKey: 'literal-secret' } },
+      })
+    ).toEqual([
+      expect.objectContaining({
+        paramId: 'apiKey',
+        authoritative: false,
+        value: 'literal-secret',
+      }),
+    ])
+  })
+
+  it.each(['custom-tool', 'mcp'])(
+    'keeps %s params non-authoritative when its tool ID collides with a built-in',
+    (type) => {
+      expect(
+        getToolInputParamConfigs({
+          tool: { type, toolId: 'gmail_send', params: { body: 'literal-secret' } },
+        })
+      ).toEqual([
+        expect.objectContaining({
+          paramId: 'body',
+          authoritative: false,
+          value: 'literal-secret',
+        }),
+      ])
+    }
+  )
+
   it('finds plain text matches across nested subblock values', () => {
     const workflow = createSearchReplaceWorkflowFixture()
 

@@ -98,6 +98,50 @@ describe('FileDocProvider', () => {
     expect(emittedMessages(emit)).toHaveLength(0)
   })
 
+  /**
+   * A tab that outlived its room can be offered a DIFFERENT document for the same file. Yjs would union
+   * the two — the file twice, on both sides, and the relay persists it — and there is no un-merge. So
+   * the sync must not happen at all; the fatal path leaves the editor read-only on what it already
+   * shows, and a reload binds a fresh document.
+   */
+  it('refuses to sync into a document it does not recognize', () => {
+    const { provider, doc, emit, fire } = createProvider(true)
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-original')
+    const joinError = vi.fn()
+    provider.on('join-error', joinError)
+    emit.mockClear()
+
+    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1', docId: 'doc-rebuilt' })
+
+    expect(emittedMessages(emit)).toHaveLength(0)
+    expect(provider.synced).toBe(false)
+    expect(provider.joinError).toMatchObject({ code: 'DOCUMENT_REPLACED', retryable: false })
+    expect(joinError).toHaveBeenCalledTimes(1)
+  })
+
+  it('syncs when the room holds the document it already has', () => {
+    const { doc, emit, fire } = createProvider(true)
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-original')
+    emit.mockClear()
+
+    fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1', docId: 'doc-original' })
+
+    expect(emittedMessages(emit).length).toBeGreaterThan(0)
+  })
+
+  it('syncs when either side carries no identity (a fresh doc, or a room seeded before identities)', () => {
+    const fresh = createProvider(true)
+    fresh.emit.mockClear()
+    fresh.fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1', docId: 'doc-rebuilt' })
+    expect(emittedMessages(fresh.emit).length).toBeGreaterThan(0)
+
+    const unnamedRoom = createProvider(true)
+    unnamedRoom.doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-original')
+    unnamedRoom.emit.mockClear()
+    unnamedRoom.fire(FILE_DOC_EVENTS.JOIN_SUCCESS, { fileId: 'file-1' })
+    expect(emittedMessages(unnamedRoom.emit).length).toBeGreaterThan(0)
+  })
+
   it('applies a server sync step 2 and becomes synced', () => {
     const { provider, doc, fire } = createProvider(true)
     const synced = vi.fn()

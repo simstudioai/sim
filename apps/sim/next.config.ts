@@ -168,11 +168,11 @@ const nextConfig: NextConfig = {
     '/api/internal/file-doc/seed': ['./node_modules/jsdom/**/*'],
     '/api/internal/file-doc/merge': ['./node_modules/jsdom/**/*'],
     '/api/internal/file-doc/persist': ['./node_modules/jsdom/**/*'],
-    '/*': [
-      './node_modules/sharp/**/*',
-      './node_modules/@img/**/*',
-      './lib/execution/sandbox/bundles/*.cjs',
-    ],
+    /**
+     * No `sharp`/`@img` entries: these globs resolve against apps/sim while both hoist to the
+     * monorepo root, so they matched nothing. docker/app.Dockerfile copies them instead.
+     */
+    '/*': ['./lib/execution/sandbox/bundles/*.cjs'],
   },
   experimental: {
     /**
@@ -317,9 +317,24 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: '/api/v2/workflows/:id/execute',
+        headers: [
+          { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
+          {
+            key: 'Content-Security-Policy',
+            value: getWorkflowExecutionCSPPolicy(),
+          },
+        ],
+      },
+      {
         // Exclude Vercel internal resources and static assets from strict COOP, Google Drive Picker
-        // and the /demo Cal.com booking embed to prevent 'refused to connect' / slow-load issues
-        source: '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|demo).*)',
+        // and the /demo Cal.com booking embed to prevent 'refused to connect' / slow-load issues.
+        // The pages an OAuth popup can land on are excluded too: `same-origin` would disown the
+        // popup from its opener, leaving it not reliably script-closable and reporting `closed`
+        // for a live window.
+        source:
+          '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace|api/tools/drive|demo|oauth-error|oauth/chat-complete).*)',
         headers: [
           {
             key: 'Cross-Origin-Opener-Policy',
@@ -342,8 +357,11 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // For main app routes, Google Drive Picker, the /demo Cal.com embed, and Vercel resources - use permissive policies
-        source: '/(w/.*|workspace/.*|api/tools/drive|demo.*|_next/.*|_vercel/.*)',
+        // For main app routes, Google Drive Picker, the /demo Cal.com embed, the OAuth popup pages,
+        // and Vercel resources - use permissive policies. The popup pages match their opener's
+        // value so the two stay in one browsing-context group.
+        source:
+          '/(w/.*|workspace.*|api/tools/drive|demo.*|oauth-error|oauth/chat-complete|_next/.*|_vercel/.*)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-07",
+  "updatedAt": "2026-08-12",
   "integrations": [
     {
       "type": "onepassword",
@@ -275,11 +275,15 @@
       "slug": "agiloft",
       "name": "Agiloft",
       "description": "Manage records in Agiloft CLM",
-      "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.",
+      "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, record locking, and running action buttons across any table in your knowledge base.",
       "bgColor": "#001028",
       "iconName": "AgiloftIcon",
       "docsUrl": "https://docs.sim.ai/integrations/agiloft",
       "operations": [
+        {
+          "name": "List Tables & Fields",
+          "description": "List the tables and fields in an Agiloft knowledge base, to discover the logical names other operations need."
+        },
         {
           "name": "Create Record",
           "description": "Create a new record in an Agiloft table."
@@ -293,6 +297,10 @@
           "description": "Update an existing record in an Agiloft table."
         },
         {
+          "name": "Upsert Record",
+          "description": "Create an Agiloft record, or update it when a record already matches the given fields."
+        },
+        {
           "name": "Delete Record",
           "description": "Delete a record from an Agiloft table."
         },
@@ -301,12 +309,12 @@
           "description": "Search for records in an Agiloft table using a query."
         },
         {
-          "name": "Select Records",
-          "description": "Select record IDs matching a SQL WHERE clause from an Agiloft table."
+          "name": "Natural Language Search",
+          "description": "Search Agiloft records by describing what you want in plain language, such as \"active NDAs submitted last month\"."
         },
         {
-          "name": "Saved Search",
-          "description": "List saved searches defined for an Agiloft table."
+          "name": "Select Records",
+          "description": "Select record IDs matching a SQL WHERE clause from an Agiloft table."
         },
         {
           "name": "Attach File",
@@ -329,11 +337,23 @@
           "description": "Lock, unlock, or check the lock status of an Agiloft record."
         },
         {
+          "name": "Run Action Button",
+          "description": "Run an action button on an Agiloft record, such as an approval or send-for-signature step."
+        },
+        {
+          "name": "Async Status",
+          "description": "Check whether an asynchronous Agiloft call, such as a run action button, has completed."
+        },
+        {
+          "name": "Saved Search",
+          "description": "List the saved searches defined for an Agiloft table."
+        },
+        {
           "name": "Get Choice Line ID",
           "description": "Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHERE clauses against choice fields."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 18,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -2843,12 +2863,20 @@
           "description": "Get information about the currently authenticated Calendly user"
         },
         {
+          "name": "Get User",
+          "description": "Get information about a specific Calendly user"
+        },
+        {
           "name": "List Event Types",
           "description": "Retrieve a list of all event types for a user or organization"
         },
         {
           "name": "Get Event Type",
           "description": "Get detailed information about a specific event type"
+        },
+        {
+          "name": "List Event Type Available Times",
+          "description": "Retrieve bookable time slots for an event type within a date range"
         },
         {
           "name": "List Scheduled Events",
@@ -2863,11 +2891,51 @@
           "description": "Retrieve a list of invitees for a scheduled event"
         },
         {
+          "name": "Get Event Invitee",
+          "description": "Retrieve a single invitee of a scheduled event, including their intake answers"
+        },
+        {
+          "name": "Book Meeting",
+          "description": "Book a meeting by creating an invitee on an event type at a chosen time. Requires a paid Calendly plan"
+        },
+        {
           "name": "Cancel Event",
           "description": "Cancel a scheduled event"
+        },
+        {
+          "name": "Mark Invitee No-Show",
+          "description": "Mark an invitee of a scheduled event as a no-show"
+        },
+        {
+          "name": "Unmark Invitee No-Show",
+          "description": "Remove the no-show status from an invitee"
+        },
+        {
+          "name": "Create Scheduling Link",
+          "description": "Create a single-use scheduling link for an event type"
+        },
+        {
+          "name": "List User Busy Times",
+          "description": "Retrieve a user's internal and external busy times within a date range, based on their connected calendars"
+        },
+        {
+          "name": "List User Availability Schedules",
+          "description": "Retrieve a user's availability schedules, working hours, and date overrides"
+        },
+        {
+          "name": "List Organization Memberships",
+          "description": "Retrieve the members of an organization, including each member profile and role"
+        },
+        {
+          "name": "List Routing Forms",
+          "description": "Retrieve the routing forms of an organization, including their questions"
+        },
+        {
+          "name": "List Routing Form Submissions",
+          "description": "Retrieve the submissions of a routing form, including answers and routing result"
         }
       ],
-      "operationCount": 7,
+      "operationCount": 19,
       "triggers": [
         {
           "id": "calendly_invitee_created",
@@ -2904,7 +2972,7 @@
       "longDescription": "Invoke a Claude Platform Managed Agent from a workflow. Select a Claude Platform account, pick an agent and environment from that workspace, optionally attach vaults, a memory store, and files, and add metadata tags. Returns the assistant's final text.",
       "bgColor": "#DA7756",
       "iconName": "ClaudeIcon",
-      "docsUrl": "https://docs.sim.ai/integrations/managed-agent",
+      "docsUrl": "https://docs.sim.ai/integrations/managed_agent",
       "operations": [
         {
           "name": "Run session (create, send, wait for reply)",
@@ -4433,7 +4501,7 @@
       "longDescription": "Interact with Cursor Cloud Agents API to launch AI agents that can work on your GitHub repositories. Supports launching agents, adding follow-up instructions, checking status, viewing conversations, and managing agent lifecycle.",
       "bgColor": "#1E1E1E",
       "iconName": "CursorIcon",
-      "docsUrl": "https://cursor.com/docs/cloud-agent/api/endpoints",
+      "docsUrl": "https://docs.sim.ai/integrations/cursor",
       "operations": [
         {
           "name": "Launch Agent",
@@ -4729,7 +4797,7 @@
       "longDescription": "Integrate Datagma to find verified work emails from a name and company, enrich person profiles via email or LinkedIn URL, enrich company data from a domain or name, look up mobile phone numbers from LinkedIn, and check your credit balance.",
       "bgColor": "#FFFFFF",
       "iconName": "DatagmaIcon",
-      "docsUrl": "https://docs.sim.ai/tools/datagma",
+      "docsUrl": "https://docs.sim.ai/integrations/datagma",
       "operations": [
         {
           "name": "Find Email",
@@ -5276,7 +5344,7 @@
       "longDescription": "Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.",
       "bgColor": "#0ABA9F",
       "iconName": "DropcontactIcon",
-      "docsUrl": "https://docs.sim.ai/tools/dropcontact",
+      "docsUrl": "https://docs.sim.ai/integrations/dropcontact",
       "operations": [
         {
           "name": "Enrich Contact",
@@ -5431,8 +5499,8 @@
       "type": "dynatrace",
       "slug": "dynatrace",
       "name": "Dynatrace",
-      "description": "Query Dynatrace problems, metrics, entities, logs, SLOs, and vulnerabilities",
-      "longDescription": "Integrate Dynatrace into workflows. Investigate and close Davis problems, query metrics and monitored entities, search and ingest logs, push deployment events, track SLO burn rates, review Application Security vulnerabilities, and read the audit log.",
+      "description": "Manage Dynatrace problems, metrics, entities, logs, SLOs, settings, and security",
+      "longDescription": "Integrate Dynatrace into workflows. Investigate and close Davis problems, query metrics and monitored entities, search and ingest logs, push deployment events, manage SLOs and their burn rates, triage and mute Application Security vulnerabilities, review runtime attacks, tag entities, manage settings objects such as maintenance windows and alerting profiles, run synthetic monitors on demand, and read the audit log.",
       "bgColor": "#FFFFFF",
       "iconName": "DynatraceIcon",
       "docsUrl": "https://docs.sim.ai/integrations/dynatrace",
@@ -5522,11 +5590,111 @@
           "description": "Get a single vulnerability with its description, remediation guidance, affected entities, and risk assessment."
         },
         {
+          "name": "Mute Security Problem",
+          "description": "Mute a single Dynatrace vulnerability with a reason, for triaging false positives or accepted risk."
+        },
+        {
+          "name": "Unmute Security Problem",
+          "description": "Unmute a single Dynatrace vulnerability, returning it to the active triage queue."
+        },
+        {
+          "name": "Mute Security Problems (Bulk)",
+          "description": "Mute several Dynatrace vulnerabilities at once with a shared reason, for bulk triage."
+        },
+        {
+          "name": "Unmute Security Problems (Bulk)",
+          "description": "Unmute several Dynatrace vulnerabilities at once, returning them to active triage."
+        },
+        {
+          "name": "List Remediation Items",
+          "description": "List the remediation items of a third-party vulnerability — the components to upgrade, their affected entities, and their mute state."
+        },
+        {
+          "name": "List Attacks",
+          "description": "List runtime attacks Dynatrace Application Protection detected — injection attempts, their source, and whether they were blocked."
+        },
+        {
+          "name": "Get Attack",
+          "description": "Get a single attack with its entry point, payload, attacker, and the vulnerability it exploited."
+        },
+        {
+          "name": "List Tags",
+          "description": "List the custom tags applied to the monitored entities an entity selector matches."
+        },
+        {
+          "name": "Add Tags",
+          "description": "Add custom tags to every monitored entity an entity selector matches. Tags drive selectors, management zones, and alerting."
+        },
+        {
+          "name": "Delete Tag",
+          "description": "Remove a custom tag from every monitored entity an entity selector matches. Deletes one key-value pair, or every tag with the key."
+        },
+        {
+          "name": "List Settings Schemas",
+          "description": "List the settings schemas available in the environment. Use it to find the schema ID for a configuration type such as builtin:alerting.profile."
+        },
+        {
+          "name": "List Settings Objects",
+          "description": "List settings objects — the configuration behind maintenance windows, alerting profiles, management zones, and anomaly detection."
+        },
+        {
+          "name": "Get Settings Object",
+          "description": "Get a single settings object with its value and its update token. Read it before updating so the token can guard against a concurrent change."
+        },
+        {
+          "name": "Create Settings Object",
+          "description": "Create a settings object — a maintenance window, alerting profile, management zone, or any other schema-backed configuration."
+        },
+        {
+          "name": "Update Settings Object",
+          "description": "Update an existing settings object. Pass the update token from Get Settings Object to fail rather than overwrite a concurrent change."
+        },
+        {
+          "name": "Delete Settings Object",
+          "description": "Delete a settings object. Dynatrace cannot undo this."
+        },
+        {
+          "name": "List Synthetic Monitors",
+          "description": "List synthetic monitors and their IDs. Use it to find the monitor IDs to feed into an on-demand execution."
+        },
+        {
+          "name": "Execute Synthetic Monitors",
+          "description": "Trigger an on-demand batch execution of synthetic monitors, for gating a deploy on a smoke test. Returns a batch ID to poll."
+        },
+        {
+          "name": "Get Synthetic Batch",
+          "description": "Get the status and failures of an on-demand synthetic batch execution. Poll it after triggering to gate a deploy on the result."
+        },
+        {
+          "name": "Get Problem Comment",
+          "description": "Get a single comment on a Dynatrace problem."
+        },
+        {
+          "name": "Update Problem Comment",
+          "description": "Replace the text of an existing comment on a Dynatrace problem."
+        },
+        {
+          "name": "Delete Problem Comment",
+          "description": "Delete a comment from a Dynatrace problem."
+        },
+        {
+          "name": "Create SLO",
+          "description": "Create a service-level objective from a metric expression, target, and evaluation timeframe."
+        },
+        {
+          "name": "Update SLO",
+          "description": "Update an existing service-level objective. Every field is replaced, so send the complete definition."
+        },
+        {
+          "name": "Delete SLO",
+          "description": "Delete a service-level objective."
+        },
+        {
           "name": "Get Audit Logs",
           "description": "Read the Dynatrace audit log — who changed which configuration, when, and whether it succeeded."
         }
       ],
-      "operationCount": 22,
+      "operationCount": 47,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -5826,7 +5994,7 @@
       "slug": "embeddings",
       "name": "Embeddings",
       "description": "Generate embeddings",
-      "longDescription": "Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, Google Gemini, Cohere, and Mistral embedding models.",
+      "longDescription": "Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models.",
       "bgColor": "#7B4DFF",
       "iconName": "EmbeddingsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/embeddings",
@@ -5847,7 +6015,7 @@
       "longDescription": "Access real-time B2B data intelligence with Enrich.so. Enrich profiles from email addresses, find work emails from LinkedIn, verify email deliverability, search for people and companies, and analyze LinkedIn post engagement.",
       "bgColor": "#E5E5E6",
       "iconName": "EnrichSoIcon",
-      "docsUrl": "https://docs.enrich.so/",
+      "docsUrl": "https://docs.sim.ai/integrations/enrich",
       "operations": [
         {
           "name": "Email to Profile",
@@ -5994,7 +6162,7 @@
       "longDescription": "Integrate Enrow to find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Enrow performs deterministic verifications including catch-all emails — no additional verifier needed.",
       "bgColor": "#FFFFFF",
       "iconName": "EnrowIcon",
-      "docsUrl": "https://enrow.readme.io",
+      "docsUrl": "https://docs.sim.ai/integrations/enrow",
       "operations": [
         {
           "name": "Find Email",
@@ -7997,7 +8165,7 @@
       "longDescription": "Connect to Google Workspace to create, update, and manage groups and their members using the Admin SDK Directory API.",
       "bgColor": "#E8F0FE",
       "iconName": "GoogleGroupsIcon",
-      "docsUrl": "https://developers.google.com/admin-sdk/directory/v1/guides/manage-groups",
+      "docsUrl": "https://docs.sim.ai/integrations/google_groups",
       "operations": [
         {
           "name": "List Groups",
@@ -9523,7 +9691,7 @@
       "longDescription": "Integrate Icypeas to find a professional email address from a name and company domain, or verify whether an existing email is valid and deliverable. Results are returned asynchronously via polling.",
       "bgColor": "#d4d4d4",
       "iconName": "IcypeasIcon",
-      "docsUrl": "https://docs.sim.ai/tools/icypeas",
+      "docsUrl": "https://docs.sim.ai/integrations/icypeas",
       "operations": [
         {
           "name": "Find Email",
@@ -9735,9 +9903,85 @@
         {
           "name": "Delete Escalation Path",
           "description": "Delete an escalation path in incident.io"
+        },
+        {
+          "name": "Get Who Is On Call",
+          "description": "Get who is currently on call in incident.io, as one row per ongoing shift across every schedule (or a single schedule). Also returns the shifts that take over at the next changeover."
+        },
+        {
+          "name": "List Schedule Overrides",
+          "description": "List the one-off overrides layered on top of a schedule in incident.io, such as someone covering a colleague’s shift"
+        },
+        {
+          "name": "List Alerts",
+          "description": "List alerts in incident.io, optionally filtered by status, source, or created date"
+        },
+        {
+          "name": "Show Alert",
+          "description": "Get a single alert by ID from incident.io"
+        },
+        {
+          "name": "Resolve Alert",
+          "description": "Resolve a currently firing alert in incident.io. Resolving an already-resolved alert is a no-op and returns it unchanged."
+        },
+        {
+          "name": "Create Alert Event",
+          "description": "Fire an alert into incident.io through an HTTP alert source. Send the same deduplication key with status \"resolved\" to close the alert you opened."
+        },
+        {
+          "name": "List Incident Alerts",
+          "description": "List the connections between incidents and alerts in incident.io — which alerts triggered an incident, or which incident an alert was attached to"
+        },
+        {
+          "name": "Cancel Escalation",
+          "description": "Cancel an escalation in incident.io. Notifications stop, and the escalation will not advance to further levels or repeat."
+        },
+        {
+          "name": "List Catalog Types",
+          "description": "List all catalog types in incident.io, including those synced from external resources. Use this to find the catalog type ID needed to list entries."
+        },
+        {
+          "name": "List Catalog Entries",
+          "description": "List the entries of a catalog type in incident.io — for example every service, team, or customer recorded in the catalog"
+        },
+        {
+          "name": "List Teams",
+          "description": "List all teams in the incident.io organisation, along with their members"
+        },
+        {
+          "name": "Show Team",
+          "description": "Get a single team by ID from incident.io, along with its members"
+        },
+        {
+          "name": "Create Follow-up",
+          "description": "Create a new follow-up on an incident in incident.io"
+        },
+        {
+          "name": "Update Follow-up",
+          "description": "Update an existing follow-up in incident.io, for example to mark it completed or reassign it"
+        },
+        {
+          "name": "Create Action",
+          "description": "Create a new action on an incident in incident.io"
+        },
+        {
+          "name": "Update Action",
+          "description": "Update an existing action in incident.io, for example to mark it completed or reassign it"
+        },
+        {
+          "name": "List Incident Participants",
+          "description": "List the participants of an incident in incident.io, split into those actively helping and those just observing"
+        },
+        {
+          "name": "Grant Incident Membership",
+          "description": "Make a user a member of a private incident in incident.io"
+        },
+        {
+          "name": "Revoke Incident Membership",
+          "description": "Revoke a user's membership of a private incident in incident.io"
         }
       ],
-      "operationCount": 46,
+      "operationCount": 65,
       "triggers": [
         {
           "id": "incidentio_incident_created",
@@ -11002,7 +11246,7 @@
       "longDescription": "Integrate LeadMagic to find verified work emails by name or company, validate email deliverability, find direct mobile numbers, enrich LinkedIn profiles, reverse-lookup profiles from emails, search companies by domain, identify role holders at accounts, and check account credit balance.",
       "bgColor": "#FFFFFF",
       "iconName": "LeadMagicIcon",
-      "docsUrl": "https://docs.sim.ai/tools/leadmagic",
+      "docsUrl": "https://docs.sim.ai/integrations/leadmagic",
       "operations": [
         {
           "name": "Find Email",
@@ -12730,6 +12974,97 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment", "sales-engagement"]
+    },
+    {
+      "type": "mintlify",
+      "slug": "mintlify",
+      "name": "Mintlify",
+      "description": "Deploy, edit, search, and measure Mintlify documentation",
+      "longDescription": "Integrate Mintlify into your workflow. Trigger production and preview deployments, run scheduled automations, launch documentation agent jobs, detect AI-sounding prose, search your docs and read page content, ask the docs assistant, and export feedback, conversation, search, view, and visitor analytics.",
+      "bgColor": "#000000",
+      "iconName": "MintlifyIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/mintlify",
+      "operations": [
+        {
+          "name": "Trigger Update",
+          "description": "Queue a deployment update for a Mintlify documentation project from its configured deployment branch. Returns a status ID for tracking progress."
+        },
+        {
+          "name": "Get Update Status",
+          "description": "Get the status of a Mintlify deployment update from its status ID, including logs, commit details, and screenshots."
+        },
+        {
+          "name": "Trigger Preview Deployment",
+          "description": "Create or update a Mintlify preview deployment for a Git branch. Redeploys when a preview already exists for the branch."
+        },
+        {
+          "name": "Trigger Automation",
+          "description": "Run a scheduled Mintlify automation immediately instead of waiting for its next scheduled time. Only automations with a custom schedule can be triggered."
+        },
+        {
+          "name": "Create Agent Job",
+          "description": "Create a background Mintlify agent job that edits your documentation from a prompt. Opens a pull request when the agent successfully edits files."
+        },
+        {
+          "name": "Get Agent Job",
+          "description": "Retrieve the current status and details of a Mintlify agent job, including the pull request link once the agent opens one."
+        },
+        {
+          "name": "Send Agent Message",
+          "description": "Send a follow-up instruction to an existing Mintlify agent job. The message is processed asynchronously."
+        },
+        {
+          "name": "Detect AI-Sounding Prose",
+          "description": "Analyze a documentation page for AI-generated prose and return flagged passages with suggested human rewrites. Consumes one AI credit per checked page."
+        },
+        {
+          "name": "Search Documentation",
+          "description": "Run a semantic and keyword search across a Mintlify documentation site, with optional version, language, tag, and group filters."
+        },
+        {
+          "name": "Get Page Content",
+          "description": "Retrieve the full text content of a Mintlify documentation page by its path. Use it after a search to fetch the complete page."
+        },
+        {
+          "name": "Ask Assistant",
+          "description": "Ask the Mintlify assistant, trained on your documentation, a question and get the assembled answer with its cited sources. Consumes the deployment's assistant credits."
+        },
+        {
+          "name": "Get Feedback",
+          "description": "Export paginated user feedback from a Mintlify documentation project, with optional date-range, source, and status filters."
+        },
+        {
+          "name": "Get Feedback By Page",
+          "description": "Export Mintlify feedback counts aggregated by documentation page path, broken down into thumbs up, thumbs down, and code snippet feedback."
+        },
+        {
+          "name": "Get Assistant Conversations",
+          "description": "Export paginated Mintlify AI assistant conversation history, including the query, response, cited sources, and whether the question was answered."
+        },
+        {
+          "name": "Get Assistant Caller Stats",
+          "description": "Get a breakdown of Mintlify assistant query counts by caller type — web, API, and other — for a date range."
+        },
+        {
+          "name": "Get Search Queries",
+          "description": "Export Mintlify documentation search terms for a date range, ordered by hit count, with click-through rate and the most-clicked result path."
+        },
+        {
+          "name": "Get Page Views",
+          "description": "Export Mintlify per-path and site-wide content view counts for a date range, split by human and AI bot traffic."
+        },
+        {
+          "name": "Get Unique Visitors",
+          "description": "Export Mintlify per-path and site-wide approximate distinct visitor counts for a date range, split by human and AI bot traffic."
+        }
+      ],
+      "operationCount": 18,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["content-management", "knowledge-base", "automation"]
     },
     {
       "type": "mistral_parse_v3",
@@ -14557,7 +14892,7 @@
       "longDescription": "Integrate Qdrant into the workflow. Can upsert, search, and fetch points.",
       "bgColor": "#1A223F",
       "iconName": "QdrantIcon",
-      "docsUrl": "https://qdrant.tech/documentation/",
+      "docsUrl": "https://docs.sim.ai/integrations/qdrant",
       "operations": [
         {
           "name": "Upsert",
@@ -17533,7 +17868,7 @@
       "longDescription": "Access comprehensive website analytics including traffic estimates, engagement metrics, rankings, and traffic sources using the Similarweb API.",
       "bgColor": "#000922",
       "iconName": "SimilarwebIcon",
-      "docsUrl": "https://developers.similarweb.com/docs/similarweb-web-traffic-api",
+      "docsUrl": "https://docs.sim.ai/integrations/similarweb",
       "operations": [
         {
           "name": "Website Overview",
@@ -18050,6 +18385,145 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["messaging", "automation"]
+    },
+    {
+      "type": "snowflake",
+      "slug": "snowflake",
+      "name": "Snowflake",
+      "description": "Query data and manage warehouses and tasks in Snowflake",
+      "longDescription": "Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures.",
+      "bgColor": "#FFFFFF",
+      "iconName": "SnowflakeIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/snowflake",
+      "operations": [
+        {
+          "name": "Execute SQL",
+          "description": "Execute one parameterized SQL statement through the Snowflake SQL API."
+        },
+        {
+          "name": "Get Statement",
+          "description": "Check a running or completed statement and retrieve exactly one result partition. Canceled or failed statements are returned as errors."
+        },
+        {
+          "name": "Cancel Statement",
+          "description": "Cancel a running Snowflake SQL API statement."
+        },
+        {
+          "name": "Insert Rows",
+          "description": "Insert structured JSON rows using bound values."
+        },
+        {
+          "name": "Update Rows",
+          "description": "Update matching rows with a bound MERGE statement without inserting new rows."
+        },
+        {
+          "name": "Upsert Rows",
+          "description": "Update matching rows and insert unmatched rows with a bound MERGE statement."
+        },
+        {
+          "name": "Delete Rows",
+          "description": "Delete rows matching a required set of bound column filters."
+        },
+        {
+          "name": "Load Data",
+          "description": "Load files from an existing Snowflake stage with COPY INTO."
+        },
+        {
+          "name": "Unload Data",
+          "description": "Export a Snowflake table to files in a stage with COPY INTO."
+        },
+        {
+          "name": "List Databases",
+          "description": "List the databases the credential can access."
+        },
+        {
+          "name": "List Schemas",
+          "description": "List the schemas in a Snowflake database."
+        },
+        {
+          "name": "List Tables",
+          "description": "List the tables in a Snowflake schema."
+        },
+        {
+          "name": "List Warehouses",
+          "description": "List warehouses visible to the active Snowflake role."
+        },
+        {
+          "name": "Get Warehouse",
+          "description": "Get the full details for a Snowflake virtual warehouse."
+        },
+        {
+          "name": "Resume Warehouse",
+          "description": "Resume a Snowflake virtual warehouse if it is suspended."
+        },
+        {
+          "name": "Suspend Warehouse",
+          "description": "Suspend a Snowflake virtual warehouse."
+        },
+        {
+          "name": "Alter Warehouse",
+          "description": "Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings."
+        },
+        {
+          "name": "List Tasks",
+          "description": "List tasks in a Snowflake schema."
+        },
+        {
+          "name": "Get Task",
+          "description": "Describe a Snowflake task."
+        },
+        {
+          "name": "Run Task",
+          "description": "Run a Snowflake task immediately, optionally retrying its last failed graph."
+        },
+        {
+          "name": "Resume Task",
+          "description": "Resume a suspended Snowflake task so its schedule runs again."
+        },
+        {
+          "name": "Suspend Task",
+          "description": "Suspend a Snowflake task so its schedule stops triggering runs."
+        },
+        {
+          "name": "List Task Runs",
+          "description": "Query up to seven days of Snowflake task history, capped at 10000 rows."
+        },
+        {
+          "name": "Get Task Run",
+          "description": "Find one task history record by query ID within Snowflake’s seven-day window and 10000 most recent records after optional filters."
+        },
+        {
+          "name": "Cancel Task Query",
+          "description": "Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs already in flight are unaffected and must be cancelled individually; a cancelled child marks the task graph run failed, so downstream tasks are skipped."
+        },
+        {
+          "name": "Get Task Run Output",
+          "description": "Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention window using the task owner role."
+        },
+        {
+          "name": "List Query History",
+          "description": "List queries that completed in the last seven days, optionally filtered."
+        },
+        {
+          "name": "List Copy History",
+          "description": "List staged-file load results for a table over the last fourteen days."
+        },
+        {
+          "name": "Introspect Schema",
+          "description": "Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views."
+        },
+        {
+          "name": "Call Procedure",
+          "description": "Call a stored procedure with explicitly typed Snowflake bindings."
+        }
+      ],
+      "operationCount": 30,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["data-warehouse", "data-analytics", "cloud"]
     },
     {
       "type": "sportmonks",
@@ -19913,7 +20387,7 @@
       "longDescription": "Integrate Thrive Learning into the workflow. Manage user lifecycle, audiences and their members and managers, content assignments and enrolments, learning completions, content and activity records, CPD, tags, and skills.",
       "bgColor": "#FFFFFF",
       "iconName": "ThriveIcon",
-      "docsUrl": "https://docs.sim.ai/tools/thrive",
+      "docsUrl": "https://docs.sim.ai/integrations/thrive",
       "operations": [
         {
           "name": "Create User",
@@ -21465,6 +21939,133 @@
       "category": "tools",
       "integrationType": "search",
       "tags": ["knowledge-base"]
+    },
+    {
+      "type": "windchill",
+      "slug": "windchill",
+      "name": "Windchill",
+      "description": "Manage documents, revisions, and content in PTC Windchill",
+      "longDescription": "Integrate PTC Windchill REST Services 2.7 document management into your workflow using Basic authentication. Read and update document metadata, perform version and lifecycle actions, and transfer primary content and attachments. Windchill OAuth deployments are not currently supported.",
+      "bgColor": "#FFFFFF",
+      "iconName": "WindchillIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/windchill",
+      "operations": [
+        {
+          "name": "List Documents",
+          "description": "List documents with an OData query, sorting, and pagination"
+        },
+        {
+          "name": "Get Document",
+          "description": "Get a WT.Document by OID"
+        },
+        {
+          "name": "Get Document Structure",
+          "description": "Retrieve recursive document usage links and their parent and child documents"
+        },
+        {
+          "name": "Get Valid State Transitions",
+          "description": "Get lifecycle states a document can transition to from its current state"
+        },
+        {
+          "name": "Get Primary Content",
+          "description": "Get primary-content metadata for a document"
+        },
+        {
+          "name": "List Attachments",
+          "description": "List attachment metadata for a document"
+        },
+        {
+          "name": "Create Document",
+          "description": "Create one WT.Document"
+        },
+        {
+          "name": "Create Documents",
+          "description": "Create several documents in one atomic Windchill request"
+        },
+        {
+          "name": "Update Document",
+          "description": "Update one document's editable attributes"
+        },
+        {
+          "name": "Update Common Properties",
+          "description": "Update a document's Name, Number, and other common properties"
+        },
+        {
+          "name": "Update Documents",
+          "description": "Update several documents' editable attributes in one atomic request"
+        },
+        {
+          "name": "Delete Document",
+          "description": "Delete one document"
+        },
+        {
+          "name": "Delete Documents",
+          "description": "Delete multiple documents atomically"
+        },
+        {
+          "name": "Check Out Document",
+          "description": "Check out one document"
+        },
+        {
+          "name": "Check Out Documents",
+          "description": "Check out multiple documents atomically"
+        },
+        {
+          "name": "Check In Document",
+          "description": "Check in one document"
+        },
+        {
+          "name": "Check In Documents",
+          "description": "Check in multiple documents atomically"
+        },
+        {
+          "name": "Undo Check Out Document",
+          "description": "Undo checkout for one document"
+        },
+        {
+          "name": "Undo Check Out Documents",
+          "description": "Undo checkout for multiple documents atomically"
+        },
+        {
+          "name": "Revise Document",
+          "description": "Create a new revision of one document"
+        },
+        {
+          "name": "Revise Documents",
+          "description": "Create new revisions of multiple documents atomically"
+        },
+        {
+          "name": "Set Lifecycle State",
+          "description": "Transition a document to a valid lifecycle state"
+        },
+        {
+          "name": "Update Document Security Labels",
+          "description": "Update installed security-label attributes for one or more documents"
+        },
+        {
+          "name": "Download Primary Content",
+          "description": "Download primary content into a canonical UserFile"
+        },
+        {
+          "name": "Upload Primary Content",
+          "description": "Upload a primary-content file to a document that has none"
+        },
+        {
+          "name": "Download Attachment",
+          "description": "Download a document attachment into a canonical UserFile"
+        },
+        {
+          "name": "Upload Attachments",
+          "description": "Upload one or more files as document attachments"
+        }
+      ],
+      "operationCount": 27,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["content-management", "document-processing"]
     },
     {
       "type": "wiza",

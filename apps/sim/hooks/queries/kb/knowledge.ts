@@ -39,6 +39,7 @@ import {
   saveDocumentTagDefinitionsContract,
   type TagDefinitionData,
   type TagUsageData,
+  type UpdateKnowledgeDocumentResponseData,
   updateKnowledgeBaseContract,
   updateKnowledgeChunkContract,
   updateKnowledgeDocumentContract,
@@ -490,7 +491,7 @@ async function updateDocument({
   knowledgeBaseId,
   documentId,
   updates,
-}: UpdateDocumentParams): Promise<DocumentData> {
+}: UpdateDocumentParams): Promise<UpdateKnowledgeDocumentResponseData> {
   const result = await requestJson(updateKnowledgeDocumentContract, {
     params: { id: knowledgeBaseId, documentId },
     body: updates,
@@ -538,6 +539,10 @@ export function useDeleteDocument() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
+      /** The knowledge-base list rows carry `docCount`, so removing a document changes them too. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.lists(),
+      })
     },
   })
 }
@@ -572,10 +577,16 @@ export function useBulkDocumentOperation() {
 
   return useMutation({
     mutationFn: bulkDocumentOperation,
-    onSettled: (_data, _error, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, operation }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
+      /** Only a bulk delete changes the `docCount` the knowledge-base list rows render. */
+      if (operation === 'delete') {
+        queryClient.invalidateQueries({
+          queryKey: knowledgeKeys.lists(),
+        })
+      }
     },
   })
 }
@@ -1000,6 +1011,7 @@ async function deleteDocumentTagDefinitions({
 }: DeleteDocumentTagDefinitionsParams): Promise<void> {
   await requestJson(deleteDocumentTagDefinitionsContract, {
     params: { id: knowledgeBaseId, documentId },
+    query: {},
   })
 }
 

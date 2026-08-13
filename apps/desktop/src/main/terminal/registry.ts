@@ -1,13 +1,14 @@
 import { statSync } from 'node:fs'
-import type {
-  TerminalCommandEvent,
-  TerminalOperation,
-  TerminalStartOptions,
-  TerminalTabsState,
-  TerminalToolArgs,
-  TerminalToolResponse,
+import {
+  describeRunningCommand,
+  type TerminalCommandEvent,
+  type TerminalOperation,
+  type TerminalStartOptions,
+  type TerminalTabsState,
+  type TerminalToolArgs,
+  type TerminalToolResponse,
 } from '@sim/terminal-protocol'
-import type { BrowserWindow, WebContents } from 'electron'
+import { type BrowserWindow, dialog, type WebContents } from 'electron'
 import type { TerminalSessionSnapshot } from '@/main/desktop-chat-session-store'
 import type { FocusedResourceShortcut } from '@/main/resource-shortcuts'
 import { TerminalService, type TerminalServiceOptions, type TerminalSink } from '@/main/terminal'
@@ -123,6 +124,10 @@ export class TerminalRegistry {
     return this.serviceFor(scope).switchTerminal(terminalId)
   }
 
+  reorderTerminal(scope: string, terminalId: string, targetIndex: number): TerminalTabsState {
+    return this.serviceFor(scope).reorderTerminal(terminalId, targetIndex)
+  }
+
   closeTerminal(scope: string, terminalId: string): TerminalTabsState {
     return this.serviceFor(scope).closeTerminal(terminalId)
   }
@@ -198,6 +203,18 @@ export class TerminalRegistry {
     this.serviceFor(scope).setPanelFocused(focused, owner)
   }
 
+  /** Records the visible terminal scope without treating visibility as keyboard focus. */
+  setPanelVisible(scope: string, visible: boolean, owner?: WebContents | null): void {
+    if (this.suspendedScopes.has(scope)) return
+    if (!visible && !this.entries.has(scope)) return
+    if (visible && owner) {
+      for (const entry of this.entries.values()) {
+        if (entry.scope !== scope) entry.service.setPanelVisible(false, owner)
+      }
+    }
+    this.serviceFor(scope).setPanelVisible(visible, owner)
+  }
+
   /** Handles a menu accelerator, which has a window but no renderer chat scope. */
   handleFocusedShortcut(
     ownerWindow: BrowserWindow | null,
@@ -205,15 +222,34 @@ export class TerminalRegistry {
   ): boolean {
     for (const entry of this.entries.values()) {
       if (
-        entry.service.handleFocusedShortcut(shortcut, ownerWindow, (command, terminalId) => {
-          if (!ownerWindow || ownerWindow.webContents.isDestroyed()) return
-          ownerWindow.webContents.send(
-            'terminal:shortcut-command',
-            command,
-            entry.scope,
-            terminalId
-          )
-        })
+        entry.service.handleFocusedShortcut(
+          shortcut,
+          ownerWindow,
+          (command, terminalId) => {
+            if (!ownerWindow || ownerWindow.webContents.isDestroyed()) return
+            ownerWindow.webContents.send(
+              'terminal:shortcut-command',
+              command,
+              entry.scope,
+              terminalId
+            )
+          },
+          (running) => {
+            if (!ownerWindow || ownerWindow.isDestroyed()) return false
+            return (
+              dialog.showMessageBoxSync(ownerWindow, {
+                type: 'warning',
+                title: 'Close Running Terminal?',
+                message: `${describeRunningCommand(running)} is still running.`,
+                detail: 'Closing this terminal will stop the process.',
+                buttons: ['Close Terminal', 'Cancel'],
+                defaultId: 1,
+                cancelId: 1,
+                noLink: true,
+              }) === 0
+            )
+          }
+        )
       ) {
         return true
       }
@@ -320,11 +356,11 @@ export class TerminalRegistry {
       const persisted = entry.persisted
       if (persisted) {
         for (const tab of persisted.tabs.slice(1)) {
-          entry.service.openTerminal(restorableCwd(tab.cwd))
+          entry.service.restoreTerminal(restorableCwd(tab.cwd))
         }
         const restored = entry.service.getTabs()
         const active = restored.tabs[persisted.activeIndex]
-        if (active) entry.service.switchTerminal(active.terminalId)
+        if (active) entry.service.restoreActiveTerminal(active.terminalId)
       }
       tabs = entry.service.getTabs()
     } finally {

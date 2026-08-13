@@ -1,15 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret } = vi.hoisted(() => ({
+const { mockDecryptSecret, mockLogger } = vi.hoisted(() => ({
   mockDecryptSecret: vi.fn(),
+  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: mockDecryptSecret,
 }))
 
+vi.mock('@sim/logger', () => ({
+  createLogger: () => mockLogger,
+}))
+
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
+  createIncompleteResolvedSecretTraceRegistry,
   createResolvedSecretTraceRegistry,
   isResolvedSecretTraceProvenanceV1,
   RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
@@ -135,8 +141,42 @@ describe('ResolvedSecretTraceProvenanceAccumulator', () => {
       entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-value' }],
       scope,
     })
-    accumulator.markIncomplete()
+    accumulator.markIncomplete('unspecified')
     expect(accumulator.exportProvenance().entries).toEqual([])
+  })
+
+  /**
+   * The exported bundle carries only `complete`, so an importer can never say more than
+   * `source-provenance-incomplete`. If this line does not name the guard, nothing does.
+   */
+  it('names the first guard that latched, and stays quiet for the rest of the invocation', () => {
+    vi.clearAllMocks()
+    const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
+
+    accumulator.markIncomplete('file-source-unidentified')
+    accumulator.markIncomplete('workspace-file-provenance-unknown')
+
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1)
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret provenance accumulator marked incomplete',
+      expect.objectContaining({
+        reason: 'file-source-unidentified',
+        scopeWorkspaceId: 'workspace-1',
+      })
+    )
+    expect(mockLogger.error).not.toHaveBeenCalled()
+  })
+
+  /** A merge of already-reported bundles adds nothing; subflow aggregation runs it per iteration. */
+  it('stays silent when a recorded report is what latched it', () => {
+    vi.clearAllMocks()
+    const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
+
+    accumulator.record({ version: 1, complete: false, entries: [], scope })
+
+    expect(accumulator.exportProvenance().complete).toBe(false)
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+    expect(mockLogger.error).not.toHaveBeenCalled()
   })
 })
 
@@ -1004,11 +1044,11 @@ describe('ResolvedSecretTraceRegistry', () => {
 
   it('conservatively retains every active secret that shares a raw plaintext literal', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'FIRST', plaintext: 'true', encryptedValue: 'first-ciphertext' },
-      { name: 'SECOND', plaintext: 'true', encryptedValue: 'second-ciphertext' },
+      { name: 'FIRST', plaintext: '4815162342', encryptedValue: 'first-ciphertext' },
+      { name: 'SECOND', plaintext: '4815162342', encryptedValue: 'second-ciphertext' },
     ])
-    registry.recordResolved('FIRST', 'true')
-    registry.recordResolved('SECOND', 'true')
+    registry.recordResolved('FIRST', '4815162342')
+    registry.recordResolved('SECOND', '4815162342')
 
     const expected = {
       version: 1 as const,
@@ -1018,43 +1058,41 @@ describe('ResolvedSecretTraceRegistry', () => {
         { name: 'SECOND', encryptedValue: 'second-ciphertext' },
       ],
     }
-    expect(registry.exportCommittedProvenanceForValue('true')).toEqual(expected)
-    expect(registry.exportCommittedProvenanceForValue(true)).toEqual(expected)
+    expect(registry.exportCommittedProvenanceForValue('4815162342')).toEqual(expected)
+    expect(registry.exportCommittedProvenanceForValue(4815162342)).toEqual(expected)
   })
 
-  it('exports active numeric, boolean, and null literals crossing a value boundary', () => {
+  it('exports active numeric literals crossing a value boundary, but not boolean or null', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'NUMBER', plaintext: '1234', encryptedValue: 'number-ciphertext' },
+      { name: 'NUMBER', plaintext: '12345678', encryptedValue: 'number-ciphertext' },
       { name: 'BOOLEAN', plaintext: 'false', encryptedValue: 'boolean-ciphertext' },
       { name: 'NULL', plaintext: 'null', encryptedValue: 'null-ciphertext' },
-      { name: 'ABSENT', plaintext: '5678', encryptedValue: 'absent-ciphertext' },
+      { name: 'ABSENT', plaintext: '56781234', encryptedValue: 'absent-ciphertext' },
     ])
-    registry.recordResolved('NUMBER', '1234')
+    registry.recordResolved('NUMBER', '12345678')
     registry.recordResolved('BOOLEAN', 'false')
     registry.recordResolved('NULL', 'null')
-    registry.recordResolved('ABSENT', '5678')
+    registry.recordResolved('ABSENT', '56781234')
 
     expect(
       registry.exportProvenanceForValue(
-        { number: 1234, boolean: false, nullable: null },
+        { number: 12345678, boolean: false, nullable: null },
         { anonymous: true }
       )
     ).toEqual({
       version: 1,
       complete: true,
-      entries: [
-        { encryptedValue: 'boolean-ciphertext' },
-        { encryptedValue: 'null-ciphertext' },
-        { encryptedValue: 'number-ciphertext' },
-      ],
+      entries: [{ encryptedValue: 'number-ciphertext' }],
     })
   })
 
-  it('marks a bounded cross-boundary scan incomplete when an enumerable accessor is opaque', () => {
+  it('keeps every candidate when a bounded cross-boundary scan hits an opaque accessor', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret', encryptedValue: 'ciphertext' },
+      { name: 'ABSENT', plaintext: 'never-present', encryptedValue: 'absent-ciphertext' },
     ])
     registry.recordResolved('TOKEN', 'secret')
+    registry.recordResolved('ABSENT', 'never-present')
     const value = {}
     Object.defineProperty(value, 'opaque', {
       enumerable: true,
@@ -1063,16 +1101,18 @@ describe('ResolvedSecretTraceRegistry', () => {
 
     expect(registry.exportProvenanceForValue(value, { anonymous: true })).toEqual({
       version: 1,
-      complete: false,
-      entries: [],
+      complete: true,
+      entries: [{ encryptedValue: 'absent-ciphertext' }, { encryptedValue: 'ciphertext' }],
     })
   })
 
-  it('does not claim a complete cross-boundary scan for opaque large-value refs', () => {
+  it('keeps every candidate rather than voiding provenance for an opaque large-value ref', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret', encryptedValue: 'ciphertext' },
+      { name: 'ABSENT', plaintext: 'never-present', encryptedValue: 'absent-ciphertext' },
     ])
     registry.recordResolved('TOKEN', 'secret')
+    registry.recordResolved('ABSENT', 'never-present')
 
     expect(
       registry.exportProvenanceForValue(
@@ -1085,6 +1125,70 @@ describe('ResolvedSecretTraceRegistry', () => {
         },
         { anonymous: true }
       )
+    ).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ encryptedValue: 'absent-ciphertext' }, { encryptedValue: 'ciphertext' }],
+    })
+  })
+
+  it('lets a model input path survive an upstream output the scan could not read', async () => {
+    const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+    const catalog = [
+      { name: 'TOKEN', plaintext: 'decrypted:ciphertext', encryptedValue: 'ciphertext' },
+    ]
+    const producer = new ResolvedSecretTraceRegistry(catalog, scope)
+    producer.recordResolved('TOKEN', 'decrypted:ciphertext')
+
+    /** A block output past the traversal bound, exactly as compaction leaves a large table read. */
+    const upstreamOutput = {
+      rows: Array.from({ length: 5_000 }, (_, index) => ({
+        id: `row_${index}`,
+        a: 'a',
+        b: 'b',
+        c: 'c',
+        d: 'd',
+        e: 'e',
+        f: 'f',
+        g: 'g',
+        h: 'h',
+        i: 'i',
+        j: 'j',
+      })),
+    }
+    const upstreamProvenance = producer.exportCommittedProvenanceForValue(upstreamOutput)
+    expect(upstreamProvenance.complete).toBe(true)
+
+    const consumer = new ResolvedSecretTraceRegistry(catalog, scope)
+    await consumer.importProvenanceForValueAtInputPath(
+      upstreamProvenance,
+      upstreamOutput,
+      ['userPrompt'],
+      { trusted: true }
+    )
+
+    const modelFork = consumer.forkForInputPaths([['userPrompt'], ['systemPrompt']])
+    expect(modelFork.projectResolvedInputSelection({ userPrompt: 'classify these rows' })).toEqual({
+      complete: true,
+      value: { userPrompt: 'classify these rows' },
+    })
+  })
+
+  it('still voids provenance for an unscannable value when the registry cannot vouch', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'secret')
+    registry.markIncomplete('unverified-resolved-entry')
+
+    expect(
+      registry.exportCommittedProvenanceForValue({
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_ABCDEFGHIJKL',
+        kind: 'object',
+        size: 1024,
+      })
     ).toEqual({ version: 1, complete: false, entries: [] })
   })
 
@@ -1104,31 +1208,31 @@ describe('ResolvedSecretTraceRegistry', () => {
 
     expect(provenance).toEqual({
       version: 1,
-      complete: false,
-      entries: [],
+      complete: true,
+      entries: [{ encryptedValue: 'ciphertext' }],
     })
     expect(descriptorSnapshotCalls).toBe(0)
   })
 
   it('handles duplicate and empty values deterministically', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'Z_TOKEN', plaintext: 'same', encryptedValue: 'z-ciphertext' },
-      { name: 'A_TOKEN', plaintext: 'same', encryptedValue: 'a-ciphertext' },
+      { name: 'Z_TOKEN', plaintext: 'samevalue', encryptedValue: 'z-ciphertext' },
+      { name: 'A_TOKEN', plaintext: 'samevalue', encryptedValue: 'a-ciphertext' },
       { name: 'EMPTY', plaintext: '', encryptedValue: 'empty-ciphertext' },
-      { name: 'A', plaintext: 'A', encryptedValue: 'short-ciphertext' },
+      { name: 'A', plaintext: 'AAAAAAAA', encryptedValue: 'short-ciphertext' },
     ])
-    registry.recordResolved('Z_TOKEN', 'same')
-    registry.recordResolved('A_TOKEN', 'same')
+    registry.recordResolved('Z_TOKEN', 'samevalue')
+    registry.recordResolved('A_TOKEN', 'samevalue')
     registry.recordResolved('EMPTY', '')
 
     expect(registry.getActiveMatches()).toEqual([
-      { plaintext: 'same', replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT },
+      { plaintext: 'samevalue', replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT },
     ])
 
-    registry.recordResolved('A', 'A')
+    registry.recordResolved('A', 'AAAAAAAA')
     expect(registry.getActiveMatches()).toEqual([
-      { plaintext: 'same', replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT },
-      { plaintext: 'A', replacement: '{{A}}' },
+      { plaintext: 'samevalue', replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT },
+      { plaintext: 'AAAAAAAA', replacement: '{{A}}' },
     ])
   })
 
@@ -1277,5 +1381,390 @@ describe('ResolvedSecretTraceRegistry', () => {
     expect(registry.forkForInputPaths([['systemPrompt']]).isComplete()).toBe(true)
     expect(registry.forkForInputPaths([['userPrompt']]).isComplete()).toBe(false)
     expect(registry.getModelEgressSnapshot()).toEqual({ complete: false })
+  })
+})
+
+describe('incompleteness diagnostics', () => {
+  const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+
+  beforeEach(() => {
+    mockLogger.warn.mockClear()
+    mockLogger.error.mockClear()
+  })
+
+  it('reports an originating incompleteness at error so the default log level cannot hide it', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('projection-mismatch')
+
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'projection-mismatch' })
+    )
+  })
+
+  it('reports an inherited incompleteness at warn so one fault does not read as several', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('inherited-incomplete-source')
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'inherited-incomplete-source' })
+    )
+  })
+
+  it('names the guard that tripped rather than reporting unspecified', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.recordResolved('MISSING', 'value-not-in-catalog')
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'unverified-resolved-entry' })
+    )
+  })
+
+  it('separates a tool-call scope mismatch from a merged child that was already incomplete', () => {
+    const scopeMismatch = new ResolvedSecretTraceRegistry([], scope)
+    const foreignChild = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-1',
+      workspaceId: 'workspace-2',
+    })
+
+    scopeMismatch.mergeToolCallRegistry(foreignChild)
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'tool-call-scope-mismatch' })
+    )
+
+    mockLogger.warn.mockClear()
+    mockLogger.error.mockClear()
+
+    const sameScope = new ResolvedSecretTraceRegistry([], scope)
+    const incompleteChild = new ResolvedSecretTraceRegistry([], scope)
+    incompleteChild.markIncomplete('projection-mismatch')
+    mockLogger.error.mockClear()
+
+    sameScope.mergeToolCallRegistry(incompleteChild)
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'inherited-incomplete-source' })
+    )
+  })
+
+  it('attributes an already-incomplete bundle to its source rather than to the value filter', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    await registry.importProvenanceForValue(
+      { version: 1, complete: false, entries: [], scope },
+      'x',
+      {
+        trusted: true,
+        inputPath: ['prompt'],
+      }
+    )
+
+    const reasons = mockLogger.error.mock.calls
+      .concat(mockLogger.warn.mock.calls)
+      .map(([, details]) => (details as { reason?: string })?.reason)
+    expect(reasons).toContain('source-provenance-incomplete')
+    expect(reasons).not.toContain('value-provenance-filter-incomplete')
+  })
+
+  it.each([
+    'tool-input-not-enumerable',
+    'tool-params-transform-failed',
+    'structural-input-projection-incomplete',
+    'mothership-provenance-invalid',
+    'client-tool-seal-failed',
+    'knowledge-row-missing',
+    'knowledge-row-content-mismatch',
+    'mothership-response-unreadable',
+    'structural-input-root-unprojected',
+    'backfill-checkpoint-unusable',
+  ] as const)('reports %s at error, since it cannot trip on a healthy run', (reason) => {
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete(reason)
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason })
+    )
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'mothership-provenance-missing',
+    'client-tool-completion-missing',
+    'client-tool-completion-deferred',
+    'client-tool-completion-unidentified',
+    'client-tool-execution-untrusted',
+    'client-tool-content-unavailable',
+    'knowledge-result-provenance-unavailable',
+    'knowledge-response-capacity-exceeded',
+    'memory-crossing-capacity-exceeded',
+    'table-result-provenance-unavailable',
+    'mounted-file-provenance-unavailable',
+    'workspace-file-provenance-unknown',
+    'file-source-unidentified',
+    'mcp-tool-execution-timeout',
+    'table-snapshot-unsafe-for-mount',
+    'restored-provenance-untrusted',
+    'backfill-checkpoint-absent',
+    'client-tool-seal-absent',
+  ] as const)('reports %s at warn, since it is reachable without a fault', (reason) => {
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete(reason)
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason })
+    )
+    expect(mockLogger.error).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The taxonomy's rule is that an error reason cannot trip on a healthy run. A backfill walking
+   * historical rows hits the no-checkpoint case on essentially every legacy row, so classifying it
+   * as a fault would put one error line per row into the stream this split exists to protect.
+   */
+  it('separates an absent checkpoint from an unusable one, so a backfill cannot flood errors', () => {
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete('backfill-checkpoint-absent')
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'backfill-checkpoint-absent' })
+    )
+
+    vi.clearAllMocks()
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete('backfill-checkpoint-unusable')
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'backfill-checkpoint-unusable' })
+    )
+  })
+
+  it('does not report a log-less session at all, since it fires on every such run', () => {
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete('log-creation-skipped')
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+  })
+
+  it('reports an incoming incomplete bundle at warn, since no catalog was ever on offer', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('source-provenance-incomplete')
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'source-provenance-incomplete' })
+    )
+  })
+
+  it('stays silent for a registry built incomplete by design, which sits on hot paths', () => {
+    createIncompleteResolvedSecretTraceRegistry(scope)
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+  })
+
+  it('keeps an unaudited caller taking the default reason out of the error stream', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('unspecified')
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'unspecified' })
+    )
+  })
+
+  it('reports an incoming incomplete bundle exactly once, from the registry that knows the path', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    await registry.importProvenanceForValue(
+      { version: 1, complete: false, entries: [], scope },
+      'x',
+      { trusted: true, inputPath: ['prompt'] }
+    )
+
+    const records = mockLogger.error.mock.calls.concat(mockLogger.warn.mock.calls)
+    expect(records).toHaveLength(1)
+    expect(records[0]).toEqual([
+      'Resolved secret input path marked incomplete',
+      expect.objectContaining({ reason: 'source-provenance-incomplete', inputPath: 'prompt' }),
+    ])
+  })
+
+  it('summarises decrypt failures once per import instead of once per entry', async () => {
+    mockDecryptSecret.mockRejectedValue(new Error('key rotated'))
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    await registry.importProvenance(
+      {
+        version: 1,
+        complete: true,
+        entries: Array.from({ length: 25 }, (_, i) => ({
+          name: `SECRET_${i}`,
+          encryptedValue: `encrypted-${i}`,
+        })),
+        scope,
+      },
+      { trusted: true }
+    )
+
+    const decryptRecords = mockLogger.error.mock.calls.filter(
+      ([message]) => message === 'Provenance entries could not be decrypted'
+    )
+    expect(decryptRecords).toHaveLength(1)
+    expect(decryptRecords[0][1]).toEqual(
+      expect.objectContaining({ failedEntryCount: 25, totalEntryCount: 25, error: 'key rotated' })
+    )
+  })
+
+  it('reports no diagnostics while it can still vouch', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    expect(registry.getIncompletenessDiagnostics()).toBeUndefined()
+  })
+
+  it('retains the causal order of reasons, keeping the first as the originating one', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('entry-decrypt-failed')
+    registry.markIncomplete('source-provenance-incomplete')
+
+    const diagnostics = registry.getIncompletenessDiagnostics()
+    expect(diagnostics?.reasons[0]).toBe('entry-decrypt-failed')
+    expect(diagnostics?.reasons).toEqual(['entry-decrypt-failed', 'source-provenance-incomplete'])
+  })
+
+  it('retains every distinct reason, since the reason type is what bounds the set', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+    const reasons = [
+      'entry-decrypt-failed',
+      'source-provenance-incomplete',
+      'projection-mismatch',
+      'unresolved-placeholder',
+      'provenance-capacity-exceeded',
+      'tool-call-scope-mismatch',
+      'untrusted-provenance',
+      'value-provenance-untrusted',
+      'value-provenance-import-failed',
+      'unverified-resolved-entry',
+    ] as const
+
+    for (const reason of reasons) registry.markIncomplete(reason)
+
+    expect(registry.getIncompletenessDiagnostics()?.reasons).toEqual([...reasons])
+  })
+
+  it('retains a by-design reason even though marking it reports nothing', () => {
+    const registry = createIncompleteResolvedSecretTraceRegistry(scope)
+
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(registry.getIncompletenessDiagnostics()?.reasons[0]).toBe('constructed-incomplete')
+  })
+
+  it('attributes an untrustworthy bundle to the caller that imported it', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    await registry.importProvenance(
+      { version: 1, complete: false, entries: [], scope },
+      { trusted: true, origin: 'workflowHandler.childCrossing' }
+    )
+
+    expect(registry.getIncompletenessDiagnostics()?.origins).toEqual([
+      'workflowHandler.childCrossing',
+    ])
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({
+        reason: 'source-provenance-incomplete',
+        origin: 'workflowHandler.childCrossing',
+      })
+    )
+  })
+
+  it('bounds retained origins, which are caller-supplied rather than a closed union', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    for (let index = 0; index < 20; index++) {
+      await registry.importProvenance(
+        { version: 1, complete: false, entries: [], scope },
+        { trusted: true, origin: `caller.${index}` }
+      )
+    }
+
+    expect(registry.getIncompletenessDiagnostics()?.origins).toHaveLength(8)
+    expect(registry.getIncompletenessDiagnostics()?.origins[0]).toBe('caller.0')
+  })
+
+  it('records no secret material alongside the reason', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.recordResolved('MISSING', 'super-secret-value')
+
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).not.toContain('super-secret-value')
+    expect(logged).not.toContain('MISSING')
+  })
+})
+
+describe('non-identifying literals in durable provenance', () => {
+  /**
+   * The amplifier behind the boolean redaction: once recorded on a row, every later read of that
+   * table reactivated the value and rewrote every boolean in it.
+   */
+  it('never records a value too small to identify anything', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'BANNER_ENABLED', plaintext: 'false', encryptedValue: 'flag-ciphertext' },
+      { name: 'TOKEN', plaintext: 'xoxb-real-secret-value', encryptedValue: 'token-ciphertext' },
+    ])
+    registry.recordResolved('BANNER_ENABLED', 'false')
+    registry.recordResolved('TOKEN', 'xoxb-real-secret-value')
+
+    expect(registry.exportProvenanceForValue({ had_error: false, note: 'fromUser=false' })).toEqual(
+      { version: 1, complete: true, entries: [] }
+    )
+    expect(registry.exportProvenanceForValue({ token: 'xoxb-real-secret-value' })).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'token-ciphertext' }],
+    })
+  })
+
+  it('still recognizes the internal alias, which names the variable its value cannot', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'BANNER_ENABLED', plaintext: 'false', encryptedValue: 'flag-ciphertext' },
+    ])
+    registry.recordResolved('BANNER_ENABLED', 'false')
+
+    expect(registry.exportProvenanceForValue({ code: '__var_BANNER_ENABLED' })).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'BANNER_ENABLED', encryptedValue: 'flag-ciphertext' }],
+    })
+  })
+
+  it('keeps it out of the model matcher so nothing downstream can substitute it', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'BANNER_ENABLED', plaintext: 'false', encryptedValue: 'flag-ciphertext' },
+    ])
+    registry.recordResolved('BANNER_ENABLED', 'false')
+
+    const snapshot = registry.getModelEgressSnapshot()
+    expect(snapshot.complete).toBe(true)
+    if (snapshot.complete) {
+      expect(snapshot.matches.map((match) => match.plaintext)).not.toContain('false')
+    }
   })
 })

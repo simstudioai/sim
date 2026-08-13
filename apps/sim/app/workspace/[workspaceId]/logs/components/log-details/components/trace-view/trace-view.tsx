@@ -42,11 +42,12 @@ import {
   getDisplayName,
   hasErrorInTree,
   hasUnhandledErrorInTree,
-  iconColorClass,
   isIterationType,
   parseTime,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
+import { BlockTile } from '@/blocks/block-tile'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 
 const DEFAULT_TREE_PANE_WIDTH = 240
@@ -331,18 +332,18 @@ const TraceTreeRow = memo(function TraceTreeRow({
           <div className='size-[14px] flex-shrink-0' />
         )}
         {!isIterationType(span.type) && (
-          <div
-            className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-            style={{ background: bgColor }}
-          >
-            {BlockIcon && <BlockIcon className={cn('size-[10px]', iconColorClass(bgColor))} />}
-          </div>
+          <BlockTile
+            blockType={span.type?.toLowerCase() ?? ''}
+            icon={BlockIcon ?? undefined}
+            bgColor={bgColor}
+            size='sm'
+          />
         )}
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <span
               className={cn(
-                'min-w-0 flex-1 truncate font-medium text-caption',
+                'min-w-0 flex-1 truncate text-caption',
                 hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-secondary)]',
                 nameMatches && 'text-[var(--text-primary)]'
               )}
@@ -352,7 +353,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
           </Tooltip.Trigger>
           <Tooltip.Content side='right' className='max-w-[320px]'>
             <div className='flex flex-col gap-0.5'>
-              <span className='font-medium'>{getDisplayName(span)}</span>
+              <span>{getDisplayName(span)}</span>
               <span className='text-[var(--text-tertiary)] text-caption'>
                 {formatDuration(duration, { precision: 2 }) || '—'}
                 {offsetMs > 0 && ` · +${formatDuration(offsetMs, { precision: 2 })}`}
@@ -368,7 +369,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
             </div>
           </Tooltip.Content>
         </Tooltip.Root>
-        <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption tabular-nums'>
+        <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption tabular-nums'>
           {formatDuration(duration, { precision: 2 })}
         </span>
       </div>
@@ -463,7 +464,7 @@ function DetailCodeSection({
       >
         <span
           className={cn(
-            'font-medium text-caption transition-colors',
+            'text-caption transition-colors',
             isError
               ? 'text-[var(--text-error)]'
               : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
@@ -632,7 +633,7 @@ function DetailCodeSection({
  */
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className='flex items-center justify-between gap-2 font-medium text-caption'>
+    <div className='flex items-center justify-between gap-2 text-caption'>
       <span className='flex-shrink-0 text-[var(--text-tertiary)]'>{label}</span>
       <span className='min-w-0 truncate text-right text-[var(--text-secondary)]'>{value}</span>
     </div>
@@ -673,6 +674,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
     value: isCustomBlockType(span.type) ? 'custom block' : span.type,
   })
   metaEntries.push({ label: 'Duration', value: formatDuration(duration, { precision: 2 }) || '—' })
+  if (span.tries !== undefined) metaEntries.push({ label: 'Tries', value: String(span.tries) })
   if (span.provider) metaEntries.push({ label: 'Provider', value: span.provider })
   if (span.model) metaEntries.push({ label: 'Model', value: span.model })
   if (span.finishReason) metaEntries.push({ label: 'Finish reason', value: span.finishReason })
@@ -710,19 +712,21 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
             className='mt-[2px] flex size-[18px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
             style={{ background: bgColor }}
           >
-            {BlockIcon && <BlockIcon className={cn('size-[12px]', iconColorClass(bgColor))} />}
+            {BlockIcon && (
+              <BlockIcon className={cn('size-[12px]', getTileIconColorClass(bgColor))} />
+            )}
           </div>
         )}
         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
           <h3
             className={cn(
-              'min-w-0 truncate font-medium text-sm',
+              'min-w-0 truncate text-sm',
               hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
             )}
           >
             {getDisplayName(span)}
           </h3>
-          <div className='flex items-center gap-1.5 font-medium text-[var(--text-tertiary)] text-caption'>
+          <div className='flex items-center gap-1.5 text-[var(--text-tertiary)] text-caption'>
             <Badge variant={hasError ? 'red' : 'green'} size='sm'>
               {statusLabel}
             </Badge>
@@ -777,7 +781,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
       )}
 
       {Number.isFinite(startedAt) && Number.isFinite(endedAt) && startedAt > 0 && endedAt > 0 && (
-        <div className='flex items-center justify-between font-medium text-[var(--text-tertiary)] text-caption'>
+        <div className='flex items-center justify-between text-[var(--text-tertiary)] text-caption'>
           <span title={new Date(startedAt).toISOString()} suppressHydrationWarning>
             Started {new Date(startedAt).toLocaleTimeString()}
           </span>
@@ -999,16 +1003,16 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
             Jump to error
           </Button>
         )}
-        <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+        <span className='flex-shrink-0 text-[var(--text-secondary)] text-caption tabular-nums'>
           {formatDuration(totalDuration, { precision: 2 }) || '—'}
         </span>
-        <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+        <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption'>
           {blockCount} {blockCount === 1 ? 'span' : 'spans'}
         </span>
         {(() => {
           const rootCost = formatCostAmount(runCostDollars ?? normalizedSpans[0]?.cost?.total)
           return rootCost ? (
-            <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption tabular-nums'>
+            <span className='flex-shrink-0 text-[var(--text-tertiary)] text-caption tabular-nums'>
               {rootCost}
             </span>
           ) : null

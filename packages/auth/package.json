@@ -10,6 +10,10 @@
     "node": ">=20.0.0"
   },
   "exports": {
+    "./principal": {
+      "types": "./src/principal.ts",
+      "default": "./src/principal.ts"
+    },
     "./verify": {
       "types": "./src/verify.ts",
       "default": "./src/verify.ts"

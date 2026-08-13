@@ -71,10 +71,22 @@ export async function executeTool(
     (isSimExecuted(toolId) || (isClientExecuted(toolId) && hasHandler(toolId)))
   if (!canUseRegisteredHandler) {
     const appParams = buildAppToolParams(normalizedParams, context)
-    return context.resolvedSecretTraceRegistry
-      ? executeAppTool(toolId, appParams, {
-          resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
-        })
+    const options = {
+      ...(context.resolvedSecretTraceRegistry
+        ? { resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry }
+        : {}),
+      ...(context.workflowId
+        ? {
+            internalExecutorDelegation: {
+              subjectUserId: context.userId,
+              workflowId: context.workflowId,
+              ...(context.executionId ? { executionId: context.executionId } : {}),
+            },
+          }
+        : {}),
+    }
+    return Object.keys(options).length > 0
+      ? executeAppTool(toolId, appParams, options)
       : executeAppTool(toolId, appParams)
   }
 

@@ -36,10 +36,16 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
 import {
   CUMULATIVE_COST_EPSILON,
   CumulativeUsageContextMismatchError,
+  getUserUsageLogs,
+  getWorkspaceUsageLogs,
   recordCumulativeUsage,
   recordUsage,
   resolveCumulativeTopUp,
+  UNKNOWN_CURSOR_MESSAGE,
+  UnknownUsageCursorError,
 } from '@/lib/billing/core/usage-log'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { HttpError } from '@/lib/core/utils/http-error'
 
 /**
  * Re-wires the shared db mocks (`dbChainMockFns`, backing the single shared
@@ -388,5 +394,112 @@ describe('recordCumulativeUsage', () => {
     expect(executedSqlContaining(tx, 'lock_timeout')).toBe(true)
     expect(executedSqlContaining(tx, 'pg_advisory_xact_lock')).toBe(true)
     expect(executedSqlContaining(tx, 'hashtextextended')).toBe(true)
+  })
+})
+
+interface MockCondition {
+  type?: string
+  conditions?: MockCondition[]
+  left?: string
+  right?: string
+}
+
+function latestWhereCondition(): MockCondition {
+  const condition = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+  if (!condition) throw new Error('Expected a usage-log where condition')
+  return condition as MockCondition
+}
+
+describe('usage-log query scopes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('queries a complete workspace ledger without an actor predicate', async () => {
+    await getWorkspaceUsageLogs('workspace-1', { limit: 25, includeSummary: false })
+
+    expect(latestWhereCondition()).toMatchObject({
+      type: 'and',
+      conditions: [{ type: 'eq', left: 'workspaceId', right: 'workspace-1' }],
+    })
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(26)
+  })
+
+  it('rejects a cursor that resolves to no usage event instead of restarting at page 1', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    const rejection = await getUserUsageLogs('user-1', {
+      cursor: 'log-from-another-ledger',
+      includeSummary: false,
+    }).catch((error: unknown) => error)
+
+    expect(rejection).toBeInstanceOf(UnknownUsageCursorError)
+    expect((rejection as Error).message).toBe(UNKNOWN_CURSOR_MESSAGE)
+  })
+
+  /**
+   * Both projections of the same throw: the v2 route reads the classification off
+   * the `cause` chain, the session-only internal route reads `statusCode` off the
+   * `HttpError`. Asserting them here is what lets the route suites stay on the
+   * surface behaviour.
+   */
+  it('classifies the unresolvable-cursor rejection for both surfaces', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    const rejection = await getUserUsageLogs('user-1', {
+      cursor: 'log-from-another-ledger',
+      includeSummary: false,
+    }).catch((error: unknown) => error)
+
+    expect(rejection).toBeInstanceOf(HttpError)
+    expect((rejection as HttpError).statusCode).toBe(400)
+    expect(asOrchestrationError(rejection)).toMatchObject({
+      code: 'validation',
+      message: UNKNOWN_CURSOR_MESSAGE,
+    })
+  })
+
+  it('narrows the page to rows after a resolvable cursor', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ createdAt: new Date('2026-07-01T00:00:00Z') }])
+
+    await getUserUsageLogs('user-1', { cursor: 'log-1', limit: 25, includeSummary: false })
+
+    expect(latestWhereCondition()).toMatchObject({
+      type: 'and',
+      conditions: [{ type: 'eq', left: 'userId', right: 'user-1' }, { type: 'or' }],
+    })
+  })
+
+  it('trusts a caller-supplied cursor timestamp without a lookup', async () => {
+    await getUserUsageLogs('user-1', {
+      cursor: 'log-1',
+      cursorCreatedAt: new Date('2026-07-01T00:00:00Z'),
+      limit: 25,
+      includeSummary: false,
+    })
+
+    expect(latestWhereCondition()).toMatchObject({
+      type: 'and',
+      conditions: [{ type: 'eq', left: 'userId', right: 'user-1' }, { type: 'or' }],
+    })
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(26)
+  })
+
+  it('keeps personal queries actor-scoped with an optional workspace filter', async () => {
+    await getUserUsageLogs('user-1', {
+      workspaceId: 'workspace-1',
+      limit: 25,
+      includeSummary: false,
+    })
+
+    expect(latestWhereCondition()).toMatchObject({
+      type: 'and',
+      conditions: [
+        { type: 'eq', left: 'userId', right: 'user-1' },
+        { type: 'eq', left: 'workspaceId', right: 'workspace-1' },
+      ],
+    })
   })
 })

@@ -36,6 +36,90 @@ export const AgentPhoneBlock: BlockConfig = {
   bgColor: 'linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)',
   icon: AgentPhoneIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'AgentPhone',
+    sentences: {
+      byOperation: {
+        create_number: [
+          {
+            text: 'Provision a new phone number in',
+            field: 'country',
+            core: true,
+          },
+          { text: ', with area code', field: 'areaCode' },
+        ],
+        list_numbers: ['List provisioned phone numbers', { text: ', up to', field: 'limit' }],
+        release_number: [{ text: 'Release phone number', field: 'numberId', core: true }],
+        get_number_messages: [
+          { text: 'Fetch messages received on number', field: 'numberId', core: true },
+          { text: ', up to', field: 'messagesLimit', after: 'messages' },
+        ],
+        create_call: [
+          { text: 'Place a voice call to', field: 'toNumberCall', core: true },
+          { text: ', opening with', field: 'initialGreeting' },
+        ],
+        list_calls: [
+          'List calls',
+          { text: ', with status', field: 'callsStatus' },
+          { text: ', matching', field: 'callsSearch' },
+        ],
+        get_call: [
+          { text: 'Fetch call', field: 'callId', after: 'with its transcript', core: true },
+        ],
+        get_call_transcript: [{ text: 'Read the transcript of call', field: 'callId', core: true }],
+        list_conversations: ['List conversation threads', { text: ', up to', field: 'limit' }],
+        get_conversation: [
+          { text: 'Fetch conversation', field: 'conversationId', core: true },
+          { text: 'and its latest', field: 'messageLimit', after: 'messages' },
+        ],
+        update_conversation: [
+          { text: 'Update conversation', field: 'conversationId', core: true },
+          { text: ', setting metadata to', field: 'metadata' },
+        ],
+        get_conversation_messages: [
+          {
+            text: 'Page through messages in conversation',
+            field: 'conversationId',
+            core: true,
+          },
+          { text: ', up to', field: 'messagesLimit', after: 'messages' },
+        ],
+        send_message: [
+          { text: 'Send', field: 'messageBody', core: true },
+          { text: 'to', field: 'toNumberMessage', core: true },
+          { text: ', with media', field: 'mediaUrl' },
+        ],
+        react_to_message: [
+          { text: 'Add', field: 'reaction', after: 'as a tapback', core: true },
+          { text: 'to message', field: 'messageId', core: true },
+        ],
+        create_contact: [
+          { text: 'Create contact', field: 'contactName', core: true },
+          { text: 'for', field: 'contactPhoneNumber', core: true },
+        ],
+        list_contacts: [
+          'List contacts',
+          { text: ', matching', field: 'contactsSearch' },
+          { text: ', up to', field: 'limit' },
+        ],
+        get_contact: [{ text: 'Fetch contact', field: 'contactId', core: true }],
+        update_contact: [
+          { text: 'Update contact', field: 'contactId', core: true },
+          { text: ', setting name to', field: 'contactName' },
+        ],
+        delete_contact: [{ text: 'Delete contact', field: 'contactId', core: true }],
+        get_usage: ['Read account usage totals'],
+        get_usage_daily: [
+          'Read daily usage totals',
+          { text: 'for the last', field: 'usageDays', after: 'days' },
+        ],
+        get_usage_monthly: [
+          'Read monthly usage totals',
+          { text: 'for the last', field: 'usageMonths', after: 'months' },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -128,6 +212,7 @@ export const AgentPhoneBlock: BlockConfig = {
     {
       id: 'toNumberCall',
       title: 'To Phone Number',
+      canvasNoun: 'a phone number',
       type: 'short-input',
       placeholder: '+14155551234',
       condition: { field: 'operation', value: 'create_call' },
@@ -281,6 +366,7 @@ export const AgentPhoneBlock: BlockConfig = {
     {
       id: 'toNumberMessage',
       title: 'To Phone Number',
+      canvasNoun: 'a phone number',
       type: 'short-input',
       placeholder: '+14155551234',
       condition: { field: 'operation', value: 'send_message' },

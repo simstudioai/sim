@@ -53,7 +53,7 @@ vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
   projectResolvedSecretModelContent: mockProjectResolvedSecretModelContent,
 }))
 
-vi.mock('@/app/api/auth/oauth/utils', () => ({
+vi.mock('@/lib/oauth/credential-service', () => ({
   getServiceAccountToken: vi.fn(),
   refreshTokenIfNeeded: vi.fn(),
   resolveOAuthAccountId: vi.fn(),
@@ -208,7 +208,10 @@ describe('POST /api/providers', () => {
     )
 
     expect(res.status).toBe(200)
-    expect(mockImportProvenance).toHaveBeenCalledWith(provenance, { trusted: true })
+    expect(mockImportProvenance).toHaveBeenCalledWith(provenance, {
+      trusted: true,
+      origin: 'providersRoute.requestProvenance',
+    })
   })
 
   it('projects legacy private prompt provenance on the provider-facing copy', async () => {

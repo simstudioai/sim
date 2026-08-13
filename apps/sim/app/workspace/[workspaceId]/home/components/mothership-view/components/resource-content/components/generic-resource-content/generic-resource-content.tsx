@@ -40,8 +40,8 @@ export function GenericResourceContent({ data }: GenericResourceContentProps) {
                 animate
               />
             )}
-            <span className='font-medium text-[13px] text-[var(--text-primary)]'>
-              {getToolStatusDisplayTitle(entry.displayTitle, entry.status)}
+            <span className='text-[13px] text-[var(--text-primary)]'>
+              {getToolStatusDisplayTitle(entry.displayTitle, entry.status, entry.toolName)}
             </span>
             {entry.status === 'error' && (
               <span className='ml-auto text-[12px] text-[var(--text-error)]'>Error</span>

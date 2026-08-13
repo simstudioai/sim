@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  applyRegistrationGate,
   getRequestedSignInProviderId,
   isSignInProviderAllowed,
   SIGN_IN_PROVIDER_IDS,
@@ -82,5 +83,54 @@ describe('getRequestedSignInProviderId', () => {
     expect(getRequestedSignInProviderId('/sign-in/email', { provider: 'google' })).toBeUndefined()
     expect(getRequestedSignInProviderId('/sign-in/social', undefined)).toBeUndefined()
     expect(getRequestedSignInProviderId('/sign-in/oauth2', null)).toBeUndefined()
+  })
+})
+
+describe('registration gate', () => {
+  const providers = {
+    google: { clientId: 'g', clientSecret: 'gs', scope: ['email'] },
+    github: { clientId: 'h', clientSecret: 'hs' },
+  }
+
+  it('leaves the provider map untouched when registration is enabled', () => {
+    const gated = applyRegistrationGate(providers, false)
+
+    expect(gated).toBe(providers)
+    expect(gated.google).not.toHaveProperty('disableSignUp')
+  })
+
+  it('blocks account creation on every provider when registration is disabled', () => {
+    const gated = applyRegistrationGate(providers, true)
+
+    for (const config of Object.values(gated)) {
+      expect(config.disableSignUp).toBe(true)
+    }
+  })
+
+  /**
+   * The id-token branch of `/sign-in/social` reads a top-level
+   * `provider.disableSignUp` that Better Auth never hoists from config, so
+   * `disableSignUp` alone leaves that entrance open.
+   */
+  it('also closes the id-token sign-in entrance', () => {
+    const gated = applyRegistrationGate(providers, true)
+
+    for (const config of Object.values(gated)) {
+      expect(config.disableIdTokenSignIn).toBe(true)
+    }
+  })
+
+  it('preserves each provider credential and its keys', () => {
+    const gated = applyRegistrationGate(providers, true)
+
+    expect(Object.keys(gated)).toEqual(['google', 'github'])
+    expect(gated.google).toMatchObject({ clientId: 'g', clientSecret: 'gs', scope: ['email'] })
+  })
+
+  it('gates a provider added later without it opting in', () => {
+    const gated = applyRegistrationGate({ ...providers, someFutureIdp: { clientId: 'f' } }, true)
+
+    expect(gated.someFutureIdp.disableSignUp).toBe(true)
+    expect(gated.someFutureIdp.disableIdTokenSignIn).toBe(true)
   })
 })

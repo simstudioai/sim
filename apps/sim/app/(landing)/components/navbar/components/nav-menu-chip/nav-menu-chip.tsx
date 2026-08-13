@@ -31,11 +31,9 @@ import type { NavMenu } from '@/app/(landing)/components/navbar/components/nav-m
  * `--surface-4` ring (`p-[3px]`, overlay shadow) wrapping an inner `--bg`
  * surface, with the item grid padded inside.
  *
- * The grid renders three visual columns on six tracks (each tile spans two),
- * which keeps six-item menus pixel-identical to a plain three-column grid while
- * letting a five-item menu center its two-tile last row - the second-to-last
- * tile starts on track two, so the short row sits symmetrically instead of
- * leaving a hole in the corner.
+ * The grid is a plain three-column grid filled in reading order, so a menu with
+ * a non-multiple-of-three item count leaves its gap in the bottom-right corner
+ * rather than centering the short row.
  */
 
 interface NavMenuChipProps {
@@ -81,14 +79,7 @@ export function NavMenuChip({ menu }: NavMenuChipProps) {
       <div className={cn(PANEL_BASE, !closed && PANEL_REVEAL)}>
         <div className='w-[840px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)]'>
           <div className='rounded-lg border border-[var(--border-1)] bg-[var(--bg)] p-2'>
-            <div
-              className={cn(
-                'grid grid-cols-6 gap-1 [&>*]:col-span-2',
-                items.length % 3 === 2 && '[&>*:nth-last-child(2)]:col-start-2'
-              )}
-              role='group'
-              aria-label={label}
-            >
+            <div className='grid grid-cols-3 gap-1' role='group' aria-label={label}>
               {items.map((item) => (
                 <NavMenuItem key={item.title} item={item} onSelect={handleSelect} />
               ))}

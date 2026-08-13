@@ -8,7 +8,12 @@ alwaysApply: true
 Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`. Inside API routes wrapped with `withRouteHandler`, loggers automatically include the request ID.
 
 ## API Route Handlers
-All API route handlers must be wrapped with `withRouteHandler` from `@/lib/core/utils/with-route-handler`. Never export a bare `async function GET/POST/...` — always use `export const METHOD = withRouteHandler(...)`.
+All API route handlers must run inside `withRouteHandler`. Ordinary internal and v2 JSON/binary handlers use the shared route builders, which already apply it; never double-wrap them. Use raw `withRouteHandler` only for documented protocol or lifecycle exceptions. Never export a bare `async function GET/POST/...`.
+
+## Application Operation Boundary
+Every protected read, write, canonical lookup, or authorization-sensitive reference resolution must enter through an authorized application use case. Surfaces authenticate and build a `Principal`, rate-limit, parse, map input, call the use case, and present their own result. They must not query protected data, decide resource authorization, implement business transactions, or record semantic audit.
+
+Define one stable semantic operation with its role, workspace-key policy, principal kinds, and delegated services. Internal, v2, Copilot, and trusted-tool adapters call the same use case when domain behavior is the same. Copilot uses `createCopilotApplicationAdapter`; it is not a separate protected business layer. Protected compound mutations require one top-level semantic application operation. Never substitute billing attribution, an uploader, creator, or key owner for the acting principal. Use the `migrate-application-operation` skill for new or migrated protected operations.
 
 ## Comments
 Use TSDoc for documentation. No `====` separators. No non-TSDoc comments.

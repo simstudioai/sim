@@ -3,6 +3,8 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
+import { FolderCollectionFullError } from '@/lib/folders/errors'
 
 const { mockSaveWorkflowToNormalizedTables } = vi.hoisted(() => ({
   mockSaveWorkflowToNormalizedTables: vi.fn(),
@@ -109,16 +111,22 @@ function folderRow(id: string, name: string, parentId: string | null = null): Fo
 
 /**
  * Transaction stub for {@link resolveForkFolderMapping}: the first awaited select resolves
- * the source folders, the second the target folders, and inserted rows are captured.
+ * the source folders, the second the target folders, the third the target's active folder
+ * count (the ceiling check, which only runs when the copy has folders to insert), and
+ * inserted rows are captured.
  */
-function buildFolderTx(sourceFolders: FolderRow[], targetFolders: FolderRow[] = []) {
+function buildFolderTx(
+  sourceFolders: FolderRow[],
+  targetFolders: FolderRow[] = [],
+  targetFolderCount = 0
+) {
   const insertedRows: FolderRow[] = []
-  const selects = [sourceFolders, targetFolders]
+  const selects: unknown[][] = [sourceFolders, targetFolders, [{ total: targetFolderCount }]]
   let selectIndex = 0
   const tx = {
     select: () => ({
       from: () => ({
-        where: () => Promise.resolve(selects[selectIndex++] ?? []),
+        where: () => Promise.resolve((selects[selectIndex++] ?? []) as FolderRow[]),
       }),
     }),
     insert: () => ({
@@ -253,6 +261,55 @@ describe('resolveForkFolderMapping', () => {
     expect(insertedRows).toHaveLength(1)
     expect(insertedRows[0].name).toBe('Child')
     expect(insertedRows[0].parentId).toBe('T-parent')
+  })
+
+  /**
+   * The fork mirrors a whole source subtree into the target in one bulk insert, so it can
+   * push the target past `MAX_FOLDERS_PER_WORKSPACE` — the ceiling every capped folder
+   * reader materializes under — and leave the target's folder list unreadable. The refusal
+   * is raised before the insert and inside the fork transaction, so the copy rolls back.
+   */
+  it('refuses a fork whose new folders would cross the target workspace ceiling', async () => {
+    const { tx, insertedRows } = buildFolderTx(
+      [folderRow('A', 'Alpha'), folderRow('B', 'Beta', 'A'), folderRow('C', 'Gamma', 'B')],
+      [],
+      MAX_FOLDERS_PER_WORKSPACE - 2
+    )
+
+    const rejection = expect(resolveMapping({ tx, contentFolderIds: ['C'] })).rejects
+    await rejection.toBeInstanceOf(FolderCollectionFullError)
+    await rejection.toMatchObject({ code: 'conflict' })
+    expect(insertedRows).toHaveLength(0)
+  })
+
+  it('allows a fork whose new folders exactly fill the target workspace ceiling', async () => {
+    const { tx, insertedRows } = buildFolderTx(
+      [folderRow('A', 'Alpha'), folderRow('B', 'Beta', 'A'), folderRow('C', 'Gamma', 'B')],
+      [],
+      MAX_FOLDERS_PER_WORKSPACE - 3
+    )
+
+    await resolveMapping({ tx, contentFolderIds: ['C'] })
+
+    expect(insertedRows).toHaveLength(3)
+  })
+
+  /**
+   * A sync that reuses every target folder adds no rows, so an already-over-cap target must
+   * not have it refused — the ceiling gates writes, never reads.
+   */
+  it('does not refuse a sync into an over-cap target when it creates no folders', async () => {
+    const existing = { ...folderRow('T1', 'Shared'), workspaceId: 'ws-target' }
+    const { tx, insertedRows } = buildFolderTx(
+      [folderRow('G', 'Shared')],
+      [existing],
+      MAX_FOLDERS_PER_WORKSPACE + 5
+    )
+
+    const map = await resolveMapping({ tx, contentFolderIds: ['G'] })
+
+    expect(insertedRows).toHaveLength(0)
+    expect(map.get('G')).toBe('T1')
   })
 })
 

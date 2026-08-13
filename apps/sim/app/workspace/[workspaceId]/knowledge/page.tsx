@@ -1,13 +1,17 @@
 import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
+import { getSession } from '@/lib/auth'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
+import { Knowledge } from '@/app/workspace/[workspaceId]/knowledge/knowledge'
 import KnowledgeLoading from '@/app/workspace/[workspaceId]/knowledge/loading'
 import { prefetchKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/prefetch'
-import { Knowledge } from './knowledge'
+
+const KNOWLEDGE_HEADER = FOLDERED_RESOURCE_HEADERS.knowledge_base
 
 export const metadata: Metadata = {
-  title: 'Knowledge Base',
+  title: KNOWLEDGE_HEADER.rootLabel,
 }
 
 /**
@@ -21,10 +25,9 @@ export default async function KnowledgePage({
 }: {
   params: Promise<{ workspaceId: string }>
 }) {
-  const { workspaceId } = await params
-
+  const [{ workspaceId }, session] = await Promise.all([params, getSession()])
   const queryClient = getQueryClient()
-  await prefetchKnowledgeBases(queryClient, workspaceId)
+  await prefetchKnowledgeBases(queryClient, workspaceId, session?.user?.id)
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

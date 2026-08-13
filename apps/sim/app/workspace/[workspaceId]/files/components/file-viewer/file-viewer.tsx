@@ -298,6 +298,7 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
           mimeType={file.type}
           filename={file.name}
           workspaceId={workspaceId}
+          fileId={file.id}
           fileKey={file.key}
           readOnly
         />
@@ -407,7 +408,7 @@ const MediaPreview = memo(function MediaPreview({
       <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
         <div className='flex flex-col items-center gap-2 text-center'>
           <Music className='size-[32px] text-[var(--text-muted)]' />
-          <p className='font-medium text-[14px] text-[var(--text-primary)]'>{file.name}</p>
+          <p className='text-[14px] text-[var(--text-primary)]'>{file.name}</p>
         </div>
         {blobUrl && (
           // biome-ignore lint/a11y/useMediaCaption: audio from workspace files

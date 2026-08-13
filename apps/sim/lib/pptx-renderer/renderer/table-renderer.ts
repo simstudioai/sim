@@ -18,9 +18,7 @@ import type { RenderContext } from './render-context'
 import { resolveColor, resolveLineStyle } from './style-resolver'
 import { renderTextBody } from './text-renderer'
 
-// ---------------------------------------------------------------------------
 // Table Style Lookup
-// ---------------------------------------------------------------------------
 
 /**
  * Find a table style node by its ID from presentation.tableStyles.
@@ -387,9 +385,7 @@ function applyTableBackground(table: HTMLElement, tblStyle: SafeXmlNode, ctx: Re
   }
 }
 
-// ---------------------------------------------------------------------------
 // Table Rendering
-// ---------------------------------------------------------------------------
 
 /**
  * Render a table node into an absolutely-positioned HTML element.
@@ -528,9 +524,7 @@ export function renderTable(node: TableNodeData, ctx: RenderContext): HTMLElemen
   return wrapper
 }
 
-// ---------------------------------------------------------------------------
 // Cell Property Application
-// ---------------------------------------------------------------------------
 
 /**
  * Apply table cell properties (tcPr) to a <td> element.

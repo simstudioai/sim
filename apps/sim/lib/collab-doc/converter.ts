@@ -14,10 +14,10 @@ import {
   postProcessSerializedMarkdown,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import {
-  parseMarkdownToDoc,
+  editorNormalForm,
   serializeDocToMarkdown,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
-import { COLLAB_DOC_FIELD } from './normalize'
+import { COLLAB_DOC_FIELD } from './field'
 
 /**
  * Server-side conversion between a file's markdown and its collaborative Yjs document.
@@ -64,6 +64,8 @@ function ensureDomForTipTap(): void {
   // temporal dead zone ("Cannot access 'window' before initialization").
   const { JSDOM } = require('jsdom') as typeof import('jsdom')
   const { window: jsdomWindow } = new JSDOM('<!doctype html><html><body></body></html>')
+  // double-cast-allowed: assigning the jsdom shims onto the global needs an
+  // index-signature view of `globalThis`, whose declared type has none.
   const g = globalThis as unknown as Record<string, unknown>
   g.window = jsdomWindow
   g.document = jsdomWindow.document
@@ -73,8 +75,7 @@ function ensureDomForTipTap(): void {
 /** Convert a file's markdown to a fresh collaborative {@link Y.Doc} (cold-start seed). */
 export function markdownToYDoc(markdown: string): Y.Doc {
   ensureDomForTipTap()
-  const json = parseMarkdownToDoc(markdown)
-  return prosemirrorJSONToYDoc(markdownSchema(), json, COLLAB_DOC_FIELD)
+  return prosemirrorJSONToYDoc(markdownSchema(), editorNormalForm(markdown), COLLAB_DOC_FIELD)
 }
 
 /** Project a collaborative {@link Y.Doc}'s BODY back to markdown (no frontmatter). */
@@ -101,6 +102,49 @@ export function yDocToFileMarkdown(ydoc: Y.Doc): string {
 }
 
 /**
+ * Converge a collaborative {@link Y.Doc} onto its own markdown projection — the document's CANONICAL
+ * form — and report whether anything changed.
+ *
+ * A ProseMirror document is strictly richer than markdown, so `parse ∘ serialize` is not the identity:
+ * trailing empty paragraphs are collapsed by `postProcessSerializedMarkdown`, a blank run past the parse
+ * bound is truncated, and a document that must parse whole (raw HTML, reference definitions) keeps no
+ * empty paragraphs at all. A CRDT holding any such state describes a document its own markdown cannot
+ * reproduce — so the file renders one way from the live doc and another from the durable bytes, and the
+ * difference surfaces as the editor reflowing a beat after it paints, then silently discarding the
+ * spacing once the room goes cold.
+ *
+ * The fix is to keep the CRDT inside the image of the parse. Defining canonical as "what the round-trip
+ * produces" rather than as a hand-written list of what markdown cannot hold is what makes this
+ * self-maintaining: every future gap between the two representations is absorbed here automatically,
+ * with no second place to update. Idempotent by construction — a canonical doc projects to markdown that
+ * parses back to itself, so a second call is a no-op — and it applies the difference through
+ * {@link applyMarkdownToYDoc}, so it is a minimal CRDT diff rather than a replacement.
+ *
+ * Call this on a DETACHED doc (a decoded snapshot), never on a live room: it is a correctness pass for
+ * durable artifacts, and converging a document somebody is typing into would move their caret.
+ *
+ * "Changed" is decided on the DOCUMENT, not on its markdown. Comparing projections looks equivalent and
+ * is not: the repairs this pass exists to make are precisely the ones markdown cannot express, so a
+ * markdown-equality check is blind to them. Concretely, appending the trailing paragraph
+ * {@link editorNormalForm} requires serializes to a trailing blank line that
+ * `postProcessSerializedMarkdown` collapses — so every doc ending on a list, heading, table, or rule was
+ * repaired here and still reported unchanged, and both callers key their re-encode off that flag. The
+ * cached snapshot then kept the UNREPAIRED bytes, which is the one path back into the stacking-empties
+ * bug this pass was written to close.
+ */
+export function canonicalizeYDoc(ydoc: Y.Doc): boolean {
+  ensureDomForTipTap()
+  const before = yDocToProsemirrorJSON(ydoc, COLLAB_DOC_FIELD)
+  // Converge on the body that will actually be WRITTEN, post-process included — the same pass
+  // `yDocToFileMarkdown` applies. Targeting the bare serializer output would define canonical against a
+  // string the file never contains, so the fidelity fixes that pass makes (empty list markers that
+  // re-parse wrong, backslash-escaped callout markers) would sit outside the fixed point this exists to
+  // establish, and the live doc could settle on a shape the durable bytes do not reproduce.
+  applyMarkdownToYDoc(ydoc, postProcessSerializedMarkdown(serializeDocToMarkdown(before)))
+  return JSON.stringify(yDocToProsemirrorJSON(ydoc, COLLAB_DOC_FIELD)) !== JSON.stringify(before)
+}
+
+/**
  * Apply new markdown content into an EXISTING collaborative {@link Y.Doc} as a minimal CRDT diff,
  * merging with any concurrent user edits rather than replacing the document. This is how the agent
  * writes into a live doc: `updateYFragment` computes exactly the changes between the fragment's
@@ -110,7 +154,7 @@ export function yDocToFileMarkdown(ydoc: Y.Doc): string {
 export function applyMarkdownToYDoc(ydoc: Y.Doc, markdown: string): void {
   ensureDomForTipTap()
   const schema = markdownSchema()
-  const target = ProseMirrorNode.fromJSON(schema, parseMarkdownToDoc(markdown))
+  const target = ProseMirrorNode.fromJSON(schema, editorNormalForm(markdown))
   const fragment = ydoc.getXmlFragment(COLLAB_DOC_FIELD)
   // `updateYFragment` diffs against the fragment's CURRENT content, so it needs the fragment↔PM
   // binding metadata (the element/mark mapping the live editor's ySyncPlugin normally maintains).

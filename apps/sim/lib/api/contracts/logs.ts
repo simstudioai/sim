@@ -144,18 +144,19 @@ const blockExecutionSchema = z.object({
 
 const toolCallSchema = z
   .object({
-    id: z.string().optional(),
-    name: z.string().optional(),
-    arguments: z.unknown().optional(),
-    result: z.unknown().optional(),
-    error: z.string().optional(),
-    startTime: z.string().optional(),
-    endTime: z.string().optional(),
-    duration: z.number().optional(),
+    id: z.string().describe('Tool-call identifier.').optional(),
+    name: z.string().describe('Invoked tool name.').optional(),
+    arguments: z.unknown().describe('Arguments supplied to the tool call.').optional(),
+    result: z.unknown().describe('Value returned by the tool call.').optional(),
+    error: z.string().describe('Tool-call error message.').optional(),
+    startTime: z.string().describe('ISO 8601 tool-call start timestamp.').optional(),
+    endTime: z.string().describe('ISO 8601 tool-call end timestamp.').optional(),
+    duration: z.number().describe('Tool-call duration in milliseconds.').optional(),
   })
-  .passthrough()
+  .describe('Tool invocation captured inside a trace span.')
+  .catchall(z.unknown().describe('Additional provider-specific tool-call metadata.'))
 
-type TraceSpan = {
+export type LogTraceSpan = {
   id: string
   name: string
   type: string
@@ -164,53 +165,83 @@ type TraceSpan = {
   startTime?: string
   endTime?: string
   status?: string
+  errorHandled?: boolean
+  errorType?: string
+  errorMessage?: string
   blockId?: string
   input?: unknown
   output?: unknown
   tokens?: number | { total?: number; input?: number; output?: number }
+  cost?: { total?: number; input?: number; output?: number; toolCost?: number }
   relativeStartMs?: number
   toolCalls?: Array<z.output<typeof toolCallSchema>>
-  children?: TraceSpan[]
+  children?: LogTraceSpan[]
 }
 
-const traceSpanSchema: z.ZodType<TraceSpan> = z.lazy(() =>
-  z
-    .object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      duration: z.number().optional(),
-      durationMs: z.number().optional(),
-      startTime: z.string().optional(),
-      endTime: z.string().optional(),
-      status: z.string().optional(),
-      blockId: z.string().optional(),
-      input: z.unknown().optional(),
-      output: z.unknown().optional(),
-      tokens: z
-        .union([
-          z.number(),
-          z
-            .object({
-              total: z.number().optional(),
-              input: z.number().optional(),
-              output: z.number().optional(),
-            })
-            .partial(),
-        ])
-        .optional(),
-      relativeStartMs: z.number().optional(),
-      toolCalls: z.array(toolCallSchema).optional(),
-      children: z.array(traceSpanSchema).optional(),
-    })
-    .passthrough()
-)
+export const traceSpanSchema: z.ZodType<LogTraceSpan> = z
+  .lazy(() =>
+    z
+      .object({
+        id: z.string().describe('Trace-span identifier.'),
+        name: z.string().describe('Trace-span name.'),
+        type: z.string().describe('Trace-span category.'),
+        duration: z.number().describe('Legacy span duration in milliseconds.').optional(),
+        durationMs: z.number().describe('Span duration in milliseconds.').optional(),
+        startTime: z.string().describe('ISO 8601 span start timestamp.').optional(),
+        endTime: z.string().describe('ISO 8601 span end timestamp.').optional(),
+        status: z.string().describe('Trace-span status.').optional(),
+        errorHandled: z.boolean().describe('Whether the recorded error was handled.').optional(),
+        errorType: z.string().describe('Recorded error type.').optional(),
+        errorMessage: z.string().describe('Recorded error message.').optional(),
+        blockId: z.string().describe('Workflow block associated with the span.').optional(),
+        input: z.unknown().describe('Input captured for the traced operation.').optional(),
+        output: z.unknown().describe('Output captured for the traced operation.').optional(),
+        tokens: z
+          .union([
+            z.number().describe('Total tokens attributed to the span.'),
+            z
+              .object({
+                total: z.number().describe('Total tokens.').optional(),
+                input: z.number().describe('Input tokens.').optional(),
+                output: z.number().describe('Output tokens.').optional(),
+              })
+              .describe('Token usage attributed to the span.')
+              .partial(),
+          ])
+          .describe('Token usage attributed to the span.')
+          .optional(),
+        cost: z
+          .object({
+            total: z.number().describe('Total span cost in USD.').optional(),
+            input: z.number().describe('Input-token cost in USD.').optional(),
+            output: z.number().describe('Output-token cost in USD.').optional(),
+            toolCost: z.number().describe('Tool cost in USD.').optional(),
+          })
+          .partial()
+          .describe('Cost attributed to the span.')
+          .optional(),
+        relativeStartMs: z
+          .number()
+          .describe('Offset from the root span in milliseconds.')
+          .optional(),
+        toolCalls: z.array(toolCallSchema).describe('Tool calls recorded by the span.').optional(),
+        children: z.array(traceSpanSchema).describe('Nested child trace spans.').optional(),
+      })
+      .catchall(z.unknown().describe('Additional provider-specific trace-span metadata.'))
+  )
+  .meta({
+    id: 'LogTraceSpan',
+    title: 'Log trace span',
+    description: 'One recursive operation span in a workflow execution trace.',
+  })
+
+export const traceSpansSchema = z.array(traceSpanSchema)
 
 const executionDataDetailSchema = z
   .object({
     totalDuration: z.number().nullable().optional(),
     enhanced: z.literal(true).optional(),
-    traceSpans: z.array(traceSpanSchema).optional(),
+    traceSpans: traceSpansSchema.optional(),
     blockExecutions: z.array(blockExecutionSchema).optional(),
     finalOutput: z.unknown().optional(),
     workflowInput: z.unknown().optional(),
@@ -226,11 +257,11 @@ export const workflowLogSummarySchema = z.object({
   deploymentVersionId: z.string().nullable(),
   deploymentVersion: z.number().nullable(),
   deploymentVersionName: z.string().nullable(),
+  executionOrigin: z.enum(['workflow_group']).nullable(),
   level: z.string(),
   status: z.string().nullable(),
   duration: z.string().nullable(),
   trigger: z.string().nullable(),
-  executionOrigin: z.enum(['workflow_group']).nullable(),
   createdAt: z.string(),
   workflow: workflowSummarySchema.nullable(),
   jobTitle: z.string().nullable(),

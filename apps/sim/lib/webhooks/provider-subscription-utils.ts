@@ -3,7 +3,7 @@ import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import { resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 
 const logger = createLogger('WebhookProviderSubscriptions')
 

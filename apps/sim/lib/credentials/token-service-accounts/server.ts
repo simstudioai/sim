@@ -13,6 +13,7 @@ import {
   NOTION_SERVICE_ACCOUNT_PROVIDER_ID,
   PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
   SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID,
+  SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
   type TokenServiceAccountProviderId,
   TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -31,6 +32,7 @@ import { validateMondayServiceAccount } from '@/lib/credentials/token-service-ac
 import { validateNotionServiceAccount } from '@/lib/credentials/token-service-accounts/validators/notion'
 import { validatePipedriveServiceAccount } from '@/lib/credentials/token-service-accounts/validators/pipedrive'
 import { validateShopifyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/shopify'
+import { validateSnowflakeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/snowflake'
 import { validateTrelloServiceAccount } from '@/lib/credentials/token-service-accounts/validators/trello'
 import { validateWealthboxServiceAccount } from '@/lib/credentials/token-service-accounts/validators/wealthbox'
 import { validateWebflowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/webflow'
@@ -94,6 +96,7 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID]: validateWealthboxServiceAccount,
   [PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID]: validatePipedriveServiceAccount,
   [CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID]: validateClaudePlatformServiceAccount,
+  [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: validateSnowflakeServiceAccount,
 }
 
 export function getTokenServiceAccountValidator(

@@ -14,6 +14,38 @@ export const KetchBlock: BlockConfig<KetchResponse> = {
   integrationType: IntegrationType.Security,
   bgColor: '#9B5CFF',
   icon: KetchIcon,
+  canvasPresentation: {
+    defaultTitle: 'Ketch',
+    sentences: {
+      byOperation: {
+        get_consent: [
+          { text: 'Read consent status for', field: 'identities', core: true },
+          { text: 'on property', field: 'propertyCode' },
+        ],
+        set_consent: [
+          { text: 'Update consent purposes for', field: 'identities', core: true },
+          { text: 'on property', field: 'propertyCode' },
+        ],
+        get_subscriptions: [
+          { text: 'Read subscription preferences for', field: 'identities', core: true },
+          { text: 'on property', field: 'propertyCode' },
+        ],
+        set_subscriptions: [
+          { text: 'Update subscription topics for', field: 'identities', core: true },
+          { text: 'on property', field: 'propertyCode' },
+        ],
+        invoke_right: [
+          {
+            text: 'Invoke',
+            field: 'rightCode',
+            after: 'right',
+            core: true,
+          },
+          { text: 'for', field: 'identities', core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

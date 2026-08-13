@@ -18,6 +18,10 @@
       "types": "./src/random.ts",
       "default": "./src/random.ts"
     },
+    "./color": {
+      "types": "./src/color.ts",
+      "default": "./src/color.ts"
+    },
     "./errors": {
       "types": "./src/errors.ts",
       "default": "./src/errors.ts"

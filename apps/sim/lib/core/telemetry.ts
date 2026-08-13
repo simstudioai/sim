@@ -405,9 +405,7 @@ export function trackPlatformEvent(
   }
 }
 
-// ============================================================================
 // PLATFORM TELEMETRY EVENTS
-// ============================================================================
 //
 // Naming Convention:
 //   Event:     platform.{resource}.{past_tense_action}
@@ -428,7 +426,6 @@ export function trackPlatformEvent(
 //   - Webhook:        platform.webhook.*
 //   - Billing:        platform.billing.*
 //   - Template:       platform.template.*
-// ============================================================================
 
 /**
  * Platform Events - Typed event tracking helpers

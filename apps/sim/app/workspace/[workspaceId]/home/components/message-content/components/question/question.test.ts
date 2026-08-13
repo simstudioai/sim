@@ -253,7 +253,7 @@ describe('QuestionDisplay', () => {
     container.remove()
   })
 
-  it('uses Continue before the final single-select page instead of advancing on selection', () => {
+  it('advances a multi-page single-select on selection, with no Continue row', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -269,25 +269,51 @@ describe('QuestionDisplay', () => {
       )
     })
 
+    expect(
+      Array.from(container.querySelectorAll('button')).some((button) =>
+        ['Continue', 'Submit'].includes(button.textContent ?? '')
+      )
+    ).toBe(false)
+
     const firstOption = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent === 'Keep the newest entry'
     )
     act(() => firstOption?.click())
 
-    expect(container.textContent).toContain(QUESTIONS[0].prompt)
-    expect(onSelect).not.toHaveBeenCalled()
-    const continueButton = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Continue'
-    )
-    expect(continueButton?.disabled).toBe(false)
-    act(() => continueButton?.click())
-
     expect(container.textContent).toContain(QUESTIONS[1].prompt)
-    expect(
-      Array.from(container.querySelectorAll('button')).some(
-        (button) => button.textContent === 'Submit'
+    expect(onSelect).not.toHaveBeenCalled()
+
+    const finalOption = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Cancel'
+    )
+    act(() => finalOption?.click())
+
+    expect(onSelect).toHaveBeenCalledWith(
+      'How should I handle the duplicates? — Keep the newest entry\n' +
+        'Delete 4 archived workflows? — Cancel'
+    )
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('keeps the single-select arrow inert until the free-text box has content', () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    act(() => {
+      root.render(
+        createElement(QuestionDisplay, {
+          data: [QUESTIONS[0]],
+          onSelect: () => undefined,
+        })
       )
-    ).toBe(true)
+    })
+
+    const arrow = container.querySelector<HTMLButtonElement>('button[aria-label="Submit answer"]')
+    expect(arrow?.disabled).toBe(true)
 
     act(() => root.unmount())
     container.remove()

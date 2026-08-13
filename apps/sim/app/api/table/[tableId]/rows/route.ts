@@ -40,7 +40,7 @@ import {
   resolveTableWriteSecretProvenance,
 } from '@/app/api/table/row-secret-provenance'
 import { type RowWireTranslators, rowWireTranslators } from '@/app/api/table/row-wire'
-import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
+import { accessError, checkAccess, orchestrationErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowsAPI')
 
@@ -168,7 +168,7 @@ async function handleBatchInsert(
       rows: insertedRows,
     })
   } catch (error) {
-    const response = rowWriteErrorResponse(error)
+    const response = orchestrationErrorResponse(error)
     if (response) return response
 
     logger.error(`[${requestId}] Error batch inserting rows:`, error)
@@ -284,7 +284,7 @@ export const POST = withRouteHandler(
         return validationErrorResponse(error)
       }
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error inserting row:`, error)
@@ -527,7 +527,7 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error updating rows by filter:`, error)
@@ -627,7 +627,7 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error deleting rows:`, error)
@@ -716,7 +716,7 @@ export const PATCH = withRouteHandler(
         return validationErrorResponse(error)
       }
 
-      const response = rowWriteErrorResponse(error)
+      const response = orchestrationErrorResponse(error)
       if (response) return response
 
       logger.error(`[${requestId}] Error batch updating rows:`, error)

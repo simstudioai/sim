@@ -35,6 +35,7 @@ src/main/           # main process (bundled to dist/main.cjs)
   browser-sites/    # imported site directory, safeStorage at rest
   browser-import/   # one-shot import of profiles, cookies and passwords
 src/preload/        # contextBridge IPC bridge (bundled to dist/preload.cjs)
+native/             # Node-API/AppKit bridge for native macOS Help docs search
 static/             # bundled local pages (offline.html)
 e2e/                # Playwright _electron smoke suite
 ```
@@ -168,7 +169,7 @@ Raw local file bytes are never exposed through the preload bridge and cannot be 
 ## Auto-update, channels, rollout, rollback
 
 - `electron-updater` reads the GitHub Releases feed (`publish` is pinned to `simstudioai/sim`); deltas via `.zip.blockmap`. Install is prompt-based (Restart Now / Later; Later installs on quit) — never forced mid-session.
-- Channels: stable builds (`X.Y.Z`) follow `latest`; `-beta.N` builds follow `beta` (never attach a beta `latest-mac.yml` to a stable tag).
+- Streams: production follows stable `X.Y.Z` releases, dev follows `-dev.N`, and staging follows `-staging.N`. The feed still recognizes legacy `-alpha.N`/`-beta.N` releases during migration.
 - Staged rollout: after publishing, edit `stagingPercentage: 10` into the release's `latest-mac.yml`, then raise as crash metrics stay clean.
 - Rollback: a pulled release must be superseded by a **higher** version — users on the broken build will not reinstall an equal one. (A blocked-versions kill-switch was removed as unwired dead code; reintroduce it in `updater.ts` if a remote config source ever exists to feed it.)
 - Ship the DMG and tell users to install to `/Applications` — App Translocation breaks Squirrel.Mac updates from quarantined paths.

@@ -51,6 +51,13 @@ const PAGINATED_OPERATIONS = new Set([
   'list_transfers',
 ])
 
+/**
+ * Canonical basic/advanced pair for the receipt file, shared by the two receipt
+ * card sentences below. Listing both members is what keeps the sentence working
+ * for an advanced-mode user, who has only the file-reference field filled.
+ */
+const RECEIPT_FILE_FIELD = ['uploadReceiptFile', 'receiptFileReference'] as const
+
 export const BrexBlock: BlockConfig<BrexResponse> = {
   type: 'brex',
   name: 'Brex',
@@ -63,6 +70,136 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
   integrationType: IntegrationType.Commerce,
   bgColor: '#171717',
   icon: BrexIcon,
+  canvasPresentation: {
+    defaultTitle: 'Brex',
+    sentences: {
+      byOperation: {
+        list_expenses: [
+          'List expenses',
+          { text: ', for users', field: 'userIds' },
+          { text: ', with status', field: 'statuses' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_expense: [{ text: 'Fetch expense', field: 'expenseId', core: true }],
+        update_expense: [
+          { text: 'Set the memo of expense', field: 'expenseId', core: true },
+          { text: 'to', field: 'memo' },
+        ],
+        upload_receipt: [
+          { text: 'Attach receipt', field: RECEIPT_FILE_FIELD, core: true },
+          { text: 'to expense', field: 'expenseId', core: true },
+        ],
+        match_receipt: [
+          {
+            text: 'Match receipt',
+            field: RECEIPT_FILE_FIELD,
+            after: 'to an existing expense',
+            core: true,
+          },
+        ],
+        list_card_transactions: [
+          'List card transactions',
+          { text: ', for users', field: 'userIds' },
+          { text: ', posted after', field: 'postedAtStart' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        list_cash_transactions: [
+          { text: 'List transactions in cash account', field: 'accountId', core: true },
+          { text: ', posted after', field: 'postedAtStart' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        list_card_accounts: ['List all card accounts'],
+        list_cash_accounts: [
+          'List cash accounts',
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_cash_account: [
+          {
+            text: 'Fetch cash account',
+            field: 'accountId',
+            core: true,
+          },
+        ],
+        list_card_statements: [
+          'List card statements',
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        list_cash_statements: [
+          { text: 'List statements for cash account', field: 'accountId', core: true },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        list_users: [
+          'List users',
+          { text: ', with email', field: 'email' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_user: [{ text: 'Fetch user', field: 'userId', core: true }],
+        get_current_user: ['Fetch the authenticated user'],
+        list_departments: [
+          'List departments',
+          { text: ', named', field: 'name' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        list_locations: [
+          'List locations',
+          { text: ', named', field: 'name' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        list_titles: [
+          'List job titles',
+          { text: ', named', field: 'name' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        list_cards: [
+          'List cards',
+          { text: ', owned by', field: 'userId' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_company: ['Fetch company details'],
+        list_budgets: ['List budgets', { text: ', up to', field: 'limit', after: 'results' }],
+        get_budget: [{ text: 'Fetch budget', field: 'budgetId', core: true }],
+        create_budget: [
+          { text: 'Create budget', field: 'resourceName', core: true },
+          { text: ', capped at', field: 'amount' },
+          { text: ', with a', field: 'periodRecurrenceType', after: 'period' },
+        ],
+        archive_budget: [{ text: 'Archive budget', field: 'budgetId', core: true }],
+        list_spend_limits: [
+          'List spend limits',
+          { text: ', for members', field: 'memberUserIds' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_spend_limit: [{ text: 'Fetch spend limit', field: 'spendLimitId', core: true }],
+        create_spend_limit: [
+          { text: 'Create spend limit', field: 'resourceName', core: true },
+          { text: ', capped at', field: 'baseLimitAmount' },
+          { text: ', for members', field: 'spendLimitMemberUserIds' },
+        ],
+        list_vendors: [
+          'List vendors',
+          { text: ', named', field: 'name' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        get_vendor: [{ text: 'Fetch vendor', field: 'vendorId', core: true }],
+        create_vendor: [
+          { text: 'Create vendor', field: 'companyName', core: true },
+          { text: ', with email', field: 'vendorEmail' },
+        ],
+        update_vendor: [
+          { text: 'Update vendor', field: 'vendorId', core: true },
+          { text: ', renaming it to', field: 'companyName' },
+          { text: ', with email', field: 'vendorEmail' },
+        ],
+        list_transfers: ['List transfers', { text: ', up to', field: 'limit', after: 'results' }],
+        get_transfer: [{ text: 'Fetch transfer', field: 'transferId', core: true }],
+        create_transfer: [
+          { text: 'Transfer', field: 'amount', core: true },
+          { text: 'from cash account', field: 'accountId' },
+          { text: 'to vendor instrument', field: 'vendorPaymentInstrumentId', core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

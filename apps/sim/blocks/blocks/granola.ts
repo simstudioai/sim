@@ -13,6 +13,24 @@ export const GranolaBlock: BlockConfig = {
   bgColor: '#B2C147',
   icon: GranolaIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Granola',
+    sentences: {
+      byOperation: {
+        list_notes: [
+          'List meeting notes',
+          { text: 'in folder', field: 'folderId' },
+          { text: ', created after', field: 'createdAfter' },
+          { text: ', before', field: 'createdBefore' },
+        ],
+        get_note: [{ text: 'Read meeting note', field: 'noteId', core: true }],
+        list_folders: [
+          'List note folders',
+          { text: ', up to', field: 'pageSize', after: 'per page' },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

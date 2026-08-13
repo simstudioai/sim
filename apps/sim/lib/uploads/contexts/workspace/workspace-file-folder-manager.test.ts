@@ -3,10 +3,16 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 import {
   buildWorkspaceFileFolderPathMap,
+  ensureWorkspaceFileFolderPath,
   normalizeWorkspaceFileItemName,
-} from './workspace-file-folder-manager'
+  WorkspaceFileFolderConflictError,
+  WorkspaceFileItemsNotFoundError,
+  WorkspaceFileMoveConflictError,
+} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 
 describe('workspace file folder paths', () => {
   it('builds nested paths from parent relationships', () => {
@@ -21,6 +27,16 @@ describe('workspace file folder paths', () => {
     expect(paths.get('archive')).toBe('Archive')
   })
 
+  it('escapes slashes within folder names without changing hierarchy delimiters', () => {
+    const paths = buildWorkspaceFileFolderPathMap([
+      { id: 'legal', name: 'Finance/Legal', parentId: null },
+      { id: 'quarterly', name: 'Quarterly', parentId: 'legal' },
+    ])
+
+    expect(paths.get('legal')).toBe('Finance\\/Legal')
+    expect(paths.get('quarterly')).toBe('Finance\\/Legal/Quarterly')
+  })
+
   it('rejects names that would create ambiguous paths', () => {
     expect(normalizeWorkspaceFileItemName('Reports', 'Folder')).toBe('Reports')
     expect(() => normalizeWorkspaceFileItemName('A/B', 'Folder')).toThrow(
@@ -29,5 +45,56 @@ describe('workspace file folder paths', () => {
     expect(() => normalizeWorkspaceFileItemName('..', 'File')).toThrow(
       'File name cannot contain path separators or dot segments'
     )
+  })
+
+  it('rejects oversized ensured paths before persisting any folders', async () => {
+    await expect(
+      ensureWorkspaceFileFolderPath({
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        pathSegments: Array.from({ length: MAX_FOLDER_PATH_SEGMENTS + 1 }, () => 'nested'),
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: `Folder paths cannot exceed ${MAX_FOLDER_PATH_SEGMENTS} segments`,
+    })
+  })
+})
+
+describe('workspace file folder failure classification', () => {
+  it('classifies a duplicate folder name as a conflict for every surface', () => {
+    const error = new WorkspaceFileFolderConflictError('Reports')
+    const classified = asOrchestrationError(error)
+
+    expect(classified?.code).toBe('conflict')
+    expect(statusForOrchestrationError(classified?.code)).toBe(409)
+    expect(error.message).toBe('A folder named "Reports" already exists in this location')
+  })
+
+  it('classifies a destination name collision as a conflict', () => {
+    const classified = asOrchestrationError(new WorkspaceFileMoveConflictError('report.pdf'))
+
+    expect(classified?.code).toBe('conflict')
+    expect(statusForOrchestrationError(classified?.code)).toBe(409)
+  })
+
+  it('classifies missing items as not found', () => {
+    const classified = asOrchestrationError(
+      new WorkspaceFileItemsNotFoundError(['file-1'], ['folder-1'])
+    )
+
+    expect(classified?.code).toBe('not_found')
+    expect(statusForOrchestrationError(classified?.code)).toBe(404)
+    expect(classified?.message).toBe(
+      'Workspace file items not found (files: file-1; folders: folder-1)'
+    )
+  })
+
+  it('classifies a conflict raised inside a wrapping transaction error', () => {
+    const wrapped = new Error('insert into "folder" ...', {
+      cause: new WorkspaceFileFolderConflictError('Reports'),
+    })
+
+    expect(asOrchestrationError(wrapped)?.code).toBe('conflict')
   })
 })

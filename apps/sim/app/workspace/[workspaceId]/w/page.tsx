@@ -73,7 +73,7 @@ export default function WorkflowsPage() {
             // otherwise spin forever with nothing but a log line.
             <div className='flex flex-col items-center gap-3 text-center text-[var(--text-secondary)]'>
               <div>
-                <p className='font-medium text-small'>Couldn't load workflows</p>
+                <p className='text-small'>Couldn't load workflows</p>
                 <p className='mt-1 text-caption'>Check your connection and try again.</p>
               </div>
               <Chip variant='primary' onClick={() => router.refresh()}>
@@ -83,7 +83,7 @@ export default function WorkflowsPage() {
           ) : isEmpty ? (
             <div className='flex flex-col items-center gap-3 text-center text-[var(--text-secondary)]'>
               <div>
-                <p className='font-medium text-small'>No workflows yet</p>
+                <p className='text-small'>No workflows yet</p>
                 <p className='mt-1 text-caption'>
                   {canCreate
                     ? 'Create one to start building.'

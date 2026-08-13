@@ -3,7 +3,12 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBuildAPIUrl, mockBuildAuthHeaders, mockExtractAPIErrorMessage } = vi.hoisted(() => ({
+const {
+  mockBuildAPIUrl,
+  mockBuildAuthHeaders,
+  mockBuildExecutorDelegationHeaders,
+  mockExtractAPIErrorMessage,
+} = vi.hoisted(() => ({
   mockBuildAPIUrl: vi.fn((path: string, params?: Record<string, string>) => {
     const url = new URL(path, 'http://localhost:3000')
     for (const [key, value] of Object.entries(params ?? {})) {
@@ -12,16 +17,18 @@ const { mockBuildAPIUrl, mockBuildAuthHeaders, mockExtractAPIErrorMessage } = vi
     return url
   }),
   mockBuildAuthHeaders: vi.fn(),
+  mockBuildExecutorDelegationHeaders: vi.fn(),
   mockExtractAPIErrorMessage: vi.fn(),
 }))
 
 vi.mock('@/executor/utils/http', () => ({
   buildAPIUrl: mockBuildAPIUrl,
   buildAuthHeaders: mockBuildAuthHeaders,
+  buildExecutorDelegationHeaders: mockBuildExecutorDelegationHeaders,
   extractAPIErrorMessage: mockExtractAPIErrorMessage,
 }))
 
-import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { enrichKBTagsSchema, enrichTableToolSchema } from '@/tools/schema-enrichers'
 
 const ORIGINAL_SCHEMA = {
   type: 'object' as const,
@@ -100,5 +107,73 @@ describe('enrichTableToolSchema', () => {
     await expect(
       enrichTableToolSchema('table-1', 'table_query_rows', ORIGINAL_SCHEMA, 'Query rows', {})
     ).rejects.toThrow('Workspace ID is required to enrich table tool schema for table-1')
+  })
+})
+
+describe('enrichKBTagsSchema', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildExecutorDelegationHeaders.mockResolvedValue({
+      Authorization: 'Bearer delegation-token',
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('binds the tag-definition read to the acting subject and workflow execution', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: [{ id: 'td-1', tagSlot: 'tag1', displayName: 'Client', fieldType: 'text' }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+    vi.stubGlobal('fetch', mockFetch)
+
+    const result = await enrichKBTagsSchema('kb-1', {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
+
+    expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith({
+      subjectUserId: 'user-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
+    expect(result?.properties).toEqual({ Client: { type: 'string', description: 'text tag' } })
+  })
+
+  it('omits the executionId outside an active run', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, data: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', mockFetch)
+
+    await enrichKBTagsSchema('kb-1', { userId: 'user-1', workflowId: 'workflow-1' })
+
+    expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith({
+      subjectUserId: 'user-1',
+      workflowId: 'workflow-1',
+    })
+  })
+
+  it.each([
+    ['no acting user', { workflowId: 'workflow-1' }],
+    ['no acting workflow to bind the delegation on', { userId: 'user-1' }],
+  ])('skips enrichment with %s rather than issuing an unauthorized request', async (_, context) => {
+    const mockFetch = vi.fn()
+    vi.stubGlobal('fetch', mockFetch)
+
+    await expect(enrichKBTagsSchema('kb-1', context)).resolves.toBeNull()
+    expect(mockFetch).not.toHaveBeenCalled()
+    expect(mockBuildExecutorDelegationHeaders).not.toHaveBeenCalled()
   })
 })

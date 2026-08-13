@@ -1288,7 +1288,7 @@ describe('executeProviderRequest — caller-prepared model input', () => {
 
   it('does not make provider execution depend on registry completeness', async () => {
     const incomplete = new ResolvedSecretTraceRegistry()
-    incomplete.markIncomplete()
+    incomplete.markIncomplete('unspecified')
 
     await executeProviderRequest(
       'anthropic',
@@ -1403,6 +1403,26 @@ describe('executeProviderRequest — model level normalization', () => {
 
     expect(sentRequest().reasoningEffort).toBe('medium')
     expect(sentRequest().verbosity).toBe('high')
+  })
+
+  it('keeps the reasoning effort a Grok model declares', async () => {
+    await executeProviderRequest('xai', {
+      model: 'grok-4.6',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'xhigh',
+    })
+
+    expect(sentRequest().reasoningEffort).toBe('xhigh')
+  })
+
+  it('drops the reasoning effort for a Grok model that rejects the parameter', async () => {
+    await executeProviderRequest('xai', {
+      model: 'grok-4.20-0309-reasoning',
+      workspaceId: 'ws-1',
+      reasoningEffort: 'high',
+    })
+
+    expect(sentRequest().reasoningEffort).toBeUndefined()
   })
 
   /**

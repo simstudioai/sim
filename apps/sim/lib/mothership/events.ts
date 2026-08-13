@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
 const logger = createLogger('MothershipEvents')
@@ -24,6 +25,15 @@ export interface MothershipSendMessageDetail {
   message: string
   /** Structured contexts to attach — e.g. a `logs` mention tagging a run. */
   contexts?: ChatContext[]
+  /** Already-uploaded attachments riding along with the message. */
+  fileAttachments?: FileAttachmentForApi[]
+  /**
+   * Set only when this message is the recovery of a send an unmount cleanup
+   * withdrew: that attempt's message id. The receiving chat reuses it so the
+   * server deduplicates against the first attempt instead of opening a second
+   * chat and billing a second turn.
+   */
+  resumeUserMessageId?: string
 }
 
 /**
@@ -35,7 +45,12 @@ export interface MothershipSendMessageDetail {
  * was listening — callers that can fall back (e.g. cross-route navigation) use
  * this to decide whether to persist a handoff instead.
  */
-export function sendMothershipMessage(message: string, contexts?: ChatContext[]): boolean {
+export function sendMothershipMessage(
+  message: string,
+  contexts?: ChatContext[],
+  fileAttachments?: FileAttachmentForApi[],
+  resumeUserMessageId?: string
+): boolean {
   const trimmed = message.trim()
   if (!trimmed) {
     logger.warn('sendMothershipMessage called with empty message')
@@ -44,6 +59,8 @@ export function sendMothershipMessage(message: string, contexts?: ChatContext[])
   const consumed = dispatchClaimable<MothershipSendMessageDetail>(MOTHERSHIP_SEND_MESSAGE_EVENT, {
     message: trimmed,
     contexts,
+    fileAttachments,
+    ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
   })
   logger.info('Dispatched mothership message event', { messageLength: trimmed.length, consumed })
   return consumed

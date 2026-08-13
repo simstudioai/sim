@@ -35,6 +35,7 @@ export const crashReporter = {
 }
 
 export const shell = {
+  beep: vi.fn(),
   openExternal: vi.fn(() => Promise.resolve()),
   openPath: vi.fn(() => Promise.resolve('')),
   showItemInFolder: vi.fn(),
@@ -55,6 +56,13 @@ export const safeStorage = {
 export const clipboard = {
   writeText: vi.fn(),
   readText: vi.fn(() => ''),
+}
+
+export const systemPreferences = {
+  getMediaAccessStatus: vi.fn(() => 'granted'),
+  askForMediaAccess: vi.fn(() => Promise.resolve(true)),
+  canPromptTouchID: vi.fn(() => false),
+  promptTouchID: vi.fn(() => Promise.resolve()),
 }
 
 export const nativeTheme = {
@@ -135,6 +143,7 @@ function createWebContentsMock() {
     reload: vi.fn(),
     print: vi.fn(),
     focus: vi.fn(),
+    invalidate: vi.fn(),
     isFocused: vi.fn(() => false),
     close: vi.fn(),
     isDestroyed: vi.fn(() => false),

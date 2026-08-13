@@ -27,6 +27,10 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   category: 'blocks',
   bgColor: '#FF402F',
   icon: CodeIcon,
+  canvasPresentation: {
+    defaultTitle: 'Function',
+    sentences: { default: [{ text: 'Run', field: 'code', core: true }] },
+  },
   subBlocks: [
     {
       id: 'language',

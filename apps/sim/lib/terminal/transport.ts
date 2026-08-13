@@ -153,12 +153,17 @@ export function onTerminalData(
 }
 
 /**
- * Tells the desktop app whether a terminal owns keyboard focus. Menu
- * accelerators are global, so Cmd-W has to know whether the user is typing in
- * a shell before it decides what to close.
+ * Tells the desktop app whether the visible terminal resource owns shortcut
+ * routing. Menu accelerators are global, so this claim must survive transient
+ * focus moves through the panel chrome.
  */
 export function reportTerminalFocused(focused: boolean, scopeId = currentTerminalScopeId()): void {
   bridge()?.setFocused(focused, scopeId)
+}
+
+/** Tells the shell which terminal panel is visibly open for tab shortcuts. */
+export function reportTerminalVisible(visible: boolean, scopeId = currentTerminalScopeId()): void {
+  bridge()?.setVisible?.(visible, scopeId)
 }
 
 /** Subscribes to menu shortcuts routed to one focused terminal scope. */
@@ -252,8 +257,10 @@ export function resizeTerminal(
 export async function openTerminal(
   cwd?: string,
   scopeId = currentTerminalScopeId()
-): Promise<void> {
-  await bridge()?.openTerminal(cwd, scopeId)
+): Promise<ScopedTerminalTabsState> {
+  const terminal = bridge()
+  if (!terminal) throw new Error('The Sim desktop terminal is unavailable.')
+  return terminal.openTerminal(cwd, scopeId)
 }
 
 export async function switchTerminal(
@@ -261,6 +268,15 @@ export async function switchTerminal(
   scopeId = currentTerminalScopeId()
 ): Promise<void> {
   await bridge()?.switchTerminal(terminalId, scopeId)
+}
+
+/** Moves a terminal tab when the installed shell supports ordering. */
+export async function reorderTerminal(
+  terminalId: string,
+  targetIndex: number,
+  scopeId = currentTerminalScopeId()
+): Promise<void> {
+  await bridge()?.reorderTerminal?.(terminalId, targetIndex, scopeId)
 }
 
 export async function closeTerminal(

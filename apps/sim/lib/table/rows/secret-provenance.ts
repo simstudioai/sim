@@ -6,6 +6,10 @@ import {
   userTableRows,
 } from '@sim/db/schema'
 import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
+import {
+  isDurableSecretProvenanceEnforced,
+  reportUnrecordedDurableProvenance,
+} from '@/lib/execution/durable-secret-provenance-enforcement'
 import type { DbExecutor, DbTransaction } from '@/lib/table/planner'
 import type { RowData, TableRowSecretProvenanceWrite } from '@/lib/table/types'
 import {
@@ -252,7 +256,13 @@ export async function createTableRowSecretProvenanceFromEncryptedExecution(
     return createUnknownTableRowSecretProvenance()
   }
   const registry = new ResolvedSecretTraceRegistry([], provenance.scope)
-  if (!(await registry.importProvenance(provenance, { trusted: true })) || !registry.isComplete()) {
+  if (
+    !(await registry.importProvenance(provenance, {
+      trusted: true,
+      origin: 'tableRow.encryptedExecution',
+    })) ||
+    !registry.isComplete()
+  ) {
     return createUnknownTableRowSecretProvenance()
   }
   return createTableRowSecretProvenanceFromRegistry(data, registry)
@@ -434,13 +444,13 @@ export async function updateTableRowsWithDerivedSecretProvenance(
     rowWhere: SQL
     transformation: DerivedTableRowTransformation
   }
-): Promise<void> {
+): Promise<number> {
   const removedColumnIds =
     options.transformation.mode === 'remove-columns'
       ? [...new Set(options.transformation.columnIds)]
       : []
   if (options.transformation.mode === 'remove-columns') {
-    if (removedColumnIds.length === 0) return
+    if (removedColumnIds.length === 0) return 0
     if (
       removedColumnIds.length > MAX_PROVENANCE_COLUMNS_PER_ROW ||
       removedColumnIds.some((columnId) => columnId.length === 0)
@@ -481,6 +491,7 @@ export async function updateTableRowsWithDerivedSecretProvenance(
     : sql`source.provenance_entries`
 
   let afterId: string | undefined
+  let updatedCount = 0
   for (;;) {
     const page = await trx
       .select({ id: userTableRows.id })
@@ -491,6 +502,7 @@ export async function updateTableRowsWithDerivedSecretProvenance(
       .for('update')
     if (page.length === 0) break
     const rowIds = page.map((row) => row.id)
+    updatedCount += rowIds.length
 
     await trx.execute(sql`
       WITH source AS MATERIALIZED (
@@ -628,6 +640,7 @@ export async function updateTableRowsWithDerivedSecretProvenance(
     afterId = rowIds[rowIds.length - 1]
     if (page.length < QUERY_CHUNK_SIZE) break
   }
+  return updatedCount
 }
 
 async function readTableRowsVersion(tableId: string, workspaceId: string): Promise<number | null> {
@@ -765,6 +778,7 @@ export async function loadTableRowSecretProvenance(
   const currentById = new Map(currentRows.map((row) => [row.id, row]))
   const storedEntries: StoredTableRowSecretProvenanceEntry[] = []
 
+  let unrecordedRowCount = 0
   for (const rowId of rowIds) {
     const current = currentById.get(rowId)
     const crossing = crossingById.get(rowId)
@@ -777,7 +791,16 @@ export async function loadTableRowSecretProvenance(
       current.sidecarStatus !== 'exact' ||
       !current.sidecarIsCurrent
     ) {
-      return { version: 1, complete: false, entries: [], scope }
+      /**
+       * One such row would otherwise void the whole page, and a page is what a `query_rows` block
+       * hands downstream — so a single row nobody recorded provenance for latched every run that
+       * read the table. Unenforced, the row contributes nothing, exactly like the legacy row above.
+       */
+      if (isDurableSecretProvenanceEnforced('table-row')) {
+        return { version: 1, complete: false, entries: [], scope }
+      }
+      unrecordedRowCount += 1
+      continue
     }
     const parsed = normalizeStoredEntries(current.sidecarEntries)
     if (!parsed) return { version: 1, complete: false, entries: [], scope }
@@ -789,6 +812,15 @@ export async function loadTableRowSecretProvenance(
     if (storedEntries.length > MAX_PROVENANCE_ENTRIES_PER_RESPONSE) {
       return { version: 1, complete: false, entries: [], scope }
     }
+  }
+
+  if (unrecordedRowCount > 0) {
+    reportUnrecordedDurableProvenance({
+      surface: 'table-row',
+      cause: 'row-sidecar-not-exact',
+      affectedCount: unrecordedRowCount,
+      ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
+    })
   }
 
   const entries = aggregateStoredEntries(storedEntries, scope)

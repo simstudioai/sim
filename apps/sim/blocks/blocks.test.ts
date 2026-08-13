@@ -893,19 +893,23 @@ describe.concurrent('Blocks Module', () => {
 
       expect(providerSubBlock?.commandSearchable).toBe(true)
       expect(providerSubBlock?.value?.()).toBe('openai')
-      expect(providerIds).toEqual(['openai', 'gemini', 'cohere', 'mistral'])
+      expect(providerIds).toEqual(['openai', 'gemini', 'cohere', 'mistral', 'openrouter'])
 
       for (const provider of providerIds) {
         // Each provider routes to its own registered tool...
         const toolId = block?.tools.config?.tool?.({ provider })
         expect(block?.tools.access).toContain(toolId)
-        // ...and has a model dropdown with at least one option.
+        // ...and has either a static model list or a dynamic model loader.
         const modelSubBlock = block?.subBlocks.find(
           (sb) => sb.id === 'model' && sb.condition?.value === provider
         )
-        expect(
-          Array.isArray(modelSubBlock?.options) ? modelSubBlock.options.length : 0
-        ).toBeGreaterThan(0)
+        if (provider === 'openrouter') {
+          expect(modelSubBlock?.fetchOptions).toBeTypeOf('function')
+        } else {
+          expect(
+            Array.isArray(modelSubBlock?.options) ? modelSubBlock.options.length : 0
+          ).toBeGreaterThan(0)
+        }
       }
     })
 

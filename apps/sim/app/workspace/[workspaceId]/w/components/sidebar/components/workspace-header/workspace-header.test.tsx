@@ -61,7 +61,7 @@ import { WorkspaceHeader } from '@/app/workspace/[workspaceId]/w/components/side
 const ACTIVE_BG = 'bg-[var(--surface-active)]'
 
 /**
- * Above `WORKSPACE_SEARCH_THRESHOLD` (3), so the searchable/keyboard list renders.
+ * At `WORKSPACE_SEARCH_THRESHOLD` (6), so the searchable/keyboard list renders.
  * The current workspace is deliberately NOT first: the highlight is seeded to row 0 on
  * open, so a current workspace sitting at row 0 would mask the double-mark this guards.
  */
@@ -69,13 +69,18 @@ const WORKSPACES = [
   { id: 'ws-rvt', name: 'RVT' },
   { id: 'ws-emir', name: "Emir's Workspace" },
   { id: 'ws-acme', name: 'Acme' },
+  { id: 'ws-initech', name: 'Initech' },
+  { id: 'ws-umbrella', name: 'Umbrella' },
   { id: 'ws-globex', name: 'Globex' },
 ] as unknown as Parameters<typeof WorkspaceHeader>[0]['workspaces']
+
+/** Pinning reorders the list; these assertions are about the highlight, not the order. */
+const NO_PINS: ReadonlySet<string> = new Set()
 
 let container: HTMLDivElement
 let root: Root
 
-function render() {
+function render(overrides: Partial<Parameters<typeof WorkspaceHeader>[0]> = {}) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -86,6 +91,8 @@ function render() {
         activeWorkspace={{ name: "Emir's Workspace" }}
         workspaceId='ws-emir'
         workspaces={WORKSPACES}
+        pinnedWorkspaceIds={NO_PINS}
+        onToggleWorkspacePin={() => {}}
         isWorkspacesLoading={false}
         isCreatingWorkspace={false}
         isWorkspaceMenuOpen
@@ -98,6 +105,7 @@ function render() {
         onUploadLogo={() => {}}
         onLeaveWorkspace={async () => {}}
         isLeavingWorkspace={false}
+        {...overrides}
       />
     )
   })
@@ -114,9 +122,11 @@ function row(name: string): HTMLElement {
 /**
  * Whether a row is painted with the persistent active fill.
  *
- * Matches an exact class token, never a substring: the inactive chip carries
- * `hover-hover:bg-[var(--surface-active)]`, which *contains* the active class, so a
- * substring check reports every row as marked.
+ * Matches an exact class token, never a substring. The inactive chip now hovers to
+ * `--surface-hover`, so it no longer carries the active class as a substring — but
+ * keep the token match: hover and active are one token apart by design, and a
+ * substring check would silently start reporting every row as marked if they ever
+ * converge again.
  */
 function isMarked(name: string): boolean {
   return [...row(name).querySelectorAll<HTMLElement>('*')].some((el) =>
@@ -147,6 +157,21 @@ afterEach(() => {
 })
 
 describe('WorkspaceHeader workspace switcher highlight', () => {
+  it('shows the route workspace identity while the switcher list is unavailable', () => {
+    render({
+      activeWorkspace: { name: 'Brightwave' },
+      workspaceId: 'ws-brightwave',
+      workspaces: [],
+      isWorkspaceMenuOpen: false,
+    })
+
+    const switcher = container.querySelector('button[aria-label="Switch workspace"]')
+    expect(switcher).toBeDisabled()
+    expect(switcher).toHaveTextContent('Brightwave')
+    expect(switcher).toHaveTextContent('B')
+    expect(switcher?.querySelector('.animate-pulse')).toBeNull()
+  })
+
   it('leaves Enter unarmed until a cursor is on screen', () => {
     render()
 

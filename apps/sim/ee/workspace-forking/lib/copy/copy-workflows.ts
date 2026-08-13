@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
+import { assertFolderCollectionHasRoom } from '@/lib/folders/queries'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
   remapConditionIdsInSubBlocks,
@@ -158,6 +159,21 @@ export async function resolveForkFolderMapping({
   }
 
   if (newFolders.length > 0) {
+    /**
+     * Charge the whole batch against the target workspace's folder ceiling in one check
+     * before writing any of it. Readers cap the active folder index at
+     * `MAX_FOLDERS_PER_WORKSPACE`, so a fork that mirrors a large source tree into an
+     * already-populated target could otherwise leave the target unreadable.
+     *
+     * Runs inside the fork transaction, after the `fork-target` advisory lock, so it is
+     * atomic against every other fork/promote into this target and a refusal rolls the
+     * whole copy back. It does NOT take the folder mutation lock: that helper resets the
+     * transaction's `lock_timeout`, which the fork sets deliberately, so an ordinary
+     * concurrent `createFolder` can still slip a row in between the count and the insert.
+     */
+    await assertFolderCollectionHasRoom(targetWorkspaceId, 'workflow', tx, {
+      additionalRows: newFolders.length,
+    })
     await tx.insert(folderTable).values(newFolders)
   }
 

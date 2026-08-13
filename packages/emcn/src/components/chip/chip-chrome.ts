@@ -46,6 +46,7 @@ export const chipFieldTextClass =
  * Like every token in this module, never re-derive the literal; import it.
  */
 export const chipContentGap = 'gap-1.5'
+
 /**
  * Chip pill geometry — height, centering, gap, radius, padding, text size — with
  * NO interactivity (no `cursor-pointer`, no hover). `chipVariants` composes this
@@ -58,6 +59,34 @@ export const chipGeometryClass = `h-[30px] items-center ${chipContentGap} rounde
 export const chipContentIconClass = 'size-[16px] flex-shrink-0 text-[var(--text-icon)]'
 /** Chip-content label (non-inverse): truncating `--text-body` at `text-sm`. Inverse chip variants override the color to `currentColor`. */
 export const chipContentLabelClass = 'min-w-0 truncate text-[var(--text-body)] text-sm'
+
+/**
+ * The two row surfaces. Mutually exclusive — a row paints one OR the other,
+ * never both, so a selected row holds its surface through hover.
+ *
+ * Hover used to be `--surface-active` (a hovered row looked selected, so lists
+ * appeared to have two selections) and active used to brighten to `--surface-6`
+ * on hover (read as the selection changing under the cursor). Do not reintroduce
+ * either. `chipVariants` wires this for pills; hand-rolled rows import these
+ * rather than restating the literals.
+ */
+export const chipHoverSurfaceClass = 'hover-hover:bg-[var(--surface-hover)]'
+/** @see {@link chipHoverSurfaceClass} — the selected half of the same pair. */
+export const chipActiveSurfaceClass = 'bg-[var(--surface-active)]'
+/**
+ * The disclosure chevron that rotates to expand or collapse a sidebar section or a
+ * tree row: 14px at `--text-icon`, animating on the same 150ms curve the section
+ * body expands on so the chevron and what it reveals read as one gesture. Opacity
+ * is in the property list for the consumers that also fade the chevron in.
+ *
+ * Single source for the sidebar section headers and the two sidebar trees. Other
+ * collapsible surfaces still carry their own literals at 8-12px and 100-200ms;
+ * migrating them onto this token is the remaining half of the consolidation.
+ */
+export const disclosureChevronClass =
+  'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-[opacity,transform] duration-150'
+/** The 16px square a chip-row icon or chevron centers in, so every row's label starts on the same baseline. */
+export const chipIconSlotClass = 'inline-flex size-[16px] flex-shrink-0 items-center justify-center'
 /**
  * Force-sizes a PRE-RENDERED icon node (`<svg>`/`<img>`/`<span>` avatar) to the
  * 14px resource-row standard + `--text-icon` color — regardless of the size the

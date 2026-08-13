@@ -37,6 +37,10 @@ vi.mock('@/hooks/queries/workspace', () => ({
   useUpdateWorkspace: () => ({ mutateAsync: vi.fn() }),
   useWorkspaceCreationPolicy: mockUseWorkspaceCreationPolicy,
   useWorkspacesQuery: mockUseWorkspacesQuery,
+  /** No pins: this suite is about the deep-link guard, not switcher ordering. */
+  EMPTY_PINNED_WORKSPACE_IDS: new Set<string>(),
+  usePinnedWorkspaceIds: () => ({ data: new Set<string>() }),
+  useToggleWorkspacePin: () => ({ mutate: vi.fn() }),
 }))
 
 vi.mock('@/stores/workflows/registry/store', () => ({

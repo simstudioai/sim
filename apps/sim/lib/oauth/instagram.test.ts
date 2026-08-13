@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   INSTAGRAM_MIN_TOKEN_AGE_MS,
   INSTAGRAM_PROACTIVE_REFRESH_THRESHOLD_DAYS,
-  isInstagramProvider,
   parseInstagramLongLivedToken,
   parseInstagramProfile,
   parseInstagramShortLivedToken,
@@ -10,11 +9,6 @@ import {
 } from '@/lib/oauth/instagram'
 
 describe('instagram oauth helpers', () => {
-  it('identifies the instagram provider', () => {
-    expect(isInstagramProvider('instagram')).toBe(true)
-    expect(isInstagramProvider('facebook')).toBe(false)
-  })
-
   it('does not refresh when the token is already expired', () => {
     const now = new Date('2026-07-11T12:00:00.000Z')
     expect(
@@ -67,17 +61,16 @@ describe('instagram oauth helpers', () => {
     expect(
       parseInstagramShortLivedToken({
         access_token: 'short-token',
-        user_id: 123,
+        user_id: 17_841_467_109_118_740,
         permissions: ['instagram_business_basic'],
       })
     ).toEqual({
       access_token: 'short-token',
-      user_id: 123,
       permissions: ['instagram_business_basic'],
     })
     expect(
       parseInstagramShortLivedToken({ data: [{ access_token: 'wrapped-token', user_id: '456' }] })
-    ).toEqual({ access_token: 'wrapped-token', user_id: '456' })
+    ).toEqual({ access_token: 'wrapped-token' })
   })
 
   it('rejects malformed or oversized token responses', () => {

@@ -13,6 +13,7 @@ import {
   WORKFLOW_EXECUTION_ID_HEADER,
   WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER,
 } from '@/lib/api/contracts/workflows'
+import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import {
@@ -34,14 +35,11 @@ import {
   resolveWorkflowToolTargetId,
 } from '@/lib/copilot/tools/workflow-tools'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
-import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
-import { isAsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 import {
   createTimeoutAbortController,
   getTimeoutErrorMessage,
   isTimeoutAbortReason,
   isTimeoutError,
-  toTriggerMaxDurationSeconds,
 } from '@/lib/core/execution-limits'
 import { isCrossSiteSessionRequest } from '@/lib/core/security/same-origin'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -101,6 +99,8 @@ import {
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
+import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
+import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import {
@@ -141,8 +141,6 @@ import {
 } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
-import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
-import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import {
   PublicApiNotAllowedError,
@@ -166,8 +164,6 @@ import { CORE_TRIGGER_TYPES, type CoreTriggerType } from '@/stores/logs/filters/
 const logger = createLogger('WorkflowExecuteAPI')
 const MAX_WORKFLOW_EXECUTE_BODY_BYTES = 10 * 1024 * 1024
 const SERVER_EXECUTION_ID_CLAIM_ATTEMPTS = 3
-const ASYNC_ENQUEUE_ATTEMPTS = 2
-const WORKFLOW_EXECUTION_JOB_ID_PREFIX = 'workflow-execution:'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -435,59 +431,9 @@ function requirePreprocessedExecutionContext(
 }
 
 async function handleAsyncExecution(params: AsyncExecutionParams): Promise<AsyncExecutionResult> {
-  const {
-    requestId,
-    workflowId,
-    userId,
-    billingAttribution,
-    workspaceId,
-    input,
-    triggerType,
-    triggerBlockId,
-    executionId,
-    copilotToolCallId,
-    callChain,
-    executionTimeoutMs,
-    trustedInitialResolvedSecretTraceProvenance,
-  } = params
-  const asyncLogger = logger.withMetadata({
-    requestId,
-    workflowId,
-    workspaceId,
-    userId,
-    executionId,
-  })
-
-  const correlation = {
-    executionId,
-    requestId,
-    source: 'workflow' as const,
-    workflowId,
-    ...(copilotToolCallId ? { copilotToolCallId } : {}),
-    triggerType,
-  }
-
-  const payload: WorkflowExecutionPayload = {
-    workflowId,
-    userId,
-    billingAttribution,
-    workspaceId,
-    input,
-    triggerType,
-    triggerBlockId,
-    executionId,
-    requestId,
-    correlation,
-    callChain,
-    executionMode: 'async',
-    admissionCompleted: true,
-    executionTimeoutMs,
-    trustedInitialResolvedSecretTraceProvenance,
-  }
-
-  if (copilotToolCallId && (await checkNeedsRedeployment(workflowId))) {
+  if (params.copilotToolCallId && (await checkNeedsRedeployment(params.workflowId))) {
     const deploymentError = ASYNC_WORKFLOW_DEPLOYMENT_ERRORS.stale
-    await releaseExecutionSlot(executionId)
+    await releaseExecutionSlot(params.executionId)
     return {
       response: NextResponse.json(
         {
@@ -500,103 +446,38 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<Async
     }
   }
 
-  let jobQueue: Awaited<ReturnType<typeof getJobQueue>>
-  try {
-    jobQueue = await getJobQueue()
-  } catch (error) {
-    asyncLogger.error('Failed to initialize async execution queue', {
-      error: toError(error).message,
-    })
-    await releaseExecutionSlot(executionId)
+  const enqueue = await enqueueWorkflowExecution(params)
+
+  if (enqueue.outcome === 'rejected') {
     return {
       response: NextResponse.json({ error: 'Failed to queue async execution' }, { status: 500 }),
       retainExecutionClaim: false,
     }
   }
 
-  const deterministicJobId = `${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`
-  const executeInline = shouldExecuteInline()
-  const enqueueOptions = {
-    jobId: deterministicJobId,
-    metadata: { workflowId, workspaceId, userId, correlation },
-    maxDurationSeconds: toTriggerMaxDurationSeconds(executionTimeoutMs),
-    ...(executeInline
-      ? {
-          runner: (_queuedPayload: unknown, signal: AbortSignal) =>
-            executeWorkflowJob(payload, signal),
-        }
-      : {}),
-  }
-  let jobId: string | undefined
-  let enqueueError: unknown
-  let acceptanceCouldBeUnknown = false
-
-  for (let attempt = 1; attempt <= ASYNC_ENQUEUE_ATTEMPTS; attempt++) {
-    try {
-      jobId = await jobQueue.enqueue('workflow-execution', payload, enqueueOptions)
-      enqueueError = undefined
-      break
-    } catch (error) {
-      enqueueError = error
-      const classifiedError = isAsyncJobEnqueueError(error) ? error : undefined
-      const attemptAcceptance = classifiedError?.acceptance ?? 'unknown'
-      acceptanceCouldBeUnknown ||= attemptAcceptance === 'unknown'
-      asyncLogger.warn('Async workflow enqueue attempt failed', {
-        acceptance: attemptAcceptance,
-        attempt,
-        error: toError(error).message,
-        jobId: deterministicJobId,
-      })
-      if (classifiedError?.retryable === false || attempt === ASYNC_ENQUEUE_ATTEMPTS) {
-        break
-      }
-    }
-  }
-
-  if (!jobId) {
-    const acceptance = acceptanceCouldBeUnknown
-      ? 'unknown'
-      : isAsyncJobEnqueueError(enqueueError)
-        ? enqueueError.acceptance
-        : 'unknown'
-    asyncLogger.error('Failed to queue async execution', {
-      acceptance,
-      error: toError(enqueueError).message,
-      jobId: deterministicJobId,
-    })
-
-    if (acceptance === 'rejected') {
-      await releaseExecutionSlot(executionId)
-      return {
-        response: NextResponse.json({ error: 'Failed to queue async execution' }, { status: 500 }),
-        retainExecutionClaim: false,
-      }
-    }
-
+  if (enqueue.outcome === 'ambiguous') {
     return {
       response: NextResponse.json(
         {
           error: 'Async execution queue acceptance could not be confirmed',
           code: 'ASYNC_ENQUEUE_AMBIGUOUS',
-          executionId,
+          executionId: enqueue.executionId,
         },
-        { status: 503, headers: { [WORKFLOW_EXECUTION_ID_HEADER]: executionId } }
+        { status: 503, headers: { [WORKFLOW_EXECUTION_ID_HEADER]: enqueue.executionId } }
       ),
       retainExecutionClaim: true,
     }
   }
-
-  asyncLogger.info('Queued async workflow execution', { jobId })
 
   return {
     response: NextResponse.json(
       {
         success: true,
         async: true,
-        jobId,
-        executionId,
+        jobId: enqueue.jobId,
+        executionId: enqueue.executionId,
         message: 'Workflow execution queued',
-        statusUrl: `${getBaseUrl()}/api/jobs/${jobId}`,
+        statusUrl: `${getBaseUrl()}/api/jobs/${enqueue.jobId}`,
       },
       { status: 202 }
     ),
@@ -1106,10 +987,7 @@ async function handleExecutePost(
     }
     if (auth.authType === AuthType.API_KEY) {
       if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflowWorkspaceId) {
-        return NextResponse.json(
-          { error: 'API key is not authorized for this workspace' },
-          { status: 403 }
-        )
+        return NextResponse.json({ error: WORKSPACE_KEY_SCOPE_DENIED }, { status: 403 })
       }
 
       if (auth.apiKeyType === 'personal') {
@@ -1117,10 +995,7 @@ async function handleExecutePost(
           ? await getWorkspaceBillingSettings(workflowWorkspaceId)
           : null
         if (!workspaceSettings?.allowPersonalApiKeys) {
-          return NextResponse.json(
-            { error: 'Personal API keys are not allowed for this workspace' },
-            { status: 403 }
-          )
+          return NextResponse.json({ error: PERSONAL_KEY_DENIED }, { status: 403 })
         }
       }
     }
@@ -1183,6 +1058,21 @@ async function handleExecutePost(
       return NextResponse.json({ error: INVALID_WORKFLOW_INPUT_PROVENANCE_ERROR }, { status: 400 })
     }
     const trustedInitialResolvedSecretTraceProvenance = inputProvenanceResolution.provenance
+
+    /**
+     * External callers may not override the trigger type because manual and chat
+     * executions bypass the API rate-limit path.
+     */
+    if (
+      (auth.authType === AuthType.API_KEY || isPublicApiAccess) &&
+      body.triggerType !== undefined &&
+      body.triggerType !== 'api'
+    ) {
+      return NextResponse.json(
+        { error: 'External callers cannot override triggerType' },
+        { status: 400 }
+      )
+    }
 
     const upstreamBillingAttribution =
       auth.authType === AuthType.INTERNAL_JWT && workflowAuthorization.workflow?.workspaceId

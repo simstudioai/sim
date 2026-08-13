@@ -14,6 +14,23 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
   integrationType: IntegrationType.Search,
   bgColor: '#FFFFFF',
   icon: ArxivIcon,
+  canvasPresentation: {
+    defaultTitle: 'ArXiv',
+    sentences: {
+      byOperation: {
+        arxiv_search: [
+          { text: 'Search', field: 'searchField', after: 'for', core: true },
+          { field: 'searchQuery', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        arxiv_get_paper: [{ text: 'Fetch details for paper', field: 'paperId', core: true }],
+        arxiv_get_author_papers: [
+          { text: 'List papers by', field: 'authorName', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

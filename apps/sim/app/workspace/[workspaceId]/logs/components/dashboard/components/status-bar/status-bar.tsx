@@ -123,9 +123,7 @@ function StatusBarInner({
         >
           {segments[hoverIndex].hasExecutions ? (
             <div>
-              <div className='font-semibold text-[var(--text-primary)]'>
-                {labels[hoverIndex].successLabel}
-              </div>
+              <div className='text-[var(--text-primary)]'>{labels[hoverIndex].successLabel}</div>
               <div className='text-[var(--text-secondary)]'>{labels[hoverIndex].countsLabel}</div>
               {labels[hoverIndex].rangeLabel && (
                 <div className='mt-0.5 text-[var(--text-tertiary)]'>

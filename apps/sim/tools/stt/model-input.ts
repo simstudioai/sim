@@ -1,31 +1,48 @@
-import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
-import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  applyProjectedModelVisibleFileNames,
+  selectModelVisibleFileNames,
+} from '@/lib/uploads/utils/model-input'
 
 interface SttAudioModelInputParams {
   audioFile?: unknown
   audioFileReference?: unknown
-  audioUrl?: unknown
 }
 
-/** Selects exact resolver paths for the single audio source consumed by the shared STT route. */
-export function selectSttAudioModelInputPaths(
-  params: SttAudioModelInputParams,
-  options: { includeName?: boolean } = {}
-): readonly ResolvedSecretInputPath[] {
-  const fileOptions = { includeName: options.includeName ?? false } as const
-
+/** Selects the filename for the single audio source whose name is sent to a model provider. */
+export function selectSttAudioFileNameModelInput(
+  params: SttAudioModelInputParams
+): Record<string, unknown> {
   if (params.audioFile) {
-    return selectModelBoundFileInputPaths(params.audioFile, ['audioFile'], fileOptions)
+    return { audioFile: selectModelVisibleFileNames(params.audioFile) }
   }
   if (params.audioFileReference) {
-    return selectModelBoundFileInputPaths(
-      params.audioFileReference,
-      ['audioFileReference'],
-      fileOptions
-    )
+    return { audioFileReference: selectModelVisibleFileNames(params.audioFileReference) }
   }
-  if (typeof params.audioUrl === 'string' && params.audioUrl.trim() !== '') {
-    return [['audioUrl']]
+  return {}
+}
+
+/** Restores the selected audio source with only its projected filename changed. */
+export function applyProjectedSttAudioFileNameModelInput(
+  original: SttAudioModelInputParams,
+  projected: Record<string, unknown>
+): Record<string, unknown> {
+  const hasAudioFile = Object.hasOwn(projected, 'audioFile')
+  const hasAudioFileReference = Object.hasOwn(projected, 'audioFileReference')
+  if (hasAudioFile && hasAudioFileReference) {
+    throw new Error('Projected STT input contains multiple audio sources')
   }
-  return []
+  if (hasAudioFile) {
+    return {
+      audioFile: applyProjectedModelVisibleFileNames(original.audioFile, projected.audioFile),
+    }
+  }
+  if (hasAudioFileReference) {
+    return {
+      audioFileReference: applyProjectedModelVisibleFileNames(
+        original.audioFileReference,
+        projected.audioFileReference
+      ),
+    }
+  }
+  return {}
 }

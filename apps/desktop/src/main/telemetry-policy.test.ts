@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// telemetry-policy pulls in @/main/navigation, which imports electron.
+vi.mock('electron', () => import('@/test/electron-mock'))
+
 import { shouldBlockRequest } from '@/main/telemetry-policy'
 
 describe('shouldBlockRequest', () => {

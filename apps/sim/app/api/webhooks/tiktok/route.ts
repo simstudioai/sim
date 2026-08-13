@@ -12,13 +12,10 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
+import { dispatchResolvedWebhookTarget, findWebhooksByRoutingKey } from '@/lib/webhooks/processor'
 import { verifyTikTokSignature } from '@/lib/webhooks/providers/tiktok'
-import {
-  enqueueTikTokWebhookIngress,
-  type TikTokWebhookIngressPayload,
-} from '@/background/tiktok-webhook-ingress'
 
-const logger = createLogger('TikTokWebhookIngress')
+const logger = createLogger('TikTokAppWebhookAPI')
 
 const TIKTOK_BODY_LABEL = 'TikTok webhook body'
 
@@ -38,7 +35,7 @@ async function readTikTokBody(req: Request): Promise<string> {
 /**
  * App-level TikTok webhook Callback URL.
  * Portal: `{APP_URL}/api/webhooks/tiktok` (e.g. https://www.sim.ai/api/webhooks/tiktok).
- * Verifies TikTok-Signature and durably accepts the delivery before background target fanout.
+ * Verifies TikTok-Signature and routes the delivery by TikTok `user_openid`.
  */
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const ticket = tryAdmit()
@@ -96,25 +93,34 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const payload: TikTokWebhookIngressPayload = {
-      envelope,
-      headers: {
-        'content-type': request.headers.get('content-type') ?? 'application/json',
-      },
-      requestId,
-      receivedAt,
+    const webhooks = await findWebhooksByRoutingKey(envelope.user_openid, requestId, 'tiktok')
+    let dispatched = 0
+    let failed = 0
+    for (const { webhook, workflow } of webhooks) {
+      const result = await dispatchResolvedWebhookTarget(webhook, workflow, envelope, request, {
+        requestId,
+        receivedAt,
+        triggerTimestampMs: envelope.create_time * 1000,
+      })
+      if (result.outcome === 'queued') dispatched += 1
+      if (result.outcome === 'failed') failed += 1
     }
-    const jobId = await enqueueTikTokWebhookIngress(payload)
 
-    logger.info(`[${requestId}] Accepted TikTok webhook delivery`, {
+    logger.info(`[${requestId}] Processed TikTok webhook delivery`, {
+      dispatched,
+      failed,
       event: envelope.event,
-      jobId,
+      targetCount: webhooks.length,
       userOpenIdPrefix: envelope.user_openid.slice(0, 12),
     })
 
+    if (failed > 0) {
+      return NextResponse.json({ error: 'Temporarily unable to accept webhook' }, { status: 503 })
+    }
+
     return NextResponse.json({ ok: true })
   } catch (error) {
-    logger.error(`[${requestId}] TikTok webhook ingress error`, {
+    logger.error(`[${requestId}] TikTok webhook processing error`, {
       error: getErrorMessage(error, 'Unknown error'),
     })
     return NextResponse.json({ error: 'Temporarily unable to accept webhook' }, { status: 503 })

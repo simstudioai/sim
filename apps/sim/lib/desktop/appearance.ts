@@ -4,7 +4,10 @@ import {
   isDesktopAppearanceTheme,
   isDesktopZoomPercent,
   isTerminalAppearanceTheme,
+  TERMINAL_DARK_THEME,
+  TERMINAL_LIGHT_THEME,
   type TerminalAppearanceTheme,
+  type TerminalThemePalette,
   type TerminalThemeProfile,
 } from '@sim/desktop-bridge'
 import { getDesktopBridge } from '@/lib/desktop'
@@ -66,6 +69,15 @@ export function withSelectedProfile(
     : profiles
 }
 
+/** Replaces a persisted profile snapshot with freshly discovered source colors. */
+export function refreshSelectedTerminalProfile(
+  profiles: TerminalThemeProfile[],
+  theme: TerminalAppearanceTheme
+): TerminalAppearanceTheme {
+  if (typeof theme === 'string') return theme
+  return profiles.find(({ id }) => id === theme.id) ?? theme
+}
+
 /**
  * Resolves `app` against next-themes' raw or resolved value. `system` stays
  * meaningful for browser CDP; terminal callers treat it as the light fallback
@@ -77,4 +89,23 @@ export function resolveDesktopAppearanceTheme(
 ): ResolvedDesktopTheme {
   if (preference !== 'app') return preference
   return appTheme === 'light' || appTheme === 'dark' || appTheme === 'system' ? appTheme : 'system'
+}
+
+/**
+ * Resolves built-in and imported terminal palettes against Sim's live
+ * appearance. Imported profiles always follow the app appearance — they carry
+ * their own colors, so there is no separate preference to pin them to.
+ */
+export function resolveTerminalThemePalette(
+  theme: TerminalAppearanceTheme,
+  appTheme: string | undefined
+): TerminalThemePalette {
+  if (typeof theme !== 'string') {
+    return resolveDesktopAppearanceTheme('app', appTheme) === 'dark'
+      ? (theme.darkPalette ?? theme.palette)
+      : (theme.lightPalette ?? theme.palette)
+  }
+  return resolveDesktopAppearanceTheme(theme, appTheme) === 'dark'
+    ? TERMINAL_DARK_THEME
+    : TERMINAL_LIGHT_THEME
 }

@@ -1,12 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
+import {
+  messageForCopilotFileError,
+  resolveCopilotFilePrincipal,
+} from '@/lib/copilot/auth/file-delegation'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
-import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
 import { getE2BDocFormat } from './doc-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
 import { consumeLatestFileIntent } from './file-intent-store'
@@ -219,10 +224,12 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
 
       // Compile once via the right engine (or isolated-vm fallback) and resolve
       // the source MIME to store. Shared with the create path.
+      const principal = resolveCopilotFilePrincipal(context)
       const compiled = await compileDocForWrite({
         source: finalContent,
         fileName: fileRecord.name,
         workspaceId,
+        principal,
         ownerKey: `user:${context.userId}`,
         signal: context.abortSignal,
         fallbackMime: inferContentType(fileRecord.name, intent.contentType),
@@ -236,21 +243,18 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       // `updateWorkspaceFileContent` also streams this edit into any open collaborative editor as a live
       // CRDT merge (gated to markdown, best-effort) — the shared chokepoint every external write path
       // goes through — so a copilot edit shows up live instead of the file changing under the reader.
-      await updateWorkspaceFileContent(
-        workspaceId,
-        intent.fileId,
-        context.userId,
-        fileBuffer,
-        compiled.sourceMime,
+      await executeCopilotFileUseCase(
+        context,
+        updateWorkspaceFileContent,
         {
-          secretProvenancePolicy:
-            operation === 'update'
-              ? {
-                  mode: 'replace',
-                  provenance: { status: 'exact', entries: [] },
-                }
-              : { mode: 'preserve' },
-        }
+          fileId: intent.fileId,
+          assertedWorkspaceId: workspaceId,
+          content: finalContent,
+          encoding: 'utf-8',
+          contentType: compiled.sourceMime,
+          provenanceMode: operation === 'update' ? 'replace_empty' : 'preserve',
+        },
+        { fileId: intent.fileId }
       )
 
       const verb =
@@ -278,6 +282,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
         },
       }
     } catch (error) {
+      const safeMessage = messageForCopilotFileError(error, 'Failed to edit file content')
       const errorMessage = getErrorMessage(error, 'Unknown error occurred')
       logger.error('Error in edit_content tool', {
         operation: intent.operation,
@@ -287,7 +292,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       })
       return {
         success: false,
-        message: `Failed to apply content: ${errorMessage}`,
+        message: safeMessage,
       }
     }
   },

@@ -25,6 +25,7 @@ const {
   mockProcessWorkflowDeploymentOutboxEvent,
   mockNotifySocketDeploymentChanged,
   mockLoadWorkflowDeploymentSnapshot,
+  mockUpdateDeploymentVersionMetadata,
   mockTx,
 } = vi.hoisted(() => ({
   mockSaveWorkflowToNormalizedTables: vi.fn(),
@@ -40,6 +41,7 @@ const {
   mockProcessWorkflowDeploymentOutboxEvent: vi.fn(),
   mockNotifySocketDeploymentChanged: vi.fn(),
   mockLoadWorkflowDeploymentSnapshot: vi.fn(),
+  mockUpdateDeploymentVersionMetadata: vi.fn(),
   /**
    * Sentinel transaction handle the mocked prepare functions hand to the real
    * onPrepareTransaction callback, which only forwards it into the (mocked)
@@ -88,6 +90,7 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
   loadWorkflowDeploymentSnapshot: mockLoadWorkflowDeploymentSnapshot,
   saveWorkflowToNormalizedTables: mockSaveWorkflowToNormalizedTables,
   undeployWorkflow: vi.fn(),
+  updateDeploymentVersionMetadata: mockUpdateDeploymentVersionMetadata,
 }))
 
 vi.mock('@/lib/webhooks/deploy', () => ({
@@ -248,6 +251,7 @@ describe('performFullDeploy workspace event emission', () => {
     })
     mockValidateWorkflowSchedules.mockReturnValue({ isValid: true })
     mockValidateTriggerWebhookConfigForDeploy.mockResolvedValue({ success: true })
+    mockUpdateDeploymentVersionMetadata.mockResolvedValue({ name: null, description: null })
     mockEnqueueWorkflowDeploymentPreparation.mockResolvedValue('prepare-event-default')
     mockPrepareWorkflowDeployment.mockImplementation(async (input) => {
       await input.onPrepareTransaction?.(mockTx, operation)
@@ -670,6 +674,100 @@ describe('performActivateVersion workspace event emission', () => {
       expect.objectContaining({ protocolVersion: 2 })
     )
     expect(mockEmitWorkflowDeployedEvent).not.toHaveBeenCalled()
+  })
+
+  it('commits optional metadata inside activation admission before enqueueing work', async () => {
+    mockUpdateDeploymentVersionMetadata.mockResolvedValue({
+      name: 'Release 2',
+      description: 'Ready for production',
+    })
+
+    const result = await performActivateVersion({
+      workflowId: 'workflow-1',
+      version: 2,
+      userId: 'user-1',
+      name: 'Release 2',
+      description: 'Ready for production',
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      name: 'Release 2',
+      description: 'Ready for production',
+    })
+    expect(mockUpdateDeploymentVersionMetadata).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      version: 2,
+      name: 'Release 2',
+      description: 'Ready for production',
+      tx: mockTx,
+    })
+    expect(mockUpdateDeploymentVersionMetadata).toHaveBeenCalledBefore(
+      mockEnqueueWorkflowDeploymentPreparation
+    )
+  })
+
+  it('does not enqueue activation when transactional metadata persistence fails', async () => {
+    mockUpdateDeploymentVersionMetadata.mockRejectedValueOnce(new Error('metadata write failed'))
+
+    const result = await performActivateVersion({
+      workflowId: 'workflow-1',
+      version: 2,
+      userId: 'user-1',
+      name: 'Release 2',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'internal' })
+    expect(mockEnqueueWorkflowDeploymentPreparation).not.toHaveBeenCalled()
+  })
+
+  it('reports post-admission activation failure while preserving admitted metadata', async () => {
+    const failedAt = new Date('2026-07-14T08:01:00.000Z')
+    mockUpdateDeploymentVersionMetadata.mockResolvedValue({
+      name: 'Release 2',
+      description: null,
+    })
+    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+      activeDeployment: null,
+      latestOperation: {
+        id: 'operation-activate-default',
+        workflowId: 'workflow-1',
+        deploymentVersionId: 'dv-2',
+        version: 2,
+        previousActiveVersionId: 'dv-1',
+        action: 'activate',
+        protocolVersion: 2,
+        generation: 4,
+        status: 'failed',
+        componentReadiness: {},
+        errorCode: 'webhook_path_conflict',
+        errorMessage: 'Webhook path is already in use',
+        idempotencyKey: 'request-activate-default',
+        requestHash: 'hash',
+        actorId: 'user-1',
+        completedAt: failedAt,
+        createdAt: failedAt,
+        updatedAt: failedAt,
+      },
+    })
+
+    const result = await performActivateVersion({
+      workflowId: 'workflow-1',
+      version: 2,
+      userId: 'user-1',
+      name: 'Release 2',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Webhook path is already in use',
+      errorCode: 'conflict',
+      name: 'Release 2',
+    })
+    expect(mockUpdateDeploymentVersionMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Release 2', tx: mockTx })
+    )
+    expect(mockEnqueueWorkflowDeploymentPreparation).toHaveBeenCalledOnce()
   })
 
   it('keeps the current version active while version activation prepares', async () => {

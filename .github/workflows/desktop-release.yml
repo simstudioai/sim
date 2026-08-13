@@ -49,7 +49,7 @@ permissions:
 jobs:
   build-sign-notarize:
     name: Build, Sign, Notarize
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -91,8 +91,9 @@ jobs:
             exit 1
           fi
 
-      # Prerelease versions carry their environment in the tag: -alpha.N is a
-      # dev build, -beta.N a staging build. The channel decides the app's
+      # Prerelease versions carry their environment in the tag: -dev.N is a
+      # dev build, -staging.N a staging build. Legacy -alpha/-beta tags remain
+      # accepted while already-published builds age out. The channel decides the app's
       # identity (name/bundle id — a separate app per environment, installable
       # side by side) and the default origin baked into the bundle, which in
       # turn selects the update feed the installed app polls.
@@ -102,9 +103,9 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           case "$VERSION" in
-            *-alpha.*)
+            *-dev.*|*-alpha.*)
               NAME='Sim Dev'; APP_ID=ai.sim.desktop.dev; ORIGIN=https://www.dev.sim.ai ;;
-            *-beta.*)
+            *-staging.*|*-beta.*)
               NAME='Sim Staging'; APP_ID=ai.sim.desktop.staging; ORIGIN=https://www.staging.sim.ai ;;
             *)
               NAME='Sim'; APP_ID=ai.sim.desktop; ORIGIN='' ;;
@@ -167,8 +168,8 @@ jobs:
         if: ${{ inputs.sign }}
         run: |
           DMG="$(ls apps/desktop/release/*.dmg | head -1)"
-          xcrun stapler validate "$DMG"
           hdiutil attach "$DMG" -mountpoint /tmp/sim-dmg -nobrowse -quiet
+          xcrun stapler validate /tmp/sim-dmg/*.app
           spctl --assess --type execute --verbose /tmp/sim-dmg/*.app
           codesign --verify --deep --strict /tmp/sim-dmg/*.app
           hdiutil detach /tmp/sim-dmg -quiet

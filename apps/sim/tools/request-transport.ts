@@ -7,6 +7,7 @@ import {
   createPrivateSecretProvenanceRequestMetadata,
   markModelInputProjected,
 } from '@/lib/execution/model-input-provenance'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ToolConfig } from '@/tools/types'
 
@@ -117,7 +118,11 @@ export function projectToolModelInputParams(
 
     return patchedParams
   } catch {
-    throw new Error(MODEL_INPUT_PROJECTION_ERROR_MESSAGE)
+    refuseResolvedSecretProjection({
+      site: 'tools.requestTransportModelInput',
+      message: MODEL_INPUT_PROJECTION_ERROR_MESSAGE,
+      registry,
+    })
   }
 }
 

@@ -264,7 +264,12 @@ const MONACO_LANGUAGE_BY_EXTENSION: Partial<Record<string, string>> = {
   graphql: 'graphql',
   gql: 'graphql',
   json: 'json',
-  jsonl: 'json',
+  /**
+   * Not `json`: JSON Lines holds one value per line, which Monaco's
+   * single-document parser flags as invalid. Validation is global
+   * (`jsonDefaults`), so opting JSONL out is the only per-file lever.
+   */
+  jsonl: 'plaintext',
   yaml: 'yaml',
   yml: 'yaml',
   toml: 'toml',
@@ -683,6 +688,7 @@ export const TextEditor = memo(function TextEditor({
               mimeType={file.type}
               filename={file.name}
               workspaceId={workspaceId}
+              fileId={file.id}
               fileKey={file.key}
               isStreaming={isStreaming}
             />

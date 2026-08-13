@@ -18,6 +18,7 @@ import {
   getUserStorageLimit,
   getUserStorageUsage,
   isStorageEnforcementEnabled,
+  StorageLimitExceededError,
 } from '@/lib/billing/storage/limits'
 import { getFreeTierLimit, isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { DbOrTx } from '@/lib/db/types'
@@ -362,7 +363,7 @@ export async function applyStorageUsageDeltasInTx(
       payerDelta.maximumUsage !== undefined &&
       nextUsage > payerDelta.maximumUsage
     ) {
-      throw new Error(
+      throw new StorageLimitExceededError(
         `Storage limit exceeded. Used: ${(nextUsage / 1024 ** 3).toFixed(2)}GB, Limit: ${(payerDelta.maximumUsage / 1024 ** 3).toFixed(0)}GB`
       )
     }
@@ -471,7 +472,7 @@ async function mutateWorkspaceStorageUsage(
     currentPayerUsage + bytes > maximumUsage
   ) {
     const newUsage = currentPayerUsage + bytes
-    throw new Error(
+    throw new StorageLimitExceededError(
       `Storage limit exceeded. Used: ${(newUsage / 1024 ** 3).toFixed(2)}GB, Limit: ${(maximumUsage / 1024 ** 3).toFixed(0)}GB`
     )
   }

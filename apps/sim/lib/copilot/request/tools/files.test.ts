@@ -13,7 +13,7 @@ vi.mock('@/lib/core/security/encryption', () => ({
 }))
 
 vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
-  writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
+  writeCopilotWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 
 vi.mock('@/lib/copilot/request/otel', () => ({
@@ -118,6 +118,8 @@ describe('maybeWriteOutputToFile', () => {
       userId: 'user-1',
       workflowId: 'wf-1',
       workspaceId: 'workspace-1',
+      toolCallId: 'tool-1',
+      copilotToolExecution: true,
       userPermission: 'write',
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
       ...overrides,
@@ -171,6 +173,7 @@ describe('maybeWriteOutputToFile', () => {
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ secretProvenance: { status: 'exact', entries: [] } })
     )
   })
@@ -206,6 +209,7 @@ describe('maybeWriteOutputToFile', () => {
 
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
         secretProvenance: {
           status: 'exact',
@@ -246,6 +250,7 @@ describe('maybeWriteOutputToFile', () => {
 
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ secretProvenance: { status: 'unknown' } })
     )
   })
@@ -282,7 +287,7 @@ describe('maybeWriteOutputToFile', () => {
     )
 
     expect(result.success).toBe(true)
-    const write = mockWriteWorkspaceFileByPath.mock.calls[0][0]
+    const write = mockWriteWorkspaceFileByPath.mock.calls[0][1]
     const persisted = write.buffer.toString('utf8')
     expect(JSON.parse(persisted)).toEqual({
       token: 'secret-value',
@@ -319,7 +324,7 @@ describe('maybeWriteOutputToFile', () => {
     )
 
     expect(result.success).toBe(true)
-    const write = mockWriteWorkspaceFileByPath.mock.calls[0][0]
+    const write = mockWriteWorkspaceFileByPath.mock.calls[0][1]
     expect(write.buffer.toString('utf8')).toBe('value\n"a""b\\c\nline"')
     expect(write.secretProvenance).toEqual({
       status: 'exact',
@@ -364,7 +369,7 @@ describe('maybeWriteOutputToFile', () => {
   })
 
   it('reuses serialized provenance for output files with the same format', async () => {
-    const secret = 'a"b'
+    const secret = 'aaaa"bbbb'
     const registry = new ResolvedSecretTraceRegistry(
       [{ name: 'CSV_SECRET', plaintext: secret, encryptedValue: 'encrypted-csv-secret' }],
       { userId: 'user-1', workspaceId: 'workspace-1' }
@@ -423,6 +428,7 @@ describe('maybeWriteOutputToFile', () => {
 
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
         buffer: Buffer.from('__var_API_KEY'),
         secretProvenance: {
@@ -459,6 +465,7 @@ describe('maybeWriteOutputToFile', () => {
 
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
         secretProvenance: {
           status: 'exact',
@@ -496,8 +503,8 @@ describe('maybeWriteOutputToFile', () => {
 
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'billing-actor' }),
       expect.objectContaining({
-        userId: 'billing-actor',
         secretProvenance: {
           status: 'exact',
           entries: [
@@ -535,6 +542,7 @@ describe('maybeWriteOutputToFile', () => {
 
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ secretProvenance: { status: 'unknown' } })
     )
   })
@@ -565,7 +573,7 @@ describe('maybeWriteOutputToFile', () => {
     expect(result.success).toBe(true)
     expect(exportCommittedProvenanceForValue).toHaveBeenCalledTimes(2)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(2)
-    expect(mockWriteWorkspaceFileByPath.mock.calls[1]?.[0]).toEqual(
+    expect(mockWriteWorkspaceFileByPath.mock.calls[1]?.[1]).toEqual(
       expect.objectContaining({ secretProvenance: { status: 'unknown' } })
     )
   })
@@ -580,6 +588,7 @@ describe('maybeWriteOutputToFile', () => {
 
     expect(result.success).toBe(true)
     expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ secretProvenance: { status: 'unknown' } })
     )
   })

@@ -15,8 +15,8 @@ const {
   updateCustomBlockMock,
   deleteCustomBlockMock,
   getCustomBlockWithInputsByWorkflowIdMock,
-  listWorkspaceFilesMock,
-  fetchWorkspaceFileBufferMock,
+  resolveWorkspaceFileReferenceMock,
+  readWorkspaceFileContentMock,
   uploadFileMock,
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
@@ -27,8 +27,8 @@ const {
   updateCustomBlockMock: vi.fn(),
   deleteCustomBlockMock: vi.fn(),
   getCustomBlockWithInputsByWorkflowIdMock: vi.fn(),
-  listWorkspaceFilesMock: vi.fn(),
-  fetchWorkspaceFileBufferMock: vi.fn(),
+  resolveWorkspaceFileReferenceMock: vi.fn(),
+  readWorkspaceFileContentMock: vi.fn(),
   uploadFileMock: vi.fn(),
 }))
 
@@ -51,9 +51,18 @@ vi.mock('@/lib/billing', () => ({
   isOrganizationOnEnterprisePlan: isOrganizationOnEnterprisePlanMock,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  listWorkspaceFiles: listWorkspaceFilesMock,
-  fetchWorkspaceFileBuffer: fetchWorkspaceFileBufferMock,
+vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
+  resolveCopilotWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
+  executeCopilotFileUseCase: vi.fn(
+    async (_context, _useCase, input: { fileId: string; maxBytes: number }) =>
+      readWorkspaceFileContentMock(input)
+  ),
+}))
+vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
+  readWorkspaceFileContent: {
+    operation: { id: 'files.read_content' },
+    execute: readWorkspaceFileContentMock,
+  },
 }))
 
 vi.mock('@/lib/uploads/core/storage-service', () => ({
@@ -77,7 +86,13 @@ vi.mock('@/lib/workflows/custom-blocks/operations', () => {
 
 import { executeDeployCustomBlock } from './custom-block'
 
-const context = { userId: 'user-1', workflowId: 'wf-1' } as ExecutionContext
+const context = {
+  userId: 'user-1',
+  workflowId: 'wf-1',
+  workspaceId: 'ws-1',
+  toolCallId: 'tool-1',
+  copilotToolExecution: true,
+} as ExecutionContext
 
 const publishedBlock = {
   id: 'cb-1',
@@ -327,19 +342,18 @@ describe('executeDeployCustomBlock', () => {
   })
 
   it('ingests a workspace-file icon into public icon storage', async () => {
-    listWorkspaceFilesMock.mockResolvedValue([
-      {
-        id: 'file-1',
-        workspaceId: 'ws-1',
-        name: 'icon.png',
-        folderPath: null,
-        type: 'image/png',
-        size: 1024,
-        key: 'workspace/ws-1/123-abc-icon.png',
-        storageContext: 'workspace',
-      },
-    ])
-    fetchWorkspaceFileBufferMock.mockResolvedValue(Buffer.from('png-bytes'))
+    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+      id: 'file-1',
+      name: 'icon.png',
+      folderPath: null,
+      type: 'image/png',
+      size: 1024,
+      key: 'workspace/ws-1/123-abc-icon.png',
+    })
+    readWorkspaceFileContentMock.mockResolvedValue({
+      file: { id: 'file-1', name: 'icon.png' },
+      content: Buffer.from('png-bytes'),
+    })
     uploadFileMock.mockResolvedValue({ path: '/api/files/serve/s3/workspace-logos%2Ficon.png' })
     publishCustomBlockMock.mockResolvedValue(publishedBlock)
 
@@ -387,7 +401,7 @@ describe('executeDeployCustomBlock', () => {
   })
 
   it('fails when the icon workspace file does not exist', async () => {
-    listWorkspaceFilesMock.mockResolvedValue([])
+    resolveWorkspaceFileReferenceMock.mockRejectedValue(new Error('File not found'))
 
     const result = await executeDeployCustomBlock(
       {
@@ -439,9 +453,14 @@ describe('executeDeployCustomBlock', () => {
   })
 
   it('fails when the icon workspace file is not an image', async () => {
-    listWorkspaceFilesMock.mockResolvedValue([
-      { name: 'notes.pdf', folderPath: null, type: 'application/pdf', size: 1024, key: 'k' },
-    ])
+    resolveWorkspaceFileReferenceMock.mockResolvedValue({
+      id: 'file-2',
+      name: 'notes.pdf',
+      folderPath: null,
+      type: 'application/pdf',
+      size: 1024,
+      key: 'k',
+    })
 
     const result = await executeDeployCustomBlock(
       {

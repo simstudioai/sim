@@ -305,8 +305,8 @@ describe('LoggingSession terminal provenance', () => {
     }
 
     await session.complete({
-      finalOutput: { result: 'Test' },
-      workflowInput: { token: 'Test' },
+      finalOutput: { result: 'TestValue' },
+      workflowInput: { token: 'TestValue' },
       executionState,
     })
 
@@ -744,12 +744,12 @@ describe('LoggingSession completion retries', () => {
         status: 'success',
         output: { apiKey: 'ordinary-value' },
         displayResolvedSecretTraceProvenance: createDisplayProvenance([
-          { plaintext: 'E', replacement: '{{X}}' },
+          { plaintext: 'REDACTED', replacement: '{{X}}' },
         ]),
       },
     ]
     session.setResolvedSecretTraceRegistry(
-      createSecretRegistry([{ plaintext: 'E', replacement: '{{X}}' }])
+      createSecretRegistry([{ plaintext: 'REDACTED', replacement: '{{X}}' }])
     )
     prepareTraceSpansForProjectionMock.mockImplementationOnce(
       async ({ traceSpans }: { traceSpans: Array<Record<string, unknown>> }) =>
@@ -786,7 +786,7 @@ describe('LoggingSession completion retries', () => {
         status: 'success',
         output: { apiKey: 'ordinary-value' },
         displayResolvedSecretTraceProvenance: createDisplayProvenance([
-          { plaintext: 'E', replacement: '{{X}}' },
+          { plaintext: 'EEEEEEEE', replacement: '{{X}}' },
         ]),
       },
     ]
@@ -799,13 +799,13 @@ describe('LoggingSession completion retries', () => {
       preview: '{{X}}',
     } as const
     session.setResolvedSecretTraceRegistry(
-      createSecretRegistry([{ plaintext: 'E', replacement: '{{X}}' }])
+      createSecretRegistry([{ plaintext: 'EEEEEEEE', replacement: '{{X}}' }])
     )
     prepareTraceSpansForProjectionMock.mockImplementationOnce(
       async ({ traceSpans }: { traceSpans: Array<Record<string, unknown>> }) =>
         traceSpans.map((span) => ({ ...span, output: { payload: ref } }))
     )
-    materializeLargeValueRefMock.mockResolvedValue({ value: 'hidden-E' })
+    materializeLargeValueRefMock.mockResolvedValue({ value: 'hidden-EEEEEEEE' })
 
     await session.safeComplete({ traceSpans: sourceTraceSpans as any })
 
@@ -977,7 +977,7 @@ describe('LoggingSession completion retries', () => {
 
   it('projects live block errors and terminal block logs without mutating raw callback data', async () => {
     const session = new LoggingSession('workflow-1', 'execution-display-safe', 'manual', 'req-1')
-    const secret = '1234'
+    const secret = '12345678'
     const rawError = `Reference Error: Line 1: return blah +${secret} - blah is not defined`
     const rawLog = {
       blockId: 'function-1',
@@ -1057,7 +1057,7 @@ describe('LoggingSession completion retries', () => {
   it('projects a numeric Function result produced by a resolved numeric secret', async () => {
     const session = new LoggingSession('workflow-1', 'execution-numeric-secret', 'manual', 'req-1')
     session.setResolvedSecretTraceRegistry(
-      createSecretRegistry([{ plaintext: '1234', replacement: '{{OPENAI_API_KEY}}' }])
+      createSecretRegistry([{ plaintext: '12345678', replacement: '{{OPENAI_API_KEY}}' }])
     )
     const rawLog = {
       blockId: 'function-1',
@@ -1068,10 +1068,10 @@ describe('LoggingSession completion retries', () => {
       durationMs: 1,
       success: true,
       executionOrder: 1,
-      input: { code: 'return 1234' },
-      output: { result: 1234, stdout: '' },
+      input: { code: 'return 12345678' },
+      output: { result: 12345678, stdout: '' },
       displayResolvedSecretTraceProvenance: createDisplayProvenance([
-        { plaintext: '1234', replacement: '{{OPENAI_API_KEY}}' },
+        { plaintext: '12345678', replacement: '{{OPENAI_API_KEY}}' },
       ]),
     }
 
@@ -1079,13 +1079,13 @@ describe('LoggingSession completion retries', () => {
 
     expect(displayLog.input).toEqual({ code: 'return {{OPENAI_API_KEY}}' })
     expect(displayLog.output).toEqual({ result: '{{OPENAI_API_KEY}}', stdout: '' })
-    expect(rawLog.output.result).toBe(1234)
+    expect(rawLog.output.result).toBe(12345678)
   })
 
   it('projects each block log with only its causal provenance', async () => {
     const session = new LoggingSession('workflow-1', 'execution-sibling-values', 'manual', 'req-1')
     session.setResolvedSecretTraceRegistry(
-      createSecretRegistry([{ plaintext: 'Test', replacement: '{{SHORT_SECRET}}' }])
+      createSecretRegistry([{ plaintext: 'TestValue', replacement: '{{SHORT_SECRET}}' }])
     )
     const baseLog = {
       blockName: 'Function',
@@ -1100,22 +1100,22 @@ describe('LoggingSession completion retries', () => {
         ...baseLog,
         blockId: 'secret-block',
         executionOrder: 1,
-        output: { result: 'Test' },
+        output: { result: 'TestValue' },
         displayResolvedSecretTraceProvenance: createDisplayProvenance([
-          { plaintext: 'Test', replacement: '{{SHORT_SECRET}}' },
+          { plaintext: 'TestValue', replacement: '{{SHORT_SECRET}}' },
         ]),
       },
       {
         ...baseLog,
         blockId: 'public-block',
         executionOrder: 2,
-        output: { result: 'Test' },
+        output: { result: 'TestValue' },
         displayResolvedSecretTraceProvenance: createDisplayProvenance([]),
       },
     ])
 
     expect(displayLogs[0].output).toEqual({ result: '{{SHORT_SECRET}}' })
-    expect(displayLogs[1].output).toEqual({ result: 'Test' })
+    expect(displayLogs[1].output).toEqual({ result: 'TestValue' })
     expect(displayLogs[0]).not.toHaveProperty('displayResolvedSecretTraceProvenance')
     expect(displayLogs[1]).not.toHaveProperty('displayResolvedSecretTraceProvenance')
   })

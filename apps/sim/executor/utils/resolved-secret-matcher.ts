@@ -1,7 +1,11 @@
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
+import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 import { getResolvedSecretMatcherCapacityFailure } from '@/executor/utils/resolved-secret-matcher-capacity'
 
 const MAX_MATCH_EVENTS = 1_000_000
+
+/** Bounds the substitute/verify loop in {@link sanitizeResolvedSecretString}. */
+const MAX_SETTLE_PASSES = 4
 
 export const OPAQUE_RESOLVED_SECRET_REPLACEMENT = '[REDACTED_SECRET]'
 
@@ -100,6 +104,17 @@ function createMatcherFromReplacements(
     ),
     protectedReplacementPlaintexts: new Map<string, ReadonlySet<string>>(),
   }
+}
+
+/** Walks by code unit, matching how {@link createMatcherFromReplacements} keys the trie. */
+function findTerminalNode(root: SecretTrieNode, plaintext: string): SecretTrieNode {
+  let node = root
+  for (let index = 0; index < plaintext.length; index += 1) {
+    const child = node.children.get(plaintext[index])
+    if (!child) throw new ResolvedSecretMatcherError('Secret matcher construction failed')
+    node = child
+  }
+  return node
 }
 
 function advanceMatcher(
@@ -285,6 +300,29 @@ export function sanitizeResolvedSecretString(
   maxBytes = MAX_INLINE_MATERIALIZATION_BYTES,
   onMatch?: (plaintext: string) => void
 ): string {
+  /**
+   * A substitution can leave a literal the previous pass could not act on: an empty replacement can
+   * splice its neighbours into a literal that was not present in the input.
+   * Each pass strictly consumes matches, so this converges in practice; the bound is what keeps a
+   * pathological chain from looping, and the throw past it stays the fail-closed backstop callers
+   * already handle by dropping the value.
+   */
+  let sanitized = substituteResolvedSecrets(value, matcher, maxBytes, onMatch)
+  for (let pass = 1; containsResolvedSecret(sanitized, matcher); pass += 1) {
+    if (pass >= MAX_SETTLE_PASSES) {
+      throw new ResolvedSecretMatcherError('Sanitized content still contains an active secret')
+    }
+    sanitized = substituteResolvedSecrets(sanitized, matcher, maxBytes, onMatch)
+  }
+  return sanitized
+}
+
+function substituteResolvedSecrets(
+  value: string,
+  matcher: ResolvedSecretMatcher,
+  maxBytes: number,
+  onMatch?: (plaintext: string) => void
+): string {
   if (maxBytes < 0) {
     throw new ResolvedSecretMatcherError('Sanitized secret-bearing string exceeds the size limit')
   }
@@ -375,11 +413,7 @@ export function sanitizeResolvedSecretString(
 
   finalizeThrough(value.length - 1)
   append(value.slice(literalStart))
-  const sanitized = chunks.join('')
-  if (containsResolvedSecret(sanitized, matcher)) {
-    throw new ResolvedSecretMatcherError('Sanitized content still contains an active secret')
-  }
-  return sanitized
+  return chunks.join('')
 }
 
 /** Replaces only an exact primitive rendering, never a substring of another primitive. */
@@ -401,7 +435,11 @@ export function createResolvedSecretMatcher(
   const replacementByPlaintext = new Map<string, string>()
 
   for (const match of matches) {
-    if (!match.plaintext) continue
+    /**
+     * Dropped before any construction-time check runs, so no later stage can be talked into
+     * treating one of these as protectable.
+     */
+    if (!match.plaintext || isNonIdentifyingSecretLiteral(match.plaintext)) continue
     const current = replacementByPlaintext.get(match.plaintext)
     if (current === undefined || compareStrings(match.replacement, current) < 0) {
       replacementByPlaintext.set(match.plaintext, match.replacement)
@@ -455,12 +493,7 @@ export function createResolvedSecretMatcher(
   const exactReplacements = new Map<string, string>()
   const protectedReplacementPlaintexts = new Map<string, ReadonlySet<string>>()
   for (const { plaintext, replacement } of provisional) {
-    let node = detector.root
-    for (const character of plaintext) {
-      const child = node.children.get(character)
-      if (!child) throw new ResolvedSecretMatcherError('Secret matcher construction failed')
-      node = child
-    }
+    const node = findTerminalNode(detector.root, plaintext)
     const namedReplacement = isNamedResolvedSecretReplacement(replacement)
     const replacementContainsSecret = containsResolvedSecret(replacement, detector)
     const safeReplacement = !replacementContainsSecret
@@ -478,6 +511,7 @@ export function createResolvedSecretMatcher(
     }
     exactReplacements.set(plaintext, safeReplacement)
   }
+
   detector.exactReplacements = exactReplacements
   detector.protectedReplacementPlaintexts = protectedReplacementPlaintexts
   detector.protectedReplacementMatcher = createProtectedReplacementMatcher(

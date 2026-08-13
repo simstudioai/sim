@@ -12,7 +12,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Folder, MoreHorizontal, Pencil, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
+import { File, Folder, MoreHorizontal, Pencil, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
@@ -62,19 +62,7 @@ function fileFlyoutEntries(
 }
 
 const FILE_FLYOUT_ICON = (
-  <svg
-    className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
-    viewBox='0 0 24 24'
-    fill='none'
-    stroke='currentColor'
-    strokeWidth='2'
-    strokeLinecap='round'
-    strokeLinejoin='round'
-    aria-hidden='true'
-  >
-    <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
-    <path d='M14 2v4a2 2 0 0 0 2 2h4' />
-  </svg>
+  <File className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' aria-hidden='true' />
 )
 
 export function CollapsedFileFolderItems({
@@ -93,11 +81,8 @@ export function CollapsedFileFolderItems({
       {fileFlyoutEntries(nodes, rootFiles ?? []).map((entry) => {
         if (entry.kind === 'file') {
           return (
-            <DropdownMenuItem key={entry.id} asChild>
-              <Link
-                href={`/workspace/${workspaceId}/files/${entry.file.id}`}
-                className={cn(currentFileId === entry.file.id && 'bg-[var(--surface-active)]')}
-              >
+            <DropdownMenuItem key={entry.id} asChild active={currentFileId === entry.file.id}>
+              <Link href={`/workspace/${workspaceId}/files/${entry.file.id}`}>
                 {FILE_FLYOUT_ICON}
                 <span className='truncate'>{entry.name}</span>
               </Link>
@@ -119,7 +104,7 @@ export function CollapsedFileFolderItems({
 
         return (
           <DropdownMenuSub key={folder.id}>
-            <DropdownMenuSubTrigger className='focus:bg-[var(--surface-hover)] data-[state=open]:bg-[var(--surface-hover)]'>
+            <DropdownMenuSubTrigger>
               <Folder className='size-[14px]' />
               <span className='truncate'>{folder.name}</span>
             </DropdownMenuSubTrigger>
@@ -277,7 +262,7 @@ export function CollapsedChatFlyoutItem({
   return (
     <DropdownMenuItem
       asChild
-      className={cn((isCurrentRoute || isMenuOpen) && 'bg-[var(--surface-active)]')}
+      active={isCurrentRoute || isMenuOpen}
       action={
         showActions ? (
           <DropdownMenuItemAction
@@ -354,7 +339,7 @@ export function CollapsedWorkflowFlyoutItem({
   return (
     <DropdownMenuItem
       asChild
-      className={cn((isCurrentRoute || actionsOpen) && 'bg-[var(--surface-active)]')}
+      active={isCurrentRoute || actionsOpen}
       action={
         hasActions ? (
           <DropdownMenuSub
@@ -472,7 +457,7 @@ export function CollapsedFolderItems(props: CollapsedFolderItemsProps) {
 
         return (
           <DropdownMenuSub key={folder.id}>
-            <DropdownMenuSubTrigger className='focus:bg-[var(--surface-active)] data-[state=open]:bg-[var(--surface-active)]'>
+            <DropdownMenuSubTrigger>
               <Folder className='size-[14px]' />
               <span className='truncate'>{folder.name}</span>
             </DropdownMenuSubTrigger>

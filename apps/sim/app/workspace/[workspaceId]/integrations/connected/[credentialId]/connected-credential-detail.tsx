@@ -248,7 +248,7 @@ export function ConnectedCredentialDetail({
               <IntegrationTile blockType={integrationBlockType} icon={display.icon} />
             ) : (
               <div className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}>
-                <span className='font-medium text-[var(--text-tertiary)] text-small'>
+                <span className='text-[var(--text-tertiary)] text-small'>
                   {resolveProviderLabel(credential.providerId).slice(0, 1) || '?'}
                 </span>
               </div>

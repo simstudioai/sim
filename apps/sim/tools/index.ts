@@ -1,10 +1,12 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { describeError, findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
+  type GenerateInternalDelegationTokenInput,
   generateInternalToken,
   type InternalSandboxProfile,
   type InternalTokenClaims,
@@ -15,6 +17,7 @@ import {
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { DEFAULT_EXECUTION_TIMEOUT_MS, getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import {
@@ -23,6 +26,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { isTransportTimeoutError, withCallerOwnedDeadline } from '@/lib/core/utils/fetch-deadline'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -38,10 +42,6 @@ import {
   serializeExecutionDeadlineHeader,
 } from '@/lib/execution/execution-deadline-header'
 import {
-  OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR,
-  OPAQUE_MODEL_INPUT_RESOLVED_SECRET_ERROR,
-} from '@/lib/execution/model-input-provenance'
-import {
   inspectPrivateToolMetadataEnvelope,
   inspectPrivateToolMetadataResponseCapability,
   MAX_PRIVATE_TOOL_METADATA_OVERHEAD_BYTES,
@@ -56,17 +56,18 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
+import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
+import { buildExecutorDelegationHeaders } from '@/executor/utils/http'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import {
   isResolvedSecretTraceProvenanceV1,
-  type ResolvedSecretInputPath,
   type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ErrorInfo } from '@/tools/error-extractors'
@@ -94,39 +95,10 @@ const PRIVATE_MODEL_INPUT_DIRECT_EXECUTION_ERROR_MESSAGE =
   'Private model input provenance is not supported by direct execution'
 const PRIVATE_SECRET_PROVENANCE_DIRECT_EXECUTION_ERROR_MESSAGE =
   'Private secret provenance is not supported by direct execution'
-
-function assertOpaqueToolModelInputSafe(
-  tool: ToolConfig,
-  params: Record<string, any>,
-  registry: ResolvedSecretTraceRegistry | undefined
-): void {
-  const opaqueModelInput = tool.request.opaqueModelInput
-  if (!opaqueModelInput || !registry) return
-  if (opaqueModelInput.mode !== 'reject-resolved-secrets') {
-    throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
-  }
-
-  let inputPaths: readonly ResolvedSecretInputPath[]
-  try {
-    inputPaths = opaqueModelInput.inputPaths(params)
-  } catch {
-    throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
-  }
-  if (inputPaths.length === 0) return
-
-  let provenance
-  try {
-    provenance = registry.exportCommittedProvenanceForInputPaths(inputPaths)
-  } catch {
-    throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
-  }
-  if (!provenance.complete) {
-    throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
-  }
-  if (provenance.entries.length > 0) {
-    throw new Error(OPAQUE_MODEL_INPUT_RESOLVED_SECRET_ERROR)
-  }
-}
+const INTERNAL_DATABASE_ERROR_MESSAGE =
+  'An internal error occurred while executing the tool. Please try again.'
+const PERMISSION_PREFLIGHT_MAX_ATTEMPTS = 3
+const PERMISSION_PREFLIGHT_RETRY_BACKOFF = { baseMs: 25, maxMs: 100 } as const
 
 function projectToolLogMetadata(
   metadata: Record<string, unknown>,
@@ -141,6 +113,53 @@ function projectToolLogMetadata(
   return projection.safe && isPlainRecord(projection.value)
     ? projection.value
     : { ...structuralFallback, redacted: true }
+}
+
+interface ToolPermissionPreflight {
+  userId: string
+  workspaceId: string
+  toolId: string
+  toolKind?: 'skill' | 'custom' | 'mcp'
+  ctx?: ExecutionContext
+  requestId: string
+  signal?: AbortSignal
+}
+
+async function assertToolPermissionsWithRetry({
+  requestId,
+  signal,
+  ...permission
+}: ToolPermissionPreflight): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    signal?.throwIfAborted()
+    try {
+      await assertPermissionsAllowed(permission)
+      return
+    } catch (error) {
+      signal?.throwIfAborted()
+      const isDatabaseQueryError = Boolean(
+        findCause(error, (cause): cause is DrizzleQueryError => cause instanceof DrizzleQueryError)
+      )
+      if (
+        attempt >= PERMISSION_PREFLIGHT_MAX_ATTEMPTS ||
+        !isDatabaseQueryError ||
+        !isRetryableInfrastructureError(error)
+      ) {
+        throw error
+      }
+
+      const delayMs = backoffWithJitter(attempt, null, PERMISSION_PREFLIGHT_RETRY_BACKOFF)
+      logger.warn(`[${requestId}] Retrying tool permission preflight after database error`, {
+        toolId: permission.toolId,
+        attempt,
+        maxAttempts: PERMISSION_PREFLIGHT_MAX_ATTEMPTS,
+        delayMs,
+        cause: describeError(error),
+      })
+      await sleep(delayMs)
+      signal?.throwIfAborted()
+    }
+  }
 }
 
 interface ToolExecutionScope {
@@ -176,6 +195,35 @@ function resolveToolScope(
       | undefined,
     billingAttribution: (executionContext?.metadata.billingAttribution ??
       ctx?.billingAttribution) as BillingAttributionSnapshot | undefined,
+  }
+}
+
+function resolveInternalExecutorDelegation(
+  tool: ToolConfig,
+  executionContext: ExecutionContext | undefined,
+  supplied: GenerateInternalDelegationTokenInput | undefined
+): GenerateInternalDelegationTokenInput | undefined {
+  if (tool.request.internalAuth !== 'executor_delegation') return undefined
+  if (supplied) {
+    if (!supplied.subjectUserId || !supplied.workflowId) {
+      throw new Error('Executor delegation requires an authenticated user and workflow')
+    }
+    return supplied
+  }
+  if (!executionContext?.userId || !executionContext.workflowId) {
+    throw new Error('Executor delegation requires a trusted workflow execution context')
+  }
+  if (executionContext.executorDelegationOrigin) {
+    const origin = executionContext.executorDelegationOrigin
+    if (!origin.subjectUserId || !origin.workflowId) {
+      throw new Error('Executor delegation origin requires an authenticated user and workflow')
+    }
+    return origin
+  }
+  return {
+    subjectUserId: executionContext.userId,
+    workflowId: executionContext.workflowId,
+    ...(executionContext.executionId ? { executionId: executionContext.executionId } : {}),
   }
 }
 
@@ -1154,6 +1202,8 @@ export interface ExecuteToolOptions {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   /** Trusted base image claim for an internal Function execution. */
   internalSandboxProfile?: InternalSandboxProfile
+  /** Trusted executor identity supplied by a server adapter without entering model parameters. */
+  internalExecutorDelegation?: GenerateInternalDelegationTokenInput
 }
 
 interface PrivateToolResponseMetadataResult {
@@ -1225,7 +1275,8 @@ function consumeResolvedSecretNames(
 
 async function consumeResolvedSecretProvenance(
   payload: unknown,
-  registry?: ResolvedSecretTraceRegistry
+  registry: ResolvedSecretTraceRegistry | undefined,
+  toolId: string
 ): Promise<boolean> {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false
 
@@ -1240,6 +1291,7 @@ async function consumeResolvedSecretProvenance(
   const targetRegistry = registry.forkForToolCall()
   const imported = await targetRegistry.importCrossingProvenance(provenance, response, {
     trusted: true,
+    origin: `tool.${toolId}`,
   })
   if (!imported) return false
   registry.mergeToolCallRegistry(targetRegistry)
@@ -1287,7 +1339,8 @@ async function consumePrivateToolPayloadMetadata(
   headers: Headers,
   requestedType: PrivateToolMetadataType | undefined,
   params: Record<string, any>,
-  registry?: ResolvedSecretTraceRegistry
+  registry: ResolvedSecretTraceRegistry | undefined,
+  toolId: string
 ): Promise<PrivateToolMetadataConsumption> {
   if (!requestedType) return 'verified'
 
@@ -1346,7 +1399,7 @@ async function consumePrivateToolPayloadMetadata(
     ) {
       if (!consumeResolvedSecretNames(record, params, registry)) return 'invalid'
     } else {
-      if (!(await consumeResolvedSecretProvenance(record, registry))) return 'invalid'
+      if (!(await consumeResolvedSecretProvenance(record, registry, toolId))) return 'invalid'
     }
   } catch {
     return 'invalid'
@@ -1361,7 +1414,8 @@ async function consumePrivateToolResponseMetadata(
   response: Response,
   requestedType: PrivateToolMetadataType | undefined,
   params: Record<string, any>,
-  registry?: ResolvedSecretTraceRegistry
+  registry: ResolvedSecretTraceRegistry | undefined,
+  toolId: string
 ): Promise<PrivateToolResponseMetadataResult> {
   if (!requestedType) return { response }
 
@@ -1385,7 +1439,8 @@ async function consumePrivateToolResponseMetadata(
     response.headers,
     requestedType,
     params,
-    registry
+    registry,
+    toolId
   )
   if (consumption === 'invalid') {
     return { response: rebuildSafePrivateToolResponse(response) }
@@ -1441,7 +1496,7 @@ export async function executeTool(
   const toolRegistry = paramEntries
     ? parentRegistry.forkForInputPaths(paramEntries.map(([key]) => [key] as const))
     : parentRegistry.forkForToolCall()
-  if (!paramEntries) toolRegistry.markIncomplete()
+  if (!paramEntries) toolRegistry.markIncomplete('tool-input-not-enumerable')
   const executionContext = options.executionContext
     ? { ...options.executionContext, resolvedSecretTraceRegistry: toolRegistry }
     : undefined
@@ -1476,6 +1531,7 @@ async function executeToolImplementation(
     signal,
     resolvedSecretTraceRegistry: explicitResolvedSecretTraceRegistry,
     internalSandboxProfile,
+    internalExecutorDelegation: suppliedInternalExecutorDelegation,
   } = options
   const resolvedSecretTraceRegistry =
     explicitResolvedSecretTraceRegistry ?? executionContext?.resolvedSecretTraceRegistry
@@ -1532,12 +1588,14 @@ async function executeToolImplementation(
     // Runs for ALL tools (not just kinded ones) so the per-tool `deniedTools`
     // denylist is enforced alongside the existing mcp/custom/skill gates.
     if (scope.userId && scope.workspaceId) {
-      await assertPermissionsAllowed({
+      await assertToolPermissionsWithRetry({
         userId: scope.userId,
         workspaceId: scope.workspaceId,
         toolId: normalizedToolId,
         toolKind,
         ctx: executionContext,
+        requestId,
+        signal: effectiveSignal,
       })
     }
 
@@ -1609,11 +1667,16 @@ async function executeToolImplementation(
       throw new Error(`Tool not found: ${toolId}`)
     }
 
+    const internalExecutorDelegation = resolveInternalExecutorDelegation(
+      tool,
+      executionContext,
+      suppliedInternalExecutorDelegation
+    )
+
     await normalizeCopilotFileParams(tool, contextParams, scope)
     normalizeCopilotCredentialParams(contextParams)
     enforceCopilotCredentialSelection(toolId, tool, contextParams, scope)
     await resolveCopilotEnvReferences(tool, contextParams, scope, resolvedSecretTraceRegistry)
-    assertOpaqueToolModelInputSafe(tool, contextParams, resolvedSecretTraceRegistry)
 
     // Inject hosted API key if tool supports it and user didn't provide one
     const hostedKeyInfo = await injectHostedKeyIfNeeded(
@@ -1640,8 +1703,6 @@ async function executeToolImplementation(
         `[${requestId}] Tool ${toolId} needs access token for credential: ${contextParams.credential}`
       )
       try {
-        const baseUrl = getInternalApiBaseUrl()
-
         const workflowId = contextParams._context?.workflowId
         const userId = contextParams._context?.userId
 
@@ -1662,17 +1723,41 @@ async function executeToolImplementation(
           }
         }
 
+        /**
+         * The acting user asserted alongside an internal token. Only sent when the
+         * run enforces credential access, matching the `userId` query param the HTTP
+         * surface accepted — it never widens access, it only pins the assertion to
+         * the token subject.
+         */
+        const callerUserId =
+          userId && contextParams._context?.enforceCredentialAccess ? userId : undefined
+
+        const baseUrl = getInternalApiBaseUrl()
         logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
 
         const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
         if (workflowId) {
           tokenUrlObj.searchParams.set('workflowId', workflowId)
         }
-        if (userId && contextParams._context?.enforceCredentialAccess) {
-          tokenUrlObj.searchParams.set('userId', userId)
+        if (callerUserId) {
+          tokenUrlObj.searchParams.set('userId', callerUserId)
         }
 
-        // Always send Content-Type; add internal auth on server-side runs
+        /**
+         * Deliberately an HTTP hop rather than an in-process call to
+         * `resolveCredentialToken`, even though both run the same authorization rule.
+         *
+         * An OAuth refresh needs the provider's client id and secret
+         * (`requireOAuthClientCapability`, which THROWS when they are absent). Only the
+         * app container loads those, from `SIM_ENV_SECRET_ID`. Tool calls execute inside
+         * the Trigger.dev worker, whose environment does not carry them, so resolving
+         * in-process there turns every credential whose access token has expired into
+         * `Failed to refresh access token`. A still-valid token hides it — the refresh
+         * path is only reached once the token lapses.
+         *
+         * Moving this in-process requires the worker to hold the OAuth client config,
+         * not just a code change.
+         */
         const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
         if (typeof window === 'undefined') {
           try {
@@ -1683,6 +1768,7 @@ async function executeToolImplementation(
           }
         }
 
+        // boundary-raw-fetch: same-origin token route, authenticated by internal JWT on the server and the session cookie in the browser
         const response = await fetch(tokenUrlObj.toString(), {
           method: 'POST',
           headers: tokenHeaders,
@@ -1706,7 +1792,8 @@ async function executeToolImplementation(
           throw new Error(`Failed to obtain credential for ${toolLabel}: ${parsedError}`)
         }
 
-        const data = await response.json()
+        const data = (await response.json()) as CredentialTokenPayload
+
         contextParams.accessToken = data.accessToken
         if (data.idToken) {
           contextParams.idToken = data.idToken
@@ -1754,6 +1841,57 @@ async function executeToolImplementation(
     // tool registry never pulls in the executor/db dependency graph (a static or
     // dynamic executor import in the tool descriptor itself would break the client
     // build — and with it `getTool('workflow_executor')`).
+    // Workflow-as-agent-tool runs in-process through WorkflowBlockHandler —
+    // the same invocation boundary canvas child workflows use. Replaces the
+    // historical HTTP hop to /api/workflows/{id}/execute (double admission
+    // slot + duplicate top-level log row); billing/observability now match the
+    // canvas workflow block.
+    if (normalizedToolId === 'workflow_executor') {
+      logger.info(`[${requestId}] Running workflow tool ${toolId} in-process`)
+      const { runWorkflowTool } = await import('@/executor/handlers/workflow/workflow-tool-runner')
+      const result = await runWorkflowTool(
+        {
+          ...contextParams,
+          _context: {
+            ...(contextParams._context as Record<string, unknown> | undefined),
+            ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
+            ...(scope.workflowId ? { workflowId: scope.workflowId } : {}),
+            ...(scope.userId ? { userId: scope.userId } : {}),
+            ...(scope.executionId ? { executionId: scope.executionId } : {}),
+            ...(scope.callChain ? { callChain: scope.callChain } : {}),
+            ...(scope.isDeployedContext !== undefined
+              ? { isDeployedContext: scope.isDeployedContext }
+              : {}),
+            ...(scope.billingAttribution ? { billingAttribution: scope.billingAttribution } : {}),
+          },
+        },
+        {
+          abortSignal: effectiveSignal,
+          resolvedSecretTraceRegistry,
+          executorDelegationOrigin: executionContext?.executorDelegationOrigin,
+          // Trusted `executionContext`, never `_context` — that bag spreads
+          // model-reachable `contextParams._context` first, so a model could otherwise
+          // inject its own env map or disable redaction.
+          // Copied, not aliased: the child holds this map for its whole run, and a
+          // write through it would corrupt the parent's env and every later sibling
+          // tool call. Every other consumer of `ctx.environmentVariables` already
+          // copies (`normalizeStringRecord`); this boundary is the longest-lived one.
+          environmentVariables: { ...executionContext?.environmentVariables },
+          piiBlockOutputRedaction: executionContext?.piiBlockOutputRedaction,
+        }
+      )
+      const endTime = new Date()
+      return {
+        ...result,
+        output: postProcessToolOutput(normalizedToolId, result.output ?? {}),
+        timing: {
+          startTime: startTimeISO,
+          endTime: endTime.toISOString(),
+          duration: endTime.getTime() - startTime.getTime(),
+        },
+      }
+    }
+
     if (normalizedToolId === 'deployed_block_executor') {
       logger.info(`[${requestId}] Running custom block tool ${toolId}`)
       const { runCustomBlockTool } = await import(
@@ -1767,7 +1905,15 @@ async function executeToolImplementation(
           ...contextParams,
           _context: {
             ...(contextParams._context as Record<string, unknown> | undefined),
+            ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
+            ...(scope.workflowId ? { workflowId: scope.workflowId } : {}),
+            ...(scope.userId ? { userId: scope.userId } : {}),
             ...(scope.executionId ? { executionId: scope.executionId } : {}),
+            ...(scope.callChain ? { callChain: scope.callChain } : {}),
+            ...(scope.isDeployedContext !== undefined
+              ? { isDeployedContext: scope.isDeployedContext }
+              : {}),
+            ...(scope.billingAttribution ? { billingAttribution: scope.billingAttribution } : {}),
             requestId,
           },
         },
@@ -1876,7 +2022,8 @@ async function executeToolImplementation(
               effectiveSignal,
               privateToolMetadataType,
               resolvedSecretTraceRegistry,
-              internalSandboxProfile
+              internalSandboxProfile,
+              internalExecutorDelegation
             ),
           {
             requestId,
@@ -1903,7 +2050,8 @@ async function executeToolImplementation(
                   effectiveSignal,
                   privateToolMetadataType,
                   resolvedSecretTraceRegistry,
-                  internalSandboxProfile
+                  internalSandboxProfile,
+                  internalExecutorDelegation
                 )
             },
           }
@@ -1915,7 +2063,8 @@ async function executeToolImplementation(
           effectiveSignal,
           privateToolMetadataType,
           resolvedSecretTraceRegistry,
-          internalSandboxProfile
+          internalSandboxProfile,
+          internalExecutorDelegation
         )
 
     // Apply post-processing if available and not skipped
@@ -1974,17 +2123,27 @@ async function executeToolImplementation(
     }
   } catch (error: any) {
     const normalizedError = toError(error)
+    const databaseQueryError = findCause(
+      error,
+      (cause): cause is DrizzleQueryError => cause instanceof DrizzleQueryError
+    )
+    const databaseErrorCause = databaseQueryError ? describeError(error) : undefined
     logger.error(
       `[${requestId}] Error executing tool ${toolId}:`,
       projectToolLogMetadata(
         {
-          error: normalizedError.message,
-          stack: error instanceof Error ? error.stack : undefined,
+          ...(databaseErrorCause
+            ? { cause: databaseErrorCause }
+            : {
+                error: normalizedError.message,
+                stack: error instanceof Error ? error.stack : undefined,
+              }),
         },
         resolvedSecretTraceRegistry,
         {
           errorName: normalizedError.name,
-          hasStack: Boolean(error instanceof Error && error.stack),
+          hasStack: !databaseErrorCause && Boolean(error instanceof Error && error.stack),
+          ...(databaseErrorCause ? { cause: databaseErrorCause } : {}),
         },
         structuralOnlyToolLogs
       )
@@ -2002,7 +2161,9 @@ async function executeToolImplementation(
     let errorDetails = {}
 
     if (error instanceof Error) {
-      errorMessage = error.message || `Error executing tool ${toolId}`
+      errorMessage = databaseQueryError
+        ? INTERNAL_DATABASE_ERROR_MESSAGE
+        : error.message || `Error executing tool ${toolId}`
       // HTTP errors are thrown as Error instances carrying `status`/`statusText`/
       // `data` (see createTransformedErrorFromErrorInfo). Surface them on the
       // output so callers can branch on the status (e.g. treat 404 as a clean
@@ -2149,14 +2310,19 @@ async function addInternalAuthIfNeeded(
   requestId: string,
   context: string,
   userId?: string,
-  claims?: InternalTokenClaims
+  claims?: InternalTokenClaims,
+  executorDelegation?: GenerateInternalDelegationTokenInput
 ): Promise<void> {
   if (typeof window === 'undefined') {
     if (isInternalRoute) {
       try {
-        const internalToken = claims
-          ? await generateInternalToken(userId, claims)
-          : await generateInternalToken(userId)
+        const internalToken = executorDelegation
+          ? (await buildExecutorDelegationHeaders(executorDelegation)).Authorization.slice(
+              'Bearer '.length
+            )
+          : claims
+            ? await generateInternalToken(userId, claims)
+            : await generateInternalToken(userId)
         if (headers instanceof Headers) {
           headers.set('Authorization', `Bearer ${internalToken}`)
         } else {
@@ -2165,6 +2331,7 @@ async function addInternalAuthIfNeeded(
         logger.info(`[${requestId}] Added internal auth token for ${context}`)
       } catch (error) {
         logger.error(`[${requestId}] Failed to generate internal token for ${context}:`, error)
+        if (executorDelegation) throw error
       }
     } else {
       logger.info(`[${requestId}] Skipping internal auth token for external URL: ${context}`)
@@ -2241,7 +2408,8 @@ async function executeToolRequest(
   signal?: AbortSignal,
   privateToolMetadataType?: PrivateToolMetadataType,
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry,
-  internalSandboxProfile?: InternalSandboxProfile
+  internalSandboxProfile?: InternalSandboxProfile,
+  internalExecutorDelegation?: GenerateInternalDelegationTokenInput
 ): Promise<ToolResponse> {
   const requestId = generateRequestId()
   const structuralOnlyToolLogs =
@@ -2305,7 +2473,8 @@ async function executeToolRequest(
       requestId,
       toolId,
       params._context?.userId,
-      internalSandboxProfile ? { sandboxProfile: internalSandboxProfile } : undefined
+      internalSandboxProfile ? { sandboxProfile: internalSandboxProfile } : undefined,
+      internalExecutorDelegation
     )
     if (isInternalRoute && params._context?.billingAttribution) {
       headers.set(
@@ -2374,13 +2543,22 @@ async function executeToolRequest(
             }
           }
 
+          const attemptStartedAt = Date.now()
           try {
-            const internalResponse = await fetch(fullUrl, {
-              method: requestParams.method,
-              headers: headers,
-              body: requestParams.body,
-              signal: controller.signal,
-            })
+            /*
+             * `controller` above is armed with `timeout`, so the plan deadline is
+             * already enforced in-process; the transport timer is disarmed so its
+             * 300s default cannot undercut it.
+             */
+            const internalResponse = await fetch(
+              fullUrl,
+              withCallerOwnedDeadline({
+                method: requestParams.method,
+                headers: headers,
+                body: requestParams.body,
+                signal: controller.signal,
+              })
+            )
             if (
               nullBodyStatuses.has(internalResponse.status) ||
               shouldRetryWithoutReadingBody(
@@ -2425,6 +2603,22 @@ async function executeToolRequest(
                 throw signal.reason ?? error
               }
               throw new Error(`Request timed out after ${timeout}ms`)
+            }
+            /*
+             * A transport give-up names neither the hop nor the elapsed time, so
+             * it reads as a failure of the work the route was doing rather than
+             * of the call to it. Say which it was before rethrowing.
+             *
+             * Keep the original message in the text: `isRetryableFailure` above
+             * classifies by substring, so dropping it would silently reclassify
+             * a retryable `timed out` as non-retryable.
+             */
+            if (isTransportTimeoutError(error)) {
+              throw new Error(
+                `Transport failure calling ${toolId} after ${Date.now() - attemptStartedAt}ms ` +
+                  `(deadline ${timeout}ms): ${error.message}`,
+                { cause: error }
+              )
             }
             throw error
           } finally {
@@ -2551,7 +2745,8 @@ async function executeToolRequest(
       response,
       privateToolMetadataType,
       params,
-      resolvedSecretTraceRegistry
+      resolvedSecretTraceRegistry,
+      toolId
     )
     response = privateMetadata.response
 
@@ -2977,7 +3172,8 @@ async function executeMcpTool(
         response,
         privateToolMetadataType,
         params,
-        resolvedSecretTraceRegistry
+        resolvedSecretTraceRegistry,
+        toolId
       )
     ).response
 

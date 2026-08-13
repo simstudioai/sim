@@ -133,6 +133,13 @@ export interface WorkflowExecutionLog {
   // Execution details
   executionData: {
     secretProjectionVersion?: 1
+    /**
+     * Run-level provenance, stored alongside the contract marker rather than
+     * only inside `executionState` so it survives both compaction and PII
+     * redaction dropping the state. The display projection needs it to rebuild
+     * its registry.
+     */
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
     environment?: ExecutionEnvironment
     trigger?: ExecutionTrigger
     billingAttribution?: BillingAttributionSnapshot
@@ -197,13 +204,31 @@ export interface WorkflowExecutionLog {
   createdAt: string
 }
 
+/**
+ * Every value written into `workflow_execution_logs.status`. The column is free text and
+ * one writer sets it through a raw `sql` CASE Drizzle cannot type-check, so this list —
+ * not the column type — is the only source of truth. API contracts that pass the column
+ * through derive their enums from it, so adding a status here widens the public wire; the
+ * contract tests fail until that widening is reviewed and the OpenAPI specs regenerated.
+ *
+ * `redacting` is transient while a finished run's output is scrubbed. `paused` is written
+ * only by `PauseResumeManager.markResumeAttemptFailed`, when a resume attempt does not run
+ * to completion — it failed admission, the run buffer was unavailable, the resume job could
+ * not be enqueued, or the attempt was cancelled. An ordinary human-in-the-loop pause
+ * persists `pending`.
+ */
+export const PERSISTED_WORKFLOW_EXECUTION_STATUSES = [
+  'pending',
+  'running',
+  'paused',
+  'redacting',
+  'completed',
+  'failed',
+  'cancelled',
+] as const
+
 export type PersistedWorkflowExecutionStatus =
-  | 'running'
-  | 'pending'
-  | 'completed'
-  | 'failed'
-  | 'cancelled'
-  | 'redacting'
+  (typeof PERSISTED_WORKFLOW_EXECUTION_STATUSES)[number]
 
 export interface CompletedWorkflowExecutionLog extends WorkflowExecutionLog {
   persistedStatus: PersistedWorkflowExecutionStatus
@@ -237,6 +262,8 @@ export interface TraceSpan {
   status?: 'success' | 'error'
   /** Whether this block's error was handled by an error handler path */
   errorHandled?: boolean
+  /** Total handler tries, present only when the block retried at least once. */
+  tries?: number
   tokens?: TokenInfo
   relativeStartMs?: number
   blockId?: string

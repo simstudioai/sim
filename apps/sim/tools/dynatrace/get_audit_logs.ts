@@ -60,19 +60,19 @@ export const getAuditLogsTool: ToolConfig<
     sort: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'timestamp for oldest first, or -timestamp for newest first (default)',
     },
     pageSize: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Entries per page (max 5000, default 1000)',
     },
     nextPageKey: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Cursor for the next page. All other filters are ignored when it is set',
     },
   },
@@ -129,7 +129,12 @@ export const getAuditLogsTool: ToolConfig<
           timestamp: { type: 'number', description: 'Change timestamp in UTC milliseconds' },
           success: { type: 'boolean', description: 'Whether the change succeeded' },
           message: { type: 'string', description: 'Description of the change', nullable: true },
-          patch: { type: 'json', description: 'JSON patch of the change', nullable: true },
+          patch: {
+            type: 'json',
+            description:
+              'JSON patch describing the change. Its shape follows whatever settings object was edited, so it is dynamic',
+            nullable: true,
+          },
           settingsSchemaId: {
             type: 'string',
             description: 'Settings schema ID (dt.settings.schema_id)',

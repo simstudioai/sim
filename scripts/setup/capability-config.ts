@@ -13,6 +13,7 @@ import {
   type EnvCapabilityValues,
   getCapabilityFields,
   hasEnvCapabilityValue,
+  KNOWLEDGE_EMBEDDINGS_CAPABILITY,
   OAUTH_CLIENT_CAPABILITIES,
   type OAuthClientCapabilityField,
   type OAuthClientCapabilityId,
@@ -730,6 +731,101 @@ export const KNOWLEDGE_SETUP = defineCapabilitySetup(OCR_CAPABILITY, {
   optionOrder: ['local', 'mistral', 'azure-mistral'],
 })
 
+export const KNOWLEDGE_EMBEDDINGS_SETUP = defineCapabilitySetup(KNOWLEDGE_EMBEDDINGS_CAPABILITY, {
+  label: 'Knowledge embeddings',
+  message: 'Knowledge embedding provider?',
+  actions: {},
+  providers: {
+    'azure-openai': {
+      hint: 'preferred when configured; falls back to other configured providers',
+      prompts: [
+        {
+          type: 'field',
+          key: 'AZURE_OPENAI_ENDPOINT',
+          input: 'text',
+          required: true,
+          validate: true,
+        },
+        {
+          type: 'field',
+          key: 'AZURE_OPENAI_API_VERSION',
+          input: 'text',
+          required: true,
+        },
+        {
+          type: 'field',
+          key: 'AZURE_OPENAI_API_KEY',
+          input: 'secret',
+          required: true,
+        },
+        {
+          type: 'field',
+          key: 'KB_OPENAI_MODEL_NAME',
+          input: 'text',
+          hint: 'optional Azure deployment name; defaults to the embedding model id',
+        },
+      ],
+    },
+    openai: {
+      hint: 'direct OpenAI with optional key rotation',
+      prompts: [
+        {
+          type: 'choice',
+          id: 'openai-credentials',
+          message: 'OpenAI credentials?',
+          options: [
+            {
+              id: 'single',
+              label: 'Single API key',
+              currentWhen: { kind: 'present', key: 'OPENAI_API_KEY' },
+              prompts: [{ type: 'field', key: 'OPENAI_API_KEY', input: 'secret', required: true }],
+            },
+            {
+              id: 'rotating',
+              label: 'Rotating key pool',
+              currentWhen: {
+                kind: 'any',
+                conditions: [
+                  { kind: 'present', key: 'OPENAI_API_KEY_1' },
+                  { kind: 'present', key: 'OPENAI_API_KEY_2' },
+                  { kind: 'present', key: 'OPENAI_API_KEY_3' },
+                ],
+              },
+              prompts: [
+                { type: 'field', key: 'OPENAI_API_KEY_1', input: 'secret', required: true },
+                {
+                  type: 'field',
+                  key: 'OPENAI_API_KEY_2',
+                  input: 'secret',
+                  hint: 'optional rotating key',
+                },
+                {
+                  type: 'field',
+                  key: 'OPENAI_API_KEY_3',
+                  input: 'secret',
+                  hint: 'optional rotating key',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    openrouter: {
+      hint: 'fallback for OpenAI knowledge embedding models',
+      prompts: [
+        {
+          type: 'field',
+          key: 'OPENROUTER_API_KEY',
+          input: 'secret',
+          required: true,
+        },
+      ],
+    },
+  },
+  optionOrder: ['openai', 'azure-openai', 'openrouter'],
+})
+
 export const CAPABILITY_SETUPS = [
   EMAIL_SETUP,
   STORAGE_SETUP,
@@ -737,6 +833,7 @@ export const CAPABILITY_SETUPS = [
   JOBS_SETUP,
   CACHE_SETUP,
   KNOWLEDGE_SETUP,
+  KNOWLEDGE_EMBEDDINGS_SETUP,
 ] as const
 
 const configuredCapabilityIds = new Set(CAPABILITY_SETUPS.map((setup) => setup.definition.id))

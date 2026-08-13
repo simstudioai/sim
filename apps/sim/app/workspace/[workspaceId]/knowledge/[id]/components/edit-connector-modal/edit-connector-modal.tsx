@@ -402,19 +402,27 @@ interface DocumentsTabProps {
 function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
   const [filter, setFilter] = useState<'active' | 'excluded'>('active')
 
-  const { data, isLoading } = useConnectorDocuments(knowledgeBaseId, connectorId, {
-    includeExcluded: true,
-  })
+  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useConnectorDocuments(
+    knowledgeBaseId,
+    connectorId,
+    {
+      includeExcluded: true,
+    }
+  )
 
   const { mutate: excludeDoc, isPending: isExcluding } = useExcludeConnectorDocument()
   const { mutate: restoreDoc, isPending: isRestoring } = useRestoreConnectorDocument()
 
   const documents = useMemo(() => {
-    if (!data?.documents) return []
-    return data.documents.filter((d) => (filter === 'excluded' ? d.userExcluded : !d.userExcluded))
-  }, [data?.documents, filter])
+    const loadedDocuments = data?.pages.flatMap((page) => page.documents) ?? []
+    return loadedDocuments.filter((document) =>
+      filter === 'excluded' ? document.userExcluded : !document.userExcluded
+    )
+  }, [data?.pages, filter])
 
-  const counts = data?.counts ?? { active: 0, excluded: 0 }
+  const counts = data?.pages[0]?.counts ?? { active: 0, excluded: 0 }
+  const visibleDocumentCount = filter === 'excluded' ? counts.excluded : counts.active
+  const hasMoreVisibleDocuments = Boolean(hasNextPage && documents.length < visibleDocumentCount)
 
   if (isLoading) {
     return (
@@ -435,7 +443,7 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
       </ButtonGroup>
 
       <div className='max-h-[320px] min-h-0 overflow-y-auto [scrollbar-gutter:stable]'>
-        {documents.length === 0 ? (
+        {visibleDocumentCount === 0 ? (
           <p className='rounded-lg bg-[var(--surface-3)] px-3 py-8 text-center text-[var(--text-muted)] text-small'>
             {filter === 'excluded' ? 'No excluded documents' : 'No documents yet'}
           </p>
@@ -488,6 +496,17 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
                 </Button>
               </div>
             ))}
+            {hasMoreVisibleDocuments && (
+              <Button
+                variant='ghost-secondary'
+                size='sm'
+                className='w-full'
+                disabled={isFetchingNextPage}
+                onClick={() => fetchNextPage()}
+              >
+                {isFetchingNextPage ? 'Loading…' : 'Load more documents'}
+              </Button>
+            )}
           </div>
         )}
       </div>

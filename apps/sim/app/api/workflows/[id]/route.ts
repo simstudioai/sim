@@ -1,369 +1,164 @@
-import { db } from '@sim/db'
-import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import {
-  assertFolderMutable,
-  assertWorkflowMutable,
-  authorizeWorkflowByWorkspacePermission,
-  FolderLockedError,
-  WorkflowLockedError,
-} from '@sim/platform-authz/workflow'
-import { eq, sql } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
-import { updateWorkflowContract } from '@/lib/api/contracts/workflows'
+  deleteWorkflowContract,
+  getWorkflowResponseDataSchema,
+  getWorkflowStateContract,
+  updateWorkflowContract,
+} from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
-import { AuthType, checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
+import {
+  concealCrossTenantResourceError,
+  defineInternalJsonRoute,
+  InternalUnauthenticatedError,
+  internalRateLimits,
+} from '@/lib/api/server/routes'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performDeleteWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { getWorkflowById } from '@/lib/workflows/utils'
+import {
+  internalWorkflowErrorPolicies,
+  internalWorkflowReadAuth,
+  internalWorkflowSessionOrExecutorAuth,
+  WORKFLOW_NOT_FOUND_MESSAGE,
+} from '@/lib/workflows/api'
+import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
+import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
+import { updateWorkflow, updateWorkflowPolicy } from '@/lib/workflows/application/update-workflow'
 
 const logger = createLogger('WorkflowByIdAPI')
 
-/**
- * GET /api/workflows/[id]
- * Fetch a single workflow by ID
- * Uses hybrid approach: try normalized tables first, fallback to JSON blob
- */
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const startTime = Date.now()
-    const { id: workflowId } = await params
+const workflowInternalRateLimit = internalRateLimits.none({
+  reason: 'Preserve existing internal workflow CRUD behavior',
+})
 
-    try {
-      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
-      if (!auth.success) {
-        logger.warn(`[${requestId}] Unauthorized access attempt for workflow ${workflowId}`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const GET = defineInternalJsonRoute({
+  contract: getWorkflowStateContract,
+  auth: internalWorkflowReadAuth,
+  operation: readWorkflowDefinition.operation,
+  rateLimit: workflowInternalRateLimit,
+  errorPolicy: internalWorkflowErrorPolicies.concealWorkflowAuthorization,
+  mapInput: ({ params }) => ({ workflowId: params.id, state: 'draft' as const }),
+  useCase: readWorkflowDefinition,
+  present: ({ workflow: workflowData, state }) => {
+    const persistedVariables =
+      (workflowData.variables as Record<string, Record<string, unknown>>) || {}
+    const stampedVariables: Record<string, Record<string, unknown>> = {}
+    for (const [variableId, variable] of Object.entries(persistedVariables)) {
+      if (variable && typeof variable === 'object') {
+        stampedVariables[variableId] = { ...variable, workflowId: workflowData.id }
       }
-
-      const isInternalCall = auth.authType === AuthType.INTERNAL_JWT
-      const userId = auth.userId || null
-
-      let workflowData = await getWorkflowById(workflowId)
-
-      if (!workflowData) {
-        logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
-
-      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflowData.workspaceId) {
-        return NextResponse.json(
-          { error: 'API key is not authorized for this workspace' },
-          { status: 403 }
-        )
-      }
-
-      if (isInternalCall && !userId) {
-        // Internal system calls (e.g. workflow-in-workflow executor) may not carry a userId.
-        // These are already authenticated via internal JWT; allow read access.
-        logger.info(`[${requestId}] Internal API call for workflow ${workflowId}`)
-      } else if (!userId) {
-        logger.warn(`[${requestId}] Unauthorized access attempt for workflow ${workflowId}`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      } else {
-        const authorization = await authorizeWorkflowByWorkspacePermission({
-          workflowId,
-          userId,
-          action: 'read',
-        })
-        if (!authorization.workflow) {
-          logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
-          return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-        }
-
-        workflowData = authorization.workflow
-        if (!authorization.allowed) {
-          logger.warn(`[${requestId}] User ${userId} denied access to workflow ${workflowId}`)
-          return NextResponse.json(
-            { error: authorization.message || 'Access denied' },
-            { status: authorization.status }
-          )
-        }
-      }
-
-      const snapshot = await db.transaction(async (tx) => {
-        await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
-        const [normalizedData, [workflowRecord]] = await Promise.all([
-          loadWorkflowFromNormalizedTables(workflowId, tx),
-          tx.select().from(workflow).where(eq(workflow.id, workflowId)).limit(1),
-        ])
-        return { normalizedData, workflowRecord }
-      })
-      const responseWorkflowData = snapshot.workflowRecord ?? workflowData
-
-      // Stamp `workflowId` from the path param on each variable so the
-      // global client-side variables store can filter by workflow without
-      // requiring persisted variables to carry a redundant `workflowId`.
-      // The persisted blob may or may not include `workflowId` depending on
-      // when the variable was last written; the path param is authoritative.
-      const persistedVariables =
-        (responseWorkflowData.variables as Record<string, Record<string, unknown>>) || {}
-      const stampedVariables: Record<string, Record<string, unknown>> = {}
-      for (const [variableId, variable] of Object.entries(persistedVariables)) {
-        if (variable && typeof variable === 'object') {
-          stampedVariables[variableId] = { ...variable, workflowId }
-        }
-      }
-      const workflowStateMetadata = {
-        name: responseWorkflowData.name,
-        ...(typeof responseWorkflowData.description === 'string'
-          ? { description: responseWorkflowData.description }
-          : {}),
-      }
-
-      if (snapshot.normalizedData) {
-        const finalWorkflowData = {
-          ...responseWorkflowData,
-          state: {
-            blocks: snapshot.normalizedData.blocks,
-            edges: snapshot.normalizedData.edges,
-            loops: snapshot.normalizedData.loops,
-            parallels: snapshot.normalizedData.parallels,
-            lastSaved: Date.now(),
-            isDeployed: responseWorkflowData.isDeployed || false,
-            deployedAt: responseWorkflowData.deployedAt,
-            metadata: workflowStateMetadata,
-          },
-          variables: stampedVariables,
-        }
-
-        logger.info(`[${requestId}] Loaded workflow ${workflowId} from normalized tables`)
-        const elapsed = Date.now() - startTime
-        logger.info(`[${requestId}] Successfully fetched workflow ${workflowId} in ${elapsed}ms`)
-
-        return NextResponse.json({ data: finalWorkflowData }, { status: 200 })
-      }
-
-      const emptyWorkflowData = {
-        ...responseWorkflowData,
+    }
+    const workflowStateMetadata = {
+      name: workflowData.name,
+      ...(typeof workflowData.description === 'string'
+        ? { description: workflowData.description }
+        : {}),
+    }
+    return {
+      data: getWorkflowResponseDataSchema.parse({
+        ...workflowData,
         state: {
-          blocks: {},
-          edges: [],
-          loops: {},
-          parallels: {},
+          blocks: state?.blocks ?? {},
+          edges: state?.edges ?? [],
+          loops: state?.loops ?? {},
+          parallels: state?.parallels ?? {},
           lastSaved: Date.now(),
-          isDeployed: responseWorkflowData.isDeployed || false,
-          deployedAt: responseWorkflowData.deployedAt,
+          isDeployed: workflowData.isDeployed || false,
+          deployedAt: workflowData.deployedAt,
           metadata: workflowStateMetadata,
         },
         variables: stampedVariables,
-      }
-
-      return NextResponse.json({ data: emptyWorkflowData }, { status: 200 })
-    } catch (error: any) {
-      const elapsed = Date.now() - startTime
-      logger.error(`[${requestId}] Error fetching workflow ${workflowId} after ${elapsed}ms`, error)
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+      }),
     }
-  }
-)
+  },
+  onSuccess: ({ result }) => {
+    logger.info('Successfully fetched workflow', { workflowId: result.workflow.id })
+  },
+})
 
-/**
- * DELETE /api/workflows/[id]
- * Delete a workflow by ID
- */
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const startTime = Date.now()
-    const { id: workflowId } = await params
+export const DELETE = defineInternalJsonRoute({
+  contract: deleteWorkflowContract,
+  auth: internalWorkflowSessionOrExecutorAuth,
+  operation: deleteWorkflow.operation,
+  rateLimit: workflowInternalRateLimit,
+  errorPolicy: internalWorkflowErrorPolicies.concealWorkflowAuthorization,
+  mapInput: ({ params }) => ({ workflowId: params.id }),
+  useCase: deleteWorkflow,
+  present: () => ({ success: true as const }),
+  onSuccess: ({ principal, result }) => {
+    if (principal.kind !== 'session' || !result.archived) return
+    captureServerEvent(
+      principal.userId,
+      'workflow_deleted',
+      { workflow_id: result.workflowId, workspace_id: result.workspaceId },
+      { groups: { workspace: result.workspaceId } }
+    )
+  },
+})
 
-    try {
-      const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized deletion attempt for workflow ${workflowId}`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const userId = auth.userId
-
-      const authorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId,
-        action: 'write',
-      })
-      const workflowData = authorization.workflow || (await getWorkflowById(workflowId))
-
-      if (!workflowData) {
-        logger.warn(`[${requestId}] Workflow ${workflowId} not found for deletion`)
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
-
-      const canDelete = authorization.allowed
-
-      if (!canDelete) {
-        logger.warn(
-          `[${requestId}] User ${userId} denied permission to delete workflow ${workflowId}`
-        )
-        return NextResponse.json(
-          { error: authorization.message || 'Access denied' },
-          { status: authorization.status || 403 }
-        )
-      }
-
-      await assertWorkflowMutable(workflowId)
-
-      const result = await performDeleteWorkflow({
-        workflowId,
-        userId,
-        requestId,
-      })
-
-      if (!result.success) {
-        const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
-        return NextResponse.json({ error: result.error }, { status })
-      }
-
-      captureServerEvent(
-        userId,
-        'workflow_deleted',
-        { workflow_id: workflowId, workspace_id: workflowData.workspaceId ?? '' },
-        workflowData.workspaceId ? { groups: { workspace: workflowData.workspaceId } } : undefined
-      )
-
-      const elapsed = Date.now() - startTime
-      logger.info(`[${requestId}] Successfully archived workflow ${workflowId} in ${elapsed}ms`)
-
-      return NextResponse.json({ success: true }, { status: 200 })
-    } catch (error: any) {
-      if (error instanceof WorkflowLockedError) {
-        return NextResponse.json({ error: error.message }, { status: error.status })
-      }
-
-      const elapsed = Date.now() - startTime
-      logger.error(`[${requestId}] Error deleting workflow ${workflowId} after ${elapsed}ms`, error)
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-    }
-  }
-)
-
-/**
- * PUT /api/workflows/[id]
- * Update workflow metadata (name, description, folderId)
- */
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const startTime = Date.now()
-    const { id: workflowId } = await context.params
-
     try {
-      const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized update attempt for workflow ${workflowId}`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const userId = auth.userId
-
-      const parsed = await parseRequest(updateWorkflowContract, request, context)
+      const rawParams = await context.params
+      const principal = await internalWorkflowSessionOrExecutorAuth.authenticate(request, rawParams)
+      const parsed = await parseRequest(updateWorkflowContract, request, {
+        params: Promise.resolve(rawParams),
+      })
       if (!parsed.success) return parsed.response
-      const updates = parsed.data.body
 
-      // Fetch the workflow to check ownership/access
-      const authorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId,
-        action: 'write',
+      const input = { workflowId: parsed.data.params.id, ...parsed.data.body }
+      const isPolicyUpdate = input.locked !== undefined || input.forkSyncExcluded !== undefined
+      const result = isPolicyUpdate
+        ? await updateWorkflowPolicy.execute({ principal, input, request })
+        : await updateWorkflow.execute({ principal, input, request })
+
+      if (principal.kind === 'session' && result.changes.includes('locked')) {
+        captureServerEvent(
+          principal.userId,
+          'workflow_lock_toggled',
+          {
+            workflow_id: result.workflow.id,
+            workspace_id: result.workspaceId,
+            locked: result.workflow.locked === true,
+          },
+          { groups: { workspace: result.workspaceId } }
+        )
+      }
+      if (principal.kind === 'session' && result.changes.includes('forkSyncExcluded')) {
+        captureServerEvent(
+          principal.userId,
+          'workflow_fork_sync_exclusion_toggled',
+          {
+            workflow_id: result.workflow.id,
+            workspace_id: result.workspaceId,
+            fork_sync_excluded: result.workflow.forkSyncExcluded === true,
+          },
+          { groups: { workspace: result.workspaceId } }
+        )
+      }
+
+      logger.info('Successfully updated workflow', {
+        workflowId: result.workflow.id,
+        changes: result.changes,
       })
-      const workflowData = authorization.workflow || (await getWorkflowById(workflowId))
-
-      if (!workflowData) {
-        logger.warn(`[${requestId}] Workflow ${workflowId} not found for update`)
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      return NextResponse.json({ workflow: result.workflow })
+    } catch (error) {
+      if (error instanceof InternalUnauthenticatedError) {
+        return NextResponse.json({ error: error.message }, { status: 401 })
       }
-
-      const canUpdate = authorization.allowed
-
-      if (!canUpdate) {
-        logger.warn(
-          `[${requestId}] User ${userId} denied permission to update workflow ${workflowId}`
-        )
-        return NextResponse.json(
-          { error: authorization.message || 'Access denied' },
-          { status: authorization.status || 403 }
-        )
-      }
-
-      if (updates.locked !== undefined && authorization.workspacePermission !== 'admin') {
-        logger.warn(
-          `[${requestId}] User ${userId} denied permission to lock workflow ${workflowId}`
-        )
-        return NextResponse.json(
-          { error: 'Admin access required to lock workflows' },
-          { status: 403 }
-        )
-      }
-
-      if (updates.forkSyncExcluded !== undefined && authorization.workspacePermission !== 'admin') {
-        logger.warn(
-          `[${requestId}] User ${userId} denied permission to change sync exclusion for workflow ${workflowId}`
-        )
-        return NextResponse.json(
-          { error: 'Admin access required to exclude workflows from sync' },
-          { status: 403 }
-        )
-      }
-
-      // Policy flags (lock, sync exclusion) don't modify content, so a locked workflow
-      // may still have them toggled; everything else requires mutability.
-      const hasNonPolicyUpdate = Object.keys(updates).some(
-        (key) => key !== 'locked' && key !== 'forkSyncExcluded'
+      const orchestrationError = asOrchestrationError(
+        concealCrossTenantResourceError(error, WORKFLOW_NOT_FOUND_MESSAGE)
       )
-      if (hasNonPolicyUpdate) {
-        await assertWorkflowMutable(workflowId)
+      if (orchestrationError) {
+        return NextResponse.json(
+          { error: orchestrationError.message },
+          { status: statusForOrchestrationError(orchestrationError.code) }
+        )
       }
-      if (updates.folderId !== undefined) {
-        await assertFolderMutable(updates.folderId)
-      }
-
-      if (!workflowData.workspaceId) {
-        logger.error(`[${requestId}] Workflow ${workflowId} has no workspaceId`)
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-      }
-
-      const result = await performUpdateWorkflow({
-        workflowId,
-        userId,
-        workspaceId: workflowData.workspaceId,
-        currentName: workflowData.name,
-        currentFolderId: workflowData.folderId,
-        currentLocked: workflowData.locked,
-        currentForkSyncExcluded: workflowData.forkSyncExcluded,
-        ...updates,
-        requestId,
-      })
-
-      if (!result.success || !result.workflow) {
-        const status =
-          result.errorCode === 'not_found'
-            ? 404
-            : result.errorCode === 'conflict'
-              ? 409
-              : result.errorCode === 'validation'
-                ? 400
-                : 500
-        return NextResponse.json({ error: result.error }, { status })
-      }
-
-      const elapsed = Date.now() - startTime
-      logger.info(`[${requestId}] Successfully updated workflow ${workflowId} in ${elapsed}ms`, {
-        updates,
-      })
-
-      return NextResponse.json({ workflow: result.workflow }, { status: 200 })
-    } catch (error: any) {
-      if (error instanceof WorkflowLockedError || error instanceof FolderLockedError) {
-        return NextResponse.json({ error: error.message }, { status: error.status })
-      }
-
-      const elapsed = Date.now() - startTime
-      logger.error(`[${requestId}] Error updating workflow ${workflowId} after ${elapsed}ms`, error)
+      logger.error('Failed to update workflow', { error: getErrorMessage(error) })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }

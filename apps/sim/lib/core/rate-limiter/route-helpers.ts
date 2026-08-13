@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
+import { normalizeEmail } from '@sim/utils/string'
 import { type NextRequest, NextResponse } from 'next/server'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter/storage'
@@ -69,6 +71,27 @@ export async function enforceIpRateLimit(
   const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
   if (allowed) return null
   logger.warn('IP rate limit exceeded', { bucket: bucketName, ip })
+  return buildRateLimitResponse(resetAt)
+}
+
+/**
+ * Apply a per-recipient token bucket to a route that mails an address the
+ * caller chooses. A per-IP bucket cannot stop a distributed attempt to bomb one
+ * mailbox, so the address needs a budget of its own.
+ *
+ * The address is normalized (case variants must not each buy a fresh budget)
+ * and hashed, so the store never holds an address and long inputs cannot
+ * inflate key cardinality.
+ */
+export async function enforceRecipientRateLimit(
+  bucketName: string,
+  email: string,
+  config: TokenBucketConfig
+): Promise<NextResponse | null> {
+  const key = `route:${bucketName}:recipient:${sha256Hex(normalizeEmail(email))}`
+  const { allowed, resetAt } = await rateLimiter.checkRateLimitDirect(key, config)
+  if (allowed) return null
+  logger.warn('Recipient rate limit exceeded', { bucket: bucketName })
   return buildRateLimitResponse(resetAt)
 }
 

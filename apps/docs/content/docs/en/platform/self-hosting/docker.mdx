@@ -149,8 +149,8 @@ docker compose -f docker-compose.prod.yml logs migrations
 # Is the scheduler firing?
 docker compose -f docker-compose.prod.yml logs -f cron
 
-# Upgrade: bump SIM_VERSION in .env, then
-docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
+# Upgrade: bump SIM_VERSION in .env when pinned, then
+bun run sim update
 ```
 
 <FAQ items={[
@@ -159,4 +159,3 @@ docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compo
   { question: "How do I back up and restore the database?", answer: "Back up with: docker compose -f docker-compose.prod.yml exec db pg_dump -U postgres simstudio > backup.sql. Restore with: docker compose -f docker-compose.prod.yml exec -T db psql -U postgres simstudio < backup.sql. The database data is persisted in a Docker volume named postgres_data."},
   { question: "Can I customize the PostgreSQL credentials?", answer: "Yes. The docker-compose.prod.yml uses environment variable defaults: POSTGRES_USER (default: postgres), POSTGRES_PASSWORD (default: postgres), POSTGRES_DB (default: simstudio), and POSTGRES_PORT (default: 5432). Set these in your .env file to override them." },
 ]} />
-

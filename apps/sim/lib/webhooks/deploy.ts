@@ -6,6 +6,11 @@ import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import {
+  getSlackBotCredential,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/lib/oauth/credential-service'
 import { WebhookPathClaimConflictError } from '@/lib/webhooks/path-claims'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
@@ -27,11 +32,6 @@ import {
   isCanonicalPair,
   resolveActiveCanonicalValue,
 } from '@/lib/workflows/subblocks/visibility'
-import {
-  getSlackBotCredential,
-  refreshAccessTokenIfNeeded,
-  resolveOAuthAccountId,
-} from '@/app/api/auth/oauth/utils'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
@@ -40,6 +40,7 @@ import { SIM_SUBSCRIBED_EVENTS } from '@/triggers/slack/shared'
 import { resolveBlockTriggerId } from '@/triggers/webhook-url'
 
 const logger = createLogger('DeployWebhookSync')
+const TIKTOK_ACCOUNT_UUID_SUFFIX = /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 interface TriggerSaveError {
   message: string
@@ -325,9 +326,8 @@ export async function resolveTriggerCredentialId(
 }
 
 /**
- * Resolves a trigger block to its persisted webhook config, including the
- * Slack-specific routing branch. Exported for unit testing that branch; not part
- * of the public deploy API.
+ * Resolves a trigger block to its persisted webhook config, including app-level
+ * provider routing. Exported for focused unit testing; not part of the public deploy API.
  */
 export async function resolveWebhookConfigForBlock(input: {
   block: BlockState
@@ -528,6 +528,36 @@ export async function resolveWebhookConfigForBlock(input: {
       // (`slack_app`) rows on providerConfig.credentialId.
       providerConfig.credentialId = resolvedCredentialId
     }
+  } else if (triggerDef.provider === 'tiktok') {
+    if (!credentialId) {
+      return {
+        success: false,
+        error: { message: 'Select a TikTok account for the trigger.', status: 400 },
+      }
+    }
+
+    const resolvedAccount = await resolveOAuthAccountId(credentialId)
+    const [tiktokAccount] = resolvedAccount?.accountId
+      ? await db
+          .select({ accountId: account.accountId })
+          .from(account)
+          .where(and(eq(account.id, resolvedAccount.accountId), eq(account.providerId, 'tiktok')))
+          .limit(1)
+      : []
+    const openId = tiktokAccount?.accountId.replace(TIKTOK_ACCOUNT_UUID_SUFFIX, '')
+
+    if (!openId || openId === tiktokAccount?.accountId) {
+      return {
+        success: false,
+        error: {
+          message: 'Could not verify the connected TikTok account. Reconnect it and try again.',
+          status: 400,
+        },
+      }
+    }
+
+    effectivePath = null
+    routingKey = openId
   }
 
   return {

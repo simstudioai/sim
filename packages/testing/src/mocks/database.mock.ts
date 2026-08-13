@@ -17,7 +17,7 @@ export function createMockSql() {
   const sqlFn = (strings: TemplateStringsArray, ...values: any[]) => {
     if (values.some((value) => value instanceof Date)) {
       throw new Error(
-        'sql`…${date}` interpolates a Date without an encoder, so drizzle never runs ' +
+        `sql\`…\${date}\` interpolates a Date without an encoder, so drizzle never runs ` +
           'the column mapping and postgres-js receives an unserialized Date ' +
           '(ERR_INVALID_ARG_TYPE). Bind through the matching column: ' +
           'sql.param(date, table.timestampColumn).'
@@ -29,6 +29,8 @@ export function createMockSql() {
       toSQL: () => ({ sql: strings.join('?'), params: values }),
       /** Mirrors drizzle's `sql``…`.as(alias)` for aliased select expressions. */
       as: (alias: string) => ({ ...fragment, alias }),
+      /** Mirrors drizzle's `sql``…`.mapWith(decoder)` for typed select expressions. */
+      mapWith: (decoder: unknown) => ({ ...fragment, decoder }),
     }
     return fragment
   }

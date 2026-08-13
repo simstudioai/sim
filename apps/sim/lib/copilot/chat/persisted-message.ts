@@ -1,4 +1,5 @@
 import { generateId } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
 import {
   mergeAndRedactPersistedBlocks,
   redactSensitiveContent,
@@ -14,6 +15,7 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { BrowserRequestTakeover } from '@/lib/copilot/generated/tool-catalog-v1'
 import type {
   ContentBlock,
   LocalToolCallStatus,
@@ -126,10 +128,11 @@ export interface PersistedMessage {
 }
 
 /**
- * Drop the `output` of every persisted tool result, keeping `success` and
- * `error`. Tool outputs are never rendered (the chat thread shows only the tool
- * name/title/status) and never replayed to the model (the upstream copilot
- * service owns conversation memory), so storing them only bloats
+ * Drop persisted tool outputs, keeping `success` and `error`. The one narrow
+ * UI-state exception is a browser takeover's user-authored instruction, which
+ * restores its answered question recap after reload. Other outputs are never
+ * rendered or replayed to the model (the upstream service owns conversation
+ * memory), so storing them only bloats
  * `copilot_messages.content` — a single `get_workflow_logs`/`run_workflow`
  * result can reach hundreds of MB and stall task loads.
  *
@@ -145,17 +148,32 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     const toolCall = block.toolCall
     const result = toolCall?.result
     if (!toolCall || !result || typeof result !== 'object' || !('output' in result)) return block
+    const output = result.output
+    const userInstruction =
+      toolCall.name === BrowserRequestTakeover.id && isPlainRecord(output)
+        ? output.userInstruction
+        : undefined
+    const normalizedInstruction = typeof userInstruction === 'string' ? userInstruction.trim() : ''
+    if (
+      normalizedInstruction &&
+      isPlainRecord(output) &&
+      Object.keys(output).length === 1 &&
+      output.userInstruction === normalizedInstruction
+    ) {
+      return block
+    }
     changed = true
-    const strippedResult: { success: boolean; error?: string } = { success: result.success }
+    const strippedResult: { success: boolean; output?: unknown; error?: string } = {
+      success: result.success,
+      ...(normalizedInstruction ? { output: { userInstruction: normalizedInstruction } } : {}),
+    }
     if (result.error !== undefined) strippedResult.error = result.error
     return { ...block, toolCall: { ...toolCall, result: strippedResult } }
   })
   return changed ? { ...message, contentBlocks } : message
 }
 
-// ---------------------------------------------------------------------------
 // Write: OrchestratorResult → PersistedMessage
-// ---------------------------------------------------------------------------
 
 function resolveToolState(block: ContentBlock): PersistedToolState {
   const tc = block.toolCall
@@ -404,11 +422,9 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
   return message
 }
 
-// ---------------------------------------------------------------------------
 // Read: raw JSONB → PersistedMessage
 // Handles both canonical (type: 'tool', 'text', 'span', 'complete') and
 // legacy (type: 'tool_call', 'thinking', 'subagent', 'stopped') blocks.
-// ---------------------------------------------------------------------------
 
 const CANONICAL_BLOCK_TYPES: Set<string> = new Set(Object.values(MothershipStreamV1EventType))
 

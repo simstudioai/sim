@@ -49,15 +49,15 @@ describe('projectToolResultForCopilot', () => {
 
   it('projects an exact-name/exact-value Function result to its named placeholder', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
+      { name: 'TestName', plaintext: 'TestName', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('Test', 'Test', { propagated: true })
+    registry.recordResolved('TestName', 'TestName', { propagated: true })
     const runtimeResult = {
       success: true,
       output: {
-        result: 'Test',
-        embedded: 'Bearer Test',
-        legacy: '__var_Test',
+        result: 'TestName',
+        embedded: 'Bearer TestName',
+        legacy: '__var_TestName',
         compiler: '__sim_code_0_binding_0',
       },
     }
@@ -67,16 +67,16 @@ describe('projectToolResultForCopilot', () => {
     expect(projected).toEqual({
       success: true,
       output: {
-        result: '{{Test}}',
-        embedded: 'Bearer {{Test}}',
-        legacy: '{{Test}}',
+        result: '{{TestName}}',
+        embedded: 'Bearer {{TestName}}',
+        legacy: '{{TestName}}',
         compiler: '__sim_code_0_binding_0',
       },
     })
     expect(JSON.stringify(projected)).not.toContain('"Test"')
     expect(JSON.stringify(projected)).not.toContain('__var_')
     expect(JSON.stringify(projected)).toContain('__sim_code_0_binding_0')
-    expect(runtimeResult.output.result).toBe('Test')
+    expect(runtimeResult.output.result).toBe('TestName')
   })
 
   it('projects both output and error from a failed Function execution', () => {
@@ -135,22 +135,58 @@ describe('projectToolResultForCopilot', () => {
   })
 
   it('uses an opaque marker when a replacement contains another active literal', () => {
+    const middle = 'Kq7Xz2Lm9P'
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'MIDDLE', plaintext: 'B', encryptedValue: 'encrypted-b' },
-      { name: 'BRACE', plaintext: '{', encryptedValue: 'encrypted-brace' },
-      { name: 'JOINED', plaintext: 'ac', encryptedValue: 'encrypted-ac' },
+      { name: 'MIDDLE', plaintext: middle, encryptedValue: 'encrypted-middle' },
+      { name: 'LABEL_PREFIX', plaintext: '{{MIDDLE', encryptedValue: 'encrypted-prefix' },
+      { name: 'JOINED', plaintext: 'aaaacccc', encryptedValue: 'encrypted-ac' },
     ])
-    registry.recordResolved('MIDDLE', 'B', { propagated: true })
-    registry.recordResolved('BRACE', '{', { propagated: true })
-    registry.recordResolved('JOINED', 'ac', { propagated: true })
+    registry.recordResolved('MIDDLE', middle, { propagated: true })
+    registry.recordResolved('LABEL_PREFIX', '{{MIDDLE', { propagated: true })
+    registry.recordResolved('JOINED', 'aaaacccc', { propagated: true })
 
-    expect(projectToolResultForCopilot({ success: true, output: 'aBc' }, registry)).toEqual({
+    expect(
+      projectToolResultForCopilot({ success: true, output: `aaaa${middle}cccc` }, registry)
+    ).toEqual({ success: true, output: 'aaaa[REDACTED_SECRET]cccc' })
+  })
+
+  /**
+   * The floor replaced a tier that substituted a short literal wherever it sat on a word boundary.
+   * A six-character value is below the floor, so no position substitutes it any more — the accepted
+   * cost of never rewriting an unrelated token that happens to share those bytes.
+   */
+  it('leaves a secret below the length floor alone in every position', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'PIN', plaintext: '483920', encryptedValue: 'encrypted-pin' },
+    ])
+    registry.recordResolved('PIN', '483920', { propagated: true })
+
+    expect(
+      projectToolResultForCopilot(
+        {
+          success: true,
+          output: {
+            whole: '483920',
+            delimited: 'code=483920',
+            underscored: 'user_483920_profile',
+            embedded: 'ref483920x',
+          },
+        },
+        registry
+      )
+    ).toEqual({
       success: true,
-      output: 'a[REDACTED_SECRET]c',
+      output: {
+        whole: '483920',
+        delimited: 'code=483920',
+        underscored: 'user_483920_profile',
+        embedded: 'ref483920x',
+      },
     })
   })
 
-  it('keeps content and the control error safe from active one-character values', () => {
+  /** A one-character value cannot be hidden by substitution; an observer can enumerate ten. */
+  it('leaves an active one-character value in keys and the control error alone', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'F_SECRET', plaintext: 'F', encryptedValue: 'encrypted-f' },
     ])
@@ -167,8 +203,8 @@ describe('projectToolResultForCopilot', () => {
 
     expect(projected).toEqual({
       success: false,
-      output: { '{{F_SECRET}}': 'first', '': 'second' },
-      error: '{{F_SECRET}}',
+      output: { F: 'first', '': 'second' },
+      error: 'F',
     })
   })
 
@@ -194,13 +230,13 @@ describe('projectToolResultForCopilot', () => {
     ).toEqual({ success: true, output: { result: encoded } })
   })
 
-  it('projects exact typed primitive secrets and the same values as strings', () => {
+  it('projects exact typed numeric secrets, leaving booleans and null identifying nothing', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'NUMBER', plaintext: '123', encryptedValue: 'number-ciphertext' },
+      { name: 'NUMBER', plaintext: '12345678', encryptedValue: 'number-ciphertext' },
       { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'boolean-ciphertext' },
       { name: 'NULL', plaintext: 'null', encryptedValue: 'null-ciphertext' },
     ])
-    registry.recordResolved('NUMBER', '123', { propagated: true })
+    registry.recordResolved('NUMBER', '12345678', { propagated: true })
     registry.recordResolved('BOOLEAN', 'true', { propagated: true })
     registry.recordResolved('NULL', 'null', { propagated: true })
 
@@ -209,10 +245,10 @@ describe('projectToolResultForCopilot', () => {
         {
           success: true,
           output: {
-            number: 123,
+            number: 12345678,
             boolean: true,
             nothing: null,
-            numberText: '123',
+            numberText: '12345678',
             booleanText: 'true',
             nilText: 'null',
           },
@@ -223,11 +259,11 @@ describe('projectToolResultForCopilot', () => {
       success: true,
       output: {
         number: '{{NUMBER}}',
-        boolean: '{{BOOLEAN}}',
-        nothing: '{{NULL}}',
+        boolean: true,
+        nothing: null,
         numberText: '{{NUMBER}}',
-        booleanText: '{{BOOLEAN}}',
-        nilText: '{{NULL}}',
+        booleanText: 'true',
+        nilText: 'null',
       },
     })
   })
@@ -302,7 +338,7 @@ describe('projectToolResultForCopilot', () => {
       'incomplete',
       (() => {
         const registry = createRegistry()
-        registry.markIncomplete()
+        registry.markIncomplete('unspecified')
         return registry
       })(),
     ],

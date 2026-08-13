@@ -1153,6 +1153,33 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(clearExecutionCancellationMock).toHaveBeenCalledWith('execution-1')
   })
 
+  /**
+   * The population `runCount` actually counts. Cancelled and paused runs are
+   * already pinned above; a plain failure is the case a caller is most likely to
+   * assume is included, and the workflow contract's `runCount` description is
+   * written against this.
+   */
+  it('leaves runCount untouched when the run fails', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: false,
+      status: 'failed',
+      output: {},
+      logs: [],
+      error: 'block threw',
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    await loggingSession.setPostExecutionPromise.mock.calls[0][0]
+
+    expect(updateWorkflowRunCountsMock).not.toHaveBeenCalled()
+  })
+
   it('routes paused executions through safeCompleteWithPause', async () => {
     const executionState = {
       blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },

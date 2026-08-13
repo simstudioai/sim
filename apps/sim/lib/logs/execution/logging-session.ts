@@ -311,12 +311,15 @@ export class LoggingSession {
 
     if (!isResolvedSecretTraceProvenanceV1(provenance)) {
       const incomplete = new ResolvedSecretTraceRegistry()
-      incomplete.markIncomplete()
+      incomplete.markIncomplete('restored-provenance-untrusted')
       return incomplete
     }
 
     const registry = new ResolvedSecretTraceRegistry([], provenance.scope)
-    await registry.importProvenance(provenance, { trusted: true })
+    await registry.importProvenance(provenance, {
+      trusted: true,
+      origin: 'loggingSession.restoredProvenance',
+    })
     return registry
   }
 
@@ -778,7 +781,7 @@ export class LoggingSession {
         [],
         scopeUserId ? { userId: scopeUserId, workspaceId } : undefined
       )
-      if (skipLogCreation) this.resolvedSecretTraceRegistry.markIncomplete()
+      if (skipLogCreation) this.resolvedSecretTraceRegistry.markIncomplete('log-creation-skipped')
     }
 
     try {

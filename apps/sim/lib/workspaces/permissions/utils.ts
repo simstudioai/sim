@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { db } from '@sim/db'
 import { member, permissions, user, type WorkspaceMode, workspace } from '@sim/db/schema'
 import {
@@ -25,6 +26,7 @@ export interface WorkspaceWithOwner {
   organizationId: string | null
   workspaceMode: WorkspaceMode
   billedAccountUserId: string
+  allowPersonalApiKeys: boolean
   archivedAt?: Date | null
 }
 
@@ -76,17 +78,12 @@ export async function getWorkspaceById(
   return exists ? { id: workspaceId } : null
 }
 
-/**
- * Get a workspace with owner info by ID
- *
- * @param workspaceId - The workspace ID to look up
- * @returns The workspace with owner info if found, null otherwise
- */
-export async function getWorkspaceWithOwner(
+async function selectWorkspaceWithOwner(
   workspaceId: string,
-  options?: { includeArchived?: boolean; executor?: DbOrTx; forUpdate?: boolean }
+  includeArchived: boolean,
+  executor: DbOrTx,
+  forUpdate: boolean
 ): Promise<WorkspaceWithOwner | null> {
-  const { includeArchived = false, executor = db, forUpdate = false } = options ?? {}
   const query = executor
     .select({
       id: workspace.id,
@@ -95,6 +92,7 @@ export async function getWorkspaceWithOwner(
       organizationId: workspace.organizationId,
       workspaceMode: workspace.workspaceMode,
       billedAccountUserId: workspace.billedAccountUserId,
+      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
       archivedAt: workspace.archivedAt,
     })
     .from(workspace)
@@ -106,6 +104,46 @@ export async function getWorkspaceWithOwner(
   const [ws] = forUpdate ? await query.for('update').limit(1) : await query.limit(1)
 
   return ws || null
+}
+
+/**
+ * Request-memoized plain workspace read, keyed by id alone. One render pass resolves the
+ * same row through several independent gates.
+ *
+ * Keyed on the id and NOT on archived visibility: the gates disagree about archived
+ * workspaces, so memoizing that argument would give each answer its own entry and dedupe
+ * nothing.
+ *
+ * The returned row is SHARED by every consumer in the render. Treat it as immutable — an
+ * in-place edit poisons every gate that reads it for the rest of the pass.
+ */
+const readWorkspaceWithOwner = cache(
+  (workspaceId: string): Promise<WorkspaceWithOwner | null> =>
+    selectWorkspaceWithOwner(workspaceId, true, db, false)
+)
+
+/**
+ * Get a workspace with owner info by ID
+ *
+ * Transaction-scoped (`executor`) and lock-acquiring (`forUpdate`) reads
+ * deliberately bypass {@link readWorkspaceWithOwner}: a row read inside one
+ * caller's transaction, or under a row lock only that caller holds, must never
+ * be handed to a later caller that took neither.
+ *
+ * @param workspaceId - The workspace ID to look up
+ * @returns The workspace with owner info if found, null otherwise
+ */
+export async function getWorkspaceWithOwner(
+  workspaceId: string,
+  options?: { includeArchived?: boolean; executor?: DbOrTx; forUpdate?: boolean }
+): Promise<WorkspaceWithOwner | null> {
+  const { includeArchived = false, executor, forUpdate = false } = options ?? {}
+  if (executor || forUpdate) {
+    return selectWorkspaceWithOwner(workspaceId, includeArchived, executor ?? db, forUpdate)
+  }
+  const ws = await readWorkspaceWithOwner(workspaceId)
+  if (!ws) return null
+  return includeArchived || !ws.archivedAt ? ws : null
 }
 
 /**
@@ -129,18 +167,7 @@ export async function getEffectiveWorkspacePermission(
   return resolveEffectiveWorkspacePermission(userId, ws.id, ws.organizationId, executor)
 }
 
-/**
- * Check workspace access for a user
- *
- * Verifies the workspace exists and the user has access to it.
- * Returns access level (read/write) based on ownership, explicit permissions,
- * and organization-admin inheritance.
- *
- * @param workspaceId - The workspace ID to check
- * @param userId - The user ID to check access for
- * @returns WorkspaceAccess object with exists, hasAccess, canWrite, and workspace data
- */
-export async function checkWorkspaceAccess(
+async function resolveWorkspaceAccessForUser(
   workspaceId: string,
   userId: string
 ): Promise<WorkspaceAccess> {
@@ -164,6 +191,25 @@ export async function checkWorkspaceAccess(
 
   return { exists: true, hasAccess, canWrite, canAdmin, workspace: ws, permission }
 }
+
+/**
+ * Check workspace access for a user
+ *
+ * Verifies the workspace exists and the user has access to it.
+ * Returns access level (read/write) based on ownership, explicit permissions,
+ * and organization-admin inheritance.
+ *
+ * Request-memoized: a Server Component render pass authorizes the same
+ * (workspace, viewer) pair through several gates, and the answer cannot change
+ * mid-render. Outside a render React evaluates the resolver normally, so route
+ * handlers and background work re-read exactly as before. Takes no executor, so
+ * no transaction-scoped or locked read can ever be memoized here.
+ *
+ * @param workspaceId - The workspace ID to check
+ * @param userId - The user ID to check access for
+ * @returns WorkspaceAccess object with exists, hasAccess, canWrite, and workspace data
+ */
+export const checkWorkspaceAccess = cache(resolveWorkspaceAccessForUser)
 
 /**
  * Returns `provided` when it was resolved for this exact workspace, otherwise

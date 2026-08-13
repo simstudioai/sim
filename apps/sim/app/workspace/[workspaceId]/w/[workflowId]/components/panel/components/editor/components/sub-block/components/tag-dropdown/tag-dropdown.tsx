@@ -11,7 +11,6 @@ import {
   PopoverSection,
   usePopoverContext,
 } from '@sim/emcn'
-import { Repeat, Split } from '@sim/emcn/icons'
 import { isEqual } from 'es-toolkit'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
@@ -30,7 +29,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/types'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { getBlock } from '@/blocks'
-import { getTileIconColorClass } from '@/blocks/icon-color'
+import { BlockTile } from '@/blocks/block-tile'
 import type { BlockConfig } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
 import { useVariablesStore } from '@/stores/variables/store'
@@ -381,25 +380,6 @@ const buildNestedTagTree = (tags: string[], blockName: string): NestedTag[] => {
 
   return convertToNestedTags(root, '', blockName)
 }
-
-const TagIcon: React.FC<{
-  icon: string | React.ComponentType<{ className?: string }>
-  color: string
-}> = ({ icon, color }) => (
-  <div
-    className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded [&_img]:size-full'
-    style={{ background: color }}
-  >
-    {typeof icon === 'string' ? (
-      <span className={cn(getTileIconColorClass(color, true), 'font-bold text-micro')}>{icon}</span>
-    ) : (
-      (() => {
-        const IconComponent = icon
-        return <IconComponent className={cn(getTileIconColorClass(color, true), 'size-[9px]')} />
-      })()
-    )}
-  </div>
-)
 
 /**
  * Props for the recursive NestedTagRenderer component
@@ -811,8 +791,7 @@ const BlockRootTagItem: React.FC<{
   handleTagSelect: (tag: string, group?: BlockTagGroup) => void
   itemRefs: React.RefObject<Map<string, HTMLElement>>
   group: BlockTagGroup
-  tagIcon: string | React.ComponentType<{ className?: string }>
-  blockColor: string
+  blockType: string
   blockName: string
 }> = ({
   rootTag,
@@ -822,8 +801,7 @@ const BlockRootTagItem: React.FC<{
   handleTagSelect,
   itemRefs,
   group,
-  tagIcon,
-  blockColor,
+  blockType,
   blockName,
 }) => {
   const handleMouseEnter = useKeyboardAwareMouseEnter(setSelectedIndex)
@@ -844,7 +822,11 @@ const BlockRootTagItem: React.FC<{
         }
       }}
     >
-      <TagIcon icon={tagIcon} color={blockColor} />
+      <BlockTile
+        blockType={blockType}
+        fallbackLabel={blockName.charAt(0).toUpperCase()}
+        size='sm'
+      />
       <span className='flex-1 truncate'>{blockName}</span>
     </PopoverItem>
   )
@@ -1727,7 +1709,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   <>
                     <PopoverSection rootOnly>
                       <div className='flex items-center gap-1.5'>
-                        <TagIcon icon='V' color={BLOCK_COLORS.VARIABLE} />
+                        <BlockTile bgColor={BLOCK_COLORS.VARIABLE} fallbackLabel='V' size='sm' />
                         Variables
                       </div>
                     </PopoverSection>
@@ -1753,25 +1735,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                 )}
 
                 {nestedBlockTagGroups.map((group: NestedBlockTagGroup, groupIndex: number) => {
-                  const blockConfig = getBlock(group.blockType)
-                  let blockColor = blockConfig?.bgColor || BLOCK_COLORS.DEFAULT
-
-                  if (group.blockType === 'loop') {
-                    blockColor = BLOCK_COLORS.LOOP
-                  } else if (group.blockType === 'parallel') {
-                    blockColor = BLOCK_COLORS.PARALLEL
-                  }
-
-                  let tagIcon: string | React.ComponentType<{ className?: string }> =
-                    group.blockName.charAt(0).toUpperCase()
-                  if (blockConfig?.icon) {
-                    tagIcon = blockConfig.icon
-                  } else if (group.blockType === 'loop') {
-                    tagIcon = Repeat
-                  } else if (group.blockType === 'parallel') {
-                    tagIcon = Split
-                  }
-
                   const normalizedBlockName = normalizeName(group.blockName)
                   const rootTagFromTags = group.tags.find((tag) => tag === normalizedBlockName)
                   const rootTag = rootTagFromTags || normalizedBlockName
@@ -1788,8 +1751,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         handleTagSelect={handleTagSelect}
                         itemRefs={itemRefs}
                         group={group}
-                        tagIcon={tagIcon}
-                        blockColor={blockColor}
+                        blockType={group.blockType}
                         blockName={group.blockName}
                       />
                       {group.nestedTags.map((nestedTag) => {

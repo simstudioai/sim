@@ -10,7 +10,7 @@ import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/too
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
-import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   type WorkspaceFileSecretProvenance,
@@ -438,9 +438,8 @@ export async function maybeWriteOutputToFile(
             throw new Error('Request aborted before tool mutation could be applied')
           }
 
-          const written = await writeWorkspaceFileByPath({
+          const written = await writeCopilotWorkspaceFileByPath(context, {
             workspaceId,
-            userId,
             target: {
               path: outputFile.path,
               mode: outputFile.mode ?? 'create',

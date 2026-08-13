@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, PlayOutline, Skeleton, Tooltip, toast } from '@sim/emcn'
 import {
   Download,
@@ -24,6 +24,7 @@ import {
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { prefersInPlaceNavigation } from '@/lib/desktop'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import {
@@ -56,7 +57,7 @@ import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
 import { useLogDetail } from '@/hooks/queries/logs'
-import { downloadTableExport } from '@/hooks/queries/tables'
+import { exportTable } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -72,6 +73,25 @@ const LOADING_SKELETON = (
     <Skeleton className='h-[16px] w-[40%]' />
   </div>
 )
+
+/**
+ * Opens an internal app link the way the host expects: a new browser tab on the
+ * web, and the current view in the desktop app, whose shell would otherwise turn
+ * the same-origin `window.open` into a second Sim window.
+ */
+function useOpenInternalLink() {
+  const router = useRouter()
+  return useCallback(
+    (href: string) => {
+      if (prefersInPlaceNavigation()) {
+        router.push(href)
+        return
+      }
+      window.open(href, '_blank')
+    },
+    [router]
+  )
+}
 
 interface ResourceContentProps {
   workspaceId: string
@@ -338,13 +358,7 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
       )
     case 'table':
-      return (
-        <EmbeddedTableActions
-          workspaceId={workspaceId}
-          tableId={resource.id}
-          tableName={resource.title}
-        />
-      )
+      return <EmbeddedTableActions workspaceId={workspaceId} tableId={resource.id} />
     case 'log':
       return <EmbeddedLogActions workspaceId={workspaceId} logId={resource.id} />
     case 'folder':
@@ -363,6 +377,7 @@ interface EmbeddedWorkflowActionsProps {
 }
 
 export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
+  const openInternalLink = useOpenInternalLink()
   const { navigateToSettings } = useSettingsNavigation()
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
@@ -417,7 +432,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   }
 
   const handleOpenWorkflow = () => {
-    window.open(`/workspace/${workspaceId}/w/${workflowId}`, '_blank')
+    openInternalLink(`/workspace/${workspaceId}/w/${workflowId}`)
   }
 
   return (
@@ -500,10 +515,9 @@ const tableLogger = createLogger('EmbeddedTableActions')
 interface EmbeddedTableActionsProps {
   workspaceId: string
   tableId: string
-  tableName: string
 }
 
-function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTableActionsProps) {
+function EmbeddedTableActions({ workspaceId, tableId }: EmbeddedTableActionsProps) {
   const router = useRouter()
 
   const handleOpenTable = () => {
@@ -512,7 +526,7 @@ function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTable
 
   const handleExport = async () => {
     try {
-      await downloadTableExport(tableId, tableName)
+      await exportTable(workspaceId, tableId)
     } catch (err) {
       tableLogger.error('Failed to export table:', err)
     }
@@ -645,7 +659,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <WorkflowX className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
+          <h2 className='text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
           <p className='text-[var(--text-body)] text-small'>
             This workflow may have been deleted or moved
           </p>
@@ -706,7 +720,7 @@ function EmbeddedFile({
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <FileX className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>File not found</h2>
+          <h2 className='text-[20px] text-[var(--text-primary)]'>File not found</h2>
           <p className='text-[var(--text-body)] text-small'>
             This file may have been deleted or moved
           </p>
@@ -741,6 +755,7 @@ interface EmbeddedFolderProps {
 }
 
 function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
+  const openInternalLink = useOpenInternalLink()
   const { data: folderList, isPending: isFoldersPending } = useFolders(workspaceId)
   const { data: workflowList = [] } = useWorkflows(workspaceId)
 
@@ -754,7 +769,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <FolderIcon className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Folder not found</h2>
+          <h2 className='text-[20px] text-[var(--text-primary)]'>Folder not found</h2>
           <p className='text-[var(--text-body)] text-small'>
             This folder may have been deleted or moved
           </p>
@@ -765,7 +780,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
 
   return (
     <div className='flex h-full flex-col overflow-y-auto p-6'>
-      <h2 className='mb-4 font-medium text-[16px] text-[var(--text-primary)]'>{folder.name}</h2>
+      <h2 className='mb-4 text-[16px] text-[var(--text-primary)]'>{folder.name}</h2>
       {folderWorkflows.length === 0 ? (
         <p className='text-[13px] text-[var(--text-muted)]'>No workflows in this folder</p>
       ) : (
@@ -774,7 +789,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
             <button
               key={w.id}
               type='button'
-              onClick={() => window.open(`/workspace/${workspaceId}/w/${w.id}`, '_blank')}
+              onClick={() => openInternalLink(`/workspace/${workspaceId}/w/${w.id}`)}
               className='flex items-center gap-2 rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-4)]'
             >
               <WorkflowIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
@@ -812,7 +827,7 @@ function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <Library className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Log not found</h2>
+          <h2 className='text-[20px] text-[var(--text-primary)]'>Log not found</h2>
           <p className='text-[var(--text-body)] text-small'>
             This log may have been deleted or is no longer available
           </p>

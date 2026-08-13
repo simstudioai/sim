@@ -695,6 +695,43 @@ describe('sse-handlers tool lifecycle', () => {
     expect(executeTool).not.toHaveBeenCalled()
   })
 
+  it('waits for a browser takeover without a client-tool deadline', async () => {
+    isSimExecuted.mockReturnValue(false)
+    waitForClientToolCompletion.mockResolvedValueOnce({
+      status: 'success',
+      message: 'Browser hand-back completed',
+      data: { completed: true },
+    })
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-browser-takeover',
+          toolName: 'browser_request_takeover',
+          arguments: { reason: 'Please sign in' },
+          executor: MothershipStreamV1ToolExecutor.client,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: true, timeout: 1000 }
+    )
+
+    await Promise.allSettled(context.pendingToolPromises.values())
+
+    expect(waitForClientToolCompletion).toHaveBeenCalledWith({
+      toolCallId: 'tool-browser-takeover',
+      runId: context.runId,
+      userId: 'user-1',
+      timeoutMs: null,
+      abortSignal: undefined,
+      registry: execContext.resolvedSecretTraceRegistry,
+    })
+  })
+
   it('keeps an ordinary static VFS read on the Sim executor', async () => {
     await sseHandlers.tool(
       {

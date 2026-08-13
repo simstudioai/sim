@@ -2,12 +2,14 @@
  * @vitest-environment node
  */
 
-import { dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
+import { createLogger } from '@sim/logger'
+import { dbChainMockFns, loggerMock, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
   MAX_TABLE_SELECTION_ROWS,
 } from '@/lib/copilot/chat/selection-context'
+import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
 import type { ChatContext } from '@/stores/panel'
 
 const {
@@ -17,8 +19,10 @@ const {
   getSkillById,
   getUserPermissionConfig,
   getWorkspaceFile,
+  readWorkspaceFileMetadata,
   getTableById,
   getRowsByIds,
+  readKnowledgeBase,
   getBlockVisibilityForCopilot,
   isIntegrationDeploymentAvailable,
 } = vi.hoisted(() => ({
@@ -28,8 +32,10 @@ const {
   getSkillById: vi.fn(),
   getUserPermissionConfig: vi.fn(),
   getWorkspaceFile: vi.fn(),
+  readWorkspaceFileMetadata: vi.fn(),
   getTableById: vi.fn(),
   getRowsByIds: vi.fn(),
+  readKnowledgeBase: vi.fn(),
   getBlockVisibilityForCopilot: vi.fn(async () => null),
   isIntegrationDeploymentAvailable: vi.fn(() => true),
 }))
@@ -43,8 +49,14 @@ vi.mock('@/lib/integrations/availability.server', () => ({
 vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById }))
 vi.mock('@/lib/mcp/service', () => ({ mcpService: { discoverServerTools } }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({ getWorkspaceFile }))
+vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
+  readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadata },
+}))
 vi.mock('@/lib/table/service', () => ({ getTableById }))
 vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
+  readKnowledgeBase: { execute: readKnowledgeBase },
+}))
 
 /**
  * Overrides the global `@sim/db` mock: the logs-context tests below need
@@ -52,6 +64,79 @@ vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
  */
 
 import { processContextsServer } from './process-contents'
+
+describe('processContextsServer - knowledge contexts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    readKnowledgeBase.mockResolvedValue({
+      knowledgeBase: { id: 'knowledge-1', name: 'Product docs' },
+    })
+  })
+
+  it('reads through the fixed application query with a trusted chat principal', async () => {
+    const result = await processContextsServer(
+      [{ kind: 'knowledge', knowledgeId: 'knowledge-1', label: 'Docs' } as ChatContext],
+      'dual-workspace-user',
+      'hello',
+      'workspace-a',
+      'chat-1'
+    )
+
+    expect(readKnowledgeBase).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'dual-workspace-user',
+        workspaceId: 'workspace-a',
+        audience: 'sim:knowledge',
+      }),
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-a',
+      },
+    })
+    expect(result).toEqual([
+      {
+        type: 'knowledge',
+        tag: '@Docs',
+        content: '',
+        path: 'knowledgebases/Product%20docs/meta.json',
+      },
+    ])
+  })
+
+  it('conceals a cross-workspace Knowledge target from Copilot context', async () => {
+    readKnowledgeBase.mockRejectedValueOnce(new DelegatedWorkspaceAuthorizationError())
+
+    await expect(
+      processContextsServer(
+        [{ kind: 'knowledge', knowledgeId: 'knowledge-b', label: 'Hidden' } as ChatContext],
+        'dual-workspace-user',
+        'hello',
+        'workspace-a',
+        'chat-1'
+      )
+    ).resolves.toEqual([])
+  })
+
+  it('conceals infrastructure details from Copilot context', async () => {
+    readKnowledgeBase.mockRejectedValueOnce(new Error('database host and password'))
+
+    await expect(
+      processContextsServer(
+        [{ kind: 'knowledge', knowledgeId: 'knowledge-b', label: 'Hidden' } as ChatContext],
+        'dual-workspace-user',
+        'hello',
+        'workspace-a',
+        'chat-1'
+      )
+    ).resolves.toEqual([])
+  })
+})
+
+const mockProcessContentsLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'ProcessContents')
+].value
 
 describe('processContextsServer - block contexts', () => {
   beforeEach(() => {
@@ -120,6 +205,35 @@ describe('processContextsServer - skill contexts', () => {
     ])
   })
 
+  it('uses the skill ID only for lookup and omits it from model context', async () => {
+    const skillId = 'private-skill-id'
+    getSkillById.mockResolvedValue({
+      id: skillId,
+      name: 'Resolved Skill',
+      description: 'desc',
+      content: '# Resolved Skill\n\nDo the thing.',
+    })
+
+    const result = await processContextsServer(
+      [{ kind: 'skill', skillId, label: 'Skill' } as ChatContext],
+      'user-1',
+      'hello',
+      'ws-1'
+    )
+
+    expect(getSkillById).toHaveBeenCalledWith({ skillId, workspaceId: 'ws-1' })
+    expect(result).toEqual([
+      {
+        type: 'skill',
+        tag: '@Skill',
+        content: '# Resolved Skill\n\nDo the thing.',
+        path: 'agent/skills/Resolved%20Skill.json',
+      },
+    ])
+    expect(JSON.stringify(result)).not.toContain(skillId)
+    expect(JSON.stringify(result)).not.toContain('SKILL_ID')
+  })
+
   it('drops a skill that does not resolve (unknown or cross-workspace)', async () => {
     getSkillById.mockResolvedValue(null)
 
@@ -143,6 +257,28 @@ describe('processContextsServer - skill contexts', () => {
 
     expect(getSkillById).not.toHaveBeenCalled()
     expect(result).toEqual([])
+  })
+
+  it('does not log a private skill selector when lookup throws', async () => {
+    const skillId = 'private-skill-id __var_API_KEY __sim_code_0_binding_0'
+    getSkillById.mockRejectedValue(new Error(`Lookup failed for ${skillId}`))
+
+    const result = await processContextsServer(
+      [{ kind: 'skill', skillId, label: 'Skill 1' } as ChatContext],
+      'user-1',
+      'hello',
+      'ws-1'
+    )
+
+    expect(result).toEqual([])
+    expect(mockProcessContentsLogger.error).toHaveBeenCalledWith(
+      'Error processing skill context (db)',
+      { workspaceId: 'ws-1', hasSkillId: true }
+    )
+    const logged = JSON.stringify(mockProcessContentsLogger.error.mock.calls)
+    expect(logged).not.toContain('private-skill-id')
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
   })
 })
 
@@ -181,6 +317,31 @@ describe('processContextsServer - MCP contexts', () => {
 })
 
 describe('processContextsServer - browser and terminal selections', () => {
+  it('describes whole Browser and Terminal mentions without inventing tab ids', async () => {
+    const result = await processContextsServer(
+      [
+        { kind: 'browser_tab', tabId: 'browser-session', label: 'Browser' },
+        { kind: 'terminal_tab', terminalId: 'terminal-session', label: 'Terminal' },
+      ],
+      'user-1'
+    )
+
+    expect(result).toMatchObject([
+      {
+        type: 'browser_tab',
+        tag: '@Browser',
+        content: expect.stringContaining('resource as a whole'),
+      },
+      {
+        type: 'terminal_tab',
+        tag: '@Terminal',
+        content: expect.stringContaining('resource as a whole'),
+      },
+    ])
+    expect(result[0].content).toContain('browser_list_tabs')
+    expect(result[1].content).toContain('terminal list operation')
+  })
+
   it('keeps the live browser pointer and appends quoted untrusted page text', async () => {
     const result = await processContextsServer(
       [
@@ -444,6 +605,13 @@ describe('processContextsServer - logs contexts', () => {
 describe('processContextsServer - file_selection contexts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    readWorkspaceFileMetadata.mockImplementation(
+      async ({ input }: { input: { fileId: string } }) => {
+        const file = await getWorkspaceFile('ws-1', input.fileId)
+        if (!file) throw new Error('File not found')
+        return { file }
+      }
+    )
   })
 
   it('inlines the selected passage with its line range and a path pointer', async () => {

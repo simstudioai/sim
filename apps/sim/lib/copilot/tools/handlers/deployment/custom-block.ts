@@ -1,15 +1,17 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isAllowedCustomBlockIconUrl } from '@/lib/api/contracts/custom-blocks'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
-import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { canonicalizeVfsPath, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
-  fetchWorkspaceFileBuffer,
-  listWorkspaceFiles,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
+import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { canonicalizeVfsPath } from '@/lib/copilot/vfs/path-utils'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import {
@@ -20,6 +22,8 @@ import {
   publishCustomBlock,
   updateCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { ensureWorkflowAccess } from '../access'
 import type { DeployCustomBlockParams } from '../param-types'
@@ -27,6 +31,7 @@ import type { DeployCustomBlockParams } from '../param-types'
 const MAX_ICON_BYTES = 5 * 1024 * 1024
 const MAX_INPUT_ENTRIES = 50
 const MAX_OUTPUT_ENTRIES = 50
+const logger = createLogger('CopilotCustomBlockDeployment')
 
 /**
  * Resolve the agent-supplied icon reference to a publicly servable URL. A VFS
@@ -38,7 +43,7 @@ const MAX_OUTPUT_ENTRIES = 50
  */
 async function resolveIconUrl(
   raw: string | undefined,
-  userId: string,
+  context: ExecutionContext,
   workspaceId: string
 ): Promise<string | undefined> {
   const value = raw?.trim()
@@ -53,13 +58,12 @@ async function resolveIconUrl(
   }
 
   const canonical = canonicalizeVfsPath(value)
-  const files = await listWorkspaceFiles(workspaceId, { hydrateFolderPaths: true })
-  const record = files.find(
-    (f) => canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === canonical
-  )
-  if (!record) {
+  const record = await resolveCopilotWorkspaceFileReference(context, fileOperations.readContent, {
+    workspaceId,
+    reference: canonical,
+  }).catch(() => {
     throw new CustomBlockValidationError(`Icon file not found in this workspace: ${value}`)
-  }
+  })
   if (!isImageFileType(record.type)) {
     throw new CustomBlockValidationError(
       'Icon file must be an image (PNG, JPEG, GIF, WebP, or SVG)'
@@ -68,16 +72,20 @@ async function resolveIconUrl(
   if (record.size > MAX_ICON_BYTES) {
     throw new CustomBlockValidationError('Icon file must be 5MB or smaller')
   }
-  const buffer = await fetchWorkspaceFileBuffer(record)
-  const safeFileName = record.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+  const { content: buffer } = await executeCopilotFileUseCase(
+    context,
+    readWorkspaceFileContent,
+    { fileId: record.id, assertedWorkspaceId: workspaceId, maxBytes: MAX_ICON_BYTES },
+    { fileId: record.id }
+  )
   const uploaded = await uploadFile({
     file: buffer,
     fileName: record.name,
     contentType: record.type,
     context: 'workspace-logos',
-    customKey: `workspace-logos/${Date.now()}-${generateShortId()}-${safeFileName}`,
+    customKey: `workspace-logos/${buildStorageKeySegment(`${Date.now()}-${generateShortId()}-`, record.name)}`,
     preserveKey: true,
-    metadata: { workspaceId, userId, originalName: record.name },
+    metadata: { workspaceId, userId: context.userId, originalName: record.name },
   })
   return uploaded.path
 }
@@ -132,7 +140,7 @@ export async function executeDeployCustomBlock(
     } catch (error) {
       const message = toError(error).message
       if (message.includes('not found')) {
-        return { success: false, error: message }
+        return { success: false, error: 'Workflow not found' }
       }
       return {
         success: false,
@@ -217,7 +225,7 @@ export async function executeDeployCustomBlock(
     if (params.exposedOutputs?.some((entry) => entry.name.length > 60)) {
       return { success: false, error: 'exposed output names must be 60 characters or fewer' }
     }
-    const iconUrl = await resolveIconUrl(params.iconUrl, context.userId, workspaceId)
+    const iconUrl = await resolveIconUrl(params.iconUrl, context, workspaceId)
 
     if (existing) {
       await updateCustomBlock(existing.id, {
@@ -294,6 +302,7 @@ export async function executeDeployCustomBlock(
     if (error instanceof CustomBlockValidationError) {
       return { success: false, error: error.message }
     }
-    return { success: false, error: toError(error).message }
+    logger.error('Custom block deployment failed', { error })
+    return { success: false, error: 'Custom block deployment failed due to a system error' }
   }
 }

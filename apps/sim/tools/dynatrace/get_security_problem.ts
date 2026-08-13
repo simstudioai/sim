@@ -13,6 +13,31 @@ import {
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Every optional property of the vulnerability detail endpoint. Dynatrace omits
+ * all of them unless they are requested, so without this default the tool would
+ * answer with nulls for the description, remediation guidance, and affected
+ * entities it exists to return.
+ */
+const SECURITY_PROBLEM_DETAIL_FIELDS = [
+  '+riskAssessment',
+  '+managementZones',
+  '+codeLevelVulnerabilityDetails',
+  '+globalCounts',
+  '+filteredCounts',
+  '+description',
+  '+remediationDescription',
+  '+events',
+  '+vulnerableComponents',
+  '+affectedEntities',
+  '+exposedEntities',
+  '+reachableDataAssets',
+  '+relatedEntities',
+  '+relatedContainerImages',
+  '+relatedAttacks',
+  '+entryPoints',
+].join(',')
+
 export const getSecurityProblemTool: ToolConfig<
   DynatraceGetSecurityProblemParams,
   DynatraceGetSecurityProblemResponse
@@ -49,7 +74,7 @@ export const getSecurityProblemTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated optional properties to include: +riskAssessment, +managementZones, +codeLevelVulnerabilityDetails, +globalCounts',
+        'Comma-separated optional properties to include, each prefixed with +. Defaults to every detail property: +riskAssessment, +managementZones, +codeLevelVulnerabilityDetails, +globalCounts, +filteredCounts, +description, +remediationDescription, +events, +vulnerableComponents, +affectedEntities, +exposedEntities, +reachableDataAssets, +relatedEntities, +relatedContainerImages, +relatedAttacks, +entryPoints',
     },
     managementZoneFilter: {
       type: 'string',
@@ -72,7 +97,7 @@ export const getSecurityProblemTool: ToolConfig<
         params.environmentUrl,
         `/securityProblems/${encodeDynatraceId(params.securityProblemId)}`,
         {
-          fields: params.fields,
+          fields: params.fields || SECURITY_PROBLEM_DETAIL_FIELDS,
           managementZoneFilter: params.managementZoneFilter,
           from: params.from,
         }

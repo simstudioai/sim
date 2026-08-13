@@ -86,6 +86,16 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: 'var(--brand)',
   icon: AgentIcon,
+  canvasPresentation: {
+    defaultTitle: 'Agent',
+    sentences: {
+      default: [
+        { text: 'Prompt', field: 'model', core: true },
+        { text: 'with', field: 'messages' },
+        { text: ', using', field: 'tools' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'messages',
@@ -654,7 +664,10 @@ Return ONLY the JSON array.`,
     },
     temperature: { type: 'number', description: 'Response randomness level' },
     maxTokens: { type: 'number', description: 'Maximum number of tokens in the response' },
-    reasoningEffort: { type: 'string', description: 'Reasoning effort level for GPT-5 models' },
+    reasoningEffort: {
+      type: 'string',
+      description: 'Reasoning effort level for models that support it',
+    },
     verbosity: { type: 'string', description: 'Verbosity level for GPT-5 models' },
     thinkingLevel: {
       type: 'string',

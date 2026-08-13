@@ -6,6 +6,7 @@ import { v1ListFilesContract, v1UploadFileFormFieldsSchema } from '@/lib/api/con
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
+  isMultipartFieldValidationError,
   isPayloadSizeLimitError,
   MAX_MULTIPART_OVERHEAD_BYTES,
   readFileToBufferWithLimit,
@@ -105,6 +106,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } catch (error) {
       if (isPayloadSizeLimitError(error)) {
         return NextResponse.json({ error: error.message }, { status: 413 })
+      }
+      if (isMultipartFieldValidationError(error)) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
       }
       return NextResponse.json(
         { error: 'Request body must be valid multipart form data' },

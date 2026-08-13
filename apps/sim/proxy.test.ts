@@ -91,6 +91,30 @@ describe('resolveApiCorsPolicy', () => {
     expect(policy.headers).toContain('X-Execution-Timeout-Seconds')
   })
 
+  it('serves v2 workflow execute with wildcard origin and the stream-protocol header', () => {
+    const policy = resolveApiCorsPolicy(
+      makeRequest('/api/v2/workflows/workflow-123/execute', 'https://other.example')
+    )
+    expect(policy.origin).toBe('*')
+    expect(policy.credentials).toBe(false)
+    expect(policy.headers).toContain('X-Run-Id')
+    expect(policy.headers).toContain('X-Sim-Stream-Protocol')
+    expect(policy.headers).not.toContain('X-Execution-Id')
+    // Async is body-selected on v2 — the mode header is deliberately absent.
+    expect(policy.headers).not.toContain('X-Execution-Mode')
+  })
+
+  it('does not match the v2 execute rule for nested or runs paths', () => {
+    const nested = resolveApiCorsPolicy(
+      makeRequest('/api/v2/workflows/workflow-123/execute/extra', 'https://other.example')
+    )
+    expect(nested.origin).toBe('https://app.sim.test')
+    const runs = resolveApiCorsPolicy(
+      makeRequest('/api/v2/workflows/workflow-123/runs/run-1', 'https://other.example')
+    )
+    expect(runs.origin).toBe('https://app.sim.test')
+  })
+
   it('does not match the workflow execute rule for nested paths', () => {
     const policy = resolveApiCorsPolicy(
       makeRequest('/api/workflows/workflow-123/execute/extra', 'https://other.example')
@@ -99,11 +123,13 @@ describe('resolveApiCorsPolicy', () => {
   })
 
   it('returns default policy with APP_URL and credentials for other API routes', () => {
-    const policy = resolveApiCorsPolicy(makeRequest('/api/files/upload'))
+    const policy = resolveApiCorsPolicy(makeRequest('/api/files/uploads'))
     expect(policy).toEqual({
       origin: 'https://app.sim.test',
       credentials: true,
-      methods: 'GET,POST,OPTIONS,PUT,DELETE',
+      methods: 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS',
+      exposeHeaders:
+        'Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id',
       headers: expect.stringContaining('Authorization'),
     })
   })
@@ -114,7 +140,8 @@ describe('resolveApiCorsPolicy', () => {
       '/api/mcp/copilot',
       '/api/chat/abc',
       '/api/workflows/wf/execute',
-      '/api/files/upload',
+      '/api/v2/workflows/wf/execute',
+      '/api/files/uploads',
     ]
     for (const path of paths) {
       const policy = resolveApiCorsPolicy(makeRequest(path))

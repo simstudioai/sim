@@ -312,6 +312,18 @@ export const getDisplayValue = (value: unknown): string => {
 }
 
 /**
+ * Whether a collapsed-node row has a meaningful value to display.
+ * Rows whose value renders as the empty placeholder are hidden from the
+ * node preview so blocks only surface configured fields.
+ * `webhookUrlDisplay*` rows derive their value from the block id rather than
+ * the stored value, so they always count as displayable.
+ */
+export function hasDisplayableRowValue(subBlock: SubBlockConfig, rawValue: unknown): boolean {
+  if (subBlock.id.startsWith('webhookUrlDisplay')) return true
+  return getDisplayValue(rawValue) !== '-'
+}
+
+/**
  * Workflow id -> metadata lookup for the workflow selector resolvers.
  * `ready` gates resolution so missing entries only render as deleted once
  * the lookup has actually loaded.
@@ -354,17 +366,34 @@ export function resolveDropdownLabel(
   rawValue: unknown
 ): string | null {
   if (!subBlock || (subBlock.type !== 'dropdown' && subBlock.type !== 'combobox')) return null
-  if (!rawValue || typeof rawValue !== 'string') return null
+  if (!rawValue) return null
 
   const options = typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
   if (!options) return null
 
-  const option = options.find((opt) =>
-    typeof opt === 'string' ? opt === rawValue : opt.id === rawValue
-  )
+  const labelFor = (id: string): string | null => {
+    const option = options.find((opt) => (typeof opt === 'string' ? opt === id : opt.id === id))
+    if (!option) return null
+    return typeof option === 'string' ? option : option.label
+  }
 
-  if (!option) return null
-  return typeof option === 'string' ? option : option.label
+  /*
+   * A `multiSelect` dropdown stores an array, which this used to reject outright
+   * — so a card showed the raw stored ids ("chat, updates") where a single-select
+   * showed a label. Summarized with the same helper the other list-valued rows
+   * use, so one selection reads the same however it was stored.
+   */
+  if (Array.isArray(rawValue)) {
+    const ids = rawValue.filter((entry): entry is string => typeof entry === 'string')
+    const labels = ids.map(labelFor)
+    /* Partial resolution would silently drop selections; the caller's raw-value
+       fallback shows all of them instead. */
+    if (labels.length === 0 || labels.some((label) => label === null)) return null
+    return summarizeNames(labels as string[])
+  }
+
+  if (typeof rawValue !== 'string') return null
+  return labelFor(rawValue)
 }
 
 /** Resolves a workflow-selector value to the workflow's name. */

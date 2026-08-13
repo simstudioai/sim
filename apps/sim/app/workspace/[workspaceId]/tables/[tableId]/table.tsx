@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
-import { Download, Lock, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
+import { Download, Lock, Pencil, Trash, Upload } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
@@ -27,27 +27,33 @@ import {
   predicateNamesToIds,
   sortSpecNamesToIds,
 } from '@/lib/table/column-keys'
-import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   type BreadcrumbItem,
   type ColumnOption,
   Resource,
   type SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
+import {
+  FOLDERED_RESOURCE_HEADERS,
+  folderBreadcrumbItems,
+  folderedResourceListHref,
+  useFolderAncestors,
+} from '@/app/workspace/[workspaceId]/components/folders'
 import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import { ImportProgressMenu } from '@/app/workspace/[workspaceId]/tables/components/import-progress-menu'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
-  downloadTableExport,
+  downloadExportResult,
   useCancelTableRuns,
   useCreateTableView,
   useDeleteTable,
   useDeleteTableRowsAsync,
   useDeleteTableView,
-  useExportTableAsync,
+  useExportTable,
   useRenameTable,
   useRunColumn,
   useTableViews,
@@ -1067,9 +1073,24 @@ export function Table({
     },
   })
 
-  const handleNavigateBack = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/tables`)
-  }, [router, workspaceId])
+  /**
+   * The table's own folder trail, so the header reads `Tables / Reports / Q3` exactly as the
+   * list does one level up — and as a file's header does. Skipped in embedded mode, which
+   * renders no header at all.
+   */
+  const { ancestors: folderChain } = useFolderAncestors({
+    resourceType: 'table',
+    workspaceId,
+    folderId: tableData?.folderId,
+    enabled: !embedded,
+  })
+
+  const handleNavigateToFolder = useCallback(
+    (folderId: string | null) => {
+      router.push(folderedResourceListHref('table', workspaceId, folderId))
+    },
+    [router, workspaceId]
+  )
 
   const handleStartTableRename = useCallback(() => {
     const data = tableDataRef.current
@@ -1091,16 +1112,11 @@ export function Table({
   const handleExportCsv = useCallback(async () => {
     if (!tableData) return
     try {
-      // Big tables export as a background job (the file downloads when the job completes via the
-      // SSE stream); small ones keep the instant synchronous stream. While a delete job runs,
-      // rowCount is a doomed-estimate-adjusted number — not ground truth — so always take the
-      // async path (safe at any size; exports bypass the one-job-per-table gate).
-      const deleteRunning = tableData.jobType === 'delete' && tableData.jobStatus === 'running'
-      if (deleteRunning || tableData.rowCount > TABLE_LIMITS.EXPORT_ASYNC_THRESHOLD_ROWS) {
-        await exportTableAsync.mutateAsync({ format: 'csv' })
-        toast.success('Export started — the download will begin when it finishes')
+      const exported = await exportTableAsync.mutateAsync({ format: 'csv' })
+      if (exported.status === 'completed') {
+        await downloadExportResult(workspaceId, exported.id)
       } else {
-        await downloadTableExport(tableData.id, tableData.name)
+        toast.success('Export started — the download will begin when it finishes')
       }
       captureEvent(posthogRef.current, 'table_exported', {
         table_id: tableData.id,
@@ -1111,6 +1127,34 @@ export function Table({
       toast.error('Failed to export table')
     }
   }, [tableData, workspaceId])
+
+  useRegisterGlobalCommands(() => [
+    {
+      id: 'table-new-column',
+      handler: () => {
+        if (!userPermissions.canEdit) return
+        if (tableDataRef.current?.locks.schemaLocked) {
+          showBlockedToast('add-column')
+          return
+        }
+        handleAddColumnOfType('string')
+      },
+    },
+    {
+      id: 'table-export-csv',
+      handler: () => {
+        if (!tableDataRef.current?.rowCount) return
+        void handleExportCsv()
+      },
+    },
+    {
+      id: 'table-import-csv',
+      handler: () => {
+        if (!userPermissions.canEdit || tableDataRef.current?.locks.insertLocked) return
+        onRequestImportCsv()
+      },
+    },
+  ])
 
   const columnOptions = useMemo<ColumnOption[]>(
     () =>
@@ -1143,55 +1187,63 @@ export function Table({
   }
 
   const breadcrumbs = useMemo(
-    (): BreadcrumbItem[] => [
-      { label: 'Tables', onClick: handleNavigateBack },
-      // While the table loads, mirror this route's loading.tsx (terminal "…" crumb)
-      // so no empty-label / orphaned-chevron frame renders in between.
-      tableData
-        ? {
-            label: tableData.name,
-            editing: tableHeaderRename.editingId
-              ? {
-                  isEditing: true,
-                  value: tableHeaderRename.editValue,
-                  onChange: tableHeaderRename.setEditValue,
-                  onSubmit: tableHeaderRename.submitRename,
-                  onCancel: tableHeaderRename.cancelRename,
-                }
-              : undefined,
-            dropdownItems: [
-              {
-                label: 'Rename',
-                icon: Pencil,
-                onClick: handleStartTableRename,
-              },
-              // Reachable with the flag off when something is locked, so an
-              // admin can always clear locks (the route allows clearing).
-              ...(userPermissions.canAdmin &&
-              (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
-                ? [
-                    {
-                      label: 'Lock settings',
-                      icon: Lock,
-                      onClick: () => setShowLockSettings(true),
-                    },
-                  ]
-                : []),
-              {
-                label: 'Delete',
-                icon: Trash,
-                onClick: onRequestDeleteTable,
-                disabled: userPermissions.canEdit !== true || tableData.locks.deleteLocked,
-              },
-            ],
-          }
-        : { label: '…', terminal: true },
-    ],
+    (): BreadcrumbItem[] =>
+      folderBreadcrumbItems({
+        rootLabel: FOLDERED_RESOURCE_HEADERS.table.rootLabel,
+        rootIcon: FOLDERED_RESOURCE_HEADERS.table.rootIcon,
+        breadcrumbs: folderChain,
+        onNavigate: handleNavigateToFolder,
+        trailing: [
+          // While the table loads, mirror this route's loading.tsx (terminal "…" crumb)
+          // so no empty-label / orphaned-chevron frame renders in between.
+          tableData
+            ? {
+                label: tableData.name,
+                editing: tableHeaderRename.editingId
+                  ? {
+                      isEditing: true,
+                      value: tableHeaderRename.editValue,
+                      onChange: tableHeaderRename.setEditValue,
+                      onSubmit: tableHeaderRename.submitRename,
+                      onCancel: tableHeaderRename.cancelRename,
+                    }
+                  : undefined,
+                dropdownItems: [
+                  {
+                    label: 'Rename',
+                    icon: Pencil,
+                    onClick: handleStartTableRename,
+                  },
+                  // Reachable with the flag off when something is locked, so an
+                  // admin can always clear locks (the route allows clearing).
+                  ...(userPermissions.canAdmin &&
+                  (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
+                    ? [
+                        {
+                          label: 'Lock settings',
+                          icon: Lock,
+                          onClick: () => setShowLockSettings(true),
+                        },
+                      ]
+                    : []),
+                  {
+                    label: 'Delete',
+                    icon: Trash,
+                    onClick: onRequestDeleteTable,
+                    disabled: userPermissions.canEdit !== true || tableData.locks.deleteLocked,
+                  },
+                ],
+              }
+            : { label: '…', terminal: true },
+        ],
+      }),
     [
-      handleNavigateBack,
+      folderChain,
+      handleNavigateToFolder,
       userPermissions.canAdmin,
       userPermissions.canEdit,
       tableData,
+      tableLocksEnabled,
       tableHeaderRename.editingId,
       tableHeaderRename.editValue,
       tableHeaderRename.setEditValue,
@@ -1321,7 +1373,7 @@ export function Table({
 
   const deleteTableMutation = useDeleteTable(workspaceId)
   const deleteRowsAsyncMutation = useDeleteTableRowsAsync({ workspaceId, tableId })
-  const exportTableAsync = useExportTableAsync({ workspaceId, tableId })
+  const exportTableAsync = useExportTable({ workspaceId, tableId })
   const handleDeleteTable = async () => {
     try {
       await deleteTableMutation.mutateAsync(tableId)
@@ -1397,7 +1449,7 @@ export function Table({
     <Resource>
       {!embedded && (
         <Resource.Header
-          icon={TableIcon}
+          icon={FOLDERED_RESOURCE_HEADERS.table.rootIcon}
           breadcrumbs={breadcrumbs}
           aside={
             <div className='flex items-center gap-1.5'>

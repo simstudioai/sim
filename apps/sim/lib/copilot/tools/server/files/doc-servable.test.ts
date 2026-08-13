@@ -6,16 +6,20 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockExecuteInSandbox,
-  mockFetchWorkspaceFileBuffer,
-  mockGetWorkspaceFile,
   mockLoadCompiledDoc,
+  mockLoadPublishedCompiledDoc,
+  mockPublishCompiledDocArtifact,
+  mockReadWorkspaceFileContent,
+  mockReadWorkspaceFileMetadata,
   mockRunSandboxTask,
   mockStoreCompiledDoc,
 } = vi.hoisted(() => ({
   mockExecuteInSandbox: vi.fn(),
-  mockFetchWorkspaceFileBuffer: vi.fn(),
-  mockGetWorkspaceFile: vi.fn(),
   mockLoadCompiledDoc: vi.fn(),
+  mockLoadPublishedCompiledDoc: vi.fn(),
+  mockPublishCompiledDocArtifact: vi.fn(),
+  mockReadWorkspaceFileContent: vi.fn(),
+  mockReadWorkspaceFileMetadata: vi.fn(),
   mockRunSandboxTask: vi.fn(),
   mockStoreCompiledDoc: vi.fn(),
 }))
@@ -30,12 +34,16 @@ vi.mock('@/lib/execution/languages', () => ({
 vi.mock('@/lib/execution/sandbox/run-task', () => ({
   runSandboxTask: mockRunSandboxTask,
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mockGetWorkspaceFile,
-  fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
+vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
+  readWorkspaceFileContent: { execute: mockReadWorkspaceFileContent },
+}))
+vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
+  readWorkspaceFileMetadata: { execute: mockReadWorkspaceFileMetadata },
 }))
 vi.mock('./doc-compiled-store', () => ({
   loadCompiledDoc: mockLoadCompiledDoc,
+  loadPublishedCompiledDoc: mockLoadPublishedCompiledDoc,
+  publishCompiledDocArtifact: mockPublishCompiledDocArtifact,
   storeCompiledDoc: mockStoreCompiledDoc,
 }))
 vi.mock('@/app/api/files/utils', () => ({
@@ -47,14 +55,11 @@ vi.mock('@/app/api/files/utils', () => ({
         : 'application/octet-stream',
 }))
 
-import {
-  compileDoc,
-  DocCompileUserError,
-  resolveServableDoc,
-  resolveServableDocBytes,
-} from './doc-compile'
+import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
+import { compileDoc, resolveServableDoc, resolveServableDocBytes } from './doc-compile'
 
 const WORKSPACE_ID = '550e8400-e29b-41d4-a716-446655440000'
+const FILE_PRINCIPAL = { kind: 'session', userId: 'user-1' } as const
 const PDF_MAGIC = Buffer.from('%PDF-1.7\n...binary...')
 const PDF_SOURCE = Buffer.from('from reportlab.pdfgen import canvas\n# generates a PDF', 'utf-8')
 const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x01])
@@ -73,6 +78,7 @@ describe('resolveServableDocBytes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setEnvFlags({ isDocSandboxEnabled: true })
+    mockLoadPublishedCompiledDoc.mockResolvedValue(null)
   })
 
   it('swaps generated-doc source for the compiled artifact + binary content type', async () => {
@@ -90,8 +96,7 @@ describe('resolveServableDocBytes', () => {
     expect(mockLoadCompiledDoc).toHaveBeenCalledWith(
       WORKSPACE_ID,
       PDF_SOURCE.toString('utf-8'),
-      'pdf',
-      undefined
+      'pdf'
     )
     expect(mockLoadCompiledDoc).toHaveBeenCalledTimes(1)
   })
@@ -118,15 +123,14 @@ describe('resolveServableDocBytes', () => {
     expect(mockLoadCompiledDoc).toHaveBeenCalledWith(
       WORKSPACE_ID,
       PDF_SOURCE.toString('utf-8'),
-      'pdf',
-      undefined
+      'pdf'
     )
   })
 
   it('lazily rebuilds a legacy referenced-file document under its dependency-bound key', async () => {
     const source = Buffer.from(`image = await getFileBase64('reference-1')`, 'utf-8')
     const contentUpdatedAt = new Date('2026-08-05T01:00:00.000Z')
-    mockGetWorkspaceFile.mockResolvedValue({
+    const record = {
       id: 'reference-1',
       workspaceId: WORKSPACE_ID,
       name: 'reference.png',
@@ -138,10 +142,14 @@ describe('resolveServableDocBytes', () => {
       uploadedAt: contentUpdatedAt,
       updatedAt: contentUpdatedAt,
       contentUpdatedAt,
-      storageContext: 'workspace',
-    })
+      storageContext: 'workspace' as const,
+    }
+    mockReadWorkspaceFileMetadata.mockResolvedValue({ file: record, share: null })
     mockLoadCompiledDoc.mockResolvedValue(null)
-    mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('image-bytes'))
+    mockReadWorkspaceFileContent.mockResolvedValue({
+      file: record,
+      content: Buffer.from('image-bytes'),
+    })
     mockExecuteInSandbox.mockResolvedValue({
       exportedFileContent: Buffer.from('%PDF-rebuilt').toString('base64'),
     })
@@ -150,6 +158,7 @@ describe('resolveServableDocBytes', () => {
       rawBuffer: source,
       fileName: 'report.pdf',
       workspaceId: WORKSPACE_ID,
+      filePrincipal: FILE_PRINCIPAL,
     })
 
     expect(result).toEqual({
@@ -164,10 +173,14 @@ describe('resolveServableDocBytes', () => {
         },
       ],
     })
-    expect(mockFetchWorkspaceFileBuffer).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'reference-1' }),
-      { maxBytes: 25 * 1024 * 1024 }
-    )
+    expect(mockReadWorkspaceFileContent).toHaveBeenCalledWith({
+      principal: FILE_PRINCIPAL,
+      input: {
+        fileId: 'reference-1',
+        assertedWorkspaceId: WORKSPACE_ID,
+        maxBytes: 25 * 1024 * 1024,
+      },
+    })
     expect(mockExecuteInSandbox).toHaveBeenCalledTimes(1)
     expect(mockStoreCompiledDoc).toHaveBeenCalledWith(
       WORKSPACE_ID,
@@ -181,127 +194,106 @@ describe('resolveServableDocBytes', () => {
 
   it('keeps an existing public referenced document available through its legacy artifact', async () => {
     const source = Buffer.from(`image = await getFileBase64('reference-1')`, 'utf-8')
-    const contentUpdatedAt = new Date('2026-08-05T01:00:00.000Z')
-    mockGetWorkspaceFile.mockResolvedValue({
-      id: 'reference-1',
-      workspaceId: WORKSPACE_ID,
-      name: 'reference.png',
-      key: `workspace/${WORKSPACE_ID}/reference.png`,
-      path: '/api/files/serve/reference.png',
-      size: 10,
-      type: 'image/png',
-      uploadedBy: 'user-1',
-      uploadedAt: contentUpdatedAt,
-      updatedAt: contentUpdatedAt,
-      contentUpdatedAt,
-      storageContext: 'workspace',
-    })
     const legacyArtifact = Buffer.from('%PDF-legacy')
-    mockLoadCompiledDoc.mockResolvedValueOnce(null).mockResolvedValueOnce(legacyArtifact)
+    mockLoadCompiledDoc.mockResolvedValue(legacyArtifact)
 
     await expect(resolveServableDoc(WORKSPACE_ID, source, 'report.pdf')).resolves.toEqual({
       kind: 'artifact',
       buffer: legacyArtifact,
       contentType: 'application/pdf',
     })
-    expect(mockLoadCompiledDoc).toHaveBeenNthCalledWith(
-      1,
-      WORKSPACE_ID,
-      source.toString('utf-8'),
-      'pdf',
-      expect.stringContaining('reference-1')
-    )
-    expect(mockLoadCompiledDoc).toHaveBeenNthCalledWith(
-      2,
-      WORKSPACE_ID,
-      source.toString('utf-8'),
-      'pdf'
-    )
+    expect(mockLoadCompiledDoc).toHaveBeenCalledWith(WORKSPACE_ID, source.toString('utf-8'), 'pdf')
+    expect(mockReadWorkspaceFileMetadata).not.toHaveBeenCalled()
     expect(mockExecuteInSandbox).not.toHaveBeenCalled()
     expect(mockStoreCompiledDoc).not.toHaveBeenCalled()
   })
 
+  it('serves the dependency-bound artifact published by an authorized compile', async () => {
+    const source = Buffer.from(`image = await getFileBase64('reference-1')`, 'utf-8')
+    const publishedArtifact = Buffer.from('%PDF-published')
+    mockLoadPublishedCompiledDoc.mockResolvedValue(publishedArtifact)
+
+    await expect(resolveServableDoc(WORKSPACE_ID, source, 'report.pdf')).resolves.toEqual({
+      kind: 'artifact',
+      buffer: publishedArtifact,
+      contentType: 'application/pdf',
+    })
+    expect(mockLoadPublishedCompiledDoc).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      source.toString('utf-8'),
+      'pdf'
+    )
+    expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
+    expect(mockReadWorkspaceFileMetadata).not.toHaveBeenCalled()
+  })
+
+  it('fails fast when a private referenced document loses its Principal', async () => {
+    const source = Buffer.from(`image = await getFileBase64('reference-1')`, 'utf-8')
+
+    await expect(
+      resolveServableDocBytes({
+        rawBuffer: source,
+        fileName: 'report.pdf',
+        workspaceId: WORKSPACE_ID,
+      })
+    ).rejects.toThrow(
+      'Referenced document resolution requires an authorized workspace file principal'
+    )
+    expect(mockLoadPublishedCompiledDoc).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      source.toString('utf-8'),
+      'pdf'
+    )
+    expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
+  })
+
+  it('lets a principal-less private adapter use output published by an authorized compile', async () => {
+    const source = Buffer.from(`image = await getFileBase64('reference-1')`, 'utf-8')
+    const publishedArtifact = Buffer.from('%PDF-published')
+    mockLoadPublishedCompiledDoc.mockResolvedValue(publishedArtifact)
+
+    await expect(
+      resolveServableDocBytes({
+        rawBuffer: source,
+        fileName: 'report.pdf',
+        workspaceId: WORKSPACE_ID,
+      })
+    ).resolves.toEqual({
+      buffer: publishedArtifact,
+      contentType: 'application/pdf',
+    })
+    expect(mockReadWorkspaceFileMetadata).not.toHaveBeenCalled()
+    expect(mockReadWorkspaceFileContent).not.toHaveBeenCalled()
+    expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
+  })
+
   it('does not apply model-only provenance policy while serving a public legacy artifact', async () => {
     const source = Buffer.from(`image = await getFileBase64('reference-1')`, 'utf-8')
-    const contentUpdatedAt = new Date('2026-08-05T01:00:00.000Z')
-    mockGetWorkspaceFile.mockResolvedValue({
-      id: 'reference-1',
-      workspaceId: WORKSPACE_ID,
-      name: 'reference.png',
-      key: `workspace/${WORKSPACE_ID}/reference.png`,
-      path: '/api/files/serve/reference.png',
-      size: 10,
-      type: 'image/png',
-      uploadedBy: 'user-1',
-      uploadedAt: contentUpdatedAt,
-      updatedAt: contentUpdatedAt,
-      contentUpdatedAt,
-      storageContext: 'workspace',
-    })
     const legacyArtifact = Buffer.from('%PDF-legacy')
-    mockLoadCompiledDoc.mockResolvedValueOnce(null).mockResolvedValueOnce(legacyArtifact)
+    mockLoadCompiledDoc.mockResolvedValue(legacyArtifact)
 
     await expect(resolveServableDoc(WORKSPACE_ID, source, 'report.pdf')).resolves.toEqual({
       kind: 'artifact',
       buffer: legacyArtifact,
       contentType: 'application/pdf',
     })
-    expect(mockLoadCompiledDoc).toHaveBeenCalledTimes(2)
+    expect(mockLoadCompiledDoc).toHaveBeenCalledTimes(1)
+    expect(mockReadWorkspaceFileMetadata).not.toHaveBeenCalled()
     expect(mockExecuteInSandbox).not.toHaveBeenCalled()
   })
 
-  it('keeps a legacy artifact servable when a referenced file is missing', async () => {
+  it('does not resolve referenced files for a public legacy artifact', async () => {
     const source = Buffer.from(`image = await getFileBase64('reference-1')`, 'utf-8')
-    mockGetWorkspaceFile.mockResolvedValue(null)
     const legacyArtifact = Buffer.from('%PDF-legacy')
-    mockLoadCompiledDoc.mockResolvedValueOnce(null).mockResolvedValueOnce(legacyArtifact)
+    mockLoadCompiledDoc.mockResolvedValue(legacyArtifact)
 
     await expect(resolveServableDoc(WORKSPACE_ID, source, 'report.pdf')).resolves.toEqual({
       kind: 'artifact',
       buffer: legacyArtifact,
       contentType: 'application/pdf',
     })
-    expect(mockLoadCompiledDoc).toHaveBeenNthCalledWith(
-      1,
-      WORKSPACE_ID,
-      source.toString('utf-8'),
-      'pdf',
-      expect.stringContaining('missing')
-    )
-    expect(mockLoadCompiledDoc).toHaveBeenNthCalledWith(
-      2,
-      WORKSPACE_ID,
-      source.toString('utf-8'),
-      'pdf'
-    )
-    expect(mockExecuteInSandbox).not.toHaveBeenCalled()
-  })
-
-  it('keeps a legacy artifact servable when a referenced-file lookup fails', async () => {
-    const source = Buffer.from(`image = await getFileBase64('reference-1')`, 'utf-8')
-    mockGetWorkspaceFile.mockRejectedValue(new Error('database unavailable'))
-    const legacyArtifact = Buffer.from('%PDF-legacy')
-    mockLoadCompiledDoc.mockResolvedValueOnce(null).mockResolvedValueOnce(legacyArtifact)
-
-    await expect(resolveServableDoc(WORKSPACE_ID, source, 'report.pdf')).resolves.toEqual({
-      kind: 'artifact',
-      buffer: legacyArtifact,
-      contentType: 'application/pdf',
-    })
-    expect(mockLoadCompiledDoc).toHaveBeenNthCalledWith(
-      1,
-      WORKSPACE_ID,
-      source.toString('utf-8'),
-      'pdf',
-      expect.stringContaining('unavailable')
-    )
-    expect(mockLoadCompiledDoc).toHaveBeenNthCalledWith(
-      2,
-      WORKSPACE_ID,
-      source.toString('utf-8'),
-      'pdf'
-    )
-    expect(mockExecuteInSandbox).not.toHaveBeenCalled()
+    expect(mockReadWorkspaceFileMetadata).not.toHaveBeenCalled()
+    expect(mockReadWorkspaceFileContent).not.toHaveBeenCalled()
   })
 
   it('serves a legacy artifact with more than 20 references without resolving files', async () => {
@@ -314,7 +306,7 @@ describe('resolveServableDocBytes', () => {
       buffer: legacyArtifact,
       contentType: 'application/pdf',
     })
-    expect(mockGetWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockReadWorkspaceFileMetadata).not.toHaveBeenCalled()
     expect(mockLoadCompiledDoc).toHaveBeenCalledWith(WORKSPACE_ID, source.toString('utf-8'), 'pdf')
     expect(mockExecuteInSandbox).not.toHaveBeenCalled()
   })
@@ -391,7 +383,14 @@ describe('resolveServableDocBytes', () => {
       return Promise.resolve(compiled)
     })
 
-    await expect(compileDoc({ source, fileName: 'report.pdf', workspaceId: '' })).resolves.toEqual({
+    await expect(
+      compileDoc({
+        source,
+        fileName: 'report.pdf',
+        workspaceId: '',
+        filePrincipal: FILE_PRINCIPAL,
+      })
+    ).resolves.toEqual({
       buffer: compiled,
       contentType: 'application/pdf',
       contributingFiles: [contributor],
@@ -413,22 +412,7 @@ describe('resolveServableDocBytes', () => {
 
   it('keeps the isolated-vm fallback for referenced documents when E2B is disabled', async () => {
     const source = Buffer.from(`const image = getFileBase64('reference-1')`, 'utf-8')
-    const contentUpdatedAt = new Date('2026-08-05T01:00:00.000Z')
     setEnvFlags({ isDocSandboxEnabled: false })
-    mockGetWorkspaceFile.mockResolvedValue({
-      id: 'reference-1',
-      workspaceId: WORKSPACE_ID,
-      name: 'reference.png',
-      key: `workspace/${WORKSPACE_ID}/reference.png`,
-      path: '/api/files/serve/reference.png',
-      size: 10,
-      type: 'image/png',
-      uploadedBy: 'user-1',
-      uploadedAt: contentUpdatedAt,
-      updatedAt: contentUpdatedAt,
-      contentUpdatedAt,
-      storageContext: 'workspace',
-    })
     mockLoadCompiledDoc.mockResolvedValue(null)
     const compiled = Buffer.from('%PDF-isolated-vm-referenced')
     mockRunSandboxTask.mockResolvedValue(compiled)
@@ -446,7 +430,7 @@ describe('resolveServableDocBytes', () => {
       { code: source.toString('utf-8'), workspaceId: WORKSPACE_ID },
       expect.objectContaining({})
     )
-    expect(mockGetWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockReadWorkspaceFileMetadata).not.toHaveBeenCalled()
     expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
     expect(mockStoreCompiledDoc).not.toHaveBeenCalled()
   })
@@ -465,7 +449,7 @@ describe('resolveServableDocBytes', () => {
       })
     ).resolves.toEqual({ buffer: compiled, contentType: 'application/pdf' })
     expect(mockRunSandboxTask).toHaveBeenCalledTimes(1)
-    expect(mockGetWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockReadWorkspaceFileMetadata).not.toHaveBeenCalled()
     expect(mockStoreCompiledDoc).not.toHaveBeenCalled()
   })
 

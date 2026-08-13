@@ -271,6 +271,8 @@ export interface BlockLog {
   error?: string
   /** Whether this error was handled by an error handler path (error port) */
   errorHandled?: boolean
+  /** Total handler tries, present only when the block retried at least once. */
+  tries?: number
   loopId?: string
   parallelId?: string
   iterationIndex?: number
@@ -336,6 +338,19 @@ export interface BlockState {
   resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
+/**
+ * Canonical signed execution identity used for executor-delegated internal operations.
+ *
+ * A nested workflow changes {@link ExecutionContext.workflowId} for execution semantics, but it
+ * still belongs to the parent log row identified here. Custom blocks replace this origin with the
+ * publisher-owned child execution after opening their own source-workspace log row.
+ */
+export interface ExecutorDelegationOrigin {
+  subjectUserId: string
+  workflowId: string
+  executionId?: string
+}
+
 export interface ExecutionContext {
   workflowId: string
   workspaceId?: string
@@ -345,6 +360,8 @@ export interface ExecutionContext {
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
+  /** Trusted origin for signed executor delegation, distinct from the currently executing child. */
+  executorDelegationOrigin?: ExecutorDelegationOrigin
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean
@@ -363,6 +380,8 @@ export interface ExecutionContext {
   startRunMetadata?: StartBlockRunMetadata
   environmentVariables: Record<string, string>
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  /** Exact candidates that may be carried by this block's terminal error, never its normal output. */
+  errorResolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   workflowVariables?: Record<string, any>
   workflowVariableResolvedSecretTraceProvenance?: Record<string, ResolvedSecretTraceProvenanceV1>
   workflowInputResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
@@ -572,6 +591,8 @@ export interface StreamingExecution {
   clientStreamTransformed?: boolean
   /** Internal provenance for the exact block input that initiated this live stream. */
   displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  /** Internal source registry retained only for sanitizing failures while the stream drains. */
+  diagnosticResolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   execution: ExecutionResult & { isStreaming?: boolean }
   /**
    * Invoked with the assembled response text after the stream drains. Lets agent

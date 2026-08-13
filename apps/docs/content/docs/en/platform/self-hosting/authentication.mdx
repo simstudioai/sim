@@ -84,7 +84,7 @@ See the [SSO guide](/platform/enterprise/sso) for identity-provider setup and th
 
 | Variable | Effect |
 |---|---|
-| `DISABLE_REGISTRATION=true` | Blocks email/password registration |
+| `DISABLE_REGISTRATION=true` | Blocks all new accounts — email/password, email OTP, and social sign-in. Only existing accounts can sign in, including to accept a workspace invitation. SSO is unaffected |
 | `DISABLE_EMAIL_SIGNUP=true` | Blocks new email/password registrations; existing email login keeps working |
 | `ALLOWED_LOGIN_DOMAINS` | Comma-separated domain allowlist, e.g. `acme.com,acme.co.uk`. Gates email sign-**in** as well as signup |
 | `ALLOWED_LOGIN_EMAILS` | Comma-separated address allowlist, applied the same way |
@@ -93,7 +93,9 @@ See the [SSO guide](/platform/enterprise/sso) for identity-provider setup and th
 | `BLOCKED_EMAIL_MX_HOSTS` | MX-host substrings to block; used only with the above |
 
 <Callout type="warn">
-  These controls gate the **email/password** path. A first-time sign-in through Google, GitHub, or Microsoft creates an account through the social provider and is not filtered by them. If you need a hard boundary, disable the social providers you have not vetted (`DISABLE_GOOGLE_AUTH`, `DISABLE_GITHUB_AUTH`, `DISABLE_MICROSOFT_AUTH`) or restrict membership at the identity provider and use SSO.
+  `ALLOWED_LOGIN_DOMAINS`, `ALLOWED_LOGIN_EMAILS`, and `SIGNUP_MX_VALIDATION_ENABLED` gate the **email/password** path only. A first-time sign-in through Google, GitHub, or Microsoft creates an account through the social provider and is not filtered by them. To restrict who may sign in through a social provider, disable the ones you have not vetted (`DISABLE_GOOGLE_AUTH`, `DISABLE_GITHUB_AUTH`, `DISABLE_MICROSOFT_AUTH`) or restrict membership at the identity provider and use SSO.
+
+  `DISABLE_REGISTRATION` and `BLOCKED_SIGNUP_DOMAINS` apply to every path, social included.
 </Callout>
 
 For a company deployment, the usual pairing is domain-restricted signup plus SSO:

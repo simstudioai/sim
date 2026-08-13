@@ -70,6 +70,7 @@ export const imapPollingTrigger: TriggerConfig = {
     {
       id: 'mailbox',
       title: 'Mailboxes to Monitor',
+      canvasNoun: 'a mailbox',
       type: 'dropdown',
       multiSelect: true,
       placeholder: 'Select mailboxes to monitor',

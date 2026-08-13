@@ -293,6 +293,15 @@ export const validateCopilotApiKeyBodySchema = z.object({
 })
 export type ValidateCopilotApiKeyBody = z.input<typeof validateCopilotApiKeyBodySchema>
 
+export const validateCopilotApiKeyResponseSchema = z.object({
+  /**
+   * Server-derived entitlement for the validated key owner. Mothership treats
+   * a missing or false value as ineligible for enterprise-only capabilities.
+   */
+  isEnterprise: z.boolean(),
+})
+export type ValidateCopilotApiKeyResponse = z.output<typeof validateCopilotApiKeyResponseSchema>
+
 export const listCopilotApiKeysContract = defineRouteContract({
   method: 'GET',
   path: '/api/copilot/api-keys',
@@ -486,7 +495,7 @@ export const validateCopilotApiKeyContract = defineRouteContract({
   path: '/api/copilot/api-keys/validate',
   headers: validateCopilotApiKeyHeadersSchema,
   body: validateCopilotApiKeyBodySchema,
-  response: { mode: 'empty' },
+  response: { mode: 'json', schema: validateCopilotApiKeyResponseSchema },
   error: validateCopilotApiKeyErrorSchema,
 })
 

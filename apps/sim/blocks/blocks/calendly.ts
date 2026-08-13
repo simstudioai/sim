@@ -1,8 +1,29 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { CalendlyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 import { getTrigger } from '@/triggers'
+
+/**
+ * The list endpoints scope by a user URI or an organization URI, never both, so
+ * the clause takes whichever the user filled.
+ */
+const SCOPE_FIELD = ['user', 'organization'] as const
+
+/**
+ * A `json` field arrives as text the user typed, but as a real array when an upstream block is
+ * referenced, so only the text form is parsed.
+ */
+function parseJsonArray(value: unknown, field: string): unknown {
+  if (typeof value !== 'string') return value
+
+  try {
+    return JSON.parse(value)
+  } catch (error) {
+    throw new Error(`Invalid JSON input for ${field}: ${getErrorMessage(error)}`)
+  }
+}
 
 export const CalendlyBlock: BlockConfig<ToolResponse> = {
   type: 'calendly',
@@ -17,6 +38,83 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
   icon: CalendlyIcon,
+  canvasPresentation: {
+    defaultTitle: 'Calendly',
+    triggerSentences: {
+      byTrigger: {
+        calendly_webhook: ['Run on any scheduling event'],
+      },
+    },
+    sentences: {
+      byOperation: {
+        calendly_get_current_user: ['Read the connected account profile'],
+        calendly_get_user: [{ text: 'Read user', field: 'userUuid', core: true }],
+        calendly_list_event_types: ['List event types', { text: ', for', field: SCOPE_FIELD }],
+        calendly_get_event_type: [{ text: 'Read event type', field: 'eventTypeUuid', core: true }],
+        calendly_list_event_type_available_times: [
+          { text: 'List open slots for event type', field: 'eventTypeUri', core: true },
+          { text: ', from', field: 'startTime' },
+          { text: ', until', field: 'endTime' },
+        ],
+        calendly_list_scheduled_events: [
+          'List scheduled events',
+          { text: ', for', field: SCOPE_FIELD },
+          { text: ', with invitee', field: 'invitee_email' },
+          { text: ', starting after', field: 'min_start_time' },
+        ],
+        calendly_get_scheduled_event: [
+          { text: 'Read scheduled event', field: 'eventUuid', core: true },
+        ],
+        calendly_list_event_invitees: [
+          { text: 'List invitees of event', field: 'eventUuid', core: true },
+          { text: ', matching', field: 'email' },
+          { text: ', with status', field: 'status' },
+        ],
+        calendly_get_event_invitee: [
+          { text: 'Read invitee', field: 'inviteeUuid', core: true },
+          { text: ', of event', field: 'eventUuid' },
+        ],
+        calendly_create_event_invitee: [
+          { text: 'Book event type', field: 'eventTypeUri', core: true },
+          { text: ', for', field: 'inviteeEmail' },
+          { text: ', at', field: 'startTime' },
+        ],
+        calendly_cancel_event: [
+          { text: 'Cancel event', field: 'eventUuid', core: true },
+          { text: ', with reason', field: 'reason' },
+        ],
+        calendly_create_invitee_no_show: [
+          { text: 'Mark invitee as a no-show', field: 'inviteeUri', core: true },
+        ],
+        calendly_delete_invitee_no_show: [
+          { text: 'Remove no-show', field: 'noShowUuid', core: true },
+        ],
+        calendly_create_scheduling_link: [
+          { text: 'Create a single-use link for event type', field: 'eventTypeUri', core: true },
+        ],
+        calendly_list_user_busy_times: [
+          { text: 'List busy times for', field: 'user', core: true },
+          { text: ', from', field: 'startTime' },
+          { text: ', until', field: 'endTime' },
+        ],
+        calendly_list_user_availability_schedules: [
+          { text: 'List availability schedules for', field: 'user', core: true },
+        ],
+        calendly_list_organization_memberships: [
+          'List organization members',
+          { text: ', in', field: 'organization' },
+          { text: ', with role', field: 'role' },
+          { text: ', matching', field: 'email' },
+        ],
+        calendly_list_routing_forms: [
+          { text: 'List routing forms of', field: 'organization', core: true },
+        ],
+        calendly_list_routing_form_submissions: [
+          { text: 'List submissions of routing form', field: 'formUri', core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -24,12 +122,30 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Get Current User', id: 'calendly_get_current_user' },
+        { label: 'Get User', id: 'calendly_get_user' },
         { label: 'List Event Types', id: 'calendly_list_event_types' },
         { label: 'Get Event Type', id: 'calendly_get_event_type' },
+        {
+          label: 'List Event Type Available Times',
+          id: 'calendly_list_event_type_available_times',
+        },
         { label: 'List Scheduled Events', id: 'calendly_list_scheduled_events' },
         { label: 'Get Scheduled Event', id: 'calendly_get_scheduled_event' },
         { label: 'List Event Invitees', id: 'calendly_list_event_invitees' },
+        { label: 'Get Event Invitee', id: 'calendly_get_event_invitee' },
+        { label: 'Book Meeting', id: 'calendly_create_event_invitee' },
         { label: 'Cancel Event', id: 'calendly_cancel_event' },
+        { label: 'Mark Invitee No-Show', id: 'calendly_create_invitee_no_show' },
+        { label: 'Unmark Invitee No-Show', id: 'calendly_delete_invitee_no_show' },
+        { label: 'Create Scheduling Link', id: 'calendly_create_scheduling_link' },
+        { label: 'List User Busy Times', id: 'calendly_list_user_busy_times' },
+        {
+          label: 'List User Availability Schedules',
+          id: 'calendly_list_user_availability_schedules',
+        },
+        { label: 'List Organization Memberships', id: 'calendly_list_organization_memberships' },
+        { label: 'List Routing Forms', id: 'calendly_list_routing_forms' },
+        { label: 'List Routing Form Submissions', id: 'calendly_list_routing_form_submissions' },
       ],
       value: () => 'calendly_list_scheduled_events',
     },
@@ -41,7 +157,14 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
       password: true,
       required: true,
     },
-    // Get Event Type fields
+    {
+      id: 'userUuid',
+      title: 'User UUID',
+      type: 'short-input',
+      placeholder: 'Enter user UUID or URI, or "me"',
+      required: true,
+      condition: { field: 'operation', value: 'calendly_get_user' },
+    },
     {
       id: 'eventTypeUuid',
       title: 'Event Type UUID',
@@ -50,25 +173,55 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
       required: true,
       condition: { field: 'operation', value: 'calendly_get_event_type' },
     },
-    // List Event Types fields
+    {
+      id: 'eventTypeUri',
+      title: 'Event Type',
+      type: 'short-input',
+      placeholder: 'Enter event type UUID or URI',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: [
+          'calendly_list_event_type_available_times',
+          'calendly_create_event_invitee',
+          'calendly_create_scheduling_link',
+        ],
+      },
+    },
     {
       id: 'user',
       title: 'User URI',
       type: 'short-input',
-      placeholder: 'Filter by user URI',
+      placeholder: 'Enter user UUID or URI',
+      required: {
+        field: 'operation',
+        value: ['calendly_list_user_busy_times', 'calendly_list_user_availability_schedules'],
+      },
       condition: {
         field: 'operation',
-        value: ['calendly_list_event_types', 'calendly_list_scheduled_events'],
+        value: [
+          'calendly_list_event_types',
+          'calendly_list_scheduled_events',
+          'calendly_list_user_busy_times',
+          'calendly_list_user_availability_schedules',
+          'calendly_list_organization_memberships',
+        ],
       },
     },
     {
       id: 'organization',
       title: 'Organization URI',
       type: 'short-input',
-      placeholder: 'Filter by organization URI (optional)',
+      placeholder: 'Enter organization UUID or URI',
+      required: { field: 'operation', value: 'calendly_list_routing_forms' },
       condition: {
         field: 'operation',
-        value: ['calendly_list_event_types', 'calendly_list_scheduled_events'],
+        value: [
+          'calendly_list_event_types',
+          'calendly_list_scheduled_events',
+          'calendly_list_organization_memberships',
+          'calendly_list_routing_forms',
+        ],
       },
     },
     {
@@ -79,7 +232,6 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
         'When enabled, shows only active event types. When disabled, shows all event types.',
       condition: { field: 'operation', value: 'calendly_list_event_types' },
     },
-    // List Scheduled Events fields
     {
       id: 'invitee_email',
       title: 'Invitee Email',
@@ -91,6 +243,7 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
       id: 'min_start_time',
       title: 'Min Start Time',
       type: 'short-input',
+      mode: 'advanced',
       placeholder: 'ISO 8601 format (e.g., 2024-01-01T00:00:00Z)',
       condition: { field: 'operation', value: 'calendly_list_scheduled_events' },
       wandConfig: {
@@ -112,6 +265,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       id: 'max_start_time',
       title: 'Max Start Time',
       type: 'short-input',
+      mode: 'advanced',
       placeholder: 'ISO 8601 format (e.g., 2024-12-31T23:59:59Z)',
       condition: { field: 'operation', value: 'calendly_list_scheduled_events' },
       wandConfig: {
@@ -143,7 +297,60 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
         value: ['calendly_list_scheduled_events', 'calendly_list_event_invitees'],
       },
     },
-    // Get Scheduled Event / List Invitees / Cancel Event fields
+    {
+      id: 'startTime',
+      title: 'Start Time',
+      type: 'short-input',
+      placeholder: 'ISO 8601 format (e.g., 2024-01-01T00:00:00Z)',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: [
+          'calendly_list_event_type_available_times',
+          'calendly_list_user_busy_times',
+          'calendly_create_event_invitee',
+        ],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "today" -> Today's date at 00:00:00Z
+- "tomorrow morning" -> Tomorrow's date at 09:00:00Z
+- "start of next week" -> Monday of next week at 00:00:00Z
+
+Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "today", "tomorrow morning")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'endTime',
+      title: 'End Time',
+      type: 'short-input',
+      placeholder: 'ISO 8601 format (e.g., 2024-01-07T00:00:00Z)',
+      description:
+        'Busy times allow a range of up to 7 days. Available times allow a range of up to 31 days.',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['calendly_list_event_type_available_times', 'calendly_list_user_busy_times'],
+      },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "end of today" -> Today's date at 23:59:59Z
+- "in 7 days" -> 7 days from now at 23:59:59Z
+- "end of this week" -> Sunday of the current week at 23:59:59Z
+
+Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "in 7 days", "end of week")...',
+        generationType: 'timestamp',
+      },
+    },
     {
       id: 'eventUuid',
       title: 'Event UUID',
@@ -155,11 +362,19 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
         value: [
           'calendly_get_scheduled_event',
           'calendly_list_event_invitees',
+          'calendly_get_event_invitee',
           'calendly_cancel_event',
         ],
       },
     },
-    // Cancel Event fields
+    {
+      id: 'inviteeUuid',
+      title: 'Invitee UUID',
+      type: 'short-input',
+      placeholder: 'Enter invitee UUID or URI',
+      required: true,
+      condition: { field: 'operation', value: 'calendly_get_event_invitee' },
+    },
     {
       id: 'reason',
       title: 'Cancellation Reason',
@@ -167,19 +382,121 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       placeholder: 'Reason for cancellation (optional)',
       condition: { field: 'operation', value: 'calendly_cancel_event' },
     },
-    // List Event Invitees fields
+    {
+      id: 'inviteeEmail',
+      title: 'Invitee Email',
+      type: 'short-input',
+      placeholder: 'Email address of the person being booked',
+      required: true,
+      condition: { field: 'operation', value: 'calendly_create_event_invitee' },
+    },
+    {
+      id: 'inviteeName',
+      title: 'Invitee Name',
+      type: 'short-input',
+      placeholder: 'Full name of the invitee',
+      description: 'Provide a full name or a first name.',
+      condition: { field: 'operation', value: 'calendly_create_event_invitee' },
+    },
+    {
+      id: 'inviteeTimezone',
+      title: 'Invitee Timezone',
+      type: 'short-input',
+      placeholder: 'IANA timezone (e.g., America/New_York)',
+      required: true,
+      condition: { field: 'operation', value: 'calendly_create_event_invitee' },
+    },
+    {
+      id: 'inviteeFirstName',
+      title: 'Invitee First Name',
+      type: 'short-input',
+      placeholder: 'First name of the invitee',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'calendly_create_event_invitee' },
+    },
+    {
+      id: 'inviteeLastName',
+      title: 'Invitee Last Name',
+      type: 'short-input',
+      placeholder: 'Last name of the invitee',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'calendly_create_event_invitee' },
+    },
+    {
+      id: 'textReminderNumber',
+      title: 'Text Reminder Number',
+      type: 'short-input',
+      placeholder: 'E.164 phone number (e.g., +14155551234)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'calendly_create_event_invitee' },
+    },
+    {
+      id: 'eventGuests',
+      title: 'Event Guests',
+      type: 'long-input',
+      placeholder: '["guest@example.com"]',
+      description: 'Additional guests to copy on the invite. Maximum of 10.',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'calendly_create_event_invitee' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of guest email address strings, for example ["guest@example.com"]. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe the guests to copy on the invite...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'inviteeUri',
+      title: 'Invitee URI',
+      type: 'short-input',
+      placeholder: 'https://api.calendly.com/scheduled_events/.../invitees/...',
+      required: true,
+      condition: { field: 'operation', value: 'calendly_create_invitee_no_show' },
+    },
+    {
+      id: 'noShowUuid',
+      title: 'No-Show UUID',
+      type: 'short-input',
+      placeholder: 'Enter no-show UUID or URI',
+      required: true,
+      condition: { field: 'operation', value: 'calendly_delete_invitee_no_show' },
+    },
+    {
+      id: 'role',
+      title: 'Role',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Owner', id: 'owner' },
+        { label: 'Admin', id: 'admin' },
+        { label: 'User', id: 'user' },
+      ],
+      condition: { field: 'operation', value: 'calendly_list_organization_memberships' },
+    },
+    {
+      id: 'formUri',
+      title: 'Routing Form',
+      type: 'short-input',
+      placeholder: 'Enter routing form UUID or URI',
+      required: true,
+      condition: { field: 'operation', value: 'calendly_list_routing_form_submissions' },
+    },
     {
       id: 'email',
       title: 'Email',
       type: 'short-input',
       placeholder: 'Filter by invitee email',
-      condition: { field: 'operation', value: 'calendly_list_event_invitees' },
+      condition: {
+        field: 'operation',
+        value: ['calendly_list_event_invitees', 'calendly_list_organization_memberships'],
+      },
     },
-    // Pagination fields
     {
       id: 'count',
       title: 'Results Per Page',
       type: 'short-input',
+      mode: 'advanced',
       placeholder: 'Number of results (default: 20, max: 100)',
       condition: {
         field: 'operation',
@@ -187,6 +504,9 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           'calendly_list_event_types',
           'calendly_list_scheduled_events',
           'calendly_list_event_invitees',
+          'calendly_list_organization_memberships',
+          'calendly_list_routing_forms',
+          'calendly_list_routing_form_submissions',
         ],
       },
     },
@@ -194,6 +514,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       id: 'pageToken',
       title: 'Page Token',
       type: 'short-input',
+      mode: 'advanced',
       placeholder: 'Token for pagination',
       condition: {
         field: 'operation',
@@ -201,6 +522,9 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           'calendly_list_event_types',
           'calendly_list_scheduled_events',
           'calendly_list_event_invitees',
+          'calendly_list_organization_memberships',
+          'calendly_list_routing_forms',
+          'calendly_list_routing_form_submissions',
         ],
       },
     },
@@ -208,6 +532,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       id: 'sort',
       title: 'Sort Order',
       type: 'short-input',
+      mode: 'advanced',
       placeholder: 'e.g., "name:asc", "start_time:desc"',
       condition: {
         field: 'operation',
@@ -215,10 +540,11 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
           'calendly_list_event_types',
           'calendly_list_scheduled_events',
           'calendly_list_event_invitees',
+          'calendly_list_routing_forms',
+          'calendly_list_routing_form_submissions',
         ],
       },
     },
-    // Trigger SubBlocks
     ...getTrigger('calendly_invitee_created').subBlocks,
     ...getTrigger('calendly_invitee_canceled').subBlocks,
     ...getTrigger('calendly_routing_form_submitted').subBlocks,
@@ -227,31 +553,40 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
   tools: {
     access: [
       'calendly_get_current_user',
+      'calendly_get_user',
       'calendly_list_event_types',
       'calendly_get_event_type',
+      'calendly_list_event_type_available_times',
       'calendly_list_scheduled_events',
       'calendly_get_scheduled_event',
       'calendly_list_event_invitees',
+      'calendly_get_event_invitee',
+      'calendly_create_event_invitee',
       'calendly_cancel_event',
+      'calendly_create_invitee_no_show',
+      'calendly_delete_invitee_no_show',
+      'calendly_create_scheduling_link',
+      'calendly_list_user_busy_times',
+      'calendly_list_user_availability_schedules',
+      'calendly_list_organization_memberships',
+      'calendly_list_routing_forms',
+      'calendly_list_routing_form_submissions',
     ],
     config: {
       tool: (params) => {
         return params.operation || 'calendly_list_scheduled_events'
       },
       params: (params) => {
-        const { operation, events, ...rest } = params
-
-        let parsedEvents: any | undefined
-
-        try {
-          if (events) parsedEvents = JSON.parse(events)
-        } catch (error: any) {
-          throw new Error(`Invalid JSON input for events: ${error.message}`)
-        }
+        const { operation, events, eventGuests, active, ...rest } = params
 
         return {
           ...rest,
-          ...(parsedEvents && { events: parsedEvents }),
+          // The switch cannot express "inactive only", so off means unfiltered, not `active=false`.
+          ...(active === true && { active: true }),
+          ...(events !== undefined && { events: parseJsonArray(events, 'events') }),
+          ...(eventGuests !== undefined && {
+            eventGuests: parseJsonArray(eventGuests, 'eventGuests'),
+          }),
         }
       },
     },
@@ -259,26 +594,36 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Personal access token' },
-    // Event Type params
+    userUuid: { type: 'string', description: 'User UUID' },
     eventTypeUuid: { type: 'string', description: 'Event type UUID' },
+    eventTypeUri: { type: 'string', description: 'Event type UUID or URI' },
     user: { type: 'string', description: 'User URI filter' },
     organization: { type: 'string', description: 'Organization URI' },
     active: { type: 'boolean', description: 'Filter by active status' },
-    // Scheduled Event params
+    startTime: { type: 'string', description: 'Start of the requested range (ISO 8601)' },
+    endTime: { type: 'string', description: 'End of the requested range (ISO 8601)' },
     eventUuid: { type: 'string', description: 'Scheduled event UUID' },
     invitee_email: { type: 'string', description: 'Filter by invitee email' },
     min_start_time: { type: 'string', description: 'Minimum start time (ISO 8601)' },
     max_start_time: { type: 'string', description: 'Maximum start time (ISO 8601)' },
     status: { type: 'string', description: 'Status filter (active or canceled)' },
-    // Cancel Event params
     reason: { type: 'string', description: 'Cancellation reason' },
-    // Invitees params
     email: { type: 'string', description: 'Filter by email' },
-    // Pagination params
+    inviteeUuid: { type: 'string', description: 'Invitee UUID' },
+    inviteeUri: { type: 'string', description: 'Invitee URI' },
+    noShowUuid: { type: 'string', description: 'No-show UUID' },
+    inviteeEmail: { type: 'string', description: 'Email address of the invitee being booked' },
+    inviteeName: { type: 'string', description: 'Full name of the invitee' },
+    inviteeFirstName: { type: 'string', description: 'First name of the invitee' },
+    inviteeLastName: { type: 'string', description: 'Last name of the invitee' },
+    inviteeTimezone: { type: 'string', description: 'Timezone of the invitee' },
+    textReminderNumber: { type: 'string', description: 'Phone number for SMS reminders' },
+    eventGuests: { type: 'json', description: 'Array of additional guest email addresses' },
+    role: { type: 'string', description: 'Filter memberships by role' },
+    formUri: { type: 'string', description: 'Routing form UUID or URI' },
     count: { type: 'number', description: 'Results per page' },
     pageToken: { type: 'string', description: 'Pagination token' },
     sort: { type: 'string', description: 'Sort order' },
-    // Webhook params
     webhookUuid: { type: 'string', description: 'Webhook UUID' },
     url: { type: 'string', description: 'Webhook callback URL' },
     events: { type: 'json', description: 'Array of event types' },
@@ -286,14 +631,10 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     signing_key: { type: 'string', description: 'Webhook signing key' },
   },
   outputs: {
-    // Common outputs
     success: { type: 'boolean', description: 'Whether operation succeeded' },
-    // User outputs
     resource: { type: 'json', description: 'Resource data (user, event type, event, etc.)' },
-    // List outputs
     collection: { type: 'json', description: 'Array of items' },
     pagination: { type: 'json', description: 'Pagination information' },
-    // Event details
     uri: { type: 'string', description: 'Resource URI' },
     name: { type: 'string', description: 'Resource name' },
     email: { type: 'string', description: 'Email address' },
@@ -302,13 +643,11 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
     end_time: { type: 'string', description: 'Event end time (ISO 8601)' },
     location: { type: 'json', description: 'Event location details' },
     scheduling_url: { type: 'string', description: 'Scheduling page URL' },
-    // Webhook outputs
+    booking_url: { type: 'string', description: 'Single-use scheduling link' },
     callback_url: { type: 'string', description: 'Webhook URL' },
     signing_key: { type: 'string', description: 'Webhook signing key' },
-    // Delete outputs
     deleted: { type: 'boolean', description: 'Whether deletion succeeded' },
     message: { type: 'string', description: 'Status message' },
-    // Trigger outputs
     event: { type: 'string', description: 'Webhook event type' },
     created_at: { type: 'string', description: 'Webhook event creation timestamp' },
     created_by: {
@@ -403,6 +742,34 @@ export const CalendlyBlockMeta = {
     },
   ],
   skills: [
+    {
+      name: 'book-a-meeting',
+      description:
+        'Find an open slot on a Calendly event type and book an invitee into it. Use to schedule a meeting end to end without sending the invitee a link.',
+      content:
+        '# Book a Meeting\n\nSchedule a Calendly meeting directly.\n\n## Steps\n1. Use List Event Types to find the event type to book, and take its URI.\n2. Use List Event Type Available Times with that event type and a start/end window (ISO 8601 UTC, at most 31 days apart) to get open slots.\n3. Pick a slot and use Book Meeting with the event type, the slot start time, and the invitee email, timezone, and name. Add event guests to copy others on the invite.\n\n## Output\nReturn the booked start time, the invitee, and the reschedule and cancel URLs. Booking requires a paid Calendly plan; if the call is rejected as forbidden, say so rather than retrying. If no slot matches the request, report the nearest available times instead of booking a different one.',
+    },
+    {
+      name: 'check-availability',
+      description:
+        "Read a Calendly user's busy times and working hours for a date range. Use to find when someone is free before proposing times.",
+      content:
+        "# Check Availability\n\nInspect when a host is free.\n\n## Steps\n1. Get the user URI (Get Current User for yourself, or List Organization Memberships to find a teammate by email).\n2. Use List User Busy Times with that user and a start/end window (ISO 8601 UTC, at most 7 days apart) to get booked and externally blocked time.\n3. Use List User Availability Schedules to read the working hours and date overrides the busy times sit inside.\n\n## Output\nReturn the free windows implied by the working hours minus the busy blocks, in the schedule's timezone. Note which busy blocks are Calendly events versus external calendar holds. Both endpoints cap the range, so split a longer request into several calls rather than widening the window.",
+    },
+    {
+      name: 'share-a-single-use-link',
+      description:
+        'Create a one-time Calendly booking link for an event type. Use to invite someone to schedule without exposing a reusable link.',
+      content:
+        '# Share a Single-Use Link\n\nHand out a booking link that works once.\n\n## Steps\n1. Use List Event Types to find the event type and take its URI.\n2. Use Create Scheduling Link with that event type.\n3. Send the returned booking URL to the invitee.\n\n## Output\nReturn the booking URL and the event type it books. Make clear the link expires after one booking, so generate a new one per invitee rather than reusing it.',
+    },
+    {
+      name: 'mark-a-no-show',
+      description:
+        'Flag a Calendly invitee who did not attend, or clear that flag. Use when reconciling attendance after a meeting.',
+      content:
+        '# Mark a No-Show\n\nRecord attendance for a past meeting.\n\n## Steps\n1. Use List Event Invitees for the scheduled event and take the URI of the invitee who did not attend.\n2. Use Mark Invitee No-Show with that invitee URI.\n3. To reverse it, take the no-show URI from the invitee record and use Unmark Invitee No-Show.\n\n## Output\nReturn which invitees were marked and the no-show URI for each, so the flag can be reversed later. Only mark meetings that have already ended.',
+    },
     {
       name: 'list-upcoming-meetings',
       description:

@@ -28,6 +28,7 @@ export const fathomWebhookTrigger: TriggerConfig = {
     {
       id: 'triggeredFor',
       title: 'Trigger For',
+      canvasNoun: 'a recording set',
       type: 'dropdown',
       options: [
         { label: 'My Recordings', id: 'my_recordings' },

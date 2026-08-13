@@ -4,6 +4,7 @@
 import { document, embedding, knowledgeBase, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   deleteAllTagDefinitions,
   deleteTagDefinition,
@@ -58,6 +59,14 @@ describe('knowledge tag deletion provenance', () => {
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+
+  it('classifies provenance rejection as a caller-actionable conflict', () => {
+    expect(asOrchestrationError(new KnowledgeTagProvenanceConflictError())).toMatchObject({
+      code: 'conflict',
+      message:
+        'Tag definitions cannot be deleted while resolved-secret document provenance is present',
+    })
   })
 
   it('clears every bounded tag slot through the same guarded mutation path', async () => {

@@ -17,6 +17,7 @@ import {
 import { saveWorkflowToNormalizedTables as saveWorkflowToNormalizedTablesRaw } from '@sim/workflow-persistence/save'
 import type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@sim/workflow-types/workflow'
+import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
@@ -171,9 +172,38 @@ async function materializeDeploymentState(
     state.blocks || {},
     resolvedWorkspaceId
   )
+  /*
+   * Read straight out of the version's jsonb blob, so unlike every path that
+   * goes through `loadWorkflowFromNormalizedTables` these handles were never
+   * canonicalized. Change detection diffs this against a normalized live state,
+   * so a snapshot holding a side-anchored id would report every edge as
+   * added-and-removed and pin the workflow to "needs redeploy" forever.
+   */
+  const edges = normalizeWorkflowEdgeHandles(state.edges)
+
+  /*
+   * An error edge means the error output is on. Every version before the toggle
+   * drew that port unconditionally, so a snapshot with such an edge was taken
+   * from a block that had the output — and the migration backfilling the flag
+   * only reaches the live tables, never a version's frozen jsonb. Without this
+   * the deployed side reads `false` against a live `true` and every workflow
+   * deployed before the toggle asks to be redeployed once. Same rule as
+   * `workflow-block.tsx` applies at render time; neither may read the flag alone.
+   */
+  const errorSourceBlockIds = new Set(
+    edges.filter((edge) => edge.sourceHandle === 'error').map((edge) => edge.source)
+  )
+  const blocks: DeployedWorkflowData['blocks'] = {}
+  for (const [blockId, block] of Object.entries(migratedBlocks)) {
+    blocks[blockId] =
+      block.errorEnabled || !errorSourceBlockIds.has(blockId)
+        ? block
+        : { ...block, errorEnabled: true }
+  }
+
   const deployedState: DeployedWorkflowData = {
-    blocks: migratedBlocks,
-    edges: state.edges || [],
+    blocks,
+    edges,
     loops: state.loops || {},
     parallels: state.parallels || {},
     variables: state.variables || {},
@@ -618,13 +648,15 @@ export async function updateDeploymentVersionMetadata(params: {
   version: number
   name?: string | null
   description?: string | null
+  tx?: DbOrTx
 }): Promise<{ name: string | null; description: string | null } | null> {
+  const executor = params.tx ?? db
   const updateData: { name?: string | null; description?: string | null } = {}
   if (params.name !== undefined) updateData.name = params.name
   if (params.description !== undefined) updateData.description = params.description
 
   if (Object.keys(updateData).length === 0) {
-    const [row] = await db
+    const [row] = await executor
       .select({
         name: workflowDeploymentVersion.name,
         description: workflowDeploymentVersion.description,
@@ -640,7 +672,7 @@ export async function updateDeploymentVersionMetadata(params: {
     return row ?? null
   }
 
-  const [updated] = await db
+  const [updated] = await executor
     .update(workflowDeploymentVersion)
     .set(updateData)
     .where(
@@ -912,7 +944,7 @@ export async function findPreviousDeploymentVersion(
  */
 export async function getWorkflowDeploymentVersion(
   workflowId: string,
-  version: number
+  version: number | 'active'
 ): Promise<{
   id: string
   version: number
@@ -922,6 +954,10 @@ export async function getWorkflowDeploymentVersion(
   createdAt: Date
   state: unknown
 } | null> {
+  const versionPredicate =
+    version === 'active'
+      ? eq(workflowDeploymentVersion.isActive, true)
+      : eq(workflowDeploymentVersion.version, version)
   const [row] = await db
     .select({
       id: workflowDeploymentVersion.id,
@@ -933,18 +969,27 @@ export async function getWorkflowDeploymentVersion(
       state: workflowDeploymentVersion.state,
     })
     .from(workflowDeploymentVersion)
-    .where(
-      and(
-        eq(workflowDeploymentVersion.workflowId, workflowId),
-        eq(workflowDeploymentVersion.version, version)
-      )
-    )
+    .where(and(eq(workflowDeploymentVersion.workflowId, workflowId), versionPredicate))
     .limit(1)
 
   return row ?? null
 }
 
-export async function listWorkflowVersions(workflowId: string): Promise<{
+export interface ListWorkflowVersionsOptions {
+  /** Caps the rows read. Omitted reads every version. */
+  limit?: number
+  /**
+   * Keyset bound for the `version DESC` ordering: returns only versions
+   * strictly below this number, i.e. the page *after* it. Paired with `limit`
+   * this keeps a paginated caller off a full-table read.
+   */
+  afterVersion?: number
+}
+
+export async function listWorkflowVersions(
+  workflowId: string,
+  options: ListWorkflowVersionsOptions = {}
+): Promise<{
   versions: Array<{
     id: string
     version: number
@@ -959,22 +1004,29 @@ export async function listWorkflowVersions(workflowId: string): Promise<{
 }> {
   const { user } = await import('@sim/db')
 
+  const versionConditions = [eq(workflowDeploymentVersion.workflowId, workflowId)]
+  if (options.afterVersion !== undefined) {
+    versionConditions.push(lt(workflowDeploymentVersion.version, options.afterVersion))
+  }
+
+  const versionQuery = db
+    .select({
+      id: workflowDeploymentVersion.id,
+      version: workflowDeploymentVersion.version,
+      name: workflowDeploymentVersion.name,
+      description: workflowDeploymentVersion.description,
+      isActive: workflowDeploymentVersion.isActive,
+      createdAt: workflowDeploymentVersion.createdAt,
+      createdBy: workflowDeploymentVersion.createdBy,
+      deployedByName: user.name,
+    })
+    .from(workflowDeploymentVersion)
+    .leftJoin(user, eq(workflowDeploymentVersion.createdBy, user.id))
+    .where(and(...versionConditions))
+    .orderBy(desc(workflowDeploymentVersion.version))
+
   const [rows, [currentOperation]] = await Promise.all([
-    db
-      .select({
-        id: workflowDeploymentVersion.id,
-        version: workflowDeploymentVersion.version,
-        name: workflowDeploymentVersion.name,
-        description: workflowDeploymentVersion.description,
-        isActive: workflowDeploymentVersion.isActive,
-        createdAt: workflowDeploymentVersion.createdAt,
-        createdBy: workflowDeploymentVersion.createdBy,
-        deployedByName: user.name,
-      })
-      .from(workflowDeploymentVersion)
-      .leftJoin(user, eq(workflowDeploymentVersion.createdBy, user.id))
-      .where(eq(workflowDeploymentVersion.workflowId, workflowId))
-      .orderBy(desc(workflowDeploymentVersion.version)),
+    options.limit !== undefined ? versionQuery.limit(options.limit) : versionQuery,
     /**
      * Only the workflow's current (latest-generation) operation carries a
      * status marker: a failed or in-flight attempt is live information until

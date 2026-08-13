@@ -1295,9 +1295,7 @@ interface StripeMetadata {
   [key: string]: string
 }
 
-// ============================================================================
 // Payment Intent Types
-// ============================================================================
 
 interface PaymentIntentObject {
   id: string
@@ -1394,9 +1392,7 @@ export interface PaymentIntentListResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Customer Types
-// ============================================================================
 
 interface CustomerObject {
   id: string
@@ -1484,9 +1480,7 @@ export interface CustomerDeleteResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Subscription Types
-// ============================================================================
 
 interface SubscriptionObject {
   id: string
@@ -1581,9 +1575,7 @@ export interface SubscriptionListResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Invoice Types
-// ============================================================================
 
 interface InvoiceObject {
   id: string
@@ -1691,9 +1683,7 @@ export interface InvoiceDeleteResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Charge Types
-// ============================================================================
 
 interface ChargeObject {
   id: string
@@ -1775,9 +1765,7 @@ export interface ChargeListResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Product Types
-// ============================================================================
 
 interface ProductObject {
   id: string
@@ -1860,9 +1848,7 @@ export interface ProductDeleteResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Price Types
-// ============================================================================
 
 interface PriceObject {
   id: string
@@ -1940,9 +1926,7 @@ export interface PriceListResponse extends ToolResponse {
   }
 }
 
-// ============================================================================
 // Event Types
-// ============================================================================
 
 interface EventObject {
   id: string

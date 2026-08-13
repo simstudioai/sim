@@ -1,25 +1,49 @@
 import type { ToolResponse } from '@/tools/types'
 
+/** Shared pagination envelope returned by every Calendly list endpoint. */
+export interface CalendlyPagination {
+  count: number
+  next_page: string | null
+  previous_page: string | null
+  next_page_token: string | null
+  previous_page_token: string | null
+}
+
+/** The User resource, returned by both `/users/me` and `/users/{uuid}`. */
+export interface CalendlyUserResource {
+  uri: string
+  name: string
+  slug: string
+  email: string
+  scheduling_url: string
+  timezone: string
+  time_notation: string
+  avatar_url: string | null
+  created_at: string
+  updated_at: string
+  current_organization: string
+  resource_type: string
+  locale: string
+}
+
 export interface CalendlyGetCurrentUserParams {
   apiKey: string
 }
 
 export interface CalendlyGetCurrentUserResponse extends ToolResponse {
   output: {
-    resource: {
-      uri: string
-      name: string
-      slug: string
-      email: string
-      scheduling_url: string
-      timezone: string
-      avatar_url: string
-      created_at: string
-      updated_at: string
-      current_organization: string
-      resource_type: string
-      locale: string
-    }
+    resource: CalendlyUserResource
+  }
+}
+
+export interface CalendlyGetUserParams {
+  apiKey: string
+  userUuid: string
+}
+
+export interface CalendlyGetUserResponse extends ToolResponse {
+  output: {
+    resource: CalendlyUserResource
   }
 }
 
@@ -311,9 +335,9 @@ export interface CalendlyCancelEventResponse extends ToolResponse {
 export interface CalendlyListWebhooksParams {
   apiKey: string
   organization: string
+  scope: string
   count?: number
   pageToken?: string
-  scope?: string
   user?: string
 }
 
@@ -346,7 +370,7 @@ export interface CalendlyListWebhooksResponse extends ToolResponse {
 export interface CalendlyCreateWebhookParams {
   apiKey: string
   url: string
-  events: string[]
+  events: string[] | string
   organization: string
   user?: string
   scope: string
@@ -381,5 +405,306 @@ export interface CalendlyDeleteWebhookResponse extends ToolResponse {
   output: {
     deleted: boolean
     message: string
+  }
+}
+
+/** The Invitee resource, returned by the single-invitee read and by the booking endpoint. */
+export interface CalendlyInviteeResource {
+  uri: string
+  email: string
+  name: string
+  first_name: string | null
+  last_name: string | null
+  status: string
+  timezone: string
+  event: string
+  created_at: string
+  updated_at: string
+  cancel_url: string
+  reschedule_url: string
+  rescheduled: boolean
+  old_invitee: string | null
+  new_invitee: string | null
+  text_reminder_number: string | null
+  routing_form_submission: string | null
+  scheduling_method: string | null
+  invitee_scheduled_by: string | null
+  questions_and_answers: Array<{
+    question: string
+    answer: string
+    position: number
+  }>
+  tracking: {
+    utm_campaign: string | null
+    utm_source: string | null
+    utm_medium: string | null
+    utm_content: string | null
+    utm_term: string | null
+    salesforce_uuid: string | null
+  }
+  cancellation?: {
+    canceled_by: string
+    reason: string
+    canceler_type: string
+    created_at: string
+  }
+  payment?: {
+    external_id: string
+    provider: string
+    amount: number
+    currency: string
+    terms: string
+    successful: boolean
+  } | null
+  no_show?: {
+    uri: string
+    created_at: string
+  } | null
+  reconfirmation?: {
+    created_at: string
+    confirmed_at: string | null
+  } | null
+}
+
+export interface CalendlyGetEventInviteeParams {
+  apiKey: string
+  eventUuid: string
+  inviteeUuid: string
+}
+
+export interface CalendlyGetEventInviteeResponse extends ToolResponse {
+  output: {
+    resource: CalendlyInviteeResource
+  }
+}
+
+export interface CalendlyCreateEventInviteeParams {
+  apiKey: string
+  eventTypeUri: string
+  startTime: string
+  inviteeEmail: string
+  inviteeTimezone: string
+  inviteeName?: string
+  inviteeFirstName?: string
+  inviteeLastName?: string
+  textReminderNumber?: string
+  eventGuests?: string[] | string
+}
+
+export interface CalendlyCreateEventInviteeResponse extends ToolResponse {
+  output: {
+    resource: CalendlyInviteeResource
+  }
+}
+
+export interface CalendlyListEventTypeAvailableTimesParams {
+  apiKey: string
+  eventTypeUri: string
+  startTime: string
+  endTime: string
+}
+
+export interface CalendlyListEventTypeAvailableTimesResponse extends ToolResponse {
+  output: {
+    collection: Array<{
+      status: string
+      invitees_remaining: number
+      start_time: string
+      scheduling_url: string
+    }>
+  }
+}
+
+export interface CalendlyListUserBusyTimesParams {
+  apiKey: string
+  user: string
+  startTime: string
+  endTime: string
+}
+
+export interface CalendlyListUserBusyTimesResponse extends ToolResponse {
+  output: {
+    collection: Array<{
+      type: string
+      start_time: string
+      end_time: string
+      buffered_start_time?: string
+      buffered_end_time?: string
+      event?: {
+        uri: string
+      }
+    }>
+  }
+}
+
+export interface CalendlyListUserAvailabilitySchedulesParams {
+  apiKey: string
+  user: string
+}
+
+export interface CalendlyListUserAvailabilitySchedulesResponse extends ToolResponse {
+  output: {
+    collection: Array<{
+      uri: string
+      default: boolean
+      name: string
+      user: string
+      timezone: string
+      rules: Array<{
+        type: string
+        intervals: Array<{
+          from: string
+          to: string
+        }>
+        wday?: string
+        date?: string
+      }>
+    }>
+  }
+}
+
+export interface CalendlyCreateSchedulingLinkParams {
+  apiKey: string
+  eventTypeUri: string
+}
+
+export interface CalendlyCreateSchedulingLinkResponse extends ToolResponse {
+  output: {
+    resource: {
+      booking_url: string
+      owner: string
+      owner_type: string
+    }
+  }
+}
+
+export interface CalendlyCreateInviteeNoShowParams {
+  apiKey: string
+  inviteeUri: string
+}
+
+export interface CalendlyCreateInviteeNoShowResponse extends ToolResponse {
+  output: {
+    resource: {
+      uri: string
+      invitee: string
+      created_at: string
+    }
+  }
+}
+
+export interface CalendlyDeleteInviteeNoShowParams {
+  apiKey: string
+  noShowUuid: string
+}
+
+export interface CalendlyDeleteInviteeNoShowResponse extends ToolResponse {
+  output: {
+    deleted: boolean
+    message: string
+  }
+}
+
+export interface CalendlyListOrganizationMembershipsParams {
+  apiKey: string
+  organization?: string
+  user?: string
+  email?: string
+  role?: string
+  count?: number
+  pageToken?: string
+}
+
+export interface CalendlyListOrganizationMembershipsResponse extends ToolResponse {
+  output: {
+    collection: Array<{
+      uri: string
+      role: string
+      organization: string
+      created_at: string
+      updated_at: string
+      user: {
+        uri: string
+        name: string
+        slug: string
+        email: string
+        scheduling_url: string
+        timezone: string
+        time_notation: string
+        avatar_url: string | null
+        locale: string
+        created_at: string
+        updated_at: string
+      }
+    }>
+    pagination: CalendlyPagination
+  }
+}
+
+export interface CalendlyListRoutingFormsParams {
+  apiKey: string
+  organization: string
+  count?: number
+  pageToken?: string
+  sort?: string
+}
+
+export interface CalendlyListRoutingFormsResponse extends ToolResponse {
+  output: {
+    collection: Array<{
+      uri: string
+      organization: string
+      name: string
+      status: string
+      questions: Array<{
+        uuid: string
+        name: string
+        type: string
+        required: boolean
+        answer_choices: string[] | null
+      }>
+      created_at: string
+      updated_at: string
+    }>
+    pagination: CalendlyPagination
+  }
+}
+
+export interface CalendlyListRoutingFormSubmissionsParams {
+  apiKey: string
+  formUri: string
+  count?: number
+  pageToken?: string
+  sort?: string
+}
+
+export interface CalendlyListRoutingFormSubmissionsResponse extends ToolResponse {
+  output: {
+    collection: Array<{
+      uri: string
+      routing_form: string
+      submitter: string | null
+      submitter_type: string | null
+      created_at: string
+      updated_at: string
+      questions_and_answers: Array<{
+        question_uuid: string
+        question: string
+        answer: string
+      }>
+      tracking: {
+        utm_campaign: string | null
+        utm_source: string | null
+        utm_medium: string | null
+        utm_content: string | null
+        utm_term: string | null
+        salesforce_uuid: string | null
+      }
+      result: {
+        type: string
+        value: string
+      } | null
+    }>
+    pagination: CalendlyPagination
   }
 }

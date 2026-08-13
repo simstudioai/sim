@@ -5,6 +5,7 @@ import {
   type McpApiResponse,
   McpConnectionError,
   McpOauthAuthorizationRequiredError,
+  McpServerCooldownError,
 } from '@/lib/mcp/types'
 import { isMcpTool, MCP } from '@/executor/constants'
 
@@ -51,6 +52,18 @@ export function sanitizeHeaders(
 export const MCP_CLIENT_CONSTANTS = {
   CLIENT_TIMEOUT: DEFAULT_EXECUTION_TIMEOUT_MS,
   AUTO_REFRESH_INTERVAL: 5 * 60 * 1000,
+  /**
+   * Hard ceiling for the connect handshake, regardless of the server row's
+   * configured `timeout`.
+   *
+   * The clamp used to be `getMaxExecutionTimeout()`, the *workflow* ceiling of
+   * seven days, so the real bound became the row's own `timeout` — which the
+   * registration contract permits up to 300s — multiplied by the connect
+   * retries. A hostile-but-slow server could therefore hold a Node request for
+   * roughly twenty minutes. Connecting is not a workflow run, and `tools/list`
+   * already bounds itself at a minute; the handshake gets the same budget.
+   */
+  CONNECT_MAX_TIMEOUT_MS: 60_000,
   /** Idle timeout for tools/list (gap between progress events); raised from 10s toward the SDK's 60s default. */
   LIST_TOOLS_TIMEOUT_MS: 30_000,
   /** Hard ceiling for tools/list regardless of progress (SDK maxTotalTimeout safeguard). */
@@ -155,10 +168,10 @@ export function categorizeError(error: unknown): { message: string; status: numb
   if (error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError) {
     return { message: 'Authentication required', status: 401 }
   }
+  if (error instanceof McpServerCooldownError) {
+    return { message: 'Server temporarily unavailable', status: 503 }
+  }
   if (error instanceof McpConnectionError) {
-    if (error.message.toLowerCase().includes('cooldown')) {
-      return { message: 'Server temporarily unavailable', status: 503 }
-    }
     return { message: 'Connection failed', status: 502 }
   }
 

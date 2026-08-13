@@ -9,11 +9,28 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
   description: 'Use Qdrant vector database',
   authMode: AuthMode.ApiKey,
   longDescription: 'Integrate Qdrant into the workflow. Can upsert, search, and fetch points.',
-  docsLink: 'https://qdrant.tech/documentation/',
+  docsLink: 'https://docs.sim.ai/integrations/qdrant',
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: '#1A223F',
   icon: QdrantIcon,
+  canvasPresentation: {
+    defaultTitle: 'Qdrant',
+    sentences: {
+      byOperation: {
+        upsert: [{ text: 'Upsert points into', field: 'collection', core: true }],
+        search: [
+          { text: 'Search', field: 'collection', after: 'for similar vectors', core: true },
+          { text: ', where', field: 'filter' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        fetch: [
+          { text: 'Fetch points', field: 'ids', core: true },
+          { text: 'from', field: 'collection', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

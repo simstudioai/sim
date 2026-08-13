@@ -1,15 +1,34 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { isTabTitleTruncated, type TabStripItem, tabDropIndex } from './tab-strip'
+import {
+  isTabTitleTruncated,
+  type TabStripItem,
+  tabDropIndex,
+  tabStripWheelPosition,
+} from './tab-strip'
 
 describe('isTabTitleTruncated', () => {
   it('shows title help only after a meaningful amount of text is clipped', () => {
     expect(isTabTitleTruncated({ clientWidth: 100, scrollWidth: 140 })).toBe(true)
-    expect(isTabTitleTruncated({ clientWidth: 100, scrollWidth: 131 })).toBe(false)
-    expect(isTabTitleTruncated({ clientWidth: 160, scrollWidth: 199 })).toBe(false)
+    expect(isTabTitleTruncated({ clientWidth: 100, scrollWidth: 108 })).toBe(true)
+    expect(isTabTitleTruncated({ clientWidth: 160, scrollWidth: 167 })).toBe(false)
     expect(isTabTitleTruncated({ clientWidth: 160, scrollWidth: 200 })).toBe(true)
     expect(isTabTitleTruncated({ clientWidth: 100, scrollWidth: 100 })).toBe(false)
     expect(isTabTitleTruncated({ clientWidth: 120, scrollWidth: 80 })).toBe(false)
+  })
+})
+
+describe('tabStripWheelPosition', () => {
+  it('uses native horizontal deltas and falls back to vertical wheel movement', () => {
+    expect(tabStripWheelPosition(20, 500, 200, 100, 40)).toBe(120)
+    expect(tabStripWheelPosition(20, 500, 200, 0, 100)).toBe(120)
+  })
+
+  it('clamps at each edge and declines gestures that cannot move', () => {
+    expect(tabStripWheelPosition(280, 500, 200, 0, 50)).toBe(300)
+    expect(tabStripWheelPosition(300, 500, 200, 0, 50)).toBeNull()
+    expect(tabStripWheelPosition(0, 500, 200, -50, 0)).toBeNull()
+    expect(tabStripWheelPosition(0, 200, 200, 10, 0)).toBeNull()
   })
 })
 
@@ -103,6 +122,6 @@ describe('tab strip vertical overflow', () => {
     expect(negativeBottomMargins).toHaveLength(1)
 
     const scrollRow = markup.match(/className='([^']*overflow-x-auto[^']*)'/)?.[1] ?? ''
-    expect(scrollRow).toContain('-mb-px')
+    expect(scrollRow).not.toContain('-mb-px')
   })
 })

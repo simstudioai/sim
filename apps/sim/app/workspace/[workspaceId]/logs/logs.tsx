@@ -69,6 +69,7 @@ import {
   logSortParams,
 } from '@/app/workspace/[workspaceId]/logs/search-params'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
@@ -698,6 +699,13 @@ export default function Logs() {
     debouncedSearchQuery,
   ])
 
+  useRegisterGlobalCommands(() => [
+    { id: 'logs-refresh', handler: () => handleRefresh() },
+    { id: 'logs-export', handler: () => void handleExport() },
+    { id: 'logs-show-dashboard', handler: () => setViewMode('dashboard') },
+    { id: 'logs-show-logs', handler: () => setViewMode('logs') },
+  ])
+
   const loadMoreLogs = useCallback(() => {
     const { isFetching, hasNextPage, fetchNextPage } = logsQueryRef.current
     if (!isFetching && hasNextPage) {
@@ -995,7 +1003,7 @@ export default function Logs() {
             )}
             {sections.map((section) => (
               <div key={section.title}>
-                <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
+                <div className='px-3 py-1.5 text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                   {section.title}
                 </div>
                 {section.suggestions.map((suggestion) => {
@@ -1019,7 +1027,7 @@ export default function Logs() {
         ) : (
           <div className='py-1'>
             {suggestionType === 'filters' && (
-              <div className='px-3 py-1.5 font-medium text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
+              <div className='px-3 py-1.5 text-[var(--text-tertiary)] text-caption uppercase tracking-wide'>
                 SUGGESTED FILTERS
               </div>
             )}

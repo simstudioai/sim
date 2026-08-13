@@ -1,4 +1,4 @@
-import { nextPageKeyOutput, totalCountOutput, warningsOutput } from '@/tools/dynatrace/outputs'
+import { totalCountOutput, warningsOutput } from '@/tools/dynatrace/outputs'
 import type {
   DynatraceQueryMetricsParams,
   DynatraceQueryMetricsResponse,
@@ -103,7 +103,6 @@ export const queryMetricsTool: ToolConfig<
         result: result.map(mapMetricResult),
         resolution: (data.resolution as string) ?? null,
         totalCount: (data.totalCount as number) ?? null,
-        nextPageKey: (data.nextPageKey as string) ?? null,
         warnings: mapWarnings(data.warnings),
       },
     }
@@ -136,6 +135,10 @@ export const queryMetricsTool: ToolConfig<
             type: 'json',
             description: 'DQL translation of the query, when available',
             nullable: true,
+            properties: {
+              status: { type: 'string', description: 'Whether the translation succeeded' },
+              query: { type: 'string', description: 'The equivalent DQL query' },
+            },
           },
           warnings: {
             type: 'array',
@@ -179,7 +182,6 @@ export const queryMetricsTool: ToolConfig<
       nullable: true,
     },
     totalCount: totalCountOutput,
-    nextPageKey: nextPageKeyOutput,
     warnings: warningsOutput,
   },
 }

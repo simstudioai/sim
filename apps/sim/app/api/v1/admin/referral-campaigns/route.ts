@@ -41,6 +41,7 @@ import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
+  adminInvalidJsonResponse,
   adminValidationErrorResponse,
   badRequestResponse,
   internalErrorResponse,
@@ -181,7 +182,7 @@ export const POST = withRouteHandler(
         {},
         {
           validationErrorResponse: adminValidationErrorResponse,
-          invalidJson: 'throw',
+          invalidJsonResponse: adminInvalidJsonResponse,
         }
       )
       if (!parsed.success) return parsed.response

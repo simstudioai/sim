@@ -72,6 +72,8 @@ Return ONLY the SQL query. Do not include any explanations, markdown formatting,
 ### REMEMBER
 Return ONLY the SQL query - no explanations, no markdown, no extra text.`
 
+const SEARCH_FILTER_FIELD = ['query', 'service', 'spanName'] as const
+
 export const LogfireBlock: BlockConfig<LogfireResponse> = {
   type: 'logfire',
   name: 'Logfire',
@@ -85,6 +87,28 @@ export const LogfireBlock: BlockConfig<LogfireResponse> = {
   bgColor: '#000000',
   iconColor: '#E620E9',
   icon: LogfireIcon,
+  canvasPresentation: {
+    defaultTitle: 'Logfire',
+    sentences: {
+      byOperation: {
+        logfire_search_records: [
+          { text: 'Search records for', field: SEARCH_FILTER_FIELD, core: true },
+          { text: ', at level', field: 'minLevel', after: 'or above' },
+          { text: ', in', field: 'environment' },
+        ],
+        logfire_query: [
+          { text: 'Run SQL query', field: 'sql', core: true },
+          { text: ', in', field: 'environment' },
+          { text: ', up to', field: 'limit', after: 'rows' },
+        ],
+        logfire_get_trace: [
+          { text: 'Fetch every span in trace', field: 'traceId', core: true },
+          { text: ', up to', field: 'limit', after: 'spans' },
+        ],
+        logfire_get_token_info: ['Read the organization and project the token targets'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

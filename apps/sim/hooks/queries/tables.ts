@@ -17,13 +17,20 @@ import {
 } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
-  ApiClientError,
   extractValidationIssues,
   isApiClientError,
   isValidationError,
 } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
+import {
+  cancelTableImportResourceContract,
+  completeTableImportResourceContract,
+  createTableExportResourceContract,
+  createTableImportPartUrlsContract,
+  createTableImportResourceContract,
+  downloadTableExportResourceContract,
+} from '@/lib/api/contracts/table-transfers'
 import {
   type ActiveDispatch,
   type AddWorkflowGroupBodyInput,
@@ -35,7 +42,6 @@ import {
   batchUpdateTableRowsContract,
   type CreateTableBodyInput,
   type CreateTableColumnBodyInput,
-  cancelTableJobContract,
   cancelTableRunsContract,
   createTableContract,
   createTableRowContract,
@@ -48,14 +54,10 @@ import {
   deleteTableRowsContract,
   deleteTableViewContract,
   deleteWorkflowGroupContract,
-  exportDownloadContract,
-  exportTableAsyncContract,
   findTableRowsContract,
   getEnrichmentDetailContract,
   getTableContract,
   type InsertTableRowBodyInput,
-  importIntoTableAsyncContract,
-  importTableAsyncContract,
   listActiveDispatchesContract,
   listTableJobsContract,
   listTableRowsContract,
@@ -84,6 +86,7 @@ import {
   updateTableViewContract,
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
+import type { V2TableImportSource, V2TableImportTarget } from '@/lib/api/contracts/v2/tables'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import type {
   CsvHeaderMapping,
@@ -107,7 +110,9 @@ import {
   isExecInFlight,
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
-import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
+import { sanitizeName } from '@/lib/table/import'
+import type { UploadProgressEvent } from '@/lib/uploads/client/types'
+import { uploadFileSession } from '@/lib/uploads/client/upload-session'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import {
   TABLE_LIST_STALE_TIME,
@@ -827,6 +832,11 @@ function withOptimisticAutoFireExec(groups: WorkflowGroup[], row: TableRow): Tab
 /**
  * Apply a row-level transformation to all cached infinite row queries for this
  * table. Used for cell edits where positions don't change.
+ *
+ * Walks {@link tableKeys.infiniteRowsRoot} rather than `rowsRoot`: the latter is a
+ * shared parent, and handing this updater a `find` entry — a flat
+ * {@link TableFindResult}, not pages — throws on `old.pages` inside `onMutate`, so
+ * the whole cell edit would reject before reaching the server.
  */
 function patchCachedRows(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -834,7 +844,7 @@ function patchCachedRows(
   patchRow: (row: TableRow) => TableRow
 ) {
   queryClient.setQueriesData<InfiniteData<TableRowsResponse, TableRowsPageParam>>(
-    { queryKey: tableKeys.rowsRoot(tableId), exact: false },
+    { queryKey: tableKeys.infiniteRowsRoot(tableId), exact: false },
     (old) => {
       if (!old) return old
       return {
@@ -1722,106 +1732,115 @@ export function useRestoreTable() {
   })
 }
 
-interface UploadCsvParams {
-  workspaceId: string
-  /** Folder to create the imported table in; omitted imports to the workspace root. */
-  folderId?: string | null
-  file: File
-}
-
-/**
- * Upload a CSV file to create a new table with inferred schema.
- */
-export function useUploadCsvToTable() {
-  const queryClient = useQueryClient()
-  const timezone = useTimezone()
-
-  return useMutation({
-    mutationFn: async ({ workspaceId, folderId, file }: UploadCsvParams) => {
-      // Text fields must precede the file part: the server parses the body as a
-      // stream and resolves as soon as it reaches the file, so any field appended
-      // after it is never seen.
-      const formData = new FormData()
-      formData.append('workspaceId', workspaceId)
-      if (folderId) formData.append('folderId', folderId)
-      formData.append('timezone', timezone)
-      formData.append('file', file)
-
-      // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
-      const response = await fetch('/api/table/import-csv', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        // Carry the status: a plain Error drops it, and the 423 self-heal below
-        // keys off `error.status`.
-        throw new ApiClientError({
-          status: response.status,
-          body: data,
-          message: data.error || 'CSV import failed',
-        })
-      }
-
-      return response.json()
-    },
-    onError: (error) => {
-      logger.error('Failed to upload CSV:', error)
-      toast.error(error.message, { duration: 5000 })
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
-    },
-  })
-}
-
 interface ImportCsvAsyncParams {
   workspaceId: string
   /** Folder to create the imported table in; omitted imports to the workspace root. */
-  folderId?: string | null
+  folderPath?: string
   file: File
+  onCreated?: (importId: string) => void
   onProgress?: (percent: number) => void
 }
 
-/**
- * Uploads a CSV/TSV straight to workspace storage (bypassing the server's request-body
- * cap) and returns its storage key. Shared by the async-import kickoff hooks.
- */
-async function uploadCsvToWorkspaceStorage(
-  file: File,
-  workspaceId: string,
+async function createAndUploadTableImport(params: {
+  workspaceId: string
+  source: V2TableImportSource
+  target: V2TableImportTarget
+  file?: File
+  mapping?: CsvHeaderMapping
+  createColumns?: string[]
+  timezone: string
+  onCreated?: (importId: string) => void
   onProgress?: (percent: number) => void
-): Promise<string> {
-  const upload = await runUploadStrategy({
-    file,
-    workspaceId,
-    context: 'workspace',
-    presignedEndpoint: `/api/workspaces/${workspaceId}/files/presigned`,
-    onProgress: onProgress ? (event) => onProgress(event.percent) : undefined,
+}) {
+  const created = await requestJson(createTableImportResourceContract, {
+    body: {
+      workspaceId: params.workspaceId,
+      source: params.source,
+      target: params.target,
+      mapping: params.mapping,
+      createColumns: params.createColumns,
+      timezone: params.timezone,
+    },
   })
-  return upload.key
-}
-
-/**
- * Uploads a large CSV/TSV straight to storage, then kicks off a background import into a
- * new table. Resolves with `{ tableId, importId }` immediately — load progress and the
- * terminal state arrive over the table-events SSE stream (see `useTableEventStream`).
- */
-export function useImportCsvAsync() {
-  const queryClient = useQueryClient()
-  const timezone = useTimezone()
-  return useMutation({
-    mutationFn: async ({ workspaceId, folderId, file, onProgress }: ImportCsvAsyncParams) => {
-      const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
-      const response = await requestJson(importTableAsyncContract, {
-        body: { workspaceId, folderId, fileKey, fileName: file.name, timezone },
+  const { session, uploadToken, transfer } = created.data
+  params.onCreated?.(session.id)
+  if (params.source.type === 'workspace_file') return session
+  if (!params.file || !uploadToken || !transfer) {
+    throw new Error('Upload-backed table import returned no upload session')
+  }
+  const getPartUrls = async (partNumbers: number[]) => {
+    const response = await requestJson(createTableImportPartUrlsContract, {
+      params: { importId: session.id },
+      query: { workspaceId: params.workspaceId },
+      headers: { 'upload-token': uploadToken },
+      body: { partNumbers },
+    })
+    return response.data.parts
+  }
+  const common = {
+    file: params.file,
+    onProgress: params.onProgress
+      ? (event: UploadProgressEvent) => params.onProgress?.(event.percent)
+      : undefined,
+    complete: async () => {
+      const response = await requestJson(completeTableImportResourceContract, {
+        params: { importId: session.id },
+        query: { workspaceId: params.workspaceId },
+        headers: { 'upload-token': uploadToken },
       })
       return response.data
     },
+    abort: async () => {
+      await requestJson(cancelTableImportResourceContract, {
+        params: { importId: session.id },
+        query: { workspaceId: params.workspaceId },
+        headers: { 'upload-token': uploadToken },
+      })
+    },
+  }
+  return transfer.method === 'put'
+    ? uploadFileSession({ ...common, transfer })
+    : uploadFileSession({ ...common, transfer, getPartUrls })
+}
+
+/** Uploads a CSV/TSV through a signed upload session and creates a table from it. */
+export function useImportCsv() {
+  const queryClient = useQueryClient()
+  const timezone = useTimezone()
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      folderPath,
+      file,
+      onCreated,
+      onProgress,
+    }: ImportCsvAsyncParams) => {
+      const imported = await createAndUploadTableImport({
+        workspaceId,
+        source: {
+          type: 'upload',
+          name: file.name,
+          contentType: file.type || 'text/csv',
+          size: file.size,
+        },
+        target: {
+          type: 'new',
+          name: sanitizeName(file.name.replace(/\.[^.]+$/, ''), 'imported_table').slice(
+            0,
+            TABLE_LIMITS.MAX_TABLE_NAME_LENGTH
+          ),
+          folderPath,
+        },
+        file,
+        timezone,
+        onCreated,
+        onProgress,
+      })
+      return { tableId: imported.tableId, importId: imported.id }
+    },
     onError: (error) => {
-      logger.error('Failed to start async CSV import:', error)
-      toast.error(error.message, { duration: 5000 })
+      logger.error('Failed to start CSV import:', error)
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -1831,8 +1850,9 @@ export function useImportCsvAsync() {
 
 interface ImportFileAsTableParams {
   workspaceId: string
-  fileKey: string
+  fileId: string
   fileName: string
+  onCreated?: (importId: string) => void
 }
 
 /**
@@ -1846,15 +1866,25 @@ export function useImportFileAsTable() {
   const queryClient = useQueryClient()
   const timezone = useTimezone()
   return useMutation({
-    mutationFn: async ({ workspaceId, fileKey, fileName }: ImportFileAsTableParams) => {
-      const response = await requestJson(importTableAsyncContract, {
-        body: { workspaceId, fileKey, fileName, deleteSourceFile: false, timezone },
+    mutationFn: async ({ workspaceId, fileId, fileName, onCreated }: ImportFileAsTableParams) => {
+      const imported = await createAndUploadTableImport({
+        workspaceId,
+        source: { type: 'workspace_file', fileId },
+        target: {
+          type: 'new',
+          name: sanitizeName(fileName.replace(/\.[^.]+$/, ''), 'imported_table').slice(
+            0,
+            TABLE_LIMITS.MAX_TABLE_NAME_LENGTH
+          ),
+        },
+        timezone,
+        onCreated,
       })
-      return response.data
+      return { tableId: imported.tableId, importId: imported.id }
     },
     onError: (error) => {
       logger.error('Failed to start import from file:', error)
-      toast.error(error.message, { duration: 5000 })
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -1871,78 +1901,14 @@ interface ImportCsvIntoTableAsyncParams {
   mode: CsvImportMode
   mapping?: CsvHeaderMapping
   createColumns?: string[]
+  onCreated?: (importId: string) => void
   onProgress?: (percent: number) => void
 }
 
-/**
- * Async append/replace import into an existing table for large files: uploads straight to
- * storage (bypassing the server's request-body cap), then kicks off the background worker.
- * Resolves immediately; progress + completion arrive over the table-events SSE stream.
- */
-export function useImportCsvIntoTableAsync() {
-  const queryClient = useQueryClient()
-  const timezone = useTimezone()
-  return useMutation({
-    mutationFn: async ({
-      workspaceId,
-      tableId,
-      file,
-      mode,
-      mapping,
-      createColumns,
-      onProgress,
-    }: ImportCsvIntoTableAsyncParams) => {
-      const fileKey = await uploadCsvToWorkspaceStorage(file, workspaceId, onProgress)
-      const response = await requestJson(importIntoTableAsyncContract, {
-        params: { tableId },
-        body: { workspaceId, fileKey, fileName: file.name, mode, mapping, createColumns, timezone },
-      })
-      return response.data
-    },
-    onError: (error, variables) => {
-      if (handleTableLockRejection(error, queryClient, variables.tableId)) return
-      logger.error('Failed to start async CSV import:', error)
-      toast.error(error.message, { duration: 5000 })
-    },
-    onSettled: (_data, _error, variables) => {
-      invalidateRowCount(queryClient, variables.tableId)
-    },
-  })
-}
-
-interface ImportCsvIntoTableParams {
-  workspaceId: string
-  tableId: string
-  file: File
-  mode: CsvImportMode
-  mapping?: CsvHeaderMapping
-  /** CSV headers to auto-create as new columns on the target table. */
-  createColumns?: string[]
-}
-
-interface ImportCsvIntoTableResponse {
-  success: boolean
-  data?: {
-    tableId: string
-    mode: CsvImportMode
-    insertedCount?: number
-    deletedCount?: number
-    mappedColumns?: string[]
-    skippedHeaders?: string[]
-    unmappedColumns?: string[]
-    sourceFile?: string
-  }
-}
-
-/**
- * Upload a CSV file to an existing table in append or replace mode. Supports
- * an optional explicit header-to-column mapping; when omitted the server
- * auto-maps headers by sanitized name.
- */
+/** Imports a CSV/TSV into an existing table through the same durable resource for every size. */
 export function useImportCsvIntoTable() {
   const queryClient = useQueryClient()
   const timezone = useTimezone()
-
   return useMutation({
     mutationFn: async ({
       workspaceId,
@@ -1951,38 +1917,31 @@ export function useImportCsvIntoTable() {
       mode,
       mapping,
       createColumns,
-    }: ImportCsvIntoTableParams): Promise<ImportCsvIntoTableResponse> => {
-      // Text fields must precede the file part: the server parses the body as a
-      // stream and needs these fields before it reaches the (large) file.
-      const formData = new FormData()
-      formData.append('workspaceId', workspaceId)
-      formData.append('mode', mode)
-      formData.append('timezone', timezone)
-      if (mapping) {
-        formData.append('mapping', JSON.stringify(mapping))
-      }
-      if (createColumns && createColumns.length > 0) {
-        formData.append('createColumns', JSON.stringify(createColumns))
-      }
-      formData.append('file', file)
-
-      // boundary-raw-fetch: multipart/form-data CSV upload, requestJson only supports JSON bodies
-      const response = await fetch(`/api/table/${tableId}/import`, {
-        method: 'POST',
-        body: formData,
+      onCreated,
+      onProgress,
+    }: ImportCsvIntoTableAsyncParams) => {
+      const imported = await createAndUploadTableImport({
+        workspaceId,
+        source: {
+          type: 'upload',
+          name: file.name,
+          contentType: file.type || 'text/csv',
+          size: file.size,
+        },
+        target: { type: 'existing', tableId, mode },
+        file,
+        mapping,
+        createColumns,
+        timezone,
+        onCreated,
+        onProgress,
       })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.error || 'CSV import failed')
-      }
-
-      return response.json()
+      return { tableId: imported.tableId, importId: imported.id }
     },
     onError: (error, variables) => {
       if (handleTableLockRejection(error, queryClient, variables.tableId)) return
-      logger.error('Failed to import CSV into table:', error)
-      toast.error(error.message, { duration: 5000 })
+      logger.error('Failed to start CSV import:', error)
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
       invalidateRowCount(queryClient, variables.tableId)
@@ -1990,19 +1949,12 @@ export function useImportCsvIntoTable() {
   })
 }
 
-/**
- * Cancels an in-flight async table job (import or delete). Plain function (not a hook) because the
- * job tray lists multiple tables and cancels a chosen one by id rather than binding to a single
- * table.
- */
-export async function cancelTableJob(
-  workspaceId: string,
-  tableId: string,
-  jobId: string
-): Promise<void> {
-  await requestJson(cancelTableJobContract, {
-    params: { tableId },
-    body: { workspaceId, jobId },
+/** Cancels an in-flight table import resource. */
+export async function cancelTableImport(workspaceId: string, importId: string): Promise<void> {
+  await requestJson(cancelTableImportResourceContract, {
+    params: { importId },
+    query: { workspaceId },
+    headers: {},
   })
 }
 
@@ -2046,23 +1998,17 @@ export function consumeInitiatedExport(jobId: string): boolean {
 }
 
 /**
- * Kicks off a background export job for large tables (small ones stream synchronously via
- * {@link downloadTableExport}). The SSE job stream auto-downloads the file when the job is ready.
+ * Creates an export resource. The server completes small exports before responding and processes
+ * large exports in the background; the client follows the same path for both.
  */
-export function useExportTableAsync({ workspaceId, tableId }: RowMutationContext) {
+export function useExportTable({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ format }: { format: 'csv' | 'json' }) => {
-      const response = await requestJson(exportTableAsyncContract, {
-        params: { tableId },
-        body: { workspaceId, format },
-      })
-      initiatedExportJobIds.add(response.data.jobId)
-      return response.data
+      return createTableExport(workspaceId, tableId, format)
     },
-    onSuccess: () => {
-      // Surface the new running job in the tray immediately — its poll only
-      // self-sustains once a running job is already in the cache.
+    onSettled: () => {
+      // Reconcile failed creation and seed polling after a successful background export.
       void queryClient.invalidateQueries({ queryKey: tableKeys.exportJobs(workspaceId) })
     },
     onError: (error) => {
@@ -2073,15 +2019,20 @@ export function useExportTableAsync({ workspaceId, tableId }: RowMutationContext
   })
 }
 
-/** Resolves a ready export job to its presigned URL and triggers the browser download. */
-export async function downloadExportResult(
-  workspaceId: string,
-  tableId: string,
-  jobId: string
-): Promise<void> {
-  const response = await requestJson(exportDownloadContract, {
+async function createTableExport(workspaceId: string, tableId: string, format: 'csv' | 'json') {
+  const response = await requestJson(createTableExportResourceContract, {
     params: { tableId },
-    query: { workspaceId, jobId },
+    body: { workspaceId, format },
+  })
+  if (response.data.status !== 'completed') initiatedExportJobIds.add(response.data.id)
+  return response.data
+}
+
+/** Resolves a ready export job to its presigned URL and triggers the browser download. */
+export async function downloadExportResult(workspaceId: string, exportId: string): Promise<void> {
+  const response = await requestJson(downloadTableExportResourceContract, {
+    params: { exportId },
+    query: { workspaceId },
   })
   const a = document.createElement('a')
   a.href = response.data.url
@@ -2091,32 +2042,18 @@ export async function downloadExportResult(
   document.body.removeChild(a)
 }
 
-/**
- * Downloads the full contents of a table to the user's device by streaming
- * `/api/table/[tableId]/export`. Defaults to CSV; pass `'json'` for JSON.
- */
-export async function downloadTableExport(
+/** Creates one export resource and downloads it immediately when the server completed it inline. */
+export async function exportTable(
+  workspaceId: string,
   tableId: string,
-  fileName: string,
   format: 'csv' | 'json' = 'csv'
-): Promise<void> {
-  const url = `/api/table/${tableId}/export?format=${format}&t=${Date.now()}`
-  // boundary-raw-fetch: streaming download to a Blob, requestJson cannot consume non-JSON streams
-  const response = await fetch(url, { cache: 'no-store' })
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}))
-    throw new Error(data.error || `Failed to export table: ${response.statusText}`)
+): Promise<'completed' | 'processing'> {
+  const exported = await createTableExport(workspaceId, tableId, format)
+  if (exported.status === 'completed') {
+    await downloadExportResult(workspaceId, exported.id)
+    return 'completed'
   }
-  const blob = await response.blob()
-  const objectUrl = URL.createObjectURL(blob)
-  const safeName = fileName.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'table'
-  const a = document.createElement('a')
-  a.href = objectUrl
-  a.download = `${safeName}.${format}`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(objectUrl)
+  return 'processing'
 }
 
 export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
@@ -2255,7 +2192,7 @@ export async function snapshotAndMutateRows(
 ): Promise<RowsCacheSnapshots> {
   const scope = options?.onlyKey
     ? ({ queryKey: options.onlyKey, exact: true } as const)
-    : ({ queryKey: tableKeys.rowsRoot(tableId) } as const)
+    : ({ queryKey: tableKeys.infiniteRowsRoot(tableId) } as const)
   if (options?.cancelInFlight !== false) {
     await queryClient.cancelQueries(scope)
   }

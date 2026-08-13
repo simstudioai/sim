@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
-vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 import { microsoftTeamsHandler } from '@/lib/webhooks/providers/microsoft-teams'
 

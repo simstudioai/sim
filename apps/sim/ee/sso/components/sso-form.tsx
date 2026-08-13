@@ -29,7 +29,12 @@ const validateEmailField = (emailValue: string): string[] => {
   return errors
 }
 
-export default function SSOForm() {
+interface SSOFormProps {
+  /** DISABLE_REGISTRATION. Hides the signup cross-link, which `/signup` blocks. */
+  registrationDisabled: boolean
+}
+
+export default function SSOForm({ registrationDisabled }: SSOFormProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
@@ -215,12 +220,12 @@ export default function SSOForm() {
         </>
       )}
 
-      {emailEnabled && (
+      {emailEnabled && !registrationDisabled && (
         <div className='pt-6 text-center font-light text-base'>
           <span className='font-normal'>Don't have an account? </span>
           <Link
             href={`/signup${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ''}`}
-            className='font-medium text-[var(--text-primary)] underline-offset-4 transition hover:underline'
+            className='text-[var(--text-primary)] underline-offset-4 transition hover:underline'
           >
             Sign up
           </Link>

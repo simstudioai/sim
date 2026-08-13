@@ -44,9 +44,9 @@ vi.mock('@/lib/core/config/env', () => ({
 
 import SSOForm from '@/ee/sso/components/sso-form'
 
-function renderFirstFrame(search: string): string {
+function renderFirstFrame(search: string, registrationDisabled = false): string {
   mockUseSearchParams.mockReturnValue(new URLSearchParams(search))
-  return renderToString(<SSOForm />)
+  return renderToString(<SSOForm registrationDisabled={registrationDisabled} />)
 }
 
 /**
@@ -76,5 +76,26 @@ describe('SSOForm callback URL', () => {
 
     expect(html).not.toContain('evil.example.com')
     expect(html).toContain(`/login?callbackUrl=${encodeURIComponent('/workspace')}`)
+  })
+})
+
+describe('SSOForm signup cross-link', () => {
+  beforeEach(() => {
+    mockUseSearchParams.mockReset()
+  })
+
+  it('offers signup when registration is enabled', () => {
+    const html = renderFirstFrame('')
+
+    expect(html).toContain('Don&#x27;t have an account?')
+    expect(html).toContain('/signup')
+  })
+
+  /** `/signup` rejects the visitor server-side, so linking there is a dead end. */
+  it('hides signup when registration is disabled', () => {
+    const html = renderFirstFrame('', true)
+
+    expect(html).not.toContain('Don&#x27;t have an account?')
+    expect(html).not.toContain('/signup')
   })
 })
