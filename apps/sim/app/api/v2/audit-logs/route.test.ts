@@ -29,6 +29,7 @@ vi.mock('@/lib/audit-logs/application/get-audit-log', () => ({
   getAuditLog: { operation: { id: 'audit_logs.read_detail' }, execute: mocks.get },
 }))
 
+import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET as getDetail } from '@/app/api/v2/audit-logs/[id]/route'
 import { GET as listLogs } from '@/app/api/v2/audit-logs/route'
@@ -99,6 +100,58 @@ describe('v2 audit-log routes', () => {
       request,
     })
     expect(response.headers.get('x-ratelimit-limit')).toBe('100')
+  })
+
+  /**
+   * Pins the binding end-to-end — the mint in `present` and the read in
+   * `mapInput` — because the contract-level sweep only checks a hand-maintained
+   * map of param names and stays green when a route drops the stamp entirely.
+   */
+  it('refuses a cursor minted under a different filter', async () => {
+    const minted = await listLogs(
+      new NextRequest(
+        'http://localhost:3000/api/v2/audit-logs?organizationId=org-1&actorEmail=ada%40example.com'
+      )
+    )
+    const { nextCursor } = await minted.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    mocks.list.mockClear()
+    const replayed = await listLogs(
+      new NextRequest(
+        `http://localhost:3000/api/v2/audit-logs?organizationId=org-1&actorEmail=bob%40example.com&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(replayed.status).toBe(400)
+    expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  it('resumes a cursor replayed under the filters it was minted with', async () => {
+    const minted = await listLogs(
+      new NextRequest(
+        'http://localhost:3000/api/v2/audit-logs?organizationId=org-1&actorEmail=ada%40example.com'
+      )
+    )
+    const { nextCursor } = await minted.json()
+
+    mocks.list.mockClear()
+    const resumed = await listLogs(
+      new NextRequest(
+        `http://localhost:3000/api/v2/audit-logs?organizationId=org-1&actorEmail=ada%40example.com&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(resumed.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: expect.objectContaining({
+        filters: expect.objectContaining({ actorEmail: 'ada@example.com' }),
+        cursor: 'next-1',
+      }),
+      request: expect.anything(),
+    })
   })
 
   it('projects typed admin-policy failures without leaking internals', async () => {

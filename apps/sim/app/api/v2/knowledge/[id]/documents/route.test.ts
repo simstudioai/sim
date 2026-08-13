@@ -21,7 +21,9 @@ const {
   mockCapture,
   mockIsPayloadSizeLimitError,
   mockIsMultipartFieldValidationError,
+  mockListDocuments,
 } = vi.hoisted(() => ({
+  mockListDocuments: vi.fn(),
   mockAdmitUpload: vi.fn(),
   mockUploadDocument: vi.fn(),
   mockReadFormData: vi.fn(),
@@ -39,7 +41,7 @@ vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 vi.mock('@/lib/knowledge/application/documents', () => ({
   listKnowledgeDocuments: {
     operation: { id: 'knowledge.documents.list' },
-    execute: vi.fn(),
+    execute: mockListDocuments,
   },
   bulkUpdateKnowledgeDocuments: {
     operation: { id: 'knowledge.documents.bulk' },
@@ -69,11 +71,12 @@ vi.mock('@/lib/core/telemetry', () => ({
 
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCapture }))
 
+import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
-import { POST } from '@/app/api/v2/knowledge/[id]/documents/route'
+import { GET, POST } from '@/app/api/v2/knowledge/[id]/documents/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' } as const
@@ -325,5 +328,90 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
     expect(mockUploadDocument).toHaveBeenCalledOnce()
     expect(mockPlatformUploaded).not.toHaveBeenCalled()
     expect(mockCapture).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/v2/knowledge/[id]/documents', () => {
+  const document = {
+    id: 'doc-1',
+    knowledgeBaseId: 'kb-1',
+    filename: 'support.txt',
+    fileUrl: 's3://workspace/support.txt',
+    fileSize: 5,
+    mimeType: 'text/plain',
+    processingStatus: 'completed',
+    chunkCount: 1,
+    tokenCount: 2,
+    characterCount: 5,
+    enabled: true,
+    uploadedAt: new Date('2024-01-01T00:00:00Z'),
+  }
+
+  function listRequest(query: string) {
+    return new NextRequest(`http://localhost/api/v2/knowledge/kb-1/documents?${query}`, {
+      headers: { 'x-api-key': 'secret' },
+    })
+  }
+
+  function list(query: string) {
+    return GET(listRequest(query), { params: Promise.resolve({ id: 'kb-1' }) })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.authenticate.mockResolvedValue({
+      principal: PRINCIPAL,
+      rolloutUserId: 'user-1',
+      rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
+      rateLimitSubscription: null,
+      keyType: 'personal',
+    })
+    mockListDocuments.mockResolvedValue({
+      documents: [document],
+      tagDefinitions: [],
+      pagination: { hasMore: true, offset: 0, limit: 1 },
+    })
+  })
+
+  /**
+   * An offset cursor is the weaker scheme: replayed under a different filter it
+   * names an ordinal in an unrelated sequence. Pins the binding end-to-end — the
+   * mint in `present` and the read in `mapInput` — because the contract-level
+   * sweep only checks a hand-maintained map of param names and stays green when
+   * a route drops the stamp entirely.
+   */
+  it('refuses a cursor minted under a different filter', async () => {
+    const minted = await list(`workspaceId=${WORKSPACE_ID}&limit=1&search=support`)
+    const { nextCursor } = await minted.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    mockListDocuments.mockClear()
+    const replayed = await list(
+      `workspaceId=${WORKSPACE_ID}&limit=1&search=billing&cursor=${encodeURIComponent(nextCursor)}`
+    )
+
+    expect(replayed.status).toBe(400)
+    expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mockListDocuments).not.toHaveBeenCalled()
+  })
+
+  it('resumes a cursor replayed under the filters it was minted with', async () => {
+    const minted = await list(`workspaceId=${WORKSPACE_ID}&limit=1&search=support`)
+    const { nextCursor } = await minted.json()
+
+    mockListDocuments.mockClear()
+    const resumed = await list(
+      `workspaceId=${WORKSPACE_ID}&limit=1&search=support&cursor=${encodeURIComponent(nextCursor)}`
+    )
+
+    expect(resumed.status).toBe(200)
+    expect(mockListDocuments).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: expect.objectContaining({ search: 'support', offset: 1 }),
+      request: expect.anything(),
+    })
   })
 })
