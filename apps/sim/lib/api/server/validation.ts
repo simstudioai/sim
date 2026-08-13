@@ -8,7 +8,10 @@ import type {
   ContractParams,
   ContractQuery,
 } from '@/lib/api/contracts'
-import { blankQueryValueValidationError } from '@/lib/api/server/blank-query-values'
+import {
+  blankQueryValueValidationError,
+  duplicateQueryValueValidationError,
+} from '@/lib/api/server/blank-query-values'
 import { nulByteValidationError } from '@/lib/api/server/nul-bytes'
 import { env } from '@/lib/core/config/env'
 import {
@@ -71,6 +74,14 @@ export interface ParseRequestOptions {
    * send blanks today, is unaffected.
    */
   rejectBlankQueryValues?: boolean
+  /**
+   * Reject a query parameter sent more than once, instead of letting the
+   * resulting array fail the declared type with a message about the parameter
+   * being absent. See {@link duplicateQueryValueValidationError}. Opt-in on the
+   * same terms as {@link rejectBlankQueryValues}, and only sound where no query
+   * parameter is declared as an array — which is true of the whole v2 surface.
+   */
+  rejectDuplicateQueryValues?: boolean
 }
 
 export function serializeZodIssues(error: z.ZodError): z.core.$ZodIssue[] {
@@ -284,6 +295,18 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
       return parsedBody
     }
     body = parsedBody.data
+  }
+
+  if (options?.rejectDuplicateQueryValues) {
+    const duplicated = duplicateQueryValueValidationError(rawQuery)
+    if (duplicated) {
+      return {
+        success: false,
+        response: options.validationErrorResponse
+          ? options.validationErrorResponse(duplicated)
+          : validationErrorResponse(duplicated),
+      }
+    }
   }
 
   if (options?.rejectBlankQueryValues) {

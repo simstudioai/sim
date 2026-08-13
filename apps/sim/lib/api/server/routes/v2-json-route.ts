@@ -149,6 +149,15 @@ export const V2_PARSE_DEFAULTS = {
    * time a schema sees the value.
    */
   rejectBlankQueryValues: true,
+  /**
+   * `?workspaceId=X&workspaceId=X` is not `workspaceId=X`, and no v2 query
+   * param is declared as an array — every list on this surface is one
+   * comma-separated string — so a repeated param can only ever be a caller
+   * mistake. Without this it reached the schema as an array and drew that
+   * param's *absence* message ("Workspace ID is required") for a request that
+   * plainly sent it, which is a signpost pointing away from the actual error.
+   */
+  rejectDuplicateQueryValues: true,
 } as const
 
 export interface V2ErrorPolicy {

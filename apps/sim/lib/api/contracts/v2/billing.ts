@@ -158,13 +158,13 @@ export const v2BillingLogsQuerySchema = z
     /** Required when `period` is `'custom'`, and rejected otherwise. */
     startDate: v2RunWindowBoundSchema('startDate')
       .describe(
-        'Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.'
+        'Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.'
       )
       .optional(),
     /** Defaults to now when omitted for `'custom'`; rejected for every other period. */
     endDate: v2RunWindowBoundSchema('endDate')
       .describe(
-        'Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.'
+        'Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.'
       )
       .optional(),
     ...v2PaginationFields({ description: 'Maximum usage events per page.' }),

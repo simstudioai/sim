@@ -5,7 +5,11 @@ import {
   cursorScopeKey,
   REFILTERED_CURSOR_MESSAGE,
 } from '@/lib/api/cursor-binding'
-import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
+import {
+  type CursorKey,
+  INVALID_CURSOR_MESSAGE,
+  UNREADABLE_CURSOR_MESSAGE,
+} from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
 import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
 import { forbiddenErrorDetails } from '@/lib/core/application'
@@ -467,6 +471,15 @@ export function encodeScopedCursor(scope: string | undefined, inner: string): st
  * Unwraps a {@link encodeScopedCursor} token, yielding the domain codec's own
  * cursor, or `undefined` for page one. A token that is malformed or was minted
  * under a different query is the canonical 400 — the domain codec never sees it.
+ *
+ * An empty inner token is malformed, not "page one". Only an absent `cursor`
+ * param means page one; a present-but-empty inner passed the old
+ * `typeof === 'string'` envelope check and then read as falsy in every domain
+ * reader downstream, so no cursor condition was applied and the caller was
+ * handed page one again — with a `nextCursor` telling it to keep going. That is
+ * exactly the loop `UNKNOWN_CURSOR_MESSAGE` describes on the billing ledger,
+ * reached through the wrapper instead of through the token, and it slipped past
+ * the unresolvable-cursor 400 that exists to stop it.
  */
 export function readScopedCursor(
   cursor: string | undefined,
@@ -474,8 +487,8 @@ export function readScopedCursor(
 ): string | undefined {
   if (!cursor) return undefined
   const decoded = decodeCursor<Partial<ScopedCursorPayload>>(cursor)
-  if (!decoded || typeof decoded.inner !== 'string') {
-    throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
+  if (!decoded || typeof decoded.inner !== 'string' || decoded.inner.length === 0) {
+    throw new OrchestrationError('validation', UNREADABLE_CURSOR_MESSAGE)
   }
   if ((decoded.scope ?? undefined) !== (scope || undefined)) {
     throw new OrchestrationError('validation', REFILTERED_CURSOR_MESSAGE)

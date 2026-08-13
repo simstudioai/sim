@@ -54,20 +54,20 @@
             "name": "workflowIds",
             "in": "query",
             "required": false,
-            "description": "Comma-separated workflow identifiers to include.",
+            "description": "Comma-separated workflow identifiers to include. An empty entry is rejected.",
             "schema": {
               "type": "string",
-              "description": "Comma-separated workflow identifiers to include."
+              "description": "Comma-separated workflow identifiers to include. An empty entry is rejected."
             }
           },
           {
             "name": "triggers",
             "in": "query",
             "required": false,
-            "description": "Comma-separated trigger types to include.",
+            "description": "Comma-separated trigger types to include. An empty entry is rejected. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.",
             "schema": {
               "type": "string",
-              "description": "Comma-separated trigger types to include."
+              "description": "Comma-separated trigger types to include. An empty entry is rejected. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`."
             }
           },
           {
@@ -85,44 +85,48 @@
             "name": "startDate",
             "in": "query",
             "required": false,
-            "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.",
+            "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
             "schema": {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-              "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected."
+              "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
             }
           },
           {
             "name": "endDate",
             "in": "query",
             "required": false,
-            "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.",
+            "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
             "schema": {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-              "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected."
+              "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
             }
           },
           {
             "name": "minDurationMs",
             "in": "query",
             "required": false,
-            "description": "Minimum total execution duration in milliseconds.",
+            "description": "Minimum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.",
             "schema": {
-              "type": "number",
-              "description": "Minimum total execution duration in milliseconds."
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647,
+              "description": "Minimum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected."
             }
           },
           {
             "name": "maxDurationMs",
             "in": "query",
             "required": false,
-            "description": "Maximum total execution duration in milliseconds.",
+            "description": "Maximum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.",
             "schema": {
-              "type": "number",
-              "description": "Maximum total execution duration in milliseconds."
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647,
+              "description": "Maximum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected."
             }
           },
           {
@@ -159,21 +163,21 @@
             "name": "details",
             "in": "query",
             "required": false,
-            "description": "Response detail level.",
+            "description": "Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.",
             "schema": {
               "default": "basic",
               "type": "string",
               "enum": ["basic", "full"],
-              "description": "Response detail level."
+              "description": "Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly."
             }
           },
           {
             "name": "includeTraceSpans",
             "in": "query",
             "required": false,
-            "description": "Whether to include block-level trace spans. Spans are stored apart from the log row and pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error — an empty array does not mean the run recorded none.",
+            "description": "Whether to include block-level trace spans. Implies `details=full`, so the `workflow` summary is present regardless of what `details` is set to. Spans are stored apart from the log row and pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error — an empty array does not mean the run recorded none.",
             "schema": {
-              "description": "Whether to include block-level trace spans. Spans are stored apart from the log row and pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error — an empty array does not mean the run recorded none.",
+              "description": "Whether to include block-level trace spans. Implies `details=full`, so the `workflow` summary is present regardless of what `details` is set to. Spans are stored apart from the log row and pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error — an empty array does not mean the run recorded none.",
               "type": "boolean"
             }
           },
@@ -181,9 +185,9 @@
             "name": "includeFinalOutput",
             "in": "query",
             "required": false,
-            "description": "Whether to include the final workflow output.",
+            "description": "Whether to include the final workflow output. Implies `details=full`, so the `workflow` summary is present regardless of what `details` is set to.",
             "schema": {
-              "description": "Whether to include the final workflow output.",
+              "description": "Whether to include the final workflow output. Implies `details=full`, so the `workflow` summary is present regardless of what `details` is set to.",
               "type": "boolean"
             }
           },
@@ -1144,7 +1148,7 @@
                     "type": "null"
                   }
                 ],
-                "description": "Workflow folder path, or null when unavailable."
+                "description": "Canonical folder path of the workflow, in the same form `folderPaths` accepts as a filter: `/` for a workflow at the workspace root. Null only when the path cannot be resolved — the folder has been deleted, or the workflow itself no longer exists."
               },
               "ownerEmail": {
                 "anyOf": [

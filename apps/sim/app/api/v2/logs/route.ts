@@ -4,6 +4,7 @@ import {
   v2ListLogsContract,
   v2LogStatusSchema,
 } from '@/lib/api/contracts/v2/logs'
+import { UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { v2LogErrorPolicies } from '@/lib/logs/api/route-policies'
@@ -66,7 +67,7 @@ export const GET = defineV2JsonRoute({
     const inner = readScopedCursor(query.cursor, logCursorFilters(query))
     const decodedCursor = inner ? decodePublicLogCursor(inner, query.order ?? 'desc') : null
     if (inner && !decodedCursor) {
-      throw new OrchestrationError('validation', 'Invalid cursor')
+      throw new OrchestrationError('validation', UNREADABLE_CURSOR_MESSAGE)
     }
     return {
       workspaceId: query.workspaceId,

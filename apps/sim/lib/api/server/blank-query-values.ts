@@ -45,3 +45,35 @@ export function blankQueryValueValidationError(
   }
   return null
 }
+
+/**
+ * Rejects a query parameter sent more than once — `?workspaceId=X&workspaceId=X`.
+ *
+ * A repeated parameter reaches the schema as an array, and no v2 query parameter
+ * is declared as one: every list this surface accepts is a single
+ * comma-separated string. The array therefore fails the declared type, and the
+ * caller is told whatever that type's own message says — `workspaceId` answers
+ * "Workspace ID is required" for a request that sent it twice, which points at
+ * the wrong problem and reads as a server bug.
+ *
+ * Naming the duplication is the whole fix, and the boundary is where it belongs
+ * for the same reason as the blank scan above: the multiplicity exists only in
+ * the raw query. By the time a schema sees the value, the array is
+ * indistinguishable from any other wrong type.
+ */
+export function duplicateQueryValueValidationError(
+  rawQuery: Record<string, string | string[]>
+): ZodError | null {
+  for (const [name, value] of Object.entries(rawQuery)) {
+    if (!Array.isArray(value)) continue
+    return new ZodError([
+      {
+        code: 'custom',
+        path: [name],
+        message: `${name} was sent ${value.length} times; send it at most once`,
+        input: undefined,
+      },
+    ])
+  }
+  return null
+}
