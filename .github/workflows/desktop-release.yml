@@ -1,10 +1,10 @@
 name: Desktop Release (macOS)
 
 # Builds, signs, notarizes, and uploads the desktop app to an existing GitHub
-# release. Ordering is load-bearing: scripts/create-single-release.ts skips
-# creation when the tag already exists, so this workflow must never create the
-# release itself — it only uploads assets after create-release ran (wired via
-# workflow_call from ci.yml with needs: [create-release]).
+# release. Stable releases live in this source repository; dev and staging
+# releases live in simstudioai/sim-desktop-releases. Ordering is load-bearing:
+# scripts/create-single-release.ts skips creation when the stable tag already
+# exists, so this workflow must never create a release itself.
 
 on:
   workflow_call:
@@ -104,18 +104,20 @@ jobs:
         run: |
           case "$VERSION" in
             *-dev.*|*-alpha.*)
-              NAME='Sim Dev'; APP_ID=ai.sim.desktop.dev; ORIGIN=https://www.dev.sim.ai ;;
+              NAME='Sim Dev'; APP_ID=ai.sim.desktop.dev; ORIGIN=https://www.dev.sim.ai; RELEASE_REPOSITORY=simstudioai/sim-desktop-releases; TOKEN_KIND=prerelease ;;
             *-staging.*|*-beta.*)
-              NAME='Sim Staging'; APP_ID=ai.sim.desktop.staging; ORIGIN=https://www.staging.sim.ai ;;
+              NAME='Sim Staging'; APP_ID=ai.sim.desktop.staging; ORIGIN=https://www.staging.sim.ai; RELEASE_REPOSITORY=simstudioai/sim-desktop-releases; TOKEN_KIND=prerelease ;;
             *)
-              NAME='Sim'; APP_ID=ai.sim.desktop; ORIGIN='' ;;
+              NAME='Sim'; APP_ID=ai.sim.desktop; ORIGIN=''; RELEASE_REPOSITORY="$GITHUB_REPOSITORY"; TOKEN_KIND=stable ;;
           esac
           {
             echo "name=$NAME"
             echo "app_id=$APP_ID"
             echo "origin=$ORIGIN"
+            echo "release_repository=$RELEASE_REPOSITORY"
+            echo "token_kind=$TOKEN_KIND"
           } >> "$GITHUB_OUTPUT"
-          echo "Building $NAME ($APP_ID) default origin: ${ORIGIN:-production}"
+          echo "Building $NAME ($APP_ID) for $RELEASE_REPOSITORY; default origin: ${ORIGIN:-production}"
 
       - name: Bundle main and preload
         working-directory: apps/desktop
@@ -177,9 +179,14 @@ jobs:
       - name: Upload artifacts to the release
         if: ${{ inputs.publish }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.channel.outputs.token_kind == 'prerelease' && secrets.DESKTOP_RELEASE_TOKEN || github.token }}
+          RELEASE_REPOSITORY: ${{ steps.channel.outputs.release_repository }}
           VERSION: ${{ inputs.version }}
         run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::DESKTOP_RELEASE_TOKEN is required to publish prereleases to $RELEASE_REPOSITORY."
+            exit 1
+          fi
           # electron-builder's GitHub provider always names the manifest
           # latest-mac.yml (channels are a generic-provider concept), and the
           # update feed expects exactly that asset name on every release —
@@ -198,6 +205,7 @@ jobs:
             apps/desktop/release/*.zip \
             apps/desktop/release/*.blockmap \
             apps/desktop/release/latest-mac.yml \
+            --repo "$RELEASE_REPOSITORY" \
             --clobber
 
       - name: Upload artifacts to the workflow run
