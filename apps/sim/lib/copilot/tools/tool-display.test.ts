@@ -78,6 +78,58 @@ describe('getToolDisplayTitle natural-language coverage', () => {
     expect(getToolDisplayTitle('diff_workflows')).toBe('Comparing workflows')
   })
 
+  it('uses a deterministic internal-knowledge title for glob', () => {
+    expect(getToolDisplayTitle('glob')).toBe('Exploring Internal Knowledge Base')
+    expect(getToolDisplayTitle('glob', { toolTitle: 'docs corpus manifest' })).toBe(
+      'Exploring Internal Knowledge Base'
+    )
+    expect(getToolCompletedTitle(getToolDisplayTitle('glob'))).toBe(
+      'Explored Internal Knowledge Base'
+    )
+  })
+
+  it('titles grep from its path and pattern rather than a generated summary', () => {
+    expect(
+      getToolDisplayTitle('grep', {
+        path: 'docs/self-hosting.mdx',
+        pattern: 'BYOK',
+        toolTitle: 'BYOK in documentation',
+      })
+    ).toBe('Skimming Docs Page: self-hosting')
+    expect(
+      getToolDisplayTitle('grep', {
+        path: 'docs/workflows/blocks/agent.mdx',
+        pattern: 'apiKey',
+      })
+    ).toBe('Skimming Docs Page: workflows/agent')
+    expect(
+      getToolDisplayTitle('grep', {
+        path: 'files/Q4%20Report.pdf/content',
+        pattern: 'revenue',
+      })
+    ).toBe('Searching Q4 Report for revenue')
+    expect(getToolDisplayTitle('grep', { pattern: 'BYOK' })).toBe(
+      'Searching Internal Knowledge Base for BYOK'
+    )
+    expect(getToolDisplayTitle('grep', { path: 'workflows/', pattern: 'slack' })).toBe(
+      'Searching workflows for slack'
+    )
+    expect(
+      getToolCompletedTitle(
+        getToolDisplayTitle('grep', { path: 'docs/self-hosting.mdx', pattern: 'BYOK' })
+      )
+    ).toBe('Skimmed Docs Page: self-hosting')
+  })
+
+  it('uses fetch wording for page-content retrieval', () => {
+    const title = getToolDisplayTitle('web_fetch', {
+      urls: ['https://example.com', 'https://example.org'],
+    })
+
+    expect(title).toBe('Fetching 2 pages')
+    expect(getToolStatusDisplayTitle(title, 'success')).toBe('Fetched 2 pages')
+  })
+
   it('falls back to running code for run_function without a title', () => {
     expect(getToolDisplayTitle('run_function')).toBe('Running code')
     expect(getToolDisplayTitle('run_function', { title: 'Crunching numbers' })).toBe(

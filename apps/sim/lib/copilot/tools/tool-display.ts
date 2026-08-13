@@ -1,4 +1,4 @@
-import { stripVersionSuffix } from '@sim/utils/string'
+import { stripVersionSuffix, truncate } from '@sim/utils/string'
 
 /**
  * Single source of truth for copilot tool-call display titles.
@@ -113,6 +113,40 @@ function pathLeaf(path: string): string {
   const normalized = path.replace(/\/+$/, '')
   const leaf = normalized.split('/').filter(Boolean).at(-1) || normalized
   return decodePathSegment(leaf)
+}
+
+/** Returns the final path segment without a file extension or virtual content suffix. */
+function pathStem(path: string): string {
+  const normalized = path.replace(/\/+$/, '').replace(/\/content$/, '')
+  const leaf = pathLeaf(normalized)
+  const extensionIndex = leaf.lastIndexOf('.')
+  return extensionIndex > 0 ? leaf.slice(0, extensionIndex) : leaf
+}
+
+/**
+ * Labels a docs corpus page as `<section>/<page>` (docs/workflows/blocks/agent.mdx
+ * → `workflows/agent`); a top-level page is just its stem (docs/getting-started.mdx
+ * → `getting-started`). Returns null when the path is not a docs page.
+ */
+export function docsPageLabel(path: string): string | null {
+  const segments = path
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map(decodePathSegment)
+  if (segments[0] !== 'docs' || segments.length < 2) return null
+  const leaf = pathStem(path)
+  if (segments.length === 2) return leaf
+  return `${segments[1]}/${leaf}`
+}
+
+function grepTitle(args: ToolArgs): string {
+  const path = stringArg(args, 'path')
+  const docsPage = docsPageLabel(path)
+  if (docsPage) return `Skimming Docs Page: ${docsPage}`
+  const target = pathStem(path) || 'Internal Knowledge Base'
+  const pattern = truncate(stringArg(args, 'pattern').replace(/\s+/g, ' '), 60)
+  return pattern ? `Searching ${target} for ${pattern}` : `Searching ${target}`
 }
 
 function summarizeTargets(targets: string[], fallback: string): string {
@@ -805,12 +839,10 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return target ? `Searching online for ${target}` : 'Searching online'
     }
     case 'grep': {
-      const target = firstStringArg(args, 'toolTitle', 'title')
-      return target ? `Searching for ${target}` : 'Searching'
+      return grepTitle(args)
     }
     case 'glob': {
-      const target = firstStringArg(args, 'toolTitle', 'title')
-      return target ? `Finding ${target}` : 'Finding files'
+      return 'Exploring Internal Knowledge Base'
     }
     case 'mv': {
       const sources = stringArrayArg(args, 'sources')
@@ -893,9 +925,9 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     }
     case 'web_fetch': {
       const urls = stringArrayArg(args, 'urls')
-      if (urls.length === 1) return `Getting ${urls[0]}`
-      if (urls.length > 1) return `Getting ${urls.length} pages`
-      return 'Getting page contents'
+      if (urls.length === 1) return `Fetching ${urls[0]}`
+      if (urls.length > 1) return `Fetching ${urls.length} pages`
+      return 'Fetching page contents'
     }
     case 'manage_custom_tool': {
       const schema = args?.schema
@@ -998,8 +1030,10 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Editing: 'Edited',
   Enabling: 'Enabled',
   Executing: 'Executed',
+  Exploring: 'Explored',
   Extracting: 'Extracted',
   Fading: 'Faded',
+  Fetching: 'Fetched',
   Finding: 'Found',
   Gathering: 'Gathered',
   Generating: 'Generated',
@@ -1035,6 +1069,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Selecting: 'Selected',
   Setting: 'Set',
   Sharing: 'Shared',
+  Skimming: 'Skimmed',
   Stopping: 'Stopped',
   Summarizing: 'Summarized',
   Switching: 'Switched',

@@ -64,6 +64,21 @@ describe('streaming resource titles', () => {
     expect(resolveStreamingToolDisplayTitle('rm', '{"toolTitle":"Old Report.pdf"}')).toBe(
       'Deleting Old Report.pdf'
     )
+    expect(resolveStreamingToolDisplayTitle('glob', '{"pattern":"docs/**"}')).toBe(
+      'Exploring Internal Knowledge Base'
+    )
+    expect(
+      resolveStreamingToolDisplayTitle('grep', '{"path":"docs/self-hosting.mdx","pattern":"BYOK"}')
+    ).toBe('Skimming Docs Page: self-hosting')
+    expect(resolveStreamingToolDisplayTitle('grep', '{"pattern":"BYOK"}')).toBe(
+      'Searching Internal Knowledge Base for BYOK'
+    )
+    expect(
+      resolveStreamingToolDisplayTitle(
+        'grep',
+        JSON.stringify({ path: 'docs/self-hosting.mdx', pattern: '"BYOK"' })
+      )
+    ).toBe('Skimming Docs Page: self-hosting')
   })
 })
 

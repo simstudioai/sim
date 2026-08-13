@@ -237,8 +237,7 @@ function decodeStreamingString(value: string): string {
 }
 
 function matchStreamingStringArg(streamingArgs: string, key: string): string | undefined {
-  const match = streamingArgs.match(new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`, 'm'))
-  return match?.[1] ? decodeStreamingString(match[1]) : undefined
+  return extractStreamingStringArgument(streamingArgs, key)
 }
 
 function resolveStreamingManagedResourceTitle(
@@ -305,13 +304,14 @@ export function resolveStreamingToolDisplayTitle(
   }
 
   if (name === Grep.id) {
-    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
-    return toolTitle ? `Searching for ${toolTitle}` : undefined
+    const pattern = matchStreamingStringArg(streamingArgs, 'pattern')
+    if (!pattern) return undefined
+    const path = matchStreamingStringArg(streamingArgs, 'path')
+    return getToolDisplayTitle(name, { pattern, path })
   }
 
   if (name === Glob.id) {
-    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
-    return toolTitle ? `Finding ${toolTitle}` : undefined
+    return getToolDisplayTitle(name)
   }
 
   if (name === 'mv') {

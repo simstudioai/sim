@@ -49,6 +49,26 @@ describe('resolveToolDisplay', () => {
     ).toBe('Read RET XYZ')
   })
 
+  it('formats docs corpus reads as Docs Page: Section/page', () => {
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'docs/workflows/blocks/agent.mdx',
+      })?.text
+    ).toBe('Read Docs Page: workflows/agent')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {
+        path: 'docs/integrations/gmail.mdx',
+      })?.text
+    ).toBe('Reading Docs Page: integrations/gmail')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.error, {
+        path: 'docs/getting-started.mdx',
+      })?.text
+    ).toBe('Attempted to read Docs Page: getting-started')
+  })
+
   it('decodes percent-encoded VFS path segments for display', () => {
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {

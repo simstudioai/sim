@@ -6,7 +6,11 @@ import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
-import { humanizeDisplayIdentifier, humanizeToolName } from '@/lib/copilot/tools/tool-display'
+import {
+  docsPageLabel,
+  humanizeDisplayIdentifier,
+  humanizeToolName,
+} from '@/lib/copilot/tools/tool-display'
 import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
 
 /** Respond tools are internal handoff tools shown with a friendly generic label. */
@@ -96,6 +100,11 @@ function describeReadTarget(path: string | undefined): string | undefined {
     .map(decodeVfsSegmentSafe)
 
   if (segments.length === 0) return undefined
+
+  if (segments[0] === 'docs') {
+    const label = docsPageLabel(path)
+    return label ? `Docs Page: ${label}` : 'docs'
+  }
 
   const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
   if (!resourceType) {
