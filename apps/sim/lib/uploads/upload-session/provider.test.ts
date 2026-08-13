@@ -1,8 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
+import { link, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+/**
+ * Spied rather than replaced: every assertion in this file reads the real
+ * filesystem, and the only behaviour worth faking is a single `link` answering
+ * `EXDEV`, which no temporary directory can be made to produce on its own.
+ */
+vi.mock('node:fs/promises', { spy: true })
 
 const { testUploadDirectory, mockS3Presign, mockS3PartUrls } = vi.hoisted(() => ({
   testUploadDirectory: `/tmp/sim-upload-session-provider-${process.pid}`,
@@ -115,6 +122,60 @@ describe('local upload-session provider', () => {
       uploadId: 'upload-1',
       version: expect.any(String),
     })
+  })
+
+  /**
+   * Staging moved out of the destination's own directory into one shared
+   * `.staging` root, which is what makes this reachable: a volume mounted under
+   * part of the uploads tree puts the staged object and its destination on
+   * different devices, and a hard link cannot span them. Publication has to
+   * survive that without giving up the create-or-fail the link provides.
+   */
+  it('publishes across a filesystem boundary a hard link cannot span', async () => {
+    vi.mocked(link).mockRejectedValueOnce(
+      Object.assign(new Error('EXDEV: cross-device link'), { code: 'EXDEV' })
+    )
+
+    await writeLocalPutObject({
+      uploadId: 'upload-1',
+      key: 'workspace/workspace-1/file.bin',
+      body: byteStream('ab', 'cd'),
+      expectedSize: 4,
+      contentType: 'application/octet-stream',
+      metadata: METADATA,
+    })
+
+    await expect(readFile(localPath('workspace/workspace-1/file.bin'), 'utf8')).resolves.toBe(
+      'abcd'
+    )
+    await expect(
+      headProviderObject({
+        provider: 'local',
+        key: 'workspace/workspace-1/file.bin',
+        context: CONTEXT,
+      })
+    ).resolves.toMatchObject({ size: 4, uploadId: 'upload-1' })
+    expect(await temporaryFiles('workspace/workspace-1')).toEqual([])
+    expect(await allEntries('.staging')).toEqual([])
+  })
+
+  it('still refuses to overwrite an existing object when the link cannot span devices', async () => {
+    const params = {
+      uploadId: 'upload-1',
+      key: 'workspace/workspace-1/file.bin',
+      expectedSize: 3,
+      contentType: 'application/octet-stream',
+      metadata: METADATA,
+    }
+    await writeLocalPutObject({ ...params, body: byteStream('one') })
+    vi.mocked(link).mockRejectedValueOnce(
+      Object.assign(new Error('EXDEV: cross-device link'), { code: 'EXDEV' })
+    )
+
+    await expect(writeLocalPutObject({ ...params, body: byteStream('two') })).rejects.toThrow()
+
+    await expect(readFile(localPath(params.key), 'utf8')).resolves.toBe('one')
+    expect(await temporaryFiles('workspace/workspace-1')).toEqual([])
   })
 
   it('does not let a replayed PUT overwrite the final object', async () => {

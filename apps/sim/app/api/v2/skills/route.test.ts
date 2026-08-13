@@ -50,6 +50,7 @@ vi.mock('@/lib/skills/application/use-cases', () => ({
   createSkillUseCase: { operation: { id: 'skills.create' }, execute: mocks.create },
 }))
 
+import { PrincipalKindAuthorizationError } from '@/lib/core/application'
 import { cursorFilterScope, cursorSortKey, encodeOffsetCursor } from '@/app/api/v2/lib/response'
 import { GET, POST } from '@/app/api/v2/skills/route'
 
@@ -309,6 +310,33 @@ describe('/api/v2/skills', () => {
       expect.objectContaining({ skill_id: skill.id, source: 'api' }),
       expect.anything()
     )
+  })
+
+  /**
+   * The workspace-key create used to be the case this file pinned analytics
+   * against: it succeeded, and the assertion was that no `skill_created` event
+   * was attributed to a principal with no human subject. `skills.create` now
+   * denies the key outright, so what needs pinning here is the surface's half of
+   * that — the refusal reaches the caller as the operation's own 403, and a
+   * create that never happened emits nothing.
+   */
+  it('refuses a workspace-key create and records no analytics for it', async () => {
+    mocks.create.mockRejectedValueOnce(
+      new PrincipalKindAuthorizationError('workspace_api_key', 'skills.create')
+    )
+
+    const response = await POST(
+      request('POST', '/api/v2/skills', {
+        workspaceId: WORKSPACE_ID,
+        name: skill.name,
+        description: skill.description,
+        content: skill.content,
+      })
+    )
+
+    expect(response.status).toBe(403)
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ principal: PRINCIPAL }))
+    expect(mocks.capture).not.toHaveBeenCalled()
   })
 
   it('authenticates before parsing skill input', async () => {
