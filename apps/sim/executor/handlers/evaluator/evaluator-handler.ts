@@ -182,6 +182,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
         credentialId: evaluatorConfig.vertexCredential,
         actingUserId: ctx.userId,
         workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
         callerLabel: 'vertex-evaluator',
       })
     }
