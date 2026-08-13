@@ -4,6 +4,7 @@ import { mcpServerOauth } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit'
 import type { NextRequest } from 'next/server'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
@@ -157,6 +158,8 @@ export async function createMcpServer(
         id: mcpServers.id,
         deletedAt: mcpServers.deletedAt,
         url: mcpServers.url,
+        transport: mcpServers.transport,
+        headers: mcpServers.headers,
         authType: mcpServers.authType,
         oauthClientId: mcpServers.oauthClientId,
         oauthClientSecret: mcpServers.oauthClientSecret,
@@ -207,6 +210,19 @@ export async function createMcpServer(
       // Turning OAuth off orphans its tokens; revoke and delete them, mirroring the update path.
       const oauthDisabled = existingServer.authType === 'oauth' && resolvedAuthType !== 'oauth'
       const shouldClearOauth = urlChanged || credsChanged || isRevival || oauthDisabled
+      /**
+       * Everything a connection is established from. `name`, `description`,
+       * `timeout`, `retries`, and `enabled` are deliberately absent: none of
+       * them changes what the server answers to a discovery, so rewriting one
+       * must not invalidate a status a real discovery earned.
+       */
+      const connectionInputsChanged =
+        isRevival ||
+        urlChanged ||
+        credsChanged ||
+        existingServer.transport !== transport ||
+        (existingServer.authType ?? 'headers') !== resolvedAuthType ||
+        !isEqual(existingServer.headers ?? {}, params.headers || {})
 
       if (shouldClearOauth) await revokeMcpOauthTokens(serverId, params.workspaceId)
 
@@ -229,20 +245,25 @@ export async function createMcpServer(
           deletedAt: null,
         }
         /**
-         * A re-registration rewrites the URL, headers, transport, and timeouts —
-         * i.e. every input to a connection — so whatever the previous discovery
-         * established no longer describes this configuration. It resets rather
-         * than branching on auth type: the former `else` branch stamped
-         * `connected` plus a fresh `lastConnected` for any non-OAuth
-         * re-registration without contacting the endpoint, which published a
-         * successful connection that never happened and, because it left
-         * `lastError` alone, could publish `connected` beside a stale error.
+         * A re-registration must never stamp `connected` itself: the former
+         * `else` branch published a fresh `lastConnected` for any non-OAuth
+         * re-registration without contacting the endpoint, and left `lastError`
+         * alone, so `connected` could sit beside a stale error.
          * `mcpService.updateServerStatus` is the only writer entitled to claim a
          * connection, and it does so after a real discovery.
+         *
+         * Resetting is scoped to the inputs a connection is actually made from.
+         * A re-registration also rewrites `name` and `description`, and clearing
+         * the status for those strands an OAuth server: `isServerEligibleForDiscovery`
+         * skips an OAuth row that is not `connected`, so the only writer that can
+         * restore the status is gated on the status just cleared, and a rename
+         * silently removes every tool the server publishes.
          */
-        updateValues.connectionStatus = 'disconnected'
-        updateValues.lastConnected = null
-        updateValues.lastError = null
+        if (connectionInputsChanged) {
+          updateValues.connectionStatus = 'disconnected'
+          updateValues.lastConnected = null
+          updateValues.lastError = null
+        }
         if (params.oauthClientIdProvided) updateValues.oauthClientId = oauthClientId
         if (params.oauthClientSecretProvided) {
           updateValues.oauthClientSecret = oauthClientSecretEncrypted
