@@ -12,9 +12,7 @@ import { SafeXmlNode } from '../parser/xml-parser'
 import type { RenderContext } from './render-context'
 import { resolveColor, resolveColorToCss } from './style-resolver'
 
-// ---------------------------------------------------------------------------
 // Style Inheritance Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Find paragraph properties at a specific indent level from a list style node.
@@ -227,9 +225,7 @@ function mergeParagraphProps(target: MergedParagraphStyle, pPr: SafeXmlNode): vo
   }
 }
 
-// ---------------------------------------------------------------------------
 // Run Style Resolution
-// ---------------------------------------------------------------------------
 
 interface MergedRunStyle {
   fontSize?: number
@@ -420,9 +416,7 @@ function resolveGradientForText(gradFill: SafeXmlNode, ctx: RenderContext): stri
   return `linear-gradient(180deg, ${stopsStr})`
 }
 
-// ---------------------------------------------------------------------------
 // Bullet Generation
-// ---------------------------------------------------------------------------
 
 function generateAutoNumber(type: string, index: number): string {
   const num = index + 1
@@ -466,9 +460,7 @@ function toRoman(num: number): string {
   return result
 }
 
-// ---------------------------------------------------------------------------
 // Main Render Function
-// ---------------------------------------------------------------------------
 
 /**
  * Render a text body into the provided container element.

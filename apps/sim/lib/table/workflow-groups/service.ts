@@ -37,7 +37,8 @@ import type {
   WorkflowGroup,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
-import { assertValidSchema, runWorkflowColumn, stripGroupDeps } from '@/lib/table/workflow-columns'
+import { assertValidSchema, runWorkflowColumn } from '@/lib/table/workflow-columns'
+import { stripGroupDeps } from '@/lib/table/workflow-group-deps'
 
 const logger = createLogger('TableWorkflowGroupsService')
 /**

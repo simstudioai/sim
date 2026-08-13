@@ -1072,34 +1072,6 @@ export async function runWorkflowColumn(opts: {
   return { dispatchId, shouldSignalRowsChanged: true }
 }
 
-// ───────────────────────────── Validation ─────────────────────────────
-
-/**
-/**
- * Removes the given column names from a group's `dependencies.columns` and from
- * its `inputMappings` (any mapping whose source `columnName` was removed). When
- * either list ends up empty, drops the field entirely so schema validation
- * doesn't see an empty object. Returns the same group reference when nothing
- * changed.
- */
-export function stripGroupDeps(group: WorkflowGroup, removed: ReadonlySet<string>): WorkflowGroup {
-  const cols = group.dependencies?.columns ?? []
-  const mappings = group.inputMappings ?? []
-  const filteredDeps = cols.filter((d) => !removed.has(d))
-  const filteredMappings = mappings.filter((m) => !removed.has(m.columnName))
-  const depsChanged = filteredDeps.length !== cols.length
-  const mappingsChanged = filteredMappings.length !== mappings.length
-  if (!depsChanged && !mappingsChanged) return group
-  const next: WorkflowGroup = { ...group }
-  if (depsChanged) {
-    next.dependencies = filteredDeps.length > 0 ? { columns: filteredDeps } : undefined
-  }
-  if (mappingsChanged) {
-    next.inputMappings = filteredMappings.length > 0 ? filteredMappings : undefined
-  }
-  return next
-}
-
 /**
  * Validates schema-level invariants. Run on every `addTableColumn`,
  * `addWorkflowGroup`, `updateWorkflowGroup`, `renameColumn`, `reorderColumns`,

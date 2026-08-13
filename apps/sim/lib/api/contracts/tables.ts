@@ -1058,13 +1058,11 @@ export type InsertTableRowBodyInput = z.input<typeof insertTableRowBodySchema>
 export type BatchInsertTableRowsBodyInput = z.input<typeof batchInsertTableRowsBodySchema>
 export type BatchUpdateTableRowsBodyInput = z.input<typeof batchUpdateTableRowsBodySchema>
 export type UpdateTableRowBodyInput = z.input<typeof updateTableRowBodySchema>
-// ============================================================================
 // CSV import form schemas
 //
 // Both `/api/table/import-csv` and `/api/table/[tableId]/import-csv` parse a
 // `multipart/form-data` body, so these schemas are validated *form-field by
 // form-field* in the routes (not as a single contract body).
-// ============================================================================
 
 export const csvFileSchema = z
   .unknown()
@@ -1409,10 +1407,8 @@ export const deleteTableRowsAsyncContract = defineRouteContract({
   },
 })
 
-// ============================================================================
 // Workflow group contracts (`/api/table/[tableId]/groups`, `/cancel-runs`,
 // `/columns/run`, `/rows/run`, `/rows/[rowId]/cells/[groupId]/run`)
-// ============================================================================
 
 const workflowGroupOutputSchema = z.object({
   // Workflow outputs carry blockId/path; enrichment outputs carry outputId and

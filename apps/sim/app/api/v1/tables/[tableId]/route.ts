@@ -6,10 +6,10 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { TableSchema } from '@/lib/table'
 import { performDeleteTable } from '@/lib/table/orchestration'
+import { normalizeColumn } from '@/lib/table/wire'
 import {
   accessError,
   checkAccess,
-  normalizeColumn,
   orchestrationOutcomeErrorResponse,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
