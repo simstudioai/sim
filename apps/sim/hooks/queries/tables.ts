@@ -830,6 +830,18 @@ function withOptimisticAutoFireExec(groups: WorkflowGroup[], row: TableRow): Tab
 }
 
 /**
+ * Whether a cache key under {@link tableKeys.rowsRoot} holds paged row-list data.
+ *
+ * `rowsRoot` is a shared prefix: the `find` (search results) and `write` (pending
+ * writes) subtrees live beneath it with entirely different shapes, so any bulk
+ * update walking the prefix has to exclude them or it will be handed a value whose
+ * `pages` it cannot map.
+ */
+function isRowListQueryKey(queryKey: readonly unknown[]): boolean {
+  return !queryKey.includes('find') && !queryKey.includes('write')
+}
+
+/**
  * Apply a row-level transformation to all cached infinite row queries for this
  * table. Used for cell edits where positions don't change.
  */
@@ -839,9 +851,20 @@ function patchCachedRows(
   patchRow: (row: TableRow) => TableRow
 ) {
   queryClient.setQueriesData<InfiniteData<TableRowsResponse, TableRowsPageParam>>(
-    { queryKey: tableKeys.rowsRoot(tableId), exact: false },
+    {
+      queryKey: tableKeys.rowsRoot(tableId),
+      exact: false,
+      /**
+       * `rowsRoot` is a prefix, not a leaf: `rowWrites` and `find` hang off it and
+       * hold non-paged shapes. Without this they are handed to the updater below,
+       * whose `old.pages.map` throws — and because this runs inside `onMutate`, the
+       * whole cell edit rejects before it reaches the server. Only reachable once a
+       * `find` entry exists, i.e. after the user has searched the table.
+       */
+      predicate: (query) => isRowListQueryKey(query.queryKey),
+    },
     (old) => {
-      if (!old) return old
+      if (!old?.pages) return old
       return {
         ...old,
         pages: old.pages.map((page) => ({ ...page, rows: page.rows.map(patchRow) })),
@@ -859,7 +882,7 @@ function patchCachedRows(
  * `find`/`write` subtrees aren't row-list data and never match.
  */
 function isDefaultOrderRowsQuery(queryKey: readonly unknown[]): boolean {
-  if (queryKey.includes('find') || queryKey.includes('write')) return false
+  if (!isRowListQueryKey(queryKey)) return false
   const last = queryKey[queryKey.length - 1]
   if (typeof last !== 'string') return false
   try {
