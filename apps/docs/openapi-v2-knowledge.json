@@ -57,7 +57,7 @@
             "description": "Restrict results to knowledge bases in this folder.",
             "schema": {
               "description": "Restrict results to knowledge bases in this folder.",
-              "type": "string"
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
@@ -76,10 +76,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "createdAt",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -474,7 +474,7 @@
       "post": {
         "operationId": "searchKnowledge",
         "summary": "Search Knowledge",
-        "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Set `rerankerEnabled` to re-order the retrieved chunks with a reranking model before truncating to `topK`; `rerankerModel` selects the model and defaults when omitted. Reranked results carry a `rerankerScore` and are ordered by it, and reranking is billed as an additional search unit. Reranking is best-effort: a reranker that cannot run — a provider failure, a timeout, or a deployment with no reranking credential — falls back to vector ordering rather than failing the search, so read `rerankerStatus` on the response to tell an ordering the reranker produced from one it never touched. Every result names the `knowledgeBaseId` it came from. The request body is capped at 2 MiB; a larger body is a 413.",
+        "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. The request body is capped at 2 MiB; a larger body is a 413.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -543,7 +543,7 @@
       "get": {
         "operationId": "listKnowledgeTags",
         "summary": "List Tags",
-        "description": "List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Display names are what tag filters and the tag values on document reads use; slots are what document writes set. Every slot listed here is writable, in its declared type: `tag1`..`tag7` take a string, `number1`..`number5` a number, `date1`..`date2` a `YYYY-MM-DD` string, and `boolean1`..`boolean3` a boolean. The vocabulary is bounded by the fixed slot table. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Filters and document reads use display names; document writes address slots, each in its declared type. The vocabulary is bounded by the fixed slot table. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -786,7 +786,7 @@
       "patch": {
         "operationId": "bulkUpdateKnowledgeDocuments",
         "summary": "Bulk Enable or Disable Documents",
-        "description": "Enable or disable many documents in one request, either by identifier (up to 100) or, with `selectAll`, every document in the knowledge base optionally narrowed by `enabledFilter`. Disabling keeps a document indexed but excludes it from search. Bulk delete is deliberately not offered: the bulk path records no audit entries, so deletions go through `DELETE /api/v2/knowledge/{id}/documents/{documentId}`, which audits each one. An identifier request echoes the documents it changed in `documentIds`; a `selectAll` request omits that field because the selection is unbounded, and reports `updatedCount` alone. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Enable or disable many documents in one request, either by identifier or, with `selectAll`, every document in the knowledge base. Bulk delete is deliberately not offered: the bulk path records no audit entries, so deletions go through `DELETE /api/v2/knowledge/{id}/documents/{documentId}`, which audits each one. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1449,7 +1449,7 @@
       "patch": {
         "operationId": "updateKnowledgeDocument",
         "summary": "Update Document",
-        "description": "Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. A tag slot takes its declared type — a string for `tag1`..`tag7`, a number for `number1`..`number5`, a `YYYY-MM-DD` string for `date1`..`date2`, a boolean for `boolean1`..`boolean3` — and a value that is not valid for the slot is a `400` rather than a silently cleared tag. Resolve a display name to its slot with `GET /api/v2/knowledge/{id}/tags`. Absent fields are unchanged. Only caller-owned fields are accepted: derived indexing state (`chunkCount`, `tokenCount`, `characterCount`, `processingStatus`, `processingError`) is written by the processing pipeline and cannot be asserted here. `retryProcessing: true` re-queues a failed or stuck document and must be sent on its own — it runs instead of, not alongside, the field updates — and it answers with a queue acknowledgement rather than the document. Otherwise the updated document is returned; it omits the connector provenance the detail read carries, so re-read with GET when that is needed. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state — `chunkCount`, `tokenCount`, `characterCount`, `processingStatus`, `processingError` — is written by the processing pipeline and cannot be asserted here. Resolve a tag display name to its slot with `GET /api/v2/knowledge/{id}/tags`. The returned document omits the connector provenance the detail read carries. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1645,7 +1645,7 @@
             "description": "Restrict results to direct children of this parent path.",
             "schema": {
               "description": "Restrict results to direct children of this parent path.",
-              "type": "string"
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
@@ -1664,10 +1664,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "name",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -1891,16 +1891,30 @@
             "description": "Path of the folder to delete.",
             "schema": {
               "description": "Path of the folder to delete.",
-              "type": "string"
+              "$ref": "#/components/schemas/NonRootFolderPathInput"
             }
           },
           {
             "name": "recursive",
             "in": "query",
             "required": false,
-            "description": "Delete nested files and folders when true.",
+            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected.",
             "schema": {
-              "description": "Delete nested files and folders when true.",
+              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected.",
+              "enum": [
+                "true",
+                "1",
+                "yes",
+                "on",
+                "y",
+                "enabled",
+                "false",
+                "0",
+                "no",
+                "off",
+                "n",
+                "disabled"
+              ],
               "default": "false",
               "type": "string"
             }
@@ -2213,6 +2227,12 @@
           }
         ]
       },
+      "FolderPathInput": {
+        "title": "Folder path input",
+        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
       "V2KnowledgeBase": {
         "type": "object",
         "properties": {
@@ -2290,7 +2310,9 @@
           },
           "folderPath": {
             "type": "string",
+            "title": "Folder path",
             "description": "Canonical containing-folder path; `/` is the workspace root.",
+            "maxLength": 4096,
             "examples": ["/Product"]
           }
         },
@@ -2473,7 +2495,7 @@
           },
           "folderPath": {
             "description": "Containing folder path; omission creates the knowledge base at the root.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId", "name"],
@@ -2508,7 +2530,7 @@
           },
           "folderPath": {
             "description": "New containing-folder path.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId"],
@@ -3971,7 +3993,7 @@
             "type": "boolean"
           },
           "retryProcessing": {
-            "description": "Requeue the document for processing. Send it alone: no other field may accompany it.",
+            "description": "Requeue a failed or stuck document for processing. Send it alone — no other field may accompany it — and it answers with a queue acknowledgement rather than the document.",
             "type": "boolean",
             "const": true
           }
@@ -3997,11 +4019,15 @@
           },
           "path": {
             "type": "string",
-            "description": "Canonical folder path used as the public folder identifier."
+            "title": "Non-root folder path",
+            "description": "Canonical folder path used as the public folder identifier.",
+            "maxLength": 4096
           },
           "parentPath": {
             "type": "string",
-            "description": "Canonical parent path; `/` is the root."
+            "title": "Folder path",
+            "description": "Canonical parent path; `/` is the root.",
+            "maxLength": 4096
           },
           "createdAt": {
             "type": "string",
@@ -4059,6 +4085,12 @@
         "title": "Knowledge folder response",
         "description": "A single knowledge-base folder."
       },
+      "NonRootFolderPathInput": {
+        "title": "Non-root folder path input",
+        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
       "CreateKnowledgeFolderRequest": {
         "type": "object",
         "properties": {
@@ -4069,7 +4101,7 @@
           },
           "path": {
             "description": "Path of the folder to create.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path"],
@@ -4087,11 +4119,11 @@
           },
           "path": {
             "description": "Current folder path.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           },
           "destinationPath": {
             "description": "New full path for the folder and its descendants.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path", "destinationPath"],
@@ -4104,7 +4136,9 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Canonical path of the deleted folder."
+            "title": "Folder path",
+            "description": "Canonical path of the deleted folder.",
+            "maxLength": 4096
           },
           "deleted": {
             "type": "boolean",

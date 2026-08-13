@@ -476,19 +476,31 @@ export type V2NullableFileShare = z.output<typeof v2NullableFileShareSchema>
 export const v2UpsertFileShareBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
-    isActive: z.boolean().describe('Whether the share should resolve.'),
-    authType: shareAuthTypeSchema.optional().describe('How access to the share is gated.'),
+    isActive: z
+      .boolean()
+      .describe(
+        'Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use.'
+      ),
+    authType: shareAuthTypeSchema
+      .optional()
+      .describe(
+        'How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password.'
+      ),
     password: z
       .string()
       .min(1, 'password cannot be empty')
       .max(1024, 'password is too long')
       .optional()
-      .describe('Password for a password-gated share.'),
+      .describe(
+        'Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.'
+      ),
     allowedEmails: z
       .array(z.string().min(1, 'allowedEmails entries cannot be empty').max(320))
       .max(200, 'Too many allowed emails')
       .optional()
-      .describe('Allowed addresses or @domain patterns for email and SSO shares.'),
+      .describe(
+        'Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400.'
+      ),
   })
   .strict()
 

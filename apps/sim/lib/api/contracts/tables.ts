@@ -38,7 +38,9 @@ import {
 import { CSV_SYNC_MAX_FILE_SIZE_BYTES, CSV_SYNC_MAX_FILE_SIZE_MESSAGE } from '@/lib/table/import'
 import {
   getTablePredicateTreeSizeError,
+  MAX_PREDICATE_DEPTH,
   MAX_PREDICATE_GROUP_SIZE,
+  MAX_PREDICATE_NODES,
   normalizeTablePredicate,
 } from '@/lib/table/query-builder/predicate'
 
@@ -555,15 +557,107 @@ const predicateBoundarySchema = z.unknown().superRefine((value, ctx) => {
 })
 
 /**
+ * The published JSON Schema for a predicate tree.
+ *
+ * `predicateSchema` is a `pipe` whose input side is `z.unknown()` — the size
+ * guard has to run before the recursive union so pathological input is a `400`
+ * rather than a stack overflow — and `z.toJSONSchema` documents a pipe from its
+ * input. That published the most consequential shape in the API as a bare
+ * description: the leaf keys `field`/`op`/`value` were named nowhere in the
+ * contract and were discoverable only by reading an example, so a caller
+ * guessing `{column, operator, value}` got a `400` with nothing to correct
+ * against. This object is merged in through `.meta()` so the shape is published
+ * without moving the guard.
+ *
+ * Every bound below is read from the runtime constant that enforces it, and
+ * `tables-predicate.test.ts` pins the published operator set against
+ * `FILTER_OPS`, so the two cannot drift.
+ */
+const PREDICATE_LEAF_JSON_SCHEMA = {
+  type: 'object',
+  title: 'Predicate condition',
+  description: 'One column comparison.',
+  properties: {
+    field: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 128,
+      description:
+        'Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`.',
+    },
+    op: {
+      type: 'string',
+      enum: [...FILTER_OPS],
+      description:
+        'Comparison operator. The `TablePredicate` schema description carries the grammar for all of them.',
+    },
+    value: {
+      description:
+        'Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`.',
+    },
+  },
+  required: ['field', 'op'],
+  additionalProperties: false,
+} as const
+
+/**
+ * A group's members are the schema itself, so each component carries a `$ref`
+ * to its own id. The self-reference is what makes the recursion resolvable from
+ * inside a single `$defs` entry — a reference to a sibling component would be
+ * dangling wherever only one of the two is reachable, which is exactly the
+ * shape the table-view body has.
+ */
+const predicateGroupJsonSchema = (key: 'all' | 'any', conjunction: string, selfRef: string) =>
+  ({
+    type: 'object',
+    description: `Matches a row when ${conjunction} member matches.`,
+    properties: {
+      [key]: {
+        type: 'array',
+        minItems: 1,
+        maxItems: MAX_PREDICATE_GROUP_SIZE,
+        description: `Members combined with ${key === 'all' ? 'AND' : 'OR'}. An empty group is rejected, because it would compile to no filter at all.`,
+        items: {
+          description: 'A nested group, or a single condition.',
+          anyOf: [{ $ref: selfRef }, PREDICATE_LEAF_JSON_SCHEMA],
+        },
+      },
+    },
+    required: [key],
+    additionalProperties: false,
+  }) as const
+
+const predicateGroupsJsonSchema = (selfRef: string) =>
+  [
+    predicateGroupJsonSchema('all', 'every', selfRef),
+    predicateGroupJsonSchema('any', 'at least one', selfRef),
+  ] as const
+
+/**
+ * Stated once here rather than on each operation that accepts a predicate.
+ * The NULL clause is the surprising half: `ncontains`, `nlike`, and `nilike`
+ * emit an explicit `IS NULL OR NOT …` arm, and `ne`/`nin` negate a JSONB
+ * containment test that is false for an absent key, so all of them return rows
+ * whose column is null.
+ */
+const PREDICATE_TREE_DESCRIPTION = [
+  `Recursive predicate tree. Each group node is exactly one non-empty \`all\` or \`any\` array whose members are further groups or \`{ field, op, value }\` conditions; the root must be a group, not a bare condition. At most ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels of nesting, and ${MAX_PREDICATE_NODES} nodes in total.`,
+  'The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. Multi-select `ncontains` is the exception and excludes nulls.',
+  PREDICATE_OPERATOR_GRAMMAR,
+].join(' ')
+
+/**
  * The canonical grouped predicate schema for dual-grammar boundaries. Keeping
  * its root group-only prevents a legacy filter with columns named `field`,
  * `op`, and `value` from being reinterpreted as a v2 predicate.
  */
-const documentedPredicateSchema = predicateBoundarySchema
-  .pipe(predicateTreeSchema)
-  .describe(
-    `Recursive predicate tree with exactly one non-empty \`all\` or \`any\` group at each group node. ${PREDICATE_OPERATOR_GRAMMAR}`
-  )
+const documentedPredicateSchema = predicateBoundarySchema.pipe(predicateTreeSchema).meta({
+  id: 'TablePredicate',
+  title: 'Table predicate',
+  description: PREDICATE_TREE_DESCRIPTION,
+  type: 'object',
+  oneOf: [...predicateGroupsJsonSchema('#/$defs/TablePredicate')],
+})
 
 // double-cast-allowed: the pipe's inferred input is `unknown`, and letting TS widen the recursive lazy union through it makes typecheck OOM
 export const predicateSchema = documentedPredicateSchema as unknown as z.ZodType<TablePredicate>
@@ -577,9 +671,16 @@ export const predicateSchema = documentedPredicateSchema as unknown as z.ZodType
 export const predicateInputSchema = predicateBoundarySchema
   .pipe(predicateNodeSchema)
   .transform(normalizeTablePredicate)
-  .describe(
-    `Recursive predicate condition or group, normalized to a grouped predicate after validation. ${PREDICATE_OPERATOR_GRAMMAR}`
-  ) as z.ZodType<TablePredicate, PredicateNode>
+  .meta({
+    id: 'TablePredicateInput',
+    title: 'Table predicate input',
+    description:
+      'A single `{ field, op, value }` condition or a group, normalized to a grouped predicate after validation. Same grammar and limits as `TablePredicate`.',
+    oneOf: [
+      ...predicateGroupsJsonSchema('#/$defs/TablePredicateInput'),
+      PREDICATE_LEAF_JSON_SCHEMA,
+    ],
+  }) as z.ZodType<TablePredicate, PredicateNode>
 
 /**
  * v2 sort wire format: an ordered list of `{ field, direction }`.

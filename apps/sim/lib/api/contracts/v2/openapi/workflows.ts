@@ -4,6 +4,7 @@ import {
   type ErrorResponseId,
   FOLDER_TREE_TOO_LARGE,
   FULL_SET_LIST,
+  HEAD_MIRRORS_GET,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
@@ -371,7 +372,7 @@ const routes = [
     workflowOperation({
       operationId: 'deployWorkflow',
       summary: 'Deploy Workflow',
-      description: `Create and asynchronously activate a deployment version. This request is not idempotent: it accepts no idempotency key and every call mints a new deployment version, so retrying after a timeout creates a second version rather than returning the first. The response carries \`latestDeploymentAttempt\` for the accepted attempt, but \`GET /workflows/{id}\` does not expose that field — poll activation with \`isDeployed\` and \`deployedAt\` on the workflow, or with \`isActive\` on \`GET /workflows/{id}/versions\`. Returns 409 when the deployment would conflict with an existing webhook path. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create and asynchronously activate a deployment version. This request is not idempotent: every call mints a new deployment version, so retrying after a timeout creates a second version rather than returning the first. A deployment that would conflict with an existing webhook path is a 409. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted deployment attempt.'),
     }),
@@ -493,7 +494,7 @@ const routes = [
     workflowOperation({
       operationId: 'exportWorkflow',
       summary: 'Export Workflow',
-      description: `Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. Exporting records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow export payload.'),
     }),
@@ -710,7 +711,7 @@ const routes = [
       operationId: 'cancelRunV2',
       summary: 'Cancel Workflow Run',
       description:
-        'Request cancellation of a running, queued, or paused workflow run. Cancelling a run that has already reached a terminal state succeeds with no effect rather than returning an error. The `reason` field is present on every response, including full successes — `recorded` is the success value; it is not a partial-failure marker. A run produced by a table workflow group is a 409 when its cell can no longer accept the cancellation, because the run and its cell must reach the cancelled state together.',
+        'Request cancellation of a running, queued, or paused workflow run. Cancelling a run that has already reached a terminal state succeeds with no effect rather than returning an error. A run produced by a table workflow group is a 409 when its cell can no longer accept the cancellation, because the run and its cell must reach the cancelled state together.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: jsonSuccess('The cancellation outcome.'),
     }),

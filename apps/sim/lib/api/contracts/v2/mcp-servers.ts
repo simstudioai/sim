@@ -61,7 +61,9 @@ const v2McpServerUrlSchema = z
     },
     { error: 'url must be an absolute http or https URL' }
   )
-  .describe('Absolute HTTP or HTTPS endpoint URL without `{{ENV_VAR}}` references.')
+  .describe(
+    'Absolute HTTP or HTTPS endpoint URL without `{{ENV_VAR}}` references. It determines server identity and is immutable: delete and recreate the server to change endpoints.'
+  )
 
 const v2McpServerHeadersSchema = z.record(
   z.string().min(1, 'Header names cannot be empty'),
@@ -223,11 +225,16 @@ export const v2CreateMcpServerBodySchema = z
     url: v2McpServerUrlSchema,
     authType: mcpAuthTypeSchema
       .optional()
-      .describe('Authentication method. Sim detects it from the server when omitted.'),
+      .describe(
+        'Authentication method. Applied server-side as `headers` when omitted; registration never contacts the server, so an omitted value is never detected from it.'
+      )
+      .meta({ default: 'headers' }),
     /** Write-only. Reads expose `hasHeaders` and `headerNames` instead. */
     headers: v2McpServerHeadersSchema
       .optional()
-      .describe('Write-only request headers sent to the server.')
+      .describe(
+        'Write-only request headers sent to the server. Replaced wholesale rather than merged on update: sending this field drops every stored header it does not repeat.'
+      )
       .meta({ writeOnly: true }),
     timeout: z
       .number()
@@ -259,14 +266,18 @@ export const v2CreateMcpServerBodySchema = z
       .max(512, 'oauthClientId is too long')
       .nullable()
       .optional()
-      .describe('Pre-registered OAuth client identifier.'),
+      .describe(
+        'Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization.'
+      ),
     /** Write-only. Reads expose `hasOauthClientSecret` instead. */
     oauthClientSecret: z
       .string()
       .max(2048, 'oauthClientSecret is too long')
       .nullable()
       .optional()
-      .describe('Write-only pre-registered OAuth client secret.')
+      .describe(
+        'Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication.'
+      )
       .meta({ writeOnly: true }),
   })
   .strict()
@@ -351,7 +362,7 @@ export const v2ListMcpServerToolsQuerySchema = v2McpServerWorkspaceQuerySchema
       .optional()
       .default(false)
       .describe(
-        'Bypass the cached tool list and reconnect to the server. Slower, and the only way to pick up a tool added since the last refresh.'
+        'Bypass the short-lived per-workspace tool cache and reconnect under your own credentials. A cached result reflects whichever workspace member last ran discovery, so this is the only way to pick up a tool added since then; it costs a live round trip.'
       ),
   })
   .strict()

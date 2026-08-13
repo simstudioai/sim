@@ -817,8 +817,16 @@ export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
  * exported string so the request-body description and the OpenAPI operation
  * description cannot drift from each other.
  */
+/**
+ * The six rejected option combinations used to be enumerated here and pasted
+ * onto both the operation and the request-body description, restating what each
+ * field already says. A caller reads the constraint where it applies — on the
+ * field it constrains — so the enumeration lives on `async`, `stream`,
+ * `executionTimeoutSeconds`, `includeThinking`, and `includeToolCalls`, and the
+ * operation says only that the options are mutually constrained.
+ */
 export const EXECUTE_OPTION_CONSTRAINTS =
-  'Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require `stream: true`. (6) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.'
+  'Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.'
 
 /**
  * Strict public execute body. Async is body-selected (`async: true`) — v2 has
@@ -888,7 +896,7 @@ export const v2ExecuteWorkflowBodySchema = z
     includeFileBase64: z
       .boolean()
       .optional()
-      .describe('Inline eligible output files as base64 content.'),
+      .describe('Inline eligible output files as base64 content. Rejected when `async` is true.'),
     /** Caps inline base64 file hydration; bounded (v1 leaves it unbounded). */
     base64MaxBytes: z
       .number()
@@ -896,7 +904,9 @@ export const v2ExecuteWorkflowBodySchema = z
       .positive()
       .max(10 * 1024 * 1024)
       .optional()
-      .describe('Maximum total bytes of file content to inline as base64.'),
+      .describe(
+        'Maximum total bytes of file content to inline as base64. Rejected when `async` is true.'
+      ),
   })
   .strict()
   .meta({

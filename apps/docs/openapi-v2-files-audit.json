@@ -61,7 +61,7 @@
             "description": "Restrict results to files directly inside this folder.",
             "schema": {
               "description": "Restrict results to files directly inside this folder.",
-              "type": "string"
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
@@ -92,10 +92,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "uploadedAt",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "size", "uploadedAt", "updatedAt"]
             }
@@ -120,8 +120,6 @@
             "schema": {
               "description": "Maximum files per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
               "type": "integer",
-              "minimum": 1,
-              "maximum": 1000,
               "default": 100
             }
           },
@@ -607,7 +605,7 @@
       "get": {
         "operationId": "downloadFile",
         "summary": "Download File",
-        "description": "Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it returns `409` while that artifact is still compiling and `413` if it renders past the size ceiling. Downloading is recorded as an audit event, so it is not a safe read: a `HEAD` request is answered with an empty `200` without fetching the bytes or recording anything, and reports only that the endpoint exists and the caller is authorized.",
+        "description": "Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it answers `409` while that artifact is still compiling and `413` if it renders past the size ceiling. Downloading records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -699,7 +697,7 @@
       "delete": {
         "operationId": "deleteFile",
         "summary": "Delete File",
-        "description": "Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in the default listing and is no longer readable through the API, and its stored bytes are never removed. List archived files with `GET /files?scope=archived` and reverse the delete with `POST /files/{fileId}/restore`.",
+        "description": "Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in the default listing and is no longer readable through the API, and its stored bytes are never removed. Archiving an already-archived file is a `404`, not a no-op. List archived files with `GET /files?scope=archived` and reverse the delete with `POST /files/{fileId}/restore`.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -760,9 +758,6 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -862,7 +857,7 @@
       "post": {
         "operationId": "restoreFile",
         "summary": "Restore File",
-        "description": "Reverse a soft delete and return the file to the workspace. Restore is not a pure undo: the file comes back at the workspace root regardless of the folder it was deleted from, and it gains a `_restored` suffix when another file at the root already holds its name — so read `folderPath` and `name` off the response rather than assuming the pre-delete values. Restoring a file that is already active is a no-op that returns that file, so a retry is safe. Returns 400 when the workspace itself has been archived, and 409 when no free restore name could be found.",
+        "description": "Reverse a soft delete and return the file to the workspace. Restore is not a pure undo — the file comes back at the workspace root, and gains a `_restored` suffix when another file there already holds its name — so read `folderPath` and `name` off the response. Restoring an already-active file is a no-op that returns it, so a retry is safe. An archived workspace is a 400, and a name the restore could not free is a 409.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1418,7 +1413,7 @@
       "patch": {
         "operationId": "upsertFileShare",
         "summary": "Enable or Disable File Share",
-        "description": "Create or partially update a server-tokenized public share. Only isActive is required, and an omitted authType keeps the stored auth mode. What happens to password and allowedEmails depends on the resulting mode, because enabling a share always rewrites the credentials the chosen mode does not use: 'public' clears the stored password and empties allowedEmails; 'password' keeps the stored password when password is omitted but empties allowedEmails; 'email' and 'sso' clear the stored password and keep the stored allowedEmails when the field is omitted. Only disabling with isActive false preserves the whole access configuration untouched — it also retains the token, so re-enabling restores the share as it was. Two enabling combinations are rejected outright with a 400 instead of being partially applied: 'password' when neither a password is supplied nor one is already stored, and 'email' or 'sso' when the resulting allowedEmails would be empty because none was supplied and none is stored. On a file that has never been shared there is nothing stored to fall back on, so enabling any mode other than 'public' must carry its credential in the same request. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Create or partially update a server-tokenized public share. Only `isActive` is required; each other field states what enabling a mode does to it. A file that has never been shared has nothing stored to fall back on, so enabling any mode other than `public` must carry its credential in the same request. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1670,7 +1665,7 @@
             "description": "Restrict results to direct children of this parent path.",
             "schema": {
               "description": "Restrict results to direct children of this parent path.",
-              "type": "string"
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
@@ -1689,10 +1684,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "name",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -1913,16 +1908,30 @@
             "description": "Path of the folder to delete.",
             "schema": {
               "description": "Path of the folder to delete.",
-              "type": "string"
+              "$ref": "#/components/schemas/NonRootFolderPathInput"
             }
           },
           {
             "name": "recursive",
             "in": "query",
             "required": false,
-            "description": "Delete nested files and folders when true.",
+            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected.",
             "schema": {
-              "description": "Delete nested files and folders when true.",
+              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected.",
+              "enum": [
+                "true",
+                "1",
+                "yes",
+                "on",
+                "y",
+                "enabled",
+                "false",
+                "0",
+                "no",
+                "off",
+                "n",
+                "disabled"
+              ],
               "default": "false",
               "type": "string"
             }
@@ -2257,6 +2266,12 @@
           }
         ]
       },
+      "FolderPathInput": {
+        "title": "Folder path input",
+        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
       "V2File": {
         "type": "object",
         "properties": {
@@ -2288,7 +2303,9 @@
           },
           "folderPath": {
             "type": "string",
-            "description": "Canonical containing-folder path. `/` is the workspace root."
+            "title": "Folder path",
+            "description": "Canonical containing-folder path. `/` is the workspace root.",
+            "maxLength": 4096
           },
           "uploadedByEmail": {
             "type": "string",
@@ -2436,7 +2453,7 @@
           },
           "folderPath": {
             "description": "Canonical containing-folder path. Omit for the workspace root.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           },
           "content": {
             "default": "",
@@ -2656,7 +2673,7 @@
           },
           "folderPath": {
             "description": "Canonical destination folder path. Omit for the workspace root.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId", "name", "contentType", "size"],
@@ -2968,7 +2985,9 @@
           },
           "folderPath": {
             "type": "string",
-            "description": "Canonical containing-folder path. `/` is the workspace root."
+            "title": "Folder path",
+            "description": "Canonical containing-folder path. `/` is the workspace root.",
+            "maxLength": 4096
           },
           "uploadedByEmail": {
             "type": "string",
@@ -3347,7 +3366,7 @@
           },
           "targetFolderPath": {
             "description": "Destination folder path. Omit to move files to the workspace root.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId", "fileIds"],
@@ -3431,21 +3450,21 @@
           },
           "isActive": {
             "type": "boolean",
-            "description": "Whether the share should resolve."
+            "description": "Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use."
           },
           "authType": {
-            "description": "How access to the share is gated.",
+            "description": "How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password.",
             "type": "string",
             "enum": ["public", "password", "email", "sso"]
           },
           "password": {
-            "description": "Password for a password-gated share.",
+            "description": "Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.",
             "type": "string",
             "minLength": 1,
             "maxLength": 1024
           },
           "allowedEmails": {
-            "description": "Allowed addresses or @domain patterns for email and SSO shares.",
+            "description": "Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400.",
             "maxItems": 200,
             "type": "array",
             "items": {
@@ -3586,11 +3605,15 @@
           },
           "path": {
             "type": "string",
-            "description": "Canonical folder path used as the public folder identifier."
+            "title": "Non-root folder path",
+            "description": "Canonical folder path used as the public folder identifier.",
+            "maxLength": 4096
           },
           "parentPath": {
             "type": "string",
-            "description": "Canonical parent path; `/` is the root."
+            "title": "Folder path",
+            "description": "Canonical parent path; `/` is the root.",
+            "maxLength": 4096
           },
           "createdAt": {
             "type": "string",
@@ -3648,6 +3671,12 @@
         "title": "File folder response",
         "description": "A single workspace file folder."
       },
+      "NonRootFolderPathInput": {
+        "title": "Non-root folder path input",
+        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
       "CreateFileFolderRequest": {
         "type": "object",
         "properties": {
@@ -3658,7 +3687,7 @@
           },
           "path": {
             "description": "Path of the folder to create.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path"],
@@ -3676,11 +3705,11 @@
           },
           "path": {
             "description": "Current folder path.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           },
           "destinationPath": {
             "description": "New full path for the folder and its descendants.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path", "destinationPath"],
@@ -3693,7 +3722,9 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Deleted folder path."
+            "title": "Folder path",
+            "description": "Deleted folder path.",
+            "maxLength": 4096
           },
           "deleted": {
             "type": "boolean",
