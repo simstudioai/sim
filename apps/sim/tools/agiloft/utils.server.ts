@@ -331,9 +331,16 @@ export async function executeAlrestRequest<R extends ToolResponse>(
 export async function executeEwRequest<R extends ToolResponse>(
   params: AgiloftCredentials,
   buildRequest: (base: string) => AgiloftRequestConfig,
-  transformResponse: (response: SecureFetchResponse) => Promise<R>
+  transformResponse: (response: SecureFetchResponse) => Promise<R>,
+  preResolvedIP?: string
 ): Promise<R> {
-  const resolvedIP = await resolveAgiloftInstance(params.instanceUrl)
+  /**
+   * A write caller resolves the instance itself so it can tell a rejected host
+   * (nothing sent) from a failure after the request went out (the write may
+   * have landed). Resolving a second time here would put a DNS failure on the
+   * wrong side of that line, so the caller's already-validated IP is reused.
+   */
+  const resolvedIP = preResolvedIP ?? (await resolveAgiloftInstance(params.instanceUrl))
   const req = buildRequest(params.instanceUrl.replace(/\/$/, ''))
   const response = await secureFetchWithPinnedIP(req.url, resolvedIP, {
     method: req.method,

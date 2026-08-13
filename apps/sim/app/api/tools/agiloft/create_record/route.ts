@@ -103,8 +103,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
      * URL stays a pre-flight failure. Everything thrown after this point has to
      * be treated as "the request may have been transmitted".
      */
+    let resolvedIP: string
     try {
-      await resolveAgiloftInstance(params.instanceUrl)
+      resolvedIP = await resolveAgiloftInstance(params.instanceUrl)
     } catch (error) {
       logger.warn(`[${requestId}] Rejected Agiloft instance URL`, { error })
       return NextResponse.json(
@@ -207,7 +208,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           }
 
           return { success: true, output: { id, fields } }
-        }
+        },
+        resolvedIP
       )
     } catch (error) {
       /**

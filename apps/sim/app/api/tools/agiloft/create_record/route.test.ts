@@ -270,6 +270,36 @@ describe('EWCreate', () => {
   })
 
   /**
+   * A rejected instance URL is decided before anything is sent, so it must not
+   * come back wearing the do-not-retry warning. The route resolves the instance
+   * itself and hands the result down, so there is exactly one resolution and
+   * everything after it is genuinely post-transmit.
+   */
+  it('reports a rejected instance URL as a pre-flight failure, not an unconfirmed write', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValueOnce({
+      isValid: false,
+      error: 'URL resolves to a private IP address',
+    })
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(response.status).toBe(400)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('private IP')
+    expect(data.error).not.toContain('may exist')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+
+  it('resolves the instance once, so a DNS failure cannot land on the wrong side of the line', async () => {
+    arrangeCreate(res({ text: "EWREST_id='353';" }))
+
+    await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+
+    expect(inputValidationMockFns.mockValidateUrlWithDNS).toHaveBeenCalledTimes(1)
+  })
+
+  /**
    * The request was already on the wire, so the write may have committed. A 500
    * here is what would have the caller retry and duplicate the record.
    */
