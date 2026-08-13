@@ -26,6 +26,7 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
   getS3MultipartPartUrls: mockS3PartUrls,
 }))
 
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   completeMultipartProviderUpload,
   createPutProviderTransfer,
@@ -39,6 +40,14 @@ import {
 } from '@/lib/uploads/upload-session/provider'
 
 const CONTEXT = 'workspace' as const
+
+/** Longest name the file contracts admit, in the key shape workspace files use. */
+const MAX_LENGTH_KEY = `workspace/workspace-1/${buildStorageKeySegment(
+  '1700000000000-0123456789abcdef-',
+  `${'a'.repeat(251)}.txt`
+)}`
+
+const NAME_MAX = 255
 const METADATA = {
   uploadId: 'upload-1',
   userId: 'user-1',
@@ -211,6 +220,70 @@ describe('local upload-session provider', () => {
       'abcde'
     )
     await expect(stat(localPath('.multipart/upload-1'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  // The staged object and its sidecar used to be named after the destination, so
+  // a key the contract's longest name produces overflowed `NAME_MAX` and the
+  // whole session became unusable: `POST /uploads` issued a transfer URL, the
+  // PUT against it 500'd, and `complete` then reported the object missing.
+  it('stores a PUT under the longest key the name contract can produce', async () => {
+    await writeLocalPutObject({
+      uploadId: '11111111-1111-4111-8111-111111111111',
+      key: MAX_LENGTH_KEY,
+      body: byteStream('abc'),
+      expectedSize: 3,
+      contentType: 'text/plain',
+      metadata: METADATA,
+    })
+
+    await expect(readFile(localPath(MAX_LENGTH_KEY), 'utf8')).resolves.toBe('abc')
+    await expect(
+      headProviderObject({ provider: 'local', key: MAX_LENGTH_KEY, context: CONTEXT })
+    ).resolves.toMatchObject({ size: 3, contentType: 'text/plain' })
+    expect(await temporaryFiles('workspace/workspace-1')).toEqual([])
+    expect(await allEntries('.staging')).toEqual([])
+  })
+
+  it('assembles multipart parts under the longest key the name contract can produce', async () => {
+    await writeLocalMultipartPart({
+      uploadId: 'upload-1',
+      partNumber: 1,
+      body: byteStream('abc'),
+      expectedSize: 3,
+    })
+
+    await completeMultipartProviderUpload({
+      provider: 'local',
+      providerUploadId: null,
+      uploadId: 'upload-1',
+      key: MAX_LENGTH_KEY,
+      contentType: 'text/plain',
+      context: CONTEXT,
+      parts: [{ partNumber: 1, size: 3 }],
+      metadata: METADATA,
+    })
+
+    await expect(readFile(localPath(MAX_LENGTH_KEY), 'utf8')).resolves.toBe('abc')
+    expect(await allEntries('.staging')).toEqual([])
+  })
+
+  // The reservation only holds while every local path stays inside one
+  // component's budget, staged names included.
+  it('keeps every path component it writes within NAME_MAX', async () => {
+    await writeLocalPutObject({
+      uploadId: '11111111-1111-4111-8111-111111111111',
+      key: MAX_LENGTH_KEY,
+      body: byteStream('abc'),
+      expectedSize: 3,
+      contentType: 'text/plain',
+      metadata: METADATA,
+    })
+
+    for (const path of await walk(testUploadDirectory)) {
+      for (const component of path.split('/')) {
+        expect(Buffer.byteLength(component, 'utf-8')).toBeLessThanOrEqual(NAME_MAX)
+      }
+    }
   })
 })
 
@@ -386,6 +459,25 @@ function byteStream(...chunks: string[]): ReadableStream<Uint8Array> {
 
 function localPath(key: string): string {
   return `${testUploadDirectory}/${key}`
+}
+
+async function allEntries(relativeDirectory: string): Promise<string[]> {
+  return readdir(localPath(relativeDirectory)).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return []
+    throw error
+  })
+}
+
+/** Every path under `directory`, relative to it, files and directories alike. */
+async function walk(directory: string, prefix = ''): Promise<string[]> {
+  const entries = await readdir(directory, { withFileTypes: true })
+  const paths: string[] = []
+  for (const entry of entries) {
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name
+    paths.push(relative)
+    if (entry.isDirectory()) paths.push(...(await walk(`${directory}/${entry.name}`, relative)))
+  }
+  return paths
 }
 
 async function temporaryFiles(relativeDirectory: string): Promise<string[]> {
