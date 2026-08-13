@@ -56,6 +56,18 @@ function defineServices(): ServiceInfo[] {
   return servicesList
 }
 
+/**
+ * Resolves the service catalog merged with the caller's connections.
+ *
+ * A failed request resolves with the bare catalog rather than rejecting, so
+ * consumers keep correct service names and ids when the merge data is
+ * unavailable. The cost is that `isConnected`/`accounts` then report *unknown*
+ * as *disconnected*, which the result cannot distinguish. Read connection
+ * state from the workspace credentials query (`useWorkspaceCredentials`), which
+ * surfaces its own errors; a consumer that must branch on `isConnected` here
+ * needs this fallback removed first, or it will tell a connected user they are
+ * not.
+ */
 async function fetchOAuthConnections(signal?: AbortSignal): Promise<ServiceInfo[]> {
   try {
     const serviceDefinitions = defineServices()
