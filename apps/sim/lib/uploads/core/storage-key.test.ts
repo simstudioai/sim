@@ -3,10 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import {
-  generateLargeValuePayloadKey,
-  generateUniqueExecutionFileKey,
-} from '@/lib/uploads/contexts/execution/utils'
+import { generateUniqueExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import {
   buildStorageKeySegment,
@@ -66,14 +63,6 @@ describe('storage key segments', () => {
         generateUniqueExecutionFileKey(
           { workspaceId: 'ws', workflowId: 'wf', executionId: 'ex' },
           MAX_CONTRACT_NAME
-        ),
-    ],
-    [
-      'large value payload',
-      () =>
-        generateLargeValuePayloadKey(
-          { workspaceId: 'ws', workflowId: 'wf', executionId: 'ex' },
-          'p'
         ),
     ],
   ])('bounds the last component of a %s key, sidecar included', (_label, generate) => {

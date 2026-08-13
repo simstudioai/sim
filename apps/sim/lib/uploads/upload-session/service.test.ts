@@ -36,11 +36,9 @@ vi.mock('@/lib/billing/storage', () => ({
 
 /**
  * Stands in for the workspace-files barrel, which pulls the whole file manager.
- * The stub still builds its key through the real {@link buildStorageKeySegment},
- * so the shared name budget below is genuinely exercised — but the prefix is the
- * stub's own, so the two workspace-keyed purposes below prove nothing about
- * `generateWorkspaceFileKey`'s prefix. That one is measured against the real
- * function in `contexts/workspace/workspace-file-manager.test.ts`.
+ * The real `generateWorkspaceFileKey` and its name budget are measured in
+ * `contexts/workspace/workspace-file-manager.test.ts`, so the purposes that key
+ * through it are deliberately absent from the sidecar-bounds sweep below.
  */
 vi.mock('@/lib/uploads/contexts/workspace', async () => {
   const { buildStorageKeySegment } = await import('@/lib/uploads/core/storage-key')
@@ -156,12 +154,10 @@ describe('upload sessions', () => {
   // straight into it: the session was created, its transfer URL issued, and
   // every request against it then failed with an unclassifiable 500.
   it.each([
-    ['workspace_file', {}],
     ['knowledge_document', { knowledgeBaseId: 'kb-1' }],
     ['table_import', {}],
     ['profile_picture', {}],
     ['workspace_logo', {}],
-    ['mothership_attachment', {}],
     ['execution_attachment', { workflowId: 'workflow-1', executionId: 'execution-1' }],
   ])('bounds the %s key so its local sidecar still fits', async (purpose, extra) => {
     dbChainMockFns.returning.mockResolvedValue([uploadRow({ purpose })])

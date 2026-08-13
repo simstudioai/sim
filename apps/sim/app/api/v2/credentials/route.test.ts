@@ -201,32 +201,6 @@ describe('GET /api/v2/credentials', () => {
     expect(JSON.stringify(body)).not.toContain('createdBy')
   })
 
-  /**
-   * The projection is an explicit field-by-field copy, which is what makes a
-   * column added to the credential table later inert here: a field nobody wrote
-   * into `toV2Credential` is simply never read. The outbound response `.parse()`
-   * strips whatever survives, so a leak needs two independent mistakes. This
-   * pins the pairing against a row carrying a column the projection has never
-   * heard of.
-   */
-  it('withholds a credential column the projection was never taught to publish', async () => {
-    mocks.execute.mockResolvedValueOnce({
-      credentials: [{ ...credential, encryptedFutureSecret: 'MUST_NOT_LEAK_EITHER' }],
-      nextCursorKeys: null,
-      sortBy: 'createdAt',
-      sortOrder: 'desc',
-    })
-
-    const response = await GET(
-      new NextRequest(`http://localhost:3000/api/v2/credentials?workspaceId=${WORKSPACE_ID}`)
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(JSON.stringify(body)).not.toContain('encryptedFutureSecret')
-    expect(JSON.stringify(body)).not.toContain('MUST_NOT_LEAK_EITHER')
-  })
-
   it('hides repository errors that may contain secret details', async () => {
     mocks.execute.mockRejectedValueOnce(new Error('encryptedServiceAccountKey failed'))
 

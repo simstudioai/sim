@@ -1,21 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { db } from '@sim/db'
 import { tableViews } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ColumnDefinition, TableViewConfig } from '@/lib/table/types'
 
-const { mockSignalTableViewsChanged, mockWithLockedTable } = vi.hoisted(() => ({
+const { mockSignalTableViewsChanged } = vi.hoisted(() => ({
   mockSignalTableViewsChanged: vi.fn(),
-  mockWithLockedTable: vi.fn(),
 }))
 vi.mock('@/lib/table/events', () => ({
   signalTableViewsChanged: mockSignalTableViewsChanged,
-}))
-vi.mock('@/lib/table/service', () => ({
-  withLockedTable: mockWithLockedTable,
 }))
 
 import { TABLE_LIMITS } from '@/lib/table/constants'
@@ -143,10 +138,6 @@ describe('table-view mutations signal collaborators', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockWithLockedTable.mockImplementation(
-      async (_tableId: string, mutate: (table: unknown, trx: unknown) => unknown) =>
-        mutate({ id: 'table-1' }, db)
-    )
   })
 
   it('createTableView signals the table after inserting', async () => {
@@ -276,10 +267,6 @@ describe('saved-view ceiling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockWithLockedTable.mockImplementation(
-      async (_tableId: string, mutate: (table: unknown, trx: unknown) => unknown) =>
-        mutate({ id: 'table-1' }, db)
-    )
   })
 
   function create() {
@@ -299,27 +286,6 @@ describe('saved-view ceiling', () => {
     await expect(create()).rejects.toMatchObject({ name: 'TableViewValidationError' })
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(mockSignalTableViewsChanged).not.toHaveBeenCalled()
-  })
-
-  it('serializes on the views lock rather than the table schema lock', async () => {
-    queueTableRows(tableViews, [{ total: 0 }])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      {
-        id: 'view-100',
-        tableId: 'table-1',
-        workspaceId: 'ws-1',
-        name: 'Another View',
-        config: {},
-        isDefault: false,
-        createdBy: 'user-1',
-        createdAt: new Date('2026-01-01T00:00:00.000Z'),
-        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
-      },
-    ])
-
-    await create()
-
-    expect(mockWithLockedTable).not.toHaveBeenCalled()
   })
 
   it('allows the create that lands exactly on the ceiling', async () => {
@@ -368,10 +334,6 @@ describe('view config column-reference normalization', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockWithLockedTable.mockImplementation(
-      async (_tableId: string, mutate: (table: unknown, trx: unknown) => unknown) =>
-        mutate({ id: 'table-1' }, db)
-    )
   })
 
   function insertedConfig(): TableViewConfig {

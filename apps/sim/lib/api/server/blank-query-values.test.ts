@@ -1,9 +1,17 @@
 /**
  * @vitest-environment node
  */
+import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
-import { blankQueryValueValidationError } from '@/lib/api/server/blank-query-values'
+import { z } from 'zod'
+import { defineRouteContract } from '@/lib/api/contracts'
+import {
+  blankQueryValueValidationError,
+  duplicateQueryValueValidationError,
+} from '@/lib/api/server/blank-query-values'
 import { V2_PARSE_DEFAULTS } from '@/lib/api/server/routes/v2-json-route'
+import { parseRequest } from '@/lib/api/server/validation'
+import { v2ValidationError } from '@/app/api/v2/lib/response'
 
 /**
  * A query parameter that is present but blank is a different request from one
@@ -49,5 +57,73 @@ describe('blank query values', () => {
    */
   it('is on for every v2 route through the shared parse defaults', () => {
     expect(V2_PARSE_DEFAULTS.rejectBlankQueryValues).toBe(true)
+  })
+})
+
+const listContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/widgets',
+  query: z.object({ workspaceId: z.string().min(1, 'Workspace ID is required') }),
+  response: { mode: 'json', schema: z.object({ data: z.array(z.string()) }) },
+})
+
+function listRequest(search: string): NextRequest {
+  return new NextRequest(`http://localhost/api/v2/widgets?${search}`, { method: 'GET' })
+}
+
+async function parseListRequest(search: string) {
+  return parseRequest(
+    listContract,
+    listRequest(search),
+    {},
+    {
+      ...V2_PARSE_DEFAULTS,
+      validationErrorResponse: v2ValidationError,
+    }
+  )
+}
+
+/**
+ * A repeated parameter reaches the schema as an array, and no v2 query param is
+ * declared as one — so without this rule the caller is told the param is
+ * *missing* for a request that plainly sent it twice.
+ */
+describe('duplicate query values', () => {
+  it('names the duplication rather than the schema type failure', () => {
+    const error = duplicateQueryValueValidationError({ workspaceId: ['w-1', 'w-1'] })
+
+    expect(error?.issues[0]).toMatchObject({
+      path: ['workspaceId'],
+      message: 'workspaceId was sent 2 times; send it at most once',
+    })
+  })
+
+  it('accepts a query where every parameter appears once', () => {
+    expect(duplicateQueryValueValidationError({ workspaceId: 'w-1', limit: '10' })).toBeNull()
+  })
+
+  it('rejects a repeated parameter through parseRequest under the v2 defaults', async () => {
+    const parsed = await parseListRequest('workspaceId=w-1&workspaceId=w-1')
+
+    expect(parsed.success).toBe(false)
+    if (parsed.success) return
+    expect(parsed.response.status).toBe(400)
+    await expect(parsed.response.json()).resolves.toMatchObject({
+      error: expect.objectContaining({
+        message: expect.stringContaining('workspaceId was sent 2 times; send it at most once'),
+      }),
+    })
+  })
+
+  it('lets a query sending each parameter once through parseRequest', async () => {
+    const parsed = await parseListRequest('workspaceId=w-1')
+
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) return
+    expect(parsed.data.query).toEqual({ workspaceId: 'w-1' })
+  })
+
+  it('is on for every v2 route through the shared parse defaults', () => {
+    expect(V2_PARSE_DEFAULTS.rejectDuplicateQueryValues).toBe(true)
   })
 })

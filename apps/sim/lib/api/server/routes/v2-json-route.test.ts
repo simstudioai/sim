@@ -644,3 +644,73 @@ describe('defineV2JsonRoute HEAD on a route that is not head-safe', () => {
     ).rejects.toThrow(/authorize/)
   })
 })
+
+const presenterContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/widgets/[widgetId]/pages',
+  params: z.object({ widgetId: z.string() }).strict(),
+  query: z.object({ sort: z.string(), workspaceId: z.string() }).strict(),
+  body: z.object({ value: z.string() }).strict(),
+  response: {
+    mode: 'json',
+    status: 201,
+    schema: z.object({ data: z.object({ value: z.string() }), nextCursor: z.string() }),
+  },
+})
+
+/**
+ * A `nextCursor` is stamped with the sort and filters the page was read under,
+ * and those live in the request rather than the domain result — so a presenter
+ * that cannot see the parsed request forces the use case to carry an HTTP
+ * cursor-encoding concern back out.
+ */
+describe('defineV2JsonRoute presentation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
+    v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
+  })
+
+  it('hands the presenter the parsed request alongside the result', async () => {
+    const present = vi.fn((result: Result, parsed: ParsedRequest<typeof presenterContract>) => ({
+      data: result,
+      nextCursor: `${parsed.params.widgetId}:${parsed.query.sort}:${parsed.body.value}`,
+    }))
+
+    const handler = defineV2JsonRoute({
+      contract: presenterContract,
+      auth: v2ApiKeyAuth,
+      operation,
+      rateLimit: v2RateLimits.publicApi,
+      errorPolicy: v2OrchestrationErrorPolicy,
+      mapInput: ({ body }) => body,
+      useCase: { operation, execute: async ({ input }) => input },
+      present,
+    })
+
+    const response = await handler(
+      new NextRequest('http://localhost/api/v2/widgets/widget-1/pages?sort=asc&workspaceId=ws-1', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+        body: JSON.stringify({ value: 'ok' }),
+      }),
+      { params: Promise.resolve({ widgetId: 'widget-1' }) }
+    )
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toEqual({
+      data: { value: 'ok' },
+      nextCursor: 'widget-1:asc:ok',
+    })
+    expect(present).toHaveBeenCalledWith(
+      { value: 'ok' },
+      expect.objectContaining({
+        params: { widgetId: 'widget-1' },
+        query: { sort: 'asc', workspaceId: 'ws-1' },
+        body: { value: 'ok' },
+      })
+    )
+  })
+})

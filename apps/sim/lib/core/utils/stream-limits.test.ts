@@ -36,19 +36,36 @@ function streamFromChunks(chunks: Uint8Array[]): ReadableStream<Uint8Array> {
  * a filename on serialization, so a hand-written part is the only way to put
  * the byte on the wire exactly as a real client can.
  */
-function multipartRequest(disposition: string, value: string): Request {
+function multipartRequest(
+  disposition: string,
+  value: string,
+  options: { declareContentLength?: boolean } = {}
+): Request {
   const boundary = 'streamlimitsboundary'
   const body =
     `--${boundary}\r\n` +
     `Content-Disposition: form-data; ${disposition}\r\n` +
     `Content-Type: text/plain\r\n\r\n${value}\r\n` +
     `--${boundary}--\r\n`
+  const bytes = new TextEncoder().encode(body)
+  const requestHeaders = new Headers({
+    'content-type': `multipart/form-data; boundary=${boundary}`,
+  })
+  if (options.declareContentLength) {
+    requestHeaders.set('content-length', String(bytes.byteLength))
+  }
   return new Request('http://localhost/upload', {
     method: 'POST',
-    headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
-    body: new TextEncoder().encode(body),
+    headers: requestHeaders,
+    body: bytes,
   })
 }
+
+const NUL_MULTIPART_PARTS = [
+  ['a NUL in a file name', 'name="file"; filename="apitest_\u0000x.txt"', 'hello'],
+  ['a NUL in a text field value', 'name="label"', 'apitest_\u0000x'],
+  ['a NUL in a field name', 'name="apitest_\u0000x"', 'hello'],
+] as const
 
 function headers(contentLength?: string): Headers {
   const headers = new Headers()
@@ -217,18 +234,33 @@ describe('stream limits', () => {
     expect(formData.get('name')).toBe('example')
   })
 
-  it.each([
-    ['a NUL in a file name', 'name="file"; filename="apitest_\u0000x.txt"', 'hello'],
-    ['a NUL in a text field value', 'name="label"', 'apitest_\u0000x'],
-    ['a NUL in a field name', 'name="apitest_\u0000x"', 'hello'],
-  ])('rejects multipart form data carrying %s', async (_label, disposition, value) => {
-    await expect(
-      readFormDataWithLimit(multipartRequest(disposition, value), {
-        maxBytes: 1024 * 1024,
-        label: 'multipart body',
-      })
-    ).rejects.toBeInstanceOf(MultipartFieldValidationError)
-  })
+  it.each(NUL_MULTIPART_PARTS)(
+    'rejects a streamed multipart body carrying %s',
+    async (_label, disposition, value) => {
+      await expect(
+        readFormDataWithLimit(multipartRequest(disposition, value), {
+          maxBytes: 1024 * 1024,
+          label: 'multipart body',
+        })
+      ).rejects.toBeInstanceOf(MultipartFieldValidationError)
+    }
+  )
+
+  /**
+   * A declared `content-length` takes the reader's other branch — the one every
+   * ordinary browser and curl upload takes — and it scans fields separately.
+   */
+  it.each(NUL_MULTIPART_PARTS)(
+    'rejects a content-length multipart body carrying %s',
+    async (_label, disposition, value) => {
+      const request = multipartRequest(disposition, value, { declareContentLength: true })
+      expect(request.headers.get('content-length')).not.toBeNull()
+
+      await expect(
+        readFormDataWithLimit(request, { maxBytes: 1024 * 1024, label: 'multipart body' })
+      ).rejects.toBeInstanceOf(MultipartFieldValidationError)
+    }
+  )
 
   it('rejects multipart streams without content-length once bytes exceed the limit', async () => {
     const request = new Request('http://localhost/upload', {
