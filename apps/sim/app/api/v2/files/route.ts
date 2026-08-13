@@ -11,10 +11,30 @@ import { queryWorkspaceFilePage } from '@/lib/workspace-files/application/list-w
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { toV2File, toV2Files } from '@/app/api/v2/files/utils'
-import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
+import {
+  cursorFilterScope,
+  cursorSortKey,
+  encodeSortedCursor,
+  readSortedCursor,
+} from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+/** Every param that changes which files, in which order, this list returns. */
+function fileCursorFilters(query: {
+  workspaceId: string
+  scope?: string
+  folderPath?: string
+  search?: string
+}) {
+  return cursorFilterScope({
+    workspaceId: query.workspaceId,
+    scope: query.scope,
+    folderPath: query.folderPath,
+    search: query.search,
+  })
+}
 
 /** GET /api/v2/files — List files with search, sort, and cursor pagination. */
 export const GET = defineV2JsonRoute({
@@ -31,13 +51,21 @@ export const GET = defineV2JsonRoute({
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
     limit: query.limit,
-    after: readSortedCursor(query.cursor, query.sortBy, query.sortOrder),
-    cursorSort: cursorSortKey(query.sortBy, query.sortOrder),
+    after: readSortedCursor(query.cursor, query.sortBy, query.sortOrder, fileCursorFilters(query)),
   }),
   useCase: queryWorkspaceFilePage,
-  present: async ({ files, nextKeys, cursorSort }) => {
+  present: async ({ files, nextKeys }, { query }) => {
     const items: V2File[] = await toV2Files(files)
-    return { data: items, nextCursor: nextKeys ? encodeSortedCursor(cursorSort, nextKeys) : null }
+    return {
+      data: items,
+      nextCursor: nextKeys
+        ? encodeSortedCursor(
+            cursorSortKey(query.sortBy, query.sortOrder),
+            nextKeys,
+            fileCursorFilters(query)
+          )
+        : null,
+    }
   },
 })
 

@@ -19,7 +19,7 @@
  * under a different one. See {@link assertCursorQueryBinding}.
  */
 
-import { createHash } from 'node:crypto'
+import { canonicalJson, fingerprint } from '@/lib/api/cursor-binding'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import type { Filter, Sort, TablePredicate, TableRow, TableRowsCursor } from '@/lib/table/types'
 
@@ -60,26 +60,10 @@ export function canonicalSortKey(sort: Sort | null | undefined): string | undefi
 }
 
 /**
- * Deterministic JSON for a filter tree: object keys sorted so two structurally
- * equal filters serialize identically regardless of the key order the caller's
- * JSON happened to arrive in. Array order is preserved — reordering an `in` list
- * is treated as a different filter, which only ever costs a restart.
- */
-function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([, entry]) => entry !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`).join(',')}}`
-}
-
-/**
  * Fingerprint of the filters a page was produced under, or `undefined` for an
- * unfiltered read. Hashed rather than embedded: a predicate tree can be up to
- * the request-body ceiling, and the cursor has to stay a short opaque token.
- * SHA-256 over the canonical form, so a caller cannot cheaply construct a second
- * predicate that replays another sequence's offsets.
+ * unfiltered read. Canonicalized and hashed through `lib/api/cursor-binding`,
+ * the same module the v2 list codecs bind through, so a filter stamp means the
+ * same thing on every paginated surface.
  */
 export function canonicalFilterKey(
   scope: Pick<CursorQueryScope, 'predicate' | 'filter'>
@@ -87,8 +71,7 @@ export function canonicalFilterKey(
   const predicate = scope.predicate ?? undefined
   const filter = scope.filter && Object.keys(scope.filter).length > 0 ? scope.filter : undefined
   if (!predicate && !filter) return undefined
-  const canonical = canonicalJson(predicate ? { predicate } : { filter })
-  return createHash('sha256').update(canonical).digest('base64url').slice(0, 22)
+  return fingerprint(canonicalJson(predicate ? { predicate } : { filter }))
 }
 
 /**

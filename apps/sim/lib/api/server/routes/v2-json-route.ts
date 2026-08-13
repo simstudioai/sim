@@ -307,7 +307,7 @@ export function defineV2JsonRoute<
           input,
           request,
         })
-        const body = await options.present(result)
+        const body = await options.present(result, parsed.data)
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
           throw new Error('V2 JSON route response mode changed after initialization')

@@ -136,7 +136,7 @@ describe('GET /api/v2/workflows/[id]/runs', () => {
 
     const body = await (await callGet('?order=asc')).json()
 
-    expect(JSON.parse(Buffer.from(body.nextCursor, 'base64').toString())).toEqual({
+    expect(JSON.parse(Buffer.from(body.nextCursor, 'base64').toString())).toMatchObject({
       sort: 'startedAt:asc',
       keys: ['2026-08-05T00:01:00.000Z', 'row-1'],
     })

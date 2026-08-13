@@ -32,15 +32,30 @@ import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { toV2DocumentSummary, toV2TaggedDocument } from '@/app/api/v2/knowledge/utils'
 import {
+  cursorFilterScope,
+  cursorSortKey,
   decodeOffsetCursor,
   encodeOffsetCursor,
-  offsetCursorScope,
 } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
+
+/** Every param that changes which documents, in which order, this list returns. */
+function documentCursorFilters(
+  knowledgeBaseId: string,
+  query: { workspaceId: string; enabledFilter?: string; search?: string; tagFilters?: string }
+) {
+  return cursorFilterScope({
+    knowledgeBaseId,
+    workspaceId: query.workspaceId,
+    enabledFilter: query.enabledFilter,
+    search: query.search,
+    tagFilters: query.tagFilters,
+  })
+}
 
 /** GET /api/v2/knowledge/[id]/documents — List documents in a knowledge base. */
 export const GET = defineV2JsonRoute({
@@ -54,38 +69,31 @@ export const GET = defineV2JsonRoute({
     if (!tagFilters.success) {
       throw new OrchestrationError('validation', tagFilters.message)
     }
-    /**
-     * The offset counts positions in the filtered, sorted document sequence, so
-     * every param that changes that sequence is stamped into the cursor and
-     * re-checked here. `limit` selects how much of the sequence to return, not
-     * what the sequence is, so it stays out.
-     */
-    const cursorScope = offsetCursorScope({
-      knowledgeBaseId: params.id,
-      enabledFilter: query.enabledFilter,
-      search: query.search,
-      sortBy: query.sortBy,
-      sortOrder: query.sortOrder,
-      tagFilters: query.tagFilters,
-    })
     return {
       knowledgeBaseId: params.id,
       assertedWorkspaceId: query.workspaceId,
       enabledFilter: query.enabledFilter,
       search: query.search,
       limit: query.limit,
-      offset: decodeOffsetCursor(query.cursor, cursorScope),
+      offset: decodeOffsetCursor(
+        query.cursor,
+        cursorSortKey(query.sortBy, query.sortOrder),
+        documentCursorFilters(params.id, query)
+      ),
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
       tagNameFilters: tagFilters.filters,
-      cursorScope,
     }
   },
   useCase: listKnowledgeDocuments,
-  present: ({ documents, tagDefinitions, pagination, cursorScope }) => ({
+  present: ({ documents, tagDefinitions, pagination }, { params, query }) => ({
     data: documents.map((document) => toV2TaggedDocument(document, tagDefinitions)),
     nextCursor: pagination.hasMore
-      ? encodeOffsetCursor(cursorScope ?? '', pagination.offset + pagination.limit)
+      ? encodeOffsetCursor(
+          cursorSortKey(query.sortBy, query.sortOrder),
+          documentCursorFilters(params.id, query),
+          pagination.offset + pagination.limit
+        )
       : null,
   }),
 })

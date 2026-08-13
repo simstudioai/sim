@@ -90,12 +90,6 @@ export interface ListKnowledgeDocumentsInput {
    * document filtering and search speak one tag vocabulary.
    */
   tagNameFilters?: KnowledgeTagNameFilter[]
-  /**
-   * The query state `offset` counts positions within, echoed back so a surface
-   * presenter can stamp the next cursor with it. Surface-only; the read itself
-   * does not use it.
-   */
-  cursorScope?: string
 }
 
 export interface ReadKnowledgeDocumentInput {
@@ -262,7 +256,6 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         resolvedNameFilters?.definitionsByKnowledgeBase.get(context.knowledgeBaseId) ??
         (await getDocumentTagDefinitions(context.knowledgeBaseId)),
       workspaceId: context.workspaceId,
-      cursorScope: input.cursorScope,
     }
   },
 })

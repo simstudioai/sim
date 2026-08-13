@@ -3,11 +3,25 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2TableErrorPolicies } from '@/lib/table/api'
 import { tableOperations } from '@/lib/table/application/operations'
 import { createTableUseCase, listTablesUseCase } from '@/lib/table/application/tables'
-import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
+import {
+  cursorFilterScope,
+  cursorSortKey,
+  encodeSortedCursor,
+  readSortedCursor,
+} from '@/app/api/v2/lib/response'
 import { toApiTable, toApiTables } from '@/app/api/v2/tables/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+/** Every param that changes which tables, in which order, this list returns. */
+function tableCursorFilters(query: { workspaceId: string; folderPath?: string; search?: string }) {
+  return cursorFilterScope({
+    workspaceId: query.workspaceId,
+    folderPath: query.folderPath,
+    search: query.search,
+  })
+}
 
 export const GET = defineV2JsonRoute({
   contract: v2ListTablesContract,
@@ -23,11 +37,17 @@ export const GET = defineV2JsonRoute({
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
     limit: query.limit,
-    after: readSortedCursor(query.cursor, query.sortBy, query.sortOrder),
+    after: readSortedCursor(query.cursor, query.sortBy, query.sortOrder, tableCursorFilters(query)),
   }),
-  present: async ({ tables, nextKeys, sortBy, sortOrder }) => ({
+  present: async ({ tables, nextKeys }, { query }) => ({
     data: await toApiTables(tables),
-    nextCursor: nextKeys ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), nextKeys) : null,
+    nextCursor: nextKeys
+      ? encodeSortedCursor(
+          cursorSortKey(query.sortBy, query.sortOrder),
+          nextKeys,
+          tableCursorFilters(query)
+        )
+      : null,
   }),
 })
 

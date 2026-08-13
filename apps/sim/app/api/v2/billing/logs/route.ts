@@ -5,9 +5,36 @@ import { listBillingLogs } from '@/lib/billing/application/list-billing-logs'
 import { billingOperations } from '@/lib/billing/application/operations'
 import { toBillingUsageLogSource, toInternalUsageLogSources } from '@/lib/billing/usage-sources'
 import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
+import { cursorFilterScope, encodeScopedCursor, readScopedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+/**
+ * Every param that changes which ledger entries, in which order, this list
+ * returns.
+ *
+ * The raw params are stamped, not the range `resolveDateRange` derives from
+ * them: a relative `period` resolves against the clock, so hashing the resolved
+ * window would produce a different stamp on every request and reject each next
+ * page. `period=30d` and an explicit custom range covering the same days are
+ * therefore two scopes, which is right — one is a moving window.
+ */
+function billingLogCursorFilters(query: {
+  source?: string
+  workspaceId?: string
+  period?: string
+  startDate?: string
+  endDate?: string
+}) {
+  return cursorFilterScope({
+    source: query.source,
+    workspaceId: query.workspaceId,
+    period: query.period,
+    startDate: query.startDate,
+    endDate: query.endDate,
+  })
+}
 
 /** Cursor-paged, credit-denominated billing ledger. */
 export const GET = defineV2JsonRoute({
@@ -24,11 +51,11 @@ export const GET = defineV2JsonRoute({
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
       limit: query.limit,
-      cursor: query.cursor,
+      cursor: readScopedCursor(query.cursor, billingLogCursorFilters(query)),
     }
   },
   useCase: listBillingLogs,
-  present: ({ usage, creditsByLogId }) => ({
+  present: ({ usage, creditsByLogId }, { query }) => ({
     data: usage.logs.map((log) => ({
       id: log.id,
       createdAt: log.createdAt,
@@ -38,6 +65,9 @@ export const GET = defineV2JsonRoute({
       runId: log.executionId ?? null,
       creditCost: creditsByLogId[log.id] ?? 0,
     })),
-    nextCursor: usage.pagination.hasMore ? (usage.pagination.nextCursor ?? null) : null,
+    nextCursor:
+      usage.pagination.hasMore && usage.pagination.nextCursor
+        ? encodeScopedCursor(billingLogCursorFilters(query), usage.pagination.nextCursor)
+        : null,
   }),
 })

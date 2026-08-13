@@ -9,10 +9,30 @@ import {
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
+import {
+  cursorFilterScope,
+  cursorSortKey,
+  encodeSortedCursor,
+  readSortedCursor,
+} from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+/** Every param that changes which workflows, in which order, this list returns. */
+function workflowCursorFilters(query: {
+  workspaceId: string
+  folderPath?: string
+  deployedOnly: boolean
+  search?: string
+}) {
+  return cursorFilterScope({
+    workspaceId: query.workspaceId,
+    folderPath: query.folderPath,
+    deployedOnly: query.deployedOnly,
+    search: query.search,
+  })
+}
 
 export const GET = defineV2JsonRoute({
   contract: v2ListWorkflowsContract,
@@ -27,11 +47,16 @@ export const GET = defineV2JsonRoute({
     search: query.search,
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
-    cursorKeys: readSortedCursor(query.cursor, query.sortBy, query.sortOrder),
+    cursorKeys: readSortedCursor(
+      query.cursor,
+      query.sortBy,
+      query.sortOrder,
+      workflowCursorFilters(query)
+    ),
     limit: query.limit,
   }),
   useCase: listWorkflows,
-  present: ({ workflows, nextCursorKeys, sortBy, sortOrder }) => ({
+  present: ({ workflows, nextCursorKeys }, { query }) => ({
     data: workflows.map(
       (workflow): V2WorkflowListItem => ({
         id: workflow.id,
@@ -48,7 +73,11 @@ export const GET = defineV2JsonRoute({
       })
     ),
     nextCursor: nextCursorKeys
-      ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), nextCursorKeys)
+      ? encodeSortedCursor(
+          cursorSortKey(query.sortBy, query.sortOrder),
+          nextCursorKeys,
+          workflowCursorFilters(query)
+        )
       : null,
   }),
 })

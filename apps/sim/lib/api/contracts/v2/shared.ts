@@ -114,20 +114,41 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * `encodeCursor({ email })` on the workspace member list, the audit-log and run-log
  * codecs in `lib/audit-logs/query.ts` and `lib/logs/list-logs.ts`, the table-row
  * codec in `lib/table/rows/cursor.ts`, and a usage-event id passed straight
- * through by `GET /billing/logs`. They are opaque to a caller in exactly the same
- * way, but they do not get the shared codec's sort stamp, so a new list should
- * reach for one of the two shared schemes rather than adding a fourth.
+ * through by `GET /billing/logs`. Those tokens stay opaque and untouched, but the
+ * three whose sequence a caller can re-filter are wrapped in
+ * `encodeScopedCursor` at the surface so they carry the same query binding as
+ * the shared schemes. A new list should still reach for one of the two shared
+ * codecs rather than adding a fourth.
  *
- * ## Sort and the opaque cursor
+ * ## Query binding and the opaque cursor
  *
- * Lists using the shared keyset codec (`encodeSortedCursor` /
- * `decodeSortedCursor` in `app/api/v2/lib/response.ts`) carry a cursor that is
- * a keyset over the *active* sort, so its keys change when the sort does. The
- * sort is therefore encoded into the cursor and re-checked on the way back in:
- * replaying a cursor under a different `sortBy`/`sortOrder` is a 400, not a
- * silently duplicated or skipped page. Change the sort by restarting pagination
- * without a cursor. The rest delegate to their domain's own cursor codec, which
- * is opaque in exactly the same way.
+ * A cursor names a position in ONE sequence, and a v2 list decides that
+ * sequence from its sort AND its filters. Every paged list therefore stamps
+ * both into the token it returns and re-checks them on the way back in:
+ * replaying a cursor under a different `sortBy`/`sortOrder`, or under a changed
+ * filter, is a 400 naming which half changed. Change either by restarting
+ * pagination without a cursor.
+ *
+ * Both failures are silent without the stamp, but they are not the same
+ * failure. An offset replayed against a re-filtered sequence names an unrelated
+ * ordinal in it. A keyset stays internally coherent — the page it returns is
+ * correctly ordered and duplicate-free — and is missing every match that sorts
+ * before the cursor's position, which a caller holding an opaque token reads as
+ * "almost nothing matched". Neither is recoverable by the client, so neither is
+ * served.
+ *
+ * `limit` is deliberately not part of the binding: it selects how much of the
+ * sequence to return, not what the sequence is, so a caller may change page
+ * size mid-walk. Params that only shape the response body (`details`,
+ * `includeTraceSpans`, `includeFinalOutput` on `GET /logs`) are out for the same
+ * reason. The authoritative per-list binding is pinned in
+ * `v2/__tests__/list-pagination.test.ts`, which fails when a list gains a param
+ * that is neither bound nor explicitly exempted.
+ *
+ * The three lists whose token is minted by a domain codec that predates the
+ * shared ones (`GET /logs`, `GET /audit-logs`, `GET /billing/logs`) get the same
+ * binding by wrapping that token — the domain cursor stays opaque and untouched
+ * inside a query-stamped envelope.
  */
 
 /**
@@ -275,7 +296,9 @@ export function v2LimitSchema(options: V2LimitOptions = {}) {
  * caller that accidentally forwards an empty string learns about it instead of
  * looping on page one.
  */
-export function v2CursorSchema(description = 'Opaque cursor returned by the previous page.') {
+export function v2CursorSchema(
+  description = 'Opaque cursor returned by the previous page. It is bound to the sort and filters the page was read under: send it back with the same params, and restart pagination without a cursor after changing any of them. Only `limit` may change mid-walk.'
+) {
   return z.string().min(1, 'cursor must be a non-empty token').optional().describe(description)
 }
 
