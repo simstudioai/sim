@@ -69,8 +69,14 @@ export function SelectorCombobox({
    * The search reaches the provider, so it is debounced before it enters the query key
    * rather than on every keystroke — several of these selectors are rate-limited by the
    * provider. Only the query sees the debounced value; the input stays on `searchTerm`.
+   *
+   * Clearing is not debounced: a multi-select pick resets the term so the next choice comes
+   * from the full list, and waiting out the delay would leave the previous filtered results
+   * on screen. This mirrors the shared debounced-search setter, which also flushes empty.
    */
-  const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
+  const trimmedSearch = searchTerm.trim()
+  const debouncedSearch = useDebounce(trimmedSearch, SEARCH_DEBOUNCE_MS)
+  const activeSearch = trimmedSearch === '' ? '' : debouncedSearch
   const {
     data: options = [],
     isLoading,
@@ -78,7 +84,7 @@ export function SelectorCombobox({
     error,
   } = useSelectorOptions(selectorKey, {
     context: selectorContext,
-    search: allowSearch ? debouncedSearch : undefined,
+    search: allowSearch ? activeSearch : undefined,
   })
   const { data: detailOption } = useSelectorOptionDetail(selectorKey, {
     context: selectorContext,
