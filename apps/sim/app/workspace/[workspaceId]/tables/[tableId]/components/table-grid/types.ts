@@ -1,9 +1,13 @@
 import type React from 'react'
 import type { ColumnDefinition } from '@/lib/table'
 
+/**
+ * The producing block's mark for a workflow-output column. Icon only — these
+ * render in the plain `--text-icon` tone like every other column-type icon, so
+ * carrying a colour here only invited a second copy of the block's `bgColor`.
+ */
 export interface BlockIconInfo {
   icon: React.ComponentType<{ className?: string }>
-  color: string
 }
 
 export interface ColumnSourceInfo {
