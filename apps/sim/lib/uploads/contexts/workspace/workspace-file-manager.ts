@@ -161,6 +161,12 @@ interface ListWorkspaceFilesOptions {
   hydrateFolderPaths?: boolean
   /** Propagate storage errors when an incomplete list would be unsafe. */
   throwOnError?: boolean
+  /**
+   * Row cap for callers that only need to know whether the workspace fits a budget.
+   * The result is a prefix of the full list, so a caller that reads it as "the
+   * workspace's files" must not set this.
+   */
+  limit?: number
 }
 
 /**
@@ -223,7 +229,9 @@ interface WorkspaceFileMetadataInsert {
   size: number
 }
 
-function workspaceFileSize(file: typeof workspaceFiles.$inferSelect): number {
+function workspaceFileSize(
+  file: Pick<typeof workspaceFiles.$inferSelect, 'size' | 'sizeBytes'>
+): number {
   return file.sizeBytes ?? file.size
 }
 
@@ -1007,7 +1015,7 @@ export async function fileExistsInWorkspace(
 }
 
 function mapWorkspaceFileRecord(
-  file: typeof workspaceFiles.$inferSelect,
+  file: WorkspaceFileListRow,
   workspaceId: string,
   folderPaths: Map<string, string>
 ): WorkspaceFileRecord {
@@ -1144,9 +1152,40 @@ function workspaceFileScopeCondition(workspaceId: string, scope: WorkspaceFileSc
     : and(...base, isNull(workspaceFiles.deletedAt))
 }
 
+/**
+ * The columns {@link mapWorkspaceFileRecord} actually reads. The list reads below are
+ * workspace-wide, so `select()` would pull five columns no reader projects — `context`,
+ * `chatId`, `messageId`, `displayName`, `secretProvenanceVersion` — for every row of the
+ * scan. Narrowing here is invisible on the wire (the route contract already strips them)
+ * and cuts what the database ships per row.
+ */
+const workspaceFileListColumns = {
+  id: workspaceFiles.id,
+  key: workspaceFiles.key,
+  userId: workspaceFiles.userId,
+  workspaceId: workspaceFiles.workspaceId,
+  folderId: workspaceFiles.folderId,
+  originalName: workspaceFiles.originalName,
+  contentType: workspaceFiles.contentType,
+  size: workspaceFiles.size,
+  sizeBytes: workspaceFiles.sizeBytes,
+  width: workspaceFiles.width,
+  height: workspaceFiles.height,
+  deletedAt: workspaceFiles.deletedAt,
+  uploadedAt: workspaceFiles.uploadedAt,
+  updatedAt: workspaceFiles.updatedAt,
+  contentUpdatedAt: workspaceFiles.contentUpdatedAt,
+} as const
+
+/** A row carrying exactly the columns {@link mapWorkspaceFileRecord} needs; a full row satisfies it. */
+type WorkspaceFileListRow = Pick<
+  typeof workspaceFiles.$inferSelect,
+  keyof typeof workspaceFileListColumns
+>
+
 /** Resolves `folderPath` for a page of rows, reading the folder tree only if any row needs it. */
 async function hydrateWorkspaceFilePaths(
-  files: (typeof workspaceFiles.$inferSelect)[],
+  files: WorkspaceFileListRow[],
   workspaceId: string,
   options?: { folders?: WorkspaceFileFolderRecord[]; hydrateFolderPaths?: boolean }
 ): Promise<WorkspaceFileRecord[]> {
@@ -1167,12 +1206,13 @@ export async function listWorkspaceFiles(
   options?: ListWorkspaceFilesOptions
 ): Promise<WorkspaceFileRecord[]> {
   try {
-    const { scope = 'active' } = options ?? {}
-    const files = await db
-      .select()
+    const { scope = 'active', limit } = options ?? {}
+    const query = db
+      .select(workspaceFileListColumns)
       .from(workspaceFiles)
       .where(workspaceFileScopeCondition(workspaceId, scope))
       .orderBy(workspaceFiles.uploadedAt)
+    const files = await (limit === undefined ? query : query.limit(limit))
 
     return hydrateWorkspaceFilePaths(files, workspaceId, options)
   } catch (error) {
@@ -1265,7 +1305,7 @@ export async function queryWorkspaceFiles(
   ]
 
   const rows = await db
-    .select()
+    .select(workspaceFileListColumns)
     .from(workspaceFiles)
     .where(and(...conditions))
     .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))

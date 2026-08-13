@@ -15,10 +15,18 @@ import {
  * to a client fetch rather than carrying a field that vanishes on the next refetch.
  *
  * Callers authorize the viewer against `workspaceId` first.
+ *
+ * `limit` caps the rows read for callers that only need to know whether the workspace fits
+ * a payload budget; the result is then a prefix of the list, not the list, so no caller may
+ * present a limited read as the workspace's files.
  */
-export async function listWorkspaceFilesWithShares(workspaceId: string, scope: WorkspaceFileScope) {
+export async function listWorkspaceFilesWithShares(
+  workspaceId: string,
+  scope: WorkspaceFileScope,
+  options?: { limit?: number }
+) {
   const [files, shares] = await Promise.all([
-    listWorkspaceFiles(workspaceId, { scope }),
+    listWorkspaceFiles(workspaceId, { scope, limit: options?.limit }),
     getWorkspaceShares('file', workspaceId),
   ])
   const withShares = files.map((file) => ({ ...file, share: shares.get(file.id) ?? null }))
