@@ -141,6 +141,7 @@ export interface DeleteCredentialInput {
 
 export interface DeleteCredentialResult {
   credential: CredentialRow
+  deleted: boolean
 }
 
 async function resolveCredentialContext(
@@ -176,27 +177,31 @@ export const deleteCredentialUseCase = defineAuthorizedWorkspaceUseCase({
       )
     }
 
-    await deleteConnectionCredential({
+    const deleted = await deleteConnectionCredential({
       credentialId: input.credentialId,
       workspaceId: context.workspaceId,
       reason: 'user_delete',
     })
-    return { credential: context.credential }
+    return { credential: context.credential, deleted }
   },
-  projectAudit: ({ result }) => ({
-    action: AuditAction.CREDENTIAL_DELETED,
-    resourceType: AuditResourceType.CREDENTIAL,
-    resourceId: result.credential.id,
-    resourceName: result.credential.displayName,
-    description: `Deleted ${result.credential.type} credential "${result.credential.displayName}" (user_delete)`,
-    metadata: {
-      reason: 'user_delete',
-      credentialType: result.credential.type,
-      providerId: result.credential.providerId,
-      accountId: result.credential.accountId,
-    },
-  }),
+  projectAudit: ({ result }) =>
+    result.deleted
+      ? {
+          action: AuditAction.CREDENTIAL_DELETED,
+          resourceType: AuditResourceType.CREDENTIAL,
+          resourceId: result.credential.id,
+          resourceName: result.credential.displayName,
+          description: `Deleted ${result.credential.type} credential "${result.credential.displayName}" (user_delete)`,
+          metadata: {
+            reason: 'user_delete',
+            credentialType: result.credential.type,
+            providerId: result.credential.providerId,
+            accountId: result.credential.accountId,
+          },
+        }
+      : [],
   afterSuccess: ({ principal, context, result }) => {
+    if (!result.deleted) return
     captureServerEvent(
       principalUserId(principal),
       'credential_deleted',

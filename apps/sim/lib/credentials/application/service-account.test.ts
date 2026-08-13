@@ -92,6 +92,7 @@ describe('credential service-account application operations', () => {
       auditMetadata: { tenantId: 'tenant-1' },
     })
     mocks.listCatalog.mockResolvedValue([{ providerId: 'zoom-service-account' }])
+    mocks.delete.mockResolvedValue(true)
     mocks.requireProvider.mockReturnValue({
       type: 'service_account',
       providerId: 'zoom-service-account',
@@ -199,11 +200,22 @@ describe('credential service-account application operations', () => {
       input: { workspaceId: WORKSPACE_ID, credentialId: credential.id },
     })
 
-    expect(result).toEqual({ credential })
+    expect(result).toEqual({ credential, deleted: true })
     expect(mocks.delete).toHaveBeenCalledWith({
       credentialId: credential.id,
       workspaceId: WORKSPACE_ID,
       reason: 'user_delete',
     })
+  })
+
+  it('treats a concurrent disconnect as an idempotent success', async () => {
+    mocks.delete.mockResolvedValue(false)
+
+    const result = await deleteCredentialUseCase.execute({
+      principal,
+      input: { workspaceId: WORKSPACE_ID, credentialId: credential.id },
+    })
+
+    expect(result).toEqual({ credential, deleted: false })
   })
 })

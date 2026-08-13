@@ -80,7 +80,7 @@ export async function deleteCredential(params: DeleteCredentialParams): Promise<
 /** Clears references and deletes one connection without surface audit attribution. */
 export async function deleteConnectionCredential(
   params: DeleteConnectionCredentialParams
-): Promise<void> {
+): Promise<boolean> {
   const { credentialId, workspaceId } = params
   await clearCredentialRefs(credentialId, workspaceId)
   const deleted = await db
@@ -89,13 +89,16 @@ export async function deleteConnectionCredential(
       and(eq(schema.credential.id, credentialId), eq(schema.credential.workspaceId, workspaceId))
     )
     .returning({ id: schema.credential.id })
-  if (deleted.length !== 1) throw new Error('Credential disappeared during deletion')
+  if (deleted.length > 1) throw new Error('Credential deletion affected multiple rows')
 
-  logger.info('Deleted credential', {
-    credentialId,
-    workspaceId,
-    reason: params.reason,
-  })
+  if (deleted.length === 1) {
+    logger.info('Deleted credential', {
+      credentialId,
+      workspaceId,
+      reason: params.reason,
+    })
+  }
+  return deleted.length === 1
 }
 
 /**

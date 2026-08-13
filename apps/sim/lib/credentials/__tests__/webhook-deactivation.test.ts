@@ -53,18 +53,19 @@ describe('deleteConnectionCredential', () => {
   it('deletes exactly one credential within its canonical workspace scope', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'credential-1' }])
 
-    await deleteConnectionCredential({
+    const deleted = await deleteConnectionCredential({
       credentialId: 'credential-1',
       workspaceId: 'workspace-1',
       reason: 'user_delete',
     })
 
+    expect(deleted).toBe(true)
     expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.credential)
     expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.credential.id, 'credential-1')
     expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.credential.workspaceId, 'workspace-1')
   })
 
-  it('fails fast if the authorized credential disappears before deletion commits', async () => {
+  it('returns an idempotent no-op if a concurrent disconnect wins the delete', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
 
     await expect(
@@ -73,6 +74,6 @@ describe('deleteConnectionCredential', () => {
         workspaceId: 'workspace-1',
         reason: 'user_delete',
       })
-    ).rejects.toThrow('Credential disappeared during deletion')
+    ).resolves.toBe(false)
   })
 })
