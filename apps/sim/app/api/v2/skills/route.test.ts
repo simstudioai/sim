@@ -50,20 +50,33 @@ vi.mock('@/lib/skills/application/use-cases', () => ({
   createSkillUseCase: { operation: { id: 'skills.create' }, execute: mocks.create },
 }))
 
+import { cursorFilterScope, cursorSortKey, encodeOffsetCursor } from '@/app/api/v2/lib/response'
 import { GET, POST } from '@/app/api/v2/skills/route'
 
 const WORKSPACE_ID = 'workspace-1'
 
 /**
- * The scope stamp the route mints for the default query. Written out rather
- * than imported so the test pins the wire format a shipped cursor carries.
+ * A cursor exactly as this route mints one, built from the shared codec so the
+ * test exercises the real binding rather than a restatement of it. `search` is
+ * the only filter the skills list takes beyond its workspace.
  */
-const SCOPE = ({
-  search = '',
+function skillCursor({
+  offset,
+  search,
   sortBy = 'createdAt',
   sortOrder = 'desc',
-}: Record<string, string> = {}) =>
-  `search=${search}&sortBy=${sortBy}&sortOrder=${sortOrder}&workspaceId=${WORKSPACE_ID}`
+}: {
+  offset: number
+  search?: string
+  sortBy?: string
+  sortOrder?: string
+}): string {
+  return encodeOffsetCursor(
+    cursorSortKey(sortBy, sortOrder),
+    cursorFilterScope({ workspaceId: WORKSPACE_ID, search }),
+    offset
+  )
+}
 const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
 const AUTH = {
   principal: PRINCIPAL,
@@ -129,7 +142,6 @@ describe('/api/v2/skills', () => {
         limit: 50,
         cursor: undefined,
         offset: 0,
-        cursorScope: SCOPE(),
       },
       request: expect.anything(),
     })
@@ -141,9 +153,8 @@ describe('/api/v2/skills', () => {
       hasMore: true,
       offset: 2,
       limit: 2,
-      cursorScope: SCOPE(),
     })
-    const cursor = Buffer.from(JSON.stringify({ scope: SCOPE(), offset: 2 })).toString('base64')
+    const cursor = skillCursor({ offset: 2 })
 
     const response = await GET(
       request(
@@ -153,9 +164,7 @@ describe('/api/v2/skills', () => {
     )
 
     expect(response.status).toBe(200)
-    expect((await response.json()).nextCursor).toBe(
-      Buffer.from(JSON.stringify({ scope: SCOPE(), offset: 4 })).toString('base64')
-    )
+    expect((await response.json()).nextCursor).toBe(skillCursor({ offset: 4 }))
     expect(mocks.list).toHaveBeenCalledWith(
       expect.objectContaining({ input: expect.objectContaining({ limit: 2, offset: 2 }) })
     )
@@ -166,7 +175,7 @@ describe('/api/v2/skills', () => {
    * cursor minted under one sort must not silently resume under another.
    */
   it('rejects a cursor replayed under a different sort', async () => {
-    const cursor = Buffer.from(JSON.stringify({ scope: SCOPE(), offset: 2 })).toString('base64')
+    const cursor = skillCursor({ offset: 2 })
 
     const response = await GET(
       request(
@@ -188,7 +197,7 @@ describe('/api/v2/skills', () => {
     ['search', 'search=other'],
     ['sortOrder', 'sortOrder=asc'],
   ])('rejects a cursor replayed under a different %s', async (_field, param) => {
-    const cursor = Buffer.from(JSON.stringify({ scope: SCOPE(), offset: 2 })).toString('base64')
+    const cursor = skillCursor({ offset: 2 })
 
     const response = await GET(
       request(
@@ -208,7 +217,7 @@ describe('/api/v2/skills', () => {
    */
   it('resumes a cursor minted under a different page size', async () => {
     mocks.list.mockResolvedValueOnce({ skills: [skill], hasMore: false, offset: 2, limit: 5 })
-    const cursor = Buffer.from(JSON.stringify({ scope: SCOPE(), offset: 2 })).toString('base64')
+    const cursor = skillCursor({ offset: 2 })
 
     const response = await GET(
       request(

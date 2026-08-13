@@ -10,9 +10,51 @@ import { v2LogErrorPolicies } from '@/lib/logs/api/route-policies'
 import { listPublicLogs } from '@/lib/logs/application/list-public-logs'
 import { logOperations } from '@/lib/logs/application/operations'
 import { decodePublicLogCursor } from '@/lib/logs/public-queries'
+import { cursorFilterScope, encodeScopedCursor, readScopedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+/**
+ * Every param that changes which logs, in which order, this list returns.
+ *
+ * `details`, `includeFinalOutput`, and `includeTraceSpans` are deliberately
+ * absent: they decide how much of each row is rendered, not which rows are in
+ * the sequence, so a caller may turn them on mid-walk.
+ */
+function logCursorFilters(query: {
+  workspaceId: string
+  workflowIds?: string
+  triggers?: string
+  level?: string
+  startDate?: string
+  endDate?: string
+  runId?: string
+  minDurationMs?: number
+  maxDurationMs?: number
+  minCost?: number
+  maxCost?: number
+  model?: string
+  folderPaths?: string
+  order?: string
+}) {
+  return cursorFilterScope({
+    workspaceId: query.workspaceId,
+    workflowIds: query.workflowIds,
+    triggers: query.triggers,
+    level: query.level,
+    startDate: query.startDate,
+    endDate: query.endDate,
+    runId: query.runId,
+    minDurationMs: query.minDurationMs,
+    maxDurationMs: query.maxDurationMs,
+    minCost: query.minCost,
+    maxCost: query.maxCost,
+    model: query.model,
+    folderPaths: query.folderPaths,
+    order: query.order,
+  })
+}
 
 export const GET = defineV2JsonRoute({
   contract: v2ListLogsContract,
@@ -21,10 +63,9 @@ export const GET = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2LogErrorPolicies.default,
   mapInput: ({ query }) => {
-    const decodedCursor = query.cursor
-      ? decodePublicLogCursor(query.cursor, query.order ?? 'desc')
-      : null
-    if (query.cursor && !decodedCursor) {
+    const inner = readScopedCursor(query.cursor, logCursorFilters(query))
+    const decodedCursor = inner ? decodePublicLogCursor(inner, query.order ?? 'desc') : null
+    if (inner && !decodedCursor) {
       throw new OrchestrationError('validation', 'Invalid cursor')
     }
     return {
@@ -53,7 +94,10 @@ export const GET = defineV2JsonRoute({
     }
   },
   useCase: listPublicLogs,
-  present: ({ items, nextCursor, includeFullDetails, includeFinalOutput, includeTraceSpans }) => ({
+  present: (
+    { items, nextCursor, includeFullDetails, includeFinalOutput, includeTraceSpans },
+    { query }
+  ) => ({
     data: items.map(({ log, executionData }): V2LogListItem => {
       const item: V2LogListItem = {
         runId: log.executionId,
@@ -86,6 +130,6 @@ export const GET = defineV2JsonRoute({
       }
       return item
     }),
-    nextCursor,
+    nextCursor: nextCursor ? encodeScopedCursor(logCursorFilters(query), nextCursor) : null,
   }),
 })

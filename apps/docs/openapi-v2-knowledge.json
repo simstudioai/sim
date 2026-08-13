@@ -113,9 +113,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor returned by the previous page. It is bound to the sort and filters the page was read under: send it back with the same params, and restart pagination without a cursor after changing any of them. Only `limit` may change mid-walk.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor returned by the previous page. It is bound to the sort and filters the page was read under: send it back with the same params, and restart pagination without a cursor after changing any of them. Only `limit` may change mid-walk.",
               "type": "string",
               "minLength": 1
             }
@@ -717,9 +717,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor returned by the previous page. It is bound to the sort and filters the page was read under: send it back with the same params, and restart pagination without a cursor after changing any of them. Only `limit` may change mid-walk.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor returned by the previous page. It is bound to the sort and filters the page was read under: send it back with the same params, and restart pagination without a cursor after changing any of them. Only `limit` may change mid-walk.",
               "type": "string",
               "minLength": 1
             }

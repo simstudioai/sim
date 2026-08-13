@@ -100,10 +100,14 @@ That gives `limit` (integer, 1..`V2_MAX_PAGE_SIZE`, defaulting to `V2_DEFAULT_PA
 
 Three cursor schemes exist. Two are the shared codecs in `response.ts`, both opaque base64-JSON, and which of them you use is decided by what the read can express, not by taste:
 
-- **Keyset** (`readSortedCursor` in, `encodeSortedCursor` out) — the default. Requires the page to come from one ordered SQL read. The sort is stamped into the cursor and re-checked on replay, so changing `sortBy` mid-pagination is a 400, not a silently skipped page.
-- **Offset** (`decodeOffsetCursor` / `encodeOffsetCursor`) — only when a keyset is impossible. Two lists qualify: `GET /skills` merges a static in-code registry with DB rows and re-sorts in JS, and `GET /knowledge/{id}/documents` sits on a limit/offset query. An offset cursor **must** be stamped with `offsetCursorScope(...)` covering every param that filters or orders the sequence (not `limit`, which only selects how much of it to return). A bare offset replayed against a re-sorted or re-filtered sequence names a different row, which skips or repeats results — the exact failure the keyset's sort stamp already prevents.
+- **Keyset** (`readSortedCursor` in, `encodeSortedCursor` out) — the default. Requires the page to come from one ordered SQL read. The sort AND the filters are stamped into the cursor and re-checked on replay, so changing `sortBy` or any filter mid-pagination is a 400, not a silently skipped page.
+- **Offset** (`decodeOffsetCursor` / `encodeOffsetCursor`) — only when a keyset is impossible. Two lists qualify: `GET /skills` merges a static in-code registry with DB rows and re-sorts in JS, and `GET /knowledge/{id}/documents` sits on a limit/offset query. A bare offset replayed against a re-sorted or re-filtered sequence names a different row, which skips or repeats results.
 
-The third is **per-domain**: a list whose read predates the shared codecs, or whose page boundary is not expressible as one, mints its own — a bare `encodeCursor({ version })` on `GET /workflows/{id}/versions` and `encodeCursor({ email })` on the workspace member list, the local codecs in `lib/audit-logs/query.ts`, `lib/logs/list-logs.ts`, and `lib/table/rows/cursor.ts`, and a usage-event id passed straight through by `GET /billing/logs`. They are opaque to a caller in exactly the same way, but they do not get the shared codec's sort stamp, so they cannot reject a cursor replayed under a changed sort. **A new list picks one of the two shared schemes.** Do not add a fourth.
+Both take the same two stamps: `cursorSortKey(sortBy, sortOrder)` for the ordering, and `cursorFilterScope({ ... })` for every param that filters the sequence. **`limit` is never a stamp** — it selects how much of the sequence to return, not what the sequence is, and binding it strands every cursor the moment a caller changes page size. Params that only shape the response body are out for the same reason.
+
+The third is **per-domain**: a list whose read predates the shared codecs, or whose page boundary is not expressible as one, mints its own — a bare `encodeCursor({ version })` on `GET /workflows/{id}/versions` and `encodeCursor({ email })` on the workspace member list, the local codecs in `lib/audit-logs/query.ts`, `lib/logs/list-logs.ts`, and `lib/table/rows/cursor.ts`, and a usage-event id passed straight through by `GET /billing/logs`. Those tokens stay opaque and untouched, but a domain-minted cursor on a list a caller can re-filter is wrapped at the surface with `encodeScopedCursor(cursorFilterScope({...}), token)` and unwrapped with `readScopedCursor`, so it carries the same binding as the shared schemes. **A new list picks one of the two shared schemes.** Do not add a fourth.
+
+Every paged list's binding is declared in `lib/api/contracts/v2/__tests__/list-pagination.test.ts` and checked against what the contract actually accepts, in both directions. A new list, or a new filter on an existing one, fails that test until its binding is declared or the param is explicitly recorded as unable to change the sequence.
 
 **A keyset's key list must end in a unique column (`id`).** A non-unique trailing key cannot separate tied rows, so the page boundary either repeats or drops them. `lib/api/list-keyset-paging.test.ts` demonstrates the failure.
 
@@ -136,7 +140,7 @@ That last one is the standard to aim for. A message that only says `Invalid inpu
 Order matters because each layer is checked against the one before it.
 
 1. **Contract** in `lib/api/contracts/v2/<domain>.ts` via `defineRouteContract`. Response schemas are `.parse`d on the way out, so a field the producer does not actually emit becomes a 500 on a successful read — assert only what you can prove.
-2. **Application use case** owns canonical loading, authorization, business behavior, and audit. The route's `present` receives **only the use-case result**, so anything the presenter needs (e.g. the active `sortBy`/`sortOrder` to stamp a cursor) must be returned by the use case.
+2. **Application use case** owns canonical loading, authorization, business behavior, and audit. The route's `present` receives the use-case result **and the parsed request**, so a presenter reads request params (the active `sortBy`/`sortOrder` and filters it stamps into a cursor) straight from `query`/`params` rather than making the use case carry an HTTP concern back out.
 3. **Route** with `defineV2JsonRoute`, declaring `contract`, `auth: v2ApiKeyAuth`, `operation`, `rateLimit`, `errorPolicy`, `mapInput`, `useCase`, `present`. Auth and rate limiting run before parsing.
 4. **OpenAPI description** in `lib/api/contracts/v2/openapi/<domain>.ts`, then `bun run generate:openapi`. A description that claims behaviour the route does not have is the same class of bug as a wrong schema.
 
@@ -190,7 +194,7 @@ That makes the money path safe against double-execution **for callers that opt i
 The base64-JSON cursor is **not signed**, and does not need to be. Tampering is bounded by construction, and that is a property to preserve:
 
 - Every key value is re-validated by its `KeysetKey.bind`, which returns `null` for a wrong-typed or unparseable value and becomes a 400. A forged cursor cannot reach SQL as `NaN` or an `Invalid Date`.
-- The sort is stamped into the cursor and re-checked (`decodeSortedCursor`), so a cursor from a differently-sorted query is a 400, not a silently skipped page.
+- The sort and a fingerprint of the filters are stamped into the cursor and re-checked (`decodeSortedCursor`), so a cursor from a differently-sorted or differently-filtered query is a 400, not a silently skipped page. The filters are hashed (SHA-256, via `lib/api/cursor-binding.ts`) rather than embedded, so the token stays short and a caller cannot cheaply construct a filter that collides with another sequence's stamp.
 - The offset codec rejects anything that is not a non-negative integer.
 - Authorization is **never** carried in the cursor. Every list re-derives its workspace scope from the authenticated principal, so a cursor lifted from another query — or another tenant — can only move the caller within their own authorized result set.
 
@@ -206,6 +210,7 @@ Run this against any new or changed v2 endpoint.
 - [ ] No caller-supplied value can produce a 500 — check every numeric param reaches SQL as a validated integer, and that any bound value passed as an argument to a SQL function carries an explicit type.
 - [ ] `limit` comes from `v2PaginationFields`, not a hand-written `z.coerce.number()`.
 - [ ] If the response carries `nextCursor`, the query accepts `limit` + `cursor` and the query actually applies them.
+- [ ] The cursor is bound to every param that filters or orders the sequence, and to none that do not (never `limit`), with the binding declared in `list-pagination.test.ts`.
 - [ ] Keyset sorts end in a unique `id` key.
 - [ ] The list is classified in `list-pagination.test.ts`.
 - [ ] Cross-tenant access answers 404, never 403 — and carries `Cache-Control: private, no-store`, because RFC 9110 §15.5.5 makes 404 heuristically cacheable and an authorization-dependent 404 must never be stored. `v2Error` sets this unconditionally; do not build a v2 response any other way.

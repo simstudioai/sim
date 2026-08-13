@@ -14,10 +14,23 @@ import {
   listWorkspaceCustomToolsUseCase,
 } from '@/lib/custom-tools/application/use-cases'
 import { toV2CustomTool } from '@/app/api/v2/custom-tools/utils'
-import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
+import {
+  cursorFilterScope,
+  cursorSortKey,
+  encodeSortedCursor,
+  readSortedCursor,
+} from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+/** Every param that changes which custom tools, in which order, this list returns. */
+function customToolCursorFilters(query: { workspaceId: string; search?: string }) {
+  return cursorFilterScope({
+    workspaceId: query.workspaceId,
+    search: query.search,
+  })
+}
 
 /** GET /api/v2/custom-tools — List custom tools in a workspace. */
 export const GET = defineV2JsonRoute({
@@ -28,13 +41,22 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2OrchestrationErrorPolicy,
   mapInput: ({ query }) => ({
     ...query,
-    cursorKeys: readSortedCursor(query.cursor, query.sortBy, query.sortOrder),
+    cursorKeys: readSortedCursor(
+      query.cursor,
+      query.sortBy,
+      query.sortOrder,
+      customToolCursorFilters(query)
+    ),
   }),
   useCase: listWorkspaceCustomToolsUseCase,
-  present: ({ tools, nextCursorKeys, sortBy, sortOrder }) => ({
+  present: ({ tools, nextCursorKeys }, { query }) => ({
     data: tools.map(toV2CustomTool),
     nextCursor: nextCursorKeys
-      ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), nextCursorKeys)
+      ? encodeSortedCursor(
+          cursorSortKey(query.sortBy, query.sortOrder),
+          nextCursorKeys,
+          customToolCursorFilters(query)
+        )
       : null,
   }),
 })

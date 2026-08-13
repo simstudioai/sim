@@ -97,6 +97,116 @@ const FULL_SET_LISTS = [
 ] as const
 
 /**
+ * Which of each paged list's params its cursor is bound to.
+ *
+ * A cursor names a position in ONE sequence, and every param that reorders or
+ * re-filters that sequence decides which sequence that is. Replay a cursor
+ * across a change to any of them and the reply is wrong in a way the caller
+ * cannot see: an offset lands at an unrelated ordinal, and a keyset — which
+ * stays internally coherent — silently drops every match that sorts before its
+ * position. So all of them are stamped into the token and re-checked on the way
+ * back in, and a mismatch is a 400 telling the caller to restart paging.
+ *
+ * The stamp is applied by the route through `cursorFilterScope` +
+ * `cursorSortKey` (`app/api/v2/lib/response.ts`), or, for the three lists whose
+ * token is minted by a domain codec, by wrapping it with `encodeScopedCursor`.
+ * The table-row lists bind inside their own codec (`lib/table/rows/cursor.ts`)
+ * against the same fingerprint.
+ *
+ * This map is the declaration; the tests below check it against what each
+ * contract actually accepts, in both directions. A list that gains a filter
+ * therefore fails here until someone decides whether the cursor is bound to it.
+ */
+const CURSOR_BINDINGS: Record<string, readonly string[]> = {
+  'GET /api/v2/audit-logs': [
+    'organizationId',
+    'includeDeparted',
+    'action',
+    'resourceType',
+    'resourceId',
+    'workspaceId',
+    'actorEmail',
+    'startDate',
+    'endDate',
+  ],
+  'GET /api/v2/billing/logs': ['source', 'workspaceId', 'period', 'startDate', 'endDate'],
+  'GET /api/v2/credentials': ['workspaceId', 'type', 'providerId', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/custom-tools': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/files': ['workspaceId', 'scope', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/knowledge': ['workspaceId', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/knowledge/[id]/documents': [
+    'workspaceId',
+    'enabledFilter',
+    'search',
+    'tagFilters',
+    'sortBy',
+    'sortOrder',
+  ],
+  'GET /api/v2/logs': [
+    'workspaceId',
+    'workflowIds',
+    'triggers',
+    'level',
+    'startDate',
+    'endDate',
+    'runId',
+    'minDurationMs',
+    'maxDurationMs',
+    'minCost',
+    'maxCost',
+    'model',
+    'folderPaths',
+    'order',
+  ],
+  'GET /api/v2/mcp-servers': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/secrets': ['workspaceId', 'scope', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/skills': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/tables': ['workspaceId', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/tables/[tableId]/rows': [],
+  'POST /api/v2/tables/[tableId]/query': ['predicate', 'sort'],
+  'GET /api/v2/workflows': [
+    'workspaceId',
+    'folderPath',
+    'deployedOnly',
+    'search',
+    'sortBy',
+    'sortOrder',
+  ],
+  'GET /api/v2/workflows/[id]/runs': ['status', 'trigger', 'startDate', 'endDate', 'order'],
+  'GET /api/v2/workflows/[id]/versions': [],
+  'GET /api/v2/workspaces/[workspaceId]/members': [],
+}
+
+/**
+ * Params a paged list accepts that its cursor is deliberately NOT bound to,
+ * with the reason. Anything not listed here and not in {@link CURSOR_BINDINGS}
+ * fails the sweep.
+ *
+ * `limit` is excluded globally rather than per list: it selects how much of the
+ * sequence to return, not what the sequence is, so a caller is free to change
+ * page size mid-walk and binding it would strand every cursor for no
+ * correctness gain.
+ */
+const UNBOUND_PARAMS: Record<string, Record<string, string>> = {
+  'GET /api/v2/logs': {
+    details: 'Selects how much of each row is rendered, not which rows are in the sequence.',
+    includeTraceSpans: 'Response shaping only; the row set and its order are unchanged.',
+    includeFinalOutput: 'Response shaping only; the row set and its order are unchanged.',
+  },
+  'GET /api/v2/tables/[tableId]/rows': {
+    workspaceId:
+      'Asserted scope, not a filter: the sequence is one table, named by the path. A mismatched workspace is refused by authorization before paging.',
+  },
+  'POST /api/v2/tables/[tableId]/query': {
+    workspaceId:
+      'Asserted scope, not a filter: the sequence is one table, named by the path. A mismatched workspace is refused by authorization before paging.',
+  },
+}
+
+/** Never part of a binding, on any list. */
+const NEVER_BOUND = new Set<string>(['limit', 'cursor'])
+
+/**
  * Lists that deliberately truncate a fractional `limit` instead of rejecting it.
  *
  * These three shipped that leniency and published it in their OpenAPI
@@ -273,6 +383,8 @@ interface V2ListContract {
   key: string
   name: string
   params: { any: string[]; all: string[] }
+  /** Every param name the contract accepts, across `query` and `body`. */
+  inputKeys: string[]
   /** `undefined` when the contract has no `query`; `null` when it could not be introspected. */
   strictQuery: boolean | null | undefined
   /** Whether a fractional `limit` draws a validation issue on `limit` itself. */
@@ -301,10 +413,12 @@ async function sweepV2ListContracts(): Promise<V2ListContract[]> {
       const label = `${name} (${key})`
       if (!isListResponse(label, value.response?.schema)) continue
       if (found.has(key)) continue
+      const variants = inputVariants(label, value)
       found.set(key, {
         key,
         name,
-        params: paginationParams(inputVariants(label, value)),
+        params: paginationParams(variants),
+        inputKeys: [...new Set(variants.flat())].sort(),
         strictQuery: value.query ? rejectsUnknownKeys(value.query) : undefined,
         rejectsFractionalLimit: rejectsFractionalLimit(value),
       })
@@ -402,6 +516,74 @@ describe('v2 list pagination split', () => {
         byKey.get(key)?.rejectsFractionalLimit,
         `${key} published that it truncates a fractional limit; rejecting it now would break callers relying on that.`
       ).toBe(false)
+    }
+  })
+
+  it('makes every paged list declare what its cursor is bound to', async () => {
+    const contracts = await loadV2ListContracts()
+    const declared = new Set(Object.keys(CURSOR_BINDINGS))
+
+    expect(
+      contracts.filter((c) => PAGED_LISTS.includes(c.key as never) && !declared.has(c.key)),
+      'A paged v2 list must declare its cursor binding in CURSOR_BINDINGS. A cursor names a position in one sequence; every param that decides that sequence has to be stamped into the token, or replaying it across a filter change answers from a sequence the caller never asked for.'
+    ).toEqual([])
+    expect([...declared].sort()).toEqual([...PAGED_LISTS].sort())
+  })
+
+  it('binds every sequence-affecting param a paged list accepts', async () => {
+    const contracts = await loadV2ListContracts()
+    const byKey = new Map(contracts.map((c) => [c.key, c]))
+
+    for (const key of PAGED_LISTS) {
+      const contract = byKey.get(key)
+      if (!contract) throw new Error(`${key} was not discovered by the contract sweep`)
+      const accounted = new Set([
+        ...CURSOR_BINDINGS[key],
+        ...Object.keys(UNBOUND_PARAMS[key] ?? {}),
+        ...NEVER_BOUND,
+      ])
+
+      expect(
+        contract.inputKeys.filter((param) => !accounted.has(param)),
+        `${key} accepts a param its cursor neither binds nor exempts. Add it to CURSOR_BINDINGS and stamp it in the route, or record why it cannot change the sequence in UNBOUND_PARAMS.`
+      ).toEqual([])
+    }
+  })
+
+  it('never declares a binding on a param the contract does not accept', async () => {
+    const contracts = await loadV2ListContracts()
+    const byKey = new Map(contracts.map((c) => [c.key, c]))
+
+    for (const key of PAGED_LISTS) {
+      const accepted = new Set(byKey.get(key)?.inputKeys ?? [])
+
+      expect(
+        [...CURSOR_BINDINGS[key], ...Object.keys(UNBOUND_PARAMS[key] ?? {})].filter(
+          (param) => !accepted.has(param)
+        ),
+        `${key} declares a cursor binding for a param it no longer accepts. A renamed filter leaves the stamp reading undefined on both sides, which silently restores the mid-walk filter change this map exists to prevent.`
+      ).toEqual([])
+    }
+  })
+
+  /**
+   * The one param that must never be bound. Binding it looks harmless and
+   * breaks every caller that changes page size mid-walk.
+   */
+  it('never binds the page size', () => {
+    for (const [key, bound] of Object.entries(CURSOR_BINDINGS)) {
+      expect(
+        bound.filter((param) => NEVER_BOUND.has(param)),
+        `${key} binds limit or cursor`
+      ).toEqual([])
+    }
+  })
+
+  it('gives every unbound param a non-empty reason', () => {
+    for (const [key, exemptions] of Object.entries(UNBOUND_PARAMS)) {
+      for (const [param, reason] of Object.entries(exemptions)) {
+        expect(reason.trim(), `${key}.${param} is exempted without a reason`).not.toBe('')
+      }
     }
   })
 

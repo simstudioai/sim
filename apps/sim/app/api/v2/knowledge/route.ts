@@ -16,10 +16,28 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { toV2KnowledgeBase, toV2KnowledgeBases } from '@/app/api/v2/knowledge/utils'
-import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
+import {
+  cursorFilterScope,
+  cursorSortKey,
+  encodeSortedCursor,
+  readSortedCursor,
+} from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+/** Every param that changes which knowledge bases, in which order, this list returns. */
+function knowledgeCursorFilters(query: {
+  workspaceId: string
+  folderPath?: string
+  search?: string
+}) {
+  return cursorFilterScope({
+    workspaceId: query.workspaceId,
+    folderPath: query.folderPath,
+    search: query.search,
+  })
+}
 
 /** GET /api/v2/knowledge — List knowledge bases in a workspace. */
 export const GET = defineV2JsonRoute({
@@ -35,13 +53,22 @@ export const GET = defineV2JsonRoute({
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
     limit: query.limit,
-    cursorKeys: readSortedCursor(query.cursor, query.sortBy, query.sortOrder),
+    cursorKeys: readSortedCursor(
+      query.cursor,
+      query.sortBy,
+      query.sortOrder,
+      knowledgeCursorFilters(query)
+    ),
   }),
   useCase: listKnowledgeBases,
-  present: async ({ knowledgeBases, nextCursorKeys, sortBy, sortOrder }) => ({
+  present: async ({ knowledgeBases, nextCursorKeys }, { query }) => ({
     data: await toV2KnowledgeBases(knowledgeBases),
     nextCursor: nextCursorKeys
-      ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), nextCursorKeys)
+      ? encodeSortedCursor(
+          cursorSortKey(query.sortBy, query.sortOrder),
+          nextCursorKeys,
+          knowledgeCursorFilters(query)
+        )
       : null,
   }),
 })

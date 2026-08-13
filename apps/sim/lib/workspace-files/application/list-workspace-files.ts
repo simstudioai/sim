@@ -27,7 +27,6 @@ export interface QueryWorkspaceFilePageInput {
   sortOrder: 'asc' | 'desc'
   limit: number
   after?: CursorKey[]
-  cursorSort: string
 }
 
 async function resolveListWorkspaceFileContext(workspaceId: string) {
@@ -84,6 +83,6 @@ export const queryWorkspaceFilePage = defineAuthorizedWorkspaceFileUseCase({
       limit: input.limit,
       after: input.after,
     })
-    return { files, nextKeys, cursorSort: input.cursorSort }
+    return { files, nextKeys }
   },
 })

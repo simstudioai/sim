@@ -27,6 +27,15 @@ vi.mock('@/lib/billing/application/list-billing-logs', () => ({
 import { UNKNOWN_CURSOR_MESSAGE } from '@/lib/billing/core/usage-log'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v2/billing/logs/route'
+import { cursorFilterScope, encodeScopedCursor } from '@/app/api/v2/lib/response'
+
+/** A ledger cursor exactly as the route mints one, for the filters given. */
+function ledgerCursor(
+  inner: string,
+  filters: { source?: string; workspaceId?: string; period?: string }
+): string {
+  return encodeScopedCursor(cursorFilterScope(filters), inner)
+}
 
 const auth = {
   principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' },
@@ -101,15 +110,40 @@ describe('GET /api/v2/billing/logs', () => {
     mocks.execute.mockRejectedValueOnce(
       new OrchestrationError('validation', UNKNOWN_CURSOR_MESSAGE)
     )
+    const cursor = ledgerCursor('log-from-another-ledger', { period: '30d' })
 
     const response = await GET(
-      new NextRequest('http://localhost:3000/api/v2/billing/logs?cursor=log-from-another-ledger')
+      new NextRequest(
+        `http://localhost:3000/api/v2/billing/logs?cursor=${encodeURIComponent(cursor)}`
+      )
     )
 
     expect(response.status).toBe(400)
     expect(await response.json()).toMatchObject({
       error: { code: 'BAD_REQUEST', message: UNKNOWN_CURSOR_MESSAGE },
     })
+  })
+
+  /**
+   * The ledger cursor is a usage-event id, so it names a row rather than an
+   * ordinal — but which rows follow it depends entirely on the window and source
+   * filters, so replaying one across a changed filter walks a different ledger
+   * and never reaches the entries the caller narrowed to.
+   */
+  it('rejects a cursor replayed under a different filter without reaching the ledger', async () => {
+    const cursor = ledgerCursor('usage-1', { period: '30d' })
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/billing/logs?source=workflow&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('requested filters') },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 
   it('authenticates before rejecting invalid custom ranges', async () => {

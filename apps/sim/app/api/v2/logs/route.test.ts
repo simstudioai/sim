@@ -116,6 +116,71 @@ describe('GET /api/v2/logs', () => {
     expect(body.data[0]).toMatchObject({ runId: 'run-1', status: 'paused' })
   })
 
+  /**
+   * The run-log cursor is minted by the domain codec, so it carries only its own
+   * `(startedAt, id)` position and the requested order. Binding it to the filters
+   * is what stops a cursor taken from an unfiltered walk from resuming inside a
+   * `level=error` read at an unrelated point in that shorter sequence.
+   */
+  it('refuses a cursor replayed under a different filter', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      items: [{ log, executionData: null }],
+      nextCursor: Buffer.from(
+        JSON.stringify({ startedAt: log.startedAt.toISOString(), id: 'run-1', order: 'desc' })
+      ).toString('base64'),
+      includeFullDetails: false,
+      includeFinalOutput: false,
+      includeTraceSpans: false,
+    })
+    const firstPage = await (
+      await GET(new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}`))
+    ).json()
+    expect(firstPage.nextCursor).toEqual(expect.any(String))
+    mocks.execute.mockClear()
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&level=error&cursor=${encodeURIComponent(firstPage.nextCursor)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('requested filters') },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  /**
+   * These three decide how much of each row is rendered, not which rows are in
+   * the sequence, so they must stay out of the binding.
+   */
+  it.each([['details=full'], ['includeTraceSpans=true'], ['includeFinalOutput=true']])(
+    'resumes a cursor across a changed %s',
+    async (param) => {
+      mocks.execute.mockResolvedValueOnce({
+        items: [{ log, executionData: null }],
+        nextCursor: Buffer.from(
+          JSON.stringify({ startedAt: log.startedAt.toISOString(), id: 'run-1', order: 'desc' })
+        ).toString('base64'),
+        includeFullDetails: false,
+        includeFinalOutput: false,
+        includeTraceSpans: false,
+      })
+      const firstPage = await (
+        await GET(new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}`))
+      ).json()
+
+      const response = await GET(
+        new NextRequest(
+          `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&${param}&cursor=${encodeURIComponent(firstPage.nextCursor)}`
+        )
+      )
+
+      expect(response.status).toBe(200)
+    }
+  )
+
   it('rejects malformed cursors after admission and before protected reads', async () => {
     const response = await GET(
       new NextRequest(

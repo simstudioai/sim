@@ -61,11 +61,6 @@ export interface ListSkillsInput {
   limit: number
   /** Position in the merged built-in + workspace list, read from the cursor. */
   offset: number
-  /**
-   * The query state that position is valid within, echoed back so the presenter
-   * can stamp the next cursor with it.
-   */
-  cursorScope: string
 }
 
 /**
@@ -92,7 +87,6 @@ export const listSkillsUseCase = defineAuthorizedWorkspaceUseCase({
       hasMore: page.hasMore,
       offset: page.offset,
       limit: page.limit,
-      cursorScope: input.cursorScope,
     }
   },
 })

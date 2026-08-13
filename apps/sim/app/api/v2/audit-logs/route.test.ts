@@ -84,7 +84,12 @@ describe('v2 audit-log routes', () => {
     const response = await listLogs(request)
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ data: [{ id: 'audit-1' }], nextCursor: 'next-1' })
+    const body = await response.json()
+    expect(body).toMatchObject({ data: [{ id: 'audit-1' }] })
+    /** The domain token travels inside the query-bound wrapper, not bare. */
+    expect(JSON.parse(Buffer.from(body.nextCursor, 'base64').toString())).toMatchObject({
+      inner: 'next-1',
+    })
     expect(mocks.list).toHaveBeenCalledWith({
       principal: auth.principal,
       input: expect.objectContaining({

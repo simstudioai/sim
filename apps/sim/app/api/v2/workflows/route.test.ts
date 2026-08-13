@@ -98,6 +98,71 @@ describe('/api/v2/workflows', () => {
     expect(mocks.listWorkflows).not.toHaveBeenCalled()
   })
 
+  /**
+   * The reported defect: a cursor from an unfiltered page was accepted under
+   * `deployedOnly=true` or a changed `search`, and answered with whatever
+   * matched the new filter *after* the old position — every earlier match
+   * silently missing behind an opaque token.
+   */
+  it.each([
+    ['deployedOnly', 'deployedOnly=true'],
+    ['search', 'search=billing'],
+    ['folderPath', 'folderPath=/Ops'],
+  ])('refuses a cursor replayed under a different %s', async (_filter, param) => {
+    mocks.listWorkflows.mockResolvedValueOnce({
+      workflows: [WORKFLOW],
+      nextCursorKeys: [1, WORKFLOW.id],
+      sortBy: 'position',
+      sortOrder: 'asc',
+    })
+    const firstPage = await (
+      await GET(new NextRequest(`http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}`))
+    ).json()
+    expect(firstPage.nextCursor).toEqual(expect.any(String))
+    mocks.listWorkflows.mockClear()
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&${param}&cursor=${encodeURIComponent(firstPage.nextCursor)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('requested filters') },
+    })
+    expect(mocks.listWorkflows).not.toHaveBeenCalled()
+  })
+
+  it('resumes a cursor whose filters are unchanged', async () => {
+    mocks.listWorkflows.mockResolvedValueOnce({
+      workflows: [WORKFLOW],
+      nextCursorKeys: [1, WORKFLOW.id],
+      sortBy: 'position',
+      sortOrder: 'asc',
+    })
+    const firstPage = await (
+      await GET(
+        new NextRequest(
+          `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&deployedOnly=true`
+        )
+      )
+    ).json()
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&deployedOnly=true&cursor=${encodeURIComponent(firstPage.nextCursor)}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.listWorkflows).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ cursorKeys: [1, WORKFLOW.id] }),
+      })
+    )
+  })
+
   it('lists through the workspace principal and preserves rate headers', async () => {
     const request = new NextRequest(
       `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}`,
