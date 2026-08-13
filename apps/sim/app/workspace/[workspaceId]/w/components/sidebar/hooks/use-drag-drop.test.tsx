@@ -9,6 +9,9 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceId: 'ws-1' }),
 }))
 
+/** Kept out of the module graph so this suite does not pull emcn's CSS modules through postcss. */
+vi.mock('@sim/emcn', () => ({ toast: { error: vi.fn() } }))
+
 vi.mock('@/hooks/queries/folders', () => ({
   useReorderFolders: () => ({ mutateAsync: vi.fn() }),
 }))
@@ -29,13 +32,23 @@ vi.mock('@/lib/folders/tree', () => ({
   getFolderPath: () => [],
 }))
 
-const { mockUseFolderStore } = vi.hoisted(() => {
-  const folderState = { setExpanded: () => {}, expandedFolders: new Set<string>() }
+const { mockUseFolderStore, mockSetExpanded, expandedFolders } = vi.hoisted(() => {
+  const expanded = new Set<string>()
+  const setExpanded = vi.fn((folderId: string, isExpanded: boolean) => {
+    if (isExpanded) expanded.add(folderId)
+    else expanded.delete(folderId)
+  })
+  const folderState = {
+    setExpanded,
+    expandedFolders: expanded,
+    clearSelection: () => {},
+    clearFolderSelection: () => {},
+  }
   const store = Object.assign(
     (selector: (state: typeof folderState) => unknown) => selector(folderState),
     { getState: () => folderState }
   )
-  return { mockUseFolderStore: store }
+  return { mockUseFolderStore: store, mockSetExpanded: setExpanded, expandedFolders: expanded }
 })
 vi.mock('@/stores/folders/store', () => ({ useFolderStore: mockUseFolderStore }))
 
@@ -60,6 +73,32 @@ function fakeDragOverEvent(): unknown {
     // target !== currentTarget so the root drop zone skips indicator math (getBoundingClientRect)
     target: node,
     currentTarget: {},
+  }
+}
+
+/**
+ * A `dragover` on a folder row. `clientY` sits in the middle band of the 100px rect, which is what
+ * `calculateFolderDropPosition` reads as "inside" — the position that arms the spring-open timer.
+ */
+function fakeFolderDragOverEvent(): unknown {
+  const currentTarget = {
+    getBoundingClientRect: () => ({ top: 0, bottom: 100, height: 100 }),
+  }
+  return {
+    preventDefault: () => {},
+    stopPropagation: () => {},
+    clientY: 50,
+    target: {},
+    currentTarget,
+  }
+}
+
+/** A `drop` carrying no selection payload: enough to record the destination, then bail. */
+function fakeDropEvent(): unknown {
+  return {
+    preventDefault: () => {},
+    stopPropagation: () => {},
+    dataTransfer: { getData: () => '' },
   }
 }
 
@@ -93,6 +132,7 @@ describe('useDragDrop stranded-drag reset', () => {
     container.remove()
     vi.unstubAllGlobals()
     vi.clearAllMocks()
+    expandedFolders.clear()
   })
 
   it('clears isDragging on a window dragend when no drop fired', () => {
@@ -120,5 +160,95 @@ describe('useDragDrop stranded-drag reset', () => {
       latest.createRootDropZone().onDragOver(fakeDragOverEvent() as never)
     })
     expect(latest.isDragging).toBe(true)
+  })
+})
+
+/**
+ * Hovering a collapsed folder mid-drag spring-opens it so you can drop inside. Every folder opened
+ * that way that the drop did NOT land in has to close again, or dragging past a folder silently
+ * leaves it open and the sidebar grows rows the user never asked to see.
+ */
+describe('useDragDrop spring-open revert', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      () => 0 as unknown as ReturnType<typeof requestAnimationFrame>
+    )
+    vi.stubGlobal('cancelAnimationFrame', () => {})
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    act(() => {
+      root.render(<Harness />)
+    })
+  })
+
+  afterEach(() => {
+    act(() => {
+      root.unmount()
+    })
+    container.remove()
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+    vi.clearAllMocks()
+    expandedFolders.clear()
+  })
+
+  /** Drives a drag that lingers over `folder-1` long enough to spring it open. */
+  function dragOverFolderUntilExpanded() {
+    act(() => {
+      latest.handleDragStart(null)
+    })
+    act(() => {
+      latest
+        .createFolderDragHandlers('folder-1', null)
+        .onDragOver(fakeFolderDragOverEvent() as never)
+    })
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+  }
+
+  it('closes a folder it spring-opened when the drag ends without dropping into it', () => {
+    dragOverFolderUntilExpanded()
+    expect(mockSetExpanded).toHaveBeenCalledWith('folder-1', true)
+
+    // Esc-cancel / release outside: `dragend` fires with no drop recorded.
+    act(() => {
+      latest.handleDragEnd()
+    })
+
+    expect(mockSetExpanded).toHaveBeenCalledWith('folder-1', false)
+    expect(expandedFolders.has('folder-1')).toBe(false)
+  })
+
+  it('leaves a folder open when the drop landed inside it', () => {
+    dragOverFolderUntilExpanded()
+    mockSetExpanded.mockClear()
+
+    // Drop inside folder-1, then the drag ends as it always does.
+    act(() => {
+      void latest.createFolderDragHandlers('folder-1', null).onDrop(fakeDropEvent() as never)
+    })
+    act(() => {
+      latest.handleDragEnd()
+    })
+
+    expect(mockSetExpanded).not.toHaveBeenCalledWith('folder-1', false)
+    expect(expandedFolders.has('folder-1')).toBe(true)
+  })
+
+  it('never closes a folder the user had already opened themselves', () => {
+    expandedFolders.add('folder-1')
+
+    dragOverFolderUntilExpanded()
+    act(() => {
+      latest.handleDragEnd()
+    })
+
+    // Already-expanded folders are skipped by the spring-open effect, so nothing to revert.
+    expect(mockSetExpanded).not.toHaveBeenCalledWith('folder-1', false)
+    expect(expandedFolders.has('folder-1')).toBe(true)
   })
 })
