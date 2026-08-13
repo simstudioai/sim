@@ -8,7 +8,7 @@ import {
 } from '@/lib/api/server/routes'
 import { secretOperations } from '@/lib/secrets/application/operations'
 import { listSecretsUseCase } from '@/lib/secrets/application/use-cases'
-import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
+import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 import { toV2Secret } from '@/app/api/v2/secrets/utils'
 
 export const dynamic = 'force-dynamic'
@@ -42,12 +42,11 @@ export const GET = defineV2JsonRoute({
   useCase: listSecretsUseCase,
   present: ({ secrets, userId, nextCursorKeys }, { query }) => ({
     data: secrets.map((secret) => toV2Secret(secret, userId)),
-    nextCursor: nextCursorKeys
-      ? encodeSortedCursor(
-          cursorSortKey(query.sortBy, query.sortOrder),
-          nextCursorKeys,
-          secretCursorFilters(query)
-        )
-      : null,
+    nextCursor: writeSortedCursor(
+      nextCursorKeys,
+      query.sortBy,
+      query.sortOrder,
+      secretCursorFilters(query)
+    ),
   }),
 })

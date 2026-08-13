@@ -12,7 +12,7 @@ import {
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import { createMcpServerUseCase, listMcpServersUseCase } from '@/lib/mcp/application/use-cases'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
+import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 import { toV2McpServer } from '@/app/api/v2/mcp-servers/utils'
 
 export const dynamic = 'force-dynamic'
@@ -49,13 +49,12 @@ export const GET = defineV2JsonRoute({
   useCase: listMcpServersUseCase,
   present: ({ servers, nextCursorKeys }, { query }) => ({
     data: servers.map(toV2McpServer),
-    nextCursor: nextCursorKeys
-      ? encodeSortedCursor(
-          cursorSortKey(query.sortBy, query.sortOrder),
-          nextCursorKeys,
-          mcpServerCursorFilters(query)
-        )
-      : null,
+    nextCursor: writeSortedCursor(
+      nextCursorKeys,
+      query.sortBy,
+      query.sortOrder,
+      mcpServerCursorFilters(query)
+    ),
   }),
 })
 

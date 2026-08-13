@@ -11,7 +11,7 @@ import {
   type OrchestrationErrorCode,
 } from '@/lib/core/orchestration/types'
 import type { HttpError } from '@/lib/core/utils/http-error'
-import type { RateLimitResult, WorkspaceAccessError } from '@/app/api/v1/middleware'
+import type { RateLimitResult } from '@/app/api/v1/middleware'
 
 /**
  * Runtime response helpers for the v2 API surface. Every v2 route renders its
@@ -102,7 +102,7 @@ const RETRY_AFTER_SECONDS_BY_STATUS: Partial<Record<number, number>> = {
 
 type RateLimitHeaderSource = Pick<RateLimitResult, 'limit' | 'remaining' | 'resetAt'>
 
-export function rateLimitHeaders(rateLimit?: RateLimitHeaderSource): Record<string, string> {
+function rateLimitHeaders(rateLimit?: RateLimitHeaderSource): Record<string, string> {
   if (!rateLimit) return {}
   return {
     'X-RateLimit-Limit': rateLimit.limit.toString(),
@@ -127,17 +127,12 @@ function successHeaders(options: V2SuccessOptions): Record<string, string> {
  *
  * RFC 9110 §9.3.2 lets Next alias `HEAD` onto `GET` only because §9.2.1 defines
  * `HEAD` as safe — "essentially read-only". A `GET` that opens an outbound
- * connection or writes a row breaks that assumption, and an uptime monitor or
- * link checker walking the documented URL list would drive those effects
- * invisibly on every probe. Such a route runs everything the `GET` runs up to
- * and including resource authorization, then stops before the business phase.
+ * connection or writes a row breaks that assumption, and an uptime monitor
+ * walking the documented URL list would drive those effects on every probe.
  *
- * The 200 here is unconditional **by construction**: the v2 route builders only
- * reach this function after `useCase.authorize` has resolved, and render every
- * rejection through the route's own error policy. Calling it before that check —
- * as the builders originally did, straight after admission — turns it into an
- * existence oracle, because a valid API key for any workspace then draws a 200
- * for a resource that same key's `GET` answers 403 or 404 for.
+ * The 200 is unconditional **by construction**: callers must only reach this
+ * after `useCase.authorize` has resolved, or it becomes the existence oracle
+ * the `headSafe` option on the v2 route builders documents.
  */
 export function v2HeadNoEffect(options: V2SuccessOptions = {}): NextResponse {
   return new NextResponse(null, { status: options.status ?? 200, headers: successHeaders(options) })
@@ -147,18 +142,6 @@ export function v2HeadNoEffect(options: V2SuccessOptions = {}): NextResponse {
 export function v2Data<T>(data: T, options: V2SuccessOptions = {}): NextResponse {
   return NextResponse.json(
     { data },
-    { status: options.status ?? 200, headers: successHeaders(options) }
-  )
-}
-
-/** `{ data, nextCursor }` (+ rate-limit headers). */
-export function v2CursorList<T>(
-  data: T[],
-  nextCursor: string | null,
-  options: V2SuccessOptions = {}
-): NextResponse {
-  return NextResponse.json(
-    { data, nextCursor },
     { status: options.status ?? 200, headers: successHeaders(options) }
   )
 }
@@ -218,12 +201,9 @@ export function v2HttpError(error: HttpError): NextResponse {
  * The 500 of the local-storage upload data plane, in the canonical envelope.
  *
  * `PUT /api/v2/uploads/{uploadId}` and its `/parts/{partNumber}` sibling are
- * deliberately outside the public OpenAPI documents (see
- * `UNDOCUMENTED_V2_ROUTES`), but they are still v2 routes a caller reaches
- * through a URL a documented operation handed it. Being undocumented is a
- * reason not to publish them; it was never a reason to answer in a different
- * error shape. They do not run `admitV2Request`, so they cannot reuse the JSON
- * builder's handler — this is the one piece of it they need.
+ * undocumented but still v2 routes, and they do not run `admitV2Request`, so
+ * they cannot reuse the JSON builder's handler — this is the one piece of it
+ * they need.
  */
 export function v2UploadDataPlaneError(): NextResponse {
   return v2Error('INTERNAL_ERROR', 'Internal server error')
@@ -234,11 +214,6 @@ export function v2ValidationError(error: ZodError): NextResponse {
   return v2Error('BAD_REQUEST', getValidationErrorMessage(error, 'Invalid request'), {
     details: serializeZodIssues(error),
   })
-}
-
-/** Render a shared {@link WorkspaceAccessError} as the v2 error envelope. */
-export function v2WorkspaceAccessError(failure: WorkspaceAccessError): NextResponse {
-  return v2Error(failure.code, failure.message, { status: failure.status })
 }
 
 /**
@@ -359,7 +334,7 @@ export function encodeSortedCursor(
   return encodeCursor({ sort, keys, ...(filter ? { filter } : {}) } satisfies SortedCursorPayload)
 }
 
-export type DecodedSortedCursor =
+type DecodedSortedCursor =
   | { status: 'absent' }
   | { status: 'ok'; keys: CursorKey[] }
   /** Malformed, or minted under a different sort — the page cannot be resumed. */
@@ -377,16 +352,11 @@ export type DecodedSortedCursor =
  * is rejected for the same reason: ignoring it would restart from page one
  * while the caller believes it is paging forward.
  *
- * A filter mismatch is rejected too, and it is worth being precise about why,
- * because a keyset does not corrupt the way an offset does. `(sortKey, id)`
- * names an absolute position, so replaying it under a narrower filter still
- * returns a coherent, duplicate-free page — of everything matching the NEW
- * filter that happens to sort after that position. Every match before it is
- * silently absent. The cursor is documented as opaque, so a caller has no way
- * to tell that truncated page from a complete one, and the client that most
- * plausibly does this (narrow the search box, keep paging) is exactly the one
- * that will believe its filter matched almost nothing. Restarting pagination is
- * the only correct response, so the API says so instead of guessing.
+ * A filter mismatch is rejected too, even though a keyset does not corrupt the
+ * way an offset does: `(sortKey, id)` names an absolute position, so replaying
+ * it under a narrower filter returns a coherent, duplicate-free page that is
+ * silently missing every new match sorting before that position. The token is
+ * opaque, so a caller cannot tell that truncated page from a complete one.
  *
  * This checks the envelope only. The key VALUES are caller-controlled too, and
  * are type-checked against the sort's keys by `keysetAfter`, which is where a
@@ -432,6 +402,23 @@ export function readSortedCursor(
     throw new OrchestrationError('validation', REFILTERED_CURSOR_MESSAGE)
   }
   return decoded.status === 'ok' ? decoded.keys : undefined
+}
+
+/**
+ * The next page's cursor, or `null` on the last page.
+ *
+ * The `present` half of the pair {@link readSortedCursor} opens: it stamps the
+ * response token with the same sort and filters the request was read under, so
+ * a list cannot mint a token its own reader would reject. Pass the identical
+ * `sortBy`/`sortOrder`/`filter` triple both sides.
+ */
+export function writeSortedCursor(
+  keys: CursorKey[] | null | undefined,
+  sortBy: string,
+  sortOrder: string,
+  filter?: string | undefined
+): string | null {
+  return keys ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), keys, filter) : null
 }
 
 interface ScopedCursorPayload {

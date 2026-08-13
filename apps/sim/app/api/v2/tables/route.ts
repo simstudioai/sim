@@ -4,7 +4,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2TableErrorPolicies } from '@/lib/table/api'
 import { tableOperations } from '@/lib/table/application/operations'
 import { createTableUseCase, listTablesUseCase } from '@/lib/table/application/tables'
-import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
+import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 import { toApiTable, toApiTables } from '@/app/api/v2/tables/utils'
 
 export const dynamic = 'force-dynamic'
@@ -37,13 +37,12 @@ export const GET = defineV2JsonRoute({
   }),
   present: async ({ tables, nextKeys }, { query }) => ({
     data: await toApiTables(tables),
-    nextCursor: nextKeys
-      ? encodeSortedCursor(
-          cursorSortKey(query.sortBy, query.sortOrder),
-          nextKeys,
-          tableCursorFilters(query)
-        )
-      : null,
+    nextCursor: writeSortedCursor(
+      nextKeys,
+      query.sortBy,
+      query.sortOrder,
+      tableCursorFilters(query)
+    ),
   }),
 })
 

@@ -112,20 +112,16 @@ export const v2RateLimits = {
  * response sets. Declared here so a route only has to set `parseOptions.maxBodyBytes` to
  * get a correct 413; a route that supplies its own `payloadTooLargeResponse` still wins.
  */
-export const v2PayloadTooLargeResponse = () =>
-  v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large')
+const v2PayloadTooLargeResponse = () => v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large')
 
 /**
  * Default `400` for a body that is absent or not valid JSON, for the same
  * reason as {@link v2PayloadTooLargeResponse}: `parseRequest`'s fallback is a
  * bare `{ "error": "Request body must be valid JSON" }` carrying no
  * `error.code`, so a client reading `error.code` off every other v2 failure
- * gets `undefined` exactly when its request was malformed.
- *
- * It is a default rather than a per-route opt-in because the opt-in *was* the
- * bug: only 8 of the 77 v2 routes remembered to pass it, so the envelope held
- * for validation errors and broke for transport-level ones. A route supplying
- * its own `invalidJsonResponse` still wins.
+ * gets `undefined` exactly when its request was malformed. A default rather
+ * than a per-route opt-in, because an opt-in only holds where somebody
+ * remembered it. A route supplying its own `invalidJsonResponse` still wins.
  */
 export const v2InvalidJsonResponse = () => v2Error('BAD_REQUEST', 'Request body must be valid JSON')
 
@@ -134,29 +130,14 @@ export const v2InvalidJsonResponse = () => v2Error('BAD_REQUEST', 'Request body 
  *
  * The builders spread this, and so must the handful of raw `withRouteHandler`
  * v2 routes that call `parseRequest` directly — they are exactly the routes a
- * builder default cannot reach, and leaving them out is what kept the bare
- * `{ "error": string }` body alive on two of the busiest v2 POSTs.
+ * builder default cannot reach.
  */
 export const V2_PARSE_DEFAULTS = {
   payloadTooLargeResponse: v2PayloadTooLargeResponse,
   invalidJsonResponse: v2InvalidJsonResponse,
-  /**
-   * `?limit=` is not `limit` omitted, and v2 already says so on the two params
-   * whose schema happens to catch it: `search` and `cursor` both reject a blank
-   * and tell the caller to omit the parameter. Applying the rule at the surface
-   * rather than per schema is what makes it true for every param — including the
-   * coerced ones, where the blank has already become `0` or a default by the
-   * time a schema sees the value.
-   */
+  /** See {@link blankQueryValueValidationError}. */
   rejectBlankQueryValues: true,
-  /**
-   * `?workspaceId=X&workspaceId=X` is not `workspaceId=X`, and no v2 query
-   * param is declared as an array — every list on this surface is one
-   * comma-separated string — so a repeated param can only ever be a caller
-   * mistake. Without this it reached the schema as an array and drew that
-   * param's *absence* message ("Workspace ID is required") for a request that
-   * plainly sent it, which is a signpost pointing away from the actual error.
-   */
+  /** See {@link duplicateQueryValueValidationError}. */
   rejectDuplicateQueryValues: true,
 } as const
 
@@ -166,14 +147,10 @@ export interface V2ErrorPolicy {
 
 /**
  * Refuses at module load to build a `headSafe: false` route whose use case
- * cannot answer the authorization question on its own.
- *
- * Such a route must decide a `HEAD` without executing the use case, and the only
- * honest way to do that is to run the use case's authorization phase alone. A
- * use case that does not expose one leaves the builder with nothing but
- * admission to answer from, which is precisely the existence oracle
- * `headSafe: false` used to ship. Failing here turns the next occurrence into a
- * boot failure instead of a silent 200.
+ * cannot answer the authorization question on its own — see the `headSafe`
+ * option below. A use case with no `authorize` leaves the builder nothing but
+ * admission to answer a `HEAD` from, so the gap is a boot failure rather than a
+ * silent 200.
  */
 export function requireHeadAuthorizableUseCase(
   contract: { method: string; path: string },
@@ -196,13 +173,10 @@ export function requireHeadAuthorizableUseCase(
  * 200. What a `HEAD` never reaches is the use case's business phase, so the
  * outbound connection, the row write, and the audit event stay unfired.
  *
- * A use case with no `authorize` is refused here rather than skipped. Both
- * builders that call this already refuse such a route at module load through
- * {@link requireHeadAuthorizableUseCase}, and they are its only callers, so the
- * refusal is unreachable through them. It is not written as a comment because
- * the alternative — an optional call — degrades a missing phase into exactly the
- * bodiless 200 this function exists to stop, and it does so silently. Failing
- * closed makes an authorization that actually ran the only route to that 200.
+ * A use case with no `authorize` throws here rather than being skipped, even
+ * though {@link requireHeadAuthorizableUseCase} already refuses such a route at
+ * module load: treating the phase as optional would silently degrade a missing
+ * one into exactly the bodiless 200 this function exists to stop.
  */
 export async function v2HeadAuthorizationResponse(args: {
   useCase: Pick<OperationUseCase<ApplicationOperation, unknown, unknown>, 'authorize'>
@@ -320,10 +294,10 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
    * the `GET` would be, then answered bodiless without running the use case's
    * business phase — see {@link v2HeadNoEffect}.
    *
-   * Stopping any earlier than authorization is what made this an existence
-   * oracle: admission proves only that the caller holds *a* valid key, so a
-   * `HEAD` answered at that point returned 200 for a resource the very same
-   * caller's `GET` answered 403 or 404 for. A `headSafe: false` route therefore
+   * Stopping any earlier than authorization makes this an existence oracle:
+   * admission proves only that the caller holds *a* valid key, so a `HEAD`
+   * answered at that point returns 200 for a resource the very same caller's
+   * `GET` answers 403 or 404 for. A `headSafe: false` route therefore
    * requires a use case exposing `authorize`, checked at definition time by
    * {@link requireHeadAuthorizableUseCase}.
    */

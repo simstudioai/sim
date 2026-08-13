@@ -67,19 +67,13 @@ export interface ParseRequestOptions {
   /** Treat an absent or whitespace-only body as `undefined` before contract validation. */
   optionalJsonBody?: boolean
   /**
-   * Reject a query parameter that is present but blank, instead of letting
-   * coercion read it as `0`/`false`/the default. See
-   * {@link blankQueryValueValidationError}. The v2 builders set this for the
-   * whole v2 surface; it is opt-in so the internal surface, whose own clients
-   * send blanks today, is unaffected.
+   * See {@link blankQueryValueValidationError}. Opt-in, so the internal surface —
+   * whose own clients send blanks today — is unaffected.
    */
   rejectBlankQueryValues?: boolean
   /**
-   * Reject a query parameter sent more than once, instead of letting the
-   * resulting array fail the declared type with a message about the parameter
-   * being absent. See {@link duplicateQueryValueValidationError}. Opt-in on the
-   * same terms as {@link rejectBlankQueryValues}, and only sound where no query
-   * parameter is declared as an array — which is true of the whole v2 surface.
+   * See {@link duplicateQueryValueValidationError}. Opt-in on the same terms,
+   * and only sound where no query parameter is declared as an array.
    */
   rejectDuplicateQueryValues?: boolean
 }
@@ -300,24 +294,14 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
   if (options?.rejectDuplicateQueryValues) {
     const duplicated = duplicateQueryValueValidationError(rawQuery)
     if (duplicated) {
-      return {
-        success: false,
-        response: options.validationErrorResponse
-          ? options.validationErrorResponse(duplicated)
-          : validationErrorResponse(duplicated),
-      }
+      return { success: false, response: projectValidationError(duplicated, options) }
     }
   }
 
   if (options?.rejectBlankQueryValues) {
     const blank = blankQueryValueValidationError(rawQuery)
     if (blank) {
-      return {
-        success: false,
-        response: options.validationErrorResponse
-          ? options.validationErrorResponse(blank)
-          : validationErrorResponse(blank),
-      }
+      return { success: false, response: projectValidationError(blank, options) }
     }
   }
 
@@ -367,12 +351,17 @@ function rejectNulBytes(
 ): { success: false; response: NextResponse<unknown> } | null {
   const error = nulByteValidationError(data)
   if (!error) return null
-  return {
-    success: false,
-    response: options?.validationErrorResponse
-      ? options.validationErrorResponse(error)
-      : validationErrorResponse(error),
-  }
+  return { success: false, response: projectValidationError(error, options) }
+}
+
+/** Renders a validation failure through the caller's envelope when it supplies one. */
+function projectValidationError(
+  error: z.ZodError,
+  options?: ParseRequestOptions
+): NextResponse<unknown> {
+  return options?.validationErrorResponse
+    ? options.validationErrorResponse(error)
+    : validationErrorResponse(error)
 }
 
 function validateRequestSchema<S extends ApiSchema>(
@@ -384,9 +373,7 @@ function validateRequestSchema<S extends ApiSchema>(
   if (!result.success) {
     return {
       success: false,
-      response: options?.validationErrorResponse
-        ? options.validationErrorResponse(result.error)
-        : validationErrorResponse(result.error),
+      response: projectValidationError(result.error, options),
       error: result.error,
     }
   }

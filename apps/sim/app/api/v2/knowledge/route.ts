@@ -17,7 +17,7 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { toV2KnowledgeBase, toV2KnowledgeBases } from '@/app/api/v2/knowledge/utils'
-import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
+import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -59,13 +59,12 @@ export const GET = defineV2JsonRoute({
   useCase: listKnowledgeBases,
   present: async ({ knowledgeBases, nextCursorKeys }, { query }) => ({
     data: await toV2KnowledgeBases(knowledgeBases),
-    nextCursor: nextCursorKeys
-      ? encodeSortedCursor(
-          cursorSortKey(query.sortBy, query.sortOrder),
-          nextCursorKeys,
-          knowledgeCursorFilters(query)
-        )
-      : null,
+    nextCursor: writeSortedCursor(
+      nextCursorKeys,
+      query.sortBy,
+      query.sortOrder,
+      knowledgeCursorFilters(query)
+    ),
   }),
 })
 

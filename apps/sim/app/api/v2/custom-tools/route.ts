@@ -15,7 +15,7 @@ import {
   listWorkspaceCustomToolsUseCase,
 } from '@/lib/custom-tools/application/use-cases'
 import { toV2CustomTool } from '@/app/api/v2/custom-tools/utils'
-import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
+import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -47,13 +47,12 @@ export const GET = defineV2JsonRoute({
   useCase: listWorkspaceCustomToolsUseCase,
   present: ({ tools, nextCursorKeys }, { query }) => ({
     data: tools.map(toV2CustomTool),
-    nextCursor: nextCursorKeys
-      ? encodeSortedCursor(
-          cursorSortKey(query.sortBy, query.sortOrder),
-          nextCursorKeys,
-          customToolCursorFilters(query)
-        )
-      : null,
+    nextCursor: writeSortedCursor(
+      nextCursorKeys,
+      query.sortBy,
+      query.sortOrder,
+      customToolCursorFilters(query)
+    ),
   }),
 })
 

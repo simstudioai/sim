@@ -12,7 +12,7 @@ import { queryWorkspaceFilePage } from '@/lib/workspace-files/application/list-w
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { toV2File, toV2Files } from '@/app/api/v2/files/utils'
-import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
+import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -54,13 +54,12 @@ export const GET = defineV2JsonRoute({
     const items: V2File[] = await toV2Files(files)
     return {
       data: items,
-      nextCursor: nextKeys
-        ? encodeSortedCursor(
-            cursorSortKey(query.sortBy, query.sortOrder),
-            nextKeys,
-            fileCursorFilters(query)
-          )
-        : null,
+      nextCursor: writeSortedCursor(
+        nextKeys,
+        query.sortBy,
+        query.sortOrder,
+        fileCursorFilters(query)
+      ),
     }
   },
 })

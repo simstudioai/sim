@@ -10,7 +10,7 @@ import {
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
+import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -68,13 +68,12 @@ export const GET = defineV2JsonRoute({
         updatedAt: workflow.updatedAt.toISOString(),
       })
     ),
-    nextCursor: nextCursorKeys
-      ? encodeSortedCursor(
-          cursorSortKey(query.sortBy, query.sortOrder),
-          nextCursorKeys,
-          workflowCursorFilters(query)
-        )
-      : null,
+    nextCursor: writeSortedCursor(
+      nextCursorKeys,
+      query.sortBy,
+      query.sortOrder,
+      workflowCursorFilters(query)
+    ),
   }),
 })
 

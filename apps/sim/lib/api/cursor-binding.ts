@@ -1,23 +1,6 @@
 import { createHash } from 'node:crypto'
 
 /**
- * The one canonicalization every paginated surface stamps its cursors with.
- *
- * A cursor names a position in *one* sequence. Everything that reorders or
- * re-filters that sequence therefore has to travel with it, or replaying the
- * token against a re-filtered read silently answers from a sequence the caller
- * never asked for. `lib/table/rows/cursor.ts` and the v2 list codecs in
- * `app/api/v2/lib/response.ts` both bind through this module so there is one
- * fingerprint format rather than one per surface.
- *
- * What belongs in a binding is every param that changes *which rows, in which
- * order*. What must stay out is `limit`: it selects how much of the sequence to
- * return, not what the sequence is, so a caller is free to change page size
- * mid-walk. Response-shaping params (whether to inline trace spans, say) stay
- * out for the same reason.
- */
-
-/**
  * Caller-facing message for a cursor replayed under different filters. Separate
  * from the sort-mismatch message on purpose: both mean "restart pagination",
  * but naming the half that actually changed is the difference between a caller
@@ -41,14 +24,7 @@ export const UNREADABLE_CURSOR_MESSAGE =
   'cursor is not a valid pagination cursor. Restart pagination without a cursor.'
 
 /** A scalar a list filter can be expressed as, before canonicalization. */
-export type CursorScopePart =
-  | string
-  | number
-  | boolean
-  | Date
-  | readonly string[]
-  | null
-  | undefined
+type CursorScopePart = string | number | boolean | Date | readonly string[] | null | undefined
 
 /**
  * Canonical form of a filter the query treats as an unordered SET.
@@ -60,15 +36,14 @@ export type CursorScopePart =
  * spelling, so a caller who reorders an equivalent filter mid-walk gets a 400
  * for a page that is genuinely the next one.
  *
- * {@link canonicalJson} already sorts object keys, so this only has to normalize
- * the list. Members are de-duplicated as well as sorted: the filters compile to
+ * Members are de-duplicated as well as sorted: the filters compile to
  * `inArray`, which is set membership, so `A,A,B` selects exactly what `A,B` does
  * and must not bind to a different page.
  *
  * Derived from {@link parseUnorderedList} rather than parsing again, so the
  * members this fingerprints are exactly the members the query filters on. A
- * route that canonicalized here and split the raw value itself would give
- * `A,B` and `A, B` one fingerprint and two different result sets.
+ * route that split the raw value itself would give `A,B` and `A, B` one
+ * fingerprint and two different result sets.
  */
 export function unorderedScopePart(raw: string | undefined): string | undefined {
   const members = parseUnorderedList(raw)
@@ -165,6 +140,14 @@ export function fingerprint(canonical: string): string {
 /**
  * The fingerprint of a list's sequence-affecting params, or `undefined` when
  * the caller supplied none of them.
+ *
+ * A cursor names a position in *one* sequence, so everything that reorders or
+ * re-filters that sequence has to travel with it — otherwise replaying the token
+ * against a re-filtered read silently answers from a sequence the caller never
+ * asked for. Pass every param that changes *which rows, in which order*. Keep
+ * `limit` out: it selects how much of the sequence to return, not what the
+ * sequence is, so a caller may change page size mid-walk. Response-shaping
+ * params (whether to inline trace spans, say) stay out for the same reason.
  *
  * `undefined` is a real state rather than an empty hash: an unstamped cursor is
  * an unfiltered one, so it stays short, and replaying it under a filter still

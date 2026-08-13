@@ -3,18 +3,14 @@ import {
   v2ListWorkflowRunsContract,
   v2WorkflowRunListStatusValueSchema,
 } from '@/lib/api/contracts/v2/workflows'
-import {
-  cursorScopeKey,
-  instantScopePart,
-  REFILTERED_CURSOR_MESSAGE,
-} from '@/lib/api/cursor-binding'
+import { cursorScopeKey, instantScopePart } from '@/lib/api/cursor-binding'
 import { INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { listWorkflowRuns } from '@/lib/workflows/application/list-workflow-runs'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { cursorSortKey, decodeSortedCursor, encodeSortedCursor } from '@/app/api/v2/lib/response'
+import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -42,19 +38,17 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
   mapInput: ({ params, query }) => {
     const { status, trigger, startDate, endDate, limit, cursor, order } = query
-    const sort = cursorSortKey('startedAt', order)
-    const decodedCursor = decodeSortedCursor(cursor, sort, runCursorFilters(params.id, query))
-    if (decodedCursor.status === 'invalid') {
-      throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
-    }
-    if (decodedCursor.status === 'refiltered') {
-      throw new OrchestrationError('validation', REFILTERED_CURSOR_MESSAGE)
-    }
-    const [cursorStartedAt, cursorRowId] = decodedCursor.status === 'ok' ? decodedCursor.keys : []
+    const cursorKeys = readSortedCursor(
+      cursor,
+      'startedAt',
+      order,
+      runCursorFilters(params.id, query)
+    )
+    const [cursorStartedAt, cursorRowId] = cursorKeys ?? []
     const cursorDate = typeof cursorStartedAt === 'string' ? new Date(cursorStartedAt) : null
     if (
-      decodedCursor.status === 'ok' &&
-      (decodedCursor.keys.length !== 2 ||
+      cursorKeys &&
+      (cursorKeys.length !== 2 ||
         !cursorDate ||
         Number.isNaN(cursorDate.getTime()) ||
         typeof cursorRowId !== 'string')
@@ -70,7 +64,7 @@ export const GET = defineV2JsonRoute({
       endDate: endDate ? new Date(endDate) : undefined,
       limit,
       cursor:
-        decodedCursor.status === 'ok' && cursorDate && typeof cursorRowId === 'string'
+        cursorKeys && cursorDate && typeof cursorRowId === 'string'
           ? { startedAt: cursorDate, rowId: cursorRowId }
           : undefined,
       order,
@@ -88,14 +82,14 @@ export const GET = defineV2JsonRoute({
       durationMs: row.durationMs,
       cost: row.costTotal != null ? { total: Number(row.costTotal) } : null,
     }))
-    const sort = cursorSortKey('startedAt', result.order)
-    const nextCursor = result.nextCursor
-      ? encodeSortedCursor(
-          sort,
-          [result.nextCursor.startedAt.toISOString(), result.nextCursor.rowId],
-          runCursorFilters(params.id, query)
-        )
-      : null
+    const nextCursor = writeSortedCursor(
+      result.nextCursor
+        ? [result.nextCursor.startedAt.toISOString(), result.nextCursor.rowId]
+        : null,
+      'startedAt',
+      result.order,
+      runCursorFilters(params.id, query)
+    )
     return { data, nextCursor }
   },
 })
