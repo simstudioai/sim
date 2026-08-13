@@ -753,6 +753,42 @@ describe('NetSuite operation contracts', () => {
     )
   })
 
+  it('accepts a SuiteQL page without hasMore but still requires it on record collections', async () => {
+    // Oracle's SuiteQL reference lists links, count, offset, totalResults, and
+    // items — but not hasMore — while record collections document all six.
+    const suiteqlPage = { links: [], items: [], count: 0, offset: 0, totalResults: 0 }
+    const responses = [
+      new Response(JSON.stringify(suiteqlPage), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      new Response(JSON.stringify({ ...suiteqlPage, hasMore: 'nope' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      new Response(JSON.stringify(suiteqlPage), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => responses.shift() ?? new Response('{}'))
+    )
+
+    const suiteql = await invoke(netsuiteExecuteSuiteQLTool, { query: 'SELECT id FROM customer' })()
+    const badHasMore = await invoke(netsuiteExecuteSuiteQLTool, {
+      query: 'SELECT id FROM customer',
+    })()
+    const records = await invoke(netsuiteListRecordsTool, { recordType: 'customer' })()
+
+    expect(suiteql.success).toBe(true)
+    expect(badHasMore.success).toBe(false)
+    expect(badHasMore.error).toContain('hasMore')
+    expect(records.success).toBe(false)
+    expect(records.error).toContain('hasMore')
+  })
+
   it('treats the upsert and transform Location header as optional', async () => {
     vi.stubGlobal(
       'fetch',

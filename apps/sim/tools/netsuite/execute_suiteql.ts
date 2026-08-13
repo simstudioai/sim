@@ -44,7 +44,7 @@ export const netsuiteExecuteSuiteQLTool: ToolConfig<NetSuiteSuiteQLParams, NetSu
       () => ({
         method: 'POST',
         path: '/services/rest/query/v1/suiteql',
-        success: { status: 200, body: 'object', validator: 'collection-page' },
+        success: { status: 200, body: 'object', validator: 'suiteql-page' },
         query: normalizePagination(params.limit, params.offset),
         headers: { Prefer: 'transient' },
         body: { q: requiredTrim(params.query, 'SuiteQL query') },

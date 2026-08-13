@@ -24,6 +24,7 @@ const MAX_JSON_NESTING_DEPTH = 100
 const MAX_JSON_NODE_COUNT = 100_000
 type NetSuiteSuccessValidator =
   | 'collection-page'
+  | 'suiteql-page'
   | 'record-action'
   | 'metadata-catalog'
   | 'async-job'
@@ -675,7 +676,9 @@ function validateSuccessBody(
 
   switch (successCase.validator) {
     case 'collection-page':
-      return validateCollectionPage(data)
+      return validateCollectionPage(data, { label: 'collection page', requireHasMore: true })
+    case 'suiteql-page':
+      return validateCollectionPage(data, { label: 'SuiteQL page', requireHasMore: false })
     case 'record-action':
       return data.result === true
         ? null
@@ -748,24 +751,39 @@ function validateMetadataCatalog(data: Record<string, unknown>): string | null {
   return null
 }
 
-function validateCollectionPage(data: Record<string, unknown>): string | null {
-  const error = validateRequiredProperties(
-    data,
-    {
-      links: 'array',
-      items: 'array',
-      count: 'number',
-      hasMore: 'boolean',
-      offset: 'number',
-      totalResults: 'number',
-    },
-    'collection page'
-  )
+/**
+ * Validates a documented NetSuite collection page.
+ *
+ * Oracle documents `hasMore` on record collections and SuiteAnalytics dataset
+ * pages, but its SuiteQL reference lists only `links`, `count`, `offset`,
+ * `totalResults`, and `items`. SuiteQL therefore validates `hasMore` only when
+ * the account actually returns it, so a documented SuiteQL page is never
+ * reported as a failed request.
+ * @see https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_156414087576.html
+ * @see https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_157909186990.html
+ */
+function validateCollectionPage(
+  data: Record<string, unknown>,
+  { label, requireHasMore }: { label: string; requireHasMore: boolean }
+): string | null {
+  const properties: Record<string, 'array' | 'boolean' | 'number' | 'object' | 'string'> = {
+    links: 'array',
+    items: 'array',
+    count: 'number',
+    offset: 'number',
+    totalResults: 'number',
+  }
+  if (requireHasMore) properties.hasMore = 'boolean'
+
+  const error = validateRequiredProperties(data, properties, label)
   if (error) return error
+  if (!requireHasMore && data.hasMore !== undefined && typeof data.hasMore !== 'boolean') {
+    return `NetSuite ${label} response did not include a valid hasMore`
+  }
   for (const key of ['count', 'offset', 'totalResults'] as const) {
     const value = data[key]
     if (!Number.isInteger(value) || (value as number) < 0) {
-      return `NetSuite collection page response included an invalid ${key}`
+      return `NetSuite ${label} response included an invalid ${key}`
     }
   }
   return null
