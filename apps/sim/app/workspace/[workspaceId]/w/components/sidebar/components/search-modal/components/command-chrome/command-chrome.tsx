@@ -40,14 +40,19 @@ const SEARCH_SURFACE_CLASSNAME = {
 /**
  * The palette hides its scrollbar (`scrollbar-none` at the call site), so it
  * fades with one plain mask; its band is kept short — fully masked only under
- * the floating input (0–8%), legible by 13%, and a brief 97–100% exit — so
- * rows spend less time in the fog than on the canvas surface.
+ * the floating input (0–36px), legible by 58px, and a brief 13px exit — so
+ * rows spend less time in the fog than on the canvas surface. The palette's
+ * stops are anchored in pixels (the 448px max-height look frozen) because the
+ * list shrinks to its content: percentage stops would move the fog on every
+ * result-count change, a shimmer the dark selected first row makes obvious.
+ * The canvas list fills a fixed-height card, so its percentage stops never
+ * move.
  */
 const LIST_FADE_CLASSNAME = {
   canvas:
     '[-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_18%,black_94%,transparent_100%)] [mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_18%,black_94%,transparent_100%)]',
   palette:
-    '[-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_13%,black_97%,transparent_100%)] [mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_13%,black_97%,transparent_100%)]',
+    '[-webkit-mask-image:linear-gradient(to_bottom,transparent_0px,transparent_36px,black_58px,black_calc(100%_-_13px),transparent_100%)] [mask-image:linear-gradient(to_bottom,transparent_0px,transparent_36px,black_58px,black_calc(100%_-_13px),transparent_100%)]',
 } as const
 
 /** Borderless search field layered over a fading command-result list. */

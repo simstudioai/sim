@@ -697,7 +697,15 @@ jobs:
   desktop-release:
     name: Desktop Release
     needs: [create-release, check-desktop-signing, detect-version]
-    if: needs.check-desktop-signing.outputs.configured == 'true'
+    # Suppress the implicit success() check: check-desktop-signing has an
+    # intentionally skipped transitive dependency on main, which would
+    # otherwise cascade-skip this job even when every direct need succeeded.
+    if: >-
+      !cancelled() &&
+      needs.create-release.result == 'success' &&
+      needs.check-desktop-signing.result == 'success' &&
+      needs.detect-version.result == 'success' &&
+      needs.check-desktop-signing.outputs.configured == 'true'
     permissions:
       contents: write
     uses: ./.github/workflows/desktop-release.yml

@@ -10,6 +10,7 @@ import {
   type MothershipSendMessageDetail,
 } from '@/lib/mothership/events'
 import { SearchModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/search-modal'
+import { getBlock } from '@/blocks/registry'
 
 const { mockPush, mockSearchState } = vi.hoisted(() => ({
   mockPush: vi.fn(),
@@ -580,6 +581,28 @@ describe('SearchModal', () => {
     expect(rows()[1]?.getAttribute('aria-selected')).toBe('false')
   })
 
+  it('re-anchors selection to the first row after the re-ranked results commit', async () => {
+    const workflows = [
+      { id: 'workflow-1', name: 'Funnel', href: '/workspace/workspace-1/w/workflow-1' },
+      { id: 'workflow-2', name: 'Funnel two', href: '/workspace/workspace-1/w/workflow-2' },
+      { id: 'workflow-3', name: 'Function alpha', href: '/workspace/workspace-1/w/workflow-3' },
+    ]
+    await act(async () => {
+      root.render(<SearchModal open onOpenChange={vi.fn()} workflows={workflows} />)
+    })
+
+    const rows = () => Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]'))
+
+    await enterSearchQuery('fun')
+    expect(rows()[0]?.textContent).toContain('Funnel')
+    expect(rows()[0]?.getAttribute('aria-selected')).toBe('true')
+
+    await enterSearchQuery('func')
+    expect(rows()).toHaveLength(1)
+    expect(rows()[0]?.textContent).toContain('Function alpha')
+    expect(rows()[0]?.getAttribute('aria-selected')).toBe('true')
+  })
+
   it('unmounts while closed and reopens with a blank query', async () => {
     await act(async () => {
       root.render(<SearchModal open onOpenChange={vi.fn()} />)
@@ -688,6 +711,53 @@ describe('SearchModal', () => {
       expect(document.body.textContent).not.toContain('Webhook Trigger Trigger')
     } finally {
       mockSearchState.data = original
+    }
+  })
+
+  it('accents a first-party trigger by its canvas role, not its catalog color', async () => {
+    const Icon = () => null
+    const original = { ...mockSearchState.data }
+    /*
+     * The palette reads the accent from the block's category, so the row's
+     * appearance is only meaningful against a registry that reports one — the
+     * shared mock omits it.
+     */
+    const mockedGetBlock = vi.mocked(getBlock)
+    const originalGetBlock = mockedGetBlock.getMockImplementation()
+    mockedGetBlock.mockImplementation(
+      (type: string) => ({ category: type === 'slack' ? 'tools' : 'triggers', icon: Icon }) as never
+    )
+    mockSearchState.data = {
+      ...mockSearchState.data,
+      triggers: [
+        {
+          id: 'generic_webhook',
+          name: 'Webhook Trigger',
+          icon: Icon,
+          bgColor: '#10B981',
+          type: 'generic_webhook',
+        },
+        {
+          id: 'slack',
+          name: 'Slack',
+          icon: Icon,
+          bgColor: '#611f69',
+          type: 'slack',
+        },
+      ],
+    }
+
+    try {
+      await act(async () => {
+        root.render(<SearchModal open onOpenChange={vi.fn()} pageContext='workflow' />)
+      })
+
+      expect(document.querySelector('[data-workflow-type-icon="generic_webhook"]')).not.toBeNull()
+      // A third-party trigger keeps its brand tile, exactly as the canvas paints it.
+      expect(document.querySelector('[data-workflow-type-icon="slack"]')).toBeNull()
+    } finally {
+      mockSearchState.data = original
+      if (originalGetBlock) mockedGetBlock.mockImplementation(originalGetBlock)
     }
   })
 

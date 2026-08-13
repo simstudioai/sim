@@ -35,6 +35,7 @@ import {
   isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
+import { hasBlockAccent } from '@/blocks/accent'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -522,7 +523,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
             typeLabel={canvasPresentation.typeLabel}
             Icon={IconComponent}
             iconBgColor={blockConfig.bgColor}
-            isIntegration={blockConfig.category === 'tools'}
+            isIntegration={!hasBlockAccent(type)}
             isEnabled={enabled}
           />
         )}

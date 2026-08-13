@@ -24,6 +24,8 @@ vi.mock('@/lib/billing/application/list-billing-logs', () => ({
   listBillingLogs: { operation: { id: 'billing.logs.list' }, execute: mocks.execute },
 }))
 
+import { UNKNOWN_CURSOR_MESSAGE } from '@/lib/billing/core/usage-log'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v2/billing/logs/route'
 
 const auth = {
@@ -92,6 +94,21 @@ describe('GET /api/v2/billing/logs', () => {
         source: ['copilot', 'workspace-chat'],
       }),
       request,
+    })
+  })
+
+  it('projects an unresolvable cursor as a 400 rather than an unpositioned first page', async () => {
+    mocks.execute.mockRejectedValueOnce(
+      new OrchestrationError('validation', UNKNOWN_CURSOR_MESSAGE)
+    )
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/v2/billing/logs?cursor=log-from-another-ledger')
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: UNKNOWN_CURSOR_MESSAGE },
     })
   })
 

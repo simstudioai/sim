@@ -2,32 +2,28 @@
  * @vitest-environment node
  */
 
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(),
-  preauthRate: vi.fn(),
-  operationRate: vi.fn(),
-  gate: vi.fn(),
   list: vi.fn(),
   create: vi.fn(),
   getUserEmailsByIds: vi.fn(),
   getMaxRowsPerTable: vi.fn(),
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-}))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 vi.mock('@/lib/table/application/tables', () => ({
   listTablesUseCase: { operation: { id: 'tables.list' }, execute: mocks.list },
   createTableUseCase: { operation: { id: 'tables.create' }, execute: mocks.create },
@@ -51,15 +47,9 @@ const principal = {
 const auth = {
   principal,
   rolloutUserId: 'owner-1',
-  rateLimitSubjectIds: [`workspace:${WORKSPACE_ID}`],
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`],
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
-}
-const rate = {
-  allowed: true,
-  remaining: 99,
-  resetAt: new Date('2026-01-01T01:00:00.000Z'),
-  retryAfterMs: 0,
 }
 const table = {
   id: 'table-1',
@@ -89,10 +79,10 @@ const table = {
 describe('/api/v2/tables', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(auth)
-    mocks.preauthRate.mockResolvedValue(rate)
-    mocks.operationRate.mockResolvedValue(rate)
-    mocks.gate.mockResolvedValue(null)
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.getUserEmailsByIds.mockResolvedValue(new Map([['owner-1', 'owner@example.com']]))
     mocks.getMaxRowsPerTable.mockResolvedValue(5000)
     mocks.list.mockResolvedValue({
@@ -134,13 +124,24 @@ describe('/api/v2/tables', () => {
     const response = await GET(new NextRequest('http://localhost:3000/api/v2/tables'))
 
     expect(response.status).toBe(400)
-    expect(mocks.authenticate).toHaveBeenCalled()
-    expect(mocks.operationRate).toHaveBeenCalled()
+    expect(v2RouteMocks.authenticate).toHaveBeenCalled()
+    expect(v2RouteMocks.operationRate).toHaveBeenCalled()
     expect(mocks.list).not.toHaveBeenCalled()
   })
 
+  it('rejects an unauthenticated request', async () => {
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25`)
+    )
+
+    expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
+  })
+
   it('maps operation rate-limit infrastructure failures to service unavailable', async () => {
-    mocks.operationRate.mockRejectedValueOnce(new Error('rate store unavailable'))
+    v2RouteMocks.operationRate.mockRejectedValueOnce(new Error('rate store unavailable'))
 
     const response = await GET(
       new NextRequest(`http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25`)
@@ -181,7 +182,7 @@ describe('/api/v2/tables', () => {
     })
   })
 
-  it('rejects required in a table column before calling the use case', async () => {
+  it('forwards required on a table column to the use case', async () => {
     const request = new NextRequest('http://localhost:3000/api/v2/tables', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
@@ -189,6 +190,28 @@ describe('/api/v2/tables', () => {
         workspaceId: WORKSPACE_ID,
         name: 'Contacts',
         schema: { columns: [{ name: 'Name', type: 'string', required: true }] },
+      }),
+    })
+    const response = await POST(request)
+
+    expect(response.status).toBe(201)
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          schema: { columns: [{ name: 'Name', type: 'string', required: true }] },
+        }),
+      })
+    )
+  })
+
+  it('rejects an unrecognized key in a table column before calling the use case', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/tables', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+      body: JSON.stringify({
+        workspaceId: WORKSPACE_ID,
+        name: 'Contacts',
+        schema: { columns: [{ name: 'Name', type: 'string', requried: true }] },
       }),
     })
     const response = await POST(request)

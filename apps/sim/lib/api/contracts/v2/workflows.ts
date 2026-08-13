@@ -27,6 +27,7 @@ import {
   v2ListFoldersQuerySchema,
   v2PaginationFields,
   v2RelocateFolderBodySchema,
+  v2RunWindowBoundSchema,
   v2SearchSchema,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
@@ -284,6 +285,29 @@ export const v2DeploymentStateSchema = z
     title: 'Deployment state',
     description: 'Current workflow deployment state and lifecycle progress.',
   })
+
+/**
+ * Read-only deployment state. Extends the shared state with `needsRedeployment`,
+ * which the mutation responses cannot carry: it compares the live graph against
+ * the draft, and immediately after a deploy or rollback the two are equal by
+ * construction.
+ */
+export const v2WorkflowDeploymentSchema = v2DeploymentStateSchema
+  .extend({
+    needsRedeployment: z
+      .boolean()
+      .describe(
+        'Whether the editable draft has diverged from the live deployment version. False while a deployment attempt is still preparing or activating, and false when nothing is deployed.'
+      ),
+  })
+  .meta({
+    id: 'WorkflowDeployment',
+    title: 'Workflow deployment',
+    description:
+      'Current deployment state of a workflow, including draft-versus-live drift and the most recent deployment attempt.',
+  })
+
+export type V2WorkflowDeployment = z.output<typeof v2WorkflowDeploymentSchema>
 
 export const v2DeployWorkflowDataSchema = v2DeploymentStateSchema
   .extend({
@@ -624,6 +648,16 @@ export const v2GetWorkflowVersionContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowVersionDetailSchema),
+  },
+})
+
+export const v2GetWorkflowDeploymentContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[id]/deployment',
+  params: v2WorkflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowDeploymentSchema),
   },
 })
 
@@ -1009,16 +1043,8 @@ export const v2ListWorkflowRunsQuerySchema = z
       .min(1, 'trigger cannot be empty')
       .optional()
       .describe('Filter by trigger type.'),
-    startDate: z
-      .string()
-      .datetime()
-      .optional()
-      .describe('Include runs started at or after this ISO 8601 timestamp.'),
-    endDate: z
-      .string()
-      .datetime()
-      .optional()
-      .describe('Include runs started at or before this ISO 8601 timestamp.'),
+    startDate: v2RunWindowBoundSchema('startDate').optional(),
+    endDate: v2RunWindowBoundSchema('endDate').optional(),
     ...v2PaginationFields({ description: 'Maximum workflow runs to return per page.' }),
     /**
      * Deliberate deviation from the v2 `sortBy` + `sortOrder` convention. Runs
@@ -1160,9 +1186,17 @@ export const v2GetWorkflowRunContract = defineRouteContract({
   params: v2WorkflowRunParamsSchema,
   query: workflowExecutionStatusQuerySchema
     .extend({
-      includeOutput: workflowExecutionStatusQuerySchema.shape.includeOutput.describe(
-        'Include final and block outputs when true.'
-      ),
+      /**
+       * Declared with the shared boolean flag rather than reused from the
+       * internal shape, which spells it as a `'true'`/`'false'` string enum
+       * while every other v2 boolean query param is a real boolean. The shared
+       * schema still accepts both strings, so `?includeOutput=true` keeps
+       * working identically; it only widens what parses.
+       */
+      includeOutput: booleanQueryFlagSchema
+        .describe('Include final and block outputs when true.')
+        .optional()
+        .default(false),
       selectedOutputs: workflowExecutionStatusQuerySchema.shape.selectedOutputs.describe(
         'Comma-separated block output references to include.'
       ),

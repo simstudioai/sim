@@ -2,6 +2,15 @@
  * @vitest-environment node
  */
 
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,28 +18,15 @@ const { mocks, MockTableRowsValidationError } = vi.hoisted(() => {
   class MockTableRowsValidationError extends Error {}
   return {
     mocks: {
-      authenticate: vi.fn(),
-      preauthRate: vi.fn(),
-      operationRate: vi.fn(),
-      gate: vi.fn(),
       upsertRow: vi.fn(),
     },
     MockTableRowsValidationError,
   }
 })
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-}))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 vi.mock('@/lib/table/application/rows', () => ({
   TableRowsValidationError: MockTableRowsValidationError,
   upsertTableRow: { operation: { id: 'tables.rows.upsert' }, execute: mocks.upsertRow },
@@ -47,15 +43,9 @@ const PRINCIPAL = {
 const AUTH = {
   principal: PRINCIPAL,
   rolloutUserId: 'owner-1',
-  rateLimitSubjectIds: [`workspace:${WORKSPACE_ID}`],
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`],
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
-}
-const RATE = {
-  allowed: true,
-  remaining: 99,
-  resetAt: new Date('2026-01-01T01:00:00Z'),
-  retryAfterMs: 0,
 }
 const TABLE = {
   id: 'table-1',
@@ -72,10 +62,10 @@ const ROW = {
 describe('POST /api/v2/tables/[tableId]/rows/upsert', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE)
-    mocks.operationRate.mockResolvedValue(RATE)
-    mocks.gate.mockResolvedValue(null)
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.upsertRow.mockResolvedValue({ table: TABLE, row: ROW, operation: 'update' })
   })
 
@@ -115,6 +105,26 @@ describe('POST /api/v2/tables/[tableId]/rows/upsert', () => {
       },
       request,
     })
+  })
+
+  it('rejects an unauthenticated request', async () => {
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const request = new NextRequest('http://localhost/api/v2/tables/table-1/rows/upsert', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+      body: JSON.stringify({
+        workspaceId: WORKSPACE_ID,
+        data: { email: 'ada@example.com' },
+        conflictTarget: 'email',
+      }),
+    })
+    const response = await POST(request, {
+      params: Promise.resolve({ tableId: 'table-1' }),
+    })
+
+    expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 
   it('rejects an empty conflict target before delegation', async () => {

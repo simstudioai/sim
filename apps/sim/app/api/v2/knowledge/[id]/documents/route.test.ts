@@ -39,6 +39,10 @@ vi.mock('@/lib/knowledge/application/documents', () => ({
     operation: { id: 'knowledge.documents.list' },
     execute: vi.fn(),
   },
+  bulkUpdateKnowledgeDocuments: {
+    operation: { id: 'knowledge.documents.bulk' },
+    execute: vi.fn(),
+  },
   admitKnowledgeDocumentUpload: {
     operation: { id: 'knowledge.documents.upload' },
     execute: mockAdmitUpload,

@@ -90,7 +90,7 @@ const skill = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
 }
 
-function request(method: 'GET' | 'POST', url: string, body?: unknown) {
+function request(method: 'GET' | 'POST' | 'HEAD', url: string, body?: unknown) {
   return new NextRequest(`http://localhost:3000${url}`, {
     method,
     headers: {
@@ -177,6 +177,17 @@ describe('/api/v2/skills', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The guard itself is unit-tested in `definition.test.ts`; this proves the
+   * pairing end-to-end, on a real v2 read that used to reply 500 to a plain HEAD.
+   */
+  it('serves HEAD through the GET handler instead of throwing', async () => {
+    const response = await GET(request('HEAD', `/api/v2/skills?workspaceId=${WORKSPACE_ID}`))
+
+    expect(response.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalled()
   })
 
   it('rejects a malformed cursor rather than silently restarting at page one', async () => {

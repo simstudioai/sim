@@ -3,6 +3,7 @@ import {
   ERROR_RESPONSES,
   type ErrorResponseId,
   FOLDER_TREE_TOO_LARGE,
+  FULL_SET_LIST,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
@@ -46,6 +47,7 @@ import {
   v2ListTableViewsContract,
   v2ListWorkflowGroupsContract,
   v2QueryRowsContract,
+  v2QueryRowsCountContract,
   v2RelocateTableFolderContract,
   v2RunRowEnrichmentContract,
   v2RunTableColumnContract,
@@ -88,6 +90,17 @@ const EXPORT_ID = 'exp_3e5f7a9c1b2d4068a0c2e4f6b8d0f193'
 const TABLE_MUTATION_ERRORS = [
   ...RESOURCE_ERRORS,
   'Locked',
+] as const satisfies readonly ErrorResponseId[]
+
+/**
+ * The two table query reads declare `maxBodyBytes`, which the route builder
+ * turns into a real `413`, so their set is the base plus that status. Every
+ * other table read carries its input in the query string and has no body
+ * ceiling to exceed.
+ */
+const TABLE_QUERY_ERRORS = [
+  ...RESOURCE_ERRORS,
+  'PayloadTooLarge',
 ] as const satisfies readonly ErrorResponseId[]
 
 function tableOperation(
@@ -653,12 +666,48 @@ const routes = [
     }
   ),
   defineOpenApiRoute(
+    v2QueryRowsCountContract,
+    tableOperation({
+      operationId: 'countTableRows',
+      summary: 'Count Rows',
+      description:
+        'Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and rowCount on the table resource counts every row rather than the predicate matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.',
+      errors: TABLE_QUERY_ERRORS,
+      success: { description: 'The number of matching table rows.' },
+    }),
+    {
+      params: documentedSchema(
+        v2QueryRowsCountContract.params,
+        'CountTableRowsParams',
+        'Count table rows path parameters',
+        'Table whose matching rows should be counted.'
+      ),
+      body: documentedSchema(
+        v2QueryRowsCountContract.body,
+        'CountTableRowsRequest',
+        'Count table rows request',
+        'Workspace scope and the optional predicate whose matches are counted.',
+        [
+          {
+            workspaceId: WORKSPACE_ID,
+            predicate: { all: [{ field: 'status', op: 'eq', value: 'active' }] },
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2QueryRowsCountContract.response.schema,
+        'V2CountTableRowsResponse',
+        'Count table rows response',
+        'The total number of table rows matching the predicate.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2ListTableViewsContract,
     tableOperation({
       operationId: 'listTableViews',
       summary: 'List Views',
-      description:
-        'List the bounded set of saved table views, with references to removed columns pruned on read. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
+      description: `List the bounded set of saved table views, with references to removed columns pruned on read. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The saved table views.' },
     }),
@@ -821,8 +870,7 @@ const routes = [
     tableOperation({
       operationId: 'listTableWorkflowGroups',
       summary: 'List Workflow Groups',
-      description:
-        'List the workflow and enrichment groups that can be dispatched for a table. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
+      description: `List the workflow and enrichment groups that can be dispatched for a table. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The table workflow groups.' },
     }),
@@ -1396,8 +1444,7 @@ const routes = [
     tableOperation({
       operationId: 'listTablesFolders',
       summary: 'List Folders',
-      description:
-        'List table folders, optionally restricting the result to direct children of a canonical parent path. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
+      description: `List table folders, optionally restricting the result to direct children of a canonical parent path. ${FULL_SET_LIST}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: { description: 'The table folders.' },
     }),

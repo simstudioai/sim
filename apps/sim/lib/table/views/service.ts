@@ -100,8 +100,37 @@ function predicateFieldsAreValid(node: PredicateNode): boolean {
   return NAME_PATTERN.test((node as Predicate).field)
 }
 
+/**
+ * The keys a stored config is allowed to contribute to a read.
+ *
+ * `table_views.config` is a schemaless JSONB blob, so a row written before a
+ * key was retired — or by any writer that bypassed the contract — can carry
+ * members the current shape does not declare. Spreading the blob wholesale
+ * published them, and now that the config schemas are `.strict()` it would fail
+ * the response parse and turn a legacy row into a 500. Projecting onto this
+ * list makes the read canonical by construction.
+ */
+const STORED_VIEW_CONFIG_KEYS = [
+  'columnWidths',
+  'columnOrder',
+  'pinnedColumns',
+  'hiddenColumns',
+  'filter',
+  'sort',
+] as const satisfies readonly (keyof TableViewConfig)[]
+
 export function normalizeStoredViewConfig(raw: Record<string, unknown>): TableViewConfig {
-  const config = { ...raw } as TableViewConfig
+  const picked: Record<string, unknown> = {}
+  for (const key of STORED_VIEW_CONFIG_KEYS) {
+    /**
+     * `!= null`, not `!== undefined`: `table_views.config` is schemaless JSONB,
+     * so a legacy row storing `{"columnOrder": null}` would otherwise survive
+     * the pick and fail the declared response schema — turning a read into a
+     * 500. An absent key and an explicitly null one mean the same thing here.
+     */
+    if (raw[key] != null) picked[key] = raw[key]
+  }
+  const config = picked as TableViewConfig
   const filter = raw.filter as Record<string, unknown> | null | undefined
   if (filter && !('all' in filter) && !('any' in filter)) {
     try {
@@ -117,6 +146,9 @@ export function normalizeStoredViewConfig(raw: Record<string, unknown>): TableVi
   const sort = raw.sort as Record<string, 'asc' | 'desc'> | unknown[] | null | undefined
   if (sort && !Array.isArray(sort)) {
     config.sort = Object.entries(sort).map(([field, direction]) => ({ field, direction }))
+  } else if (Array.isArray(config.sort)) {
+    /** Same reason as the key projection: a stored entry may carry more than the spec declares. */
+    config.sort = config.sort.map(({ field, direction }) => ({ field, direction }))
   }
   return config
 }

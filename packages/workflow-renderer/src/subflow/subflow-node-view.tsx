@@ -8,7 +8,7 @@ import {
   useStoreApi as useReactFlowStoreApi,
   useUpdateNodeInternals,
 } from 'reactflow'
-import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '../dimensions'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, HANDLE_POSITIONS } from '../dimensions'
 import { OverflowSpan } from '../lib/overflow-span'
 import type { DiffStatus } from '../types'
 import {
@@ -588,8 +588,8 @@ export function SubflowNodeView({
           aria-label={`Select ${blockName}`}
           onClick={onSelect}
           onKeyDown={(event) => handleKeyboardActivation(event, onSelect)}
-          className='workflow-drag-handle relative z-20 flex h-[40px] cursor-grab items-center justify-between px-2 [&:active]:cursor-grabbing'
-          style={{ pointerEvents: 'auto' }}
+          className='workflow-drag-handle relative z-20 flex cursor-grab items-center justify-between px-2 [&:active]:cursor-grabbing'
+          style={{ pointerEvents: 'auto', height: CONTAINER_DIMENSIONS.HEADER_HEIGHT }}
           data-subflow-header=''
         >
           <div
@@ -647,9 +647,16 @@ export function SubflowNodeView({
         )}
 
         <div
-          className='relative z-20 h-[calc(100%-40px)] pt-4 pr-[80px] pb-4 pl-4'
+          className='relative z-20'
           data-dragarea='true'
-          style={{ pointerEvents: 'none' }}
+          style={{
+            pointerEvents: 'none',
+            height: `calc(100% - ${CONTAINER_DIMENSIONS.HEADER_HEIGHT}px)`,
+            paddingTop: CONTAINER_DIMENSIONS.TOP_PADDING,
+            paddingRight: CONTAINER_DIMENSIONS.RIGHT_PADDING,
+            paddingBottom: CONTAINER_DIMENSIONS.BOTTOM_PADDING,
+            paddingLeft: CONTAINER_DIMENSIONS.LEFT_PADDING,
+          }}
         >
           <SubflowStartView
             parentId={id}

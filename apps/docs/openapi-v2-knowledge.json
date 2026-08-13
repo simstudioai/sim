@@ -295,6 +295,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -471,7 +474,7 @@
       "post": {
         "operationId": "searchKnowledge",
         "summary": "Search Knowledge",
-        "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. The request body is capped at 2 MiB; a larger body is a 413.",
+        "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Set `rerankerEnabled` with a `rerankerModel` to re-order the retrieved chunks with a reranking model before truncating to `topK`; reranked results carry a `rerankerScore` and are ordered by it, and reranking is billed as an additional search unit. Every result names the `knowledgeBaseId` it came from. The request body is capped at 2 MiB; a larger body is a 413.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -536,11 +539,87 @@
         }
       }
     },
+    "/api/v2/knowledge/{id}/tags": {
+      "get": {
+        "operationId": "listKnowledgeTags",
+        "summary": "List Tags",
+        "description": "List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Display names are what tag filters and the tag values on document reads use; slots are what document writes set. Every slot listed here is writable, in its declared type: `tag1`..`tag7` take a string, `number1`..`number5` a number, `date1`..`date2` a `YYYY-MM-DD` string, and `boolean1`..`boolean3` a boolean. The vocabulary is bounded by the fixed slot table. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the knowledge base.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the knowledge base."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The knowledge base tag vocabulary.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2KnowledgeTagListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/knowledge/{id}/documents": {
       "get": {
         "operationId": "listKnowledgeDocuments",
         "summary": "List Documents",
-        "description": "List documents in a knowledge base with filename search, state filtering, sorting, and opaque cursor pagination.",
+        "description": "List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Each document carries its tag values keyed by tag display name; resolve those names to write slots with `GET /api/v2/knowledge/{id}/tags`.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -642,6 +721,19 @@
               "type": "string",
               "minLength": 1
             }
+          },
+          {
+            "name": "tagFilters",
+            "in": "query",
+            "required": false,
+            "description": "A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[{\"tagName\":\"category\",\"operator\":\"eq\",\"value\":\"billing\"}]`. A name that is not defined in this knowledge base is rejected, never ignored.",
+            "schema": {
+              "description": "A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[{\"tagName\":\"category\",\"operator\":\"eq\",\"value\":\"billing\"}]`. A name that is not defined in this knowledge base is rejected, never ignored.",
+              "examples": [
+                "[{\"tagName\":\"category\",\"operator\":\"eq\",\"value\":\"billing\"}]"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -671,6 +763,83 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "bulkUpdateKnowledgeDocuments",
+        "summary": "Bulk Enable or Disable Documents",
+        "description": "Enable or disable many documents in one request, either by identifier (up to 100) or, with `selectAll`, every document in the knowledge base optionally narrowed by `enabledFilter`. Disabling keeps a document indexed but excludes it from search. Bulk delete is deliberately not offered: the bulk path records no audit entries, so deletions go through `DELETE /api/v2/knowledge/{id}/documents/{documentId}`, which audits each one. An identifier request echoes the documents it changed in `documentIds`; a `selectAll` request omits that field because the selection is unbounded, and reports `updatedCount` alone. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Operation and the documents it applies to.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkUpdateKnowledgeDocumentsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The number and identifiers of the documents that changed.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2BulkKnowledgeDocumentsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -1252,6 +1421,94 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateKnowledgeDocument",
+        "summary": "Update Document",
+        "description": "Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. A tag slot takes its declared type — a string for `tag1`..`tag7`, a number for `number1`..`number5`, a `YYYY-MM-DD` string for `date1`..`date2`, a boolean for `boolean1`..`boolean3` — and a value that is not valid for the slot is a `400` rather than a silently cleared tag. Resolve a display name to its slot with `GET /api/v2/knowledge/{id}/tags`. Absent fields are unchanged. Only caller-owned fields are accepted: derived indexing state (`chunkCount`, `tokenCount`, `characterCount`, `processingStatus`, `processingError`) is written by the processing pipeline and cannot be asserted here. `retryProcessing: true` re-queues a failed or stuck document and must be sent on its own — it runs instead of, not alongside, the field updates — and it answers with a queue acknowledgement rather than the document. Otherwise the updated document is returned; it omits the connector provenance the detail read carries, so re-read with GET when that is needed. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "tags": ["Knowledge Bases"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge base identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge base identifier."
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "description": "Unique knowledge document identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique knowledge document identifier."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Filename, search state, tag slot values, or a processing retry.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateKnowledgeDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated document, or the requeue acknowledgement.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2UpdateKnowledgeDocumentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -1732,13 +1989,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying a rate-limited request.",
+        "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying a rate-limited request."
+          "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -1783,7 +2040,7 @@
         }
       },
       "Forbidden": {
-        "description": "The caller lacks access to the resource.",
+        "description": "The caller lacks the rights this operation requires. Where the cause is one a caller can act on, `error.details.code` names it, drawn from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\nA resource in a workspace the caller cannot reach at all answers `404`, not `403`, so absence and denial are indistinguishable to a caller who was never entitled to tell them apart.",
         "content": {
           "application/json": {
             "schema": {
@@ -1903,7 +2160,12 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable.",
+        "description": "A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
         "content": {
           "application/json": {
             "schema": {
@@ -2288,6 +2550,11 @@
       "V2KnowledgeSearchResult": {
         "type": "object",
         "properties": {
+          "knowledgeBaseId": {
+            "type": "string",
+            "description": "Knowledge base the matching chunk came from; a search may span up to 20.",
+            "examples": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"]
+          },
           "documentId": {
             "type": "string",
             "description": "Identifier of the document containing the matching chunk.",
@@ -2348,9 +2615,15 @@
             "type": "number",
             "description": "Similarity score for vector search; tag-only matches use 1.",
             "examples": [0.8423]
+          },
+          "rerankerScore": {
+            "description": "Relevance score assigned by the reranker, present only on results a reranker ordered. Results are ordered by this score when it is present, which is why it can disagree with `similarity`.",
+            "examples": [0.9312],
+            "type": "number"
           }
         },
         "required": [
+          "knowledgeBaseId",
           "documentId",
           "documentName",
           "sourceUrl",
@@ -2509,7 +2782,7 @@
             "maximum": 100
           },
           "tagFilters": {
-            "description": "Structured tag filters. Supported across multiple knowledge bases, but each filtered tag must resolve to the same slot and field type in every knowledge base selected; a tag missing from one of them, or defined inconsistently across them, is rejected and those knowledge bases must be searched separately. With a single knowledge base, an unknown tag name is simply ignored.",
+            "description": "Structured tag filters. Supported across multiple knowledge bases, but each filtered tag must resolve to the same slot and field type in every knowledge base selected; a tag missing from one of them, or defined inconsistently across them, is rejected and those knowledge bases must be searched separately. A tag name defined in none of the selected knowledge bases is rejected, never ignored; list the available names with GET /api/v2/knowledge/{id}/tags.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/V2KnowledgeSearchTagFilter"
@@ -2527,11 +2800,307 @@
                 "type": "null"
               }
             ]
+          },
+          "rerankerEnabled": {
+            "description": "Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, which has no query to rank against. Reranking is billed as an additional search unit.",
+            "type": "boolean"
+          },
+          "rerankerModel": {
+            "description": "Reranking model to use; required for reranking to run.",
+            "type": "string",
+            "enum": ["rerank-v4.0-pro", "rerank-v4.0-fast", "rerank-v3.5"]
+          },
+          "rerankerInputCount": {
+            "description": "How many candidate chunks to retrieve before reranking. Defaults to four times `topK`, capped at 100. A larger pool costs more retrieval work but gives the reranker more to choose from.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
           }
         },
         "required": ["workspaceId", "knowledgeBaseIds"],
         "title": "Search knowledge request",
         "description": "Knowledge bases, query, result limit, retrieval mode, and optional tag filters."
+      },
+      "V2KnowledgeTag": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "description": "Display name used by tag filters and by tag values on document reads.",
+            "examples": ["category"]
+          },
+          "tagSlot": {
+            "type": "string",
+            "description": "Storage slot the tag occupies. Document writes set tag values by slot (`tag1`..`tag7`).",
+            "examples": ["tag1"]
+          },
+          "fieldType": {
+            "type": "string",
+            "description": "Value type stored in the slot; it determines the valid filter operators.",
+            "examples": ["text"]
+          }
+        },
+        "required": ["displayName", "tagSlot", "fieldType"],
+        "additionalProperties": false,
+        "title": "Knowledge tag",
+        "description": "A tag defined on a knowledge base, and the slot it is stored in."
+      },
+      "V2KnowledgeTagListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2KnowledgeTag"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Knowledge tag list response",
+        "description": "The full tag vocabulary of one knowledge base."
+      },
+      "V2KnowledgeTaggedDocument": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique document identifier.",
+            "examples": ["b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12"]
+          },
+          "knowledgeBaseId": {
+            "type": "string",
+            "description": "Knowledge base to which the document belongs.",
+            "examples": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"]
+          },
+          "filename": {
+            "type": "string",
+            "description": "Original filename of the uploaded document.",
+            "examples": ["getting-started.pdf"]
+          },
+          "fileSize": {
+            "type": "number",
+            "description": "File size in bytes.",
+            "examples": [248913]
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type of the document file.",
+            "examples": ["application/pdf"]
+          },
+          "processingStatus": {
+            "type": "string",
+            "enum": ["pending", "processing", "completed", "failed"],
+            "description": "Current document processing state.",
+            "examples": ["completed"]
+          },
+          "chunkCount": {
+            "type": "number",
+            "description": "Number of indexed chunks; zero until processing completes.",
+            "examples": [24]
+          },
+          "tokenCount": {
+            "type": "number",
+            "description": "Total tokens extracted from the document.",
+            "examples": [8123]
+          },
+          "characterCount": {
+            "type": "number",
+            "description": "Total characters extracted from the document.",
+            "examples": [41205]
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the document is enabled for search.",
+            "examples": [true]
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the document was uploaded, or null.",
+            "format": "date-time",
+            "examples": ["2025-06-18T16:45:00Z"]
+          },
+          "tags": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Tag value; dates are ISO 8601 strings and an unset tag is null."
+            },
+            "description": "Document tag values keyed by tag display name. Writes address the same tags by slot (`tag1`..`tag7`); resolve names to slots with GET /api/v2/knowledge/{id}/tags.",
+            "examples": [
+              {
+                "category": "billing",
+                "priority": 2
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "knowledgeBaseId",
+          "filename",
+          "fileSize",
+          "mimeType",
+          "processingStatus",
+          "chunkCount",
+          "tokenCount",
+          "characterCount",
+          "enabled",
+          "createdAt",
+          "tags"
+        ],
+        "additionalProperties": false,
+        "title": "Knowledge document list item",
+        "description": "Document summary with the document tag values keyed by display name."
+      },
+      "V2KnowledgeDocumentListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2KnowledgeTaggedDocument"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "Knowledge document list response",
+        "description": "A cursor-paginated page of knowledge documents."
+      },
+      "V2BulkKnowledgeDocumentsData": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": ["enable", "disable"],
+            "description": "Operation that was applied."
+          },
+          "updatedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of documents the operation changed.",
+            "examples": [42]
+          },
+          "documentIds": {
+            "description": "Identifiers of the documents the operation changed. Present only for an explicit `documentIds` request, which is bounded to 100 documents; a `selectAll` request omits it because the selection is unbounded, and reports `updatedCount` instead.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["operation", "updatedCount"],
+        "additionalProperties": false,
+        "title": "Bulk knowledge document update data",
+        "description": "Outcome of a bulk enable or disable across knowledge documents."
+      },
+      "V2BulkKnowledgeDocumentsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2BulkKnowledgeDocumentsData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Bulk knowledge document response",
+        "description": "Outcome of a bulk enable or disable."
+      },
+      "BulkUpdateKnowledgeDocumentsRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace that owns the knowledge base."
+          },
+          "operation": {
+            "type": "string",
+            "enum": ["enable", "disable"],
+            "description": "Whether the selected documents become enabled or disabled for search."
+          },
+          "documentIds": {
+            "description": "Documents to update, by identifier.",
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "selectAll": {
+            "description": "Update every document in the knowledge base instead of an explicit list, narrowed by `enabledFilter`.",
+            "type": "boolean",
+            "const": true
+          },
+          "enabledFilter": {
+            "description": "With `selectAll`, restrict the update to documents in this state.",
+            "type": "string",
+            "enum": ["all", "enabled", "disabled"]
+          }
+        },
+        "required": ["workspaceId", "operation"],
+        "additionalProperties": false,
+        "title": "Bulk knowledge document request",
+        "description": "Operation and the documents it applies to.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "operation": "disable",
+            "documentIds": ["b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12"]
+          }
+        ]
       },
       "V2KnowledgeDocumentSummary": {
         "type": "object",
@@ -2617,33 +3186,6 @@
         "additionalProperties": false,
         "title": "Knowledge document summary",
         "description": "Summary returned by document lists and upload acknowledgements."
-      },
-      "V2KnowledgeDocumentListResponse": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/V2KnowledgeDocumentSummary"
-            },
-            "description": "Items in the current page."
-          },
-          "nextCursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
-          }
-        },
-        "required": ["data", "nextCursor"],
-        "additionalProperties": false,
-        "title": "Knowledge document list response",
-        "description": "A cursor-paginated page of knowledge documents."
       },
       "V2KnowledgeDocumentSummaryResponse": {
         "type": "object",
@@ -3131,6 +3673,36 @@
             "format": "date-time",
             "examples": ["2025-06-18T16:45:00Z"]
           },
+          "tags": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Tag value; dates are ISO 8601 strings and an unset tag is null."
+            },
+            "description": "Document tag values keyed by tag display name. Writes address the same tags by slot (`tag1`..`tag7`); resolve names to slots with GET /api/v2/knowledge/{id}/tags.",
+            "examples": [
+              {
+                "category": "billing",
+                "priority": 2
+              }
+            ]
+          },
           "processingError": {
             "anyOf": [
               {
@@ -3214,6 +3786,7 @@
           "characterCount",
           "enabled",
           "createdAt",
+          "tags",
           "processingError",
           "processingStartedAt",
           "processingCompletedAt",
@@ -3237,6 +3810,167 @@
         "additionalProperties": false,
         "title": "Knowledge document response",
         "description": "Full knowledge document detail."
+      },
+      "V2KnowledgeDocumentProcessing": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the requeued document."
+          },
+          "queued": {
+            "type": "boolean",
+            "const": true,
+            "description": "Confirms that processing was requeued."
+          },
+          "processingStatus": {
+            "type": "string",
+            "description": "Processing state the document was moved to.",
+            "examples": ["pending"]
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable outcome of the requeue."
+          }
+        },
+        "required": ["id", "queued", "processingStatus", "message"],
+        "additionalProperties": false,
+        "title": "Knowledge document processing acknowledgement",
+        "description": "Acknowledgement returned when a document is requeued for processing."
+      },
+      "V2UpdateKnowledgeDocumentResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/V2KnowledgeTaggedDocument"
+              },
+              {
+                "$ref": "#/components/schemas/V2KnowledgeDocumentProcessing"
+              }
+            ],
+            "description": "Response data."
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update knowledge document response",
+        "description": "The updated document, or the processing requeue acknowledgement."
+      },
+      "UpdateKnowledgeDocumentRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Workspace that owns the knowledge base."
+          },
+          "filename": {
+            "description": "New filename for the document.",
+            "examples": ["getting-started-v2.pdf"],
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "enabled": {
+            "description": "Whether the document participates in search. Disabling keeps it indexed.",
+            "type": "boolean"
+          },
+          "tag1": {
+            "description": "New value for tag slot 1.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag2": {
+            "description": "New value for tag slot 2.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag3": {
+            "description": "New value for tag slot 3.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag4": {
+            "description": "New value for tag slot 4.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag5": {
+            "description": "New value for tag slot 5.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag6": {
+            "description": "New value for tag slot 6.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "tag7": {
+            "description": "New value for tag slot 7.",
+            "type": "string",
+            "maxLength": 1000
+          },
+          "number1": {
+            "description": "New value for number tag slot 1.",
+            "type": "number"
+          },
+          "number2": {
+            "description": "New value for number tag slot 2.",
+            "type": "number"
+          },
+          "number3": {
+            "description": "New value for number tag slot 3.",
+            "type": "number"
+          },
+          "number4": {
+            "description": "New value for number tag slot 4.",
+            "type": "number"
+          },
+          "number5": {
+            "description": "New value for number tag slot 5.",
+            "type": "number"
+          },
+          "date1": {
+            "description": "New value for date tag slot 1, formatted YYYY-MM-DD.",
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "date2": {
+            "description": "New value for date tag slot 2, formatted YYYY-MM-DD.",
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "boolean1": {
+            "description": "New value for boolean tag slot 1.",
+            "type": "boolean"
+          },
+          "boolean2": {
+            "description": "New value for boolean tag slot 2.",
+            "type": "boolean"
+          },
+          "boolean3": {
+            "description": "New value for boolean tag slot 3.",
+            "type": "boolean"
+          },
+          "retryProcessing": {
+            "description": "Requeue the document for processing. Send it alone: no other field may accompany it.",
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": ["workspaceId"],
+        "additionalProperties": false,
+        "title": "Update knowledge document request",
+        "description": "Filename, search state, tag slot values, or a processing retry.",
+        "examples": [
+          {
+            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+            "enabled": false,
+            "tag1": "billing"
+          }
+        ]
       },
       "V2Folder": {
         "type": "object",

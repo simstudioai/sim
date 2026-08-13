@@ -45,6 +45,7 @@ describe('v2 knowledge error policies', () => {
       error: {
         code: 'FORBIDDEN',
         message: 'Personal API keys are not allowed for this workspace',
+        details: { code: 'PERSONAL_API_KEYS_DISABLED' },
       },
     })
   })

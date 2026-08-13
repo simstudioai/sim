@@ -129,6 +129,30 @@ describe('audit-log application use cases', () => {
     expect(mocks.buildOrgScopeCondition).toHaveBeenCalled()
   })
 
+  /**
+   * The resolver distinguishes four refusals with four different remedies. They
+   * share a status and are indistinguishable to a client that cannot branch on
+   * prose, so each has to arrive with its own `detailCode`.
+   */
+  it.each([
+    ['ORGANIZATION_MEMBERSHIP_REQUIRED', 'Not a member of the requested organization'],
+    ['ORGANIZATION_ADMIN_REQUIRED', 'Organization admin or owner role required'],
+    ['ENTERPRISE_PLAN_REQUIRED', 'Active enterprise subscription required'],
+    ['AUDIT_LOGS_DISABLED', 'Audit logs are disabled.'],
+  ] as const)('carries the %s refusal cause through the use case', async (code, message) => {
+    mocks.resolveAccess.mockResolvedValueOnce({ success: false, status: 403, code, message })
+
+    await expect(
+      listAuditLogs.execute({ principal: sessionPrincipal, input: listInput })
+    ).rejects.toMatchObject({ code: 'forbidden', detailCode: code, message })
+  })
+
+  it('names the principal-kind refusal too', async () => {
+    await expect(
+      listAuditLogs.execute({ principal: workspacePrincipal, input: listInput })
+    ).rejects.toMatchObject({ code: 'forbidden', detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED' })
+  })
+
   it('propagates organization-store failures', async () => {
     const failure = new Error('database unavailable')
     mocks.resolveAccess.mockRejectedValueOnce(failure)

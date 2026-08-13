@@ -18,6 +18,7 @@ import {
   v2MoveFileItemsContract,
   v2RelocateFileFolderContract,
   v2RenameFileContract,
+  v2RestoreFileContract,
   v2UpdateFileContentContract,
   v2UpsertFileShareContract,
 } from '@/lib/api/contracts/v2/files'
@@ -25,17 +26,16 @@ import {
   documentedSchema,
   ERROR_RESPONSES,
   type ErrorResponseId,
+  FULL_SET_LIST,
   RATE_LIMIT_HEADERS,
+  RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
-  STANDARD_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
-  VALIDATED_ERRORS,
   WORKSPACE_API_KEY_DENIED,
   WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND,
-  WORKSPACE_ERRORS,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   defineOpenApiDocument,
@@ -54,6 +54,7 @@ const FILE_EXAMPLE = {
   uploadedByEmail: 'jane@example.com',
   uploadedAt: '2026-01-15T10:30:00Z',
   updatedAt: '2026-01-15T10:30:00Z',
+  deletedAt: null,
 } as const
 
 const SHARE_EXAMPLE = {
@@ -121,8 +122,8 @@ const routes = [
       operationId: 'listFiles',
       summary: 'List Files',
       description:
-        'List workspace files with search, sorting, folder filtering, and opaque cursor pagination.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+        'List workspace files with search, sorting, folder filtering, and opaque cursor pagination. Defaults to active files; pass `scope=archived` to page over soft-deleted files, whose `deletedAt` is non-null and which `POST /files/{fileId}/restore` can bring back.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'A page of workspace files.' },
     }),
     {
@@ -148,7 +149,7 @@ const routes = [
       summary: 'Create File',
       description:
         'Create a workspace file from inline UTF-8 or base64 content. Use an upload session for streamed or larger files.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict', 'PayloadTooLarge'],
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The created file.' },
     }),
     {
@@ -181,7 +182,7 @@ const routes = [
       summary: 'Create File Upload',
       description:
         'Create a resumable upload session and receive either a signed PUT URL or multipart instructions.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The created upload session and transfer instructions.' },
     }),
     {
@@ -213,7 +214,7 @@ const routes = [
       operationId: 'abortFileUpload',
       summary: 'Abort File Upload',
       description: 'Abort an active upload session and release provider-side multipart state.',
-      errors: [...VALIDATED_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The aborted upload session.' },
     }),
     {
@@ -249,7 +250,7 @@ const routes = [
       operationId: 'createFileUploadPartUrls',
       summary: 'Create File Upload Part URLs',
       description: 'Create signed URLs for a bounded set of multipart upload part numbers.',
-      errors: [...STANDARD_ERRORS, 'BadRequest', 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Signed URLs for the requested upload parts.' },
     }),
     {
@@ -293,7 +294,7 @@ const routes = [
       summary: 'Complete File Upload',
       description:
         'Finalize uploaded bytes, verify provider state, and begin atomic workspace-file registration.',
-      errors: [...STANDARD_ERRORS, 'BadRequest', 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The completed or finalizing upload session.' },
     }),
     {
@@ -330,7 +331,7 @@ const routes = [
       summary: 'Download File',
       description:
         'Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it returns `409` while that artifact is still compiling and `413` if it renders past the size ceiling.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict', 'PayloadTooLarge'],
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: {
         description: 'The file bytes.',
         headers: ['Content-Type', 'Content-Disposition', 'Content-Length'],
@@ -358,8 +359,8 @@ const routes = [
       operationId: 'deleteFile',
       summary: 'Delete File',
       description:
-        'Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in listings and is no longer readable through the API, and its stored bytes are never removed. An archived file can be restored from the workspace Recently Deleted settings; the v2 API exposes no restore operation.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+        'Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in the default listing and is no longer readable through the API, and its stored bytes are never removed. List archived files with `GET /files?scope=archived` and reverse the delete with `POST /files/{fileId}/restore`.',
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Deletion confirmation.' },
     }),
     {
@@ -389,7 +390,7 @@ const routes = [
       operationId: 'renameFile',
       summary: 'Rename File',
       description: 'Rename a workspace file without changing its containing folder.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The renamed file.' },
     }),
     {
@@ -421,12 +422,45 @@ const routes = [
     }
   ),
   defineOpenApiRoute(
+    v2RestoreFileContract,
+    filesOperation({
+      operationId: 'restoreFile',
+      summary: 'Restore File',
+      description:
+        'Reverse a soft delete and return the file to the workspace. Restore is not a pure undo: the file comes back at the workspace root regardless of the folder it was deleted from, and it gains a `_restored` suffix when another file at the root already holds its name — so read `folderPath` and `name` off the response rather than assuming the pre-delete values. Restoring a file that is already active is a no-op that returns that file, so a retry is safe. Returns 400 when the workspace itself has been archived, and 409 when no free restore name could be found.',
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The file as it exists after the restore.' },
+    }),
+    {
+      params: documentedSchema(
+        v2RestoreFileContract.params,
+        'RestoreFileParams',
+        'Restore file path parameters',
+        'Archived file selected for restore.'
+      ),
+      body: documentedSchema(
+        v2RestoreFileContract.body,
+        'RestoreFileRequest',
+        'Restore file request',
+        'Workspace scope for the archived file.',
+        [{ workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64' }]
+      ),
+      response: documentedSchema(
+        v2RestoreFileContract.response.schema,
+        'V2RestoreFileResponse',
+        'Restore file response',
+        'The restored workspace file, at the root and under its post-restore name.',
+        [{ data: { ...FILE_EXAMPLE, name: 'data_restored.csv', folderPath: '/' } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2GetFileContract,
     filesOperation({
       operationId: 'getFile',
       summary: 'Get File Metadata',
       description: 'Return file metadata together with the nullable current public-share state.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'File metadata and public-share state.' },
     }),
     {
@@ -460,7 +494,7 @@ const routes = [
       operationId: 'listAuditLogs',
       summary: 'List Audit Logs',
       description: `List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...VALIDATED_ERRORS, 'Forbidden', 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'A page of audit-log entries.' },
     }),
     {
@@ -485,7 +519,7 @@ const routes = [
       operationId: 'getAuditLog',
       summary: 'Get Audit Log',
       description: `Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...VALIDATED_ERRORS, 'Forbidden', 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The requested audit-log entry.' },
     }),
     {
@@ -516,7 +550,7 @@ const routes = [
       operationId: 'moveFileItems',
       summary: 'Move Files',
       description: 'Move up to 1,000 files to a canonical folder path or the workspace root.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Count of moved files.' },
     }),
     {
@@ -549,7 +583,7 @@ const routes = [
       summary: 'Get File Share',
       description:
         'Return the nullable current public-share configuration for a file. A file that has never been shared returns `data: null` rather than a 404; a share that was created and later disabled is still returned, with `isActive: false`.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'Current nullable file-share state.' },
     }),
     {
@@ -580,7 +614,7 @@ const routes = [
       operationId: 'upsertFileShare',
       summary: 'Enable or Disable File Share',
       description: `Create or partially update a server-tokenized public share. Only isActive is required, and an omitted authType keeps the stored auth mode. What happens to password and allowedEmails depends on the resulting mode, because enabling a share always rewrites the credentials the chosen mode does not use: 'public' clears the stored password and empties allowedEmails; 'password' keeps the stored password when password is omitted but empties allowedEmails; 'email' and 'sso' clear the stored password and keep the stored allowedEmails when the field is omitted. Only disabling with isActive false preserves the whole access configuration untouched — it also retains the token, so re-enabling restores the share as it was. Two enabling combinations are rejected outright with a 400 instead of being partially applied: 'password' when neither a password is supplied nor one is already stored, and 'email' or 'sso' when the resulting allowedEmails would be empty because none was supplied and none is stored. On a file that has never been shared there is nothing stored to fall back on, so enabling any mode other than 'public' must carry its credential in the same request. ${WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The updated file share.' },
     }),
     {
@@ -622,7 +656,7 @@ const routes = [
       operationId: 'updateFileContent',
       summary: 'Replace File Content',
       description: 'Replace the complete contents of an existing file from UTF-8 or base64 input.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated file.' },
     }),
     {
@@ -659,7 +693,7 @@ const routes = [
       operationId: 'bulkDeleteFiles',
       summary: 'Delete Files',
       description: 'Delete up to 1,000 workspace files in one operation.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Count of deleted files.' },
     }),
     {
@@ -689,8 +723,7 @@ const routes = [
     filesOperation({
       operationId: 'listFilesFolders',
       summary: 'List Folders',
-      description:
-        'List workspace file folders with optional parent-path filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
+      description: `List workspace file folders with optional parent-path filtering and sorting. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Workspace file folders.' },
     }),
@@ -715,7 +748,7 @@ const routes = [
       operationId: 'createFilesFolder',
       summary: 'Create Folder',
       description: 'Create a canonical folder path in a workspace.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The created folder.' },
     }),
     {
@@ -745,7 +778,7 @@ const routes = [
       operationId: 'relocateFilesFolder',
       summary: 'Rename or Move Folder',
       description: 'Rename or move a folder and atomically rewrite descendant canonical paths.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The relocated folder.' },
     }),
     {
@@ -776,7 +809,7 @@ const routes = [
       operationId: 'deleteFilesFolder',
       summary: 'Delete Folder',
       description: 'Delete a folder, optionally including every nested file and folder.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Folder deletion confirmation and deleted item counts.' },
     }),
     {

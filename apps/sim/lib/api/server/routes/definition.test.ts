@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import {
+  methodMatchesContract,
   requireBinaryRouteDefinition,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
@@ -110,5 +111,28 @@ describe('declarative route definition invariants', () => {
         { ...renameOperation, id: 'files.download' }
       )
     ).toThrow('does not match')
+  })
+})
+
+describe('methodMatchesContract', () => {
+  it.each(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const)(
+    'accepts %s against its own contract',
+    (method) => {
+      expect(methodMatchesContract(method, method)).toBe(true)
+    }
+  )
+
+  it('accepts HEAD against a GET contract, which is how Next serves it', () => {
+    expect(methodMatchesContract('HEAD', 'GET')).toBe(true)
+  })
+
+  it.each([
+    ['HEAD', 'POST'],
+    ['HEAD', 'DELETE'],
+    ['POST', 'GET'],
+    ['GET', 'DELETE'],
+    ['PATCH', 'PUT'],
+  ] as const)('rejects %s against a %s contract', (requestMethod, contractMethod) => {
+    expect(methodMatchesContract(requestMethod, contractMethod)).toBe(false)
   })
 })

@@ -38,6 +38,7 @@ import {
 } from '@/lib/auth/constants'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
+import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
@@ -45,6 +46,12 @@ import {
   authorizeSubscriptionReference,
   isPersonalCheckoutRequest,
 } from '@/lib/billing/authorization'
+import {
+  type CheckoutAdmissionClaim,
+  claimCheckoutAdmission,
+  releaseCheckoutAdmission,
+  resolveCheckoutReferenceId,
+} from '@/lib/billing/checkout-admission'
 import {
   getOrganizationIdForSubscriptionReference,
   syncSubscriptionPlan,
@@ -1001,19 +1008,45 @@ export const auth = betterAuth({
       /**
        * Personal checkout guard. The Stripe plugin's `authorizeReference`
        * only runs for organization references (it skips references equal to
-       * the session user), so duplicate-coverage enforcement for personal
-       * checkouts lives here: a member of an org with an entitled paid
-       * subscription must not buy a personal plan on top of it.
+       * the session user), so personal checkout admission lives here. It
+       * prevents both a duplicate checkout while Stripe payment is pending
+       * and a personal plan for someone already covered by an organization.
        */
       if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
         const session = await getSessionFromCtx(ctx)
         const sessionUserId = session?.user?.id
-        if (sessionUserId && isPersonalCheckoutRequest(ctx.body ?? {}, sessionUserId)) {
-          await assertPersonalCheckoutAllowed(sessionUserId)
+        if (sessionUserId) {
+          const requestBody = ctx.body ?? {}
+          const referenceId = resolveCheckoutReferenceId(
+            requestBody,
+            sessionUserId,
+            getActiveOrganizationId(session)
+          )
+          if (referenceId) {
+            const checkoutAdmissionClaim = await claimCheckoutAdmission(referenceId)
+            try {
+              if (isPersonalCheckoutRequest(requestBody, sessionUserId)) {
+                await assertPersonalCheckoutAllowed(sessionUserId)
+              }
+            } catch (error) {
+              await releaseCheckoutAdmission(checkoutAdmissionClaim)
+              throw error
+            }
+            return { context: { billingCheckoutAdmissionClaim: checkoutAdmissionClaim } }
+          }
         }
       }
 
       return
+    }),
+    after: createAuthMiddleware(async (ctx) => {
+      if (!isBillingEnabled || ctx.path !== '/subscription/upgrade') return
+      const checkoutContext = ctx as typeof ctx & {
+        billingCheckoutAdmissionClaim?: CheckoutAdmissionClaim
+      }
+      if (checkoutContext.billingCheckoutAdmissionClaim) {
+        await releaseCheckoutAdmission(checkoutContext.billingCheckoutAdmissionClaim)
+      }
     }),
   },
   plugins: [

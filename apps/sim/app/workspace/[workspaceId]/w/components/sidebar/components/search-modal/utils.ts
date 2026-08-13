@@ -186,13 +186,11 @@ export interface CommandItemProps {
   onSelect: () => void
   icon: ComponentType<{ className?: string }>
   bgColor: string
-  showColoredIcon?: boolean
   /**
-   * Core workflow block type. Renders as the shared accent chip only when the
-   * type has a mapped accent; unmapped types — every integration block — fall
-   * back to their catalog `bgColor` tile.
+   * Block the row names, when it names one. Decides whether the tile takes the
+   * canvas role accent or the row's own `bgColor`. @see hasBlockAccent
    */
-  workflowType?: string
+  blockType?: string
   /** Primary text of the row. */
   label: string
   /** De-emphasized lead-in before the label (e.g. a tool operation's service). */

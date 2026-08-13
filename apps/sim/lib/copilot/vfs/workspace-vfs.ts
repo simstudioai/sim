@@ -192,6 +192,14 @@ function bindWorkspaceFileResult<T>(
   }
 }
 
+function renderErrorResult(error: string): FileReadResult {
+  return {
+    content: JSON.stringify({ ok: false, error }),
+    totalLines: 1,
+    error,
+  }
+}
+
 function recordContributingFile(
   files: Map<string, WorkspaceFileSecretProvenanceIdentity>,
   identity: WorkspaceFileSecretProvenanceIdentity
@@ -1111,10 +1119,7 @@ export class WorkspaceVFS {
     contributingFiles: Map<string, WorkspaceFileSecretProvenanceIdentity>
   ): Promise<FileReadResult> {
     if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
-      return {
-        content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
-        totalLines: 1,
-      }
+      return renderErrorResult('File is too large to render')
     }
     const { content: buffer } = await readWorkspaceFileContent.execute({
       principal: this.requireFilePrincipal(),
@@ -1125,10 +1130,7 @@ export class WorkspaceVFS {
       },
     })
     if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
-      return {
-        content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
-        totalLines: 1,
-      }
+      return renderErrorResult('File is too large to render')
     }
     // Already-binary uploads render directly; source files are compiled first
     // (E2B regime -> doc sandbox: Node pptx/docx, Python pdf; otherwise
@@ -1139,10 +1141,7 @@ export class WorkspaceVFS {
     } else {
       const code = buffer.toString('utf-8')
       if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
-        return {
-          content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
-          totalLines: 1,
-        }
+        return renderErrorResult('File source exceeds maximum size')
       }
       if (isDocSandboxEnabled && (await getE2BDocFormat(record.name))) {
         bin = (
@@ -1156,10 +1155,7 @@ export class WorkspaceVFS {
       } else {
         const taskId = BINARY_DOC_TASKS[ext]
         if (!taskId) {
-          return {
-            content: JSON.stringify({ ok: false, error: 'Cannot render this file' }),
-            totalLines: 1,
-          }
+          return renderErrorResult('Cannot render this file')
         }
         bin = await runSandboxTask(
           taskId,
@@ -1345,13 +1341,10 @@ export class WorkspaceVFS {
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
         if (!isRenderableDocExt(ext)) {
-          return bindWorkspaceFileResult(record, {
-            content: JSON.stringify({
-              ok: false,
-              error: 'Render supports .pptx, .docx, and .pdf only',
-            }),
-            totalLines: 1,
-          })
+          return bindWorkspaceFileResult(
+            record,
+            renderErrorResult('Render supports .pptx, .docx, and .pdf only')
+          )
         }
         const renderName = record.name
         const rendered = await this.renderDocRecordResult(
@@ -1363,19 +1356,17 @@ export class WorkspaceVFS {
         )
         return bindWorkspaceFileResult(record, rendered, 'derived', [...contributingFiles.values()])
       } catch (err) {
+        const error = toError(err).message
         logger.warn('Render read failed via VFS', {
           workspaceId: this._workspaceId,
           path,
           fileId: record?.id,
-          error: toError(err).message,
+          error,
         })
         // Return an explicit error (not null) once the file resolved — a null read
         // looks like a missing path and sends the agent hunting for the "correct"
         // render path instead of surfacing the real compile/render failure.
-        const errorResult = {
-          content: JSON.stringify({ ok: false, error: toError(err).message }),
-          totalLines: 1,
-        }
+        const errorResult = renderErrorResult(error)
         return record ? bindWorkspaceFileResult(record, errorResult) : { value: errorResult }
       }
     }

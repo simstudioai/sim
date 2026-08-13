@@ -1,8 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import type { AuditLogOperation, AuditLogPrincipal } from '@/lib/audit-logs/application/operations'
 import { resolveEnterpriseAuditAccess } from '@/lib/audit-logs/authorization'
-import type { OperationUseCase } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { ForbiddenOperationError, type OperationUseCase } from '@/lib/core/application'
 
 export interface AuthorizedAuditLogContext {
   organizationId: string
@@ -25,8 +24,8 @@ function requireAuditLogPrincipal(
   operation: AuditLogOperation
 ): asserts principal is AuditLogPrincipal {
   if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
-    throw new OrchestrationError(
-      'forbidden',
+    throw new ForbiddenOperationError(
+      'PRINCIPAL_KIND_NOT_PERMITTED',
       `Principal kind ${principal.kind} cannot perform operation ${operation.id}`
     )
   }
@@ -48,7 +47,7 @@ export function defineAuthorizedAuditLogUseCase<const O extends AuditLogOperatio
         actorUserId,
         definition.organizationId(input)
       )
-      if (!access.success) throw new OrchestrationError('forbidden', access.message)
+      if (!access.success) throw new ForbiddenOperationError(access.code, access.message)
       return definition.execute({
         principal,
         input,

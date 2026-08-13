@@ -20,6 +20,7 @@ import {
 import type { V2ApiKeyPrincipal } from '@/lib/api/server/routes/v2-api-key-auth'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
+import type { ForbiddenDetailCode } from '@/lib/core/application'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -83,6 +84,8 @@ function serviceFailureResponse(failure: ExecuteWorkflowServiceFailure) {
   return v2Error(code, isRunIdConflict ? 'Run ID has already been used' : failure.message, {
     status: failure.statusCode,
     headers,
+    /** An unconfirmed enqueue may already have started a run — reconcile on `runId`, never retry blind. */
+    omitRetryAfter: failure.code === 'ASYNC_ENQUEUE_AMBIGUOUS',
     details:
       detailCode || failure.executionId
         ? {
@@ -272,7 +275,9 @@ export const POST = withRouteHandler(
             return v2Error('NOT_FOUND', 'Workflow not found')
           }
           if (workflowAuthorization.status === 403) {
-            return v2Error('FORBIDDEN', 'Insufficient workspace permissions')
+            return v2Error('FORBIDDEN', 'Insufficient workspace permissions', {
+              details: { code: 'INSUFFICIENT_WORKSPACE_ROLE' satisfies ForbiddenDetailCode },
+            })
           }
           throw new Error(
             `Unexpected workflow authorization status: ${workflowAuthorization.status}`

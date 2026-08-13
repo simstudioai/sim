@@ -100,6 +100,24 @@ describe('normalizeStoredViewConfig', () => {
     const out = normalizeStoredViewConfig({ filter: { $bogus: [{ nested: true }] } })
     expect(out.filter).toBeNull()
   })
+
+  /**
+   * `config` is a schemaless JSONB blob and the config schemas are `.strict()`,
+   * so anything the stored row carries beyond the declared shape would fail the
+   * response parse and turn a legacy row into a 500. The read projects onto the
+   * canonical keys instead.
+   */
+  it('drops a stored key the current config shape does not declare', () => {
+    const out = normalizeStoredViewConfig({ columnOrder: ['col_a'], groupBy: 'col_a' })
+    expect(out).toEqual({ columnOrder: ['col_a'] })
+  })
+
+  it('drops a stored per-sort option the sort spec does not declare', () => {
+    const out = normalizeStoredViewConfig({
+      sort: [{ field: 'col_a', direction: 'asc', nulls: 'last' }],
+    })
+    expect(out.sort).toEqual([{ field: 'col_a', direction: 'asc' }])
+  })
 })
 
 describe('table-view mutations signal collaborators', () => {

@@ -9,6 +9,7 @@ import {
   v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2PaginationFields,
+  v2RunWindowBoundSchema,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
@@ -28,11 +29,23 @@ const v2LogCostSchema = z
  * reported set is exactly the persisted set — a value missing here fails the response
  * parse, and because list validation is whole-page one such row turns an entire page
  * into a 500.
+ *
+ * That pass-through is also why this field disagrees with the run resources for the
+ * same run, and the disagreement is documented rather than reconciled. The run list
+ * projects `paused` over the persisted value whenever the run holds a `paused` or
+ * `partially_resumed` row in `paused_executions` (`executionStatus` in
+ * `lib/workflows/executor/execution-queries.ts`), so an ordinary human-in-the-loop
+ * pause reads `paused` there and `pending` here. Adopting the overlay would need this
+ * read to join `paused_executions`, and would silently move live runs between the
+ * `pending` and `paused` buckets of a shipped field that internal log consumers read
+ * from the same query — a breaking change, not a correction. Callers that need the
+ * pause distinction read the run resources, which also carry the `paused` object that
+ * separates "waiting on a human" from "a resume attempt failed".
  */
 export const v2LogStatusSchema = z
   .enum(PERSISTED_WORKFLOW_EXECUTION_STATUSES)
   .describe(
-    'Current execution status. `redacting` is transient while run output is scrubbed. `paused` is reported when a resume attempt did not run to completion and the run is waiting to be resumed again.'
+    'Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not run to completion and the run is waiting to be resumed again. **This differs from the run resources for the same run:** `GET /api/v2/workflows/{id}/runs` and `GET /api/v2/workflows/{id}/runs/{runId}` additionally report `paused` for a run held at a human-in-the-loop pause point, which this field reports as `pending`. Use the run resources when the pause state matters.'
   )
 
 /** Execution `files` is a per-run jsonb array of attachment metadata. */
@@ -189,14 +202,8 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     workflowIds: z.string().describe('Comma-separated workflow identifiers to include.').optional(),
     triggers: z.string().describe('Comma-separated trigger types to include.').optional(),
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
-    startDate: z
-      .string()
-      .describe('Only include runs started at or after this ISO 8601 timestamp.')
-      .optional(),
-    endDate: z
-      .string()
-      .describe('Only include runs started at or before this ISO 8601 timestamp.')
-      .optional(),
+    startDate: v2RunWindowBoundSchema('startDate').optional(),
+    endDate: v2RunWindowBoundSchema('endDate').optional(),
     runId: z
       .string()
       .min(1, 'runId cannot be empty')
@@ -232,9 +239,20 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       outOfRange: 'clamp',
       description: 'Maximum log entries per page.',
     }),
+    /**
+     * Deliberate deviation from the v2 `sortBy` + `sortOrder` convention, and
+     * the same one `GET /workflows/{id}/runs` makes for the same reason: logs
+     * have exactly one sortable column (execution start time), so there is no
+     * `sortBy` to pair with. `order` is the published name and renaming it
+     * would break every caller, while accepting `sortOrder` as an alias would
+     * add a second spelling of one thing with undefined precedence when both
+     * arrive — so the split is documented rather than papered over.
+     */
     order: z
       .enum(['desc', 'asc'])
-      .describe('Sort order by execution start time.')
+      .describe(
+        'Sort direction by execution start time. This operation deviates from the v2 `sortBy` + `sortOrder` convention: logs are sortable only by start time, so the direction is carried by this single `order` param and `sortBy`/`sortOrder` are not accepted.'
+      )
       .optional()
       .default('desc'),
     folderPaths: z
@@ -262,6 +280,23 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       }),
   })
   .strict()
+  /**
+   * The other half of the parity with the sibling run list
+   * (`v2ListWorkflowRunsQuerySchema`): agreeing on the timestamp *format* while
+   * still disagreeing on window *validity* would leave an inverted window a 400 on
+   * `/runs` and a silently empty page here — the same wrong-answer-instead-of-error
+   * shape the format check was added to remove.
+   */
+  .refine(
+    (query) =>
+      !query.startDate ||
+      !query.endDate ||
+      Date.parse(query.startDate) <= Date.parse(query.endDate),
+    {
+      error: 'startDate must be before or equal to endDate',
+      path: ['startDate'],
+    }
+  )
 
 export const v2ListLogsContract = defineRouteContract({
   method: 'GET',

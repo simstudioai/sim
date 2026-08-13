@@ -109,6 +109,15 @@ export function numberKey<Row>(column: SQLWrapper, read: (row: Row) => number): 
  * `date_trunc` rules out an index-ordered scan, but none of the timestamp
  * columns sorted here are indexed, so it costs nothing today. Adding an index
  * to serve one of these sorts means indexing this same expression.
+ *
+ * The column serializes the `Date` (drizzle's own timestamp encoder) and also
+ * supplies the cast. A bare placeholder arrives as `unknown` and `date_trunc` is
+ * overloaded (`timestamp`, `timestamptz`, `interval`), so it resolves to no
+ * overload and 500s on page two — this is the only key whose placeholder sits
+ * inside a function rather than against a typed column. Taking the type from the
+ * column rather than a literal keeps a `timestamptz` correct, and reading it
+ * inside `bind` keeps the module-scope sort maps from touching the column at
+ * import time.
  */
 export function timestampKey<Row>(column: Column, read: (row: Row) => Date): KeysetKey<Row> {
   return {
@@ -118,8 +127,7 @@ export function timestampKey<Row>(column: Column, read: (row: Row) => Date): Key
       if (typeof value !== 'string') return null
       const date = new Date(value)
       if (Number.isNaN(date.getTime())) return null
-      // Bound through the column so drizzle's own timestamp encoder serializes it.
-      return sql`date_trunc('milliseconds', ${sql.param(date, column)})`
+      return sql`date_trunc('milliseconds', cast(${sql.param(date, column)} as ${sql.raw(column.getSQLType())}))`
     },
   }
 }

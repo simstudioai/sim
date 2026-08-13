@@ -1,46 +1,17 @@
 'use client'
 
-import type React from 'react'
 import { useMemo } from 'react'
 import { ChipCombobox, Combobox, type ComboboxOptionGroup, cn } from '@sim/emcn'
-import { Repeat, Split } from '@sim/emcn/icons'
 import { useShallow } from 'zustand/react/shallow'
 import {
   type FlattenOutputsBlockInput,
   flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
-import { getBlock } from '@/blocks'
-import { getTileIconColorClass } from '@/blocks/icon-color'
+import { BlockTile } from '@/blocks/block-tile'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-
-/**
- * Renders a tag icon with background color for block section headers.
- *
- * @param icon - Either a letter string or a Lucide icon component
- * @param color - Background color for the icon container
- * @returns A styled icon element
- */
-const TagIcon: React.FC<{
-  icon: string | React.ComponentType<{ className?: string }>
-  color: string
-}> = ({ icon, color }) => (
-  <div
-    className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded [&_img]:size-full'
-    style={{ background: color }}
-  >
-    {typeof icon === 'string' ? (
-      <span className={cn(getTileIconColorClass(color, true), 'font-bold text-micro')}>{icon}</span>
-    ) : (
-      (() => {
-        const IconComponent = icon
-        return <IconComponent className={cn(getTileIconColorClass(color, true), 'size-[9px]')} />
-      })()
-    )}
-  </div>
-)
 
 const EMPTY_OUTPUTS: string[] = []
 
@@ -201,16 +172,6 @@ export function OutputSelect({
   }, [selectedOutputs, workflowOutputs, placeholder])
 
   /**
-   * Gets the background color for a block output based on its type
-   * @param blockType - The type of the block
-   * @returns The hex color code for the block
-   */
-  const getOutputColor = (blockType: string) => {
-    const blockConfig = getBlock(blockType)
-    return blockConfig?.bgColor || '#2F55FF'
-  }
-
-  /**
    * Groups outputs by block and sorts by distance from starter block.
    * Returns ComboboxOptionGroup[] for use with Combobox.
    */
@@ -261,25 +222,15 @@ export function OutputSelect({
 
     return sortedGroups.map(({ blockName, outputs }) => {
       const firstOutput = outputs[0]
-      const blockConfig = getBlock(firstOutput.blockType)
-      const blockColor = getOutputColor(firstOutput.blockType)
-
-      let blockIcon: string | React.ComponentType<{ className?: string }> = blockName
-        .charAt(0)
-        .toUpperCase()
-
-      if (blockConfig?.icon) {
-        blockIcon = blockConfig.icon
-      } else if (firstOutput.blockType === 'loop') {
-        blockIcon = Repeat
-      } else if (firstOutput.blockType === 'parallel') {
-        blockIcon = Split
-      }
 
       return {
         sectionElement: (
           <div className='flex items-center gap-1.5 px-1.5 py-1'>
-            <TagIcon icon={blockIcon} color={blockColor} />
+            <BlockTile
+              blockType={firstOutput.blockType}
+              fallbackLabel={blockName.charAt(0).toUpperCase()}
+              size='sm'
+            />
             <span className='text-small'>{blockName}</span>
           </div>
         ),
