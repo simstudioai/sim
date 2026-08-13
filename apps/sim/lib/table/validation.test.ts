@@ -200,9 +200,8 @@ describe('coerceRowToSchema — uncoercible values under the `reject` policy', (
 
   /**
    * A bare number cannot say whether it means seconds or milliseconds, and both
-   * readings land in range. Milliseconds used to win, so `1600000000` — a
-   * Unix-seconds timestamp for September 2020 — stored 19 January 1970 with a
-   * 200.
+   * readings land in range: guessing milliseconds stores `1600000000` — a
+   * Unix-seconds timestamp for September 2020 — as 19 January 1970 under a 200.
    */
   it('refuses a bare epoch number rather than guessing its unit', () => {
     const data: RowData = { col_d: 1600000000 }

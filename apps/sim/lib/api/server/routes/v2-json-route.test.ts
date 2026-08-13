@@ -499,13 +499,12 @@ describe('defineV2JsonRoute', () => {
  * A `HEAD` on a route whose `GET` is not safe must answer the question the `GET`
  * would answer, minus the effect — not merely the question admission can answer.
  *
- * The builder used to return {@link v2HeadNoEffect} straight after
- * authenticate + rate-limit, so any valid API key drew a bodiless 200 for a
- * denied principal kind, a nonexistent id, another tenant's workspace, and even
- * a request missing a required param — while the `GET` beside it answered 403.
- * That is an existence oracle: the probe reveals what the caller is not
- * authorized to know. The fix runs the use case's authorization phase and stops
- * before its business phase.
+ * Returning {@link v2HeadNoEffect} straight after authenticate + rate-limit is
+ * an existence oracle: any valid API key draws a bodiless 200 for a denied
+ * principal kind, a nonexistent id, another tenant's workspace, and even a
+ * request missing a required param, while the `GET` beside it answers 403. These
+ * pin the builder to running the authorization phase and stopping before the
+ * business phase.
  */
 describe('defineV2JsonRoute HEAD on a route that is not head-safe', () => {
   const headContract = defineRouteContract({

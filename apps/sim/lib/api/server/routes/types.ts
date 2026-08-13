@@ -53,9 +53,9 @@ export interface JsonRouteDefinition<
    *
    * That second argument exists for pagination: a `nextCursor` is stamped with
    * the sort and filters the page was read under, and those live in the query,
-   * not in the domain result. Threading them through the use case instead —
-   * which several lists used to do — makes an application service carry an HTTP
-   * cursor-encoding concern purely so the presenter can see it again.
+   * not in the domain result. Threading them through the use case instead would
+   * make an application service carry an HTTP cursor-encoding concern purely so
+   * the presenter can see it again.
    */
   present(
     result: R,

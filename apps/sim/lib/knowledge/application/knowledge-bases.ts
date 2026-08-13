@@ -230,9 +230,8 @@ async function executeListKnowledgeBases(args: {
 }): Promise<ListKnowledgeBasesResult> {
   /**
    * One index read serves both jobs: rendering each row's `folderPath` and
-   * resolving the caller's `folderPath` filter to an id. The list previously
-   * paid for a second, lock-taking read for the filter alone, which it needed
-   * only to raise the 404 this list no longer answers.
+   * resolving the caller's `folderPath` filter to an id, so the filter costs no
+   * second, lock-taking read of its own.
    */
   const index = await loadActiveFolderPathIndex(
     args.context.workspaceId,

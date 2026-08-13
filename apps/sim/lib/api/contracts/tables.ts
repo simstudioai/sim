@@ -474,11 +474,10 @@ const MAX_SORT_KEYS = 16
 /**
  * The published predicate grammar.
  *
- * Everything here was previously true only in the SQL builder's own comments: a
- * caller reading the spec saw an untyped operand and an operator enum with no
- * semantics, so the natural guess — SQL's own `%` wildcard — matched zero rows
- * under a 200 and nothing said why. Stated on the operator and on the tree so it
- * reaches the OpenAPI description of every endpoint that takes a predicate.
+ * Without it a caller reads an untyped operand and an operator enum with no
+ * semantics, and the natural guess — SQL's own `%` wildcard — matches zero rows
+ * under a 200 with nothing saying why. Stated on the operator and on the tree so
+ * it reaches the OpenAPI description of every endpoint taking a predicate.
  */
 const PREDICATE_OPERATOR_GRAMMAR = [
   'Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`.',

@@ -820,11 +820,9 @@ export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
  * exported string so the request-body description and the OpenAPI operation
  * description cannot drift from each other.
  *
- * It deliberately does not enumerate the combinations the route rejects. That
- * list used to be pasted onto both the operation and the request-body
- * description, restating what each field already says; a caller reads a
- * constraint where it applies, so it lives on `async`, `stream`,
- * `executionTimeoutSeconds`, `includeThinking`, and `includeToolCalls`.
+ * It deliberately does not enumerate the combinations the route rejects: a
+ * caller reads a constraint where it applies, so each lives on `async`,
+ * `stream`, `executionTimeoutSeconds`, `includeThinking`, or `includeToolCalls`.
  */
 export const EXECUTE_OPTION_CONSTRAINTS =
   'Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.'

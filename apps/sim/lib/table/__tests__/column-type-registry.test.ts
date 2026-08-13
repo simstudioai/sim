@@ -142,12 +142,11 @@ describe('intentional divergences from the pre-registry behavior', () => {
   })
 
   it('refuses a number as a date, on the write path and the bulk gate alike', () => {
-    // The gate used to be stricter than `coerce` here: a whole numeric column
-    // reinterpreted as epoch milliseconds would turn 1, 5, 42 into three
-    // timestamps in January 1970. The write path had the same problem one value
-    // at a time — `1600000000` is September 2020 as seconds and January 1970 as
-    // milliseconds, both in range — so `coerce` now refuses a bare number too
-    // and the gate needs no override.
+    // A whole numeric column reinterpreted as epoch milliseconds turns 1, 5, 42
+    // into three timestamps in January 1970, and one value at a time is no
+    // better — `1600000000` is September 2020 as seconds and January 1970 as
+    // milliseconds, both in range. `coerce` refuses a bare number, so the gate
+    // needs no override.
     const column: ColumnDefinition = { name: 'd', type: 'date' }
     for (const value of [0, 1, 42, 1700000000]) {
       expect(isValueCompatible(value, column)).toBe(false)

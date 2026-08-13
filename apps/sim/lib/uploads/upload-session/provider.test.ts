@@ -283,10 +283,10 @@ describe('local upload-session provider', () => {
     await expect(stat(localPath('.multipart/upload-1'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
-  // The staged object and its sidecar used to be named after the destination, so
-  // a key the contract's longest name produces overflowed `NAME_MAX` and the
-  // whole session became unusable: `POST /uploads` issued a transfer URL, the
-  // PUT against it 500'd, and `complete` then reported the object missing.
+  // A staged object named after its destination overflows `NAME_MAX` at the
+  // contract's longest name, and the whole session becomes unusable: the
+  // transfer URL is issued, the PUT against it 500s, and `complete` then reports
+  // the object missing.
   it('stores a PUT under the longest key the name contract can produce', async () => {
     await writeLocalPutObject({
       uploadId: '11111111-1111-4111-8111-111111111111',

@@ -213,12 +213,6 @@ export const FULL_SET_LIST = 'The bounded set is returned in one page; `nextCurs
  * Appended to a `GET` whose route declares `headSafe: false` because the read
  * has an effect — an outbound connection, or an audit event.
  *
- * The sentence this replaced promised the opposite of what the route now does.
- * The short-circuit used to sit between admission and parsing, so a `HEAD`
- * returned a bodiless `200` for an id the same caller's `GET` answered `403` or
- * `404` for — an existence oracle. `defineV2JsonRoute`/`defineV2BinaryRoute`
- * now admit, parse, and authorize a `HEAD` through the use case's `authorize`
- * phase before answering it bodiless, so its refusals mirror the `GET`'s.
  * Pinned by `contracts/v2/openapi/head-not-safe.test.ts`.
  */
 export const HEAD_MIRRORS_GET =
@@ -231,9 +225,7 @@ export const HEAD_MIRRORS_GET =
  * `Content-Length` on a `HEAD` is the standard way to size a download before
  * fetching it, and this surface cannot serve it: the byte length comes from the
  * same read that records the download audit event, which is the effect
- * `headSafe: false` exists to skip. Naming the alternative is the difference
- * between a documented limitation and a caller discovering an absent header at
- * runtime.
+ * `headSafe: false` exists to skip.
  */
 export const HEAD_OMITS_PAYLOAD_HEADERS =
   'In particular a `HEAD` does not report `Content-Length`, so it cannot be used to size a download in advance; read the size from the file resource instead.'

@@ -54,10 +54,9 @@ export const MCP_SERVER_REAUTHORIZATION_REQUIRED = 'MCP_SERVER_REAUTHORIZATION_R
  * Every branch returns a constant, so an upstream message — which may quote a
  * hostname, a token endpoint, or a stack — never reaches the caller.
  *
- * Selection is typed for the same reason classification is. The cooldown branch
- * used to search the message for `cooldown`, but `McpConnectionError`
- * interpolates the server's display name into its message, so a server a caller
- * named after the word was told to wait out a cooldown it was never in.
+ * Selection is typed, never matched on message text: `McpConnectionError`
+ * interpolates the server's display name into its message, so a server named
+ * after the word `cooldown` would select the cooldown branch it is not in.
  */
 function unreachableServerMessage(error: unknown): string {
   if (isTimeoutError(error)) return 'The MCP server took too long to respond'

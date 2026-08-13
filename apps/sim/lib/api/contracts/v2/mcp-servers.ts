@@ -119,9 +119,7 @@ export const v2McpServerSchema = z
     /**
      * These three are written only by a real discovery. Registration stores a
      * configuration without contacting the endpoint, so it leaves all three at
-     * their defaults — it used to stamp `connected` and a `lastConnected` of now
-     * for any non-OAuth server, which made both fields false the moment they
-     * were first read.
+     * their defaults rather than asserting a connection nothing has verified.
      */
     connectionStatus: mcpServerSchema.shape.connectionStatus.describe(
       'Result of the most recent connection attempt. Registration and re-registration store a configuration without contacting the endpoint, so a server begins — and returns to — `disconnected` until a tool discovery runs.'

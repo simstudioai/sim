@@ -330,10 +330,10 @@ describe('categorizeError', () => {
   })
 
   /**
-   * The cooldown branch used to be selected by searching the message for
-   * `cooldown`, and `McpConnectionError` interpolates the server's display name
-   * into that message — so a server named after the word was reported as a
-   * transient 503 when its connection had genuinely failed.
+   * `McpConnectionError` interpolates the server's display name into its
+   * message, so selecting the cooldown branch by searching that message reports
+   * a server named after the word as a transient 503 when its connection has
+   * genuinely failed.
    */
   it.concurrent('does not read a cooldown out of a server display name', () => {
     const error = new McpConnectionError('connect ECONNREFUSED', 'Cooldown Docs')

@@ -28,12 +28,10 @@ import {
  * deliberately absent from the public OpenAPI specs (see
  * `UNDOCUMENTED_V2_ROUTES` in `scripts/check-openapi-specs.ts`), because their
  * URL is signed, short-lived, and only ever reached through a documented
- * operation's response. They used to answer with a bare `{ error: string }`
- * instead, which made the one step that actually moves the bytes the one step a
- * caller could not parse with its v2 error handling. Not being in the document
- * is a reason not to publish a route; it was never a reason to answer in a
- * different shape. What that step promises — method, headers, `204`, and which
- * codes mean what — is published on `transfer.url` in `contracts/v2/uploads.ts`.
+ * operation's response. Not being in the document is a reason not to publish a
+ * route; it is not a reason to answer in a different shape. What that step
+ * promises — method, headers, `204`, and which codes mean what — is published on
+ * `transfer.url` in `contracts/v2/uploads.ts`.
  *
  * Every list returns the opaque-cursor envelope (Stripe/Slack-style)
  * `{ data, nextCursor }`, but not every list is *paged*. A paged list also
@@ -84,20 +82,14 @@ import {
  *   on the surface (`scope`, `folderPath`, `deployedOnly`, `type`, `providerId`,
  *   `resourceType`). No generic filter expression. A filter value that matches
  *   nothing is an empty page, never an error — including a `folderPath` naming
- *   no folder ({@link V2_FOLDER_FILTER_MISS}), which used to be this family's
- *   one 404 and is now the same empty page as `workflowIds` naming no workflow.
+ *   no folder ({@link V2_FOLDER_FILTER_MISS}).
  *
  * ## Blank query values
  *
  * A param sent with no value (`?limit=`, `?search=`, `?limit=%20`) is a 400
- * naming it. It is not the same request as an omitted param, and no schema can
- * see the difference on its own: `z.coerce.number()` reads `''` as `0`, so
- * `?limit=` on the lists that clamp became `LIMIT 1` — one row where the omitted
- * param gives a hundred — and `?minCost=` on `GET /logs` became a live
- * `cost >= 0` filter. `search` and `cursor` already rejected a blank because
- * their schemas happened to be strict enough; the rule is enforced for every
- * param at the surface instead (`V2_PARSE_DEFAULTS.rejectBlankQueryValues`,
- * applied to the raw query before coercion), so a param added later inherits it.
+ * naming it, enforced for every param at the surface by
+ * `V2_PARSE_DEFAULTS.rejectBlankQueryValues` — see
+ * `blankQueryValueValidationError` for why a schema cannot see the difference.
  *
  * Every one of these is pushed into SQL, except on `GET /skills` (which narrows the
  * static builtin registry with the same search term, merges it into the DB rows,
@@ -122,11 +114,8 @@ import {
  * table.
  *
  * Adding `limit`/`cursor` to a full-set list is additive, but giving it a
- * *default* `limit` truncates callers reading the whole set today, so it is a
- * breaking change. Five lists took exactly that change while `v2-api` was off
- * in production and enabled only for a staging cohort — the window in which it
- * costs nothing. Once v2 is generally available, moving a shipped full-set list
- * to a defaulted page size needs a version bump.
+ * *default* `limit` truncates callers reading the whole set today, so once v2 is
+ * generally available that change needs a version bump.
  *
  * Three cursor schemes are in use. Two are shared codecs in
  * `app/api/v2/lib/response.ts`, and which of them a list uses is decided by what
@@ -151,33 +140,17 @@ import {
  *
  * ## Query binding and the opaque cursor
  *
- * A cursor names a position in ONE sequence, and a v2 list decides that
- * sequence from its sort AND its filters. Every paged list therefore stamps
- * both into the token it returns and re-checks them on the way back in:
- * replaying a cursor under a different `sortBy`/`sortOrder`, or under a changed
- * filter, is a 400 naming which half changed. Change either by restarting
- * pagination without a cursor.
+ * Every paged list stamps its sort and its filters into the token it returns and
+ * re-checks them on the way back in; replaying a cursor under a different
+ * `sortBy`/`sortOrder` or a changed filter is a 400 naming which half changed.
+ * What belongs in a stamp, and why `limit` and response-shaping params do not,
+ * is documented on `cursorScopeKey` in `lib/api/cursor-binding.ts`.
  *
- * Both failures are silent without the stamp, but they are not the same
- * failure. An offset replayed against a re-filtered sequence names an unrelated
- * ordinal in it. A keyset stays internally coherent — the page it returns is
- * correctly ordered and duplicate-free — and is missing every match that sorts
- * before the cursor's position, which a caller holding an opaque token reads as
- * "almost nothing matched". Neither is recoverable by the client, so neither is
- * served.
- *
- * `limit` is deliberately not part of the binding: it selects how much of the
- * sequence to return, not what the sequence is, so a caller may change page
- * size mid-walk. Params that only shape the response body (`details`,
- * `includeTraceSpans`, `includeFinalOutput` on `GET /logs`) are out for the same
- * reason. The authoritative per-list binding is pinned in
+ * The authoritative per-list binding is pinned in
  * `v2/__tests__/list-pagination.test.ts`, which fails when a list gains a param
- * that is neither bound nor explicitly exempted.
- *
- * The three lists whose token is minted by a domain codec that predates the
- * shared ones (`GET /logs`, `GET /audit-logs`, `GET /billing/logs`) get the same
- * binding by wrapping that token — the domain cursor stays opaque and untouched
- * inside a query-stamped envelope.
+ * that is neither bound nor explicitly exempted. The three lists whose token is
+ * minted by a domain codec (`GET /logs`, `GET /audit-logs`, `GET /billing/logs`)
+ * get the same binding by wrapping that token in a query-stamped envelope.
  */
 
 /**

@@ -1,11 +1,6 @@
 import { sanitizeFileName } from '@/executor/constants'
 
-/**
- * POSIX `NAME_MAX`. It bounds one *path component*, not the whole key, and it
- * counts bytes. Local storage writes a key straight into the upload directory,
- * so a key whose last component crosses this throws `ENAMETOOLONG` out of
- * `writeFile` — an unclassifiable 500 on a name the contract already accepted.
- */
+/** POSIX `NAME_MAX`: bytes in one *path component*, not in the whole key. */
 const MAX_STORAGE_KEY_SEGMENT_BYTES = 255
 
 /** Sidecar attached to local objects promoted through the upload-session transport. */
@@ -26,17 +21,10 @@ export const LOCAL_STAGING_ROOT = '.staging'
 /**
  * Every suffix local storage appends to a stored object's own path component.
  *
- * The key's last component is not the only component derived from a file name.
- * Local storage writes siblings named after the object plus a fixed suffix, and
- * `NAME_MAX` bounds those siblings too — so the budget a name may spend is
- * `255 − the longest suffix`, not 255. Reserving that here is what makes the
- * reservation survive a second sidecar: adding an entry to this list shrinks
- * every key builder's budget at once, while a suffix invented at the write site
- * silently reopens the overflow this module exists to close.
- *
- * Transient artifacts are deliberately absent. The local upload provider stages
- * them under a path derived from the upload id alone, so no temporary name
- * inherits the file name's length and none needs a reservation here.
+ * `NAME_MAX` bounds those siblings too, so adding an entry here shrinks every
+ * key builder's budget at once — while a suffix invented at the write site
+ * silently reopens the overflow this module exists to close. Transient staging
+ * artifacts need no entry: they are named from the upload id alone.
  *
  * Every entry is ASCII, so `length` is its byte count.
  */
@@ -84,29 +72,23 @@ function fitStorageKeyName(safeName: string, budget: number): string {
 /**
  * Builds the last component of a storage key from a caller-supplied file name.
  *
- * The defect this exists to remove: every key generator embedded the file name
- * in a component it also prefixed with a timestamp and a random uniquifier, so
- * the *effective* name limit was `255 − prefix`, not the 255 the contract
- * advertises. A 225-character name — well inside `maxLength: 255` — produced a
- * 256-byte component and a 500, while 256 characters was correctly a 400. The
- * upload-session path was worse: admission accepted the name, handed back a
- * transfer URL, and every later request against that session failed.
+ * A name shares its path component with a uniquifier prefix, so the *effective*
+ * limit is `NAME_MAX − prefix` rather than the 255 the file contracts
+ * advertise. Local storage writes the key straight into the upload directory,
+ * so a component past that throws `ENAMETOOLONG` out of `writeFile` — an
+ * unclassifiable 500 on a name the contract already accepted, and on the
+ * upload-session path a session whose every later request fails.
  *
- * Fixing it by shrinking the declared `maxLength` would make each caller's limit
- * a function of its own key prefix and would break names that already store
- * fine on S3 and GCS, which have no per-component limit. So the budget is
- * reserved here instead: the key is made independent of the name's length, the
- * declared limit stays honest, and no name a contract admits can produce a key
- * a store rejects. The name in a key is a debugging convenience — the row's
- * `originalName` is the identity — so truncating it costs nothing.
+ * Reserving the budget here rather than shrinking the declared `maxLength`
+ * keeps each caller's limit off its own key prefix and keeps working the names
+ * that store fine on S3 and GCS, which have no per-component limit. The name in
+ * a key is a debugging convenience — the row's `originalName` is the identity —
+ * so truncating it costs nothing.
  *
- * The budget is {@link MAX_STORAGE_KEY_NAME_BYTES}, not `NAME_MAX` itself: local
- * storage stores sidecars beside the object under the object's own name, and a
+ * The budget is {@link MAX_STORAGE_KEY_NAME_BYTES}, not `NAME_MAX` itself: a
  * component that fills `NAME_MAX` exactly leaves its sidecar nowhere to go.
  *
- * @param prefix Fixed leading text of the component (uniquifier, timestamp).
- *   Must itself leave room for at least one character of the name.
- * @param fileName Raw caller-supplied name; sanitized here.
+ * @param prefix Must itself leave room for at least one character of the name.
  */
 export function buildStorageKeySegment(prefix: string, fileName: string): string {
   const budget = MAX_STORAGE_KEY_NAME_BYTES - prefix.length

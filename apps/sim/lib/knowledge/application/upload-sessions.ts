@@ -398,10 +398,9 @@ interface PendingProcessingDispatch {
  * It runs after `completeUploadSession` resolves, and a failure is recorded
  * rather than raised, because by that point the caller's request has already
  * succeeded: the object is stored, the document row exists, and the session is
- * marked completed. Raising here used to fail the completion `POST` with a 500
- * after all of that had committed, and the caller's only recovery — replaying
- * the same request — answered `200 completed`, so the 500 described nothing the
- * caller could act on.
+ * marked completed. A 500 raised after all of that has committed describes
+ * nothing the caller can act on — replaying the same request answers
+ * `200 completed`.
  *
  * The dispatch outcome is not lost by going unraised. `processDocumentsWithQueue`
  * marks the document `failed` with its error when processing itself breaks. When

@@ -21,13 +21,11 @@ export interface OperationUseCase<O extends ApplicationOperation, I, R> {
    * It exists for one caller: a surface that must answer *"would this principal
    * be allowed?"* without causing what the answer would cause. `HEAD` on a route
    * whose `GET` is not safe is that surface — see the `headSafe` option on the
-   * v2 route builders. Answering such a probe from admission alone leaks an
-   * existence oracle, because admission only proves the caller holds *a* valid
-   * key, not that the key reaches *this* resource.
+   * v2 route builders for why answering it any earlier leaks an existence
+   * oracle.
    *
-   * Optional because most use cases have no such caller. The v2 builders reject
-   * a `headSafe: false` route whose use case omits it at definition time, so the
-   * gap is a boot failure rather than a silent 200.
+   * Optional because most use cases have no such caller; the v2 builders reject
+   * a `headSafe: false` route that omits it at definition time.
    */
   authorize?(args: {
     principal: Principal

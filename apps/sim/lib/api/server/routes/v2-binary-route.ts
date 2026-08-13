@@ -34,19 +34,10 @@ interface V2BinaryRouteOptions<
   rateLimit: V2RateLimitPolicy
   errorPolicy: V2ErrorPolicy
   /**
-   * Whether this route's `GET` is safe enough for Next's `HEAD`→`GET` aliasing
-   * to run it. Defaults to `true`, which is correct for a read.
-   *
-   * Set `false` when the `GET` opens an outbound connection or writes a row. A
-   * `HEAD` on such a route is admitted, parsed, and **authorized** exactly as
-   * the `GET` would be, then answered bodiless without running the use case's
-   * business phase — see {@link v2HeadNoEffect}.
-   *
-   * A binary `GET` is a download, and a download is the archetypal read that
-   * records that it happened, so this matters here at least as much as on the
-   * JSON builder it mirrors — including the part that made it a leak: a `HEAD`
-   * answered from admission alone confirmed a file id to a caller whose `GET`
-   * for the same id would have answered 404.
+   * As on {@link defineV2JsonRoute}, whose `headSafe` option carries the
+   * rationale; the bodiless answer is {@link v2HeadNoEffect}. A binary `GET` is
+   * a download — the archetypal read that records that it happened — so it is
+   * the common case here rather than the exception.
    */
   headSafe?: boolean
 }

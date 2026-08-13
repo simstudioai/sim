@@ -2,9 +2,15 @@
  * `U+0000` is the one code point a Postgres `text`/`jsonb` value cannot carry:
  * the wire protocol terminates strings on it, so the driver throws before the
  * statement is planned, and the throw carries no SQLSTATE a route layer can
- * classify. Every boundary that admits caller-supplied text — the JSON request
- * scan, the multipart field scan, and the canonical folder-path decoder —
- * rejects it, so the predicate lives here instead of being restated at each.
+ * classify — it reaches the caller as a 500, on reads as readily as on writes.
+ * Every boundary that admits caller-supplied text rejects it through
+ * {@link containsNulCharacter}: the JSON request scan, the multipart field
+ * scan, and the canonical folder-path decoder.
+ *
+ * Deliberately only NUL. `\n`, `\t`, and `\r` are ordinary content Postgres
+ * stores verbatim, and a lone surrogate is substituted with `U+FFFD` by the
+ * driver's encoder rather than throwing — a fidelity question, not an
+ * availability one.
  */
 const NUL_CHARACTER = '\u0000'
 

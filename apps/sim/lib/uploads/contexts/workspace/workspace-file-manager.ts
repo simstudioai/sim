@@ -202,11 +202,6 @@ export function parseWorkspaceFileKey(key: string): string | null {
 /**
  * Generate workspace-scoped storage key with explicit prefix
  * Format: workspace/{workspaceId}/{timestamp}-{random}-{filename}
- *
- * The name shares its path component with the uniquifier, so
- * {@link buildStorageKeySegment} reserves that prefix out of the component's
- * byte budget — otherwise the effective name limit is smaller than the 255 the
- * file contracts advertise.
  */
 export function generateWorkspaceFileKey(workspaceId: string, fileName: string): string {
   const timestamp = Date.now()

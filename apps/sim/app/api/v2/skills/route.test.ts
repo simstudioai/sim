@@ -314,12 +314,9 @@ describe('/api/v2/skills', () => {
   })
 
   /**
-   * The workspace-key create used to be the case this file pinned analytics
-   * against: it succeeded, and the assertion was that no `skill_created` event
-   * was attributed to a principal with no human subject. `skills.create` now
-   * denies the key outright, so what needs pinning here is the surface's half of
-   * that — the refusal reaches the caller as the operation's own 403, and a
-   * create that never happened emits nothing.
+   * `skills.create` denies a workspace key outright, so what this pins is the
+   * surface's half: the refusal reaches the caller as the operation's own 403,
+   * and a create that never happened emits no analytics.
    */
   it('refuses a workspace-key create and records no analytics for it', async () => {
     mocks.create.mockRejectedValueOnce(

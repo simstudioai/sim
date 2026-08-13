@@ -6,27 +6,16 @@ import { ZodError } from 'zod'
  *
  * A blank value is not the same request as an omitted parameter, but nothing in
  * a schema makes that true on its own. `z.coerce.number()` reads `''` as `0`
- * (`Number('') === 0`), so `?limit=` on the three lists that clamp instead of
- * rejecting became `LIMIT 1` — one row where the omitted param gives a hundred.
- * `z.coerce.number().optional()` on the `/logs` cost and duration bounds turned
- * `?minCost=` into a live `cost >= 0` filter. A plain `z.string()` filter kept
- * the `''` and compared against it. Each of those is a different result set from
- * the one the caller believed they asked for, and none of them is reported.
- *
- * The v2 surface already answers a blank the same way wherever a schema happens
- * to notice — `search` is `.min(1, 'search cannot be empty')` and `cursor` is
- * `.min(1, 'cursor must be a non-empty token')`, both documented as "omit the
- * parameter instead". This applies that published rule to every parameter
- * rather than to the ones whose schema was written strictly enough, so a
- * parameter added later inherits it.
+ * (`Number('') === 0`), so `?limit=` on the lists that clamp became `LIMIT 1` —
+ * one row where the omitted param gives a hundred — and `?minCost=` became a
+ * live `cost >= 0` filter. Each is a different result set from the one the
+ * caller believed they asked for, and none of them is reported.
  *
  * It runs on the *raw* query, before schema validation, because that is the only
  * place the blank still exists: coercion has already turned it into `0`, `false`,
- * or a default by the time a parsed value is available.
- *
- * This is a boundary rule rather than a shared string primitive for the same
- * reason as the NUL-byte scan next door: a primitive only protects the params
- * somebody remembered to build on it.
+ * or a default by the time a parsed value is available. Applying it at the
+ * surface rather than per schema is what makes a parameter added later inherit
+ * the rule.
  */
 export function blankQueryValueValidationError(
   rawQuery: Record<string, string | string[]>
@@ -54,12 +43,9 @@ export function blankQueryValueValidationError(
  * comma-separated string. The array therefore fails the declared type, and the
  * caller is told whatever that type's own message says — `workspaceId` answers
  * "Workspace ID is required" for a request that sent it twice, which points at
- * the wrong problem and reads as a server bug.
- *
- * Naming the duplication is the whole fix, and the boundary is where it belongs
- * for the same reason as the blank scan above: the multiplicity exists only in
- * the raw query. By the time a schema sees the value, the array is
- * indistinguishable from any other wrong type.
+ * the wrong problem. Naming the duplication is the whole fix, and like the blank
+ * scan above it belongs at the boundary: by the time a schema sees the value,
+ * the array is indistinguishable from any other wrong type.
  */
 export function duplicateQueryValueValidationError(
   rawQuery: Record<string, string | string[]>

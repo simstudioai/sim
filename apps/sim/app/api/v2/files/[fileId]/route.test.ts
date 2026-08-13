@@ -121,11 +121,10 @@ describe('v2 single-file routes', () => {
   })
 
   /**
-   * The download `HEAD` short-circuit used to sit between admission and parsing,
-   * so it answered before the workspace-scoped file resolution that lives in the
-   * use case. Any valid API key therefore drew a bodiless 200 for a file id it
-   * cannot reach, while the `GET` for the same URL answered 404. These pin the
-   * probe to the answer the download gives, and to still not auditing one.
+   * A download `HEAD` answered before the use case's workspace-scoped file
+   * resolution is an existence oracle: any valid API key draws a bodiless 200
+   * for a file id whose `GET` answers 404. These pin the probe to the answer the
+   * download gives, and to still not auditing one.
    */
   it('answers an authorized HEAD bodiless without auditing a download', async () => {
     const response = await GET(headRequest(`workspaceId=${WORKSPACE_ID}`), context)

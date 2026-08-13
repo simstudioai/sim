@@ -111,7 +111,7 @@ export function instantScopePart(raw: string | undefined): string | undefined {
  *
  * Array order is preserved, because an array is a sequence in the general case.
  * A filter whose array is really a set must canonicalize it first — see
- * {@link parseUnorderedList} and {@link unorderedJsonScopePart} — or equivalent
+ * {@link parseUnorderedList} and {@link unorderedScopeOf} — or equivalent
  * queries fingerprint differently and a valid cursor is refused.
  */
 export function canonicalJson(value: unknown): string {

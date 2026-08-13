@@ -20,11 +20,9 @@ export const revalidate = 0
  * conditional on a migration actually applying, idempotent, and would be issued by
  * the next ordinary read regardless, so a `HEAD` only brings it forward.
  *
- * `headSafe: false` is reserved for effects a probe would otherwise *fabricate* —
- * an audit row recording an export or download that never happened — or that reach
- * a third party. Declaring it here would also cost real capability, because
- * {@link v2HeadNoEffect} answers `200` unconditionally, so a `HEAD` could no longer
- * distinguish a workflow that exists from one that does not.
+ * Declaring `headSafe: false` would also cost real capability: the bodiless
+ * `200` is unconditional, so a `HEAD` could no longer distinguish a workflow
+ * that exists from one that does not.
  */
 export const GET = defineV2JsonRoute({
   contract: v2GetWorkflowContract,

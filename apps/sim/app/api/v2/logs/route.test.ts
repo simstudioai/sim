@@ -196,9 +196,8 @@ describe('GET /api/v2/logs', () => {
   })
 
   /**
-   * The envelope check used to accept any string as the inner token, so an
-   * empty one passed it and then read as falsy in the domain codec: no cursor
-   * condition was applied and the caller silently got page one back, with a
+   * An empty inner token reads as falsy in the domain codec, so no cursor
+   * condition is applied and the caller silently gets page one back, with a
    * `nextCursor` inviting it to do the same thing forever.
    */
   it('rejects a cursor whose inner token is empty instead of restarting at page one', async () => {

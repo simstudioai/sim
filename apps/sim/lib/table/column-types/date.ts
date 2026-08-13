@@ -30,13 +30,10 @@ export const dateColumnType: ColumnTypeDefinition = {
     // one input whose meaning cannot be recovered from the value itself: `1600000000` is
     // September 2020 read as Unix seconds and 19 January 1970 read as
     // milliseconds, both readings are in range, and nothing on the wire says
-    // which was meant. Milliseconds used to win, so a seconds-based epoch —
-    // the far more common shape — stored a timestamp 50 years early under a
-    // 200. An ISO-8601 string carries its own unit; that is what a date cell
-    // takes. This also removes the reason the bulk retype gate had to be
-    // stricter than the write path, so it no longer overrides. `salvage` keeps
-    // the old milliseconds reading for the machine paths, where the only other
-    // answer is a blank cell.
+    // which was meant — picking either silently stores a timestamp 50 years off
+    // under a 200. An ISO-8601 string carries its own unit; that is what a date
+    // cell takes. `salvage` keeps the milliseconds reading for the machine
+    // paths, where the only other answer is a blank cell.
     //
     // A Date instance may still be out of the representable range (>±8.64e15ms),
     // so `toISOString()` is guarded — it throws RangeError on an Invalid Date —

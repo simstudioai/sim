@@ -36,13 +36,10 @@ function declaresHeadNotSafe(route: OpenApiRouteDefinition): boolean {
 }
 
 /**
- * The `headSafe: false` short-circuit used to answer a bodiless `200` straight
- * after admission, before the use case — and therefore before authorization —
- * ran at all. Both descriptions that mentioned `HEAD` documented that behavior,
- * and both stayed put when the builders were fixed to authorize first, so the
- * spec went on telling callers a `HEAD` on a forbidden or nonexistent id was a
- * `200`. That is a security claim, which makes it the one sentence worth a
- * standing check rather than a one-time correction.
+ * What a `HEAD` answers on a `headSafe: false` route is a security claim, and a
+ * published description that drifts from the builder tells callers a probe on a
+ * forbidden or nonexistent id is a `200`. That is worth a standing check rather
+ * than a one-time correction.
  */
 describe('operations whose GET declares headSafe: false', () => {
   it('document that HEAD is authorized exactly as GET is', () => {

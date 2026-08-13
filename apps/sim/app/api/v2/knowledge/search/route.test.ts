@@ -168,10 +168,9 @@ describe('POST /api/v2/knowledge/search', () => {
   })
 
   /**
-   * `rerankerEnabled` on its own used to satisfy the schema, fail the use case's
-   * model guard, and answer 200 in plain vector order — after paying for the
-   * widened candidate retrieval. The default closes that, matching the internal
-   * search contract.
+   * Without the default, `rerankerEnabled` alone satisfies the schema, fails the
+   * use case's model guard, and answers 200 in plain vector order — after paying
+   * for the widened candidate retrieval.
    */
   it('defaults the reranker model so enabling reranking is enough to run it', async () => {
     const response = await POST(
@@ -280,9 +279,9 @@ describe('POST /api/v2/knowledge/search', () => {
    * The search body is strict, so an undeclared key is refused rather than
    * stripped. That matters most for a bring-your-own reranker key: dropping it
    * silently left the caller believing the secret it sent was in use. It
-   * matters for an ordinary mis-spelling too — `rerankerenabled` used to parse
-   * to 200 with reranking off, and `topk` with `topK` back at its default, both
-   * of which change what the search is billed.
+   * matters for an ordinary mis-spelling too: a stripped `rerankerenabled` is a
+   * 200 with reranking off, and a stripped `topk` leaves `topK` at its default —
+   * both change what the search is billed.
    */
   it('refuses a caller-supplied reranker key instead of silently dropping it', async () => {
     const response = await POST(

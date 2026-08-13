@@ -128,12 +128,11 @@ describe('/api/v2/mcp-servers/[id]/tools', () => {
   })
 
   /**
-   * The `HEAD` short-circuit used to sit between admission and parsing, so it
-   * answered before resource authorization ever ran — which lives in the use
-   * case. Any valid API key therefore drew a bodiless 200 for a server id in a
-   * workspace it cannot read, a server id that does not exist, and a principal
-   * kind this operation refuses outright, while the `GET` for the same URL
-   * answered 403 or 404. These four pin the probe to the answer the `GET` gives.
+   * A `HEAD` answered before the use case's resource authorization is an
+   * existence oracle: any valid API key draws a bodiless 200 for a server id in
+   * a workspace it cannot read, for one that does not exist, and for a principal
+   * kind this operation refuses outright. These four pin the probe to the answer
+   * the `GET` gives.
    */
   it('does not confirm a server to a principal kind the operation refuses', async () => {
     mocks.authorizeDiscover.mockRejectedValueOnce(new WorkspaceApiKeyAuthorizationError())
@@ -260,11 +259,10 @@ describe('/api/v2/mcp-servers/[id]/tools', () => {
   })
 
   /**
-   * The 503 wording used to be selected by searching the error message for
-   * `cooldown`. `McpConnectionError` interpolates the server's display name into
-   * that message, so a server the caller happened to name after the word
-   * borrowed the negative-cache wording and told them to wait out a cooldown
-   * that was never entered.
+   * `McpConnectionError` interpolates the server's display name into its
+   * message, so selecting the 503 wording by searching that message for
+   * `cooldown` hands a server named after the word the negative-cache wording
+   * for a cooldown it was never in.
    */
   it('does not read cooldown wording out of a server display name', async () => {
     mocks.discover.mockRejectedValueOnce(new McpConnectionError('ECONNREFUSED', 'Cooldown Docs'))

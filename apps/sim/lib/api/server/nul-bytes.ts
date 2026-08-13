@@ -3,26 +3,6 @@ import { containsNulCharacter } from '@sim/utils/string'
 import { ZodError } from 'zod'
 
 /**
- * `U+0000` is the one code point a Postgres `text`/`jsonb` value cannot carry:
- * the wire protocol terminates strings on it, so the driver throws before the
- * statement is ever planned. That throw carries no SQLSTATE the route layer can
- * classify, so it lands in `unhandledErrorResponse` and reaches the caller as
- * `500 INTERNAL_ERROR` — on pure reads (`?search=<NUL>`) just as readily as on
- * writes.
- *
- * Every other control character is rejected by nothing and stored by Postgres
- * verbatim. `\n`, `\t`, and `\r` are ordinary content in a workflow description,
- * a table cell, or a file name, so widening this to the whole C0 range would
- * break real payloads to fix nothing. Lone surrogates are also left alone: the
- * driver's UTF-8 encoder substitutes `U+FFFD` rather than throwing, so they are
- * a data-fidelity question, not an availability one. NUL is the only value in
- * this class, and it is rejected on its own. The predicate itself is
- * `containsNulCharacter` in `@sim/utils/string`, shared with the multipart
- * field scan and the canonical folder-path decoder, which reject the same value
- * at boundaries this scan cannot see.
- */
-
-/**
  * Cheap existence scan used on every request. Descends only into arrays and
  * plain records, so a `Buffer`, `Uint8Array`, or `Date` in a parsed payload is
  * treated as a leaf — a zero *byte* in binary content is legitimate and must
@@ -84,26 +64,19 @@ function findNulBytePath(root: unknown): PropertyKey[] {
 }
 
 /**
- * Rejects any `U+0000` reaching the application from a request, as a `ZodError`
- * so it renders through each surface's existing validation-error projection
- * (the v2 `{ error: { code: 'BAD_REQUEST' } }` envelope, the internal
- * `{ error, details }` body) with no per-route wiring.
+ * Rejects any `U+0000` reaching the application from a request — see
+ * {@link containsNulCharacter} for why Postgres cannot carry one — as a
+ * `ZodError`, so it renders through each surface's existing validation-error
+ * projection with no per-route wiring.
  *
- * This is deliberately a *boundary* rejection rather than a shared string
- * primitive that every text field opts into. A primitive only ever protects the
- * fields somebody remembered to build on it, and it cannot protect the fields
- * that have no string schema at all — a table cell and a predicate `value` are
- * `z.unknown()` by contract, because their type is decided by the column, not
- * the wire. Those are exactly the values the reproduction found reaching the
- * driver. One scan over the already-validated payload covers every field,
- * including the ones nobody has enumerated yet.
+ * A boundary scan rather than a shared string schema, because the values that
+ * reached the driver have no string schema to opt into: a table cell and a
+ * predicate `value` are `z.unknown()` by contract, their type decided by the
+ * column rather than the wire.
  *
- * It runs on the *parsed* value, not the raw one, so a NUL in a property the
- * contract strips is not a spurious 400 — only values that actually flow into
- * an application use case are checked.
- *
- * Headers are not scanned: HTTP forbids NUL in a field value and the server's
- * own parser rejects it long before a contract sees it.
+ * It runs on the *parsed* value, so a NUL in a property the contract strips is
+ * not a spurious 400. Headers are not scanned: HTTP forbids NUL in a field
+ * value and the server's own parser rejects it first.
  */
 export function nulByteValidationError(value: unknown): ZodError | null {
   if (!containsNulByte(value)) return null

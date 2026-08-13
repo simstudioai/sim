@@ -106,9 +106,9 @@ describe('/api/v2/files', () => {
 
   /**
    * `?limit=` is not `limit` omitted. `Number('') === 0`, and this list clamps
-   * out-of-range values, so the blank used to reach the query as `LIMIT 1` and
-   * return a single row where the omitted param returns a hundred — a silently
-   * wrong page, not an error. Whitespace-only is the same value.
+   * out-of-range values, so an unrejected blank reaches the query as `LIMIT 1`
+   * and returns a single row where the omitted param returns a hundred — a
+   * silently wrong page, not an error. Whitespace-only is the same value.
    */
   it.each(['limit=', 'limit=%20', 'sortBy=', 'cursor='])(
     'rejects the blank query value %s instead of coercing it',

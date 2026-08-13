@@ -32,10 +32,9 @@ export interface GetPublicLogResult {
    * matching what the workflow resources report for the same workflow — or
    * `null` when no path can be resolved for it.
    *
-   * The two used to collapse into `null`, which made the field unreadable in
-   * both directions: a caller could not tell a root-level workflow from one
-   * whose folder had aged out, and `null` is not a value `folderPaths` would
-   * take back as a filter.
+   * The two must stay distinct: collapsing both into `null` leaves a caller
+   * unable to tell a root-level workflow from one whose folder aged out, and
+   * `null` is not a value `folderPaths` takes back as a filter.
    */
   workflowFolderPath: string | null
   executionData: Record<string, unknown>

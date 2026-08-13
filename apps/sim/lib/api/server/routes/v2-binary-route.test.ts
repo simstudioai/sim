@@ -134,11 +134,11 @@ describe('defineV2BinaryRoute', () => {
   })
 
   /**
-   * A download `HEAD` used to answer 200 from admission alone, so any valid API
-   * key could enumerate file ids across every workspace — the `GET` beside it
-   * answered 403. It now runs the use case's authorization phase and renders the
-   * refusal through the route's error policy, so the probe never says more than
-   * the download would.
+   * A download `HEAD` answered from admission alone lets any valid API key
+   * enumerate file ids across every workspace, while the `GET` beside it answers
+   * 403. Running the use case's authorization phase and rendering the refusal
+   * through the route's error policy keeps the probe from saying more than the
+   * download would.
    */
   it('answers a denied HEAD with the status its GET would produce', async () => {
     const execute = vi.fn(async () => ({ bytes: 'payload' }))

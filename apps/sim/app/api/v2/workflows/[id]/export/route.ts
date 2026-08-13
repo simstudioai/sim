@@ -11,11 +11,6 @@ export const revalidate = 0
  * `headSafe: false` because the use case projects a `WORKFLOW_EXPORTED` audit
  * event. Letting Next alias `HEAD` onto this `GET` would record an export that
  * handed the caller no bytes.
- *
- * A `HEAD` still runs `exportWorkflow.authorize`, so it resolves the workflow
- * and checks access exactly as the `GET` does and renders any rejection through
- * the same concealing error policy. Skipping that made the probe an existence
- * oracle for workflow ids across every workspace.
  */
 export const GET = defineV2JsonRoute({
   contract: v2ExportWorkflowContract,

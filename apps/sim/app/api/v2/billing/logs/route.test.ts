@@ -148,9 +148,8 @@ describe('GET /api/v2/billing/logs', () => {
   })
 
   /**
-   * The envelope check used to accept any string as the inner token, so an
-   * empty one passed it and then read as falsy in the ledger reader: no cursor
-   * condition was applied and the caller walked the first page again — the very
+   * An empty inner token reads as falsy in the ledger reader, so no cursor
+   * condition is applied and the caller walks the first page again — the very
    * failure {@link UNKNOWN_CURSOR_MESSAGE} exists to make visible.
    */
   it('rejects a cursor whose inner token is empty instead of restarting at page one', async () => {

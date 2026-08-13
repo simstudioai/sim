@@ -21,18 +21,14 @@ const HUMAN_PRINCIPAL_POLICY = {
  * not a policy flip — it needs an authorization model for a keyless principal
  * against per-skill editors, which does not exist.
  *
- * `create` used to allow a workspace key on the reasoning that it is gated on
- * workspace `write`, which a key can express. That reasoning held for the
- * authorization check and broke everything after it. A workspace key that
- * created a skill could never update or delete it, so its only possible
- * interaction with the resource was to accumulate rows beyond its own reach —
- * and the row it left behind was not even attributable to it: `create`
- * attributes through `resolvePrincipalAttribution`, which maps a workspace key
- * to the workspace's billing owner, so the write minted a `skill_member` editor
- * grant for a human who did not act and who alone (with workspace admins) could
- * then remove it. Denying `create` makes the lifecycle symmetric on the only
- * consistent side available: the same per-skill editor model authorizes the
- * whole of it. Pinned in `operations.test.ts`.
+ * `create` denies a workspace key too, even though workspace `write` is a role
+ * a key can express. A key that created a skill could never update or delete
+ * it, so it could only accumulate rows beyond its own reach — and the row would
+ * not be attributable to it either: `create` attributes through
+ * `resolvePrincipalAttribution`, which maps a workspace key to the workspace's
+ * billing owner, minting a `skill_member` editor grant for a human who did not
+ * act. Denying it keeps the whole lifecycle under one authorization model.
+ * Pinned in `operations.test.ts`.
  */
 export const skillOperations = {
   list: defineWorkspaceOperation({

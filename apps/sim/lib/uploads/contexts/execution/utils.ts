@@ -38,10 +38,7 @@ export function generateLargeValuePayloadKey(context: ExecutionContext, id: stri
  * loop), which the deterministic key would overwrite. The unique id is its own
  * path segment rather than a filename prefix so the last segment stays the
  * original name — presigned URLs carry no content-disposition, so that segment
- * is what a consumer sees. It is still bounded by
- * {@link buildStorageKeySegment}: a name past one path component's byte limit
- * is `ENAMETOOLONG` on local storage, and an unreadable 500 beats a slightly
- * shortened display name.
+ * is what a consumer sees.
  *
  * Large-value payloads, whose ids are already unique, keep using
  * {@link generateLargeValuePayloadKey}.

@@ -170,10 +170,9 @@ describe('public log application use cases', () => {
   })
 
   /**
-   * `null` used to stand for both "at the workspace root" and "the path could
-   * not be resolved", so a caller could tell neither apart nor feed the value
-   * back to `folderPaths`. The root is `/`, exactly as the workflow resources
-   * report it for the same workflow.
+   * `null` must not stand for both "at the workspace root" and "the path could
+   * not be resolved" — a caller can tell neither apart nor feed it back to
+   * `folderPaths`. The root is `/`, exactly as the workflow resources report it.
    */
   it('reports the workspace root as a path a folderPaths filter would accept', async () => {
     mocks.getLog.mockResolvedValueOnce({ ...log, workflowFolderId: null })
@@ -325,11 +324,10 @@ describe('public log application use cases', () => {
   })
 
   /**
-   * Every other `/logs` filter answers a value nothing matches with an empty
-   * page, and this one used to answer `404 Folder not found` — which also made
-   * the list a folder-existence oracle. The scope must still reach the query:
-   * dropping the unresolved path and sending no scope at all would return the
-   * whole workspace's logs.
+   * Every `/logs` filter answers a value nothing matches with an empty page; a
+   * `404 Folder not found` here would also make the list a folder-existence
+   * oracle. The scope must still reach the query: dropping the unresolved path
+   * and sending no scope would return the whole workspace's logs.
    */
   it('returns an empty page for a folder path that matches nothing', async () => {
     const result = await listPublicLogs.execute({

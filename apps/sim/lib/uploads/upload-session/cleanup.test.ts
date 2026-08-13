@@ -39,8 +39,8 @@ describe('local upload artifact cleanup', () => {
   })
 
   // A PUT or multipart assembly that dies mid-write leaves a staged object
-  // behind. Staged artifacts used to be written next to their destination,
-  // outside every sweep root, so nothing ever reclaimed them.
+  // behind, so staging lives under a sweep root rather than beside its
+  // destination.
   it('reclaims abandoned staged objects', async () => {
     const now = Date.UTC(2026, 7, 4, 12)
     await createStagedObject('abandoned.tmp', now - LOCAL_UPLOAD_ARTIFACT_TTL_MS - 1)
