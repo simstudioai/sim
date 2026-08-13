@@ -6806,7 +6806,7 @@
             "enum": ["live", "deployed"]
           },
           "type": {
-            "description": "Replacement workflow-group producer type.",
+            "description": "Workflow-group producer type. Must match the group's stored type — a group's producer cannot be changed after creation.",
             "type": "string",
             "enum": ["manual", "enrichment"]
           },
