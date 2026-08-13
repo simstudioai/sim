@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
+import { listWorkspaceFileFoldersContract } from '@/lib/api/contracts/workspace-file-folders'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
@@ -15,10 +16,13 @@ import {
  * (scope `active`), so the browser paints populated on first render.
  *
  * The FILE LIST itself is deliberately not here: the sidebar reads it on every workspace route, so
- * it is prefetched by `prefetchWorkspaceSidebar` in the layout — the only boundary that renders
+ * it is seeded by `prefetchWorkspaceSidebar` in the layout — the only boundary that renders
  * before the sidebar registers the query. Prefetching it again here would re-read it per request
  * and still not reach the server render (`HydrationBoundary` defers an already-seen query to an
- * effect, which SSR never runs). See the note on that entry.
+ * effect, which SSR never runs). See the note on that entry. The layout declines to seed a
+ * workspace whose file list exceeds its payload budget; recovering those here would mean
+ * mirroring that budget check inversely, since an unconditional prefetch would re-read and
+ * duplicate the entry for every workspace under the budget.
  *
  * Folders and the chrome reads all go through the data layer, shaped to their route contracts so a
  * hydrated entry matches a client fetch.
@@ -40,7 +44,17 @@ export async function prefetchFilesBrowser(
   await Promise.all([
     queryClient.prefetchQuery({
       queryKey: workspaceFileFolderKeys.list(workspaceId, 'active'),
-      queryFn: () => listWorkspaceFileFolders(workspaceId, { scope: 'active' }),
+      /**
+       * Parsed through the route's own response schema rather than seeded raw. The
+       * manager's record type and `workspaceFileFolderSchema` are two independent
+       * declarations that happen to agree today; without this parse, adding a column
+       * to one silently seeds a shape a client fetch would have stripped — the exact
+       * divergence that put ISO strings under `workspaceFilesKeys.list`.
+       */
+      queryFn: async () => {
+        const folders = await listWorkspaceFileFolders(workspaceId, { scope: 'active' })
+        return listWorkspaceFileFoldersContract.response.schema.shape.folders.parse(folders)
+      },
       staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
     }),
     prefetchResourceListChrome(queryClient, workspaceId, 'file', userId),

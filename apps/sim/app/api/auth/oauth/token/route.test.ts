@@ -24,6 +24,7 @@ vi.mock('@/lib/oauth/credential-service', () => ({
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUse: mockAuthorizeCredentialUse,
+  authorizeCredentialUseForAuth: mockAuthorizeCredentialUse,
 }))
 
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
