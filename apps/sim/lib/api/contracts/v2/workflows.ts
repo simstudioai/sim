@@ -816,18 +816,15 @@ export const v2ExecutionErrorSchema = z
 export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
 
 /**
- * The mutually-exclusive execute option matrix, mirrored from the route's
- * post-parse checks in `app/api/v2/workflows/[id]/execute/route.ts`. Kept as one
+ * That the execute options constrain each other, said once. Kept as one
  * exported string so the request-body description and the OpenAPI operation
  * description cannot drift from each other.
- */
-/**
- * The six rejected option combinations used to be enumerated here and pasted
- * onto both the operation and the request-body description, restating what each
- * field already says. A caller reads the constraint where it applies — on the
- * field it constrains — so the enumeration lives on `async`, `stream`,
- * `executionTimeoutSeconds`, `includeThinking`, and `includeToolCalls`, and the
- * operation says only that the options are mutually constrained.
+ *
+ * It deliberately does not enumerate the combinations the route rejects. That
+ * list used to be pasted onto both the operation and the request-body
+ * description, restating what each field already says; a caller reads a
+ * constraint where it applies, so it lives on `async`, `stream`,
+ * `executionTimeoutSeconds`, `includeThinking`, and `includeToolCalls`.
  */
 export const EXECUTE_OPTION_CONSTRAINTS =
   'Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.'
@@ -838,8 +835,9 @@ export const EXECUTE_OPTION_CONSTRAINTS =
  * (triggerType, draft state, deployment pinning) are NEVER wire fields; they
  * are typed options on the execution service.
  *
- * The six rejected option combinations are enumerated in
- * {@link EXECUTE_OPTION_CONSTRAINTS} and enforced by the route after parsing.
+ * The rejected option combinations are enforced by the route after parsing and
+ * described on the fields they constrain; {@link EXECUTE_OPTION_CONSTRAINTS}
+ * only tells a caller that the options constrain each other.
  */
 export const v2ExecuteWorkflowBodySchema = z
   .object({

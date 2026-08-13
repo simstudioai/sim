@@ -352,6 +352,22 @@ describe('knowledge search application use case', () => {
       expect(result.results[0]).not.toHaveProperty('rerankerScore')
     })
 
+    /**
+     * A resolved call with an empty ordering leaves the caller in the same place a
+     * thrown one does — vector order, no `rerankerScore` — so it reports the same
+     * status. It is not "the reranker matched nothing": `rerank` sends a non-empty
+     * document list and asks for `top_n` of it, so an empty array means the
+     * response carried nothing usable rather than a legitimate empty ranking.
+     */
+    it('reports unavailable when the call resolves without a usable ordering', async () => {
+      mocks.rerank.mockResolvedValueOnce({ results: [], isBYOK: false })
+
+      const result = await rerankedSearch(true)
+
+      expect(result.rerankerStatus).toBe('unavailable')
+      expect(result.results[0]).not.toHaveProperty('rerankerScore')
+    })
+
     it('reports skipped for a tag-only search, which has no query to rank against', async () => {
       mocks.getTagDefinitions.mockResolvedValue([
         { tagSlot: 'tag1', displayName: 'team', fieldType: 'text' },

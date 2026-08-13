@@ -58,17 +58,6 @@ export const INVALID_CURSOR_MESSAGE =
   'cursor does not match the requested sortBy/sortOrder. Restart pagination without a cursor after changing the sort.'
 
 /**
- * Caller-facing message for a cursor that cannot be read back at all.
- *
- * Separate from {@link INVALID_CURSOR_MESSAGE} because that one names
- * `sortBy`/`sortOrder`, and the lists that mint a wrapped domain token accept
- * neither param — `GET /logs` carries its direction in `order`, and
- * `GET /billing/logs` takes no sort param whatsoever. Sending those callers to
- * inspect a knob their operation does not have is the same wrong-signpost
- * problem `UNKNOWN_CURSOR_MESSAGE` was written to avoid on the ledger. The
- * actionable half — restart without a cursor — is identical.
- */
-/**
  * One column of a keyset ordering, with the codec that moves its value through
  * the opaque cursor.
  *

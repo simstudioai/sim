@@ -25,12 +25,6 @@ export interface ListWorkspaceCredentialsInput {
 export interface ListWorkspaceCredentialsResult {
   credentials: VisibleWorkspaceCredential[]
   nextCursorKeys: CursorKey[] | null
-  /**
-   * Echoed back because the route's presenter receives only this result, and the
-   * cursor it hands out has to be stamped with the sort that produced it.
-   */
-  sortBy: ListWorkspaceCredentialsInput['sortBy']
-  sortOrder: ListSortOrder
 }
 
 export const listWorkspaceCredentials = defineAuthorizedWorkspaceUseCase({
@@ -57,7 +51,7 @@ export const listWorkspaceCredentials = defineAuthorizedWorkspaceUseCase({
         limit: input.limit,
         cursorKeys: input.cursorKeys,
       })
-      return { credentials: page.data, nextCursorKeys: page.nextCursorKeys, ...sort }
+      return { credentials: page.data, nextCursorKeys: page.nextCursorKeys }
     }
 
     const workspaceAccess = await checkWorkspaceAccess(context.workspaceId, principal.userId)
@@ -82,6 +76,6 @@ export const listWorkspaceCredentials = defineAuthorizedWorkspaceUseCase({
       limit: input.limit,
       cursorKeys: input.cursorKeys,
     })
-    return { credentials: page.data, nextCursorKeys: page.nextCursorKeys, ...sort }
+    return { credentials: page.data, nextCursorKeys: page.nextCursorKeys }
   },
 })
