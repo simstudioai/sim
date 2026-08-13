@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { db } from '@sim/db'
 import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -429,11 +430,7 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
   }
 }
 
-/**
- * Check if an organization has an enterprise plan
- * Used for Access Control (Permission Groups) feature gating
- */
-export async function isOrganizationOnEnterprisePlan(organizationId: string): Promise<boolean> {
+async function resolveOrganizationEnterprisePlan(organizationId: string): Promise<boolean> {
   try {
     if (!isBillingEnabled) {
       return true
@@ -455,6 +452,17 @@ export async function isOrganizationOnEnterprisePlan(organizationId: string): Pr
     return false
   }
 }
+
+/**
+ * Check if an organization has an enterprise plan
+ * Used for Access Control (Permission Groups) feature gating
+ *
+ * Request-memoized: settings renders gate several sections on the same
+ * organization's plan, and the plan cannot change mid-render. Outside a Server
+ * Component render React evaluates the resolver normally, so routes, tools, and
+ * background work re-read exactly as before.
+ */
+export const isOrganizationOnEnterprisePlan = cache(resolveOrganizationEnterprisePlan)
 
 /**
  * Entitlement for a single org-scoped enterprise feature.
@@ -612,10 +620,16 @@ async function hasWorkspaceTierAccess(
  * Whether the workspace's payer is on a usable Max-or-Enterprise subscription.
  * Shared by the inbox (Sim Mailer), live sync, and custom sandboxes, which all
  * sit on the same entitlement tier.
+ *
+ * Request-memoized because those features are gated side by side on the same
+ * settings render, each otherwise repeating the identical workspace and
+ * subscription reads. The per-feature deployment and env short-circuits live in
+ * the exported wrappers and still run per call. Outside a Server Component
+ * render React evaluates this normally.
  */
-async function hasMaxTierWorkspaceAccess(workspaceId: string): Promise<boolean> {
-  return hasWorkspaceTierAccess(workspaceId, isMaxTier)
-}
+const hasMaxTierWorkspaceAccess = cache(
+  (workspaceId: string): Promise<boolean> => hasWorkspaceTierAccess(workspaceId, isMaxTier)
+)
 
 /**
  * Check whether a workspace is entitled to the inbox (Sim Mailer) feature.
