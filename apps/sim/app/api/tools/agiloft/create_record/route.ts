@@ -130,7 +130,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
            * and the credentials are in the submitted form body, so an error page
            * that echoes request parameters would carry them back.
            */
-          const described = redactAgiloftSecrets(truncate(describeAgiloftError(text), 300), params)
+          const described = truncate(redactAgiloftSecrets(describeAgiloftError(text), params), 300)
 
           /**
            * Every failure below is one Agiloft already decided on, so each is
@@ -139,10 +139,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
            * record rather than converging on the first.
            */
           if (!response.ok) {
+            /**
+             * A 4xx carrying a typed exception is Agiloft validating the request
+             * and declining it, so nothing was written and a corrected retry is
+             * safe. A 5xx is a server fault that may have committed first, so it
+             * keeps the unconfirmed warning whatever the body says.
+             */
+            const declined = response.status < 500 && AGILOFT_EXCEPTION.test(described)
             return {
               success: false,
               output: { id: null, fields: {} },
-              error: `${UNCONFIRMED_PREFIX} Agiloft answered ${response.status}: ${described}`,
+              error: declined
+                ? `Agiloft refused the create, so no record was written: ${described}`
+                : `${UNCONFIRMED_PREFIX} Agiloft answered ${response.status}: ${described}`,
             }
           }
 
@@ -155,17 +164,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
            * unexplained missing ID leaves the write in doubt.
            */
           if (!id) {
-            const refused = AGILOFT_EXCEPTION.test(described)
+            const declined = AGILOFT_EXCEPTION.test(described)
             logger.error(`[${requestId}] Agiloft create returned no record ID`, {
               table: params.table,
               login: params.login,
               fields: Object.keys(fieldValues),
-              refused,
+              declined,
             })
             return {
               success: false,
               output: { id: null, fields: {} },
-              error: refused
+              error: declined
                 ? `Agiloft refused the create, so no record was written: ${described}`
                 : `${UNCONFIRMED_PREFIX} Agiloft accepted the create but returned no record ID: ${described}`,
             }

@@ -44,6 +44,21 @@ export function describeAgiloftError(body: string): string {
 }
 
 /**
+ * Every spelling of a credential that could come back in an echoed response.
+ *
+ * The value is sent form-encoded, so an error page that quotes the submitted
+ * parameters quotes the encoded form, not the raw one. A password with a space
+ * leaves as `a%20b` or `a+b` and would sail past a replace that only knows
+ * `a b`. Longest first so a variant that contains another is replaced whole.
+ */
+function secretSpellings(secret: string): string[] {
+  const encoded = encodeURIComponent(secret)
+  return [...new Set([secret, encoded, encoded.replace(/%20/g, '+')])].sort(
+    (a, b) => b.length - a.length
+  )
+}
+
+/**
  * Strips the instance credentials out of any text relayed to the caller.
  *
  * The credentials for the operations that accept them travel in the request
@@ -51,6 +66,10 @@ export function describeAgiloftError(body: string): string {
  * parameters would carry them straight back. Anything derived from an upstream
  * response or a transport error goes through here before it reaches a workflow
  * result or a log.
+ *
+ * Redact before truncating, never after: clipping the text first can cut
+ * through a credential and leave a prefix that no longer matches anything this
+ * replaces.
  */
 export function redactAgiloftSecrets(
   message: string,
@@ -58,7 +77,10 @@ export function redactAgiloftSecrets(
 ): string {
   let safe = message
   for (const secret of [credentials.password, credentials.login]) {
-    if (secret) safe = safe.split(secret).join('[redacted]')
+    if (!secret) continue
+    for (const spelling of secretSpellings(secret)) {
+      safe = safe.split(spelling).join('[redacted]')
+    }
   }
   return safe
 }

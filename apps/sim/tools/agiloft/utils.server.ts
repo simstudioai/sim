@@ -144,6 +144,7 @@ export async function agiloftLogoutPinned(
       {
         method: 'POST',
         headers: { Authorization: authorization },
+        ...AGILOFT_NO_REDIRECT,
       }
     )
   } catch (error) {
@@ -189,6 +190,7 @@ export async function executeAgiloftRequest<R extends ToolResponse>(
         Authorization: session.authorization,
       },
       body: req.body,
+      ...AGILOFT_NO_REDIRECT,
     })
     return await transformResponse(response)
   } finally {

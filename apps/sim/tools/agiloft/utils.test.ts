@@ -20,6 +20,7 @@ import {
   describeAgiloftError,
   ewCredentialBody,
   parseFieldList,
+  redactAgiloftSecrets,
 } from '@/tools/agiloft/utils'
 
 /** Obvious non-secret so credential scanners do not flag these fixtures. */
@@ -384,5 +385,38 @@ describe('pagination input', () => {
     const sent = new URLSearchParams(buildNlpSearchBody({ ...nlpBase, page: '0', limit: '10' }))
     expect(sent.get('page')).toBe('0')
     expect(sent.get('limit')).toBe('10')
+  })
+})
+
+describe('credential redaction', () => {
+  const creds = { login: 'svc.user', password: 'p@ss word&1' }
+
+  /**
+   * The value goes out form-encoded, so an error page quoting the submitted
+   * parameters quotes the encoded spelling, not the raw one.
+   */
+  it('redacts the encoded spellings the request actually sent', () => {
+    const echoed = [
+      `raw=${creds.password}`,
+      `enc=${encodeURIComponent(creds.password)}`,
+      `form=${encodeURIComponent(creds.password).replace(/%20/g, '+')}`,
+    ].join(' ')
+
+    const safe = redactAgiloftSecrets(echoed, creds)
+
+    expect(safe).not.toContain(creds.password)
+    expect(safe).not.toContain(encodeURIComponent(creds.password))
+    expect(safe).not.toContain('p%40ss+word%261')
+    expect(safe.match(/\[redacted\]/g)).toHaveLength(3)
+  })
+
+  it('redacts the login as well as the password', () => {
+    expect(redactAgiloftSecrets('user=svc.user', creds)).not.toContain('svc.user')
+  })
+
+  it('leaves text carrying no credential untouched', () => {
+    expect(redactAgiloftSecrets('EWWrongDataException: no column bogus', creds)).toBe(
+      'EWWrongDataException: no column bogus'
+    )
   })
 })

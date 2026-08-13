@@ -311,6 +311,43 @@ describe('EWCreate', () => {
     expect(data.error).toContain('[redacted]')
   })
 
+  /**
+   * A 4xx carrying a typed exception is Agiloft declining the request, so
+   * nothing was written and warning about a phantom record is wrong.
+   */
+  it('reports a 4xx validation decline as a definite failure, not an unconfirmed write', async () => {
+    arrangeCreate(
+      res({
+        ok: false,
+        status: 400,
+        text: '<html><body>EWWrongDataException has occurred: Wrong format/value pointed to start_date</body></html>',
+      })
+    )
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('no record was written')
+    expect(data.error).not.toContain('may exist')
+  })
+
+  it('keeps the unconfirmed warning on a 5xx, which may have committed first', async () => {
+    arrangeCreate(
+      res({
+        ok: false,
+        status: 502,
+        text: '<html><body>EWUnexpectedException has occurred: upstream failure</body></html>',
+      })
+    )
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { error?: string }
+
+    expect(data.error).toContain('may exist')
+  })
+
   it('keeps the instance password out of a relayed transport error', async () => {
     inputValidationMockFns.mockSecureFetchWithPinnedIP.mockRejectedValueOnce(
       new Error(`upstream echoed $password=${PLACEHOLDER_PASSWORD}`)
