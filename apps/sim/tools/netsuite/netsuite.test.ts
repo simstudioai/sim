@@ -202,8 +202,8 @@ const DATASET_SOURCE =
   'https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_156577938018.html'
 const METADATA_SOURCE =
   'https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_1540810174.html'
-const ASYNC_SOURCE =
-  'https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/article_0624010801.html'
+const ASYNC_JOB_SOURCE =
+  'https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/subsect_161278579295.html'
 const ASYNC_RESULT_SOURCE =
   'https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/subsect_161252889998.html'
 
@@ -550,7 +550,7 @@ const SOURCE_MATRIX: SourceMatrixEntry[] = [
   },
   {
     id: 'netsuite_get_async_status',
-    source: ASYNC_SOURCE,
+    source: ASYNC_JOB_SOURCE,
     method: 'GET',
     path: '/services/rest/async/v1/job/job%2F7',
     successStatus: 200,
