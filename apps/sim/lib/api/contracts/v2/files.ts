@@ -90,6 +90,14 @@ export const v2FileSchema = z
       .string()
       .describe('ISO 8601 timestamp of the last content or metadata write.')
       .meta({ format: 'date-time', examples: ['2026-01-15T10:30:00Z'] }),
+    /** Non-null only for a file `DELETE` archived; see `scope` on the list. */
+    deletedAt: z
+      .string()
+      .nullable()
+      .describe(
+        'ISO 8601 timestamp when the file was archived by `DELETE /files/{fileId}`, or null while the file is active. Only `GET /files?scope=archived` returns files with a non-null value.'
+      )
+      .meta({ format: 'date-time', examples: ['2026-01-16T09:00:00Z'] }),
   })
   .meta({
     id: 'V2File',
@@ -271,6 +279,15 @@ export const v2FileSortFields = ['name', 'size', 'uploadedAt', 'updatedAt'] as c
 export type V2FileSortBy = (typeof v2FileSortFields)[number]
 
 /**
+ * Listing scopes, matching the internal surface. `all` is deliberately absent
+ * on both: it drops the `deleted_at` predicate, so it cannot use the partial
+ * index that serves the other two and degrades to a full workspace scan.
+ */
+export const v2FileScopeSchema = z.enum(['active', 'archived'])
+
+export type V2FileScope = z.output<typeof v2FileScopeSchema>
+
+/**
  * List query: workspace scope, the v2 search/sort convention, an optional
  * folder filter, and opaque keyset cursor pagination. `limit` clamps to
  * `[1, 1000]` (default 100) to bound the response.
@@ -286,6 +303,11 @@ export const v2ListFilesQuerySchema = z
     folderPath: v2FolderPathInputSchema
       .optional()
       .describe('Restrict results to files directly inside this folder.'),
+    scope: v2FileScopeSchema
+      .default('active')
+      .describe(
+        'Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns 404 when the containing folder was archived too.'
+      ),
     search: v2SearchSchema.describe('Case-insensitive substring match against the file name.'),
     ...v2SortFields(v2FileSortFields, { sortBy: 'uploadedAt', sortOrder: 'asc' }),
     ...v2PaginationFields({
@@ -312,6 +334,14 @@ export const v2RenameFileBodySchema = z
     name: workspaceFileNameSchema.describe('New file name, including its extension.'),
   })
   .strict()
+
+export const v2RestoreFileBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the archived file.'),
+  })
+  .strict()
+
+export type V2RestoreFileBody = z.input<typeof v2RestoreFileBodySchema>
 
 export type V2RenameFileBody = z.input<typeof v2RenameFileBodySchema>
 
@@ -584,6 +614,17 @@ export const v2DeleteFileContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2DeleteFileResultSchema),
+  },
+})
+
+export const v2RestoreFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/files/[fileId]/restore',
+  params: v2FileParamsSchema,
+  body: v2RestoreFileBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2FileSchema),
   },
 })
 

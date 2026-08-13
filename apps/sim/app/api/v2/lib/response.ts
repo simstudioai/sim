@@ -3,6 +3,7 @@ import type { ZodError } from 'zod'
 import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
 import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
+import { forbiddenErrorDetails } from '@/lib/core/application'
 import {
   asOrchestrationError,
   OrchestrationError,
@@ -117,6 +118,21 @@ interface V2SuccessOptions {
 
 function successHeaders(options: V2SuccessOptions): Record<string, string> {
   return { ...PRIVATE_NO_STORE, ...rateLimitHeaders(options.rateLimit), ...options.headers }
+}
+
+/**
+ * The bodiless 200 a `HEAD` receives from a route whose `GET` is not safe.
+ *
+ * RFC 9110 §9.3.2 lets Next alias `HEAD` onto `GET` only because §9.2.1 defines
+ * `HEAD` as safe — "essentially read-only". A `GET` that opens an outbound
+ * connection or writes a row breaks that assumption, and an uptime monitor or
+ * link checker walking the documented URL list would drive those effects
+ * invisibly on every probe. Such a route answers the authorization and
+ * rate-limit questions and stops there. `HEAD` carries no body in any case, so
+ * nothing the caller can observe is fabricated.
+ */
+export function v2HeadNoEffect(options: V2SuccessOptions = {}): NextResponse {
+  return new NextResponse(null, { status: options.status ?? 200, headers: successHeaders(options) })
 }
 
 /** `{ data }` (+ rate-limit headers). */
@@ -392,9 +408,19 @@ export function v2ErrorForOrchestration(
  * Renders a thrown domain failure in the v2 envelope, or `null` when the error
  * carries no classification and the caller should log it and return its own
  * generic 500. The v2 counterpart of `orchestrationErrorResponse`.
+ *
+ * A refusal that names its cause carries it through as `error.details.code`.
+ * That projection lives here, on the one function every v2 error policy
+ * ultimately falls through to, rather than at each throw site — a route cannot
+ * then forget it, and the code cannot be attached to a status other than the
+ * one its failure class maps to.
  */
 export function v2CaughtOrchestrationError(error: unknown): NextResponse | null {
   const classified = asOrchestrationError(error)
   if (!classified) return null
-  return v2ErrorForOrchestration(classified.code, classified.message)
+  return v2ErrorForOrchestration(
+    classified.code,
+    classified.message,
+    forbiddenErrorDetails(classified)
+  )
 }

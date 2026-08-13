@@ -80,6 +80,19 @@ describe('GET /api/v2/billing/status', () => {
     expect(await response.json()).toEqual({ data: { ...result, credits: null, storage: null } })
   })
 
+  it.each(['workspaceID', 'workspace_id', 'workspace'])(
+    'rejects %s rather than silently answering for the account payer',
+    async (key) => {
+      const response = await GET(
+        new NextRequest(`http://localhost:3000/api/v2/billing/status?${key}=workspace-1`)
+      )
+
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchObject({ error: { code: 'BAD_REQUEST' } })
+      expect(mocks.execute).not.toHaveBeenCalled()
+    }
+  )
+
   it('projects typed workspace-policy errors', async () => {
     mocks.execute.mockRejectedValueOnce(
       new OrchestrationError('forbidden', 'API key is not authorized for this workspace')

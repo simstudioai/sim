@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { organizationIdSchema } from '@/lib/api/contracts/primitives'
+import { booleanQueryFlagSchema, organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v1AuditLogParamsSchema,
@@ -85,9 +85,17 @@ export const v2ListAuditLogsQuerySchema = v1ListAuditLogsQuerySchema
       'Inclusive ISO 8601 start timestamp.'
     ),
     endDate: v1ListAuditLogsQuerySchema.shape.endDate.describe('Inclusive ISO 8601 end timestamp.'),
-    includeDeparted: v1ListAuditLogsQuerySchema.shape.includeDeparted.describe(
-      'Include actions by users who have left the organization.'
-    ),
+    /**
+     * Declared with the shared boolean flag rather than reused from the v1
+     * shape: v1 spells it as a `'true'`/`'false'` string enum, and every other
+     * v2 boolean query param is a real boolean. The shared schema still accepts
+     * both strings, so `?includeDeparted=true` is unchanged for existing
+     * callers — it only widens what parses and fixes what the spec advertises.
+     */
+    includeDeparted: booleanQueryFlagSchema
+      .describe('Include actions by users who have left the organization.')
+      .optional()
+      .default(false),
     ...v2PaginationFields({ description: 'Maximum audit entries to return per page.' }),
     organizationId: organizationIdSchema.describe(
       'Organization whose audit trail should be queried.'

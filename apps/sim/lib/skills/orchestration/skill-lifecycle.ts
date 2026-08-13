@@ -7,6 +7,7 @@ import {
   skillDescriptionSchema,
   skillNameSchema,
 } from '@/lib/api/contracts/skills'
+import { ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { getSkillActorContext } from '@/lib/skills/access'
 import { getBuiltinSkillByName, isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
@@ -144,7 +145,15 @@ function classifyUpsertError(error: unknown): SkillFailure {
   return { error: 'Failed to save skill', errorCode: 'internal' }
 }
 
+/**
+ * Editor access is the one skill refusal a workspace role cannot express, so it
+ * is also the one that needs naming on the wire: a caller holding workspace
+ * write sees the same `403` it would get for a role that is too low.
+ */
 function throwSkillFailure(result: SkillFailure): never {
+  if (result.errorCode === 'forbidden') {
+    throw new ForbiddenOperationError('SKILL_EDITOR_ACCESS_REQUIRED', result.error)
+  }
   throw new OrchestrationError(result.errorCode, result.error)
 }
 

@@ -278,6 +278,32 @@ export function v2PaginationFields(options: V2LimitOptions = {}) {
  * any of the name columns it is aimed at, and every one of these matches is an
  * unindexed scan.
  */
+/**
+ * A run-window bound, for the two collections that filter on run start time.
+ *
+ * Both bounds are constructed into `Date`s by their route and reach the query as
+ * bound timestamps, so an unparseable value would arrive as an `Invalid Date`
+ * and fail inside the driver's timestamp mapper — a caller-reachable 500.
+ * Validating the format here is what keeps that a 400.
+ *
+ * The form is `z.datetime()`, which is UTC-only: a date with no time
+ * (`2026-08-06`) and an offset-bearing timestamp (`2026-08-06T00:00:00+02:00`)
+ * are both rejected. `GET /logs` and `GET /workflows/{id}/runs` are sibling
+ * reads over the same runs, so the same timestamp must work on both — sharing
+ * the schema is what makes that true rather than merely intended, and it is why
+ * the descriptions say "UTC ISO 8601" instead of overpromising "ISO 8601".
+ */
+export function v2RunWindowBoundSchema(field: 'startDate' | 'endDate') {
+  const boundary = field === 'startDate' ? 'at or after' : 'at or before'
+  return z
+    .string()
+    .datetime({ error: `${field} must be a UTC ISO 8601 timestamp, e.g. 2026-08-06T00:00:00Z` })
+    .describe(
+      `Only include runs started ${boundary} this UTC ISO 8601 timestamp, e.g. \`2026-08-06T00:00:00Z\`. A date without a time, or a timestamp carrying a UTC offset instead of \`Z\`, is rejected.`
+    )
+    .meta({ format: 'date-time' })
+}
+
 export const v2SearchSchema = z
   .string()
   .trim()

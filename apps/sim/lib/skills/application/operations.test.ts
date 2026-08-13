@@ -1,0 +1,60 @@
+/**
+ * @vitest-environment node
+ */
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { describe, expect, it } from 'vitest'
+import { skillOperations } from '@/lib/skills/application/operations'
+
+/**
+ * Pins the workspace-API-key split on skills.
+ *
+ * A workspace key can create a skill it can then never update or delete, which
+ * no sibling resource does, so the asymmetry reads like an oversight. It is not:
+ * a skill write is authorized by the per-skill editor row belonging to the
+ * acting user, not by workspace role, and a workspace key has no user to check.
+ * These tests exist so the next reader finds the reason instead of "fixing" it.
+ */
+describe('skill operation registry', () => {
+  it('gates creation on workspace role, which a workspace key can express', () => {
+    expect(skillOperations.create).toMatchObject({
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+    })
+  })
+
+  it('gates every edit path on a human subject rather than workspace role', () => {
+    for (const operation of [
+      skillOperations.update,
+      skillOperations.upsert,
+      skillOperations.delete,
+    ]) {
+      expect(operation).toMatchObject({
+        /** `read`, not `write` — the editor row is the authority, not the role. */
+        minimumRole: 'read',
+        workspaceApiKey: 'deny',
+        principalKinds: ['session', 'personal_api_key', 'delegated'],
+      })
+    }
+  })
+
+  /**
+   * Proves the deny is load-bearing rather than conservative: every edit use
+   * case resolves the acting subject before writing, and a workspace key cannot
+   * produce one. Allowing the key would replace a `403` with an unclassified
+   * throw, which the v2 surface renders as a caller-reachable `500`.
+   */
+  it('cannot resolve an acting subject for a workspace key', () => {
+    expect(() =>
+      requirePrincipalSubjectUserId({
+        kind: 'workspace_api_key',
+        workspaceId: 'workspace-1',
+        keyId: 'workspace-key-1',
+      })
+    ).toThrow(/does not represent a human subject/)
+  })
+
+  it('uses unique stable operation IDs', () => {
+    const ids = Object.values(skillOperations).map((operation) => operation.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+})

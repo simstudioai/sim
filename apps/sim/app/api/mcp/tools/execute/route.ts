@@ -157,7 +157,7 @@ export const POST = withRouteHandler(
               userId,
               serverId,
               workspaceId,
-              false,
+              'cache-aside',
               recordProvenance
             )
             tool = tools.find((t) => t.name === toolName) ?? null

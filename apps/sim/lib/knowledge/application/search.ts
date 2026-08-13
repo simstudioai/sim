@@ -38,8 +38,12 @@ import {
 } from '@/lib/knowledge/search/queries'
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import {
+  type KnowledgeTagNameFilter,
+  resolveKnowledgeTagFilters,
+} from '@/lib/knowledge/tags/filter-resolution'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
-import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
+import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { KnowledgeBaseWithCounts, StructuredFilter } from '@/lib/knowledge/types'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -61,13 +65,11 @@ export class KnowledgeSearchProvenanceUnavailableError extends Error {
   }
 }
 
-export interface KnowledgeSearchTagFilter {
-  tagName: string
-  fieldType?: 'text' | 'number' | 'date' | 'boolean'
-  operator: string
-  value: string | number | boolean
-  valueTo?: string | number
-}
+/**
+ * Search filters tags by display name. The resolution to storage slots is
+ * shared with the document list so both knowledge reads speak one vocabulary.
+ */
+export type KnowledgeSearchTagFilter = KnowledgeTagNameFilter
 
 export interface SearchKnowledgeInput {
   /** Optional assertion from a trusted adapter or public contract. */
@@ -99,6 +101,8 @@ type KnowledgeSearchContext = KnowledgeResourceContext & {
 export interface KnowledgeSearchItem {
   /** Trusted embedding identity for provenance import; HTTP presenters omit it. */
   embeddingId: string
+  /** Knowledge base the matching chunk came from; a search spans up to 20. */
+  knowledgeBaseId: string
   documentId: string
   documentName: string | null
   sourceUrl: string | null
@@ -204,92 +208,6 @@ async function resolveKnowledgeSearchContext(
   }
 }
 
-async function buildStructuredFilters(
-  filters: KnowledgeSearchTagFilter[],
-  knowledgeBaseIds: string[]
-): Promise<{
-  structuredFilters: StructuredFilter[]
-  definitionsByKnowledgeBase: Map<string, Awaited<ReturnType<typeof getDocumentTagDefinitions>>>
-}> {
-  const definitionEntries = await Promise.all(
-    knowledgeBaseIds.map(
-      async (knowledgeBaseId) =>
-        [knowledgeBaseId, await getDocumentTagDefinitions(knowledgeBaseId)] as const
-    )
-  )
-  const definitionsByKnowledgeBase = new Map(definitionEntries)
-  const sharedDefinitions = new Map<string, { tagSlot: string; fieldType: string }>()
-  for (const [, definitions] of definitionEntries) {
-    const currentByName = new Map(
-      definitions.map((definition) => [
-        definition.displayName,
-        { tagSlot: definition.tagSlot, fieldType: definition.fieldType },
-      ])
-    )
-    for (const filter of filters) {
-      const current = currentByName.get(filter.tagName)
-      if (!current) {
-        if (knowledgeBaseIds.length > 1) {
-          throw new OrchestrationError(
-            'validation',
-            `Tag "${filter.tagName}" does not exist in all selected knowledge bases. Search those knowledge bases separately.`
-          )
-        }
-        continue
-      }
-      const existing = sharedDefinitions.get(filter.tagName)
-      if (
-        existing &&
-        (existing.tagSlot !== current.tagSlot || existing.fieldType !== current.fieldType)
-      ) {
-        throw new OrchestrationError(
-          'validation',
-          `Tag "${filter.tagName}" is not mapped consistently across the selected knowledge bases. Search those knowledge bases separately.`
-        )
-      }
-      sharedDefinitions.set(filter.tagName, current)
-    }
-  }
-  const undefinedTags: string[] = []
-  const typeErrors: string[] = []
-  for (const filter of filters) {
-    const definition = sharedDefinitions.get(filter.tagName)
-    if (!definition) {
-      undefinedTags.push(filter.tagName)
-      continue
-    }
-    const validationError = validateTagValue(
-      filter.tagName,
-      String(filter.value),
-      definition.fieldType
-    )
-    if (validationError) typeErrors.push(validationError)
-  }
-  if (undefinedTags.length > 0 || typeErrors.length > 0) {
-    throw new OrchestrationError(
-      'validation',
-      [
-        ...(undefinedTags.length > 0 ? [buildUndefinedTagsError(undefinedTags)] : []),
-        ...typeErrors,
-      ].join('\n')
-    )
-  }
-  return {
-    structuredFilters: filters.map((filter) => {
-      const definition = sharedDefinitions.get(filter.tagName)
-      if (!definition) throw new Error('Validated knowledge tag definition disappeared')
-      return {
-        tagSlot: definition.tagSlot,
-        fieldType: definition.fieldType,
-        operator: filter.operator,
-        value: filter.value,
-        valueTo: filter.valueTo,
-      }
-    }),
-    definitionsByKnowledgeBase,
-  }
-}
-
 export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
   resolveContext: ({ input }: { input: SearchKnowledgeInput }) =>
@@ -329,12 +247,9 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
 
     const knowledgeBaseIds = context.knowledgeBases.map((knowledgeBase) => knowledgeBase.id)
     let structuredFilters: StructuredFilter[] = []
-    let definitionsByKnowledgeBase = new Map<
-      string,
-      Awaited<ReturnType<typeof getDocumentTagDefinitions>>
-    >()
+    let definitionsByKnowledgeBase = new Map<string, DocumentTagDefinition[]>()
     if (filters.length > 0) {
-      const built = await buildStructuredFilters(filters, knowledgeBaseIds)
+      const built = await resolveKnowledgeTagFilters(filters, knowledgeBaseIds)
       structuredFilters = built.structuredFilters
       definitionsByKnowledgeBase = built.definitionsByKnowledgeBase
     }
@@ -529,6 +444,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       const rerankerScore = rerankerScores.get(row.id)
       return {
         embeddingId: row.id,
+        knowledgeBaseId: row.knowledgeBaseId,
         documentId: row.documentId,
         documentName: document?.filename ?? null,
         sourceUrl: document?.sourceUrl ?? null,

@@ -5,6 +5,10 @@ import { readdirSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import {
+  MAX_SCHEMA_DEPTH,
+  rejectsUnknownKeys,
+} from '@/lib/api/contracts/v2/__tests__/schema-introspection'
 
 /**
  * Pins which v2 lists are paged.
@@ -52,6 +56,7 @@ const PAGED_LISTS = [
   'GET /api/v2/knowledge',
   'GET /api/v2/knowledge/[id]/documents',
   'GET /api/v2/logs',
+  'GET /api/v2/mcp-servers',
   'GET /api/v2/secrets',
   'GET /api/v2/skills',
   'GET /api/v2/tables',
@@ -65,17 +70,25 @@ const PAGED_LISTS = [
 
 /**
  * Lists that accept neither param and always return `nextCursor: null`, because
- * the set is small and bounded per workspace or per table.
+ * the set is small and bounded per workspace, per table, or per server.
  *
- * Every remaining entry but the MCP server list is a *folder* list, and a folder
- * tree is already capped where it is loaded
+ * Every folder list is capped where the tree is loaded
+ * (`MAX_*_FOLDERS_PER_WORKSPACE`), and one MCP server's tool inventory is capped
+ * by tool discovery itself (`LIST_TOOLS_MAX_TOOLS` / `LIST_TOOLS_MAX_BYTES`) no
+ * matter what the upstream server reports — bounded by construction rather than
+ * by a caller's `limit`. The MCP *server* list is not: nothing caps how many
+ * servers a workspace registers, which is why it is paged.
+ * Every remaining entry but the MCP server list and the knowledge tag list is a
+ * *folder* list, and a folder tree is already capped where it is loaded
  * (`MAX_*_FOLDERS_PER_WORKSPACE`) — bounded by construction rather than by a
- * caller's `limit`.
+ * caller's `limit`. The knowledge tag list is bounded the same way: a knowledge
+ * base has a fixed number of tag slots, so its vocabulary cannot grow past them.
  */
 const FULL_SET_LISTS = [
   'GET /api/v2/files/folders',
+  'GET /api/v2/knowledge/[id]/tags',
   'GET /api/v2/knowledge/folders',
-  'GET /api/v2/mcp-servers',
+  'GET /api/v2/mcp-servers/[id]/tools',
   'GET /api/v2/tables/[tableId]/groups',
   'GET /api/v2/tables/[tableId]/views',
   'GET /api/v2/tables/folders',
@@ -113,7 +126,6 @@ function isContract(value: unknown): value is ContractLike {
   )
 }
 
-const MAX_SCHEMA_DEPTH = 12
 const PAGINATION_PARAMS = ['limit', 'cursor'] as const
 
 /**
@@ -217,26 +229,6 @@ function paginationParams(variants: string[][]): { any: string[]; all: string[] 
     any: PAGINATION_PARAMS.filter((param) => variants.some((keys) => keys.includes(param))),
     all: PAGINATION_PARAMS.filter((param) => variants.every((keys) => keys.includes(param))),
   }
-}
-
-/**
- * Whether a schema rejects keys it does not declare, i.e. is `.strict()`.
- *
- * This is what separates "this list does not page" from "this list quietly
- * throws your `limit` away". Zod strips unknown keys by default, so a full-set
- * list that is not strict answers `?limit=1` with 200 and the entire set — the
- * caller believes it bounded the response and it did not. Only the outermost
- * object is inspected; that is where a query's unknown key is caught.
- */
-function rejectsUnknownKeys(schema: unknown, depth: number = MAX_SCHEMA_DEPTH): boolean | null {
-  if (!schema || depth <= 0) return null
-  const def = (schema as { def?: Record<string, unknown> }).def
-  if (!def) return null
-  if (def.type === 'object') {
-    return (def.catchall as { def?: { type?: string } } | undefined)?.def?.type === 'never'
-  }
-  const inner = def.innerType ?? def.in ?? def.schema
-  return inner ? rejectsUnknownKeys(inner, depth - 1) : null
 }
 
 /**
