@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 
@@ -74,7 +75,7 @@ function makeClient(): any {
         if (after.length) res.push({ name: key, messages: after.map((e) => ({ ...e })) })
       }
       if (res.length) return res
-      await new Promise((r) => setTimeout(r, 5))
+      await sleep(5)
       return null
     },
     set: async (key: string, val: string, opts?: { NX?: boolean }) => {
@@ -173,7 +174,7 @@ describe('FileDocStore', () => {
 
     state.backing!.connects = 0 // ignore the two `init` connects; count only recovery attempts
     const before = state.backing!.reads
-    await new Promise((r) => setTimeout(r, 3000))
+    await sleep(3000)
     const attempts = state.backing!.reads - before
 
     // A fixed 500ms retry manages 6–7 attempts in this window; backing off (500 → 1s → 2s → …) manages
@@ -182,6 +183,37 @@ describe('FileDocStore', () => {
     expect(attempts).toBeLessThanOrEqual(4)
     // …and it tried to bring the connection back rather than leaving the tailer dead forever.
     expect(state.backing!.connects).toBeGreaterThan(0)
+    doc.destroy()
+  })
+
+  /**
+   * The streak has to end on a read that RETURNS, not on one that carries messages: a blocking read
+   * timing out with nothing new is the idle steady state. Counting only message-bearing reads would
+   * keep a healed outage's streak alive through normal polling, so the next unrelated blip would open
+   * at the backoff cap — minutes of unnecessary split-brain — and log a count it never earned.
+   */
+  it('ends the failure streak on an idle read, so a later blip starts over', async () => {
+    const store = await newStore()
+    const doc = new Y.Doc()
+    await store.attachRoom(NAME, doc)
+
+    // Build a streak of two failures (retries back off ~0.5s, then ~1s).
+    state.backing!.readerClosed = true
+    await sleep(800)
+    // Redis comes back. Wait past the pending backoff so a read actually lands — and it returns
+    // nothing new, which is the idle case this test is about.
+    state.backing!.readerClosed = false
+    await sleep(1000)
+
+    // A fresh blip must retry at the START of the backoff curve, not at the cap.
+    state.backing!.readerClosed = true
+    const before = state.backing!.reads
+    await sleep(1900)
+    const attempts = state.backing!.reads - before
+
+    // Streak reset ⇒ retries at ~0, ~0.5s, ~1.5s ⇒ 3 attempts (2 even if the machine is loaded and
+    // every sleep overshoots by half). Streak carried over ⇒ ~2s then ~4s ⇒ at most 1.
+    expect(attempts).toBeGreaterThanOrEqual(2)
     doc.destroy()
   })
 

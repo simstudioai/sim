@@ -676,6 +676,12 @@ export class FileDocStore {
           [...snapshot].map(([name, room]) => ({ key: streamKey(name), id: room.lastId })),
           { BLOCK: READ_BLOCK_MS, COUNT: READ_COUNT }
         )
+        // The streak ends HERE, on the read returning at all — not further down once entries are
+        // applied. A blocking read that times out with nothing new is the idle steady state, and it
+        // proves the connection works just as well as one carrying messages; leaving the streak
+        // standing through it would keep an old outage's count alive indefinitely, so the next
+        // unrelated blip would open at the backoff cap and log a failure count it never earned.
+        failures = 0
         if (!res) continue
         for (const stream of res) {
           const name = stream.name.slice(STREAM_PREFIX.length)
@@ -686,7 +692,6 @@ export class FileDocStore {
           if (!room || room !== snapshot.get(name)) continue
           for (const entry of stream.messages) this.applyEntry(room, entry.id, entry.message)
         }
-        failures = 0
       } catch (error) {
         if (!this.running) break
         await this.recoverReader(++failures, error)
