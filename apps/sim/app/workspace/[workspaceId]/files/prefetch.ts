@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
+import { listWorkspaceFileFoldersContract } from '@/lib/api/contracts/workspace-file-folders'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
@@ -40,7 +41,17 @@ export async function prefetchFilesBrowser(
   await Promise.all([
     queryClient.prefetchQuery({
       queryKey: workspaceFileFolderKeys.list(workspaceId, 'active'),
-      queryFn: () => listWorkspaceFileFolders(workspaceId, { scope: 'active' }),
+      /**
+       * Parsed through the route's own response schema rather than seeded raw. The
+       * manager's record type and `workspaceFileFolderSchema` are two independent
+       * declarations that happen to agree today; without this parse, adding a column
+       * to one silently seeds a shape a client fetch would have stripped — the exact
+       * divergence that put ISO strings under `workspaceFilesKeys.list`.
+       */
+      queryFn: async () => {
+        const folders = await listWorkspaceFileFolders(workspaceId, { scope: 'active' })
+        return listWorkspaceFileFoldersContract.response.schema.shape.folders.parse(folders)
+      },
       staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
     }),
     prefetchResourceListChrome(queryClient, workspaceId, 'file', userId),

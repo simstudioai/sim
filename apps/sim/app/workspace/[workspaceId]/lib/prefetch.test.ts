@@ -290,17 +290,67 @@ describe('workspace list prefetches', () => {
     })
   })
   describe('prefetchFilesBrowser', () => {
+    /**
+     * The sibling `workspaceFilesKeys.list` once held ISO strings from one producer and
+     * `Date`s from another because a seed skipped the contract parse. This key is fed by
+     * a manager whose record type and the contract schema are independent declarations,
+     * so the parse — and this assertion — are what stop that recurring here.
+     */
+    it('seeds the shape a client fetch caches, not the raw manager row', async () => {
+      mockListWorkspaceFileFolders.mockResolvedValue([
+        {
+          id: 'folder-1',
+          workspaceId: WORKSPACE_ID,
+          userId: USER_ID,
+          name: 'Docs',
+          parentId: null,
+          path: '/Docs',
+          sortOrder: 0,
+          deletedAt: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-02T00:00:00.000Z',
+          serverOnlyColumn: 'should-be-stripped',
+        },
+      ])
+      const client = makeClient()
+
+      await prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID)
+
+      const [cached] = client.getQueryData(
+        workspaceFileFolderKeys.list(WORKSPACE_ID, 'active')
+      ) as Array<Record<string, unknown>>
+      expect(cached.createdAt).toBeInstanceOf(Date)
+      expect(cached.updatedAt).toBeInstanceOf(Date)
+      expect(cached).not.toHaveProperty('serverOnlyColumn')
+    })
+
     it('primes the folder key the client hook reads', async () => {
-      const folders = [{ id: 'folder-1' }]
+      const folders = [
+        {
+          id: 'folder-1',
+          workspaceId: WORKSPACE_ID,
+          userId: USER_ID,
+          name: 'Docs',
+          parentId: null,
+          path: '/Docs',
+          sortOrder: 0,
+          deletedAt: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-02T00:00:00.000Z',
+        },
+      ]
       mockListWorkspaceFileFolders.mockResolvedValue(folders)
       const client = makeClient()
 
       await prefetchFilesBrowser(client, WORKSPACE_ID, USER_ID)
 
       expect(mockListWorkspaceFileFolders).toHaveBeenCalledWith(WORKSPACE_ID, { scope: 'active' })
-      expect(client.getQueryData(workspaceFileFolderKeys.list(WORKSPACE_ID, 'active'))).toEqual(
-        folders
-      )
+      /** Shape parity is asserted by the sibling test; this one pins the key and the args. */
+      expect(
+        client.getQueryData(workspaceFileFolderKeys.list(WORKSPACE_ID, 'active')) as Array<{
+          id: string
+        }>
+      ).toHaveLength(folders.length)
     })
 
     /**

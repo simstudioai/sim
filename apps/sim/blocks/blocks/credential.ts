@@ -3,7 +3,10 @@ import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { BlockConfig } from '@/blocks/types'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
-import { fetchWorkspaceCredentialList } from '@/hooks/queries/utils/fetch-workspace-credentials'
+import {
+  fetchWorkspaceCredentialList,
+  WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
+} from '@/hooks/queries/utils/fetch-workspace-credentials'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface CredentialBlockOutput {
@@ -72,7 +75,7 @@ export const CredentialBlock: BlockConfig<CredentialBlockOutput> = {
         const credentials = await getQueryClient().fetchQuery({
           queryKey: workspaceCredentialKeys.list(workspaceId),
           queryFn: () => fetchWorkspaceCredentialList(workspaceId),
-          staleTime: 60 * 1000,
+          staleTime: WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
         })
 
         const seen = new Set<string>()
