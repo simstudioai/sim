@@ -155,7 +155,10 @@ describe('cleanCellValue', () => {
     expect(cleanCellValue('Bug, Docs', column)).toEqual(['opt_a', 'opt_b'])
     expect(cleanCellValue(['opt_b'], column)).toEqual(['opt_b'])
     expect(cleanCellValue('Bug, Bug', column)).toEqual(['opt_a'])
-    expect(cleanCellValue('Nope', column)).toEqual([])
+    // A part matching no option is refused rather than silently dropped: this helper
+    // runs the same registry coercion the server does, and the server now rejects it.
+    expect(cleanCellValue('Nope', column)).toBeNull()
+    expect(cleanCellValue('Bug, Nope', column)).toBeNull()
   })
 })
 
