@@ -62,6 +62,8 @@ export interface ValidateRowOptions {
   tableId: string
   excludeRowId?: string
   checkUnique?: boolean
+  /** See {@link UncoercibleValuePolicy}. Defaults to `null` — first-party behavior. */
+  uncoercibleValues?: UncoercibleValuePolicy
 }
 
 /** Error information for a single row in batch validation. */
@@ -76,6 +78,8 @@ export interface ValidateBatchRowsOptions {
   schema: TableSchema
   tableId: string
   checkUnique?: boolean
+  /** See {@link UncoercibleValuePolicy}. Defaults to `null` — first-party behavior. */
+  uncoercibleValues?: UncoercibleValuePolicy
 }
 
 /**
@@ -85,7 +89,7 @@ export interface ValidateBatchRowsOptions {
 export async function validateRowData(
   options: ValidateRowOptions
 ): Promise<ValidationSuccess | ValidationFailure> {
-  const { rowData, schema, tableId, excludeRowId, checkUnique = true } = options
+  const { rowData, schema, tableId, excludeRowId, checkUnique = true, uncoercibleValues } = options
 
   const sizeValidation = validateRowSize(rowData)
   if (!sizeValidation.valid) {
@@ -98,7 +102,7 @@ export async function validateRowData(
     }
   }
 
-  const schemaValidation = coerceRowToSchema(rowData, schema)
+  const schemaValidation = coerceRowToSchema(rowData, schema, uncoercibleValues)
   if (!schemaValidation.valid) {
     return {
       valid: false,
@@ -134,7 +138,7 @@ export async function validateRowData(
 export async function validateBatchRows(
   options: ValidateBatchRowsOptions
 ): Promise<ValidationSuccess | ValidationFailure> {
-  const { rows, schema, tableId, checkUnique = true } = options
+  const { rows, schema, tableId, checkUnique = true, uncoercibleValues } = options
   const errors: BatchRowError[] = []
 
   for (let i = 0; i < rows.length; i++) {
@@ -146,7 +150,7 @@ export async function validateBatchRows(
       continue
     }
 
-    const schemaValidation = coerceRowToSchema(rowData, schema)
+    const schemaValidation = coerceRowToSchema(rowData, schema, uncoercibleValues)
     if (!schemaValidation.valid) {
       errors.push({ row: i, errors: schemaValidation.errors })
     }
@@ -277,24 +281,22 @@ function coerceValueToColumnType(value: JsonValue, column: ColumnDefinition): Co
 /**
  * What a write does with a value its column's type cannot coerce.
  *
+ * - `null` — blank the cell rather than fail the row. **The default**, and what
+ *   every first-party surface does: the workspace grid, the internal
+ *   `/api/table` routes, `/api/v1`, the Copilot table tools, the executor's
+ *   Table block, CSV import, and the workflow/enrichment writers. A tool
+ *   returning `"unknown"` for a numeric column nulls that one cell rather than
+ *   failing the entire row write.
  * - `reject` — leave the value in place so the following
- *   {@link validateRowAgainstSchema} reports it and the write fails. This is
- *   the default, and the only policy any caller-supplied value may use: a
- *   client that sends `"abc"` for a `number` column has made a mistake, and
- *   answering 200 while storing `null` destroys the cell it was trying to
- *   write. It also matches the read side, which already refuses the same
- *   mismatch in a filter predicate rather than matching nothing.
- * - `null` — blank the cell instead. Reserved for values a *machine* produced
- *   for a cell the caller did not type: a workflow/enrichment block whose
- *   output does not fit its bound column, and a CSV import where one bad cell
- *   in a 100k-row file must not fail the file. Nothing there has a caller to
- *   return a 400 to.
+ *   {@link validateRowAgainstSchema} reports it and the write fails. Opted into
+ *   by the `/api/v2` surface only, whose published contract is that a value it
+ *   cannot store exactly is answered with a 400 rather than stored as `null`.
  *
  * Under `null` a value the column type can still read lossily is kept rather
- * than blanked — see `ColumnTypeDefinition.salvage`, which is why a CSV cell
- * naming two live options and one deleted one imports as the two rather than as
- * an empty cell. A `required` column is never blanked under either policy: a
- * null would fail the required check immediately after.
+ * than blanked — see `ColumnTypeDefinition.salvage`, which is why a cell naming
+ * two live options and one deleted one stores the two rather than nothing. A
+ * `required` column is never blanked under either policy: a null would fail the
+ * required check immediately after.
  */
 export type UncoercibleValuePolicy = 'reject' | 'null'
 
@@ -335,7 +337,7 @@ function policyResolver(
 export function coerceRowValues(
   data: RowData,
   schema: TableSchema,
-  policy: UncoercibleValuePolicy = 'reject',
+  policy: UncoercibleValuePolicy = 'null',
   patchedKeys?: PatchedKeys
 ): void {
   const policyFor = policyResolver(policy, patchedKeys)
@@ -375,7 +377,7 @@ export function coerceRowValues(
 export function coerceRowToSchema(
   data: RowData,
   schema: TableSchema,
-  policy: UncoercibleValuePolicy = 'reject',
+  policy: UncoercibleValuePolicy = 'null',
   patchedKeys?: PatchedKeys
 ): ValidationResult {
   coerceRowValues(data, schema, policy, patchedKeys)

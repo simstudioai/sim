@@ -100,52 +100,45 @@ describe('coerceRowToSchema — select', () => {
     expect(data.col_status).toBe('opt_closed')
   })
 
-  it('rejects an unmatched value on an optional column', () => {
+  it('rejects an unmatched value on an optional column under the `reject` policy', () => {
     const data: RowData = { col_status: 'banana' }
-    const result = coerceRowToSchema(data, schemaWith(selectColumn))
+    const result = coerceRowToSchema(data, schemaWith(selectColumn), 'reject')
     expect(result.valid).toBe(false)
     expect(result.errors.join(' ')).toContain('status')
   })
 
-  it('nulls an unmatched value under the `null` policy', () => {
+  it('nulls an unmatched value by default', () => {
     const data: RowData = { col_status: 'banana' }
-    const result = coerceRowToSchema(data, schemaWith(selectColumn), 'null')
+    const result = coerceRowToSchema(data, schemaWith(selectColumn))
     expect(result.valid).toBe(true)
     expect(data.col_status).toBeNull()
   })
 })
 
 describe('coerceRowToSchema — multiselect', () => {
-  it('resolves names', () => {
-    const data: RowData = { col_tags: ['Alpha', 'opt_b'] }
+  it('resolves names and keeps the entries that resolve by default', () => {
+    const data: RowData = { col_tags: ['Alpha', 'opt_b', 'ghost'] }
     const result = coerceRowToSchema(data, schemaWith(multiselectColumn))
     expect(result.valid).toBe(true)
     expect(data.col_tags).toEqual(['opt_a', 'opt_b'])
   })
 
-  it('rejects an entry matching no option instead of dropping it', () => {
+  it('rejects an entry matching no option instead of dropping it under `reject`', () => {
     const data: RowData = { col_tags: ['Alpha', 'ghost'] }
-    const result = coerceRowToSchema(data, schemaWith(multiselectColumn))
+    const result = coerceRowToSchema(data, schemaWith(multiselectColumn), 'reject')
     expect(result.valid).toBe(false)
   })
 
-  it('rejects a lone unmatched entry rather than storing an empty list', () => {
+  it('rejects a lone unmatched entry rather than storing an empty list under `reject`', () => {
     const data: RowData = { col_tags: ['green'] }
-    const result = coerceRowToSchema(data, schemaWith(multiselectColumn))
+    const result = coerceRowToSchema(data, schemaWith(multiselectColumn), 'reject')
     expect(result.valid).toBe(false)
     expect(data.col_tags).not.toEqual([])
   })
 
-  it('keeps the entries that resolve under the `null` policy', () => {
-    const data: RowData = { col_tags: ['Alpha', 'opt_b', 'ghost'] }
-    const result = coerceRowToSchema(data, schemaWith(multiselectColumn), 'null')
-    expect(result.valid).toBe(true)
-    expect(data.col_tags).toEqual(['opt_a', 'opt_b'])
-  })
-
-  it('nulls the cell under the `null` policy only when nothing resolves', () => {
+  it('empties the cell by default only when nothing resolves', () => {
     const data: RowData = { col_tags: ['ghost'] }
-    const result = coerceRowToSchema(data, schemaWith(multiselectColumn), 'null')
+    const result = coerceRowToSchema(data, schemaWith(multiselectColumn))
     expect(result.valid).toBe(true)
     expect(data.col_tags).toEqual([])
   })
@@ -158,12 +151,13 @@ describe('coerceRowToSchema — multiselect', () => {
 })
 
 /**
- * The defect this pins: every one of these answered 200 with the cell stored as
- * `null`, on an optional column, with nothing in the response saying a value had
- * been discarded. The read side already 400s on the same mismatch in a filter
- * predicate, so the two halves of the API disagreed about the same value.
+ * The `reject` policy, which only `/api/v2` opts into. It answers a value it
+ * cannot store exactly with a 400 rather than a 200 whose cell is `null`,
+ * matching the read side, which already refuses the same mismatch in a filter
+ * predicate. Every first-party surface runs the `null` policy in the sibling
+ * `it.each` below, which is the default and what they have always done.
  */
-describe('coerceRowToSchema — uncoercible values are refused, not silently nulled', () => {
+describe('coerceRowToSchema — uncoercible values under the `reject` policy', () => {
   const numberColumn: ColumnDefinition = { id: 'col_n', name: 'n', type: 'number' }
   const booleanColumn: ColumnDefinition = { id: 'col_b', name: 'b', type: 'boolean' }
   const dateColumn: ColumnDefinition = { id: 'col_d', name: 'd', type: 'date' }
@@ -183,17 +177,20 @@ describe('coerceRowToSchema — uncoercible values are refused, not silently nul
 
   it.each(cases)('rejects %s', (_label, column, value) => {
     const data: RowData = { [column.id as string]: value }
-    const result = coerceRowToSchema(data, schemaWith(column))
+    const result = coerceRowToSchema(data, schemaWith(column), 'reject')
     expect(result.valid).toBe(false)
     expect(data[column.id as string]).not.toBeNull()
   })
 
-  it.each(cases)('nulls %s under the `null` policy', (_label, column, value) => {
-    const data: RowData = { [column.id as string]: value }
-    const result = coerceRowToSchema(data, schemaWith(column), 'null')
-    expect(result.valid).toBe(true)
-    expect(data[column.id as string]).toBeNull()
-  })
+  it.each(cases)(
+    'nulls %s by default, as every first-party surface does',
+    (_label, column, value) => {
+      const data: RowData = { [column.id as string]: value }
+      const result = coerceRowToSchema(data, schemaWith(column))
+      expect(result.valid).toBe(true)
+      expect(data[column.id as string]).toBeNull()
+    }
+  )
 
   it('still applies unambiguous conversions', () => {
     const data: RowData = { col_n: '1999' }
@@ -209,7 +206,7 @@ describe('coerceRowToSchema — uncoercible values are refused, not silently nul
    */
   it('refuses a bare epoch number rather than guessing its unit', () => {
     const data: RowData = { col_d: 1600000000 }
-    const result = coerceRowToSchema(data, schemaWith(dateColumn))
+    const result = coerceRowToSchema(data, schemaWith(dateColumn), 'reject')
     expect(result.valid).toBe(false)
     expect(data.col_d).not.toBe('1970-01-19T12:26:40.000Z')
   })
@@ -219,16 +216,16 @@ describe('coerceRowToSchema — uncoercible values are refused, not silently nul
     expect(coerceRowToSchema(data, schemaWith(dateColumn)).valid).toBe(true)
   })
 
-  it('reads a bare epoch number as milliseconds under the `null` policy', () => {
+  it('reads a bare epoch number as milliseconds by default', () => {
     const data: RowData = { col_d: 1600000000000 }
-    const result = coerceRowToSchema(data, schemaWith(dateColumn), 'null')
+    const result = coerceRowToSchema(data, schemaWith(dateColumn))
     expect(result.valid).toBe(true)
     expect(data.col_d).toBe('2020-09-13T12:26:40.000Z')
   })
 
-  it('still nulls an out-of-range epoch number under the `null` policy', () => {
+  it('still nulls an out-of-range epoch number by default', () => {
     const data: RowData = { col_d: 1e20 }
-    const result = coerceRowToSchema(data, schemaWith(dateColumn), 'null')
+    const result = coerceRowToSchema(data, schemaWith(dateColumn))
     expect(result.valid).toBe(true)
     expect(data.col_d).toBeNull()
   })

@@ -162,17 +162,14 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
       afterId = page[page.length - 1].id
 
       // Validate each merged result before writing the page — a row that would overflow the size
-      // cap or violate the schema fails the job (earlier pages stay applied; best-effort). Only
-      // the patch's own keys are held to the strict policy: a legacy cell this job never touches
-      // must not fail it halfway through, after the earlier pages have committed.
-      const patchedKeys = Object.keys(data)
+      // cap or violate the schema fails the job (earlier pages stay applied; best-effort).
       for (const row of page) {
         const merged = { ...row.data, ...data }
         const sizeValidation = validateRowSize(merged)
         if (!sizeValidation.valid) {
           throw new Error(`Row ${row.id}: ${sizeValidation.errors.join(', ')}`)
         }
-        const schemaValidation = coerceRowToSchema(merged, table.schema, 'reject', patchedKeys)
+        const schemaValidation = coerceRowToSchema(merged, table.schema)
         if (!schemaValidation.valid) {
           throw new Error(`Row ${row.id}: ${schemaValidation.errors.join(', ')}`)
         }

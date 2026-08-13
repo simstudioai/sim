@@ -61,7 +61,7 @@ import {
   createUnknownTableRowSecretProvenance,
   loadTableRowSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
-import type { FindRowMatch } from '@/lib/table/rows/service'
+import type { FindRowMatch, RowWriteOptions } from '@/lib/table/rows/service'
 import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { predicateToStorage } from '@/lib/table/select-values'
 import { coerceRowValues } from '@/lib/table/validation'
@@ -81,6 +81,23 @@ interface TableScopedInput {
   tableId: string
   assertedWorkspaceId?: string
   requestId?: string
+  /**
+   * Whether the calling surface publishes the stricter `/api/v2` write contract:
+   * a row naming a column the table does not have is refused rather than having
+   * that key dropped, and a value the column's type cannot coerce is answered
+   * with a 400 rather than stored as `null`.
+   *
+   * Absent — every first-party surface, and the only behavior any of them has
+   * ever had: the workspace grid, the internal `/api/table` routes, `/api/v1`,
+   * the Copilot table tools, and the executor's Table block all drop the
+   * unknown key and blank the uncoercible cell. Read-only use cases ignore it.
+   */
+  strictWrite?: boolean
+}
+
+/** The write policy `strictWrite` selects, for the row-service primitives. */
+function rowWriteOptions(input: TableScopedInput): RowWriteOptions {
+  return input.strictWrite ? { uncoercibleValues: 'reject' } : {}
 }
 
 interface TableResult {
@@ -116,7 +133,8 @@ function actorUserId(
 }
 
 /**
- * Refuses a wire row naming a column the table does not have.
+ * Refuses a wire row naming a column the table does not have. Applied only to a
+ * `strictWrite` caller — see {@link TableScopedInput.strictWrite}.
  *
  * The name→id remap drops unrecognised keys, so without this an insert of
  * `{"nosuchcol":"x"}` created an empty row under a 201, and a patch of
@@ -138,9 +156,9 @@ function assertKnownColumnNames(
   )
 }
 
-function namedDataToStorage(data: RowData, table: TableDefinition): RowData {
+function namedDataToStorage(data: RowData, table: TableDefinition, strict = false): RowData {
   const idByName = buildIdByName(table.schema)
-  assertKnownColumnNames(data, idByName)
+  if (strict) assertKnownColumnNames(data, idByName)
   return rowDataNameToId(data, idByName)
 }
 
@@ -149,10 +167,14 @@ function namedDataToStorage(data: RowData, table: TableDefinition): RowData {
  * whole batch rather than per row — these paths run over up to
  * `MAX_BATCH_INSERT_SIZE` rows.
  */
-function namedRowsToStorage(rows: readonly RowData[], table: TableDefinition): RowData[] {
+function namedRowsToStorage(
+  rows: readonly RowData[],
+  table: TableDefinition,
+  strict = false
+): RowData[] {
   const idByName = buildIdByName(table.schema)
   return rows.map((row, index) => {
-    assertKnownColumnNames(row, idByName, `Row ${index + 1}`)
+    if (strict) assertKnownColumnNames(row, idByName, `Row ${index + 1}`)
     return rowDataNameToId(row, idByName)
   })
 }
@@ -433,12 +455,14 @@ export const createTableRows = defineAuthorizedTableUseCase({
       ) {
         throw new TableRowsValidationError('Position must be 0 or greater')
       }
-      const data = namedDataToStorage(input.data, context.table)
+      const data = namedDataToStorage(input.data, context.table, input.strictWrite)
+      const writeOptions = rowWriteOptions(input)
       await throwValidationResponse(
         await validateRowData({
           rowData: data,
           schema: context.table.schema,
           tableId: context.tableId,
+          uncoercibleValues: writeOptions.uncoercibleValues,
         })
       )
       const row = await insertRow(
@@ -453,7 +477,8 @@ export const createTableRows = defineAuthorizedTableUseCase({
           secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
         },
         context.table,
-        requestId(input)
+        requestId(input),
+        writeOptions
       )
       return { kind: 'single', table: context.table, row }
     }
@@ -468,12 +493,14 @@ export const createTableRows = defineAuthorizedTableUseCase({
     if (input.orderKeys && input.orderKeys.length !== input.rows.length) {
       throw new TableRowsValidationError('orderKeys must align one-to-one with rows')
     }
-    const rows = namedRowsToStorage(input.rows, context.table)
+    const rows = namedRowsToStorage(input.rows, context.table, input.strictWrite)
+    const batchWriteOptions = rowWriteOptions(input)
     await throwValidationResponse(
       await validateBatchRows({
         rows,
         schema: context.table.schema,
         tableId: context.tableId,
+        uncoercibleValues: batchWriteOptions.uncoercibleValues,
       })
     )
     const created = await batchInsertRows(
@@ -486,7 +513,8 @@ export const createTableRows = defineAuthorizedTableUseCase({
         secretProvenance: defaultedRowsSecretProvenance(rows, input.secretProvenance),
       },
       context.table,
-      requestId(input)
+      requestId(input),
+      batchWriteOptions
     )
     return { kind: 'batch', table: context.table, rows: created }
   },
@@ -518,7 +546,7 @@ export const replaceTableRows = defineAuthorizedTableUseCase({
       throw new TableRowsValidationError('Secret provenance must align one-to-one with rows')
     }
 
-    const rows = namedRowsToStorage(input.rows, context.table)
+    const rows = namedRowsToStorage(input.rows, context.table, input.strictWrite)
     const result = await replaceTableRowsPrimitive(
       {
         tableId: context.tableId,
@@ -528,7 +556,8 @@ export const replaceTableRows = defineAuthorizedTableUseCase({
         secretProvenance: defaultedRowsSecretProvenance(rows, input.secretProvenance),
       },
       context.table,
-      requestId(input)
+      requestId(input),
+      rowWriteOptions(input)
     )
     return { table: context.table, ...result }
   },
@@ -722,7 +751,7 @@ export const updateTableRow = defineAuthorizedTableUseCase({
   operation: tableOperations.updateRow,
   resolveContext: ({ input }: { input: UpdateTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<UpdateTableRowResult> {
-    const data = namedDataToStorage(input.data, context.table)
+    const data = namedDataToStorage(input.data, context.table, input.strictWrite)
     const row = await updateRow(
       {
         tableId: context.tableId,
@@ -733,7 +762,8 @@ export const updateTableRow = defineAuthorizedTableUseCase({
         secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
       },
       context.table,
-      requestId(input)
+      requestId(input),
+      rowWriteOptions(input)
     )
     if (!row) throw new Error('Unconditional table row update was rejected')
     return {
@@ -770,7 +800,7 @@ export const updateTableRows = defineAuthorizedTableUseCase({
       if (input.limit !== undefined) {
         requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit')
       }
-      const data = namedDataToStorage(input.data, context.table)
+      const data = namedDataToStorage(input.data, context.table, input.strictWrite)
       const result = await updateRowsByFilter(
         context.table,
         {
@@ -780,7 +810,8 @@ export const updateTableRows = defineAuthorizedTableUseCase({
           actorUserId: actorUserId(principal, context.billedAccountUserId),
           secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
         },
-        requestId(input)
+        requestId(input),
+        rowWriteOptions(input)
       )
       return { table: context.table, ...result }
     } catch (error) {
@@ -893,7 +924,7 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
     const conflictTarget = input.conflictTarget
       ? (buildIdByName(context.table.schema).get(input.conflictTarget) ?? input.conflictTarget)
       : undefined
-    const data = namedDataToStorage(input.data, context.table)
+    const data = namedDataToStorage(input.data, context.table, input.strictWrite)
     const result = await upsertRow(
       {
         tableId: context.tableId,
@@ -904,7 +935,8 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
         secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
       },
       context.table,
-      requestId(input)
+      requestId(input),
+      rowWriteOptions(input)
     )
     return { table: context.table, row: result.row, operation: result.operation }
   },

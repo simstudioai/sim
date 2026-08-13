@@ -154,6 +154,10 @@ describe('/api/v2/tables/[tableId]/rows', () => {
         tableId: 'table-1',
         assertedWorkspaceId: WORKSPACE_ID,
         data: { name: 'Ada' },
+        // v2 alone opts into the strict write contract: an unknown column name
+        // or a value the column cannot hold is a 400, not a dropped key or a
+        // nulled cell. Every first-party surface leaves this unset.
+        strictWrite: true,
       },
       request: single,
     })
@@ -170,6 +174,7 @@ describe('/api/v2/tables/[tableId]/rows', () => {
         tableId: 'table-1',
         assertedWorkspaceId: WORKSPACE_ID,
         rows: [{ name: 'Ada' }],
+        strictWrite: true,
       },
       request: batch,
     })

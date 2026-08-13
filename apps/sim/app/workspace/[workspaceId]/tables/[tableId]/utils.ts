@@ -21,16 +21,14 @@ export function generateColumnName(columns: ReadonlyArray<{ name: string }>): st
 /**
  * Coerce a value a person typed or pasted into a cell to that column's type.
  * Throws on invalid JSON, and answers `null` for everything else the column
- * type refuses.
+ * type can read nothing from.
  *
- * `null` is what the server would store for the same value, which is the point:
- * the optimistic cache and the row that comes back agree. It deliberately does
- * not consult `ColumnTypeDefinition.salvage`, which reads a refused value
- * lossily — a multiselect paste naming one option that no longer exists blanks
- * the cell here rather than storing the members that did resolve. Salvage is
- * reserved for writes with no caller to answer, and this one has one: a person
- * watching the cell, who is better served seeing the paste refused than seeing
- * part of it silently kept.
+ * The result is what the server would store for the same value, which is the
+ * point: the optimistic cache and the row that comes back agree. The grid
+ * writes through a first-party route, which runs the `null` policy — so a
+ * refused value falls back to `ColumnTypeDefinition.salvage` here exactly as it
+ * does there, and a multiselect paste naming one live option and one deleted
+ * one keeps the live one instead of erasing the cell.
  */
 export function cleanCellValue(
   value: unknown,
@@ -56,8 +54,11 @@ export function cleanCellValue(
 
   // Everything else runs the SAME coercion the server will run, so the
   // optimistic cache holds exactly the value that gets persisted.
-  const coerced = columnTypeOf(column).coerce(value as JsonValue, column)
-  return coerced.ok ? coerced.value : null
+  const columnType = columnTypeOf(column)
+  const coerced = columnType.coerce(value as JsonValue, column)
+  if (coerced.ok) return coerced.value
+  const salvaged = columnType.salvage?.(value as JsonValue, column)
+  return salvaged?.ok ? salvaged.value : null
 }
 
 /**

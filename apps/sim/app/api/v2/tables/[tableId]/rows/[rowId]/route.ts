@@ -41,6 +41,7 @@ export const PATCH = defineV2JsonRoute({
     rowId: params.rowId,
     assertedWorkspaceId: body.workspaceId,
     data: body.data,
+    strictWrite: true,
   }),
   useCase: updateTableRow,
   present: ({ table, row }) => ({
