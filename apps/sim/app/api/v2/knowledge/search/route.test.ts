@@ -25,6 +25,7 @@ vi.mock('@/lib/knowledge/application/search', () => ({
 }))
 
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
+import { DEFAULT_RERANKER_MODEL } from '@/lib/knowledge/reranker-models'
 import { POST, V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES } from '@/app/api/v2/knowledge/search/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -69,6 +70,7 @@ describe('POST /api/v2/knowledge/search', () => {
       knowledgeBaseIds: ['kb-1'],
       topK: 10,
       totalResults: 1,
+      rerankerStatus: 'applied',
     })
   })
 
@@ -96,7 +98,7 @@ describe('POST /api/v2/knowledge/search', () => {
         tagFilters: undefined,
         searchMode: 'hybrid',
         rerankerEnabled: undefined,
-        rerankerModel: undefined,
+        rerankerModel: DEFAULT_RERANKER_MODEL,
         rerankerInputCount: undefined,
       },
       request,
@@ -163,6 +165,77 @@ describe('POST /api/v2/knowledge/search', () => {
     const [{ input }] = mockSearch.mock.calls[0]
     expect(input).not.toHaveProperty('rerankerApiKey')
     expect(input).not.toHaveProperty('skipUsageBilling')
+  })
+
+  /**
+   * `rerankerEnabled` on its own used to satisfy the schema, fail the use case's
+   * model guard, and answer 200 in plain vector order — after paying for the
+   * widened candidate retrieval. The default closes that, matching the internal
+   * search contract.
+   */
+  it('defaults the reranker model so enabling reranking is enough to run it', async () => {
+    const response = await POST(
+      buildRequest(
+        JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          knowledgeBaseIds: ['kb-1'],
+          query: 'hello',
+          topK: 5,
+          rerankerEnabled: true,
+        })
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          rerankerEnabled: true,
+          rerankerModel: DEFAULT_RERANKER_MODEL,
+        }),
+      })
+    )
+  })
+
+  it('reports on the wire that a requested reranker did not run', async () => {
+    mockSearch.mockResolvedValueOnce({
+      results: [
+        {
+          embeddingId: 'embedding-1',
+          knowledgeBaseId: 'kb-1',
+          documentId: 'doc-1',
+          documentName: 'support.txt',
+          sourceUrl: null,
+          content: 'hello',
+          chunkIndex: 0,
+          metadata: {},
+          similarity: 0.9,
+        },
+      ],
+      query: 'hello',
+      knowledgeBaseIds: ['kb-1'],
+      topK: 5,
+      totalResults: 1,
+      rerankerStatus: 'unavailable',
+    })
+
+    const response = await POST(
+      buildRequest(
+        JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          knowledgeBaseIds: ['kb-1'],
+          query: 'hello',
+          topK: 5,
+          rerankerEnabled: true,
+          rerankerModel: 'rerank-v4.0-pro',
+        })
+      )
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.data.rerankerStatus).toBe('unavailable')
+    expect(body.data.results[0]).not.toHaveProperty('rerankerScore')
   })
 
   it('rejects an unsupported reranker model and an out-of-range candidate pool', async () => {

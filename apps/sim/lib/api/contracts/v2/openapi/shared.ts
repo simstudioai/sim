@@ -239,6 +239,30 @@ export const WORKSPACE_API_KEY_DENIED =
 export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
   'A workspace API key cannot call this operation. Because unauthorized resources are concealed, the rejection is reported as `404` rather than `403`; use a personal API key.'
 
+/**
+ * Appended to the two reads over `workflow_execution_logs`, which is the only
+ * store of a run and is hard-deleted — rows and execution files both — by the
+ * `cleanup-logs` background task once a run passes the payer's window.
+ *
+ * The window itself is `CLEANUP_CONFIG['cleanup-logs'].defaults` in
+ * `lib/billing/cleanup-dispatcher.ts`: 30 days on the free plan, and `null`
+ * — meaning the plan is skipped entirely and nothing is deleted — on Pro and
+ * Team. Enterprise resolves per organization through
+ * `resolveEffectiveRetentionHours`, with a per-workspace override, and is
+ * likewise unbounded until someone configures it. Self-hosted classifies every
+ * workspace as enterprise and dispatches nothing unless data retention is
+ * enabled.
+ *
+ * Stated because deletion is otherwise invisible: an aged-out run is not a
+ * tombstone or a 404, it is simply absent, and `runCount` on the workflow is
+ * never decremented to match — so a free-plan workflow can report dozens of
+ * runs beside an empty list and nothing in either response explains the gap.
+ * Kept as one constant so the two sibling reads cannot drift into two
+ * paraphrases of one window.
+ */
+export const RUN_RETENTION =
+  "Runs are hard-deleted once they pass the payer's log retention window, so an older run is absent from this list rather than reported as removed. The window is 30 days from run start on the free plan; Pro and Team have none configured and keep runs indefinitely; Enterprise sets its own per organization, with an optional per-workspace override, and is also unbounded until configured. A workflow's `runCount` is never reduced by this deletion, so a workflow can report runs while this list is empty."
+
 export const V2_COMMON_HEADERS = {
   'X-RateLimit-Limit': {
     schema: z.number().int().nonnegative().meta({

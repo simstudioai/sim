@@ -210,7 +210,7 @@
       "get": {
         "operationId": "listMcpServers",
         "summary": "List MCP Servers",
-        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. Nothing caps how many servers a workspace registers, so this list is paginated: paginate with `limit` and `cursor`, stopping when `nextCursor` is null. `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh` describe the most recent tool discovery and stay at their registration defaults until one runs — call `GET /api/v2/mcp-servers/{id}/tools` to run it.",
+        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. Nothing caps how many servers a workspace registers, so this list is paginated: paginate with `limit` and `cursor`, stopping when `nextCursor` is null. `connectionStatus`, `lastConnected`, `toolCount`, `lastError`, and `lastToolsRefresh` describe the most recent tool discovery and stay at their registration defaults — `disconnected`, with `lastConnected` absent — until one runs. Call `GET /api/v2/mcp-servers/{id}/tools` to run it.",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -333,7 +333,7 @@
       "post": {
         "operationId": "createMcpServer",
         "summary": "Create MCP Server",
-        "description": "Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only. `transport`, `timeout`, `retries`, and `enabled` are applied server-side when omitted; the effective values are in the response.",
+        "description": "Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only. `transport`, `timeout`, `retries`, and `enabled` are applied server-side when omitted; the effective values are in the response. Registration stores the configuration and does not connect to the endpoint, so a 201 is not evidence the server is reachable: the response carries `connectionStatus: \"disconnected\"` and omits `lastConnected`, and the workspace tool registry treats the server as unavailable until a discovery succeeds. Call `GET /api/v2/mcp-servers/{id}/tools` to attempt one and see the outcome. Re-registering an existing URL rewrites the configuration and returns the server to the same unverified state.",
         "tags": ["MCP Servers"],
         "requestBody": {
           "required": true,
@@ -841,7 +841,7 @@
       "post": {
         "operationId": "createSkill",
         "summary": "Create Skill",
-        "description": "Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. Note that a workspace API key may create a skill but may not later update or delete it.",
+        "description": "Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Skills"],
         "requestBody": {
           "required": true,
@@ -2492,12 +2492,12 @@
             "description": "Whether the server tools are available to workflows."
           },
           "connectionStatus": {
-            "description": "Result of the most recent connection attempt.",
+            "description": "Result of the most recent connection attempt. Registration and re-registration store a configuration without contacting the endpoint, so a server begins — and returns to — `disconnected` until a tool discovery runs.",
             "type": "string",
             "enum": ["connected", "disconnected", "error"]
           },
           "lastError": {
-            "description": "Message from the most recent failed connection, or null when absent.",
+            "description": "Message from the most recent failed connection, or null when absent. A re-registration clears it, since the configuration it described no longer applies.",
             "anyOf": [
               {
                 "type": "string"
@@ -2518,7 +2518,7 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "lastConnected": {
-            "description": "ISO 8601 timestamp of the most recent successful connection.",
+            "description": "ISO 8601 timestamp of the most recent successful connection. Absent until the server completes one; registering a server does not set it.",
             "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
@@ -2650,11 +2650,9 @@
               "timeout": 30000,
               "retries": 3,
               "enabled": true,
-              "connectionStatus": "connected",
+              "connectionStatus": "disconnected",
               "lastError": null,
-              "toolCount": 7,
-              "lastToolsRefresh": "2026-06-20T14:02:11.000Z",
-              "lastConnected": "2026-06-20T14:02:11.000Z",
+              "toolCount": 0,
               "createdAt": "2026-06-01T09:14:00.000Z",
               "updatedAt": "2026-06-20T14:02:11.000Z",
               "hasHeaders": true,

@@ -101,7 +101,7 @@
       "get": {
         "operationId": "listBillingLogs",
         "summary": "List Billing Logs",
-        "description": "List the credit-denominated billing ledger with source filtering and opaque cursor pagination. `period` defaults to `30d`, so an unqualified request covers only the last 30 days: paginating to `nextCursor: null` exhausts that window, not the whole ledger. Pass `period=all` for full history, or `period=custom` with `startDate` and `endDate` for a specific range.",
+        "description": "List the credit-denominated billing ledger with source filtering and opaque cursor pagination. `period` defaults to `30d`, so an unqualified request covers only the last 30 days: paginating to `nextCursor: null` exhausts that window, not the whole ledger. Pass `period=all` for full history, or `period=custom` with `startDate` and `endDate` for a specific range. Both bounds are accepted only with `period=custom` — sending either alongside a relative period is a 400, never a page silently answered over a different window — and both take the same strict UTC ISO 8601 form as `GET /api/v2/logs`. An inverted window is a 400 rather than an empty page.",
         "tags": ["Billing"],
         "parameters": [
           {
@@ -140,10 +140,10 @@
             "name": "period",
             "in": "query",
             "required": false,
-            "description": "Relative window, all history, or a custom date range.",
+            "description": "Relative window, all history, or a custom date range. `startDate` and `endDate` are accepted only with `custom`; every other value computes its own window.",
             "schema": {
               "default": "30d",
-              "description": "Relative window, all history, or a custom date range.",
+              "description": "Relative window, all history, or a custom date range. `startDate` and `endDate` are accepted only with `custom`; every other value computes its own window.",
               "type": "string",
               "enum": ["1d", "7d", "30d", "all", "custom"]
             }
@@ -152,22 +152,24 @@
             "name": "startDate",
             "in": "query",
             "required": false,
-            "description": "Start of a custom window as a Date-parseable string.",
+            "description": "Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.",
             "schema": {
-              "description": "Start of a custom window as a Date-parseable string.",
               "type": "string",
-              "minLength": 1
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected."
             }
           },
           {
             "name": "endDate",
             "in": "query",
             "required": false,
-            "description": "End of a custom window as a Date-parseable string; defaults to now.",
+            "description": "Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.",
             "schema": {
-              "description": "End of a custom window as a Date-parseable string; defaults to now.",
               "type": "string",
-              "minLength": 1
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected."
             }
           },
           {

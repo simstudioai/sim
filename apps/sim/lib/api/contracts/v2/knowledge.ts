@@ -39,7 +39,11 @@ import {
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
 import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
-import { rerankerModelSchema } from '@/lib/knowledge/reranker-models'
+import {
+  DEFAULT_RERANKER_MODEL,
+  rerankerModelSchema,
+  rerankerStatusSchema,
+} from '@/lib/knowledge/reranker-models'
 import { knowledgeDocumentUploadMetadataSchema } from '@/lib/knowledge/upload-metadata'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 
@@ -393,6 +397,18 @@ export const v2KnowledgeSearchDataSchema = z
       .nonnegative()
       .describe('Number of results returned.')
       .meta({ examples: [4] }),
+    /**
+     * Required, not optional. Reranking degrades to vector ordering on a provider
+     * failure or an unconfigured credential, and that fallback was previously
+     * indistinguishable from a reranker that ran — same 200, same order, no
+     * `rerankerScore` on any result. A field a caller has to remember to look for
+     * would reproduce the same gap for anyone who does not.
+     */
+    rerankerStatus: rerankerStatusSchema
+      .describe(
+        'What the reranker did on this search. `applied` means it ordered the results, which carry `rerankerScore`. `unavailable` means reranking was requested and attempted but could not complete, so results are in vector order and carry no `rerankerScore` — the search still succeeded, and the request is worth retrying. `skipped` means there was nothing to rank: a tag-only search, or no matching chunks. `not_requested` means `rerankerEnabled` was absent or false.'
+      )
+      .meta({ examples: ['applied'] }),
   })
   .meta({
     id: 'V2KnowledgeSearchData',
@@ -815,11 +831,22 @@ export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema
       .boolean()
       .optional()
       .describe(
-        'Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, which has no query to rank against. Reranking is billed as an additional search unit.'
+        'Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, which has no query to rank against. Reranking is billed as an additional search unit. Whether it actually ran is reported by `rerankerStatus` on the response: reranking is best-effort, and a provider failure falls back to vector ordering rather than failing the search.'
       ),
+    /**
+     * Defaulted, matching the internal search contract this one otherwise
+     * mirrors. Without it, `rerankerEnabled: true` on its own satisfied the
+     * schema, failed the use case's `input.rerankerModel` guard, and returned a
+     * 200 in plain vector order — while still paying for the four-times-`topK`
+     * candidate retrieval that reranking widens. The old description, "required
+     * for reranking to run", documented the trap instead of removing it.
+     */
     rerankerModel: rerankerModelSchema
       .optional()
-      .describe('Reranking model to use; required for reranking to run.'),
+      .default(DEFAULT_RERANKER_MODEL)
+      .describe(
+        `Reranking model to use when \`rerankerEnabled\` is true. Defaults to \`${DEFAULT_RERANKER_MODEL}\`.`
+      ),
     rerankerInputCount: z
       .number()
       .int('rerankerInputCount must be a whole number')

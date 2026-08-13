@@ -252,7 +252,16 @@ describe('/api/v2/skills', () => {
     expect(mocks.list).not.toHaveBeenCalled()
   })
 
+  /**
+   * A personal key, not the suite's default workspace key. `skills.create` denies
+   * a workspace key like every other skill write: the per-skill editor row that
+   * authorizes an update or a delete resolves against a human subject a workspace
+   * key cannot supply, so allowing it to create left rows it could never remove.
+   */
   it('creates a skill with the v2 source and status', async () => {
+    const principal = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-personal' }
+    mocks.authenticate.mockResolvedValueOnce({ ...AUTH, principal, keyType: 'personal' as const })
+
     const response = await POST(
       request('POST', '/api/v2/skills', {
         workspaceId: WORKSPACE_ID,
@@ -265,7 +274,7 @@ describe('/api/v2/skills', () => {
     expect(response.status).toBe(201)
     expect((await response.json()).data.id).toBe(skill.id)
     expect(mocks.create).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
+      principal,
       input: {
         workspaceId: WORKSPACE_ID,
         name: skill.name,
@@ -275,7 +284,6 @@ describe('/api/v2/skills', () => {
       },
       request: expect.anything(),
     })
-    expect(mocks.capture).not.toHaveBeenCalled()
   })
 
   it('keeps skill analytics on the personal-key v2 surface', async () => {

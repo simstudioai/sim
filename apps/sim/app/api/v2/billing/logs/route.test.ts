@@ -155,4 +155,81 @@ describe('GET /api/v2/billing/logs', () => {
     expect(v2RouteMocks.authenticate).toHaveBeenCalled()
     expect(mocks.execute).not.toHaveBeenCalled()
   })
+
+  it('rejects a window bound the effective period would discard', async () => {
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/v2/billing/logs?startDate=2030-01-01T00:00:00Z&limit=100'
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'BAD_REQUEST',
+        message: expect.stringContaining('period=custom'),
+      },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects an endDate paired with an explicit relative period', async () => {
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/v2/billing/logs?period=7d&endDate=2026-07-01T00:00:00Z'
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects a window bound that is not a UTC ISO 8601 timestamp', async () => {
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/v2/billing/logs?period=custom&startDate=2026-08-01'
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('UTC ISO 8601') },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects an inverted custom range instead of answering with an empty page', async () => {
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/v2/billing/logs?period=custom&startDate=2026-08-06T00:00:00Z&endDate=2026-08-05T00:00:00Z'
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'BAD_REQUEST',
+        message: expect.stringContaining('startDate must be before or equal to endDate'),
+      },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('forwards a valid custom range to the ledger read', async () => {
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/v2/billing/logs?period=custom&startDate=2026-07-01T00:00:00Z&endDate=2026-07-31T00:00:00Z'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.execute).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: expect.objectContaining({
+        startDate: new Date('2026-07-01T00:00:00Z'),
+        endDate: new Date('2026-07-31T00:00:00Z'),
+      }),
+      request: expect.anything(),
+    })
+  })
 })

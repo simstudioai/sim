@@ -474,7 +474,7 @@
       "post": {
         "operationId": "searchKnowledge",
         "summary": "Search Knowledge",
-        "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Set `rerankerEnabled` with a `rerankerModel` to re-order the retrieved chunks with a reranking model before truncating to `topK`; reranked results carry a `rerankerScore` and are ordered by it, and reranking is billed as an additional search unit. Every result names the `knowledgeBaseId` it came from. The request body is capped at 2 MiB; a larger body is a 413.",
+        "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Set `rerankerEnabled` to re-order the retrieved chunks with a reranking model before truncating to `topK`; `rerankerModel` selects the model and defaults when omitted. Reranked results carry a `rerankerScore` and are ordered by it, and reranking is billed as an additional search unit. Reranking is best-effort: a reranker that cannot run — a provider failure, a timeout, or a deployment with no reranking credential — falls back to vector ordering rather than failing the search, so read `rerankerStatus` on the response to tell an ordering the reranker produced from one it never touched. Every result names the `knowledgeBaseId` it came from. The request body is capped at 2 MiB; a larger body is a 413.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -2673,9 +2673,22 @@
             "maximum": 9007199254740991,
             "description": "Number of results returned.",
             "examples": [4]
+          },
+          "rerankerStatus": {
+            "type": "string",
+            "enum": ["not_requested", "skipped", "unavailable", "applied"],
+            "description": "What the reranker did on this search. `applied` means it ordered the results, which carry `rerankerScore`. `unavailable` means reranking was requested and attempted but could not complete, so results are in vector order and carry no `rerankerScore` — the search still succeeded, and the request is worth retrying. `skipped` means there was nothing to rank: a tag-only search, or no matching chunks. `not_requested` means `rerankerEnabled` was absent or false.",
+            "examples": ["applied"]
           }
         },
-        "required": ["results", "query", "knowledgeBaseIds", "topK", "totalResults"],
+        "required": [
+          "results",
+          "query",
+          "knowledgeBaseIds",
+          "topK",
+          "totalResults",
+          "rerankerStatus"
+        ],
         "additionalProperties": false,
         "title": "Knowledge search data",
         "description": "Results and execution context for a knowledge search."
@@ -2803,11 +2816,12 @@
             ]
           },
           "rerankerEnabled": {
-            "description": "Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, which has no query to rank against. Reranking is billed as an additional search unit.",
+            "description": "Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, which has no query to rank against. Reranking is billed as an additional search unit. Whether it actually ran is reported by `rerankerStatus` on the response: reranking is best-effort, and a provider failure falls back to vector ordering rather than failing the search.",
             "type": "boolean"
           },
           "rerankerModel": {
-            "description": "Reranking model to use; required for reranking to run.",
+            "default": "rerank-v4.0-fast",
+            "description": "Reranking model to use when `rerankerEnabled` is true. Defaults to `rerank-v4.0-fast`.",
             "type": "string",
             "enum": ["rerank-v4.0-pro", "rerank-v4.0-fast", "rerank-v3.5"]
           },

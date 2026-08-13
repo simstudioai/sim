@@ -10,20 +10,29 @@ const HUMAN_PRINCIPAL_POLICY = {
 } as const
 
 /**
- * Skill operations split on workspace API keys, and the split is structural
- * rather than an oversight.
+ * Every skill write is human-subject-only. Reads are not.
  *
- * `create` is gated on workspace `write`, which a workspace key can express, so
- * it allows one. `update`, `upsert`, and `delete` are not gated on workspace
- * role at all — their floor is `read` because the real authority is the
- * per-skill editor row that `resolveEditableSkill` checks against the acting
- * user. A workspace key has no user subject to check, so those operations deny
- * it: `requirePrincipalSubjectUserId` would otherwise throw an unclassified
- * error and surface as a caller-reachable `500` instead of a `403`.
+ * `update`, `upsert`, and `delete` are not gated on workspace role at all —
+ * their floor is `read` because the real authority is the per-skill editor row
+ * that `resolveEditableSkill` checks against the acting user. A workspace key
+ * has no user subject to check, so those operations deny it:
+ * `requirePrincipalSubjectUserId` would otherwise throw an unclassified error
+ * and surface as a caller-reachable `500` instead of a `403`. Widening them is
+ * not a policy flip — it needs an authorization model for a keyless principal
+ * against per-skill editors, which does not exist.
  *
- * Widening them therefore is not a policy flip — it needs an authorization model
- * for a keyless principal against per-skill editors, which does not exist.
- * Pinned in `operations.test.ts`.
+ * `create` used to allow a workspace key on the reasoning that it is gated on
+ * workspace `write`, which a key can express. That reasoning held for the
+ * authorization check and broke everything after it. A workspace key that
+ * created a skill could never update or delete it, so its only possible
+ * interaction with the resource was to accumulate rows beyond its own reach —
+ * and the row it left behind was not even attributable to it: `create`
+ * attributes through `resolvePrincipalAttribution`, which maps a workspace key
+ * to the workspace's billing owner, so the write minted a `skill_member` editor
+ * grant for a human who did not act and who alone (with workspace admins) could
+ * then remove it. Denying `create` makes the lifecycle symmetric on the only
+ * consistent side available: the same per-skill editor model authorizes the
+ * whole of it. Pinned in `operations.test.ts`.
  */
 export const skillOperations = {
   list: defineWorkspaceOperation({
@@ -47,8 +56,8 @@ export const skillOperations = {
   create: defineWorkspaceOperation({
     id: 'skills.create',
     minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
+    workspaceApiKey: 'deny',
+    ...HUMAN_PRINCIPAL_POLICY,
   }),
   update: defineWorkspaceOperation({
     id: 'skills.update',

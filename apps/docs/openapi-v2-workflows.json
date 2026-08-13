@@ -1243,7 +1243,7 @@
       "get": {
         "operationId": "listWorkflowRunsV2",
         "summary": "List Workflow Runs",
-        "description": "List recorded runs of a workflow with filtering and opaque cursor pagination. Ordering deviates from the v2 `sortBy` + `sortOrder` convention: runs are sortable only by start time, so direction is carried by the single `order` param.",
+        "description": "List recorded runs of a workflow with filtering and opaque cursor pagination. Ordering deviates from the v2 `sortBy` + `sortOrder` convention: runs are sortable only by start time, so direction is carried by the single `order` param. Runs are hard-deleted once they pass the payer's log retention window, so an older run is absent from this list rather than reported as removed. The window is 30 days from run start on the free plan; Pro and Team have none configured and keep runs indefinitely; Enterprise sets its own per organization, with an optional per-workspace override, and is also unbounded until configured. A workflow's `runCount` is never reduced by this deletion, so a workflow can report runs while this list is empty.",
         "tags": ["Workflow Runs"],
         "parameters": [
           {
@@ -2352,7 +2352,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Total recorded workflow runs."
+            "description": "Runs that finished successfully. A run that failed, was cancelled, or is still paused is not counted, and the counter is never reduced when a run ages out of log retention — so this is not the number of runs `GET /api/v2/workflows/{id}/runs` returns, in either direction."
           },
           "lastRunAt": {
             "anyOf": [
@@ -2363,7 +2363,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 timestamp of the latest run, or null when never run.",
+            "description": "ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.",
             "format": "date-time"
           },
           "createdAt": {
@@ -2581,7 +2581,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Total recorded workflow runs."
+            "description": "Runs that finished successfully. A run that failed, was cancelled, or is still paused is not counted, and the counter is never reduced when a run ages out of log retention — so this is not the number of runs `GET /api/v2/workflows/{id}/runs` returns, in either direction."
           },
           "lastRunAt": {
             "anyOf": [
@@ -2592,7 +2592,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 timestamp of the latest run, or null when never run.",
+            "description": "ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.",
             "format": "date-time"
           },
           "createdAt": {

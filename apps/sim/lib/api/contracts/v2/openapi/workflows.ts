@@ -8,6 +8,7 @@ import {
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
   RESOURCE_MUTATION_ERRORS,
+  RUN_RETENTION,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
@@ -592,8 +593,7 @@ const routes = [
     workflowRunOperation({
       operationId: 'listWorkflowRunsV2',
       summary: 'List Workflow Runs',
-      description:
-        'List recorded runs of a workflow with filtering and opaque cursor pagination. Ordering deviates from the v2 `sortBy` + `sortOrder` convention: runs are sortable only by start time, so direction is carried by the single `order` param.',
+      description: `List recorded runs of a workflow with filtering and opaque cursor pagination. Ordering deviates from the v2 \`sortBy\` + \`sortOrder\` convention: runs are sortable only by start time, so direction is carried by the single \`order\` param. ${RUN_RETENTION}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('A page of workflow runs.'),
     }),

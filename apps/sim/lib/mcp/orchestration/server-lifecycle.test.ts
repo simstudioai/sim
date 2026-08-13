@@ -250,6 +250,75 @@ describe('MCP server lifecycle orchestration', () => {
     expect(mockRevokeOauthTokens).toHaveBeenCalledWith('server-1', 'workspace-1')
   })
 
+  it('registers a new server as disconnected rather than stamping a connection it never made', async () => {
+    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Example',
+        transport: 'streamable-http',
+        url: 'https://example.com/anything',
+        authType: 'headers',
+      },
+    ])
+
+    const result = await performCreateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Example',
+      url: 'https://example.com/anything',
+      headers: { authorization: 'Bearer token' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ connectionStatus: 'disconnected', lastConnected: null })
+    )
+  })
+
+  it('leaves a re-registered server disconnected until discovery re-runs', async () => {
+    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        deletedAt: null,
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Example',
+        transport: 'streamable-http',
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+      },
+    ])
+
+    const result = await performCreateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Example',
+      url: 'https://example.com/mcp',
+      headers: { authorization: 'Bearer rotated' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionStatus: 'disconnected',
+        lastConnected: null,
+        lastError: null,
+      })
+    )
+  })
+
   it('audits a re-registration that rewrites a live server as an update', async () => {
     mockGenerateMcpServerId.mockReturnValue('server-1')
     dbChainMockFns.limit.mockResolvedValueOnce([

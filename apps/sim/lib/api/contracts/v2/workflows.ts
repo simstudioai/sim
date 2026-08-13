@@ -170,11 +170,31 @@ export const v2WorkflowListItemSchema = z
       .nullable()
       .describe('ISO 8601 activation timestamp, or null when not deployed.')
       .meta({ format: 'date-time' }),
-    runCount: z.number().int().nonnegative().describe('Total recorded workflow runs.'),
+    /**
+     * A monotonic column on the workflow row, not an aggregate over the run
+     * list. `updateWorkflowRunCounts` is called from exactly one place —
+     * `executeWorkflowCore`'s post-execution hook, under
+     * `result.success && result.status !== 'paused'` — and nothing ever
+     * decrements it, so the two ways it disagrees with
+     * `GET /workflows/{id}/runs` point in opposite directions and both are
+     * reachable at once. The description is what makes that legible; the
+     * counter itself is left alone because its stored values already carry the
+     * narrow meaning and no backfill can recover runs whose logs retention has
+     * already deleted.
+     */
+    runCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe(
+        'Runs that finished successfully. A run that failed, was cancelled, or is still paused is not counted, and the counter is never reduced when a run ages out of log retention — so this is not the number of runs `GET /api/v2/workflows/{id}/runs` returns, in either direction.'
+      ),
     lastRunAt: z
       .string()
       .nullable()
-      .describe('ISO 8601 timestamp of the latest run, or null when never run.')
+      .describe(
+        'ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.'
+      )
       .meta({ format: 'date-time' }),
     createdAt: z
       .string()

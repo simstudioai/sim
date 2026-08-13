@@ -30,6 +30,7 @@ import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { rerank } from '@/lib/knowledge/reranker'
+import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
 import {
   executeKnowledgeSearch,
   generateSearchEmbedding,
@@ -316,6 +317,25 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     const rerankerScores = new Map<string, number>()
     let rerankerBilled = false
     let rerankerIsBYOK = false
+    /**
+     * Returned on every search. The fallback to vector ordering is deliberate — a
+     * Cohere outage should not take knowledge search down with it — but until this
+     * was reported the fallback was also invisible: a 200 whose results were
+     * byte-identical to an unreranked search, with no `rerankerScore` anywhere and
+     * nothing to say why.
+     *
+     * It starts at the outcome that holds if the rerank call below never happens or
+     * never completes, so only the success path has to move it. A request with
+     * nothing to rank — no query text, or no candidate rows — is `skipped` rather
+     * than `unavailable`: the reranker was never the obstacle. Anything else that
+     * was asked for and did not run is `unavailable`, including a request that
+     * reaches here with no model, which no HTTP contract can now produce.
+     */
+    let rerankerStatus: RerankerStatus = !input.rerankerEnabled
+      ? 'not_requested'
+      : !hasQuery || rows.length === 0
+        ? 'skipped'
+        : 'unavailable'
     if (useReranker && input.rerankerModel && rows.length > 0) {
       const candidateCount = rows.length
       try {
@@ -343,6 +363,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
           for (const ranked of reranked.results) {
             rerankerScores.set(ranked.item.id, ranked.relevanceScore)
           }
+          rerankerStatus = 'applied'
         }
       } catch (error) {
         if (registry?.isPermanentlyIncomplete()) throw error
@@ -352,6 +373,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
           candidateCount,
         })
         rows = rows.slice(0, input.topK)
+        rerankerStatus = 'unavailable'
       }
     } else if (useReranker) {
       rows = rows.slice(0, input.topK)
@@ -505,6 +527,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       knowledgeBaseId: knowledgeBaseIds[0],
       topK: input.topK,
       totalResults: results.length,
+      rerankerStatus,
       cost,
       ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
       userId,
