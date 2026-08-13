@@ -1,4 +1,5 @@
 import { v2ListAuditLogsContract } from '@/lib/api/contracts/v2/audit-logs'
+import { cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -8,7 +9,7 @@ import {
 import { listAuditLogs } from '@/lib/audit-logs/application/list-audit-logs'
 import { auditLogOperations } from '@/lib/audit-logs/application/operations'
 import { formatV2AuditLogEntry } from '@/app/api/v2/audit-logs/format'
-import { cursorFilterScope, encodeScopedCursor, readScopedCursor } from '@/app/api/v2/lib/response'
+import { encodeScopedCursor, readScopedCursor } from '@/app/api/v2/lib/response'
 
 /** Every param that changes which audit entries, in which order, this list returns. */
 function auditLogCursorFilters(query: {
@@ -22,7 +23,7 @@ function auditLogCursorFilters(query: {
   startDate?: string
   endDate?: string
 }) {
-  return cursorFilterScope({
+  return cursorScopeKey({
     organizationId: query.organizationId,
     includeDeparted: query.includeDeparted,
     action: query.action,

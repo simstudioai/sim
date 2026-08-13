@@ -24,9 +24,9 @@ vi.mock('@/lib/logs/application/list-public-logs', () => ({
   listPublicLogs: { operation: { id: 'logs.list' }, execute: mocks.execute },
 }))
 
-import { UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
+import { cursorScopeKey, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { cursorFilterScope, encodeScopedCursor } from '@/app/api/v2/lib/response'
+import { encodeScopedCursor } from '@/app/api/v2/lib/response'
 import { GET } from '@/app/api/v2/logs/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -203,7 +203,7 @@ describe('GET /api/v2/logs', () => {
    */
   it('rejects a cursor whose inner token is empty instead of restarting at page one', async () => {
     const cursor = encodeScopedCursor(
-      cursorFilterScope({ workspaceId: WORKSPACE_ID, order: 'desc' }),
+      cursorScopeKey({ workspaceId: WORKSPACE_ID, order: 'desc' }),
       ''
     )
 

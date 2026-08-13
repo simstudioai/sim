@@ -4,14 +4,18 @@ import {
   v2ListLogsContract,
   v2LogStatusSchema,
 } from '@/lib/api/contracts/v2/logs'
-import { UNREADABLE_CURSOR_MESSAGE, unorderedScopePart } from '@/lib/api/cursor-binding'
+import {
+  cursorScopeKey,
+  UNREADABLE_CURSOR_MESSAGE,
+  unorderedScopePart,
+} from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { v2LogErrorPolicies } from '@/lib/logs/api/route-policies'
 import { listPublicLogs } from '@/lib/logs/application/list-public-logs'
 import { logOperations } from '@/lib/logs/application/operations'
 import { decodePublicLogCursor } from '@/lib/logs/public-queries'
-import { cursorFilterScope, encodeScopedCursor, readScopedCursor } from '@/app/api/v2/lib/response'
+import { encodeScopedCursor, readScopedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -39,7 +43,7 @@ function logCursorFilters(query: {
   folderPaths?: string
   order?: string
 }) {
-  return cursorFilterScope({
+  return cursorScopeKey({
     workspaceId: query.workspaceId,
     workflowIds: unorderedScopePart(query.workflowIds),
     triggers: unorderedScopePart(query.triggers),

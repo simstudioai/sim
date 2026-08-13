@@ -51,14 +51,6 @@ export type CursorScopePart =
   | undefined
 
 /**
- * Deterministic JSON: object keys sorted so two structurally equal values
- * serialize identically regardless of the key order they arrived in, and
- * `undefined` members dropped so an omitted param and an absent one agree.
- *
- * Array order is preserved — reordering an `in` list is treated as a different
- * filter, which only ever costs a restart.
- */
-/**
  * Canonical form of a filter the query treats as an unordered SET.
  *
  * A comma-separated list and a JSON object both have a spelling the caller
@@ -87,6 +79,14 @@ export function unorderedScopePart(raw: string | undefined): string | undefined 
   return members.length > 0 ? members.join(',') : undefined
 }
 
+/**
+ * Deterministic JSON: object keys sorted so two structurally equal values
+ * serialize identically regardless of the key order they arrived in, and
+ * `undefined` members dropped so an omitted param and an absent one agree.
+ *
+ * Array order is preserved — reordering an `in` list is treated as a different
+ * filter, which only ever costs a restart.
+ */
 export function canonicalJson(value: unknown): string {
   if (value instanceof Date) return JSON.stringify(value.toISOString())
   if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'

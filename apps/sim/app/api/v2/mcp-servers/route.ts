@@ -2,6 +2,7 @@ import {
   v2CreateMcpServerContract,
   v2ListMcpServersContract,
 } from '@/lib/api/contracts/v2/mcp-servers'
+import { cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -11,12 +12,7 @@ import {
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import { createMcpServerUseCase, listMcpServersUseCase } from '@/lib/mcp/application/use-cases'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  cursorFilterScope,
-  cursorSortKey,
-  encodeSortedCursor,
-  readSortedCursor,
-} from '@/app/api/v2/lib/response'
+import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
 import { toV2McpServer } from '@/app/api/v2/mcp-servers/utils'
 
 export const dynamic = 'force-dynamic'
@@ -24,7 +20,7 @@ export const revalidate = 0
 
 /** Every param that changes which MCP servers, in which order, this list returns. */
 function mcpServerCursorFilters(query: { workspaceId: string; search?: string }) {
-  return cursorFilterScope({
+  return cursorScopeKey({
     workspaceId: query.workspaceId,
     search: query.search,
   })

@@ -1,4 +1,5 @@
 import { v2CreateSkillContract, v2ListSkillsContract } from '@/lib/api/contracts/v2/skills'
+import { cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -8,17 +9,12 @@ import {
 import { captureServerEvent } from '@/lib/posthog/server'
 import { skillOperations } from '@/lib/skills/application/operations'
 import { createSkillUseCase, listSkillsUseCase } from '@/lib/skills/application/use-cases'
-import {
-  cursorFilterScope,
-  cursorSortKey,
-  decodeOffsetCursor,
-  encodeOffsetCursor,
-} from '@/app/api/v2/lib/response'
+import { cursorSortKey, decodeOffsetCursor, encodeOffsetCursor } from '@/app/api/v2/lib/response'
 import { toV2Skill, toV2SkillSummary } from '@/app/api/v2/skills/utils'
 
 /** Every param that changes which skills, in which order, this list returns. */
 function skillCursorFilters(query: { workspaceId: string; search?: string }) {
-  return cursorFilterScope({ workspaceId: query.workspaceId, search: query.search })
+  return cursorScopeKey({ workspaceId: query.workspaceId, search: query.search })
 }
 
 export const dynamic = 'force-dynamic'

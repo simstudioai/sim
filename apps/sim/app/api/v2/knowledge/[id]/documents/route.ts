@@ -4,7 +4,7 @@ import {
   v2ListKnowledgeDocumentsContract,
   v2UploadKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v2/knowledge'
-import { canonicalJson } from '@/lib/api/cursor-binding'
+import { canonicalJson, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2BodyLifecycleRoute,
   defineV2JsonRoute,
@@ -33,19 +33,13 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { toV2DocumentSummary, toV2TaggedDocument } from '@/app/api/v2/knowledge/utils'
-import {
-  cursorFilterScope,
-  cursorSortKey,
-  decodeOffsetCursor,
-  encodeOffsetCursor,
-} from '@/app/api/v2/lib/response'
+import { cursorSortKey, decodeOffsetCursor, encodeOffsetCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
 
-/** Every param that changes which documents, in which order, this list returns. */
 /**
  * Canonical form of `tagFilters` so two equivalent filters differing only in
  * key order fingerprint the same. {@link canonicalJson} sorts object keys. An
@@ -61,11 +55,12 @@ function canonicalTagFilters(raw: string | undefined): string | undefined {
   }
 }
 
+/** Every param that changes which documents, in which order, this list returns. */
 function documentCursorFilters(
   knowledgeBaseId: string,
   query: { workspaceId: string; enabledFilter?: string; search?: string; tagFilters?: string }
 ) {
-  return cursorFilterScope({
+  return cursorScopeKey({
     knowledgeBaseId,
     workspaceId: query.workspaceId,
     enabledFilter: query.enabledFilter,

@@ -1,5 +1,6 @@
 import type { V2WorkflowListItem } from '@/lib/api/contracts/v2/workflows'
 import { v2CreateWorkflowContract, v2ListWorkflowsContract } from '@/lib/api/contracts/v2/workflows'
+import { cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -9,12 +10,7 @@ import {
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import {
-  cursorFilterScope,
-  cursorSortKey,
-  encodeSortedCursor,
-  readSortedCursor,
-} from '@/app/api/v2/lib/response'
+import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -26,7 +22,7 @@ function workflowCursorFilters(query: {
   deployedOnly: boolean
   search?: string
 }) {
-  return cursorFilterScope({
+  return cursorScopeKey({
     workspaceId: query.workspaceId,
     folderPath: query.folderPath,
     deployedOnly: query.deployedOnly,

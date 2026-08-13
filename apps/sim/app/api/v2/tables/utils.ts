@@ -4,11 +4,7 @@ import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { RowData, TableDefinition, TablePredicate, TableSchema } from '@/lib/table'
 import { getMaxRowsPerTable } from '@/lib/table/billing'
-import {
-  buildColumnNameById,
-  getColumnId,
-  remapViewConfigColumnRefs,
-} from '@/lib/table/column-keys'
+import { buildColumnNameById, remapViewConfigColumnRefs } from '@/lib/table/column-keys'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
@@ -181,7 +177,7 @@ export function toApiView(
  * row `data`. Falls back to the id for a column that no longer exists.
  */
 export function columnNameById(schema: TableSchema): (columnId: string) => string {
-  const nameById = new Map(schema.columns.map((column) => [getColumnId(column), column.name]))
+  const nameById = buildColumnNameById(schema.columns)
   return (columnId) => nameById.get(columnId) ?? columnId
 }
 

@@ -1,4 +1,5 @@
 import { v2ListSecretsContract } from '@/lib/api/contracts/v2/secrets'
+import { cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -7,12 +8,7 @@ import {
 } from '@/lib/api/server/routes'
 import { secretOperations } from '@/lib/secrets/application/operations'
 import { listSecretsUseCase } from '@/lib/secrets/application/use-cases'
-import {
-  cursorFilterScope,
-  cursorSortKey,
-  encodeSortedCursor,
-  readSortedCursor,
-} from '@/app/api/v2/lib/response'
+import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
 import { toV2Secret } from '@/app/api/v2/secrets/utils'
 
 export const dynamic = 'force-dynamic'
@@ -20,7 +16,7 @@ export const revalidate = 0
 
 /** Every param that changes which secrets, in which order, this list returns. */
 function secretCursorFilters(query: { workspaceId: string; scope?: string; search?: string }) {
-  return cursorFilterScope({
+  return cursorScopeKey({
     workspaceId: query.workspaceId,
     scope: query.scope,
     search: query.search,

@@ -2,6 +2,7 @@ import {
   v2CreateKnowledgeBaseContract,
   v2ListKnowledgeBasesContract,
 } from '@/lib/api/contracts/v2/knowledge'
+import { cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -16,12 +17,7 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { toV2KnowledgeBase, toV2KnowledgeBases } from '@/app/api/v2/knowledge/utils'
-import {
-  cursorFilterScope,
-  cursorSortKey,
-  encodeSortedCursor,
-  readSortedCursor,
-} from '@/app/api/v2/lib/response'
+import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -32,7 +28,7 @@ function knowledgeCursorFilters(query: {
   folderPath?: string
   search?: string
 }) {
-  return cursorFilterScope({
+  return cursorScopeKey({
     workspaceId: query.workspaceId,
     folderPath: query.folderPath,
     search: query.search,

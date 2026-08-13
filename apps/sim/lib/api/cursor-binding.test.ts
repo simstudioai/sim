@@ -4,7 +4,6 @@
 import { describe, expect, it } from 'vitest'
 import { cursorScopeKey, unorderedScopePart } from '@/lib/api/cursor-binding'
 import {
-  cursorFilterScope,
   cursorSortKey,
   decodeOffsetCursor,
   decodeSortedCursor,
@@ -31,7 +30,7 @@ import {
 describe('v2 cursor binding', () => {
   const sort = cursorSortKey('name', 'asc')
   const filters = { workspaceId: 'ws-1', search: undefined as string | undefined }
-  const scope = cursorFilterScope(filters)
+  const scope = cursorScopeKey(filters)
 
   describe('offset cursor', () => {
     it('resumes a cursor replayed under the same query state', () => {
@@ -53,10 +52,10 @@ describe('v2 cursor binding', () => {
       const cursor = encodeOffsetCursor(sort, scope, 40)
 
       expect(() =>
-        decodeOffsetCursor(cursor, sort, cursorFilterScope({ ...filters, search: 'deploy' }))
+        decodeOffsetCursor(cursor, sort, cursorScopeKey({ ...filters, search: 'deploy' }))
       ).toThrow(/requested filters/)
       expect(() =>
-        decodeOffsetCursor(cursor, sort, cursorFilterScope({ ...filters, workspaceId: 'ws-2' }))
+        decodeOffsetCursor(cursor, sort, cursorScopeKey({ ...filters, workspaceId: 'ws-2' }))
       ).toThrow(/requested filters/)
     })
 
@@ -94,7 +93,7 @@ describe('v2 cursor binding', () => {
      */
     it('rejects a cursor replayed under a different filter', () => {
       const cursor = encodeSortedCursor(sort, keys, scope)
-      const narrowed = cursorFilterScope({ ...filters, search: 'deploy' })
+      const narrowed = cursorScopeKey({ ...filters, search: 'deploy' })
 
       expect(decodeSortedCursor(cursor, sort, narrowed)).toEqual({ status: 'refiltered' })
       expect(() => readSortedCursor(cursor, 'name', 'asc', narrowed)).toThrow(/requested filters/)
@@ -136,7 +135,7 @@ describe('v2 cursor binding', () => {
       const cursor = encodeScopedCursor(scope, 'domain-token')
 
       expect(() =>
-        readScopedCursor(cursor, cursorFilterScope({ ...filters, search: 'deploy' }))
+        readScopedCursor(cursor, cursorScopeKey({ ...filters, search: 'deploy' }))
       ).toThrow(/requested filters/)
     })
 

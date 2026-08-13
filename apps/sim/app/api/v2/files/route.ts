@@ -3,6 +3,7 @@ import {
   v2CreateFileContract,
   v2ListFilesContract,
 } from '@/lib/api/contracts/v2/files'
+import { cursorScopeKey } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
@@ -11,12 +12,7 @@ import { queryWorkspaceFilePage } from '@/lib/workspace-files/application/list-w
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { toV2File, toV2Files } from '@/app/api/v2/files/utils'
-import {
-  cursorFilterScope,
-  cursorSortKey,
-  encodeSortedCursor,
-  readSortedCursor,
-} from '@/app/api/v2/lib/response'
+import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -28,7 +24,7 @@ function fileCursorFilters(query: {
   folderPath?: string
   search?: string
 }) {
-  return cursorFilterScope({
+  return cursorScopeKey({
     workspaceId: query.workspaceId,
     scope: query.scope,
     folderPath: query.folderPath,

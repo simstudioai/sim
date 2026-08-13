@@ -1,11 +1,12 @@
 import { v2ListBillingLogsContract } from '@/lib/api/contracts/v2/billing'
+import { cursorScopeKey } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2BillingErrorPolicies } from '@/lib/billing/api/route-policies'
 import { listBillingLogs } from '@/lib/billing/application/list-billing-logs'
 import { billingOperations } from '@/lib/billing/application/operations'
 import { toBillingUsageLogSource, toInternalUsageLogSources } from '@/lib/billing/usage-sources'
 import { resolveDateRange } from '@/app/api/users/me/usage-logs/shared'
-import { cursorFilterScope, encodeScopedCursor, readScopedCursor } from '@/app/api/v2/lib/response'
+import { encodeScopedCursor, readScopedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -27,7 +28,7 @@ function billingLogCursorFilters(query: {
   startDate?: string
   endDate?: string
 }) {
-  return cursorFilterScope({
+  return cursorScopeKey({
     source: query.source,
     workspaceId: query.workspaceId,
     period: query.period,

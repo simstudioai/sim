@@ -108,7 +108,7 @@ describe('naive timestamp UTC pinning', () => {
 
   it('registers the UTC parser on a bare postgres.js client', () => {
     const parse = resolveTimestampParser(false)
-    expect((parse(NAIVE_WIRE_VALUE) as Date).toISOString()).toBe(NAIVE_WIRE_INSTANT)
+    expect(parse(NAIVE_WIRE_VALUE)).toEqual(new Date(NAIVE_WIRE_INSTANT))
   })
 
   /**
@@ -134,14 +134,13 @@ describe('naive timestamp UTC pinning', () => {
    * the read must not depend on which of the two layers got there first.
    */
   it('recovers the same UTC instant through either parser once drizzle maps it', () => {
-    const throughDrizzleParser = naiveColumn.mapFromDriverValue(
-      resolveTimestampParser(true)(NAIVE_WIRE_VALUE)
-    ) as Date
-    const throughUtcParser = naiveColumn.mapFromDriverValue(
-      resolveTimestampParser(false)(NAIVE_WIRE_VALUE)
-    ) as Date
+    const instant = new Date(NAIVE_WIRE_INSTANT)
 
-    expect(throughDrizzleParser.toISOString()).toBe(NAIVE_WIRE_INSTANT)
-    expect(throughUtcParser.toISOString()).toBe(NAIVE_WIRE_INSTANT)
+    expect(naiveColumn.mapFromDriverValue(resolveTimestampParser(true)(NAIVE_WIRE_VALUE))).toEqual(
+      instant
+    )
+    expect(naiveColumn.mapFromDriverValue(resolveTimestampParser(false)(NAIVE_WIRE_VALUE))).toEqual(
+      instant
+    )
   })
 })

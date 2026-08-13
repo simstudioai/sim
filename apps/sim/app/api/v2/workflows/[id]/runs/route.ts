@@ -3,19 +3,14 @@ import {
   v2ListWorkflowRunsContract,
   v2WorkflowRunListStatusValueSchema,
 } from '@/lib/api/contracts/v2/workflows'
-import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
+import { cursorScopeKey, REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { listWorkflowRuns } from '@/lib/workflows/application/list-workflow-runs'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import {
-  cursorFilterScope,
-  cursorSortKey,
-  decodeSortedCursor,
-  encodeSortedCursor,
-} from '@/app/api/v2/lib/response'
+import { cursorSortKey, decodeSortedCursor, encodeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -25,7 +20,7 @@ function runCursorFilters(
   workflowId: string,
   query: { status?: string; trigger?: string; startDate?: string; endDate?: string }
 ) {
-  return cursorFilterScope({
+  return cursorScopeKey({
     workflowId,
     status: query.status,
     trigger: query.trigger,

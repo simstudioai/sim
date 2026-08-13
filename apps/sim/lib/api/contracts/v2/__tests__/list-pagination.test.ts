@@ -104,7 +104,7 @@ const FULL_SET_LISTS = [
  * position. So all of them are stamped into the token and re-checked on the way
  * back in, and a mismatch is a 400 telling the caller to restart paging.
  *
- * The stamp is applied by the route through `cursorFilterScope` +
+ * The stamp is applied by the route through `cursorScopeKey` +
  * `cursorSortKey` (`app/api/v2/lib/response.ts`), or, for the three lists whose
  * token is minted by a domain codec, by wrapping it with `encodeScopedCursor`.
  * The table-row lists bind inside their own codec (`lib/table/rows/cursor.ts`)

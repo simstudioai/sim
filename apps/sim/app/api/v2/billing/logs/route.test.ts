@@ -24,17 +24,18 @@ vi.mock('@/lib/billing/application/list-billing-logs', () => ({
   listBillingLogs: { operation: { id: 'billing.logs.list' }, execute: mocks.execute },
 }))
 
+import { cursorScopeKey } from '@/lib/api/cursor-binding'
 import { UNKNOWN_CURSOR_MESSAGE } from '@/lib/billing/core/usage-log'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v2/billing/logs/route'
-import { cursorFilterScope, encodeScopedCursor } from '@/app/api/v2/lib/response'
+import { encodeScopedCursor } from '@/app/api/v2/lib/response'
 
 /** A ledger cursor exactly as the route mints one, for the filters given. */
 function ledgerCursor(
   inner: string,
   filters: { source?: string; workspaceId?: string; period?: string }
 ): string {
-  return encodeScopedCursor(cursorFilterScope(filters), inner)
+  return encodeScopedCursor(cursorScopeKey(filters), inner)
 }
 
 const auth = {

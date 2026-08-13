@@ -1,14 +1,10 @@
 import { v2CreateTableContract, v2ListTablesContract } from '@/lib/api/contracts/v2/tables'
+import { cursorScopeKey } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2TableErrorPolicies } from '@/lib/table/api'
 import { tableOperations } from '@/lib/table/application/operations'
 import { createTableUseCase, listTablesUseCase } from '@/lib/table/application/tables'
-import {
-  cursorFilterScope,
-  cursorSortKey,
-  encodeSortedCursor,
-  readSortedCursor,
-} from '@/app/api/v2/lib/response'
+import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
 import { toApiTable, toApiTables } from '@/app/api/v2/tables/utils'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +12,7 @@ export const revalidate = 0
 
 /** Every param that changes which tables, in which order, this list returns. */
 function tableCursorFilters(query: { workspaceId: string; folderPath?: string; search?: string }) {
-  return cursorFilterScope({
+  return cursorScopeKey({
     workspaceId: query.workspaceId,
     folderPath: query.folderPath,
     search: query.search,

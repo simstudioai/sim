@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
-import {
-  type CursorScopePart,
-  cursorScopeKey,
-  REFILTERED_CURSOR_MESSAGE,
-  UNREADABLE_CURSOR_MESSAGE,
-} from '@/lib/api/cursor-binding'
+import { REFILTERED_CURSOR_MESSAGE, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
 import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
@@ -286,25 +281,6 @@ interface OffsetCursorPayload {
   offset: number
 }
 
-/**
- * The filters a v2 cursor was minted under, as one fingerprint.
- *
- * A cursor is only meaningful against one exact sequence, so everything that
- * re-filters that sequence has to travel with it. Build the stamp from every
- * such param; a value that does not affect membership or ordering — the page
- * size, or a param that only shapes the response body — must stay out, or
- * paging with a different `limit` would be rejected for no reason. The sort
- * travels separately, as {@link cursorSortKey}, so a mismatch can name which
- * half of the query changed.
- *
- * Shared with the table-row codec through {@link cursorScopeKey}, so a filter
- * stamp is one format across every paginated surface rather than one per list.
- * `undefined` is a list read with no filters applied at all.
- */
-export function cursorFilterScope(parts: Record<string, CursorScopePart>): string | undefined {
-  return cursorScopeKey(parts)
-}
-
 /** An offset cursor stamped with the sort and filters that produced it. */
 export function encodeOffsetCursor(
   sort: string,
@@ -439,7 +415,7 @@ export function decodeSortedCursor(
  * keys reach `keysetAfter` or a stale position reach a re-filtered read. Sharing
  * it is what keeps "a bad cursor is a 400" from being re-decided per route.
  *
- * Build `filter` with {@link cursorFilterScope} from the same params on both
+ * Build `filter` with `cursorScopeKey` from the same params on both
  * sides of the request. A list with no filters at all passes nothing.
  */
 export function readSortedCursor(

@@ -1,4 +1,5 @@
 import { v2ListCredentialsContract } from '@/lib/api/contracts/v2/credentials'
+import { cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -8,12 +9,7 @@ import {
 import { listWorkspaceCredentials } from '@/lib/credentials/application/list-workspace-credentials'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { toV2Credential } from '@/app/api/v2/credentials/utils'
-import {
-  cursorFilterScope,
-  cursorSortKey,
-  encodeSortedCursor,
-  readSortedCursor,
-} from '@/app/api/v2/lib/response'
+import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -25,7 +21,7 @@ function credentialCursorFilters(query: {
   providerId?: string
   search?: string
 }) {
-  return cursorFilterScope({
+  return cursorScopeKey({
     workspaceId: query.workspaceId,
     type: query.type,
     providerId: query.providerId,
