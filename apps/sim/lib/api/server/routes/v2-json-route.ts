@@ -135,6 +135,7 @@ export const v2InvalidJsonResponse = () => v2Error('BAD_REQUEST', 'Request body 
 export const V2_PARSE_DEFAULTS = {
   payloadTooLargeResponse: v2PayloadTooLargeResponse,
   invalidJsonResponse: v2InvalidJsonResponse,
+  validationErrorResponse: v2ValidationError,
   /** See {@link blankQueryValueValidationError}. */
   rejectBlankQueryValues: true,
   /** See {@link duplicateQueryValueValidationError}. */

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { filterUndefined } from '@sim/utils/object'
 
 /**
  * Caller-facing message for a cursor replayed under different filters. Separate
@@ -155,7 +156,7 @@ export function fingerprint(canonical: string): string {
  * dropped, so omitting a filter and never having sent it are the same scope.
  */
 export function cursorScopeKey(parts: Record<string, CursorScopePart>): string | undefined {
-  const present = Object.entries(parts).filter(([, value]) => value !== undefined)
-  if (present.length === 0) return undefined
-  return fingerprint(canonicalJson(Object.fromEntries(present)))
+  const present = filterUndefined(parts)
+  if (Object.keys(present).length === 0) return undefined
+  return fingerprint(canonicalJson(present))
 }

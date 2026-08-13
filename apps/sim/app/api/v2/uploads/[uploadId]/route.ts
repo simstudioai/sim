@@ -38,7 +38,6 @@ export const PUT = withRouteHandler(
   async (request: NextRequest, context: LocalPutRouteParams): Promise<NextResponse> => {
     const parsed = await parseRequest(localPutUploadContract, request, context, {
       ...V2_PARSE_DEFAULTS,
-      validationErrorResponse: v2ValidationError,
     })
     if (!parsed.success) return parsed.response
 

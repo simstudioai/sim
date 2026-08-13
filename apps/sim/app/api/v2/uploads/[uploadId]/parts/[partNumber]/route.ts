@@ -48,7 +48,6 @@ export const PUT = withRouteHandler(
     }
     const parsed = await parseRequest(localUploadPartContract, request, context, {
       ...V2_PARSE_DEFAULTS,
-      validationErrorResponse: v2ValidationError,
     })
     if (!parsed.success) return parsed.response
 

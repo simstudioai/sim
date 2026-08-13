@@ -28,11 +28,7 @@ export const LOCAL_STAGING_ROOT = '.staging'
  *
  * Every entry is ASCII, so `length` is its byte count.
  */
-const LOCAL_OBJECT_SIDECAR_SUFFIXES = [LOCAL_UPLOAD_METADATA_SUFFIX] as const
-
-const MAX_SIDECAR_SUFFIX_BYTES = Math.max(
-  ...LOCAL_OBJECT_SIDECAR_SUFFIXES.map((suffix) => suffix.length)
-)
+const MAX_SIDECAR_SUFFIX_BYTES = LOCAL_UPLOAD_METADATA_SUFFIX.length
 
 /**
  * Bytes a key's last component may occupy, sidecars accounted for.
