@@ -600,6 +600,9 @@ const WorkflowContent = React.memo(
     /** Tracks whether onConnect successfully handled the connection (ReactFlow pattern). */
     const connectionCompletedRef = useRef(false)
 
+    /** Set when Escape aborts an in-flight connection drag so no edge or selector results. */
+    const connectionCancelledRef = useRef(false)
+
     /** Stores start positions for multi-node drag undo/redo recording. */
     const multiNodeDragStartRef = useRef<Map<string, { x: number; y: number; parentId?: string }>>(
       new Map()
@@ -3215,6 +3218,32 @@ const WorkflowContent = React.memo(
     )
 
     /**
+     * Aborts an in-flight connection drag on Escape.
+     *
+     * React Flow only tears a handle drag down on pointer release, so a synthetic
+     * mouseup is dispatched to run its own cleanup: it stops auto-panning, clears
+     * the connection line and handle highlights, and detaches its document
+     * listeners. `connectionCancelledRef` turns the resulting `onConnect` and
+     * `onConnectEnd` into no-ops so the drag leaves behind neither an edge nor the
+     * block selector, and the real mouseup that follows is inert.
+     *
+     * Listens in the capture phase and stops propagation so Escape mid-drag only
+     * cancels the edge and never reaches an unrelated Escape handler.
+     */
+    const handleConnectionEscape = useCallback((event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !connectionSourceRef.current) return
+      event.preventDefault()
+      event.stopPropagation()
+      connectionCancelledRef.current = true
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+    }, [])
+
+    useEffect(
+      () => () => window.removeEventListener('keydown', handleConnectionEscape, true),
+      [handleConnectionEscape]
+    )
+
+    /**
      * Captures the source handle when a connection drag starts.
      * Resets connectionCompletedRef to track if onConnect handles this connection.
      */
@@ -3232,13 +3261,16 @@ const WorkflowContent = React.memo(
           handleId: params?.handleId,
         }
         connectionCompletedRef.current = false
+        connectionCancelledRef.current = false
+        window.addEventListener('keydown', handleConnectionEscape, true)
       },
-      [closeConnectionBlockSelector]
+      [closeConnectionBlockSelector, handleConnectionEscape]
     )
 
     /** Handles new edge connections with container boundary validation. */
     const onConnect = useCallback(
       (connection: any) => {
+        if (connectionCancelledRef.current) return
         if (connection.source && connection.target) {
           const normalizedConnection = {
             ...connection,
@@ -3336,11 +3368,12 @@ const WorkflowContent = React.memo(
      */
     const onConnectEnd = useCallback(
       (event: MouseEvent | TouchEvent) => {
+        window.removeEventListener('keydown', handleConnectionEscape, true)
         canvasContainerRef.current?.setAttribute('data-connection-line', 'default')
         canvasContainerRef.current?.setAttribute('data-connection-active', 'false')
 
         const source = connectionSourceRef.current
-        if (!source?.nodeId) {
+        if (!source?.nodeId || connectionCancelledRef.current) {
           connectionSourceRef.current = null
           return
         }
@@ -3417,7 +3450,14 @@ const WorkflowContent = React.memo(
 
         connectionSourceRef.current = null
       },
-      [findNodeAtScreenPosition, onConnect, blocks, reactFlowInstance, screenToFlowPosition]
+      [
+        findNodeAtScreenPosition,
+        onConnect,
+        blocks,
+        reactFlowInstance,
+        screenToFlowPosition,
+        handleConnectionEscape,
+      ]
     )
 
     /** Handles node drag to detect container intersections and update highlighting. */
