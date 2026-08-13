@@ -28,7 +28,7 @@ vi.mock('@/lib/workflows/application/list-workflow-runs', () => ({
   },
 }))
 
-import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
+import { REFILTERED_CURSOR_MESSAGE, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { NoWorkspaceAccessError, PersonalApiKeysDisabledError } from '@/lib/core/application'
 import { GET } from '@/app/api/v2/workflows/[id]/runs/route'
 
@@ -167,6 +167,35 @@ describe('GET /api/v2/workflows/[id]/runs', () => {
 
     expect(replayed.status).toBe(400)
     expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mocks.listRuns).not.toHaveBeenCalled()
+  })
+
+  /**
+   * This list orders by the single `order` param — its query schema is
+   * `.strict()` and declares no `sortBy` — so the sort-mismatch wording would
+   * answer one 400 with advice that earns a second.
+   */
+  it('names a cursor with unusable keys unreadable rather than blaming sortBy', async () => {
+    mocks.listRuns.mockResolvedValueOnce({
+      data: EXECUTIONS,
+      nextCursor: { startedAt: EXECUTIONS[1].startedAt, rowId: 'row-1' },
+      workflowId: 'workflow-1',
+      order: 'desc',
+    })
+
+    const { nextCursor } = await (await callGet()).json()
+    const payload = JSON.parse(Buffer.from(nextCursor, 'base64').toString())
+    const tampered = Buffer.from(
+      JSON.stringify({ ...payload, keys: ['not-a-date', 'row-1'] })
+    ).toString('base64')
+
+    mocks.listRuns.mockClear()
+    const response = await callGet(`?cursor=${encodeURIComponent(tampered)}`)
+
+    expect(response.status).toBe(400)
+    const { error } = await response.json()
+    expect(error.message).toBe(UNREADABLE_CURSOR_MESSAGE)
+    expect(error.message).not.toMatch(/sortBy/)
     expect(mocks.listRuns).not.toHaveBeenCalled()
   })
 

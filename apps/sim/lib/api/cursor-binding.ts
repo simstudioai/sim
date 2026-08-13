@@ -86,7 +86,26 @@ export function parseUnorderedList(raw: string | undefined): string[] | undefine
 export function unorderedScopeOf(value: unknown): string | undefined {
   if (value === undefined) return undefined
   if (!Array.isArray(value)) return canonicalJson(value)
-  return `[${[...new Set(value.map(canonicalJson))].sort().join(',')}]`
+  return canonicalUnorderedArray(value)
+}
+
+/**
+ * Canonical form of an array whose member ORDER does not change the result.
+ *
+ * The one place the set rule lives, so every position that compiles to `and`,
+ * `or`, or `IN (...)` binds the same way. Members are canonicalized first, then
+ * de-duplicated and sorted, because `A AND A` selects what `A` does.
+ *
+ * `canonicalizeMember` exists for nested set-valued shapes — a predicate tree
+ * whose groups contain groups needs the rule applied at every level, not just
+ * the outermost array. It defaults to {@link canonicalJson}, which is correct
+ * for a flat array of scalars.
+ */
+export function canonicalUnorderedArray(
+  members: readonly unknown[],
+  canonicalizeMember: (member: unknown) => string = canonicalJson
+): string {
+  return `[${[...new Set(members.map(canonicalizeMember))].sort().join(',')}]`
 }
 
 /**

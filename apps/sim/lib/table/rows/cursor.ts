@@ -18,7 +18,7 @@
  * {@link assertCursorQueryBinding}.
  */
 
-import { canonicalJson, fingerprint } from '@/lib/api/cursor-binding'
+import { canonicalJson, canonicalUnorderedArray, fingerprint } from '@/lib/api/cursor-binding'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import type { Filter, Sort, TablePredicate, TableRow, TableRowsCursor } from '@/lib/table/types'
 
@@ -66,6 +66,39 @@ export function canonicalSortKey(sort: Sort | null | undefined): string | undefi
 }
 
 /**
+ * Canonical form of a predicate node, with every set-valued position sorted.
+ *
+ * `canonicalJson` sorts object keys but preserves array order, which is right
+ * for a sequence and wrong for a set. A predicate tree is sets all the way
+ * down: `all`/`any` compile to `and(...)`/`or(...)`, and an `in`/`nin` operand
+ * compiles to an OR fan-out / `IN (...)`. Member order changes none of those
+ * row sets, so binding the caller's spelling refuses a cursor for a page that
+ * is genuinely the next one.
+ *
+ * Non-set positions fall through to `canonicalJson` unchanged, so two
+ * predicates that select different rows still fingerprint differently.
+ */
+function canonicalPredicateNode(node: unknown): string {
+  if (node === null || typeof node !== 'object' || Array.isArray(node)) return canonicalJson(node)
+  const record = node as Record<string, unknown>
+  const setValuedOperand = record.op === 'in' || record.op === 'nin'
+  const entries = Object.entries(record)
+    .filter(([, entry]) => entry !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  return `{${entries
+    .map(([key, entry]) => {
+      if (Array.isArray(entry) && (key === 'all' || key === 'any')) {
+        return `${JSON.stringify(key)}:${canonicalUnorderedArray(entry, canonicalPredicateNode)}`
+      }
+      if (Array.isArray(entry) && key === 'value' && setValuedOperand) {
+        return `${JSON.stringify(key)}:${canonicalUnorderedArray(entry)}`
+      }
+      return `${JSON.stringify(key)}:${canonicalJson(entry)}`
+    })
+    .join(',')}}`
+}
+
+/**
  * Fingerprint of the filters a page was produced under, or `undefined` for an
  * unfiltered read. Canonicalized and hashed through `lib/api/cursor-binding`,
  * the same module the v2 list codecs bind through, so a filter stamp means the
@@ -77,7 +110,9 @@ export function canonicalFilterKey(
   const predicate = scope.predicate ?? undefined
   const filter = scope.filter && Object.keys(scope.filter).length > 0 ? scope.filter : undefined
   if (!predicate && !filter) return undefined
-  return fingerprint(canonicalJson(predicate ? { predicate } : { filter }))
+  return fingerprint(
+    predicate ? `{"predicate":${canonicalPredicateNode(predicate)}}` : canonicalJson({ filter })
+  )
 }
 
 /**

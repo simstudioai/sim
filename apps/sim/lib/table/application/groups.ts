@@ -214,11 +214,26 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
 
     const actorUserId = attributedUserId(principal, context.billedAccountUserId)
     const groupId = input.group.id ?? generateId()
+    /**
+     * The public surface lets an `enrichment` group omit `workflowId`, so the
+     * stored blob must supply the same `''` a first-party enrichment group
+     * stores — a missing key fails every later read of the group.
+     */
+    const group: WorkflowGroup = {
+      ...input.group,
+      id: groupId,
+      workflowId: input.group.workflowId ?? '',
+      outputs: input.group.outputs.map((output) => ({
+        ...output,
+        blockId: output.blockId ?? '',
+        path: output.path ?? '',
+      })),
+    }
     const table = await addWorkflowGroup(
       {
         tableId: context.table.id,
         workspaceId: context.workspaceId,
-        group: { ...input.group, id: groupId } as WorkflowGroup,
+        group,
         outputColumns: input.outputColumns.map((column) => ({
           ...column,
           workflowGroupId: groupId,

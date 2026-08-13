@@ -183,10 +183,18 @@ export const getWorkflowTypeAccent = (type: string) =>
 export interface WorkflowTypeIconProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
   type: string
   Icon: ComponentType<{ className?: string }>
+  /** Overrides the glyph size when the chip is rendered at a non-default slot. */
+  iconClassName?: string
 }
 
 /** Shared compact core-block icon used by workflow discovery surfaces. */
-export function WorkflowTypeIcon({ type, Icon, className, ...props }: WorkflowTypeIconProps) {
+export function WorkflowTypeIcon({
+  type,
+  Icon,
+  className,
+  iconClassName,
+  ...props
+}: WorkflowTypeIconProps) {
   const typeAccent = getWorkflowTypeAccent(type)
 
   return (
@@ -197,7 +205,12 @@ export function WorkflowTypeIcon({ type, Icon, className, ...props }: WorkflowTy
       data-workflow-type-icon={type}
       {...props}
     >
-      <Icon className='size-[10px] transition-transform duration-100 group-hover:scale-110' />
+      <Icon
+        className={cn(
+          'size-[10px] transition-transform duration-100 group-hover:scale-110',
+          iconClassName
+        )}
+      />
     </ChipTag>
   )
 }

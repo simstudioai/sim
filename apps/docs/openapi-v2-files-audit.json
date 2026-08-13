@@ -1036,9 +1036,9 @@
             "name": "resourceType",
             "in": "query",
             "required": false,
-            "description": "Filter by exact resource type.",
+            "description": "Filter by resource type. Accepts a comma-separated set; members are trimmed and deduplicated, and member order affects neither the result nor the cursor.",
             "schema": {
-              "description": "Filter by exact resource type.",
+              "description": "Filter by resource type. Accepts a comma-separated set; members are trimmed and deduplicated, and member order affects neither the result nor the cursor.",
               "type": "string"
             }
           },

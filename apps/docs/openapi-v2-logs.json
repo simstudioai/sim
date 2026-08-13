@@ -133,20 +133,24 @@
             "name": "minCost",
             "in": "query",
             "required": false,
-            "description": "Minimum execution cost in USD.",
+            "description": "Minimum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run.",
             "schema": {
               "type": "number",
-              "description": "Minimum execution cost in USD."
+              "minimum": 0,
+              "maximum": 1000000,
+              "description": "Minimum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run."
             }
           },
           {
             "name": "maxCost",
             "in": "query",
             "required": false,
-            "description": "Maximum execution cost in USD.",
+            "description": "Maximum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run.",
             "schema": {
               "type": "number",
-              "description": "Maximum execution cost in USD."
+              "minimum": 0,
+              "maximum": 1000000,
+              "description": "Maximum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run."
             }
           },
           {

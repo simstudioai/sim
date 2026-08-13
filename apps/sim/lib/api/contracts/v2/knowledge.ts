@@ -9,6 +9,7 @@ import {
 import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE,
   v1ChunkingConfigSchema,
   v1CreateKnowledgeBaseBodySchema,
   v1KnowledgeSearchBodySchema,
@@ -789,21 +790,31 @@ export const v2DeleteKnowledgeFolderContract = defineRouteContract({
 })
 
 export const v2KnowledgeSearchTagFilterSchema = v1SearchTagFilterSchema
-  .extend({
+  /** `safeExtend` so the base schema's `between` rule survives the redescribe. */
+  .safeExtend({
     tagName: v1SearchTagFilterSchema.shape.tagName
       .describe('Display name of the tag to filter.')
       .meta({ examples: ['category'] }),
     fieldType: v1SearchTagFilterSchema.shape.fieldType.describe('Tag field type.'),
     operator: v1SearchTagFilterSchema.shape.operator
-      .describe('Comparison operator; valid operators depend on the field type.')
+      .describe(
+        `Comparison operator; valid operators depend on the field type. Text tags accept ${KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE.text.join(', ')}; number and date tags accept ${KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE.number.join(', ')}; boolean tags accept ${KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE.boolean.join(', ')}. An operator the tag's field type does not implement is rejected, never ignored.`
+      )
       .meta({ examples: ['eq'] }),
     value: v1SearchTagFilterSchema.shape.value
       .describe('Tag value to compare against.')
       .meta({ examples: ['billing'] }),
     valueTo: v1SearchTagFilterSchema.shape.valueTo.describe(
-      'Upper bound for the `between` operator.'
+      'Upper bound for the `between` operator, and required whenever that operator is used.'
     ),
   })
+  /**
+   * Strict for the same reason the search body is: Zod strips what it does not
+   * declare, so a mis-cased `valueto` left a `between` filter with no upper
+   * bound and the document list answered 200 with the whole knowledge base. v1
+   * keeps its historical lenient parse.
+   */
+  .strict()
   .meta({
     id: 'V2KnowledgeSearchTagFilter',
     title: 'Knowledge search tag filter',
