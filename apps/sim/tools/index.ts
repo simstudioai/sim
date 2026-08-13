@@ -1732,76 +1732,67 @@ async function executeToolImplementation(
         const callerUserId =
           userId && contextParams._context?.enforceCredentialAccess ? userId : undefined
 
-        let data: CredentialTokenPayload
+        const baseUrl = getInternalApiBaseUrl()
+        logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
 
-        if (typeof window === 'undefined') {
-          // Server-side runs resolve the credential through the same application
-          // operation the route calls, rather than minting an internal JWT and
-          // POSTing to ourselves through the load balancer. The synthesized
-          // `AuthResult` is exactly what verifying that self-issued token would
-          // have produced, so authorization, refresh, and audit are unchanged —
-          // including failing closed when the run carries no user id.
-          const { resolveCredentialToken } = await import('@/lib/oauth/token-resolution')
-          const result = await resolveCredentialToken(
-            { success: true, authType: 'internal_jwt', userId },
-            {
-              requestId,
-              credentialId: contextParams.credential as string,
-              workflowId,
-              scopes: tokenPayload.scopes,
-              impersonateEmail: tokenPayload.impersonateEmail,
-              callerUserId,
-            }
-          )
-
-          if (!result.ok) {
-            logger.error(`[${requestId}] Token fetch failed for ${toolId}:`, {
-              status: result.status,
-              error: result.error,
-            })
-            const toolLabel = tool?.name || toolId
-            throw new Error(`Failed to obtain credential for ${toolLabel}: ${result.error}`)
-          }
-
-          data = result.token
-        } else {
-          const baseUrl = getInternalApiBaseUrl()
-          logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
-
-          const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
-          if (workflowId) {
-            tokenUrlObj.searchParams.set('workflowId', workflowId)
-          }
-          if (callerUserId) {
-            tokenUrlObj.searchParams.set('userId', callerUserId)
-          }
-
-          // boundary-raw-fetch: browser-side tool runs authenticate with the session cookie against the same-origin token route
-          const response = await fetch(tokenUrlObj.toString(), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(tokenPayload),
-          })
-
-          if (!response.ok) {
-            const errorText = await response.text()
-            logger.error(`[${requestId}] Token fetch failed for ${toolId}:`, {
-              status: response.status,
-              error: errorText,
-            })
-            let parsedError = errorText
-            try {
-              const parsed = JSON.parse(errorText)
-              if (parsed.error) parsedError = parsed.error
-            } catch {
-              // Use raw text
-            }
-            const toolLabel = tool?.name || toolId
-            throw new Error(`Failed to obtain credential for ${toolLabel}: ${parsedError}`)
-          }
-
-          data = (await response.json()) as CredentialTokenPayload
+        const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
+        if (workflowId) {
+          tokenUrlObj.searchParams.set('workflowId', workflowId)
         }
+        if (callerUserId) {
+          tokenUrlObj.searchParams.set('userId', callerUserId)
+        }
+
+        /**
+         * Deliberately an HTTP hop rather than an in-process call to
+         * `resolveCredentialToken`, even though both run the same authorization rule.
+         *
+         * An OAuth refresh needs the provider's client id and secret
+         * (`requireOAuthClientCapability`, which THROWS when they are absent). Only the
+         * app container loads those, from `SIM_ENV_SECRET_ID`. Tool calls execute inside
+         * the Trigger.dev worker, whose environment does not carry them, so resolving
+         * in-process there turns every credential whose access token has expired into
+         * `Failed to refresh access token`. A still-valid token hides it — the refresh
+         * path is only reached once the token lapses.
+         *
+         * Moving this in-process requires the worker to hold the OAuth client config,
+         * not just a code change.
+         */
+        const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (typeof window === 'undefined') {
+          try {
+            const internalToken = await generateInternalToken(userId)
+            tokenHeaders.Authorization = `Bearer ${internalToken}`
+          } catch (_e) {
+            // Swallow token generation errors; the request will fail and be reported upstream
+          }
+        }
+
+        // boundary-raw-fetch: same-origin token route, authenticated by internal JWT on the server and the session cookie in the browser
+        const response = await fetch(tokenUrlObj.toString(), {
+          method: 'POST',
+          headers: tokenHeaders,
+          body: JSON.stringify(tokenPayload),
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          logger.error(`[${requestId}] Token fetch failed for ${toolId}:`, {
+            status: response.status,
+            error: errorText,
+          })
+          let parsedError = errorText
+          try {
+            const parsed = JSON.parse(errorText)
+            if (parsed.error) parsedError = parsed.error
+          } catch {
+            // Use raw text
+          }
+          const toolLabel = tool?.name || toolId
+          throw new Error(`Failed to obtain credential for ${toolLabel}: ${parsedError}`)
+        }
+
+        const data = (await response.json()) as CredentialTokenPayload
 
         contextParams.accessToken = data.accessToken
         if (data.idToken) {
