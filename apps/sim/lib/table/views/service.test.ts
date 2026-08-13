@@ -547,6 +547,61 @@ describe('view config column-reference normalization', () => {
     ).rejects.toMatchObject({ name: 'TableViewValidationError' })
   })
 
+  /**
+   * The carried-forward exemption exists so a dangling FILTER ref stays
+   * writable, not so it becomes a valid target for a NEW layout ref. Without
+   * scoping, a strict caller could store `hiddenColumns: ['col_gone']` purely
+   * because `col_gone` survives in the stored filter — a layout entry the very
+   * next read drops, which is the asymmetry the strict check closes.
+   */
+  it('refuses a NEW layout reference that resolves only via a carried-forward filter ref', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: stale, hiddenColumns: ['col_gone'] },
+        columns,
+        strictRefs: true,
+      })
+    ).rejects.toMatchObject({ name: 'TableViewValidationError' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('still lets a strict save carry the stale filter reference forward with a valid layout', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: stale, hiddenColumns: ['col_a'] },
+        columns,
+        strictRefs: true,
+      })
+    ).resolves.not.toBeNull()
+  })
+
+  it('leaves the non-strict grid path free to save that same layout reference', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: stale, hiddenColumns: ['col_gone'] },
+        columns,
+      })
+    ).resolves.not.toBeNull()
+  })
+
   it('accepts that same new reference from a first-party caller', async () => {
     const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
     queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])

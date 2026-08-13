@@ -200,6 +200,14 @@ function tolerantColumns(
  * already held, so a reference the caller INTRODUCES is refused; a first-party
  * caller exempts its own refs too, which is the behavior the grid has always
  * had — see {@link CreateTableViewData.strictRefs}.
+ *
+ * The exemption is scoped to `filter` and `sort`, the only halves it exists for:
+ * the layout check runs against the LIVE columns, not the tolerant set. A
+ * carried-forward placeholder standing in for a deleted column named in the
+ * stored filter must not also make that name a valid target for a new layout
+ * ref, which `pruneViewConfig` would drop on the very next read — the same
+ * write-accepts / read-discards asymmetry `strictLayoutRefs` closes. Validating
+ * against `columns` makes the strict path accept exactly what a read keeps.
  */
 export function normalizeViewConfigForStorage(
   config: TableViewConfig,
@@ -218,7 +226,7 @@ export function normalizeViewConfigForStorage(
     }
     throw error
   }
-  if (strictLayoutRefs) assertLayoutRefsResolve(stored, known)
+  if (strictLayoutRefs) assertLayoutRefsResolve(stored, columns)
   return stored
 }
 

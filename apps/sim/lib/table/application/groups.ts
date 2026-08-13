@@ -37,6 +37,7 @@ import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/applica
 import type { ResolveWorkflowOutputsResult } from '@/lib/workflows/application/resolve-workflow-outputs'
 import { loadResolvedWorkflowOutputs } from '@/lib/workflows/application/resolve-workflow-outputs'
 import { getEnrichment } from '@/enrichments/registry'
+import type { EnrichmentConfig } from '@/enrichments/types'
 
 const logger = createLogger('TableGroupApplication')
 
@@ -118,6 +119,38 @@ function validateRequestedOutputs(
     'validation',
     `Invalid output(s) for workflow ${workflowId}:\n${invalidList}\n\nValid options${outputs.length > 12 ? ' (first 12)' : ''}:\n${sample}`
   )
+}
+
+/** Resolves the registry enrichment a group is bound to, refusing an unknown id. */
+function requireEnrichment(enrichmentId: string | undefined): EnrichmentConfig {
+  const enrichment = getEnrichment(enrichmentId)
+  if (!enrichment) {
+    throw new OrchestrationError(
+      'validation',
+      `Unknown enrichment "${enrichmentId ?? ''}". Call list_enrichments to see available ids.`
+    )
+  }
+  return enrichment
+}
+
+/**
+ * Refuses an output id the enrichment registry does not define. A run fills a
+ * cell by reading `result[outputId]`, so a coordinate carrying an unknown — or
+ * absent — output id names a column no run can ever write.
+ */
+function requireKnownEnrichmentOutputIds(
+  enrichment: EnrichmentConfig,
+  outputIds: Array<string | undefined>
+): void {
+  const known = new Set(enrichment.outputs.map((output) => output.id))
+  for (const outputId of outputIds) {
+    if (!outputId || !known.has(outputId)) {
+      throw new OrchestrationError(
+        'validation',
+        `Enrichment "${enrichment.name}" has no output "${outputId ?? ''}"`
+      )
+    }
+  }
 }
 
 function workflowOutputColumnType(
@@ -413,13 +446,7 @@ export const createTableEnrichmentGroup = defineAuthorizedTableUseCase({
         `Enrichment output names cannot exceed ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} entries`
       )
     }
-    const enrichment = getEnrichment(input.enrichmentId)
-    if (!enrichment) {
-      throw new OrchestrationError(
-        'validation',
-        `Unknown enrichment "${input.enrichmentId}". Call list_enrichments to see available ids.`
-      )
-    }
+    const enrichment = requireEnrichment(input.enrichmentId)
 
     const enrichmentInputIds = new Set(
       enrichment.inputs.map((enrichmentInput) => enrichmentInput.id)
@@ -440,15 +467,7 @@ export const createTableEnrichmentGroup = defineAuthorizedTableUseCase({
       }
       mappingByInput.set(mapping.inputName, mapping.columnName)
     }
-    const enrichmentOutputIds = new Set(enrichment.outputs.map((output) => output.id))
-    for (const outputId of Object.keys(input.outputColumnNames ?? {})) {
-      if (!enrichmentOutputIds.has(outputId)) {
-        throw new OrchestrationError(
-          'validation',
-          `Enrichment "${enrichment.name}" has no output "${outputId}"`
-        )
-      }
-    }
+    requireKnownEnrichmentOutputIds(enrichment, Object.keys(input.outputColumnNames ?? {}))
     const existingColumns = new Set(context.table.schema.columns.map((column) => column.name))
     for (const enrichmentInput of enrichment.inputs) {
       const mapped = mappingByInput.get(enrichmentInput.id)
@@ -579,6 +598,41 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
       input.workflowId === undefined &&
       previousGroup !== undefined &&
       (previousGroup.type === 'enrichment' || !previousGroup.workflowId)
+    /**
+     * Skipping workflow resolution must not mean skipping validation. An
+     * enrichment run fills a column by registry `outputId`, so a coordinate the
+     * registry does not define is a column nothing can ever populate. Hold an
+     * added — or repointed — output to the same check enrichment creation
+     * applies, and leave an untouched existing binding alone so a group whose
+     * enrichment has since changed stays editable.
+     */
+    if (producerIsEnrichment && input.outputs?.length) {
+      const boundOutputKeys = new Set(
+        previousGroup?.outputs.map((output) => `${output.columnName}::${output.outputId ?? ''}`) ??
+          []
+      )
+      const addedOutputs = input.outputs.filter(
+        (output) => !boundOutputKeys.has(`${output.columnName}::${output.outputId ?? ''}`)
+      )
+      if (addedOutputs.length > 0) {
+        requireKnownEnrichmentOutputIds(
+          requireEnrichment(previousGroup?.enrichmentId),
+          addedOutputs.map((output) => output.outputId)
+        )
+      }
+    }
+    /**
+     * `mappingUpdates` repoints a column at a new `(blockId, path)` — coordinates
+     * an enrichment output does not have and the writer cannot translate into an
+     * `outputId`. Say that, rather than resolving the group's empty workflow id
+     * and answering `404 Workflow not found`.
+     */
+    if (producerIsEnrichment && input.mappingUpdates?.length) {
+      throw new OrchestrationError(
+        'validation',
+        'Mapping updates are not supported for an enrichment group; send outputs[] instead'
+      )
+    }
     /**
      * A `newOutputColumns` entry that no resulting output names is dropped by the
      * writer, so a caller asking for a column got a 200 and no column. Refuse it
