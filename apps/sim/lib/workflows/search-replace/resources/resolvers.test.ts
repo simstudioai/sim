@@ -218,13 +218,17 @@ describe('workflowSearchMatchMatchesQuery', () => {
         // the oracle has to defend inverted, empty and non-finite ends as well.
         const degenerate = random()
         const end =
-          degenerate > 0.97
+          degenerate > 0.98
             ? Number.NaN
-            : degenerate > 0.94
-              ? start - 1 - Math.floor(random() * 3)
-              : degenerate > 0.91
-                ? start
-                : start + 1 + Math.floor(random() * 8)
+            : degenerate > 0.96
+              ? Number.POSITIVE_INFINITY
+              : degenerate > 0.94
+                ? Number.NEGATIVE_INFINITY
+                : degenerate > 0.91
+                  ? start - 1 - Math.floor(random() * 3)
+                  : degenerate > 0.88
+                    ? start
+                    : start + 1 + Math.floor(random() * 8)
         const isSubBlockTarget = random() > 0.15
         return createMatch({
           id: `m-${index}`,
@@ -294,6 +298,28 @@ describe('workflowSearchMatchMatchesQuery', () => {
         referenceDedupe(matches).map((m) => m.id)
       )
       expect(dedupeOverlappingWorkflowSearchMatches(matches)).toHaveLength(1)
+    })
+
+    it('agrees when a positive-infinity range contains a later range', () => {
+      const matches = [
+        createMatch({
+          id: 'unbounded',
+          kind: 'workflow-reference',
+          range: { start: 0, end: Number.POSITIVE_INFINITY },
+        }),
+        createMatch({
+          id: 'inside',
+          kind: 'text',
+          range: { start: 1, end: 2 },
+        }),
+      ]
+
+      expect(dedupeOverlappingWorkflowSearchMatches(matches).map((match) => match.id)).toEqual(
+        referenceDedupe(matches).map((match) => match.id)
+      )
+      expect(dedupeOverlappingWorkflowSearchMatches(matches).map((match) => match.id)).toEqual([
+        'inside',
+      ])
     })
 
     it.each([0, 1])('agrees on a %i-element input', (count) => {

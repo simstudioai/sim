@@ -153,7 +153,7 @@ interface RangeMatchScopeBucket {
 }
 
 function widenScopeBucket(bucket: RangeMatchScopeBucket, end: number): void {
-  if (Number.isFinite(end)) bucket.maxEnd = Math.max(bucket.maxEnd, end)
+  if (!Number.isNaN(end)) bucket.maxEnd = Math.max(bucket.maxEnd, end)
 }
 
 /**
@@ -190,11 +190,11 @@ function widenScopeBucket(bucket: RangeMatchScopeBucket, end: number): void {
  * can still end further right than the one it evicts. Leaving `maxEnd` stale
  * there let the short-circuit skip genuine overlaps and leak duplicates.
  *
- * Only finite ends widen it. `Math.max` with a non-finite end would pin
- * `maxEnd` at `NaN`, and since every comparison against `NaN` is false that
- * would silently switch dedupe off for the rest of the scope. A non-finite
- * range cannot overlap anything anyway - `rangesOverlap` is false for it - so
- * skipping the widening matches what the unbucketed scan did.
+ * Only `NaN` ends are ignored. `Math.max` with `NaN` would pin `maxEnd` at
+ * `NaN`, and since every comparison against `NaN` is false that would silently
+ * switch dedupe off for the rest of the scope. A `NaN`-ended range cannot
+ * overlap anything anyway, while positive infinity is an unbounded end that
+ * can overlap later ranges and therefore must widen the high-water mark.
  */
 export function dedupeOverlappingWorkflowSearchMatches<T extends WorkflowSearchMatch>(
   matches: T[]
@@ -226,7 +226,7 @@ export function dedupeOverlappingWorkflowSearchMatches<T extends WorkflowSearchM
         } else {
           bucketsByScopeKey.set(scopeKey, {
             indices: [deduped.length],
-            maxEnd: Number.isFinite(matchRange.end) ? matchRange.end : Number.NEGATIVE_INFINITY,
+            maxEnd: Number.isNaN(matchRange.end) ? Number.NEGATIVE_INFINITY : matchRange.end,
           })
         }
       }
