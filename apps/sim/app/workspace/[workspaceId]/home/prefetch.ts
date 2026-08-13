@@ -1,50 +1,45 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { FolderApi } from '@/lib/api/contracts'
-import type { ListWorkspaceFilesResponse } from '@/lib/api/contracts/workspace-files'
-import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
-import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
+import { listWorkspaceFilesWithShares } from '@/lib/workspace-files/queries'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import {
   WORKSPACE_FILES_LIST_STALE_TIME,
   workspaceFilesKeys,
 } from '@/hooks/queries/workspace-files'
 
 /**
- * Prefetches the home page's secondary lists — folders and workspace files —
- * under the same query keys their client hooks (`useFolders`,
- * `useWorkspaceFiles`) use, so the home view paints populated on first render.
+ * Prefetches the workspace files the home view lists, under the same query key
+ * its client hook (`useWorkspaceFiles`) uses, so the view paints populated on
+ * first render.
  *
- * The workflow list (`workflowKeys.list(ws, 'active')`) is already hydrated by
- * the workspace sidebar prefetch and is intentionally not repeated here.
+ * Reads the data layer rather than the route, which drops a server-to-server
+ * request and its duplicate auth. It also fixes the shape this key was seeded
+ * with: `listWorkspaceFilesContract` declares the date fields as
+ * `z.coerce.date()`, so every consumer of `workspaceFilesKeys.list` holds
+ * `Date`s, and `files/prefetch.ts` already seeds them that way from this same
+ * function. Caching the raw route JSON here put ISO strings under that key
+ * instead, so a file record's type depended on which page the viewer landed on.
  *
- * Folders are fetched through the route and mapped with the same `mapFolder`
- * the hook applies, matching its cached shape (string dates → `Date`). Files
- * carry `Date` fields, so they go through the route and cache the serialized
- * wire shape — see {@link prefetchInternalJson}.
+ * The read carries no authorization of its own, so the viewer is proved first.
+ * `getWorkspaceHostContextForViewer` is `cache`d and the layout has already
+ * resolved it for this request, so this costs no additional queries; a viewer
+ * without access caches nothing and the client fetch reaches the route for the
+ * real 403.
+ *
+ * Folders (`folderKeys.list(ws, 'active', 'workflow')`) and the workflow list
+ * are both already hydrated by the workspace sidebar prefetch and are
+ * intentionally not repeated here.
  */
 export async function prefetchHomeLists(
   queryClient: QueryClient,
-  workspaceId: string
+  workspaceId: string,
+  userId: string
 ): Promise<void> {
-  await Promise.all([
-    queryClient.prefetchQuery({
-      queryKey: folderKeys.list(workspaceId, 'active', 'workflow'),
-      queryFn: async () => {
-        const { folders } = await prefetchInternalJson<{ folders?: FolderApi[] }>(
-          `/api/folders?workspaceId=${workspaceId}&scope=active&resourceType=workflow`
-        )
-        return (folders ?? []).map(mapFolder)
-      },
-      staleTime: FOLDER_LIST_STALE_TIME,
-    }),
-    queryClient.prefetchQuery({
-      queryKey: workspaceFilesKeys.list(workspaceId, 'active'),
-      queryFn: async () => {
-        const data = await prefetchInternalJson<ListWorkspaceFilesResponse>(
-          `/api/workspaces/${workspaceId}/files?scope=active`
-        )
-        return data.success ? data.files : []
-      },
-      staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
-    }),
-  ])
+  const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
+  if (!hostContext) return
+
+  await queryClient.prefetchQuery({
+    queryKey: workspaceFilesKeys.list(workspaceId, 'active'),
+    queryFn: () => listWorkspaceFilesWithShares(workspaceId, 'active'),
+    staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
+  })
 }

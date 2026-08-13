@@ -24,10 +24,18 @@ export default async function HomePage({ params }: { params: Promise<{ workspace
   }
 
   const queryClient = getQueryClient()
-  const listsPrefetch = prefetchHomeLists(queryClient, workspaceId)
 
+  /**
+   * `getSession` is `cache`d and the layout has already resolved it for this
+   * request, so awaiting it before the prefetch costs nothing and gives the
+   * prefetch the viewer it needs to authorize its own read.
+   */
   const session = await getSession()
   const userId = session?.user?.id
+  const listsPrefetch = userId
+    ? prefetchHomeLists(queryClient, workspaceId, userId)
+    : Promise.resolve()
+
   const tableViewsEnabled = await resolveTableViewsEnabled(workspaceId, userId)
   await listsPrefetch
 

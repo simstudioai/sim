@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
+import { getSession } from '@/lib/auth'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
 import { Knowledge } from '@/app/workspace/[workspaceId]/knowledge/knowledge'
@@ -27,7 +28,13 @@ export default async function KnowledgePage({
   const { workspaceId } = await params
 
   const queryClient = getQueryClient()
-  await prefetchKnowledgeBases(queryClient, workspaceId)
+  /**
+   * `getSession` is `cache`d and the layout has already resolved it for this
+   * request, so this costs nothing and gives the prefetch the viewer its
+   * data-layer reads need to authorize against.
+   */
+  const session = await getSession()
+  await prefetchKnowledgeBases(queryClient, workspaceId, session?.user?.id ?? '')
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

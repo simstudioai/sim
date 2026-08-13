@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { FolderApi } from '@/lib/api/contracts/folders'
+import { listFoldersForWorkspace } from '@/lib/folders/queries'
 import type { TableDefinition } from '@/lib/table'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
 import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
@@ -14,12 +15,24 @@ import { TABLE_LIST_STALE_TIME, tableKeys } from '@/hooks/queries/utils/table-ke
  * only placed correctly relative to the folder rows it sits beside, so
  * prefetching one without the other still flashes an ungrouped list.
  *
- * Table definitions carry `Date` fields, so the list goes through the
- * `/api/table` route and caches the serialized wire shape — see
- * {@link prefetchInternalJson}. Folders are mapped with the same `mapFolder` the
- * hook applies so the hydrated entry matches a client fetch exactly.
+ * Folders read the data layer and are mapped with the same `mapFolder` the hook
+ * applies, matching the workspace sidebar prefetch. That read carries no
+ * authorization of its own, so the viewer is proved first;
+ * `getWorkspaceHostContextForViewer` is `cache`d and the layout has already
+ * resolved it for this request, so it costs no additional queries.
+ *
+ * Table definitions carry `Date` fields whose serialized wire shape is what the
+ * client hook caches, so the list still goes through the `/api/table` route —
+ * see {@link prefetchInternalJson}. Converting it needs the payload shaped to
+ * the route's response contract, not just read from the data layer.
  */
-export async function prefetchTables(queryClient: QueryClient, workspaceId: string): Promise<void> {
+export async function prefetchTables(
+  queryClient: QueryClient,
+  workspaceId: string,
+  userId: string
+): Promise<void> {
+  const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
+
   await Promise.all([
     queryClient.prefetchQuery({
       queryKey: tableKeys.list(workspaceId, 'active'),
@@ -31,16 +44,18 @@ export async function prefetchTables(queryClient: QueryClient, workspaceId: stri
       },
       staleTime: TABLE_LIST_STALE_TIME,
     }),
-    queryClient.prefetchQuery({
-      queryKey: folderKeys.list(workspaceId, 'active', 'table'),
-      queryFn: async () => {
-        const { folders } = await prefetchInternalJson<{ folders?: FolderApi[] }>(
-          `/api/folders?workspaceId=${workspaceId}&scope=active&resourceType=table`
-        )
-        return (folders ?? []).map(mapFolder)
-      },
-      staleTime: FOLDER_LIST_STALE_TIME,
-    }),
+    ...(hostContext
+      ? [
+          queryClient.prefetchQuery({
+            queryKey: folderKeys.list(workspaceId, 'active', 'table'),
+            queryFn: async () => {
+              const rows = await listFoldersForWorkspace(workspaceId, 'active', 'table')
+              return rows.map(mapFolder)
+            },
+            staleTime: FOLDER_LIST_STALE_TIME,
+          }),
+        ]
+      : []),
     prefetchResourceListChrome(queryClient, workspaceId, 'table'),
   ])
 }

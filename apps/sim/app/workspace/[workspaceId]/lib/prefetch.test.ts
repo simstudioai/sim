@@ -6,11 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetWorkspaceHostContextForViewer,
+  mockListFoldersForWorkspace,
   mockListWorkspaceFileFolders,
   mockListWorkspaceFilesWithShares,
   mockPrefetchInternalJson,
 } = vi.hoisted(() => ({
   mockGetWorkspaceHostContextForViewer: vi.fn(),
+  mockListFoldersForWorkspace: vi.fn(),
   mockListWorkspaceFileFolders: vi.fn(),
   mockListWorkspaceFilesWithShares: vi.fn(),
   mockPrefetchInternalJson: vi.fn(),
@@ -18,6 +20,9 @@ const {
 
 vi.mock('@/lib/workspaces/host-context', () => ({
   getWorkspaceHostContextForViewer: mockGetWorkspaceHostContextForViewer,
+}))
+vi.mock('@/lib/folders/queries', () => ({
+  listFoldersForWorkspace: mockListFoldersForWorkspace,
 }))
 vi.mock('@/lib/workspace-files/queries', () => ({
   listWorkspaceFilesWithShares: mockListWorkspaceFilesWithShares,
@@ -57,8 +62,70 @@ describe('workspace list prefetches', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetWorkspaceHostContextForViewer.mockResolvedValue({ viewer: { permission: 'admin' } })
+    mockListFoldersForWorkspace.mockResolvedValue([])
     mockListWorkspaceFilesWithShares.mockResolvedValue([])
     mockListWorkspaceFileFolders.mockResolvedValue([])
+  })
+
+  describe.each([
+    {
+      name: 'prefetchKnowledgeBases',
+      run: (client: QueryClient) => prefetchKnowledgeBases(client, WORKSPACE_ID, USER_ID),
+      resourceType: 'knowledge_base' as const,
+    },
+    {
+      name: 'prefetchTables',
+      run: (client: QueryClient) => prefetchTables(client, WORKSPACE_ID, USER_ID),
+      resourceType: 'table' as const,
+    },
+  ])('$name folder reads', ({ run, resourceType }) => {
+    it('reads folders from the data layer rather than over the wire', async () => {
+      const folderRow = {
+        id: 'fld-1',
+        name: 'Folder',
+        userId: 'u-1',
+        workspaceId: WORKSPACE_ID,
+        parentId: null,
+        resourceType,
+        locked: false,
+        sortOrder: 0,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-02T00:00:00.000Z',
+        deletedAt: null,
+      }
+      mockPrefetchInternalJson.mockResolvedValue({ data: { tables: [] } })
+      mockListFoldersForWorkspace.mockResolvedValue([folderRow])
+      const client = makeClient()
+
+      await run(client)
+
+      expect(mockListFoldersForWorkspace).toHaveBeenCalledWith(WORKSPACE_ID, 'active', resourceType)
+      expect(mockPrefetchInternalJson).not.toHaveBeenCalledWith(
+        expect.stringContaining('/api/folders')
+      )
+      const cached = client.getQueryData(
+        folderKeys.list(WORKSPACE_ID, 'active', resourceType)
+      ) as Array<{
+        resourceType: string
+        createdAt: Date
+      }>
+      expect(cached).toHaveLength(1)
+      expect(cached[0].resourceType).toBe(resourceType)
+      expect(cached[0].createdAt).toBeInstanceOf(Date)
+    })
+
+    it('skips the folder read when the viewer cannot be proved', async () => {
+      mockPrefetchInternalJson.mockResolvedValue({ data: { tables: [] } })
+      mockGetWorkspaceHostContextForViewer.mockResolvedValue(null)
+      const client = makeClient()
+
+      await run(client)
+
+      expect(mockListFoldersForWorkspace).not.toHaveBeenCalled()
+      expect(
+        client.getQueryData(folderKeys.list(WORKSPACE_ID, 'active', resourceType))
+      ).toBeUndefined()
+    })
   })
 
   describe('prefetchKnowledgeBases', () => {
@@ -67,7 +134,7 @@ describe('workspace list prefetches', () => {
       mockPrefetchInternalJson.mockResolvedValue({ data: bases })
       const client = makeClient()
 
-      await prefetchKnowledgeBases(client, WORKSPACE_ID)
+      await prefetchKnowledgeBases(client, WORKSPACE_ID, USER_ID)
 
       expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
         `/api/knowledge?workspaceId=${WORKSPACE_ID}&scope=active`
@@ -82,7 +149,7 @@ describe('workspace list prefetches', () => {
       mockPrefetchInternalJson.mockResolvedValue({ data: { tables } })
       const client = makeClient()
 
-      await prefetchTables(client, WORKSPACE_ID)
+      await prefetchTables(client, WORKSPACE_ID, USER_ID)
 
       expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
         `/api/table?workspaceId=${WORKSPACE_ID}&scope=active`
@@ -150,12 +217,12 @@ describe('workspace list prefetches', () => {
       },
       {
         name: 'tables',
-        run: (client: QueryClient) => prefetchTables(client, WORKSPACE_ID),
+        run: (client: QueryClient) => prefetchTables(client, WORKSPACE_ID, USER_ID),
         resourceType: 'table' as const,
       },
       {
         name: 'knowledge',
-        run: (client: QueryClient) => prefetchKnowledgeBases(client, WORKSPACE_ID),
+        run: (client: QueryClient) => prefetchKnowledgeBases(client, WORKSPACE_ID, USER_ID),
         resourceType: 'knowledge_base' as const,
       },
     ]
@@ -215,20 +282,20 @@ describe('workspace list prefetches', () => {
       )
       const client = makeClient()
 
-      await prefetchHomeLists(client, WORKSPACE_ID)
+      mockListWorkspaceFilesWithShares.mockResolvedValue(files)
 
-      expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-        `/api/folders?workspaceId=${WORKSPACE_ID}&scope=active&resourceType=workflow`
-      )
-      const cachedFolders = client.getQueryData(folderKeys.list(WORKSPACE_ID, 'active')) as Array<{
-        id: string
-        resourceType: string
-        createdAt: Date
-      }>
-      expect(cachedFolders).toHaveLength(1)
-      expect(cachedFolders[0].resourceType).toBe('workflow')
-      // The wire shape carries ISO strings; the client shape carries Dates.
-      expect(cachedFolders[0].createdAt).toBeInstanceOf(Date)
+      await prefetchHomeLists(client, WORKSPACE_ID, USER_ID)
+
+      /**
+       * Folders are hydrated by the workspace sidebar prefetch under this same
+       * key, so repeating them here would be a second read of data the layout
+       * already has.
+       */
+      expect(mockPrefetchInternalJson).not.toHaveBeenCalled()
+      expect(mockListFoldersForWorkspace).not.toHaveBeenCalled()
+      expect(client.getQueryData(folderKeys.list(WORKSPACE_ID, 'active'))).toBeUndefined()
+
+      expect(mockListWorkspaceFilesWithShares).toHaveBeenCalledWith(WORKSPACE_ID, 'active')
       expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual(files)
     })
   })
@@ -237,17 +304,17 @@ describe('workspace list prefetches', () => {
     it.each([
       [
         'prefetchKnowledgeBases',
-        (client: QueryClient) => prefetchKnowledgeBases(client, WORKSPACE_ID),
+        (client: QueryClient) => prefetchKnowledgeBases(client, WORKSPACE_ID, USER_ID),
         knowledgeKeys.list(WORKSPACE_ID, 'active'),
       ],
       [
         'prefetchTables',
-        (client: QueryClient) => prefetchTables(client, WORKSPACE_ID),
+        (client: QueryClient) => prefetchTables(client, WORKSPACE_ID, USER_ID),
         tableKeys.list(WORKSPACE_ID, 'active'),
       ],
       [
         'prefetchHomeLists',
-        (client: QueryClient) => prefetchHomeLists(client, WORKSPACE_ID),
+        (client: QueryClient) => prefetchHomeLists(client, WORKSPACE_ID, USER_ID),
         folderKeys.list(WORKSPACE_ID, 'active'),
       ],
       [
