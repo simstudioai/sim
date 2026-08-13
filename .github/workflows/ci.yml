@@ -788,8 +788,11 @@ jobs:
   desktop-prerelease:
     name: Desktop Prerelease Build
     needs: [create-desktop-prerelease, check-desktop-signing]
+    # The reusable workflow declares contents: write for its stable-release
+    # path. GitHub cannot elevate a caller's token, even though this prerelease
+    # path uses the dedicated cross-repository token for its actual upload.
     permissions:
-      contents: read
+      contents: write
     uses: ./.github/workflows/desktop-release.yml
     with:
       version: ${{ needs.create-desktop-prerelease.outputs.version }}
