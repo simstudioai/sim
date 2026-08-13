@@ -12,6 +12,7 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkspaceApiKeyScopeAuthorizationError } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({ execute: vi.fn() }))
 
@@ -145,6 +146,35 @@ describe('POST /api/v2/credential-connections', () => {
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({
       error: { code: 'NOT_FOUND', message: 'Workspace not found' },
+    })
+  })
+
+  it('returns a conflict when another intent already owns the active provider draft', async () => {
+    mocks.execute.mockRejectedValueOnce(
+      new OrchestrationError(
+        'conflict',
+        'A different OAuth connection flow is already active for this provider'
+      )
+    )
+
+    const response = await POST(
+      new NextRequest('http://localhost:3000/api/v2/credential-connections', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          providerId: 'google-email',
+          displayName: 'Work Gmail',
+        }),
+      })
+    )
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'CONFLICT',
+        message: 'A different OAuth connection flow is already active for this provider',
+      },
     })
   })
 })

@@ -2,7 +2,8 @@ import { db } from '@sim/db'
 import { credential, pendingCredentialDraft, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, gt, lt } from 'drizzle-orm'
+import { and, eq, gt, isNull, lt } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defaultCredentialDisplayName } from '@/lib/credentials/display-name'
 import { credentialProviderMatchesService, getAllOAuthServices } from '@/lib/oauth/utils'
 
@@ -84,14 +85,22 @@ export async function createConnectDraft(params: {
         pendingCredentialDraft.providerId,
         pendingCredentialDraft.workspaceId,
       ],
-      // credentialId must be written on BOTH paths: a plain connect that reuses a
-      // stale reconnect draft row would otherwise silently rebind the old
-      // credential instead of creating a new one.
-      set: { displayName, credentialId: credentialId ?? null, expiresAt, createdAt: now },
+      set: { expiresAt, createdAt: now },
+      setWhere: and(
+        eq(pendingCredentialDraft.displayName, displayName),
+        credentialId
+          ? eq(pendingCredentialDraft.credentialId, credentialId)
+          : isNull(pendingCredentialDraft.credentialId)
+      ),
     })
     .returning({ id: pendingCredentialDraft.id, expiresAt: pendingCredentialDraft.expiresAt })
 
-  if (!draft) throw new Error('OAuth connect draft insert returned no row')
+  if (!draft) {
+    throw new OrchestrationError(
+      'conflict',
+      'A different OAuth connection flow is already active for this provider'
+    )
+  }
 
   logger.info('Created OAuth connect credential draft', {
     userId,

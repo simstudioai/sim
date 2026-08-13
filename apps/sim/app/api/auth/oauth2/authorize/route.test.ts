@@ -214,9 +214,7 @@ describe('OAuth2 authorize route', () => {
         })
       )
       expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          set: expect.objectContaining({ credentialId: null }),
-        })
+        expect.objectContaining({ setWhere: expect.anything() })
       )
     })
 
@@ -232,11 +230,12 @@ describe('OAuth2 authorize route', () => {
       )
     })
 
-    it('nulls out credentialId in the upsert set so a stale reconnect draft cannot leak into a plain connect', async () => {
+    it('does not overwrite a reconnect intent when refreshing a plain connect', async () => {
       await GET(authorizeRequest({ providerId: 'google-email', workspaceId: WORKSPACE_ID }))
 
-      const [{ set }] = dbChainMockFns.onConflictDoUpdate.mock.calls[0]
-      expect(set).toHaveProperty('credentialId', null)
+      const [{ set, setWhere }] = dbChainMockFns.onConflictDoUpdate.mock.calls[0]
+      expect(set).not.toHaveProperty('credentialId')
+      expect(setWhere).toBeDefined()
     })
 
     it('rejects an OAuth client that is not configured for the deployment', async () => {
@@ -283,7 +282,7 @@ describe('OAuth2 authorize route', () => {
   })
 
   describe('reconnect (credentialId present)', () => {
-    it('creates a reconnect draft carrying credentialId in values and upsert set', async () => {
+    it('creates a reconnect draft and guards conflict refreshes by intent', async () => {
       mockGetCredentialActorContext.mockResolvedValue(oauthCredentialActor())
 
       const response = await GET(
@@ -304,9 +303,7 @@ describe('OAuth2 authorize route', () => {
         expect.objectContaining({ credentialId: CREDENTIAL_ID })
       )
       expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          set: expect.objectContaining({ credentialId: CREDENTIAL_ID }),
-        })
+        expect.objectContaining({ setWhere: expect.anything() })
       )
     })
 
