@@ -109,6 +109,7 @@ import {
   listWorkspaceSandboxes,
 } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
+import { listFoldersForWorkspace } from '@/lib/folders/queries'
 import {
   isIntegrationDeploymentAvailableForVisibility,
   isOAuthServiceDeploymentAvailable,
@@ -1613,6 +1614,26 @@ export class WorkspaceVFS {
   }
 
   /**
+   * Folder paths for a non-workflow resource tree (tables, knowledge bases),
+   * plus `.folder` markers so empty folders are discoverable via glob — the
+   * same contract workflows/ has. Returns folderId → encoded folder path.
+   */
+  private async registerResourceFolders(
+    workspaceId: string,
+    resourceType: 'table' | 'knowledge_base',
+    rootSegment: 'tables' | 'knowledgebases'
+  ): Promise<Map<string, string>> {
+    const folders = await listFoldersForWorkspace(workspaceId, 'active', resourceType)
+    const paths = buildVfsFolderPathMap(
+      folders.map((f) => ({ folderId: f.id, folderName: f.name, parentId: f.parentId }))
+    )
+    for (const folderPath of paths.values()) {
+      this.files.set(`${rootSegment}/${folderPath}/.folder`, '')
+    }
+    return paths
+  }
+
+  /**
    * Resolve the set of folder IDs that are effectively locked — locked directly
    * or via a locked ancestor folder. A workflow inside any of these folders is
    * itself immutable, so its meta.json must report `locked: true`. Mirrors the
@@ -1814,10 +1835,18 @@ export class WorkspaceVFS {
       input: { workspaceId },
     })
     const kbs = knowledgeBases.map(({ knowledgeBase }) => knowledgeBase)
+    const folderPaths = await this.registerResourceFolders(
+      workspaceId,
+      'knowledge_base',
+      'knowledgebases'
+    )
 
     for (const { knowledgeBase: kb, tagDefinitions } of knowledgeBases) {
       const safeName = sanitizeName(kb.name)
-      const prefix = `knowledgebases/${safeName}/`
+      const folderPath = kb.folderId ? folderPaths.get(kb.folderId) : undefined
+      const prefix = folderPath
+        ? `knowledgebases/${folderPath}/${safeName}/`
+        : `knowledgebases/${safeName}/`
 
       this.files.set(
         `${prefix}meta.json`,
@@ -1912,12 +1941,17 @@ export class WorkspaceVFS {
    */
   private async materializeTables(workspaceId: string): Promise<WorkspaceMdData['tables']> {
     try {
-      const tables = await listTables(workspaceId)
+      const [tables, folderPaths] = await Promise.all([
+        listTables(workspaceId),
+        this.registerResourceFolders(workspaceId, 'table', 'tables'),
+      ])
 
       for (const table of tables) {
         const safeName = sanitizeName(table.name)
+        const folderPath = table.folderId ? folderPaths.get(table.folderId) : undefined
+        const prefix = folderPath ? `tables/${folderPath}/${safeName}` : `tables/${safeName}`
         this.files.set(
-          `tables/${safeName}/meta.json`,
+          `${prefix}/meta.json`,
           serializeTableMeta({
             id: table.id,
             name: table.name,
