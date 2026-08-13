@@ -1399,6 +1399,11 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   > span.font-medium.font-mono.text-fd-primary {
   order: 1;
 }
+/* On an auth row the real type text is `<token>`, which is collapsed to zero
+   and replaced by the `::after` chip below. That makes this span a bare
+   wrapper, so it has to give up the whole type-token box it otherwise matches —
+   border and height included. Leaving those on wrapped the real chip in a
+   second, empty bordered box and pushed it right by the outer border and gap. */
 #nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
@@ -1407,7 +1412,13 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   font-size: 0;
   padding: 0 !important;
   background: none !important;
+  border: none !important;
+  height: auto !important;
   line-height: 0;
+  /* The collapsed `<token>` text is still an anonymous flex item beside the
+     `::after` chip, so the token rule's gap would open a hole in front of the
+     chip that no other property row has. */
+  gap: 0 !important;
 }
 #nd-page:has(.api-page-header)
   div.my-4
@@ -1518,15 +1529,26 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   margin-bottom: 0.25rem !important;
 }
 
-/* Code examples in right column — wrap long lines instead of horizontal scroll */
+/* Code examples in right column — wrap long lines instead of scrolling sideways.
+   fumadocs sizes the block with `w-max`, so it grows to its longest line inside
+   a ~400px scroller and `pre-wrap` alone never takes effect; the width cap is
+   what actually enables wrapping. `anywhere` breaks only a token that cannot
+   fit on its own line, unlike `break-all`, which would split every line at the
+   character that happens to land on the edge.
+   The right padding clears the floating copy button, which fumadocs positions
+   over the first line. */
 #nd-page:has(.api-page-header) pre {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-right: 2.25rem;
   white-space: pre-wrap !important;
-  word-break: break-all !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
 }
 #nd-page:has(.api-page-header) pre code {
   width: 100% !important;
-  word-break: break-all !important;
-  overflow-wrap: break-word !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
 }
 
 /* Status-code tabs in the example panel. These are numeric literals and read as
