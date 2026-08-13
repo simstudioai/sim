@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   addWorkflowGroupBodySchema,
   cancelTableRunsBodyBaseSchema,
@@ -441,6 +441,7 @@ export const v2ListTablesContract = defineRouteContract({
 export const v2CreateTableContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables',
+  query: noInputSchema,
   body: v2CreateTableBodySchema,
   response: {
     mode: 'json',
@@ -501,6 +502,7 @@ export const v2UpdateTableBodySchema = z
 export const v2UpdateTableContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2UpdateTableBodySchema,
   response: {
@@ -537,6 +539,7 @@ export const v2ListTableFoldersContract = defineRouteContract({
 export const v2CreateTableFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/folders',
+  query: noInputSchema,
   body: v2CreateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FolderSchema), status: 201 },
 })
@@ -544,6 +547,7 @@ export const v2CreateTableFolderContract = defineRouteContract({
 export const v2RelocateTableFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/folders',
+  query: noInputSchema,
   body: v2RelocateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FolderSchema) },
 })
@@ -623,6 +627,7 @@ export type V2UpdateTableColumnBody = z.input<typeof v2UpdateTableColumnBodySche
 export const v2AddTableColumnContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/columns',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2CreateTableColumnBodySchema,
   response: {
@@ -635,6 +640,7 @@ export const v2AddTableColumnContract = defineRouteContract({
 export const v2UpdateTableColumnContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/columns',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2UpdateTableColumnBodySchema,
   response: {
@@ -655,6 +661,7 @@ export type V2DeleteTableColumnBody = z.input<typeof v2DeleteTableColumnBodySche
 export const v2DeleteTableColumnContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/tables/[tableId]/columns',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2DeleteTableColumnBodySchema,
   response: {
@@ -785,6 +792,7 @@ export type V2QueryRowsCountData = z.output<typeof v2QueryRowsCountDataSchema>
 export const v2QueryRowsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/query',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2QueryRowsBodySchema,
   response: {
@@ -806,6 +814,7 @@ export const v2QueryRowsContract = defineRouteContract({
 export const v2QueryRowsCountContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/query/count',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2QueryRowsCountBodySchema,
   response: {
@@ -864,6 +873,7 @@ export const v2CreateTableRowsBodySchema = z.union(
 export const v2CreateTableRowsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/rows',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2CreateTableRowsBodySchema,
   response: {
@@ -891,6 +901,7 @@ export type V2UpdateRowsByPredicateBody = z.input<typeof v2UpdateRowsByPredicate
 export const v2UpdateRowsByFilterContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/rows',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2UpdateRowsByPredicateBodySchema,
   response: {
@@ -933,6 +944,7 @@ export type V2DeleteTableRowsBody = z.input<typeof v2DeleteTableRowsBodySchema>
 export const v2DeleteTableRowsContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/tables/[tableId]/rows',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2DeleteTableRowsBodySchema,
   response: {
@@ -978,6 +990,7 @@ export const v2GetTableRowContract = defineRouteContract({
 export const v2UpdateTableRowContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/rows/[rowId]',
+  query: noInputSchema,
   params: tableRowParamsSchema,
   body: v2UpdateTableRowBodySchema,
   response: {
@@ -1000,6 +1013,7 @@ export const v2DeleteTableRowContract = defineRouteContract({
 export const v2UpsertTableRowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/rows/upsert',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2UpsertTableRowBodySchema,
   response: {
@@ -1126,6 +1140,7 @@ export type V2UpdateTableViewBody = z.input<typeof v2UpdateTableViewBodySchema>
 export const v2CreateTableViewContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/views',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2CreateTableViewBodySchema,
   response: {
@@ -1149,6 +1164,7 @@ export const v2GetTableViewContract = defineRouteContract({
 export const v2UpdateTableViewContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/views/[viewId]',
+  query: noInputSchema,
   params: tableViewParamsSchema,
   body: v2UpdateTableViewBodySchema,
   response: {
@@ -1377,6 +1393,7 @@ export type V2DeleteWorkflowGroupData = z.output<typeof v2DeleteWorkflowGroupDat
 export const v2AddWorkflowGroupContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/groups',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2AddWorkflowGroupBodySchema,
   response: {
@@ -1389,6 +1406,7 @@ export const v2AddWorkflowGroupContract = defineRouteContract({
 export const v2UpdateWorkflowGroupContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/groups',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2UpdateWorkflowGroupBodySchema,
   response: {
@@ -1400,6 +1418,7 @@ export const v2UpdateWorkflowGroupContract = defineRouteContract({
 export const v2DeleteWorkflowGroupContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/tables/[tableId]/groups',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2DeleteWorkflowGroupBodySchema,
   response: {
@@ -1447,6 +1466,7 @@ export type V2RunColumnData = z.output<typeof v2RunColumnDataSchema>
 export const v2RunTableColumnContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/columns/run',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2RunColumnBodySchema,
   response: {
@@ -1468,6 +1488,7 @@ export type V2RowEnrichmentParams = z.output<typeof v2RowEnrichmentParamsSchema>
 export const v2RunRowEnrichmentContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
+  query: noInputSchema,
   params: v2RowEnrichmentParamsSchema,
   body: v2WorkspaceScopedBodySchema,
   response: {
@@ -1541,6 +1562,7 @@ export type V2FindRowsData = z.output<typeof v2FindRowsDataSchema>
 export const v2FindTableRowsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/rows/find',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2FindRowsBodySchema,
   response: {
@@ -1555,9 +1577,11 @@ export const v2TableImportParamsSchema = z.object({
 export const v2TableExportParamsSchema = z.object({
   exportId: z.string().min(1).describe('Unique table-export identifier.'),
 })
-export const v2TableTransferWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the transfer resource.'),
-})
+export const v2TableTransferWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the transfer resource.'),
+  })
+  .strict()
 
 export const v2TableOptionalUploadTokenHeadersSchema = v2OptionalUploadTokenHeadersSchema.extend({
   'upload-token': v2OptionalUploadTokenHeadersSchema.shape['upload-token'].describe(
@@ -1795,6 +1819,7 @@ export type V2CreateTableImportData = z.output<typeof v2CreateTableImportDataSch
 export const v2CreateTableImportContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/imports',
+  query: noInputSchema,
   body: v2CreateTableImportBodySchema,
   response: {
     mode: 'json',
@@ -1885,6 +1910,7 @@ export type V2CreateTableExportBody = z.input<typeof v2CreateTableExportBodySche
 export const v2CreateTableExportContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/exports',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2CreateTableExportBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema), status: 201 },
@@ -1958,6 +1984,7 @@ export type V2CancelTableRunsData = z.output<typeof v2CancelTableRunsDataSchema>
 export const v2CancelTableRunsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/cancel-runs',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2CancelTableRunsBodySchema,
   response: {

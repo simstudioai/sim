@@ -225,6 +225,7 @@ const routes = [
       success: { description: 'Public workspace metadata.' },
     }),
     {
+      query: v2GetWorkspaceContract.query,
       params: documentedSchema(
         v2GetWorkspaceContract.params,
         'GetWorkspaceParams',
@@ -309,6 +310,7 @@ const routes = [
       success: { description: 'The MCP server was registered.' },
     }),
     {
+      query: v2CreateMcpServerContract.query,
       body: documentedSchema(
         v2CreateMcpServerContract.body,
         'CreateMcpServerRequest',
@@ -376,6 +378,7 @@ const routes = [
       success: { description: 'The updated MCP server.' },
     }),
     {
+      query: v2UpdateMcpServerContract.query,
       params: documentedSchema(
         v2UpdateMcpServerContract.params,
         'UpdateMcpServerParams',
@@ -497,6 +500,7 @@ const routes = [
       success: { description: 'The skill was created.' },
     }),
     {
+      query: v2CreateSkillContract.query,
       body: documentedSchema(
         v2CreateSkillContract.body,
         'CreateSkillRequest',
@@ -562,6 +566,7 @@ const routes = [
       success: { description: 'The updated skill.' },
     }),
     {
+      query: v2UpdateSkillContract.query,
       params: documentedSchema(
         v2UpdateSkillContract.params,
         'UpdateSkillParams',
@@ -652,6 +657,7 @@ const routes = [
       success: { description: 'The custom tool was created.' },
     }),
     {
+      query: v2CreateCustomToolContract.query,
       body: documentedSchema(
         v2CreateCustomToolContract.body,
         'CreateCustomToolRequest',
@@ -717,6 +723,7 @@ const routes = [
       success: { description: 'The updated custom tool.' },
     }),
     {
+      query: v2UpdateCustomToolContract.query,
       params: documentedSchema(
         v2UpdateCustomToolContract.params,
         'UpdateCustomToolParams',
@@ -837,6 +844,7 @@ const routes = [
       },
     }),
     {
+      query: v2SetSecretContract.query,
       params: documentedSchema(
         v2SetSecretContract.params,
         'SetSecretParams',

@@ -11,11 +11,13 @@ import type {
 } from '@/lib/api/server/routes/types'
 import {
   admitV2Request,
+  requireHeadAuthorizableUseCase,
   V2_PARSE_DEFAULTS,
   type V2ErrorPolicy,
   type V2RateLimitPolicy,
   V2RouteInfrastructureError,
   type v2ApiKeyAuth,
+  v2HeadAuthorizationResponse,
 } from '@/lib/api/server/routes/v2-json-route'
 import { parseRequest } from '@/lib/api/server/validation'
 import type { ApplicationOperation } from '@/lib/core/application'
@@ -35,13 +37,16 @@ interface V2BinaryRouteOptions<
    * Whether this route's `GET` is safe enough for Next's `HEAD`→`GET` aliasing
    * to run it. Defaults to `true`, which is correct for a read.
    *
-   * Set `false` when the `GET` opens an outbound connection or writes a row.
-   * Such a route still authenticates and rate-limits a `HEAD`, then answers a
-   * bodiless 200 without executing the use case — see {@link v2HeadNoEffect}.
+   * Set `false` when the `GET` opens an outbound connection or writes a row. A
+   * `HEAD` on such a route is admitted, parsed, and **authorized** exactly as
+   * the `GET` would be, then answered bodiless without running the use case's
+   * business phase — see {@link v2HeadNoEffect}.
    *
    * A binary `GET` is a download, and a download is the archetypal read that
    * records that it happened, so this matters here at least as much as on the
-   * JSON builder it mirrors.
+   * JSON builder it mirrors — including the part that made it a leak: a `HEAD`
+   * answered from admission alone confirmed a file id to a caller whose `GET`
+   * for the same id would have answered 404.
    */
   headSafe?: boolean
 }
@@ -57,6 +62,7 @@ export function defineV2BinaryRoute<
     options.operation,
     options.useCase.operation
   )
+  requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request: NextRequest, context) => {
@@ -74,15 +80,29 @@ export function defineV2BinaryRoute<
       )
       if (!admission.success) return admission.response
 
-      if (request.method === 'HEAD' && options.headSafe === false) {
-        return v2HeadNoEffect()
-      }
-
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
         ...V2_PARSE_DEFAULTS,
         validationErrorResponse: v2ValidationError,
       })
       if (!parsed.success) return parsed.response
+
+      if (request.method === 'HEAD' && options.headSafe === false) {
+        let input: I
+        try {
+          input = options.mapInput(parsed.data)
+        } catch (error) {
+          const response = options.errorPolicy.render(error)
+          if (response) return response
+          throw error
+        }
+        return v2HeadAuthorizationResponse({
+          useCase: options.useCase,
+          principal: admission.auth.principal,
+          input,
+          request,
+          errorPolicy: options.errorPolicy,
+        })
+      }
 
       try {
         const result = await options.useCase.execute({

@@ -153,6 +153,7 @@ const routes = [
       success: { description: 'The created file.' },
     }),
     {
+      query: v2CreateFileContract.query,
       body: documentedSchema(
         v2CreateFileContract.body,
         'CreateFileRequest',
@@ -186,6 +187,7 @@ const routes = [
       success: { description: 'The created upload session and transfer instructions.' },
     }),
     {
+      query: v2CreateFileUploadContract.query,
       body: documentedSchema(
         v2CreateFileUploadContract.body,
         'CreateFileUploadRequest',
@@ -394,6 +396,7 @@ const routes = [
       success: { description: 'The renamed file.' },
     }),
     {
+      query: v2RenameFileContract.query,
       params: documentedSchema(
         v2RenameFileContract.params,
         'RenameFileParams',
@@ -432,6 +435,7 @@ const routes = [
       success: { description: 'The file as it exists after the restore.' },
     }),
     {
+      query: v2RestoreFileContract.query,
       params: documentedSchema(
         v2RestoreFileContract.params,
         'RestoreFileParams',
@@ -554,6 +558,7 @@ const routes = [
       success: { description: 'Count of moved files.' },
     }),
     {
+      query: v2MoveFileItemsContract.query,
       body: documentedSchema(
         v2MoveFileItemsContract.body,
         'MoveFileItemsRequest',
@@ -618,6 +623,7 @@ const routes = [
       success: { description: 'The updated file share.' },
     }),
     {
+      query: v2UpsertFileShareContract.query,
       params: documentedSchema(
         v2UpsertFileShareContract.params,
         'UpsertFileShareParams',
@@ -660,6 +666,7 @@ const routes = [
       success: { description: 'The updated file.' },
     }),
     {
+      query: v2UpdateFileContentContract.query,
       params: documentedSchema(
         v2UpdateFileContentContract.params,
         'UpdateFileContentParams',
@@ -697,6 +704,7 @@ const routes = [
       success: { description: 'Count of deleted files.' },
     }),
     {
+      query: v2BulkDeleteFilesContract.query,
       body: documentedSchema(
         v2BulkDeleteFilesContract.body,
         'BulkDeleteFilesRequest',
@@ -752,6 +760,7 @@ const routes = [
       success: { description: 'The created folder.' },
     }),
     {
+      query: v2CreateFileFolderContract.query,
       body: documentedSchema(
         v2CreateFileFolderContract.body,
         'CreateFileFolderRequest',
@@ -782,6 +791,7 @@ const routes = [
       success: { description: 'The relocated folder.' },
     }),
     {
+      query: v2RelocateFileFolderContract.query,
       body: documentedSchema(
         v2RelocateFileFolderContract.body,
         'RelocateFileFolderRequest',

@@ -84,18 +84,22 @@ const server = {
 } as McpServerRow
 const context = { params: Promise.resolve({ id: server.id }) }
 
+/**
+ * The read and delete verbs scope themselves with `?workspaceId=`; the write
+ * verb carries `workspaceId` in its body. Sending the query copy on a write is
+ * now a 400 rather than a silently dropped key, so the helper only appends it
+ * where the contract declares it.
+ */
 function request(method: 'GET' | 'PATCH' | 'DELETE', body?: unknown) {
-  return new NextRequest(
-    `http://localhost:3000/api/v2/mcp-servers/${server.id}?workspaceId=${WORKSPACE_ID}`,
-    {
-      method,
-      headers: {
-        'x-api-key': 'key',
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }
-  )
+  const query = method === 'PATCH' ? '' : `?workspaceId=${WORKSPACE_ID}`
+  return new NextRequest(`http://localhost:3000/api/v2/mcp-servers/${server.id}${query}`, {
+    method,
+    headers: {
+      'x-api-key': 'key',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
 }
 
 describe('/api/v2/mcp-servers/[id]', () => {

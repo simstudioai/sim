@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/contracts/deployments'
 import {
   booleanQueryFlagSchema,
+  noInputSchema,
   runIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -378,6 +379,7 @@ export const v2ListWorkflowsContract = defineRouteContract({
 export const v2GetWorkflowContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
@@ -481,6 +483,7 @@ export type V2DeleteWorkflowData = z.output<typeof v2DeleteWorkflowDataSchema>
 export const v2CreateWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows',
+  query: noInputSchema,
   body: v2CreateWorkflowBodySchema,
   response: {
     mode: 'json',
@@ -492,6 +495,7 @@ export const v2CreateWorkflowContract = defineRouteContract({
 export const v2UpdateWorkflowContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/workflows/[id]',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   body: v2UpdateWorkflowBodySchema,
   response: {
@@ -503,6 +507,7 @@ export const v2UpdateWorkflowContract = defineRouteContract({
 export const v2DeleteWorkflowContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/workflows/[id]',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
@@ -546,6 +551,7 @@ export const v2ListWorkflowFoldersContract = defineRouteContract({
 export const v2CreateWorkflowFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/folders',
+  query: noInputSchema,
   body: v2CreateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2WorkflowFolderSchema), status: 201 },
 })
@@ -553,6 +559,7 @@ export const v2CreateWorkflowFolderContract = defineRouteContract({
 export const v2RelocateWorkflowFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/workflows/folders',
+  query: noInputSchema,
   body: v2RelocateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2WorkflowFolderSchema) },
 })
@@ -676,6 +683,7 @@ export const v2ListWorkflowVersionsContract = defineRouteContract({
 export const v2GetWorkflowVersionContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]/versions/[version]',
+  query: noInputSchema,
   params: v2DeploymentVersionParamsSchema,
   response: {
     mode: 'json',
@@ -686,6 +694,7 @@ export const v2GetWorkflowVersionContract = defineRouteContract({
 export const v2GetWorkflowDeploymentContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]/deployment',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
@@ -696,6 +705,7 @@ export const v2GetWorkflowDeploymentContract = defineRouteContract({
 export const v2DeployWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/deploy',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   body: v1DeployWorkflowBodySchema
     .extend({
@@ -726,6 +736,7 @@ export const v2DeployWorkflowContract = defineRouteContract({
 export const v2UndeployWorkflowContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/workflows/[id]/deploy',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
@@ -744,6 +755,7 @@ export const v2UndeployWorkflowContract = defineRouteContract({
 export const v2RollbackWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/rollback',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   body: v1RollbackWorkflowBodySchema
     .extend({
@@ -963,6 +975,7 @@ export const v2ExecuteWorkflowSuccessSchema = z
 export const v2ExecuteWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/execute',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   headers: v2ExecuteWorkflowHeadersSchema,
   body: v2ExecuteWorkflowBodySchema,
@@ -1026,6 +1039,7 @@ export type V2ResumeWorkflowResponse = z.output<typeof v2ResumeWorkflowResponseS
 export const v2ResumeWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/runs/[runId]/resume',
+  query: noInputSchema,
   params: v2WorkflowRunParamsSchema,
   body: v2ResumeWorkflowBodySchema,
   response: {
@@ -1284,6 +1298,7 @@ export type V2CancelWorkflowRunData = z.output<typeof v2CancelWorkflowRunDataSch
 export const v2CancelWorkflowRunContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/runs/[runId]/cancel',
+  query: noInputSchema,
   params: v2WorkflowRunParamsSchema,
   response: {
     mode: 'json',
@@ -1417,6 +1432,7 @@ export const v2ImportWorkflowDataSchema = z
 export const v2ExportWorkflowContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]/export',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
@@ -1427,6 +1443,7 @@ export const v2ExportWorkflowContract = defineRouteContract({
 export const v2ImportWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/import',
+  query: noInputSchema,
   body: v2ImportWorkflowBodySchema,
   response: {
     mode: 'json',

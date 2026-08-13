@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   discover: vi.fn(),
+  authorizeDiscover: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
@@ -32,10 +33,12 @@ vi.mock('@/lib/mcp/application/use-cases', () => ({
   discoverMcpServerToolsUseCase: {
     operation: { id: 'mcp_servers.tools.discover' },
     execute: mocks.discover,
+    authorize: mocks.authorizeDiscover,
   },
 }))
 
-import { WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
+import { NoWorkspaceAccessError, WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   McpConnectionError,
   McpOauthAuthorizationRequiredError,
@@ -82,6 +85,7 @@ describe('/api/v2/mcp-servers/[id]/tools', () => {
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.discover.mockResolvedValue({ tools: [TOOL] })
+    mocks.authorizeDiscover.mockResolvedValue(undefined)
   })
 
   it('returns a server tool inventory as a single page', async () => {
@@ -119,6 +123,54 @@ describe('/api/v2/mcp-servers/[id]/tools', () => {
 
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('')
+    expect(mocks.discover).not.toHaveBeenCalled()
+    expect(mocks.authorizeDiscover).toHaveBeenCalledOnce()
+  })
+
+  /**
+   * The `HEAD` short-circuit used to sit between admission and parsing, so it
+   * answered before resource authorization ever ran — which lives in the use
+   * case. Any valid API key therefore drew a bodiless 200 for a server id in a
+   * workspace it cannot read, a server id that does not exist, and a principal
+   * kind this operation refuses outright, while the `GET` for the same URL
+   * answered 403 or 404. These four pin the probe to the answer the `GET` gives.
+   */
+  it('does not confirm a server to a principal kind the operation refuses', async () => {
+    mocks.authorizeDiscover.mockRejectedValueOnce(new WorkspaceApiKeyAuthorizationError())
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`, 'HEAD'), { ...context })
+
+    expect(response.status).toBe(403)
+    expect(mocks.discover).not.toHaveBeenCalled()
+  })
+
+  it('does not confirm a server id that does not exist', async () => {
+    mocks.authorizeDiscover.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'MCP server not found')
+    )
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`, 'HEAD'), { ...context })
+
+    expect(response.status).toBe(404)
+    expect(mocks.discover).not.toHaveBeenCalled()
+  })
+
+  it('does not confirm a server in a workspace the caller cannot read', async () => {
+    mocks.authorizeDiscover.mockRejectedValueOnce(new NoWorkspaceAccessError())
+
+    const response = await GET(request('workspaceId=someone-elses-workspace', 'HEAD'), {
+      ...context,
+    })
+
+    expect(response.status).toBe(404)
+    expect(mocks.discover).not.toHaveBeenCalled()
+  })
+
+  it('rejects a HEAD missing the required workspaceId instead of answering 200', async () => {
+    const response = await GET(request('', 'HEAD'), { ...context })
+
+    expect(response.status).toBe(400)
+    expect(mocks.authorizeDiscover).not.toHaveBeenCalled()
     expect(mocks.discover).not.toHaveBeenCalled()
   })
 

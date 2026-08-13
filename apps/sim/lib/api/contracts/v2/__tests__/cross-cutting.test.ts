@@ -139,7 +139,7 @@ describe('tables nested strictness', () => {
  * Every caller-authored knowledge and files/audit request slice must reject the
  * keys it does not declare.
  *
- * These two families held the last non-strict slices in v2: four single-field
+ * These two families held the last non-strict *body* slices in v2: four single-field
  * `{ workspaceId }` query objects reused across 15 operations, and the knowledge
  * search body. Zod strips what it does not declare, so a caller that mis-spelt a
  * parameter got a 200 for a request the server never honoured — and on
@@ -151,6 +151,11 @@ describe('tables nested strictness', () => {
  * Only `query` and `body` are swept. `params` are produced by the router from
  * the path pattern and `headers` are projected from the schema's own keys, so
  * neither carries a key the caller chose and neither can strip one.
+ *
+ * The `query` half is now also covered surface-wide by the query-declaration
+ * sweep, which walks the contracts tree rather than these two OpenAPI documents.
+ * This one stays because it is the only sweep over `body`, and because it is
+ * scoped to the families whose strictness regressed.
  */
 describe('knowledge and files request-slice strictness', () => {
   const documents = [
@@ -172,8 +177,14 @@ describe('knowledge and files request-slice strictness', () => {
     )
   )
 
+  /**
+   * A count, so a document that stopped listing its routes cannot make every
+   * assertion below pass vacuously. It rises when a route gains a slice: it went
+   * 45 → 63 when the knowledge and files endpoints that take no query params
+   * started saying so with `noInputSchema` instead of omitting `query`.
+   */
   it('sweeps every documented query and body slice', () => {
-    expect(slices.length).toBe(45)
+    expect(slices.length).toBe(63)
   })
 
   it.each(slices)('%s rejects an undeclared key', (_name, schema) => {

@@ -188,6 +188,7 @@ const routes = [
       success: jsonSuccess('The created workflow.'),
     }),
     {
+      query: v2CreateWorkflowContract.query,
       body: v2CreateWorkflowContract.body,
       response: documentedSchema(
         v2CreateWorkflowContract.response.schema,
@@ -209,6 +210,7 @@ const routes = [
     }),
     {
       params: v2GetWorkflowContract.params,
+      query: v2GetWorkflowContract.query,
       response: documentedSchema(
         v2GetWorkflowContract.response.schema,
         'WorkflowDetailResponse',
@@ -228,6 +230,7 @@ const routes = [
       success: jsonSuccess('The updated workflow.'),
     }),
     {
+      query: v2UpdateWorkflowContract.query,
       params: v2UpdateWorkflowContract.params,
       body: v2UpdateWorkflowContract.body,
       response: documentedSchema(
@@ -249,6 +252,7 @@ const routes = [
       success: jsonSuccess('The workflow was deleted.'),
     }),
     {
+      query: v2DeleteWorkflowContract.query,
       params: v2DeleteWorkflowContract.params,
       response: documentedSchema(
         v2DeleteWorkflowContract.response.schema,
@@ -290,6 +294,7 @@ const routes = [
       success: jsonSuccess('The requested deployment version.'),
     }),
     {
+      query: v2GetWorkflowVersionContract.query,
       params: v2GetWorkflowVersionContract.params,
       response: documentedSchema(
         v2GetWorkflowVersionContract.response.schema,
@@ -323,6 +328,7 @@ const routes = [
       success: jsonSuccess('The current deployment state.'),
     }),
     {
+      query: v2GetWorkflowDeploymentContract.query,
       params: v2GetWorkflowDeploymentContract.params,
       response: documentedSchema(
         v2GetWorkflowDeploymentContract.response.schema,
@@ -370,6 +376,7 @@ const routes = [
       success: jsonSuccess('The accepted deployment attempt.'),
     }),
     {
+      query: v2DeployWorkflowContract.query,
       params: v2DeployWorkflowContract.params,
       body: v2DeployWorkflowContract.body,
       response: documentedSchema(
@@ -414,6 +421,7 @@ const routes = [
       success: jsonSuccess('The workflow was undeployed.'),
     }),
     {
+      query: v2UndeployWorkflowContract.query,
       params: v2UndeployWorkflowContract.params,
       response: documentedSchema(
         v2UndeployWorkflowContract.response.schema,
@@ -445,6 +453,7 @@ const routes = [
       success: jsonSuccess('The accepted rollback attempt.'),
     }),
     {
+      query: v2RollbackWorkflowContract.query,
       params: v2RollbackWorkflowContract.params,
       body: v2RollbackWorkflowContract.body,
       response: documentedSchema(
@@ -489,6 +498,7 @@ const routes = [
       success: jsonSuccess('The workflow export payload.'),
     }),
     {
+      query: v2ExportWorkflowContract.query,
       params: v2ExportWorkflowContract.params,
       response: documentedSchema(
         v2ExportWorkflowContract.response.schema,
@@ -524,6 +534,7 @@ const routes = [
       success: jsonSuccess('The imported workflow.'),
     }),
     {
+      query: v2ImportWorkflowContract.query,
       body: v2ImportWorkflowContract.body,
       response: documentedSchema(
         v2ImportWorkflowContract.response.schema,
@@ -581,6 +592,7 @@ const routes = [
       },
     }),
     {
+      query: v2ExecuteWorkflowContract.query,
       params: v2ExecuteWorkflowContract.params,
       headers: v2ExecuteWorkflowContract.headers,
       body: v2ExecuteWorkflowContract.body,
@@ -685,6 +697,7 @@ const routes = [
       },
     }),
     {
+      query: v2ResumeWorkflowContract.query,
       params: v2ResumeWorkflowContract.params,
       body: v2ResumeWorkflowContract.body,
       response: v2ResumeWorkflowContract.response.schema,
@@ -702,6 +715,7 @@ const routes = [
       success: jsonSuccess('The cancellation outcome.'),
     }),
     {
+      query: v2CancelWorkflowRunContract.query,
       params: v2CancelWorkflowRunContract.params,
       response: documentedSchema(
         v2CancelWorkflowRunContract.response.schema,
@@ -759,6 +773,7 @@ const routes = [
       success: jsonSuccess('The created workflow folder.'),
     }),
     {
+      query: v2CreateWorkflowFolderContract.query,
       body: documentedSchema(
         v2CreateWorkflowFolderContract.body,
         'CreateWorkflowFolderRequest',
@@ -785,6 +800,7 @@ const routes = [
       success: jsonSuccess('The relocated workflow folder.'),
     }),
     {
+      query: v2RelocateWorkflowFolderContract.query,
       body: documentedSchema(
         v2RelocateWorkflowFolderContract.body,
         'RelocateWorkflowFolderRequest',

@@ -1,10 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { readdirSync } from 'node:fs'
-import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { listContractFiles } from '@/lib/api/contracts/v2/__tests__/contract-sweep'
 import {
   MAX_SCHEMA_DEPTH,
   rejectsUnknownKeys,
@@ -43,8 +42,6 @@ import {
  * `mode !== 'json'` contracts (binary/stream downloads) are skipped — they have
  * no JSON envelope to classify.
  */
-
-const CONTRACTS_DIR = path.resolve(import.meta.dirname, '..', '..')
 
 /** Lists that accept `limit` + `cursor` and can return a non-null `nextCursor`. */
 const PAGED_LISTS = [
@@ -363,22 +360,6 @@ function rejectsFractionalLimit(contract: ContractLike): boolean {
   return false
 }
 
-function listContractFiles(dir: string): string[] {
-  const files: string[] = []
-  for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
-    a.name.localeCompare(b.name)
-  )) {
-    const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      if (entry.name === '__tests__') continue
-      files.push(...listContractFiles(full))
-    } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
-      files.push(full)
-    }
-  }
-  return files
-}
-
 interface V2ListContract {
   key: string
   name: string
@@ -403,7 +384,7 @@ function loadV2ListContracts(): Promise<V2ListContract[]> {
 
 async function sweepV2ListContracts(): Promise<V2ListContract[]> {
   const found = new Map<string, V2ListContract>()
-  for (const file of listContractFiles(CONTRACTS_DIR)) {
+  for (const file of listContractFiles()) {
     const mod = (await import(file)) as Record<string, unknown>
     for (const [name, value] of Object.entries(mod)) {
       if (!isContract(value)) continue

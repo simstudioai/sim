@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { workspaceCredentialRoleSchema } from '@/lib/api/contracts/credentials'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
@@ -114,6 +114,7 @@ export const v2ListSecretsContract = defineRouteContract({
 export const v2SetSecretContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/secrets/[name]',
+  query: noInputSchema,
   params: v2SecretParamsSchema,
   body: v2SetSecretBodySchema,
   response: {

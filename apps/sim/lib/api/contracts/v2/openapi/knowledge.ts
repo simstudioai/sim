@@ -99,6 +99,7 @@ const routes = [
       success: { description: 'The created knowledge base.' },
     }),
     {
+      query: v2CreateKnowledgeBaseContract.query,
       body: documentedSchema(
         v2CreateKnowledgeBaseContract.body,
         'CreateKnowledgeBaseRequest',
@@ -154,6 +155,7 @@ const routes = [
       success: { description: 'The updated knowledge base.' },
     }),
     {
+      query: v2UpdateKnowledgeBaseContract.query,
       params: documentedSchema(
         v2UpdateKnowledgeBaseContract.params,
         'UpdateKnowledgeBaseParams',
@@ -216,6 +218,7 @@ const routes = [
       success: { description: 'Matching document chunks ordered by relevance.' },
     }),
     {
+      query: v2SearchKnowledgeContract.query,
       body: documentedSchema(
         v2SearchKnowledgeContract.body,
         'SearchKnowledgeRequest',
@@ -309,6 +312,7 @@ const routes = [
       success: { description: 'The number and identifiers of the documents that changed.' },
     }),
     {
+      query: v2BulkUpdateKnowledgeDocumentsContract.query,
       params: documentedSchema(
         v2BulkUpdateKnowledgeDocumentsContract.params,
         'BulkUpdateKnowledgeDocumentsParams',
@@ -399,6 +403,7 @@ const routes = [
       success: { description: 'The created upload session and transfer instructions.' },
     }),
     {
+      query: v2CreateKnowledgeDocumentUploadContract.query,
       params: documentedSchema(
         v2CreateKnowledgeDocumentUploadContract.params,
         'CreateKnowledgeDocumentUploadParams',
@@ -583,6 +588,7 @@ const routes = [
       success: { description: 'The updated document, or the requeue acknowledgement.' },
     }),
     {
+      query: v2UpdateKnowledgeDocumentContract.query,
       params: documentedSchema(
         v2UpdateKnowledgeDocumentContract.params,
         'UpdateKnowledgeDocumentParams',
@@ -669,6 +675,7 @@ const routes = [
       success: { description: 'The created knowledge-base folder.' },
     }),
     {
+      query: v2CreateKnowledgeFolderContract.query,
       body: documentedSchema(
         v2CreateKnowledgeFolderContract.body,
         'CreateKnowledgeFolderRequest',
@@ -694,6 +701,7 @@ const routes = [
       success: { description: 'The relocated knowledge-base folder.' },
     }),
     {
+      query: v2RelocateKnowledgeFolderContract.query,
       body: documentedSchema(
         v2RelocateKnowledgeFolderContract.body,
         'RelocateKnowledgeFolderRequest',

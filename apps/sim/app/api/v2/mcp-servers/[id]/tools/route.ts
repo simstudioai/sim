@@ -17,10 +17,14 @@ export const revalidate = 0
  * Discovery is not a safe read: it opens a live connection to the registered
  * endpoint and records the outcome on the server row. Next aliases `HEAD` onto
  * `GET`, and RFC 9110 §9.2.1 defines `HEAD` as safe, so this route declares
- * itself not head-safe — a `HEAD` is authenticated and rate-limited, then
- * answered bodiless without connecting or writing. Without that, an uptime
- * monitor or link checker walking the documented URL list would drive outbound
- * third-party traffic and mutate rows on every probe.
+ * itself not head-safe. A `HEAD` is admitted, parsed, and authorized through
+ * `discoverMcpServerToolsUseCase.authorize` — the same principal-kind check,
+ * server resolution, and workspace access check the `GET` performs — then
+ * answered bodiless without connecting or writing. Without the not-head-safe
+ * declaration an uptime monitor walking the documented URL list would drive
+ * outbound third-party traffic and mutate rows on every probe; without the
+ * authorization step the probe would instead confirm that a server id exists in
+ * a workspace the caller cannot read.
  */
 export const GET = defineV2JsonRoute({
   contract: v2ListMcpServerToolsContract,
