@@ -1,18 +1,25 @@
 import { Body, Container, Font, Head, Html, Img, Preview, Section } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailFooter } from '@/components/emails/components/email-footer'
+import { EMAIL_WORDMARK_SIZE } from '@/lib/branding/wordmark'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 /**
- * Wordmark display size — exactly 1/4 of `wordmark.png`'s intrinsic 272×164.
- * The asset is a 4x source and must stay that way, since email clients do no
- * responsive image selection; changing one dimension alone distorts the mark.
+ * Sim's own wordmark: a committed raster export of the brand outlines in
+ * `@/lib/branding/wordmark`, since email clients strip inline SVG. Both
+ * dimensions are pinned because they do no responsive image selection either.
  */
-const WORDMARK_SIZE = { height: '41', width: '68' } as const
+const WORDMARK_SIZE = {
+  width: String(EMAIL_WORDMARK_SIZE.width),
+  height: String(EMAIL_WORDMARK_SIZE.height),
+} as const
 
-/** Whitelabeled logos are arbitrary aspect ratios, so only height is pinned. */
-const CUSTOM_LOGO_SIZE = { height: '34' } as const
+/**
+ * Whitelabeled logos are arbitrary aspect ratios, so only height is pinned —
+ * matched to the wordmark so both marks read at the same weight.
+ */
+const CUSTOM_LOGO_SIZE = { height: String(EMAIL_WORDMARK_SIZE.height) } as const
 
 interface EmailLayoutProps {
   /** Preview text shown in email client list view */
