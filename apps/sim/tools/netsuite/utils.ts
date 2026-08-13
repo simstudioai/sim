@@ -3,6 +3,7 @@ import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { normalizeNetSuiteSuiteTalkOrigin } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import type {
   NetSuiteAuthParams,
@@ -98,23 +99,6 @@ export function buildSubresourcePath(value: string): Array<{ value: string; labe
     .filter(Boolean)
   if (segments.length === 0) throw new Error('Subresource path is required')
   return segments.map((segment) => ({ value: segment, label: 'Subresource path segment' }))
-}
-
-export function buildQuery(params: {
-  limit?: number
-  offset?: number
-  fields?: string
-  expand?: string
-  expandSubResources?: boolean
-}): Record<string, string | number | boolean | undefined> {
-  const pagination = normalizePagination(params.limit, params.offset)
-  return {
-    limit: pagination.limit,
-    offset: pagination.offset,
-    fields: optionalTrim(params.fields),
-    expand: optionalTrim(params.expand),
-    expandSubResources: normalizeOptionalBoolean(params.expandSubResources, 'Expand subresources'),
-  }
 }
 
 export function normalizePagination(
@@ -242,26 +226,11 @@ export function normalizeRelatedType(value: string): 'contact' | 'file' {
 
 export function normalizeSuiteTalkUrl(suiteTalkUrl: string): string {
   const value = requiredTrim(suiteTalkUrl, 'SuiteTalk URL')
-  try {
-    const parsed = new URL(value)
-    if (
-      parsed.protocol !== 'https:' ||
-      parsed.port ||
-      parsed.username ||
-      parsed.password ||
-      parsed.search ||
-      parsed.hash ||
-      (parsed.pathname !== '' && parsed.pathname !== '/') ||
-      !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.suitetalk\.api\.netsuite\.com$/.test(parsed.hostname)
-    ) {
-      throw new Error('invalid SuiteTalk URL')
-    }
-    return parsed.origin
-  } catch {
-    throw new Error(
-      'SuiteTalk URL must be an HTTPS NetSuite Company URL with no path, query, or fragment'
-    )
-  }
+  const origin = normalizeNetSuiteSuiteTalkOrigin(value)
+  if (origin) return origin
+  throw new Error(
+    'SuiteTalk URL must be an HTTPS NetSuite Company URL with no path, query, or fragment'
+  )
 }
 
 export async function executeNetSuiteRequest(
@@ -701,9 +670,7 @@ function validateSuccessBody(
         ? null
         : 'NetSuite record-action success response did not include result: true'
     case 'metadata-catalog':
-      return Array.isArray(data.links) && Array.isArray(data.items)
-        ? null
-        : 'NetSuite metadata catalog response did not include links and items arrays'
+      return validateMetadataCatalog(data)
     case 'async-job':
       return validateRequiredProperties(
         data,
@@ -750,6 +717,24 @@ function validateSuccessBody(
         : 'NetSuite governance-limits response included an unknown integrationLimitType'
     }
   }
+}
+
+function validateMetadataCatalog(data: Record<string, unknown>): string | null {
+  if (!Array.isArray(data.items)) {
+    return 'NetSuite metadata catalog response did not include an items array'
+  }
+  if (data.links !== undefined && !Array.isArray(data.links)) {
+    return 'NetSuite metadata catalog response included invalid links'
+  }
+  for (const item of data.items) {
+    if (!isJsonObject(item) || !isNonEmptyString(item.name)) {
+      return 'NetSuite metadata catalog response included an invalid record type'
+    }
+    if (item.links !== undefined && !Array.isArray(item.links)) {
+      return 'NetSuite metadata catalog response included invalid record-type links'
+    }
+  }
+  return null
 }
 
 function validateCollectionPage(data: Record<string, unknown>): string | null {

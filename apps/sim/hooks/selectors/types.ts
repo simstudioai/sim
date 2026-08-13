@@ -24,7 +24,6 @@ export type SelectorKey =
   | 'notion.databases'
   | 'notion.pages'
   | 'netsuite.recordTypes'
-  | 'netsuite.datasets'
   | 'netsuite.asyncTasks'
   | 'pipedrive.pipelines'
   | 'sharepoint.lists'

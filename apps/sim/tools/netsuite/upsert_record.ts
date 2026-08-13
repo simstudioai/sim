@@ -3,7 +3,6 @@ import {
   buildRecordPath,
   executeNetSuiteRequest,
   netsuiteAuthParamFields,
-  optionalTrim,
   requiredTrim,
 } from '@/tools/netsuite/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -33,12 +32,6 @@ export const netsuiteUpsertRecordTool: ToolConfig<NetSuiteUpsertRecordParams, Ne
       visibility: 'user-or-llm',
       description: 'Record fields matching the account-specific NetSuite metadata schema',
     },
-    replace: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Comma-separated sublists whose existing lines should be replaced',
-    },
   },
   request: { url: () => '', method: 'POST', headers: () => ({}) },
   directExecution: (params, signal) =>
@@ -51,7 +44,6 @@ export const netsuiteUpsertRecordTool: ToolConfig<NetSuiteUpsertRecordParams, Ne
           { value: `eid:${requiredTrim(params.externalId, 'External ID')}`, label: 'External ID' }
         ),
         success: { status: 204, body: 'none' },
-        query: { replace: optionalTrim(params.replace, 'Replace sublists') },
         body: params.body,
       }),
       signal

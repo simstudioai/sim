@@ -519,6 +519,29 @@ export function resolveDependencyValue(
 }
 
 /**
+ * Resolve a dependency for request context using only the active member of a canonical pair.
+ *
+ * Unlike {@link resolveDependencyValue}, this intentionally does not fall back to a dormant
+ * member. UI dependency gating keeps the legacy fallback behavior, while outbound selector
+ * requests must never reuse a stale value from the inactive basic/advanced mode.
+ */
+export function resolveActiveDependencyValue(
+  dependencyKey: string,
+  values: Record<string, unknown>,
+  canonicalIndex: CanonicalIndex,
+  overrides?: CanonicalModeOverrides
+): unknown {
+  const canonicalId =
+    canonicalIndex.groupsById[dependencyKey]?.canonicalId ||
+    canonicalIndex.canonicalIdBySubBlockId[dependencyKey]
+
+  if (!canonicalId) return values[dependencyKey]
+
+  const group = canonicalIndex.groupsById[canonicalId]
+  return group ? resolveActiveCanonicalValue(group, values, overrides) : values[dependencyKey]
+}
+
+/**
  * Whether a subblock only applies when the block is used as an agent tool.
  *
  * `paramVisibility` filters what appears *inside* tool-input but cannot hide a

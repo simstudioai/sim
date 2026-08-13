@@ -4,36 +4,6 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { parseOptionalNumberInput } from '@/blocks/utils'
 import type { NetSuiteResponse } from '@/tools/netsuite/types'
 
-export const NETSUITE_TOOL_IDS = [
-  'netsuite_list_records',
-  'netsuite_get_record',
-  'netsuite_create_record',
-  'netsuite_update_record',
-  'netsuite_upsert_record',
-  'netsuite_delete_record',
-  'netsuite_get_subresource',
-  'netsuite_get_record_form',
-  'netsuite_get_select_options',
-  'netsuite_attach_record',
-  'netsuite_detach_record',
-  'netsuite_execute_action',
-  'netsuite_transform_record',
-  'netsuite_batch_get_records',
-  'netsuite_batch_create_records',
-  'netsuite_batch_update_records',
-  'netsuite_batch_upsert_records',
-  'netsuite_batch_delete_records',
-  'netsuite_execute_suiteql',
-  'netsuite_list_datasets',
-  'netsuite_execute_dataset',
-  'netsuite_list_record_types',
-  'netsuite_get_record_metadata',
-  'netsuite_get_async_status',
-  'netsuite_get_async_result',
-  'netsuite_get_server_time',
-  'netsuite_get_governance_limits',
-] as const
-
 const RECORD_TYPE_OPERATIONS = [
   'netsuite_list_records',
   'netsuite_get_record',
@@ -208,7 +178,6 @@ export const NetSuiteBlock: BlockConfig<NetSuiteResponse> = {
           },
           { text: 'record by external ID', field: 'externalId', core: true },
           { text: ', setting', field: 'body' },
-          { text: ', replacing sublists', field: 'replace' },
         ],
         netsuite_delete_record: [
           {
@@ -355,7 +324,7 @@ export const NetSuiteBlock: BlockConfig<NetSuiteResponse> = {
         netsuite_execute_dataset: [
           {
             text: 'Execute SuiteAnalytics dataset',
-            field: ['datasetSelector', 'datasetIdManual'],
+            field: 'datasetId',
             core: true,
           },
           { text: ', up to', field: 'limit', after: 'rows' },
@@ -677,25 +646,10 @@ Return ONLY the SuiteQL query - no explanations, no markdown, no extra text.`,
       required: { field: 'operation', value: 'netsuite_execute_suiteql' },
     },
     {
-      id: 'datasetSelector',
-      title: 'Dataset ID',
-      type: 'project-selector',
-      canonicalParamId: 'datasetId',
-      serviceId: 'netsuite',
-      selectorKey: 'netsuite.datasets',
-      placeholder: 'Select SuiteAnalytics dataset',
-      dependsOn: ['credential'],
-      mode: 'basic',
-      condition: { field: 'operation', value: 'netsuite_execute_dataset' },
-      required: { field: 'operation', value: 'netsuite_execute_dataset' },
-    },
-    {
-      id: 'datasetIdManual',
+      id: 'datasetId',
       title: 'Dataset ID',
       type: 'short-input',
-      canonicalParamId: 'datasetId',
       placeholder: 'customworkbook237',
-      mode: 'advanced',
       condition: { field: 'operation', value: 'netsuite_execute_dataset' },
       required: { field: 'operation', value: 'netsuite_execute_dataset' },
     },
@@ -831,7 +785,7 @@ Return ONLY the SuiteQL query - no explanations, no markdown, no extra text.`,
       placeholder: 'Comma-separated sublist IDs',
       condition: {
         field: 'operation',
-        value: ['netsuite_create_record', 'netsuite_update_record', 'netsuite_upsert_record'],
+        value: ['netsuite_create_record', 'netsuite_update_record'],
       },
       mode: 'advanced',
     },
@@ -890,6 +844,7 @@ Return ONLY the SuiteQL query - no explanations, no markdown, no extra text.`,
     config: {
       tool: (params) => params.operation,
       params: (params) => {
+        if (typeof params.operation !== 'string') return {}
         const { operation, resultTaskId, statusTaskId, ...rest } = params
         const taskId =
           operation === 'netsuite_get_async_status'
@@ -915,6 +870,7 @@ Return ONLY the SuiteQL query - no explanations, no markdown, no extra text.`,
           offset: usesOperation(operation, PAGING_OPERATIONS)
             ? parseOptionalNumberInput(rest.offset, 'Offset', { integer: true, min: 0 })
             : undefined,
+          expand: usesOperation(operation, RECORD_QUERY_OPERATIONS) ? rest.expand : undefined,
           expandSubResources: usesOperation(operation, RECORD_QUERY_OPERATIONS)
             ? optionalBoolean(rest.expandSubResources)
             : undefined,
@@ -969,7 +925,7 @@ Return ONLY the SuiteQL query - no explanations, no markdown, no extra text.`,
     },
     expand: { type: 'string', description: 'Resources to expand' },
     expandSubResources: { type: 'boolean', description: 'Expand sublists and subrecords' },
-    replace: { type: 'string', description: 'Sublists replaced during create, update, or upsert' },
+    replace: { type: 'string', description: 'Sublists replaced during create or update' },
     idempotencyKey: { type: 'string', description: 'Unique key for asynchronous batch retries' },
     format: { type: 'string', description: 'Metadata representation' },
   },

@@ -3,8 +3,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  buildCanonicalIndex,
   evaluateSubBlockCondition,
   reindexToolCanonicalModes,
+  resolveActiveDependencyValue,
+  resolveDependencyValue,
   scopeCanonicalModesForTool,
 } from './visibility'
 
@@ -239,6 +242,46 @@ describe('scopeCanonicalModesForTool', () => {
 
   it.concurrent('does not fall back when no legacyToolType is given', () => {
     expect(scopeCanonicalModesForTool({ 'table:tableId': 'advanced' }, 0)).toBeUndefined()
+  })
+})
+
+describe('resolveActiveDependencyValue', () => {
+  const canonicalIndex = buildCanonicalIndex([
+    {
+      id: 'credential',
+      type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+    },
+    {
+      id: 'manualCredential',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+    },
+  ])
+
+  it.concurrent('does not fall back to a dormant value when the active member is cleared', () => {
+    const values = { credential: null, manualCredential: 'stale-manual-credential' }
+    const overrides = { oauthCredential: 'basic' as const }
+
+    expect(resolveActiveDependencyValue('credential', values, canonicalIndex, overrides)).toBeNull()
+    expect(resolveDependencyValue('credential', values, canonicalIndex, overrides)).toBe(
+      'stale-manual-credential'
+    )
+  })
+
+  it.concurrent('honors tool-index-scoped canonical modes after they are scoped', () => {
+    const values = {
+      credential: 'selected-credential',
+      manualCredential: 'manual-credential',
+    }
+    const blockOverrides = { '0:oauthCredential': 'advanced' as const }
+    const toolOverrides = scopeCanonicalModesForTool(blockOverrides, 0, 'netsuite')
+
+    expect(resolveActiveDependencyValue('credential', values, canonicalIndex, toolOverrides)).toBe(
+      'manual-credential'
+    )
   })
 })
 

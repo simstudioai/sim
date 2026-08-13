@@ -116,17 +116,18 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
   },
   /**
    * NetSuite moved certificate credentials out of workflow state and into one
-   * reusable service-account credential. Legacy free-text entity identifiers
-   * map to the advanced members of their new selector pairs so preview
-   * workflows preserve those values without pretending a picker resolved
-   * them. Long-lived signing material has no in-block replacement and must be
+   * reusable service-account credential. Selector-backed free-text entity
+   * identifiers map to the advanced members of their new selector pairs;
+   * dataset IDs remain direct text inputs and therefore keep their existing
+   * key. Long-lived signing material has no in-block replacement and must be
    * discarded so it cannot survive under an unreachable subblock key.
    */
   netsuite: {
     recordType: 'recordTypeManual',
-    datasetId: 'datasetIdManual',
     statusTaskId: 'statusTaskIdManual',
     resultTaskId: 'resultTaskIdManual',
+    taskId: 'resultTaskIdManual',
+    accountId: '_removed_accountId',
     suiteTalkUrl: '_removed_suiteTalkUrl',
     clientId: '_removed_clientId',
     certificateId: '_removed_certificateId',
@@ -158,6 +159,222 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
   },
 }
 
+const NETSUITE_DATASET_CANONICAL_ID = 'datasetId'
+const NETSUITE_DATASET_BASIC_ID = 'datasetSelector'
+const NETSUITE_DATASET_ADVANCED_ID = 'datasetIdManual'
+const NETSUITE_DATASET_GROUP = {
+  canonicalId: NETSUITE_DATASET_CANONICAL_ID,
+  basicId: NETSUITE_DATASET_BASIC_ID,
+  advancedIds: [NETSUITE_DATASET_ADVANCED_ID],
+}
+
+type CanonicalMode = 'basic' | 'advanced'
+
+function readCanonicalMode(value: unknown): CanonicalMode | undefined {
+  return value === 'basic' || value === 'advanced' ? value : undefined
+}
+
+/**
+ * Selects the live member of the short-lived NetSuite dataset selector pair.
+ * Explicit modes are strict: a null active value stays null and never falls
+ * back to a stale dormant member. Without a saved mode, a lone member wins;
+ * when both exist, use the same value heuristic as canonical serialization.
+ */
+function selectLegacyDatasetMember(
+  values: Record<string, unknown>,
+  mode: CanonicalMode | undefined
+): string | undefined {
+  const hasBasic = Object.hasOwn(values, NETSUITE_DATASET_BASIC_ID)
+  const hasAdvanced = Object.hasOwn(values, NETSUITE_DATASET_ADVANCED_ID)
+  if (!hasBasic && !hasAdvanced) return undefined
+
+  if (mode === 'basic') return hasBasic ? NETSUITE_DATASET_BASIC_ID : undefined
+  if (mode === 'advanced') return hasAdvanced ? NETSUITE_DATASET_ADVANCED_ID : undefined
+  if (hasBasic !== hasAdvanced) {
+    return hasBasic ? NETSUITE_DATASET_BASIC_ID : NETSUITE_DATASET_ADVANCED_ID
+  }
+
+  return resolveCanonicalMode(NETSUITE_DATASET_GROUP, values) === 'advanced'
+    ? NETSUITE_DATASET_ADVANCED_ID
+    : NETSUITE_DATASET_BASIC_ID
+}
+
+function makeMigratedSubblock(
+  blockType: string,
+  source: unknown,
+  targetId: string
+): BlockState['subBlocks'][string] {
+  const configuredType = getBlock(blockType)?.subBlocks?.find(
+    (config) => config.id === targetId
+  )?.type
+  if (isPlainRecord(source)) {
+    const type =
+      configuredType ||
+      (typeof source.type === 'string' && source.type.length > 0
+        ? source.type === 'unknown'
+          ? DEFAULT_SUBBLOCK_TYPE
+          : source.type
+        : DEFAULT_SUBBLOCK_TYPE)
+    const value = Object.hasOwn(source, 'value') ? source.value : null
+
+    return {
+      ...source,
+      id: targetId,
+      type: type as BlockState['subBlocks'][string]['type'],
+      value: value as BlockState['subBlocks'][string]['value'],
+    }
+  }
+
+  return {
+    id: targetId,
+    type: configuredType || DEFAULT_SUBBLOCK_TYPE,
+    value: source as BlockState['subBlocks'][string]['value'],
+  }
+}
+
+/** Collapses the removed dataset picker on a top-level NetSuite block. */
+function migrateNetSuiteDatasetSubblocks(block: BlockState): {
+  block: BlockState
+  migrated: boolean
+} {
+  const values = buildSubBlockValues(block.subBlocks)
+  const modes = block.data?.canonicalModes
+  const sourceId = selectLegacyDatasetMember(
+    values,
+    readCanonicalMode(modes?.[NETSUITE_DATASET_CANONICAL_ID])
+  )
+  const hasLegacyMember =
+    Object.hasOwn(block.subBlocks, NETSUITE_DATASET_BASIC_ID) ||
+    Object.hasOwn(block.subBlocks, NETSUITE_DATASET_ADVANCED_ID)
+  const hasLegacyMode = Boolean(modes && Object.hasOwn(modes, NETSUITE_DATASET_CANONICAL_ID))
+  if (!hasLegacyMember && !hasLegacyMode) return { block, migrated: false }
+
+  const subBlocks = { ...block.subBlocks }
+  if (!Object.hasOwn(subBlocks, NETSUITE_DATASET_CANONICAL_ID) && sourceId) {
+    subBlocks[NETSUITE_DATASET_CANONICAL_ID] = makeMigratedSubblock(
+      block.type,
+      subBlocks[sourceId],
+      NETSUITE_DATASET_CANONICAL_ID
+    )
+  }
+  delete subBlocks[NETSUITE_DATASET_BASIC_ID]
+  delete subBlocks[NETSUITE_DATASET_ADVANCED_ID]
+
+  let data = block.data
+  if (hasLegacyMode && modes) {
+    const canonicalModes = { ...modes }
+    delete canonicalModes[NETSUITE_DATASET_CANONICAL_ID]
+    data = { ...(block.data ?? {}), canonicalModes }
+  }
+
+  return { block: { ...block, subBlocks, data }, migrated: true }
+}
+
+function migrateNetSuiteAgentParams(
+  params: Record<string, unknown>,
+  datasetMode: CanonicalMode | undefined
+): { params: Record<string, unknown>; migrated: boolean } {
+  let migrated = false
+  const result = { ...params }
+
+  for (const [oldId, newId] of Object.entries(SUBBLOCK_ID_MIGRATIONS.netsuite)) {
+    if (!Object.hasOwn(result, oldId)) continue
+    if (!newId.startsWith(REMOVED_SUBBLOCK_ID_PREFIX) && !Object.hasOwn(result, newId)) {
+      result[newId] = result[oldId]
+    }
+    delete result[oldId]
+    migrated = true
+  }
+
+  const sourceId = selectLegacyDatasetMember(result, datasetMode)
+  const hasLegacyDataset =
+    Object.hasOwn(result, NETSUITE_DATASET_BASIC_ID) ||
+    Object.hasOwn(result, NETSUITE_DATASET_ADVANCED_ID)
+  if (hasLegacyDataset) {
+    if (!Object.hasOwn(result, NETSUITE_DATASET_CANONICAL_ID) && sourceId) {
+      result[NETSUITE_DATASET_CANONICAL_ID] = result[sourceId]
+    }
+    delete result[NETSUITE_DATASET_BASIC_ID]
+    delete result[NETSUITE_DATASET_ADVANCED_ID]
+    migrated = true
+  }
+
+  return { params: result, migrated }
+}
+
+/**
+ * Agent tools persist block parameters inside the Agent's `tools` subblock, so
+ * top-level block migrations never see them. Migrate NetSuite entries in place
+ * by tool index, which is also how their canonical-mode overrides are scoped.
+ */
+function migrateAgentNetSuiteTools(block: BlockState): {
+  block: BlockState
+  migrated: boolean
+} {
+  const toolsSubblock = block.subBlocks.tools
+  const storedTools: unknown = toolsSubblock?.value
+  if (!isPlainRecord(toolsSubblock) || !Array.isArray(storedTools)) {
+    return { block, migrated: false }
+  }
+  const toolEntries = storedTools as unknown[]
+
+  const modes = block.data?.canonicalModes
+  let canonicalModes: Record<string, CanonicalMode> | undefined
+  let tools: unknown[] | undefined
+  let migrated = false
+
+  toolEntries.forEach((entry, toolIndex) => {
+    if (!isPlainRecord(entry) || entry.type !== 'netsuite') return
+
+    const scopedModeKey = `${toolIndex}:${NETSUITE_DATASET_CANONICAL_ID}`
+    const scopedMode = readCanonicalMode(modes?.[scopedModeKey])
+    const legacyMode = readCanonicalMode(modes?.[`netsuite:${NETSUITE_DATASET_CANONICAL_ID}`])
+    const rawParams = isPlainRecord(entry.params) ? entry.params : undefined
+    const migratedParams = rawParams
+      ? migrateNetSuiteAgentParams(rawParams, scopedMode ?? legacyMode)
+      : { params: rawParams, migrated: false }
+
+    if (migratedParams.migrated) {
+      tools ??= [...toolEntries]
+      tools[toolIndex] = { ...entry, params: migratedParams.params }
+      migrated = true
+    }
+
+    if (modes && Object.hasOwn(modes, scopedModeKey)) {
+      canonicalModes ??= { ...modes }
+      delete canonicalModes[scopedModeKey]
+      migrated = true
+    }
+  })
+
+  const legacyModeKey = `netsuite:${NETSUITE_DATASET_CANONICAL_ID}`
+  if (modes && Object.hasOwn(modes, legacyModeKey)) {
+    canonicalModes ??= { ...modes }
+    delete canonicalModes[legacyModeKey]
+    migrated = true
+  }
+
+  if (!migrated) return { block, migrated: false }
+
+  let subBlocks = block.subBlocks
+  if (tools) {
+    const migratedToolsSubblock = { ...toolsSubblock }
+    // Tool-input values are arrays even though SubBlockState.value is typed narrowly.
+    const toolsValueTarget: { value: unknown } = migratedToolsSubblock
+    toolsValueTarget.value = tools
+    subBlocks = { ...block.subBlocks, tools: migratedToolsSubblock }
+  }
+
+  return {
+    block: {
+      ...block,
+      subBlocks,
+      data: canonicalModes ? { ...(block.data ?? {}), canonicalModes } : block.data,
+    },
+    migrated: true,
+  }
+}
+
 /**
  * Migrates legacy subblock IDs inside a single block's subBlocks map.
  * Returns a new subBlocks record if anything changed, or the original if not.
@@ -179,7 +396,6 @@ function migrateBlockSubblockIds(
   if (!migrated) return { subBlocks, migrated: false }
 
   const result = { ...subBlocks }
-  const blockConfig = getBlock(blockType)
 
   for (const [oldId, newId] of Object.entries(renames)) {
     if (!(oldId in result)) continue
@@ -199,31 +415,7 @@ function migrateBlockSubblockIds(
       continue
     }
 
-    const oldEntry: unknown = result[oldId]
-    const configuredType = blockConfig?.subBlocks?.find((config) => config.id === newId)?.type
-    if (isPlainRecord(oldEntry)) {
-      const type =
-        configuredType ||
-        (typeof oldEntry.type === 'string' && oldEntry.type.length > 0
-          ? oldEntry.type === 'unknown'
-            ? DEFAULT_SUBBLOCK_TYPE
-            : oldEntry.type
-          : DEFAULT_SUBBLOCK_TYPE)
-      const value = Object.hasOwn(oldEntry, 'value') ? oldEntry.value : null
-
-      result[newId] = {
-        ...oldEntry,
-        id: newId,
-        type: type as BlockState['subBlocks'][string]['type'],
-        value: value as BlockState['subBlocks'][string]['value'],
-      }
-    } else {
-      result[newId] = {
-        id: newId,
-        type: configuredType || DEFAULT_SUBBLOCK_TYPE,
-        value: oldEntry as BlockState['subBlocks'][string]['value'],
-      }
-    }
+    result[newId] = makeMigratedSubblock(blockType, result[oldId], newId)
     delete result[oldId]
   }
 
@@ -270,15 +462,28 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
       continue
     }
 
-    const renames = SUBBLOCK_ID_MIGRATIONS[block.type]
+    const netSuiteDataset =
+      block.type === 'netsuite'
+        ? migrateNetSuiteDatasetSubblocks(block)
+        : { block, migrated: false }
+    const agentTools =
+      netSuiteDataset.block.type === 'agent'
+        ? migrateAgentNetSuiteTools(netSuiteDataset.block)
+        : { block: netSuiteDataset.block, migrated: false }
+    const workingBlock = agentTools.block
+
+    const renames = SUBBLOCK_ID_MIGRATIONS[workingBlock.type]
     const renamed = renames
-      ? migrateBlockSubblockIds(block.type, block.subBlocks, renames)
-      : { subBlocks: block.subBlocks, migrated: false }
+      ? migrateBlockSubblockIds(workingBlock.type, workingBlock.subBlocks, renames)
+      : { subBlocks: workingBlock.subBlocks, migrated: false }
     const purged = dropParkedSubblocks(renamed.subBlocks)
     const changedSubBlocks = renamed.migrated || purged.dropped
-    const renamedBlock = changedSubBlocks ? { ...block, subBlocks: purged.subBlocks } : block
+    const renamedBlock = changedSubBlocks
+      ? { ...workingBlock, subBlocks: purged.subBlocks }
+      : workingBlock
     const sanitized = sanitizeMalformedSubBlocks(renamedBlock)
-    const blockMigrated = changedSubBlocks || sanitized.changed
+    const blockMigrated =
+      netSuiteDataset.migrated || agentTools.migrated || changedSubBlocks || sanitized.changed
 
     if (blockMigrated) {
       if (purged.dropped) {
@@ -289,6 +494,12 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
       }
       if (renamed.migrated) {
         logger.info('Migrated legacy subblock IDs', {
+          blockId: block.id,
+          blockType: block.type,
+        })
+      }
+      if (netSuiteDataset.migrated || agentTools.migrated) {
+        logger.info('Migrated legacy NetSuite workflow state', {
           blockId: block.id,
           blockType: block.type,
         })

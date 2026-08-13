@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef } from 'react'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   buildToolSubBlockId,
   resolveToolParamSync,
@@ -23,6 +24,7 @@ interface ToolSubBlockRendererProps {
   toolParams: Record<string, string> | undefined
   onParamChange: (toolIndex: number, paramId: string, value: string) => void
   disabled: boolean
+  canonicalModeOverrides?: CanonicalModeOverrides
   canonicalToggle?: {
     mode: 'basic' | 'advanced'
     disabled?: boolean
@@ -61,6 +63,7 @@ export function ToolSubBlockRenderer({
   toolParams,
   onParamChange,
   disabled,
+  canonicalModeOverrides,
   canonicalToggle,
 }: ToolSubBlockRendererProps) {
   const syntheticId = buildToolSubBlockId(subBlockId, toolIndex, effectiveParamId)
@@ -140,6 +143,7 @@ export function ToolSubBlockRenderer({
         disabled={disabled}
         canonicalToggle={canonicalToggle}
         dependencyContext={toolParams}
+        canonicalModeOverrides={canonicalModeOverrides}
       />
     </DependencyBlockTypeProvider>
   )

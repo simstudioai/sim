@@ -46,7 +46,6 @@ export const netsuiteListRecordTypesTool: ToolConfig<
         items: {
           type: 'array',
           description: 'Record types exposed to the authenticated role',
-          optional: true,
           items: {
             type: 'object',
             properties: {

@@ -21,7 +21,6 @@ interface NetSuiteSelectorSpec {
 
 const NETSUITE_SELECTOR_SPECS: Record<NetSuiteSelectorKey, NetSuiteSelectorSpec> = {
   'netsuite.recordTypes': { kind: 'record_types', requiresJob: false },
-  'netsuite.datasets': { kind: 'datasets', requiresJob: false },
   'netsuite.asyncTasks': { kind: 'async_tasks', requiresJob: true },
 }
 
@@ -88,6 +87,5 @@ function buildSelector(key: NetSuiteSelectorKey): SelectorDefinition {
 
 export const netsuiteSelectors = {
   'netsuite.recordTypes': buildSelector('netsuite.recordTypes'),
-  'netsuite.datasets': buildSelector('netsuite.datasets'),
   'netsuite.asyncTasks': buildSelector('netsuite.asyncTasks'),
 } satisfies Record<NetSuiteSelectorKey, SelectorDefinition>

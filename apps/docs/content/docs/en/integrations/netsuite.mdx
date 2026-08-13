@@ -26,9 +26,11 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 ## Usage notes
 
 - Record fields and supported actions vary by account, enabled features, custom records, forms, role, and permissions. Use **List Record Types** and **Get Record Metadata** before constructing create, update, upsert, action, or transform bodies. Sim intentionally accepts JSON for these dynamic record shapes instead of guessing a fixed schema.
-- Select the stored NetSuite account once per block. Record Type, SuiteAnalytics Dataset, and known-job Async Task fields use account-backed pickers; switch a field to Advanced mode to type or reference an identifier that is not present in the bounded picker result.
+- Select the stored NetSuite account once per block. Record Type and known-job Async Task fields use account-backed pickers; switch a field to Advanced mode to type or reference an identifier that is not present in the bounded picker result. Enter SuiteAnalytics dataset IDs manually after finding them with **List SuiteAnalytics Datasets**.
+- **Create Record** without `replace` returns NetSuite's HTTP 204 response with no body; with `replace`, it returns HTTP 201 and the created record object. Both cases expose the validated `location` returned by NetSuite. The `replace` option applies to create and update, not upsert.
 - Paged operations return one page only. The default limit is 100, the maximum is 1,000, and the offset must be a non-negative multiple of the limit. Sim never fetches later pages automatically. Requests must stay within NetSuite's first 100,000 results and first 1,000 pages.
 - Homogeneous batch operations accept 1–100 records of one record type and always run asynchronously. NetSuite processes records in parallel, and individual tasks can fail independently; submission is not an all-or-none transaction. Preserve the returned `location` or `jobId`, use **Get Async Status** with **Job Status** until the job completes, choose **List Tasks** to collect task IDs, check each ID with **Task Status**, then use completed IDs with **Get Async Operation Result**. Canceling or timing out the local Sim request does not cancel a batch that NetSuite has already accepted.
+- Sim gives the OAuth token exchange and each SuiteTalk request up to 30 seconds. A timed-out request fails locally, but a mutation that NetSuite already accepted may still finish remotely.
 - Sim limits each materialized request body and successful SuiteTalk response to 16 MiB. Request JSON is also limited to 100 levels of nesting and 100,000 JSON values. Split work into smaller pages or batches when a request or response would exceed these ceilings, even if NetSuite would otherwise accept the payload.
 - When attaching a contact with a role, provide either the role's internal ID or external ID, not both. File attachments do not use a contact role.
 - **Attach/Detach**, homogeneous batch operations, **Get Record Form**, and **Get Select Options** require a NetSuite 2026.1-compatible account. Oracle introduced these SuiteTalk REST capabilities in [NetSuite 2026.1](https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_N3950559.html).
@@ -150,7 +152,6 @@ Create or update a NetSuite record by external ID with PUT.
 | `recordType` | string | Yes | NetSuite REST record type script ID, such as customer or salesOrder |
 | `externalId` | string | Yes | External ID without the eid: prefix |
 | `body` | json | Yes | Record fields matching the account-specific NetSuite metadata schema |
-| `replace` | string | No | Comma-separated sublists whose existing lines should be replaced |
 
 #### Output
 

@@ -3,7 +3,7 @@ import { workflowIdSchema } from '@/lib/api/contracts/primitives'
 import { definePostSelector } from '@/lib/api/contracts/selectors/shared'
 import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contracts/types'
 
-export const NETSUITE_SELECTOR_KINDS = ['record_types', 'datasets', 'async_tasks'] as const
+export const NETSUITE_SELECTOR_KINDS = ['record_types', 'async_tasks'] as const
 
 const credentialSchema = z
   .string({ error: 'Credential is required' })
@@ -20,7 +20,6 @@ const commonBodyShape = {
 
 export const netsuiteObjectsBodySchema = z.discriminatedUnion('kind', [
   z.object({ ...commonBodyShape, kind: z.literal('record_types') }).strict(),
-  z.object({ ...commonBodyShape, kind: z.literal('datasets') }).strict(),
   z
     .object({
       ...commonBodyShape,

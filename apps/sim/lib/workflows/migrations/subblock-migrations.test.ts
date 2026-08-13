@@ -168,20 +168,15 @@ describe('migrateSubblockIds', () => {
   })
 
   describe('netsuite block', () => {
-    it('moves legacy entity values to manual selector fields and discards inline credentials', () => {
+    it('migrates the original inline-auth schema without retaining signing material', () => {
       const input: Record<string, BlockState> = {
         b1: makeBlock({
           type: 'netsuite',
           subBlocks: {
             recordType: { id: 'recordType', type: 'short-input', value: 'customer' },
             datasetId: { id: 'datasetId', type: 'short-input', value: 'customworkbook237' },
-            statusTaskId: { id: 'statusTaskId', type: 'short-input', value: 'task-status' },
-            resultTaskId: { id: 'resultTaskId', type: 'short-input', value: 'task-result' },
-            suiteTalkUrl: {
-              id: 'suiteTalkUrl',
-              type: 'short-input',
-              value: 'https://1234567.suitetalk.api.netsuite.com',
-            },
+            taskId: { id: 'taskId', type: 'short-input', value: 'task-result' },
+            accountId: { id: 'accountId', type: 'short-input', value: '1234567_SB1' },
             clientId: { id: 'clientId', type: 'short-input', value: 'legacy-client' },
             certificateId: {
               id: 'certificateId',
@@ -201,10 +196,10 @@ describe('migrateSubblockIds', () => {
 
       expect(migrated).toBe(true)
       expect(blocks.b1.subBlocks.recordTypeManual?.value).toBe('customer')
-      expect(blocks.b1.subBlocks.datasetIdManual?.value).toBe('customworkbook237')
-      expect(blocks.b1.subBlocks.statusTaskIdManual?.value).toBe('task-status')
+      expect(blocks.b1.subBlocks.datasetId?.value).toBe('customworkbook237')
+      expect(blocks.b1.subBlocks.datasetIdManual).toBeUndefined()
       expect(blocks.b1.subBlocks.resultTaskIdManual?.value).toBe('task-result')
-      for (const retiredId of ['suiteTalkUrl', 'clientId', 'certificateId', 'privateKey']) {
+      for (const retiredId of ['accountId', 'clientId', 'certificateId', 'privateKey']) {
         expect(blocks.b1.subBlocks[retiredId], retiredId).toBeUndefined()
         expect(blocks.b1.subBlocks[`_removed_${retiredId}`], retiredId).toBeUndefined()
       }
@@ -214,14 +209,90 @@ describe('migrateSubblockIds', () => {
       expect(serialized).not.toContain('BEGIN PRIVATE KEY')
     })
 
-    it('keeps an already-selected manual value over its legacy counterpart', () => {
+    it.each([
+      {
+        name: 'basic mode with a null active value and stale manual value',
+        mode: 'basic' as const,
+        members: { datasetSelector: null, datasetIdManual: 'stale-manual' },
+        expected: null,
+      },
+      {
+        name: 'advanced mode with a null active value and stale picker value',
+        mode: 'advanced' as const,
+        members: { datasetSelector: 'stale-picker', datasetIdManual: null },
+        expected: null,
+      },
+      {
+        name: 'a lone picker member without a saved mode',
+        mode: undefined,
+        members: { datasetSelector: 'picker-only' },
+        expected: 'picker-only',
+      },
+      {
+        name: 'a lone manual member without a saved mode',
+        mode: undefined,
+        members: { datasetIdManual: 'manual-only' },
+        expected: 'manual-only',
+      },
+    ])('collapses the selector-era dataset pair for $name', ({ mode, members, expected }) => {
+      const subBlocks = Object.fromEntries(
+        Object.entries(members).map(([id, value]) => [
+          id,
+          { id, type: id === 'datasetSelector' ? 'project-selector' : 'short-input', value },
+        ])
+      ) as BlockState['subBlocks']
       const input: Record<string, BlockState> = {
         b1: makeBlock({
           type: 'netsuite',
+          data: {
+            canonicalModes: {
+              recordType: 'advanced',
+              ...(mode ? { datasetId: mode } : {}),
+            },
+          },
+          subBlocks,
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.subBlocks.datasetId).toMatchObject({
+        id: 'datasetId',
+        type: 'short-input',
+        value: expected,
+      })
+      expect(blocks.b1.subBlocks.datasetSelector).toBeUndefined()
+      expect(blocks.b1.subBlocks.datasetIdManual).toBeUndefined()
+      expect(blocks.b1.data?.canonicalModes).toEqual({ recordType: 'advanced' })
+    })
+
+    it('preserves current destinations when pushed schemas overlap', () => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'netsuite',
+          data: { canonicalModes: { datasetId: 'basic', recordType: 'advanced' } },
           subBlocks: {
-            statusTaskId: { id: 'statusTaskId', type: 'short-input', value: 'stale-task' },
-            statusTaskIdManual: {
-              id: 'statusTaskIdManual',
+            recordType: { id: 'recordType', type: 'short-input', value: 'stale-record' },
+            recordTypeManual: {
+              id: 'recordTypeManual',
+              type: 'short-input',
+              value: 'current-record',
+            },
+            datasetSelector: {
+              id: 'datasetSelector',
+              type: 'project-selector',
+              value: 'stale-dataset',
+            },
+            datasetId: { id: 'datasetId', type: 'short-input', value: 'current-dataset' },
+            resultTaskId: {
+              id: 'resultTaskId',
+              type: 'short-input',
+              value: 'intermediate-task',
+            },
+            taskId: { id: 'taskId', type: 'short-input', value: 'oldest-task' },
+            resultTaskIdManual: {
+              id: 'resultTaskIdManual',
               type: 'short-input',
               value: 'current-task',
             },
@@ -232,8 +303,108 @@ describe('migrateSubblockIds', () => {
       const { blocks, migrated } = migrateSubblockIds(input)
 
       expect(migrated).toBe(true)
-      expect(blocks.b1.subBlocks.statusTaskId).toBeUndefined()
-      expect(blocks.b1.subBlocks.statusTaskIdManual?.value).toBe('current-task')
+      expect(blocks.b1.subBlocks.recordTypeManual?.value).toBe('current-record')
+      expect(blocks.b1.subBlocks.datasetId?.value).toBe('current-dataset')
+      expect(blocks.b1.subBlocks.resultTaskIdManual?.value).toBe('current-task')
+      for (const legacyId of [
+        'recordType',
+        'datasetSelector',
+        'datasetIdManual',
+        'resultTaskId',
+        'taskId',
+      ]) {
+        expect(blocks.b1.subBlocks[legacyId], legacyId).toBeUndefined()
+      }
+      expect(blocks.b1.data?.canonicalModes).toEqual({ recordType: 'advanced' })
+    })
+
+    it('migrates NetSuite tools nested in an Agent by tool-index-scoped mode', () => {
+      const privateKey = '-----BEGIN PRIVATE KEY-----agent-legacy-secret'
+      const input: Record<string, BlockState> = {
+        agent: makeBlock({
+          id: 'agent',
+          type: 'agent',
+          data: {
+            canonicalModes: {
+              '0:datasetId': 'advanced',
+              '1:datasetId': 'basic',
+              '2:datasetId': 'advanced',
+              '2:recordType': 'basic',
+              '3:otherId': 'advanced',
+            },
+          },
+          subBlocks: {
+            tools: {
+              id: 'tools',
+              type: 'tool-input',
+              value: [
+                {
+                  type: 'snowflake',
+                  params: { accountId: 'unrelated-account', datasetIdManual: 'unrelated-dataset' },
+                },
+                {
+                  type: 'netsuite',
+                  operation: 'netsuite_execute_dataset',
+                  params: {
+                    accountId: '1234567_SB1',
+                    clientId: 'legacy-client',
+                    certificateId: 'legacy-certificate',
+                    privateKey,
+                    recordType: 'customer',
+                    statusTaskId: 'status-task',
+                    taskId: 'old-result-task',
+                    datasetSelector: null,
+                    datasetIdManual: 'stale-manual',
+                    untouched: 'keep-me',
+                  },
+                },
+                {
+                  type: 'netsuite',
+                  params: {
+                    suiteTalkUrl: 'https://1234567.suitetalk.api.netsuite.com',
+                    resultTaskId: 'intermediate-result',
+                    resultTaskIdManual: 'current-result',
+                    datasetSelector: 'stale-picker',
+                    datasetIdManual: null,
+                  },
+                },
+              ],
+            },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+      const tools = blocks.agent.subBlocks.tools.value as Array<{
+        type: string
+        params: Record<string, unknown>
+      }>
+
+      expect(migrated).toBe(true)
+      expect(tools[0]).toEqual({
+        type: 'snowflake',
+        params: { accountId: 'unrelated-account', datasetIdManual: 'unrelated-dataset' },
+      })
+      expect(tools[1].params).toEqual({
+        recordTypeManual: 'customer',
+        statusTaskIdManual: 'status-task',
+        resultTaskIdManual: 'old-result-task',
+        datasetId: null,
+        untouched: 'keep-me',
+      })
+      expect(tools[2].params).toEqual({
+        resultTaskIdManual: 'current-result',
+        datasetId: null,
+      })
+      expect(blocks.agent.data?.canonicalModes).toEqual({
+        '0:datasetId': 'advanced',
+        '2:recordType': 'basic',
+        '3:otherId': 'advanced',
+      })
+      const serialized = JSON.stringify(blocks.agent)
+      expect(serialized).not.toContain(privateKey)
+      expect(serialized).not.toContain('legacy-client')
+      expect(serialized).not.toContain('legacy-certificate')
     })
   })
 

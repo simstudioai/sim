@@ -146,7 +146,7 @@ describe('POST /api/credentials', () => {
     })
   })
 
-  describe('client-credential service accounts', () => {
+  describe('service-account credentials', () => {
     it('forwards clientId, clientSecret, and orgId to the secret builder on create', async () => {
       mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
         providerId: 'zoom-service-account',
@@ -252,42 +252,88 @@ describe('POST /api/credentials', () => {
       )
     })
 
-    it('conflicts for an existing non-NetSuite service account instead of dropping new secrets', async () => {
-      mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
+    it.each([
+      {
+        family: 'client-credential',
         providerId: 'zoom-service-account',
-        encryptedServiceAccountKey: 'new-secret-ciphertext',
-        displayName: 'Production Zoom',
-        auditMetadata: {},
-        principal: { kind: 'tenant', id: 'zoom-account' },
-      })
-      queueTableRows(credential, [
-        {
-          id: 'existing-credential',
-          workspaceId: WORKSPACE_ID,
-          type: 'service_account',
-          displayName: 'Production Zoom',
-          providerId: 'zoom-service-account',
-        },
-      ])
-
-      const response = await POST(
-        createMockRequest('POST', {
-          workspaceId: WORKSPACE_ID,
-          type: 'service_account',
-          providerId: 'zoom-service-account',
-          displayName: 'Production Zoom',
+        fields: {
           orgId: 'zoom-account',
           clientId: 'new-client-id',
           clientSecret: 'new-client-secret',
+        },
+      },
+      {
+        family: 'token-paste',
+        providerId: 'snowflake-service-account',
+        fields: {
+          domain: 'acme.snowflakecomputing.com',
+          apiToken: 'new-programmatic-access-token',
+        },
+      },
+      {
+        family: 'Google JSON-key',
+        providerId: 'google-service-account',
+        fields: {
+          serviceAccountJson: JSON.stringify({
+            type: 'service_account',
+            client_email: 'automation@example.iam.gserviceaccount.com',
+            private_key: 'new-private-key',
+            project_id: 'example-project',
+          }),
+        },
+      },
+      {
+        family: 'Atlassian',
+        providerId: 'atlassian-service-account',
+        fields: { domain: 'example.atlassian.net', apiToken: 'new-atlassian-token' },
+      },
+      {
+        family: 'Slack different-ID',
+        providerId: 'slack-custom-bot',
+        fields: {
+          id: '33333333-4444-4555-8666-777777777777',
+          signingSecret: 'new-slack-signing-secret',
+          botToken: 'xoxb-new-slack-bot-token',
+        },
+      },
+    ])(
+      'conflicts for an existing $family service account instead of dropping new secrets',
+      async ({ providerId, fields }) => {
+        const displayName = 'Production automation'
+        mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
+          providerId,
+          encryptedServiceAccountKey: 'new-secret-ciphertext',
+          displayName,
+          auditMetadata: {},
+          principal: null,
         })
-      )
-      const body = await response.json()
+        queueTableRows(credential, [
+          {
+            id: 'existing-credential',
+            workspaceId: WORKSPACE_ID,
+            type: 'service_account',
+            displayName,
+            providerId,
+          },
+        ])
 
-      expect(response.status).toBe(409)
-      expect(body.code).toBe('duplicate_display_name')
-      expect(dbChainMockFns.update).not.toHaveBeenCalled()
-      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    })
+        const response = await POST(
+          createMockRequest('POST', {
+            workspaceId: WORKSPACE_ID,
+            type: 'service_account',
+            providerId,
+            displayName,
+            ...fields,
+          })
+        )
+        const body = await response.json()
+
+        expect(response.status).toBe(409)
+        expect(body.code).toBe('duplicate_display_name')
+        expect(dbChainMockFns.update).not.toHaveBeenCalled()
+        expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+      }
+    )
 
     it('preserves an exact-ID Slack custom-bot create replay', async () => {
       const credentialId = '22222222-3333-4444-8555-666666666666'

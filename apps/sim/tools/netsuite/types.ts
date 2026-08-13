@@ -58,7 +58,6 @@ export interface NetSuiteUpsertRecordParams extends NetSuiteAuthParams {
   recordType: string
   externalId: string
   body: NetSuiteJsonObject
-  replace?: string
 }
 
 export interface NetSuiteDeleteRecordParams extends NetSuiteAuthParams {

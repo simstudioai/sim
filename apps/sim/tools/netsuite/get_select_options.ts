@@ -1,9 +1,9 @@
 import type { NetSuiteGetSelectOptionsParams, NetSuiteResponse } from '@/tools/netsuite/types'
 import {
-  buildQuery,
   buildRecordPath,
   executeNetSuiteRequest,
   netsuiteAuthParamFields,
+  normalizePagination,
   optionalTrim,
   requiredTrim,
 } from '@/tools/netsuite/utils'
@@ -71,6 +71,7 @@ export const netsuiteGetSelectOptionsTool: ToolConfig<
       params,
       () => {
         const recordId = optionalTrim(params.recordId)
+        const pagination = normalizePagination(params.limit, params.offset)
         return {
           method: recordId ? 'PATCH' : 'POST',
           path: buildRecordPath(
@@ -79,7 +80,7 @@ export const netsuiteGetSelectOptionsTool: ToolConfig<
           ),
           success: { status: 200, body: 'object' },
           query: {
-            ...buildQuery(params),
+            ...pagination,
             fields: requiredTrim(params.fields, 'Fields'),
             q: optionalTrim(params.q),
           },

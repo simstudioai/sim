@@ -66,7 +66,9 @@ describe('mintNetSuiteServiceAccountToken', () => {
   it('signs the Oracle client assertion with PS256 and returns account metadata', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(jsonResponse({ access_token: 'netsuite-access', expires_in: 1800 }))
+      .mockResolvedValue(
+        jsonResponse({ access_token: 'netsuite-access', expires_in: 1800, token_type: 'Bearer' })
+      )
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await mintNetSuiteServiceAccountToken(FIELDS)
@@ -91,7 +93,10 @@ describe('mintNetSuiteServiceAccountToken', () => {
       alg: 'PS256',
       kid: FIELDS.certificateId,
     })
-    expect(verified.payload.scope).toEqual(['rest_webservices'])
+    expect(verified.payload.scope).toBe('rest_webservices')
+    expect(verified.payload.jti).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    )
     expect(verified.payload.exp).toBe((verified.payload.iat as number) + 300)
     expect(result).toEqual({
       accessToken: 'netsuite-access',
@@ -121,7 +126,9 @@ describe('mintNetSuiteServiceAccountToken', () => {
     async ({ algorithm, privateKey, publicKey }) => {
       const fetchMock = vi
         .fn()
-        .mockResolvedValue(jsonResponse({ access_token: 'netsuite-access', expires_in: 3600 }))
+        .mockResolvedValue(
+          jsonResponse({ access_token: 'netsuite-access', expires_in: 3600, token_type: 'bearer' })
+        )
       vi.stubGlobal('fetch', fetchMock)
 
       await mintNetSuiteServiceAccountToken({ ...FIELDS, privateKey }, { skipIdentity: true })
@@ -145,7 +152,9 @@ describe('mintNetSuiteServiceAccountToken', () => {
     const privateKey = pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(jsonResponse({ access_token: 'netsuite-access', expires_in: 3600 }))
+      .mockResolvedValue(
+        jsonResponse({ access_token: 'netsuite-access', expires_in: 3600, token_type: 'Bearer' })
+      )
     vi.stubGlobal('fetch', fetchMock)
 
     await mintNetSuiteServiceAccountToken({ ...FIELDS, privateKey }, { skipIdentity: true })
@@ -163,7 +172,11 @@ describe('mintNetSuiteServiceAccountToken', () => {
   it('omits connect-time identity when resolving an execution token', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(jsonResponse({ access_token: 'netsuite-access', expires_in: 3600 }))
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ access_token: 'netsuite-access', expires_in: 3600, token_type: 'Bearer' })
+        )
     )
 
     await expect(mintNetSuiteServiceAccountToken(FIELDS, { skipIdentity: true })).resolves.toEqual({
@@ -255,17 +268,18 @@ describe('mintNetSuiteServiceAccountToken', () => {
   })
 
   it.each([
-    [undefined, 3600],
-    [-1, 3600],
-    [Number.POSITIVE_INFINITY, 3600],
     [7200, 3600],
     [60, 60],
-  ])('normalizes expires_in=%s to %i seconds', async (expiresIn, expected) => {
+  ])('caps a valid expires_in=%s at %i seconds', async (expiresIn, expected) => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(jsonResponse({ access_token: 'netsuite-access', expires_in: expiresIn }))
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          access_token: 'netsuite-access',
+          expires_in: expiresIn,
+          token_type: expiresIn === 60 ? 'bEaReR' : 'Bearer',
+        })
+      )
     )
 
     const result = await mintNetSuiteServiceAccountToken(FIELDS, { skipIdentity: true })
@@ -276,10 +290,27 @@ describe('mintNetSuiteServiceAccountToken', () => {
     const responses = [
       new Response('not-json', { status: 200 }),
       jsonResponse(null),
-      jsonResponse({ expires_in: 3600 }),
-      new Response(JSON.stringify({ access_token: 'x'.repeat(1024 * 1024 + 1) }), {
+      jsonResponse({ expires_in: 3600, token_type: 'Bearer' }),
+      jsonResponse({ access_token: '   ', expires_in: 3600, token_type: 'Bearer' }),
+      jsonResponse({ access_token: 'netsuite-access', token_type: 'Bearer' }),
+      jsonResponse({ access_token: 'netsuite-access', expires_in: 0, token_type: 'Bearer' }),
+      jsonResponse({ access_token: 'netsuite-access', expires_in: -1, token_type: 'Bearer' }),
+      jsonResponse({ access_token: 'netsuite-access', expires_in: '3600', token_type: 'Bearer' }),
+      jsonResponse({ access_token: 'netsuite-access', expires_in: null, token_type: 'Bearer' }),
+      new Response('{"access_token":"netsuite-access","expires_in":1e999,"token_type":"Bearer"}', {
         status: 200,
       }),
+      jsonResponse({ access_token: 'netsuite-access', expires_in: 3600 }),
+      jsonResponse({ access_token: 'netsuite-access', expires_in: 3600, token_type: 1 }),
+      jsonResponse({ access_token: 'netsuite-access', expires_in: 3600, token_type: 'mac' }),
+      new Response(
+        JSON.stringify({
+          access_token: 'x'.repeat(1024 * 1024 + 1),
+          expires_in: 3600,
+          token_type: 'Bearer',
+        }),
+        { status: 200 }
+      ),
     ]
     const fetchMock = vi.fn()
     for (const response of responses) fetchMock.mockResolvedValueOnce(response)

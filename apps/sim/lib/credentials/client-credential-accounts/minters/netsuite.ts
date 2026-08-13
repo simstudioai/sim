@@ -1,4 +1,4 @@
-import { createPrivateKey, type KeyObject } from 'node:crypto'
+import { createPrivateKey, type KeyObject, randomUUID } from 'node:crypto'
 import { truncate } from '@sim/utils/string'
 import { SignJWT } from 'jose'
 import {
@@ -6,10 +6,7 @@ import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import {
-  NETSUITE_SUITETALK_ORIGIN_REGEX,
-  normalizeNetSuiteSuiteTalkOrigin,
-} from '@/lib/credentials/client-credential-accounts/descriptors'
+import { normalizeNetSuiteSuiteTalkOrigin } from '@/lib/credentials/client-credential-accounts/descriptors'
 import type {
   ClientCredentialAccountFields,
   ClientCredentialAccountMintOptions,
@@ -41,6 +38,7 @@ const EC_ALGORITHM_BY_CURVE = new Map<string, 'ES256' | 'ES384' | 'ES512'>([
 interface NetSuiteTokenResponse {
   access_token?: unknown
   expires_in?: unknown
+  token_type?: unknown
 }
 
 type NetSuiteJwtAlgorithm = 'PS256' | 'ES256' | 'ES384' | 'ES512'
@@ -99,12 +97,6 @@ function sanitizeNetSuiteTokenError(
     if (secret && secret.length >= 3) sanitized = sanitized.split(secret).join('[REDACTED]')
   }
   return truncate(sanitized.replace(/\s+/g, ' ').trim(), 500) || 'empty provider error'
-}
-
-function normalizeExpiresIn(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0
-    ? Math.min(value, DEFAULT_TOKEN_EXPIRES_IN_SECONDS)
-    : DEFAULT_TOKEN_EXPIRES_IN_SECONDS
 }
 
 async function exchangeNetSuiteToken(
@@ -179,9 +171,28 @@ async function exchangeNetSuiteToken(
       reason: 'token response missing access_token',
     })
   }
+  if (
+    typeof payload.expires_in !== 'number' ||
+    !Number.isFinite(payload.expires_in) ||
+    payload.expires_in <= 0
+  ) {
+    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+      step: TOKEN_MINT_STEP,
+      reason: 'token response missing a positive finite expires_in',
+    })
+  }
+  if (
+    typeof payload.token_type !== 'string' ||
+    payload.token_type.trim().toLowerCase() !== 'bearer'
+  ) {
+    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+      step: TOKEN_MINT_STEP,
+      reason: 'token response missing bearer token_type',
+    })
+  }
   return {
     accessToken: payload.access_token.trim(),
-    expiresInSeconds: normalizeExpiresIn(payload.expires_in),
+    expiresInSeconds: Math.min(payload.expires_in, DEFAULT_TOKEN_EXPIRES_IN_SECONDS),
   }
 }
 
@@ -196,7 +207,7 @@ export async function mintNetSuiteServiceAccountToken(
   options?: ClientCredentialAccountMintOptions
 ): Promise<ClientCredentialAccountMintResult> {
   const origin = normalizeNetSuiteSuiteTalkOrigin(fields.orgId)
-  if (!origin || !NETSUITE_SUITETALK_ORIGIN_REGEX.test(origin)) {
+  if (!origin) {
     throw new TokenServiceAccountValidationError('site_not_found', 400, {
       step: 'netsuite_host_validation',
       reason: 'SuiteTalk URL must be an account-specific HTTPS origin with no extra URL parts',
@@ -214,10 +225,11 @@ export async function mintNetSuiteServiceAccountToken(
   const now = Math.floor(Date.now() / 1000)
   let assertion: string
   try {
-    assertion = await new SignJWT({ scope: ['rest_webservices'] })
+    assertion = await new SignJWT({ scope: 'rest_webservices' })
       .setProtectedHeader({ typ: 'JWT', alg: algorithm, kid: certificateId })
       .setIssuer(clientId)
       .setAudience(tokenUrl)
+      .setJti(randomUUID())
       .setIssuedAt(now)
       .setExpirationTime(now + JWT_ASSERTION_LIFETIME_SECONDS)
       .sign(privateKey)

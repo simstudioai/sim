@@ -396,7 +396,7 @@ describe('NetSuite shared executor', () => {
     expect(calls[0].init?.body).toBe(JSON.stringify(body))
   })
 
-  it('enforces the documented JSON value-count boundary before SuiteTalk traffic', async () => {
+  it('enforces the Sim JSON value-count boundary before SuiteTalk traffic', async () => {
     const { calls } = installFetch([
       new Response(null, {
         status: 204,
@@ -417,7 +417,7 @@ describe('NetSuite shared executor', () => {
     expect(calls).toHaveLength(1)
   })
 
-  it('enforces the documented JSON nesting boundary before SuiteTalk traffic', async () => {
+  it('enforces the Sim JSON nesting boundary before SuiteTalk traffic', async () => {
     const { calls } = installFetch([
       new Response(null, {
         status: 204,

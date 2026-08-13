@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
-import { truncate } from '@sim/utils/string'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   type NetSuiteObjectsSelectorBody,
@@ -15,7 +14,6 @@ import { NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/client-c
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { resolveCredentialAccessToken, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import { netsuiteGetAsyncStatusTool } from '@/tools/netsuite/get_async_status'
-import { netsuiteListDatasetsTool } from '@/tools/netsuite/list_datasets'
 import { netsuiteListRecordTypesTool } from '@/tools/netsuite/list_record_types'
 import type { NetSuiteAuthParams } from '@/tools/netsuite/types'
 import { normalizeSuiteTalkUrl } from '@/tools/netsuite/utils'
@@ -25,13 +23,15 @@ const logger = createLogger('NetSuiteObjectsAPI')
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * This session/internal-only metadata route intentionally has no separate rate
+ * limiter: it reuses read-only NetSuite tools whose deadlines and bounded
+ * result sets constrain each provider call, matching Snowflake's picker route.
+ */
 const SELECTOR_REQUEST_MAX_BYTES = 16 * 1024
 const MAX_RECORD_TYPES = 1_000
-const MAX_DATASETS = 1_000
 const MAX_ASYNC_TASKS = 100
 const MAX_ID_LENGTH = 512
-const MAX_LABEL_LENGTH = 1_000
-const MAX_DETAIL_LENGTH = 2_000
 
 interface NetSuiteSelectorObject {
   id: string
@@ -55,14 +55,6 @@ function requireString(value: unknown, label: string, maxLength: number): string
     throw new Error(`NetSuite returned an oversized ${label}`)
   }
   return normalized
-}
-
-function optionalString(value: unknown, label: string): string | null {
-  if (value === undefined || value === null || value === '') return null
-  if (typeof value !== 'string') {
-    throw new Error(`NetSuite returned an invalid ${label}`)
-  }
-  return value.trim() || null
 }
 
 function requireItems(data: unknown, label: string): Record<string, unknown>[] {
@@ -91,43 +83,6 @@ function normalizeRecordTypes(data: unknown): NetSuiteSelectorObject[] {
     return { id: name, label: name, detail: null }
   })
   return dedupeAndSort(objects).slice(0, MAX_RECORD_TYPES)
-}
-
-function normalizeDatasetId(value: unknown): string {
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  return requireString(value, 'dataset ID', MAX_ID_LENGTH)
-}
-
-function normalizeDatasetRecordType(value: unknown): string | null {
-  if (value === undefined || value === null || value === '') return null
-  if (typeof value === 'string') return value.trim() || null
-  if (!isPlainRecord(value)) {
-    throw new Error('NetSuite returned an invalid dataset record type')
-  }
-  return optionalString(value.name ?? value.id, 'dataset record type')
-}
-
-function normalizeDatasets(data: unknown): NetSuiteSelectorObject[] {
-  const items = requireItems(data, 'dataset collection')
-  if (items.length > MAX_DATASETS) {
-    throw new Error('NetSuite returned too many datasets')
-  }
-
-  const objects = items.map((item) => {
-    const id = normalizeDatasetId(item.id)
-    const label = requireString(item.name, 'dataset name', MAX_LABEL_LENGTH)
-    const description = optionalString(item.description, 'dataset description')
-    const recordType = normalizeDatasetRecordType(item.recordType)
-    const detailParts = [description, recordType ? `Record type: ${recordType}` : null].filter(
-      (value): value is string => value !== null
-    )
-    return {
-      id,
-      label,
-      detail: detailParts.length ? truncate(detailParts.join(' · '), MAX_DETAIL_LENGTH, '') : null,
-    }
-  })
-  return dedupeAndSort(objects)
 }
 
 function taskIdFromHref(href: unknown, origin: string, jobId: string): string {
@@ -183,24 +138,26 @@ function normalizeAsyncTasks(
 ): NetSuiteSelectorObject[] {
   const items = requireItems(data, 'asynchronous task collection')
   const origin = normalizeSuiteTalkUrl(instanceUrl)
-  const objects: NetSuiteSelectorObject[] = []
+  const objects = new Map<string, NetSuiteSelectorObject>()
 
   for (const item of items) {
     if (!Array.isArray(item.links) || item.links.length === 0 || !item.links.every(isPlainRecord)) {
       throw new Error('NetSuite returned malformed asynchronous task links')
     }
     for (const link of item.links) {
-      if (objects.length >= MAX_ASYNC_TASKS) {
-        throw new Error('NetSuite returned too many asynchronous tasks')
-      }
       if (link.rel !== 'self') {
         throw new Error('NetSuite returned an unexpected asynchronous task link relationship')
       }
       const id = taskIdFromHref(link.href, origin, jobId)
-      objects.push({ id, label: id, detail: null })
+      if (!objects.has(id)) {
+        if (objects.size >= MAX_ASYNC_TASKS) {
+          throw new Error('NetSuite returned too many asynchronous tasks')
+        }
+        objects.set(id, { id, label: id, detail: null })
+      }
     }
   }
-  return dedupeAndSort(objects)
+  return dedupeAndSort([...objects.values()])
 }
 
 async function executeDiscoveryTool(
@@ -214,11 +171,6 @@ async function executeDiscoveryTool(
       const execute = netsuiteListRecordTypesTool.directExecution
       if (!execute) throw new Error('NetSuite record-type tool is not executable')
       return execute(auth, signal)
-    }
-    case 'datasets': {
-      const execute = netsuiteListDatasetsTool.directExecution
-      if (!execute) throw new Error('NetSuite dataset tool is not executable')
-      return execute({ ...auth, limit: MAX_DATASETS, offset: 0 }, signal)
     }
     case 'async_tasks': {
       const execute = netsuiteGetAsyncStatusTool.directExecution
@@ -240,6 +192,12 @@ function failedDiscoveryResponse(result: ToolResponse): NextResponse {
         authRequired: true,
       },
       { status: 401 }
+    )
+  }
+  if (providerStatus === 403) {
+    return NextResponse.json(
+      { error: 'NetSuite denied access to object discovery for this credential.' },
+      { status: 403 }
     )
   }
   if (providerStatus >= 400 && providerStatus < 500) {
@@ -277,8 +235,8 @@ function credentialFailureResponse(error: unknown): NextResponse {
 }
 
 /**
- * Lists the bounded NetSuite objects used by the block's record-type, dataset,
- * and asynchronous-task pickers. Like Snowflake's selector endpoint, this
+ * Lists the bounded NetSuite objects used by the block's record-type and
+ * asynchronous-task pickers. Like Snowflake's selector endpoint, this
  * route owns authentication, credential resolution, provider access, and
  * response normalization directly; short-lived tokens never reach the client.
  */
@@ -369,9 +327,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const objects =
       body.kind === 'record_types'
         ? normalizeRecordTypes(data)
-        : body.kind === 'datasets'
-          ? normalizeDatasets(data)
-          : normalizeAsyncTasks(data, token.instanceUrl, body.jobId)
+        : normalizeAsyncTasks(data, token.instanceUrl, body.jobId)
     return NextResponse.json({ objects })
   } catch (error) {
     logger.error('NetSuite selector response was invalid', {

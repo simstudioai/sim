@@ -11,6 +11,7 @@ import {
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   CheckboxList,
   Code,
@@ -106,6 +107,8 @@ interface SubBlockProps {
   labelSuffix?: React.ReactNode
   /** Provides sibling values for dependency resolution in non-preview contexts (e.g. tool-input) */
   dependencyContext?: Record<string, unknown>
+  /** Canonical modes scoped to the rendered block or nested tool. */
+  canonicalModeOverrides?: CanonicalModeOverrides
   isSearchHighlighted?: boolean
 }
 
@@ -442,7 +445,8 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
     canonicalToggleEqual &&
     prevProps.labelSuffix === nextProps.labelSuffix &&
     prevProps.isSearchHighlighted === nextProps.isSearchHighlighted &&
-    prevProps.dependencyContext === nextProps.dependencyContext
+    prevProps.dependencyContext === nextProps.dependencyContext &&
+    prevProps.canonicalModeOverrides === nextProps.canonicalModeOverrides
   )
 }
 
@@ -470,6 +474,7 @@ function SubBlockComponent({
   canonicalToggle,
   labelSuffix,
   dependencyContext,
+  canonicalModeOverrides,
   isSearchHighlighted,
 }: SubBlockProps): JSX.Element {
   const params = useParams()
@@ -622,6 +627,7 @@ function SubBlockComponent({
     disabled,
     isPreview,
     previewContextValues: contextValues,
+    canonicalModeOverrides,
   })
 
   const isDisabled = gatedDisabled
@@ -943,6 +949,7 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             previewContextValues={contextValues}
+            canonicalModeOverrides={canonicalModeOverrides}
           />
         )
 
@@ -955,6 +962,7 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             previewContextValues={contextValues}
+            canonicalModeOverrides={canonicalModeOverrides}
             overrides={FOLDER_OVERRIDES}
           />
         )
@@ -1003,6 +1011,7 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             previewContextValues={contextValues}
+            canonicalModeOverrides={canonicalModeOverrides}
           />
         )
 
@@ -1086,6 +1095,7 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             previewContextValues={contextValues}
+            canonicalModeOverrides={canonicalModeOverrides}
             overrides={SLACK_OVERRIDES}
           />
         )
