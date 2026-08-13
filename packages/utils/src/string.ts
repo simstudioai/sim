@@ -1,4 +1,19 @@
 /**
+ * `U+0000` is the one code point a Postgres `text`/`jsonb` value cannot carry:
+ * the wire protocol terminates strings on it, so the driver throws before the
+ * statement is planned, and the throw carries no SQLSTATE a route layer can
+ * classify. Every boundary that admits caller-supplied text — the JSON request
+ * scan, the multipart field scan, and the canonical folder-path decoder —
+ * rejects it, so the predicate lives here instead of being restated at each.
+ */
+export const NUL_CHARACTER = '\u0000'
+
+/** Reports whether `value` carries a `U+0000`. See {@link NUL_CHARACTER}. */
+export function containsNulCharacter(value: string): boolean {
+  return value.includes(NUL_CHARACTER)
+}
+
+/**
  * Truncates `str` if it exceeds `sliceLength` characters, appending `suffix`.
  * The total output length when truncated is `sliceLength + suffix.length`.
  * Defaults suffix to `'...'`.
