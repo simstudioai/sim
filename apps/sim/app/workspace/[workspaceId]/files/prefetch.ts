@@ -3,6 +3,7 @@ import { listWorkspaceFileFoldersContract } from '@/lib/api/contracts/workspace-
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
+import { seedWorkspaceFiles } from '@/app/workspace/[workspaceId]/lib/seed-workspace-files'
 import {
   WORKSPACE_FILE_FOLDERS_STALE_TIME,
   workspaceFileFolderKeys,
@@ -15,10 +16,8 @@ import {
  * the Owner column — under the same query keys their client hooks (`useWorkspaceFileFolders`) use
  * (scope `active`), so the browser paints populated on first render.
  *
- * The FILE LIST itself is not here: the workspace layout seeds it, because only the first boundary
- * to touch a key can reach the server render — `HydrationBoundary` defers an already-registered
- * query to a `useEffect` SSR never runs, and the sidebar registers this key on every route even
- * with its own fetch disabled.
+ * The file list is seeded here rather than in the layout so only the routes that render it pay for
+ * it. See {@link seedWorkspaceFiles} for why a large workspace seeds nothing at all.
  *
  * Folders and the chrome reads all go through the data layer, shaped to their route contracts so a
  * hydrated entry matches a client fetch.
@@ -54,5 +53,6 @@ export async function prefetchFilesBrowser(
       staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
     }),
     prefetchResourceListChrome(queryClient, workspaceId, 'file', userId),
+    seedWorkspaceFiles(queryClient, workspaceId),
   ])
 }

@@ -10,7 +10,6 @@ import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { getWorkspacePermissionsForAuthorizedViewer } from '@/lib/workspaces/permissions/utils'
 import { prefetchResourceFolders } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-folders'
-import { seedWorkspaceFiles } from '@/app/workspace/[workspaceId]/lib/seed-workspace-files'
 import {
   MOTHERSHIP_CHAT_LIST_STALE_TIME,
   mapChat,
@@ -149,15 +148,6 @@ export async function prefetchWorkspaceSidebar(
         ]
       : []),
     prefetchResourceFolders(queryClient, workspaceId, 'workflow', userId),
-    /**
-     * Seeded from the layout, not from the pages that render the list. `enabled: false` stops the
-     * sidebar's query from FETCHING but not from registering: `useQuery` builds its observer
-     * unconditionally, and the observer's constructor calls `queryCache.build()`, which adds the
-     * key. `HydrationBoundary` then defers an already-registered query to a `useEffect` SSR never
-     * runs — so only the first boundary to touch the key can reach the server render, and that is
-     * this one.
-     */
-    seedWorkspaceFiles(queryClient, workspaceId),
     queryClient.prefetchQuery({
       queryKey: workspaceKeys.permissions(workspaceId),
       queryFn: () =>
