@@ -3,6 +3,11 @@ import { document, embedding } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import {
+  coerceTagFilterValue,
+  escapeLikePattern,
+  uncompilableTagFilterError,
+} from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
 const logger = createLogger('KnowledgeSearchQueries')
@@ -170,20 +175,23 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
 
   // Handle text operators
   if (fieldType === 'text') {
-    const stringValue = String(value)
+    const coerced = coerceTagFilterValue(value, 'text')
+    if (!coerced.ok) return null
+    const stringValue = coerced.value as string
+    const escaped = escapeLikePattern(stringValue)
     switch (operator) {
       case 'eq':
         return sql`LOWER(${column}) = LOWER(${stringValue})`
       case 'neq':
         return sql`LOWER(${column}) != LOWER(${stringValue})`
       case 'contains':
-        return sql`LOWER(${column}) LIKE LOWER(${`%${stringValue}%`})`
+        return sql`LOWER(${column}) LIKE LOWER(${`%${escaped}%`}) ESCAPE '\\'`
       case 'not_contains':
-        return sql`LOWER(${column}) NOT LIKE LOWER(${`%${stringValue}%`})`
+        return sql`LOWER(${column}) NOT LIKE LOWER(${`%${escaped}%`}) ESCAPE '\\'`
       case 'starts_with':
-        return sql`LOWER(${column}) LIKE LOWER(${`${stringValue}%`})`
+        return sql`LOWER(${column}) LIKE LOWER(${`${escaped}%`}) ESCAPE '\\'`
       case 'ends_with':
-        return sql`LOWER(${column}) LIKE LOWER(${`%${stringValue}`})`
+        return sql`LOWER(${column}) LIKE LOWER(${`%${escaped}`}) ESCAPE '\\'`
       default:
         return sql`LOWER(${column}) = LOWER(${stringValue})`
     }
@@ -191,8 +199,9 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
 
   // Handle number operators
   if (fieldType === 'number') {
-    const numValue = typeof value === 'number' ? value : Number.parseFloat(String(value))
-    if (Number.isNaN(numValue)) return null
+    const coerced = coerceTagFilterValue(value, 'number')
+    if (!coerced.ok) return null
+    const numValue = coerced.value as number
 
     switch (operator) {
       case 'eq':
@@ -209,10 +218,9 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
         return sql`${column} <= ${numValue}`
       case 'between':
         if (valueTo !== undefined) {
-          const numValueTo =
-            typeof valueTo === 'number' ? valueTo : Number.parseFloat(String(valueTo))
-          if (Number.isNaN(numValueTo)) return sql`${column} = ${numValue}`
-          return sql`${column} >= ${numValue} AND ${column} <= ${numValueTo}`
+          const coercedTo = coerceTagFilterValue(valueTo, 'number')
+          if (!coercedTo.ok) return sql`${column} = ${numValue}`
+          return sql`${column} >= ${numValue} AND ${column} <= ${coercedTo.value as number}`
         }
         return sql`${column} = ${numValue}`
       default:
@@ -222,11 +230,9 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
 
   // Handle date operators - expects YYYY-MM-DD format from frontend
   if (fieldType === 'date') {
-    const dateStr = String(value)
-    // Validate YYYY-MM-DD format
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      return null
-    }
+    const coerced = coerceTagFilterValue(value, 'date')
+    if (!coerced.ok) return null
+    const dateStr = coerced.value as string
 
     switch (operator) {
       case 'eq':
@@ -243,10 +249,11 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
         return sql`${column}::date <= ${dateStr}::date`
       case 'between':
         if (valueTo !== undefined) {
-          const dateStrTo = String(valueTo)
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStrTo)) {
+          const coercedTo = coerceTagFilterValue(valueTo, 'date')
+          if (!coercedTo.ok) {
             return sql`${column}::date = ${dateStr}::date`
           }
+          const dateStrTo = coercedTo.value as string
           return sql`${column}::date >= ${dateStr}::date AND ${column}::date <= ${dateStrTo}::date`
         }
         return sql`${column}::date = ${dateStr}::date`
@@ -257,7 +264,9 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
 
   // Handle boolean operators
   if (fieldType === 'boolean') {
-    const boolValue = value === true || value === 'true'
+    const coerced = coerceTagFilterValue(value, 'boolean')
+    if (!coerced.ok) return null
+    const boolValue = coerced.value as boolean
     switch (operator) {
       case 'eq':
         return sql`${column} = ${boolValue}`
@@ -276,8 +285,14 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
  * Build SQL conditions from structured filters with operator support
  * - Same tag multiple times: OR logic
  * - Different tags: AND logic
+ *
+ * Every filter reaching here has already been validated, so one that fails to
+ * compile is a defect rather than a predicate to skip. Skipping it dropped the
+ * tag term from the WHERE clause entirely and answered a filtered search with
+ * the whole knowledge base under a 200 — and search is billed, so the caller
+ * paid for the widened scan. It is reported as a validation failure instead.
  */
-function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: any) {
+export function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: any) {
   // Group filters by tagSlot
   const filtersBySlot = new Map<string, StructuredFilter[]>()
   for (const filter of filters) {
@@ -291,12 +306,12 @@ function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: an
   // Build conditions: OR within same slot, AND across different slots
   const conditions: ReturnType<typeof sql>[] = []
 
-  for (const [slot, slotFilters] of filtersBySlot) {
-    const slotConditions = slotFilters
-      .map((f) => buildFilterCondition(f, embeddingTable))
-      .filter((c): c is ReturnType<typeof sql> => c !== null)
-
-    if (slotConditions.length === 0) continue
+  for (const [, slotFilters] of filtersBySlot) {
+    const slotConditions = slotFilters.map((f) => {
+      const condition = buildFilterCondition(f, embeddingTable)
+      if (condition === null) throw uncompilableTagFilterError(f)
+      return condition
+    })
 
     if (slotConditions.length === 1) {
       // Single condition for this slot

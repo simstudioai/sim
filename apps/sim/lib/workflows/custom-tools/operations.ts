@@ -16,6 +16,7 @@ import {
   timestampKey,
 } from '@/lib/api/list-query'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { assertStorableCustomToolSchema } from '@/lib/custom-tools/schema'
 
 const logger = createLogger('CustomToolsOperations')
 
@@ -37,6 +38,14 @@ export async function upsertCustomTools(params: {
   requestId?: string
 }) {
   const { tools, workspaceId, userId, requestId = generateRequestId() } = params
+
+  /**
+   * Ahead of the transaction so a batch is rejected whole rather than landing
+   * the tools that preceded the unstorable one.
+   */
+  for (const tool of tools) {
+    assertStorableCustomToolSchema(tool.schema)
+  }
 
   return await db.transaction(async (tx) => {
     for (const tool of tools) {

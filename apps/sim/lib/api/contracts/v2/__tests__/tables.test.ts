@@ -59,6 +59,27 @@ describe('v2 table column contracts', () => {
     ).toMatchObject({ success: true, data: { updates: { required: true } } })
   })
 
+  /**
+   * v2 mints workflow group ids server-side and has no way to declare a group
+   * on the create body, so any id a caller supplied would name a group that
+   * does not exist. `createTable` does not check that, but every later schema
+   * mutation does — accepting the field made the created table's columns and
+   * groups permanently unaddable, with nothing on the update body able to clear
+   * it.
+   */
+  it('refuses a workflow group id on an initial column', () => {
+    const result = v2CreateTableBodySchema.safeParse({
+      workspaceId: WORKSPACE_ID,
+      name: 'contacts',
+      schema: {
+        columns: [{ name: 'email', type: 'string', workflowGroupId: 'wfg_does_not_exist' }],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    expect(issueCodes(result.error?.issues ?? [])).toContain('unrecognized_keys')
+  })
+
   it('keeps required in table responses for existing stored schemas', () => {
     expect(
       v2ApiTableSchema.safeParse({

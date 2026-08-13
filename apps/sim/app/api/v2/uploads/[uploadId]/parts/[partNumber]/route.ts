@@ -12,7 +12,12 @@ import {
   type UploadSessionRecord,
   verifyUploadSessionToken,
 } from '@/lib/uploads/upload-session/service'
-import { v2Error, v2HttpError, v2UploadDataPlaneError } from '@/app/api/v2/lib/response'
+import {
+  v2CaughtOrchestrationError,
+  v2Error,
+  v2HttpError,
+  v2UploadDataPlaneError,
+} from '@/app/api/v2/lib/response'
 
 interface LocalPartRouteParams {
   params: Promise<{ uploadId: string; partNumber: string }>
@@ -60,7 +65,18 @@ export const PUT = withRouteHandler(
     }
 
     const { partNumber } = parsed.data.params
-    const expectedSize = expectedUploadPartSize(session, partNumber)
+    let expectedSize: number
+    try {
+      expectedSize = expectedUploadPartSize(session, partNumber)
+    } catch (error) {
+      // The part number is a path segment of a session-scoped signed URL, so a
+      // caller can address a part this session does not have. That refusal is a
+      // classified domain failure, and the data plane's generic 500 tail would
+      // otherwise render it as an internal error.
+      const classified = v2CaughtOrchestrationError(error)
+      if (classified) return classified
+      throw error
+    }
     const contentLength = request.headers.get('content-length')
     if (contentLength !== null && Number(contentLength) !== expectedSize) {
       return v2Error('BAD_REQUEST', `Part ${partNumber} must contain exactly ${expectedSize} bytes`)

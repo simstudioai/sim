@@ -4370,10 +4370,6 @@
                       "description": "ISO 4217 code for currency columns.",
                       "type": "string",
                       "pattern": "^[A-Za-z]{3}$"
-                    },
-                    "workflowGroupId": {
-                      "description": "Workflow group initially associated with the column.",
-                      "type": "string"
                     }
                   },
                   "required": ["name", "type"],
