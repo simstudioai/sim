@@ -41,7 +41,6 @@ import type {
   TableSchema,
   WorkflowGroup,
 } from '@/lib/table/types'
-import { stripGroupDeps } from '@/lib/table/workflow-group-deps'
 
 const logger = createLogger('WorkflowGroupScheduler')
 
@@ -1349,5 +1348,3 @@ export function assertValidSchema(schema: TableSchema, columnOrder: string[] | u
     throw new OrchestrationError('validation', `Schema validation failed: ${errs.join('; ')}`)
   }
 }
-
-export { stripGroupDeps }

@@ -25,7 +25,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { resolveWorkspaceGroup } from '@/ee/access-control/utils/permission-check'
 import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
-import { prefetchGeneralSettings, prefetchUserProfile } from './prefetch'
+import { prefetchGeneralSettings } from './prefetch'
 import { SettingsPage } from './settings'
 
 interface WorkspaceSettingsSectionPageProps {
@@ -170,8 +170,14 @@ export default async function WorkspaceSettingsSectionPage({
   }
 
   const queryClient = getQueryClient()
-  void prefetchGeneralSettings(queryClient)
-  void prefetchUserProfile(queryClient)
+  /**
+   * Awaited, not fired and forgotten. An unawaited prefetch is still `pending` when
+   * `dehydrate` runs, so its rejection would hydrate the client query straight into an
+   * error state that `retryOnMount: false` never retries — leaving the panel broken for
+   * the rest of the session. The viewer's profile is already seeded by the workspace
+   * layout under the same key, so it is not repeated here.
+   */
+  await prefetchGeneralSettings(queryClient)
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

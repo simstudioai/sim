@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { TableDefinition } from '@/lib/table/types'
-import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
+import { listTables } from '@/lib/table/service'
+import { toTableListItem } from '@/lib/table/wire'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { prefetchResourceFolders } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-folders'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
 import { TABLE_LIST_STALE_TIME, tableKeys } from '@/hooks/queries/utils/table-keys'
@@ -13,30 +14,32 @@ import { TABLE_LIST_STALE_TIME, tableKeys } from '@/hooks/queries/utils/table-ke
  * only placed correctly relative to the folder rows it sits beside, so
  * prefetching one without the other still flashes an ungrouped list.
  *
- * The tables list is the one read on this page still served over HTTP rather than from the data
- * layer, and deliberately so. `listTables` lives in `lib/table/service`, whose module graph
- * reaches `workflow-columns` — by several independent paths, including `jobs/service` and
- * `rows/service` — and through it the executor and the executable tool registry. Importing it
- * here put ~4,700 modules into this page's server graph, which `check:tool-registry-boundary`
- * catches. Converting this read means untangling `lib/table`'s internals first; until then the
- * route stays the cheaper option. See {@link prefetchInternalJson}.
+ * The list goes through {@link toTableListItem}, the projection `GET /api/table` itself
+ * returns, because `listTablesContract`'s response schema is a passthrough that neither
+ * coerces nor strips — the client caches the route's JSON verbatim, so seeding raw rows
+ * would put `Date` objects and the server-only `metadata` field under that key.
  *
- * Folders and the chrome reads both go through the data layer and prove the viewer themselves,
- * so an unproven viewer caches nothing and their client fetch reaches the route for the real 403.
+ * The read carries no authorization of its own, so the viewer is proved first.
+ * `getWorkspaceHostContextForViewer` resolves the same effective workspace permission the
+ * route's own check does (both bottom out in `checkWorkspaceAccess`), and it is `cache`d and
+ * already resolved by the layout for this request, so it costs no additional queries. A viewer
+ * without access caches nothing and the client fetch reaches the route for the real 403.
  */
 export async function prefetchTables(
   queryClient: QueryClient,
   workspaceId: string,
   userId: string | undefined
 ): Promise<void> {
+  if (!userId) return
+  const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
+  if (!hostContext) return
+
   await Promise.all([
     queryClient.prefetchQuery({
       queryKey: tableKeys.list(workspaceId, 'active'),
       queryFn: async () => {
-        const response = await prefetchInternalJson<{ data: { tables: TableDefinition[] } }>(
-          `/api/table?workspaceId=${workspaceId}&scope=active`
-        )
-        return response.data.tables
+        const tables = await listTables(workspaceId, { scope: 'active' })
+        return tables.map(toTableListItem)
       },
       staleTime: TABLE_LIST_STALE_TIME,
     }),
