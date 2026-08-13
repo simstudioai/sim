@@ -87,7 +87,7 @@ export async function createConnectDraft(params: {
       // credentialId must be written on BOTH paths: a plain connect that reuses a
       // stale reconnect draft row would otherwise silently rebind the old
       // credential instead of creating a new one.
-      set: { id, displayName, credentialId: credentialId ?? null, expiresAt, createdAt: now },
+      set: { displayName, credentialId: credentialId ?? null, expiresAt, createdAt: now },
     })
     .returning({ id: pendingCredentialDraft.id, expiresAt: pendingCredentialDraft.expiresAt })
 
