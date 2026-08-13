@@ -472,6 +472,21 @@ describe('my route', () => {
 
 Use `@sim/testing` mocks/factories over local test data.
 
+### Test Secrets
+
+Secret scanning runs on every commit in a PR, so a fixture that merely *looks* like a real credential fails CI — and it keeps failing until the commit that introduced it is rewritten out of the branch history, because the scanner reads the whole PR range, not the final tree.
+
+Name the constant for what it is and give it an obviously-fake value, with the TSDoc line the existing tests use:
+
+```typescript
+/** Obvious non-secret so credential scanners do not flag these fixtures. */
+const PLACEHOLDER_PASSWORD = 'not-a-real-password'
+```
+
+Tokens and keys follow the same idea — `'tok-123'`, `'token-123'`, `'test-key'`, `'tok_1234567890abcdef'`. **Never build a fixture out of a real credential's structure**: a genuine JWT header segment (the base64 of `{"alg":…}`, which every JWT starts with), a real-looking `sk-`/`ghp_`/`AKIA` prefix, or a plausible base64 blob all read as live secrets to the scanner. When a test needs a value with internal structure, keep the structure it actually exercises and make everything else unmistakably fake (`opaque-session-value-abc-trailing`, not a well-formed token).
+
+This paragraph deliberately describes those shapes instead of quoting them — a document warning about credential-shaped literals is a poor place to leave one.
+
 ## Utils Rules
 
 - Never create `utils.ts` for single consumer - inline it
