@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import {
   parseV2KnowledgeTagFiltersParam,
   v2BulkUpdateKnowledgeDocumentsContract,
@@ -47,6 +48,11 @@ const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
  * schema defaults `operator` to `eq`, so `{tagName}` and `{tagName, operator}`
  * are one filter to the query and must be one scope to the cursor. An
  * unparseable value binds raw — that request is about to 400 anyway.
+ *
+ * `fieldType` is dropped: `resolveKnowledgeTagFilters` builds every structured
+ * filter with the stored definition's type and never reads the caller's, so
+ * stating it or omitting it selects the same documents. A scope part the query
+ * ignores refuses a cursor for a page that did not move.
  */
 function documentCursorFilters(
   knowledgeBaseId: string,
@@ -58,7 +64,9 @@ function documentCursorFilters(
     workspaceId: query.workspaceId,
     enabledFilter: query.enabledFilter,
     search: query.search,
-    tagFilters: parsed.success ? unorderedScopeOf(parsed.filters) : query.tagFilters,
+    tagFilters: parsed.success
+      ? unorderedScopeOf(parsed.filters?.map((filter) => omit(filter, ['fieldType'])))
+      : query.tagFilters,
   })
 }
 

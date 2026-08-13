@@ -409,6 +409,10 @@ describe('GET /api/v2/knowledge/[id]/documents', () => {
       'the default operator stated explicitly',
       '[{"tagName":"a","value":"1","operator":"eq"},{"tagName":"b","value":"2","operator":"eq"}]',
     ],
+    [
+      'a fieldType the resolver overrides with the stored definition',
+      '[{"tagName":"a","value":"1","fieldType":"text"},{"tagName":"b","value":"2","fieldType":"text"}]',
+    ],
     ['the clauses reordered', '[{"tagName":"b","value":"2"},{"tagName":"a","value":"1"}]'],
   ])('resumes a tag-filter cursor with %s', async (_label, replayFilters) => {
     const mintFilters = '[{"tagName":"a","value":"1"},{"tagName":"b","value":"2"}]'
