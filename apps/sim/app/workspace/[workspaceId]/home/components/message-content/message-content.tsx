@@ -957,6 +957,7 @@ function MessageContentInner({
                     items={segment.items}
                     isDelegating={segment.isDelegating}
                     isStreaming={isStreaming}
+                    isCurrentSection={i === segments.length - 1}
                     isLaneOpen={segment.isOpen}
                   />
                 </div>
