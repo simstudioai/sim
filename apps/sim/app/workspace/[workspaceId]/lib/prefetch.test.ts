@@ -515,8 +515,8 @@ describe('workspace list prefetches', () => {
 
     /**
      * The file list is seeded on every workspace route, so it is the one entry whose size
-     * scales with a workspace's content on routes that never read it. It is read one row
-     * past the budget so the overflow is detectable.
+     * scales with a workspace's content on routes that never read it. The budget is passed
+     * down rather than applied here, so the read can stop before the share join.
      */
     it('seeds the file list, bounded by the document payload budget', async () => {
       const files = [{ id: 'file-1', name: 'a.txt' }]
@@ -526,24 +526,19 @@ describe('workspace list prefetches', () => {
       await prefetchWorkspaceSidebar(client, WORKSPACE_ID, USER_ID, HOST_CONTEXT, null)
 
       expect(mockListWorkspaceFilesWithShares).toHaveBeenCalledWith(WORKSPACE_ID, 'active', {
-        limit: WORKSPACE_FILE_SEED_MAX + 1,
+        maxRows: WORKSPACE_FILE_SEED_MAX,
       })
       expect(client.getQueryData(workspaceFilesKeys.list(WORKSPACE_ID, 'active'))).toEqual(files)
     })
 
     /**
      * The load-bearing half of the budget: a workspace over it seeds NOTHING rather than the
-     * prefix it read. The sidebar search filters this list client-side and the Files browser
-     * renders it as the workspace's files, so a truncated seed would silently hide files —
-     * the client fetch must reach the route for the complete list instead.
+     * prefix that was read. The sidebar search filters this list client-side and the Files
+     * browser renders it as the workspace's files, so a truncated seed would silently hide
+     * files — the client fetch must reach the route for the complete list instead.
      */
     it('seeds nothing when the workspace exceeds the budget', async () => {
-      mockListWorkspaceFilesWithShares.mockResolvedValue(
-        Array.from({ length: WORKSPACE_FILE_SEED_MAX + 1 }, (_, index) => ({
-          id: `file-${index}`,
-          name: `${index}.txt`,
-        }))
-      )
+      mockListWorkspaceFilesWithShares.mockResolvedValue(null)
       const client = makeClient()
 
       await prefetchWorkspaceSidebar(client, WORKSPACE_ID, USER_ID, HOST_CONTEXT, null)

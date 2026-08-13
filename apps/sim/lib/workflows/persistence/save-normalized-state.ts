@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import {
   assertWorkflowMutable,
   authorizeWorkflowByWorkspacePermission,
+  WorkflowLockedError,
 } from '@sim/platform-authz/workflow'
 import { eq } from 'drizzle-orm'
 import type { z } from 'zod'
@@ -11,8 +12,7 @@ import {
   type WorkflowStateContractOutput,
   workflowStateSchema,
 } from '@/lib/api/contracts/workflows'
-import { env } from '@/lib/core/config/env'
-import { getSocketServerUrl } from '@/lib/core/utils/urls'
+import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -46,7 +46,8 @@ export function parseWorkflowStateForPersistence(
  * and the copilot checkpoint revert — calls this, so none of those steps can be
  * skipped by going through a different door.
  *
- * @throws WorkflowLockedError when the workflow is not mutable.
+ * Every refusal, the workflow lock included, comes back as a failure result so
+ * callers need only one branch to present.
  */
 export async function saveWorkflowNormalizedState(params: {
   requestId: string
@@ -79,7 +80,14 @@ export async function saveWorkflowNormalizedState(params: {
     }
   }
 
-  await assertWorkflowMutable(workflowId)
+  try {
+    await assertWorkflowMutable(workflowId)
+  } catch (error) {
+    if (error instanceof WorkflowLockedError) {
+      return { success: false, status: error.status, error: error.message }
+    }
+    throw error
+  }
 
   const { state: preparedState, warnings: preparationWarnings } =
     prepareWorkflowStateForPersistence({
@@ -163,35 +171,7 @@ export async function saveWorkflowNormalizedState(params: {
     logger.error(`[${requestId}] Failed to persist custom tools`, { error, workflowId })
   }
 
-  await notifySocketServer(requestId, workflowId)
+  await notifyWorkflowUpdated(workflowId)
 
   return { success: true, warnings: preparationWarnings }
-}
-
-/**
- * Best-effort nudge so connected editors reload the workflow. Never fails the
- * write — the state is already committed by the time this runs.
- */
-async function notifySocketServer(requestId: string, workflowId: string): Promise<void> {
-  try {
-    const notifyResponse = await fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': env.INTERNAL_API_SECRET,
-      },
-      body: JSON.stringify({ workflowId }),
-    })
-
-    if (!notifyResponse.ok) {
-      logger.warn(
-        `[${requestId}] Failed to notify Socket.IO server about workflow ${workflowId} update`
-      )
-    }
-  } catch (notificationError) {
-    logger.warn(
-      `[${requestId}] Error notifying Socket.IO server about workflow ${workflowId} update`,
-      notificationError
-    )
-  }
 }

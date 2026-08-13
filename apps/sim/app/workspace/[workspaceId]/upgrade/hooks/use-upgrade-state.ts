@@ -9,9 +9,9 @@ import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
 import { CREDIT_TIERS } from '@/lib/billing/constants'
 import { getPlanTierCredits, isEnterprise, isFree, isPro, isTeam } from '@/lib/billing/plan-helpers'
-import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { invalidateWorkspaceUsage } from '@/hooks/queries/utils/invalidate-usage'
+import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceHostKeys } from '@/hooks/queries/workspace-host'
-import { invalidateWorkspaceUsage } from '@/hooks/queries/workspace-usage'
 
 const PRO_TIER = CREDIT_TIERS[0]
 const MAX_TIER = CREDIT_TIERS[1]
@@ -94,8 +94,9 @@ export function useUpgradeState({
   /**
    * A non-redirect plan switch settles server-side immediately, so every read that
    * describes the plan has to be refetched — the host context the page renders from,
-   * the subscription/usage reads the billing surfaces share, and the workspace credit
-   * availability that drives the credits chip and the run gate.
+   * the subscription/usage reads the billing surfaces share, the proration invoice the
+   * switch just produced, and the workspace credit availability that drives the credits
+   * chip and the run gate.
    */
   const refreshBillingState = useCallback(
     () =>
@@ -103,6 +104,7 @@ export function useUpgradeState({
         queryClient.invalidateQueries({ queryKey: workspaceHostKeys.detail(workspaceId) }),
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() }),
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() }),
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.invoicesAll() }),
         invalidateWorkspaceUsage(queryClient),
       ]),
     [queryClient, workspaceId]

@@ -28,10 +28,10 @@ export const tableKeys = {
   /**
    * Prefix covering only the paged row lists.
    *
-   * `rowsRoot` is a shared parent — `rowWrites` and `find` hang off it holding
-   * entirely different shapes — so anything walking the cache to update or snapshot
-   * row pages must start here instead. Reaching for `rowsRoot` and subtracting the
-   * siblings is a denylist that rots the moment a fifth subtree is added.
+   * `rowsRoot` is a shared parent — `find` hangs off it holding an entirely different
+   * shape — so anything walking the cache to update or snapshot row pages must start
+   * here instead. Reaching for `rowsRoot` and subtracting the siblings is a denylist
+   * that rots the moment another subtree is added.
    */
   infiniteRowsRoot: (tableId: string) => [...tableKeys.rowsRoot(tableId), 'infinite'] as const,
   infiniteRows: (tableId: string, paramsKey: string) =>

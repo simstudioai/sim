@@ -118,7 +118,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     const result = await resolveCredentialToken(auth, {
       requestId,
-      credentialId: credentialId ?? '',
+      credentialId,
       workflowId: workflowId ?? undefined,
       scopes,
       impersonateEmail,

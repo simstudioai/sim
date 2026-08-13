@@ -1,6 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { z } from 'zod'
+import {
+  impersonateEmailSchema,
+  type OAuthTokenResponse,
+} from '@/lib/api/contracts/oauth-connections'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import type { AuthResult } from '@/lib/auth/hybrid'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
@@ -25,21 +28,16 @@ export interface CredentialAuditRequest {
   headers: { get(name: string): string | null }
 }
 
-/** Token material a resolved credential yields, as returned to every surface. */
-export interface CredentialTokenPayload {
-  accessToken: string
-  idToken?: string
-  instanceUrl?: string
-  apiDomain?: string
-  cloudId?: string
-  domain?: string
-  authStyle?: 'x-api-token'
-}
+/**
+ * Token material a resolved credential yields. It is the route's response body, so it
+ * comes from the contract rather than a parallel declaration that could drift from it.
+ */
+export type CredentialTokenPayload = OAuthTokenResponse
 
 export interface ResolveCredentialTokenInput {
   /** Correlation id used by the credential service's own logging. */
   requestId: string
-  credentialId: string
+  credentialId?: string
   workflowId?: string
   /** Canonical provider scopes, used only by service-account token minting. */
   scopes?: string[]
@@ -56,8 +54,6 @@ export interface ResolveCredentialTokenInput {
 export type ResolveCredentialTokenResult =
   | { ok: true; token: CredentialTokenPayload }
   | { ok: false; status: number; error: string; code?: string }
-
-const impersonateEmailSchema = z.string().email()
 
 /**
  * Emits the semantic "credential used" trail for one resolved credential.
@@ -104,9 +100,10 @@ function recordCredentialAccess(params: {
  * into the wire payload every surface returns. Provider-specific hosts live in
  * the credential's scope string and are extracted through shared, allowlisted
  * helpers — never a local regex, since these values are injected into tool
- * calls that carry the token.
+ * calls that carry the token. Zoho Desk's data-center-scoped REST base is one
+ * such value, surfaced as `apiDomain` so callers never assume a host.
  */
-export function buildOAuthTokenPayload(
+function buildOAuthTokenPayload(
   credential: { providerId: string; scope?: string | null; idToken?: string | null },
   accessToken: string
 ): CredentialTokenPayload {
@@ -114,9 +111,6 @@ export function buildOAuthTokenPayload(
     ? extractSalesforceInstanceUrl(credential.scope ?? undefined)
     : undefined
 
-  // Zoho Desk persists its data-center-specific REST base URL in the scope
-  // string (derived from the token response api_domain) so callers never
-  // assume a host. Surface it as apiDomain for tool param injection.
   let apiDomain: string | undefined
   if (credential.providerId === 'zoho-desk' && credential.scope) {
     apiDomain = extractZohoDeskBaseFromScope(credential.scope)

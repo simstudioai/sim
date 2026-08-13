@@ -61,8 +61,8 @@ import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { coerceValue } from '@/executor/utils/start-block'
+import { scheduleUsageRefresh } from '@/hooks/queries/utils/invalidate-usage'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
-import { scheduleUsageRefresh } from '@/hooks/queries/workspace-usage'
 import {
   isExecutionStreamHttpError,
   SSEEventHandlerError,

@@ -110,11 +110,6 @@ export const PUT = withRouteHandler(
       const parsed = await parseRequest(putWorkflowNormalizedStateContract, request, context)
       if (!parsed.success) return parsed.response
 
-      // Note: prior versions cross-checked that each variable's `workflowId`
-      // equalled the path param. The write contract does not carry `workflowId`
-      // per variable (the path param is the source of truth), so the check
-      // is unreachable and was removed.
-
       const result = await saveWorkflowNormalizedState({
         requestId,
         workflowId,

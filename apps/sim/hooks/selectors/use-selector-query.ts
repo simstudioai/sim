@@ -79,8 +79,7 @@ export function useSelectorOptions(
    * rejection. Unlike {@link useSelectorOptionDetail}, resolving nothing here is never
    * cheaper than the list's own preconditions, so there is no case for an override.
    */
-  const isEnabled =
-    (args.enabled ?? true) && (definition.enabled ? definition.enabled(queryArgs) : true)
+  const isEnabled = args.enabled !== false && (definition.enabled?.(queryArgs) ?? true)
   const supportsPagination = Boolean(definition.fetchPage)
 
   const flatQuery = useQuery<SelectorOption[]>({

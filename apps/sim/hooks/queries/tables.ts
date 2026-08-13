@@ -2196,7 +2196,7 @@ export async function snapshotAndMutateRows(
 ): Promise<RowsCacheSnapshots> {
   const scope = options?.onlyKey
     ? ({ queryKey: options.onlyKey, exact: true } as const)
-    : ({ queryKey: tableKeys.rowsRoot(tableId) } as const)
+    : ({ queryKey: tableKeys.infiniteRowsRoot(tableId) } as const)
   if (options?.cancelInFlight !== false) {
     await queryClient.cancelQueries(scope)
   }

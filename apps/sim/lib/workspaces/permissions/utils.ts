@@ -107,16 +107,22 @@ async function selectWorkspaceWithOwner(
 }
 
 /**
- * Request-memoized plain workspace read, keyed by id and archived visibility.
- * A single Server Component render pass resolves the same workspace row through
- * several independent gates, so without this the row is re-read once per gate.
+ * Request-memoized plain workspace read, keyed by id alone. A single Server
+ * Component render pass resolves the same workspace row through several
+ * independent gates, so without this the row is re-read once per gate.
+ *
+ * Keyed on the id and not on archived visibility on purpose: the gates disagree
+ * about whether they want archived workspaces, and memoizing that argument would
+ * give each answer its own entry and dedupe nothing. Reading the superset once
+ * and applying the caller's visibility below is what makes the two agree on a
+ * single query.
  *
  * Outside a Server Component render React evaluates this normally and retains
  * nothing, so API routes and background work are unaffected.
  */
 const readWorkspaceWithOwner = cache(
-  (workspaceId: string, includeArchived: boolean): Promise<WorkspaceWithOwner | null> =>
-    selectWorkspaceWithOwner(workspaceId, includeArchived, db, false)
+  (workspaceId: string): Promise<WorkspaceWithOwner | null> =>
+    selectWorkspaceWithOwner(workspaceId, true, db, false)
 )
 
 /**
@@ -130,7 +136,7 @@ const readWorkspaceWithOwner = cache(
  * @param workspaceId - The workspace ID to look up
  * @returns The workspace with owner info if found, null otherwise
  */
-export function getWorkspaceWithOwner(
+export async function getWorkspaceWithOwner(
   workspaceId: string,
   options?: { includeArchived?: boolean; executor?: DbOrTx; forUpdate?: boolean }
 ): Promise<WorkspaceWithOwner | null> {
@@ -138,7 +144,9 @@ export function getWorkspaceWithOwner(
   if (executor || forUpdate) {
     return selectWorkspaceWithOwner(workspaceId, includeArchived, executor ?? db, forUpdate)
   }
-  return readWorkspaceWithOwner(workspaceId, includeArchived)
+  const ws = await readWorkspaceWithOwner(workspaceId)
+  if (!ws) return null
+  return includeArchived || !ws.archivedAt ? ws : null
 }
 
 /**

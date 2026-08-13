@@ -10,7 +10,7 @@ import { wandGenerateStreamContract } from '@/lib/api/contracts'
 import { readSSEStream } from '@/lib/core/utils/sse'
 import { shouldStripCodeFences, stripCodeFences } from '@/lib/wand/strip-code-fences'
 import type { GenerationType } from '@/blocks/types'
-import { scheduleUsageRefresh } from '@/hooks/queries/workspace-usage'
+import { scheduleUsageRefresh } from '@/hooks/queries/utils/invalidate-usage'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 

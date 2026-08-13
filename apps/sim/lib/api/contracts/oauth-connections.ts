@@ -62,6 +62,9 @@ const trelloCallbackQuerySchema = z
   })
   .passthrough()
 
+/** Google domain-wide-delegation subject. Also applied by in-process credential callers. */
+export const impersonateEmailSchema = z.string().email()
+
 export const oauthTokenRequestBodySchema = z
   .object({
     credentialId: z.string().min(1).optional(),
@@ -69,7 +72,7 @@ export const oauthTokenRequestBodySchema = z
     providerId: z.string().min(1).optional(),
     workflowId: z.string().min(1).nullish(),
     scopes: z.array(z.string()).optional(),
-    impersonateEmail: z.string().email().optional(),
+    impersonateEmail: impersonateEmailSchema.optional(),
   })
   .refine(
     (data) => data.credentialId || (data.credentialAccountUserId && data.providerId),
@@ -88,7 +91,7 @@ export const oauthTokenPostQuerySchema = z.object({
   userId: z.string().min(1).optional(),
 })
 
-const oauthTokenResponseSchema = z.object({
+export const oauthTokenResponseSchema = z.object({
   accessToken: z.string(),
   idToken: z.string().optional(),
   instanceUrl: z.string().optional(),
@@ -98,6 +101,9 @@ const oauthTokenResponseSchema = z.object({
   domain: z.string().optional(),
   authStyle: z.enum(['x-api-token']).optional(),
 })
+
+/** Token material a resolved credential yields, on the wire and in-process alike. */
+export type OAuthTokenResponse = z.output<typeof oauthTokenResponseSchema>
 
 export const oauthTokenGetContract = defineRouteContract({
   method: 'GET',

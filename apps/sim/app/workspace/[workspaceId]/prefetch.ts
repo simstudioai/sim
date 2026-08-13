@@ -101,11 +101,11 @@ async function seedWorkspaceList(
  * thousands of files would otherwise push more than a megabyte of HTML ahead of first
  * paint on the logs, settings, and editor routes that never read it.
  *
- * The read is capped at one row past the budget purely to detect the overflow. A
- * workspace above it seeds NOTHING rather than a prefix: the sidebar search filters this
- * list client-side and the Files browser renders it as the workspace's files, so a
- * truncated seed would silently hide files. Those workspaces fetch the complete list
- * from the route instead — which for a list that large is also the cheaper first paint.
+ * A workspace above the budget seeds NOTHING rather than a prefix: the sidebar search
+ * filters this list client-side and the Files browser renders it as the workspace's
+ * files, so a truncated seed would silently hide files. Those workspaces fetch the
+ * complete list from the route instead — which for a list that large is also the
+ * cheaper first paint.
  */
 export const WORKSPACE_FILE_SEED_MAX = 300
 
@@ -123,15 +123,15 @@ export const WORKSPACE_FILE_SEED_MAX = 300
  * workspace exceeds {@link WORKSPACE_FILE_SEED_MAX}: `prefetchQuery` always creates one,
  * and a partial one would be read as the whole list.
  *
- * The shape comes from the same contract-parsed reader `GET /api/workspaces/[id]/files`
- * responds with, so a seeded entry is identical to what the client hook would cache.
+ * Parsed through the same response contract `GET /api/workspaces/[id]/files` validates
+ * against, so a seeded entry is identical to what the client hook would cache.
  */
 async function seedWorkspaceFiles(queryClient: QueryClient, workspaceId: string): Promise<void> {
   try {
     const files = await listWorkspaceFilesWithShares(workspaceId, 'active', {
-      limit: WORKSPACE_FILE_SEED_MAX + 1,
+      maxRows: WORKSPACE_FILE_SEED_MAX,
     })
-    if (files.length > WORKSPACE_FILE_SEED_MAX) return
+    if (!files) return
     queryClient.setQueryData(workspaceFilesKeys.list(workspaceId, 'active'), files)
   } catch (error) {
     /** Optimization only: the client fetch reaches the route instead. Logged so drift between

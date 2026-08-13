@@ -528,7 +528,7 @@ export function useCloudStorageConfigured(enabled = true) {
      * closed — the upload path treats "unknown" as "not configured", so a single
      * blip would disable cloud-backed uploads until a full reload. The key is
      * global, so navigating or switching workspace cannot recover it either.
-     * Matches {@link useVoiceSettings}, which carries the same three options.
+     * Mirrors {@link useVoiceSettings}, which overrides `retryOnMount` for the same reason.
      */
     retryOnMount: true,
   })

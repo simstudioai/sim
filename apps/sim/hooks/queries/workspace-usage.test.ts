@@ -15,13 +15,13 @@ import {
   getWorkspaceCreditAvailabilityContract,
   getWorkspaceUsageGateContract,
 } from '@/lib/api/contracts/workspaces'
+import { invalidateWorkspaceUsage } from '@/hooks/queries/utils/invalidate-usage'
+import { workspaceUsageKeys } from '@/hooks/queries/utils/workspace-usage-keys'
 import {
   fetchWorkspaceCreditAvailability,
   fetchWorkspaceUsageGate,
-  invalidateWorkspaceUsage,
   WORKSPACE_CREDIT_AVAILABILITY_STALE_TIME,
   WORKSPACE_USAGE_GATE_STALE_TIME,
-  workspaceUsageKeys,
 } from '@/hooks/queries/workspace-usage'
 
 describe('workspace usage gate query', () => {

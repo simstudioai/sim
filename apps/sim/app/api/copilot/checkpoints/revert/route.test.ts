@@ -49,9 +49,11 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
     authMockFns.mockGetSession.mockResolvedValue(null)
 
+    /** Authorization is the route's workflow read, so an allowed result always carries one. */
     workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: true,
       status: 200,
+      workflow: { id: 'b2c3d4e5-f6a7-4b89-a0d1-e2f3a4b5c6d7', workspaceId: 'ws-123' },
     })
 
     mockGetAccessibleCopilotChat.mockResolvedValue({ id: 'chat-123', userId: 'user-123' })
@@ -201,7 +203,12 @@ describe('Copilot Checkpoints Revert API Route', () => {
       }
 
       queueTableRows(schemaMock.workflowCheckpoints, [mockCheckpoint])
-      queueTableRows(schemaMock.workflow, [])
+      /** Authorization performs the workflow read, so a missing workflow surfaces through it. */
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+        allowed: false,
+        status: 404,
+        workflow: null,
+      })
 
       const req = new NextRequest('http://localhost:3000/api/copilot/checkpoints/revert', {
         method: 'POST',
@@ -214,6 +221,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
       expect(response.status).toBe(404)
       const responseData = await response.json()
       expect(responseData.error).toBe('Workflow not found')
+      expect(mockSaveWorkflowNormalizedState).not.toHaveBeenCalled()
     })
 
     it('should return 401 when workflow belongs to different user', async () => {
@@ -237,6 +245,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
       workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: false,
         status: 403,
+        workflow: { id: 'b2c3d4e5-f6a7-4b89-a0d1-e2f3a4b5c6d7', workspaceId: 'ws-123' },
       })
 
       const req = new NextRequest('http://localhost:3000/api/copilot/checkpoints/revert', {
@@ -562,8 +571,9 @@ describe('Copilot Checkpoints Revert API Route', () => {
       }
 
       dbChainMockFns.where.mockReturnValueOnce(Promise.resolve([mockCheckpoint]))
-      dbChainMockFns.where.mockReturnValueOnce(
-        Promise.reject(new Error('Database error during workflow lookup'))
+      /** Authorization performs the workflow read, so a failed lookup surfaces through it. */
+      workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockRejectedValueOnce(
+        new Error('Database error during workflow lookup')
       )
 
       const req = new NextRequest('http://localhost:3000/api/copilot/checkpoints/revert', {

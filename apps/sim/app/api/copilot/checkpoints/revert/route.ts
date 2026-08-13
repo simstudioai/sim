@@ -1,10 +1,7 @@
 import { db } from '@sim/db'
-import { workflowCheckpoints, workflow as workflowTable } from '@sim/db/schema'
+import { workflowCheckpoints } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import {
-  authorizeWorkflowByWorkspacePermission,
-  WorkflowLockedError,
-} from '@sim/platform-authz/workflow'
+import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { revertCopilotCheckpointContract } from '@/lib/api/contracts/copilot'
@@ -68,21 +65,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return createNotFoundResponse('Checkpoint not found or access denied')
     }
 
-    const workflowData = await db
-      .select()
-      .from(workflowTable)
-      .where(eq(workflowTable.id, checkpoint.workflowId))
-      .then((rows) => rows[0])
-
-    if (!workflowData) {
-      return createNotFoundResponse('Workflow not found')
-    }
-
+    /** Authorization already loads the workflow, so its absence is the not-found signal. */
     const authorization = await authorizeWorkflowByWorkspacePermission({
       workflowId: checkpoint.workflowId,
       userId,
       action: 'write',
     })
+    if (!authorization.workflow) {
+      return createNotFoundResponse('Workflow not found')
+    }
     if (!authorization.allowed) {
       return createUnauthorizedResponse()
     }
@@ -144,22 +135,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    /**
-     * A locked workflow used to surface here as a non-OK PUT response, so it
-     * still resolves to the same revert failure rather than the generic
-     * outer-catch message. Every other throw keeps propagating, matching the
-     * old transport-error path.
-     */
     const saveResult = await saveWorkflowNormalizedState({
       requestId: tracker.requestId,
       workflowId: checkpoint.workflowId,
       userId,
       state: parsedState.data,
-    }).catch((error) => {
-      if (error instanceof WorkflowLockedError) {
-        return { success: false as const, status: error.status, error: error.message }
-      }
-      throw error
     })
 
     if (!saveResult.success) {

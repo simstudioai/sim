@@ -7,7 +7,7 @@ import type { ProviderRequest, ProviderResponse } from '@/providers/types'
 
 const logger = createLogger('ExecutorProviderRequest')
 
-export interface ExecuteBlockProviderRequestInput {
+interface ExecuteBlockProviderRequestInput {
   ctx: ExecutionContext
   providerId: string
   request: ProviderRequest
