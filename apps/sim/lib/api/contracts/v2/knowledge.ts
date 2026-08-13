@@ -1206,7 +1206,7 @@ export const v2UpdateKnowledgeDocumentBodySchema = z
       .literal(true)
       .optional()
       .describe(
-        'Requeue the document for processing. Send it alone: no other field may accompany it.'
+        'Requeue a failed or stuck document for processing. Send it alone — no other field may accompany it — and it answers with a queue acknowledgement rather than the document.'
       ),
   })
   .strict()

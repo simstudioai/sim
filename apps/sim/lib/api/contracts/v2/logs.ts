@@ -227,7 +227,9 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       .optional()
       .default('basic'),
     includeTraceSpans: booleanQueryFlagSchema
-      .describe('Whether to include block-level trace spans.')
+      .describe(
+        'Whether to include block-level trace spans. Spans are stored apart from the log row and pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error — an empty array does not mean the run recorded none.'
+      )
       .optional()
       .default(false),
     includeFinalOutput: booleanQueryFlagSchema

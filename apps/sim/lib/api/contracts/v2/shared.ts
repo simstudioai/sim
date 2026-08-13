@@ -5,7 +5,13 @@ import {
   FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
   FORBIDDEN_DETAIL_CODES,
 } from '@/lib/core/application/forbidden'
-import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/lib/folders/paths'
+import {
+  FolderPathError,
+  MAX_FOLDER_PATH_BYTES,
+  MAX_FOLDER_PATH_SEGMENTS,
+  parseFolderPath,
+  requireNonRootFolderPath,
+} from '@/lib/folders/paths'
 
 /**
  * Shared building blocks for the v2 API contract surface.
@@ -287,12 +293,21 @@ export function v2LimitSchema(options: V2LimitOptions = {}) {
   const base = z.coerce.number({ error: 'limit must be a number' })
 
   if (outOfRange === 'clamp') {
-    return base
-      .optional()
-      .default(fallback)
-      .transform((value) => Math.min(Math.max(1, Math.trunc(value)), max))
-      .describe(described)
-      .meta({ type: 'integer', minimum: 1, maximum: max })
+    return (
+      base
+        .optional()
+        .default(fallback)
+        .transform((value) => Math.min(Math.max(1, Math.trunc(value)), max))
+        .describe(described)
+        /**
+         * `minimum`/`maximum` are deliberately absent. In JSON Schema they mean
+         * "rejected outside", and this branch clamps instead — publishing them
+         * made a generated SDK refuse locally a `limit` the server would have
+         * accepted and silently corrected. The range lives in the description,
+         * which is where a clamped bound belongs.
+         */
+        .meta({ type: 'integer' })
+    )
   }
 
   return base
@@ -389,6 +404,19 @@ export function v2RunOrderSchema(subject: 'execution' | 'run') {
  */
 export const V2_SEARCH_MAX_LENGTH = 200
 
+/**
+ * Added to `sortBy` wherever `name` is sortable.
+ *
+ * Name ordering is `ORDER BY` on the stored text with no `COLLATE` and no
+ * `lower()`, so it is whatever the server database's collation does — under a
+ * `C`-collated deployment that is byte order, which puts every capitalized name
+ * ahead of every lowercase one. Nothing in the API pins the collation, so the
+ * spec must not promise one; what it can promise is that Sim does not case-fold,
+ * which is the part a caller gets wrong.
+ */
+const NAME_SORT_COLLATION =
+  'Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.'
+
 export const v2SearchSchema = z
   .string()
   .trim()
@@ -398,6 +426,15 @@ export const v2SearchSchema = z
   .describe('Case-insensitive substring search on the resource name.')
 
 export const v2SortOrderSchema = z.enum(LIST_SORT_ORDERS).describe('Sort direction.')
+
+/**
+ * The closed vocabulary `z.stringbool()` accepts, restated here only so the
+ * generated spec can publish it — Zod's defaults are internal to the library
+ * and contribute nothing to the JSON Schema. `shared.test.ts` pins each spelling
+ * against the schema so a Zod upgrade that changes the set fails here.
+ */
+export const V2_TRUE_VALUES = ['true', '1', 'yes', 'on', 'y', 'enabled'] as const
+export const V2_FALSE_VALUES = ['false', '0', 'no', 'off', 'n', 'disabled'] as const
 
 export type V2SortOrder = ListSortOrder
 
@@ -415,16 +452,34 @@ function canonicalFolderPathSchema(parser: (path: string) => string[]) {
   })
 }
 
+/**
+ * The canonical-path rule, published once on the two folder-path components
+ * every folder family references rather than restated per operation.
+ *
+ * `canonicalFolderPathSchema` validates through `superRefine`, which
+ * contributes nothing to JSON Schema, so a folder path shipped as an
+ * unconstrained `string`: the percent-encoding, the rejections, and both caps
+ * were invisible to a spec-driven client. `maxLength` is the byte cap measured
+ * on the *encoded* form, so it is an upper bound on characters rather than a
+ * character count — a name outside the unreserved set spends up to twelve
+ * bytes per source character.
+ */
+const FOLDER_PATH_FORMAT = `Segments are percent-encoded, so a folder shown as "New folder" is \`/New%20folder\`: everything outside \`A-Z a-z 0-9 - _ . ~\` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal \`.\` or \`..\` segment are rejected. At most ${MAX_FOLDER_PATH_SEGMENTS} segments and ${MAX_FOLDER_PATH_BYTES} encoded bytes.`
+
 /** Canonical slash-prefixed folder path. `/` is the workspace root. */
-export const v2FolderPathSchema = canonicalFolderPathSchema(parseFolderPath).describe(
-  'Canonical slash-prefixed folder path. `/` is the workspace root.'
-)
+export const v2FolderPathSchema = canonicalFolderPathSchema(parseFolderPath).meta({
+  title: 'Folder path',
+  description: `Canonical slash-prefixed folder path. \`/\` is the workspace root. ${FOLDER_PATH_FORMAT}`,
+  maxLength: MAX_FOLDER_PATH_BYTES,
+})
 export type V2FolderPath = z.output<typeof v2FolderPathSchema>
 
 /** Canonical path that identifies a real folder rather than the virtual root. */
-export const v2NonRootFolderPathSchema = canonicalFolderPathSchema(
-  requireNonRootFolderPath
-).describe('Canonical slash-prefixed path identifying a real folder rather than the root.')
+export const v2NonRootFolderPathSchema = canonicalFolderPathSchema(requireNonRootFolderPath).meta({
+  title: 'Non-root folder path',
+  description: `Canonical slash-prefixed path identifying a real folder rather than the root. ${FOLDER_PATH_FORMAT}`,
+  maxLength: MAX_FOLDER_PATH_BYTES,
+})
 
 function normalizeFolderPathInput(path: string): string {
   return path.length === 0 || path.startsWith('/') ? path : `/${path}`
@@ -435,14 +490,24 @@ export const v2FolderPathInputSchema = z
   .string()
   .transform(normalizeFolderPathInput)
   .pipe(v2FolderPathSchema)
-  .describe('Folder path. A missing leading slash is normalized before validation.')
+  .meta({
+    id: 'FolderPathInput',
+    title: 'Folder path input',
+    description: `Folder path. A missing leading slash is normalized before validation. ${FOLDER_PATH_FORMAT}`,
+    maxLength: MAX_FOLDER_PATH_BYTES,
+  })
 
 /** Non-root input path that accepts an omitted leading slash and emits the canonical form. */
 export const v2NonRootFolderPathInputSchema = z
   .string()
   .transform(normalizeFolderPathInput)
   .pipe(v2NonRootFolderPathSchema)
-  .describe('Non-root folder path. A missing leading slash is normalized before validation.')
+  .meta({
+    id: 'NonRootFolderPathInput',
+    title: 'Non-root folder path input',
+    description: `Non-root folder path. A missing leading slash is normalized before validation. ${FOLDER_PATH_FORMAT}`,
+    maxLength: MAX_FOLDER_PATH_BYTES,
+  })
 
 export const v2FolderSchema = z
   .object({
@@ -510,10 +575,20 @@ export const v2DeleteFolderQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace containing the folder.'),
     path: v2NonRootFolderPathInputSchema.describe('Path of the folder to delete.'),
+    /**
+     * Published as an enum rather than the bare `type: string` `z.stringbool()`
+     * emits. This is the difference between deleting one empty folder and
+     * deleting a subtree, and the accepted vocabulary is closed — an
+     * out-of-vocabulary value is a `400`, not a silent `false` — so leaving it
+     * undeclared hid a destructive switch behind a guess.
+     */
     recursive: z
       .stringbool()
       .prefault('false')
-      .describe('Delete nested files and folders when true.'),
+      .describe(
+        "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected."
+      )
+      .meta({ enum: [...V2_TRUE_VALUES, ...V2_FALSE_VALUES] }),
   })
   .strict()
 
@@ -526,8 +601,11 @@ export function v2SortFields<const F extends readonly [string, ...string[]]>(
   fields: F,
   defaults: { sortBy: F[number]; sortOrder: V2SortOrder }
 ) {
+  const sortByDescription = fields.includes('name')
+    ? `Field used to sort the result. ${NAME_SORT_COLLATION}`
+    : 'Field used to sort the result.'
   return {
-    sortBy: z.enum(fields).default(defaults.sortBy).describe('Field used to sort the result.'),
+    sortBy: z.enum(fields).default(defaults.sortBy).describe(sortByDescription),
     sortOrder: v2SortOrderSchema.default(defaults.sortOrder).describe('Sort direction.'),
   }
 }

@@ -57,7 +57,7 @@
             "description": "Restrict results to tables in this folder.",
             "schema": {
               "description": "Restrict results to tables in this folder.",
-              "type": "string"
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
@@ -76,10 +76,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "createdAt",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -104,8 +104,6 @@
             "schema": {
               "description": "Maximum tables to return per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
               "type": "integer",
-              "minimum": 1,
-              "maximum": 1000,
               "default": 100
             }
           },
@@ -395,7 +393,7 @@
       "patch": {
         "operationId": "updateTable",
         "summary": "Update Table",
-        "description": "Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nThis operation is NOT atomic. The name, description, and folder changes are written independently in that order, so a failure part-way through leaves the earlier writes committed — a 4xx does NOT mean nothing changed. When at least one field landed before the failure, the error body carries `details.applied`: the list of fields (`name`, `description`, `folderPath`) that were successfully written. Re-read the table, or retry with only the fields missing from `details.applied`.\n\nA workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nThis operation is NOT atomic. Name, description, and folder are written independently in that order, so a 4xx does NOT mean nothing changed: the error body carries `details.applied` naming the fields that landed. Retry with only the fields missing from it.\n\nA workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3414,7 +3412,7 @@
             "description": "Restrict results to direct children of this parent path.",
             "schema": {
               "description": "Restrict results to direct children of this parent path.",
-              "type": "string"
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
@@ -3433,10 +3431,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "name",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -3660,16 +3658,30 @@
             "description": "Path of the folder to delete.",
             "schema": {
               "description": "Path of the folder to delete.",
-              "type": "string"
+              "$ref": "#/components/schemas/NonRootFolderPathInput"
             }
           },
           {
             "name": "recursive",
             "in": "query",
             "required": false,
-            "description": "Delete nested files and folders when true.",
+            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected.",
             "schema": {
-              "description": "Delete nested files and folders when true.",
+              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. Any listed spelling is accepted in any case, and any other value is rejected.",
+              "enum": [
+                "true",
+                "1",
+                "yes",
+                "on",
+                "y",
+                "enabled",
+                "false",
+                "0",
+                "no",
+                "off",
+                "n",
+                "disabled"
+              ],
               "default": "false",
               "type": "string"
             }
@@ -3985,6 +3997,12 @@
           }
         ]
       },
+      "FolderPathInput": {
+        "title": "Folder path input",
+        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
       "V2ApiTable": {
         "type": "object",
         "properties": {
@@ -4106,7 +4124,9 @@
           },
           "folderPath": {
             "type": "string",
-            "description": "Canonical slash-prefixed folder path. `/` is the workspace root."
+            "title": "Folder path",
+            "description": "Canonical slash-prefixed folder path. `/` is the workspace root. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+            "maxLength": 4096
           },
           "locks": {
             "type": "object",
@@ -4368,7 +4388,7 @@
           },
           "folderPath": {
             "description": "Folder in which to create the table.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["name", "workspaceId", "schema"],
@@ -4462,8 +4482,7 @@
             "description": "Replacement table description, or null to clear it."
           },
           "folderPath": {
-            "description": "Folder path. A missing leading slash is normalized before validation.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId"],
@@ -5001,6 +5020,145 @@
         "title": "Update table rows response",
         "description": "Updated row count and identifiers."
       },
+      "TablePredicate": {
+        "title": "Table predicate",
+        "description": "Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so \"not X\" is not the complement of \"X\" over a nullable column. Multi-select `ncontains` is the exception and excludes nulls. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.",
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Matches a row when every member matches.",
+            "properties": {
+              "all": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "description": "Members combined with AND. An empty group is rejected, because it would compile to no filter at all.",
+                "items": {
+                  "description": "A nested group, or a single condition.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TablePredicate"
+                    },
+                    {
+                      "type": "object",
+                      "title": "Predicate condition",
+                      "description": "One column comparison.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "eq",
+                            "ne",
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte",
+                            "in",
+                            "nin",
+                            "contains",
+                            "ncontains",
+                            "startsWith",
+                            "endsWith",
+                            "like",
+                            "ilike",
+                            "nlike",
+                            "nilike",
+                            "isEmpty",
+                            "isNotEmpty",
+                            "isNull",
+                            "isNotNull"
+                          ],
+                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                        },
+                        "value": {
+                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["all"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Matches a row when at least one member matches.",
+            "properties": {
+              "any": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "description": "Members combined with OR. An empty group is rejected, because it would compile to no filter at all.",
+                "items": {
+                  "description": "A nested group, or a single condition.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TablePredicate"
+                    },
+                    {
+                      "type": "object",
+                      "title": "Predicate condition",
+                      "description": "One column comparison.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "eq",
+                            "ne",
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte",
+                            "in",
+                            "nin",
+                            "contains",
+                            "ncontains",
+                            "startsWith",
+                            "endsWith",
+                            "like",
+                            "ilike",
+                            "nlike",
+                            "nilike",
+                            "isEmpty",
+                            "isNotEmpty",
+                            "isNull",
+                            "isNotNull"
+                          ],
+                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                        },
+                        "value": {
+                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["any"],
+            "additionalProperties": false
+          }
+        ]
+      },
       "UpdateTableRowsRequest": {
         "type": "object",
         "properties": {
@@ -5010,7 +5168,7 @@
             "description": "Unique workspace identifier."
           },
           "filter": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
+            "$ref": "#/components/schemas/TablePredicate"
           },
           "data": {
             "description": "Row-data patch applied to every matching row.",
@@ -5081,7 +5239,7 @@
             "description": "Unique workspace identifier."
           },
           "filter": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
+            "$ref": "#/components/schemas/TablePredicate"
           },
           "limit": {
             "description": "Maximum matching rows to delete.",
@@ -5281,7 +5439,7 @@
             "description": "Unique workspace identifier."
           },
           "predicate": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
+            "$ref": "#/components/schemas/TablePredicate"
           },
           "sort": {
             "description": "Ordered table-row sort specification.",
@@ -5381,7 +5539,7 @@
             "description": "Unique workspace identifier."
           },
           "predicate": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
+            "$ref": "#/components/schemas/TablePredicate"
           }
         },
         "required": ["workspaceId"],
@@ -5587,6 +5745,188 @@
         "title": "Create table view response",
         "description": "The created saved view."
       },
+      "TablePredicateInput": {
+        "title": "Table predicate input",
+        "description": "A single `{ field, op, value }` condition or a group, normalized to a grouped predicate after validation. Same grammar and limits as `TablePredicate`.",
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Matches a row when every member matches.",
+            "properties": {
+              "all": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "description": "Members combined with AND. An empty group is rejected, because it would compile to no filter at all.",
+                "items": {
+                  "description": "A nested group, or a single condition.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TablePredicateInput"
+                    },
+                    {
+                      "type": "object",
+                      "title": "Predicate condition",
+                      "description": "One column comparison.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "eq",
+                            "ne",
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte",
+                            "in",
+                            "nin",
+                            "contains",
+                            "ncontains",
+                            "startsWith",
+                            "endsWith",
+                            "like",
+                            "ilike",
+                            "nlike",
+                            "nilike",
+                            "isEmpty",
+                            "isNotEmpty",
+                            "isNull",
+                            "isNotNull"
+                          ],
+                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                        },
+                        "value": {
+                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["all"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Matches a row when at least one member matches.",
+            "properties": {
+              "any": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "description": "Members combined with OR. An empty group is rejected, because it would compile to no filter at all.",
+                "items": {
+                  "description": "A nested group, or a single condition.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TablePredicateInput"
+                    },
+                    {
+                      "type": "object",
+                      "title": "Predicate condition",
+                      "description": "One column comparison.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "eq",
+                            "ne",
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte",
+                            "in",
+                            "nin",
+                            "contains",
+                            "ncontains",
+                            "startsWith",
+                            "endsWith",
+                            "like",
+                            "ilike",
+                            "nlike",
+                            "nilike",
+                            "isEmpty",
+                            "isNotEmpty",
+                            "isNull",
+                            "isNotNull"
+                          ],
+                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                        },
+                        "value": {
+                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["any"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "title": "Predicate condition",
+            "description": "One column comparison.",
+            "properties": {
+              "field": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "eq",
+                  "ne",
+                  "gt",
+                  "gte",
+                  "lt",
+                  "lte",
+                  "in",
+                  "nin",
+                  "contains",
+                  "ncontains",
+                  "startsWith",
+                  "endsWith",
+                  "like",
+                  "ilike",
+                  "nlike",
+                  "nilike",
+                  "isEmpty",
+                  "isNotEmpty",
+                  "isNull",
+                  "isNotNull"
+                ],
+                "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+              },
+              "value": {
+                "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+              }
+            },
+            "required": ["field", "op"],
+            "additionalProperties": false
+          }
+        ]
+      },
       "CreateTableViewRequest": {
         "type": "object",
         "properties": {
@@ -5639,7 +5979,7 @@
                 "description": "Saved row predicate, or null when the view is unfiltered.",
                 "anyOf": [
                   {
-                    "description": "Recursive predicate condition or group, normalized to a grouped predicate after validation. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
+                    "$ref": "#/components/schemas/TablePredicateInput"
                   },
                   {
                     "type": "null"
@@ -5752,7 +6092,7 @@
                 "description": "Saved row predicate, or null when the view is unfiltered.",
                 "anyOf": [
                   {
-                    "description": "Recursive predicate condition or group, normalized to a grouped predicate after validation. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
+                    "$ref": "#/components/schemas/TablePredicateInput"
                   },
                   {
                     "type": "null"
@@ -5832,7 +6172,7 @@
                 "description": "Saved row predicate, or null when the view is unfiltered.",
                 "anyOf": [
                   {
-                    "description": "Recursive predicate condition or group, normalized to a grouped predicate after validation. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
+                    "$ref": "#/components/schemas/TablePredicateInput"
                   },
                   {
                     "type": "null"
@@ -6686,7 +7026,7 @@
             }
           },
           "filter": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
+            "$ref": "#/components/schemas/TablePredicate"
           },
           "excludeRowIds": {
             "description": "Rows excluded from a select-all run scope.",
@@ -6829,7 +7169,7 @@
             "description": "Case-insensitive cell substring to find."
           },
           "predicate": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
+            "$ref": "#/components/schemas/TablePredicate"
           },
           "sort": {
             "description": "Ordered table-row sort specification.",
@@ -6945,8 +7285,7 @@
                     "description": "Name of the table to create."
                   },
                   "folderPath": {
-                    "description": "Folder path. A missing leading slash is normalized before validation.",
-                    "type": "string"
+                    "$ref": "#/components/schemas/FolderPathInput"
                   }
                 },
                 "required": ["type", "name"],
@@ -7166,8 +7505,7 @@
                     "description": "Name of the table to create."
                   },
                   "folderPath": {
-                    "description": "Folder path. A missing leading slash is normalized before validation.",
-                    "type": "string"
+                    "$ref": "#/components/schemas/FolderPathInput"
                   }
                 },
                 "required": ["type", "name"],
@@ -7371,8 +7709,7 @@
                     "description": "Name of the table to create."
                   },
                   "folderPath": {
-                    "description": "Folder path. A missing leading slash is normalized before validation.",
-                    "type": "string"
+                    "$ref": "#/components/schemas/FolderPathInput"
                   }
                 },
                 "required": ["type", "name"],
@@ -7489,8 +7826,7 @@
                     "description": "Name of the table to create."
                   },
                   "folderPath": {
-                    "description": "Folder path. A missing leading slash is normalized before validation.",
-                    "type": "string"
+                    "$ref": "#/components/schemas/FolderPathInput"
                   }
                 },
                 "required": ["type", "name"],
@@ -7953,7 +8289,7 @@
             "minLength": 1
           },
           "filter": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
+            "$ref": "#/components/schemas/TablePredicate"
           },
           "excludeRowIds": {
             "description": "Rows excluded from an all-scope cancellation.",
@@ -7986,11 +8322,15 @@
           },
           "path": {
             "type": "string",
-            "description": "Canonical folder path used as the public folder identifier."
+            "title": "Non-root folder path",
+            "description": "Canonical folder path used as the public folder identifier.",
+            "maxLength": 4096
           },
           "parentPath": {
             "type": "string",
-            "description": "Canonical parent path; `/` is the root."
+            "title": "Folder path",
+            "description": "Canonical parent path; `/` is the root.",
+            "maxLength": 4096
           },
           "createdAt": {
             "type": "string",
@@ -8048,6 +8388,12 @@
         "title": "Create table folder response",
         "description": "The created table folder."
       },
+      "NonRootFolderPathInput": {
+        "title": "Non-root folder path input",
+        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
       "CreateTableFolderRequest": {
         "type": "object",
         "properties": {
@@ -8058,7 +8404,7 @@
           },
           "path": {
             "description": "Path of the folder to create.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path"],
@@ -8089,11 +8435,11 @@
           },
           "path": {
             "description": "Current folder path.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           },
           "destinationPath": {
             "description": "New full path for the folder and its descendants.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path", "destinationPath"],
@@ -8106,7 +8452,9 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Canonical path of the deleted folder."
+            "title": "Folder path",
+            "description": "Canonical path of the deleted folder.",
+            "maxLength": 4096
           },
           "deleted": {
             "type": "boolean",

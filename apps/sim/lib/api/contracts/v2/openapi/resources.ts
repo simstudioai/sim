@@ -19,6 +19,7 @@ import {
   ERROR_RESPONSES,
   type ErrorResponseId,
   FULL_SET_LIST,
+  HEAD_MIRRORS_GET,
   RATE_LIMIT_HEADERS,
   RESOURCE_BODY_ERRORS,
   RESOURCE_CONFLICT_BODY_ERRORS,
@@ -279,7 +280,7 @@ const routes = [
       operationId: 'listMcpServers',
       summary: 'List MCP Servers',
       description:
-        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. Nothing caps how many servers a workspace registers, so this list is paginated: paginate with `limit` and `cursor`, stopping when `nextCursor` is null. `connectionStatus`, `lastConnected`, `toolCount`, `lastError`, and `lastToolsRefresh` describe the most recent tool discovery and stay at their registration defaults — `disconnected`, with `lastConnected` absent — until one runs. Call `GET /api/v2/mcp-servers/{id}/tools` to run it.',
+        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{id}/tools` runs a discovery.',
       errors: RESOURCE_ERRORS,
       success: { description: 'MCP servers registered in the workspace.' },
     }),
@@ -305,7 +306,7 @@ const routes = [
       operationId: 'createMcpServer',
       summary: 'Create MCP Server',
       description:
-        'Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only. `transport`, `timeout`, `retries`, and `enabled` are applied server-side when omitted; the effective values are in the response. Registration stores the configuration and does not connect to the endpoint, so a 201 is not evidence the server is reachable: the response carries `connectionStatus: "disconnected"` and omits `lastConnected`, and the workspace tool registry treats the server as unavailable until a discovery succeeds. Call `GET /api/v2/mcp-servers/{id}/tools` to attempt one and see the outcome. Re-registering an existing URL rewrites the configuration and returns the server to the same unverified state.',
+        'Register an MCP server in a workspace. The endpoint URL determines server identity, so a URL already registered in the workspace is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{id}` instead. Registration stores the configuration and never connects to the endpoint, so a 201 is not evidence the server is reachable: it comes back `disconnected` and the workspace tool registry treats it as unavailable until `GET /api/v2/mcp-servers/{id}/tools` succeeds.',
       errors: RESOURCE_CONFLICT_BODY_ERRORS,
       success: { description: 'The MCP server was registered.' },
     }),
@@ -373,7 +374,7 @@ const routes = [
       operationId: 'updateMcpServer',
       summary: 'Update MCP Server',
       description:
-        'Update the supplied MCP server fields. The URL is immutable because it determines server identity; delete and recreate the server to change endpoints. Two fields do not follow the omitted-fields-are-retained rule. `headers` is replaced wholesale rather than merged: sending it drops every stored header it does not repeat, and the only way to keep a header is to resend it. Changing `oauthClientId`, or sending `oauthClientSecret` as null or a new value, revokes the stored OAuth grant and forces reauthorization; switching away from OAuth authentication revokes it too.',
+        'Update the supplied MCP server fields. Omitted fields are retained, except where a field says otherwise. Any change that invalidates authentication revokes the stored OAuth grant, resets `connectionStatus` to `disconnected`, and clears `lastConnected` and `lastError`, so the server must be rediscovered.',
       errors: RESOURCE_BODY_ERRORS,
       success: { description: 'The updated MCP server.' },
     }),
@@ -438,7 +439,7 @@ const routes = [
     resourceOperation('MCP Servers', {
       operationId: 'listMcpServerTools',
       summary: 'List MCP Server Tools',
-      description: `Connect to a registered MCP server and return the tools it exposes. Unlike most reads this one has side effects: it opens a live connection to the third-party server and writes \`connectionStatus\`, \`toolCount\`, \`lastError\`, and \`lastToolsRefresh\` on the server resource, so registering a server and then calling this completes onboarding without opening the Sim UI. Because the pass is not a safe read, a \`HEAD\` request is answered with an empty \`200\` without connecting or writing, so it reports only that the endpoint exists and the caller is authorized. Results are served from a short-lived per-workspace cache, so an uncached call reflects whichever workspace member last ran discovery; pass \`refresh=true\` to reconnect under your own credentials and pick up tools added since the last pass, at the cost of a live round trip to the server. The set is bounded by discovery itself — at most 1,000 tools and 5 MB of tool payload per server. ${FULL_SET_LIST} An unreachable, slow, or cooling-down server is a \`503\`; a server whose stored OAuth grant no longer works is a \`409\` with \`error.details.code\` \`MCP_SERVER_REAUTHORIZATION_REQUIRED\`, meaning the registration is intact but a human must reauthorize it in Sim — your API key is fine and re-issuing it changes nothing. ${WORKSPACE_API_KEY_DENIED} Discovery resolves the calling user's own OAuth credentials for the server, which a workspace key cannot supply — so a workspace key that can register a server cannot list its tools.`,
+      description: `Connect to a registered MCP server and return the tools it exposes, completing onboarding without opening the Sim UI. Unlike most reads this one has side effects: it opens a live connection to the third-party server and writes \`connectionStatus\`, \`toolCount\`, \`lastError\`, and \`lastToolsRefresh\` on the server resource. ${HEAD_MIRRORS_GET} Discovery itself bounds the set at 1,000 tools and 5 MB of tool payload per server. ${FULL_SET_LIST} An unreachable, slow, or cooling-down server is a \`503\`; a stored OAuth grant that no longer works is a \`409\` with \`error.details.code\` \`MCP_SERVER_REAUTHORIZATION_REQUIRED\`, which only a human reauthorizing in Sim can clear. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Tools exposed by the MCP server.' },
     }),

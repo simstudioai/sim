@@ -249,7 +249,7 @@ const declaredRoutes = [
     tableOperation({
       operationId: 'updateTable',
       summary: 'Update Table',
-      description: `Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nThis operation is NOT atomic. The name, description, and folder changes are written independently in that order, so a failure part-way through leaves the earlier writes committed — a 4xx does NOT mean nothing changed. When at least one field landed before the failure, the error body carries \`details.applied\`: the list of fields (\`name\`, \`description\`, \`folderPath\`) that were successfully written. Re-read the table, or retry with only the fields missing from \`details.applied\`.\n\n${FOLDER_TREE_TOO_LARGE}`,
+      description: `Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nThis operation is NOT atomic. Name, description, and folder are written independently in that order, so a 4xx does NOT mean nothing changed: the error body carries \`details.applied\` naming the fields that landed. Retry with only the fields missing from it.\n\n${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated table.' },
     }),

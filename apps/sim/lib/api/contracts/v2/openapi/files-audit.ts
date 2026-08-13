@@ -28,6 +28,7 @@ import {
   type ErrorResponseId,
   FOLDER_TREE_TOO_LARGE,
   FULL_SET_LIST,
+  HEAD_MIRRORS_GET,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
@@ -331,8 +332,7 @@ const routes = [
     filesOperation({
       operationId: 'downloadFile',
       summary: 'Download File',
-      description:
-        'Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it returns `409` while that artifact is still compiling and `413` if it renders past the size ceiling. Downloading is recorded as an audit event, so it is not a safe read: a `HEAD` request is answered with an empty `200` without fetching the bytes or recording anything, and reports only that the endpoint exists and the caller is authorized.',
+      description: `Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it answers \`409\` while that artifact is still compiling and \`413\` if it renders past the size ceiling. Downloading records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: {
         description: 'The file bytes.',
@@ -361,8 +361,8 @@ const routes = [
       operationId: 'deleteFile',
       summary: 'Delete File',
       description:
-        'Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in the default listing and is no longer readable through the API, and its stored bytes are never removed. List archived files with `GET /files?scope=archived` and reverse the delete with `POST /files/{fileId}/restore`.',
-      errors: RESOURCE_CONFLICT_ERRORS,
+        'Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in the default listing and is no longer readable through the API, and its stored bytes are never removed. Archiving an already-archived file is a `404`, not a no-op. List archived files with `GET /files?scope=archived` and reverse the delete with `POST /files/{fileId}/restore`.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'Deletion confirmation.' },
     }),
     {
@@ -430,7 +430,7 @@ const routes = [
       operationId: 'restoreFile',
       summary: 'Restore File',
       description:
-        'Reverse a soft delete and return the file to the workspace. Restore is not a pure undo: the file comes back at the workspace root regardless of the folder it was deleted from, and it gains a `_restored` suffix when another file at the root already holds its name — so read `folderPath` and `name` off the response rather than assuming the pre-delete values. Restoring a file that is already active is a no-op that returns that file, so a retry is safe. Returns 400 when the workspace itself has been archived, and 409 when no free restore name could be found.',
+        'Reverse a soft delete and return the file to the workspace. Restore is not a pure undo — the file comes back at the workspace root, and gains a `_restored` suffix when another file there already holds its name — so read `folderPath` and `name` off the response. Restoring an already-active file is a no-op that returns it, so a retry is safe. An archived workspace is a 400, and a name the restore could not free is a 409.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The file as it exists after the restore.' },
     }),
@@ -618,7 +618,7 @@ const routes = [
     filesOperation({
       operationId: 'upsertFileShare',
       summary: 'Enable or Disable File Share',
-      description: `Create or partially update a server-tokenized public share. Only isActive is required, and an omitted authType keeps the stored auth mode. What happens to password and allowedEmails depends on the resulting mode, because enabling a share always rewrites the credentials the chosen mode does not use: 'public' clears the stored password and empties allowedEmails; 'password' keeps the stored password when password is omitted but empties allowedEmails; 'email' and 'sso' clear the stored password and keep the stored allowedEmails when the field is omitted. Only disabling with isActive false preserves the whole access configuration untouched — it also retains the token, so re-enabling restores the share as it was. Two enabling combinations are rejected outright with a 400 instead of being partially applied: 'password' when neither a password is supplied nor one is already stored, and 'email' or 'sso' when the resulting allowedEmails would be empty because none was supplied and none is stored. On a file that has never been shared there is nothing stored to fall back on, so enabling any mode other than 'public' must carry its credential in the same request. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create or partially update a server-tokenized public share. Only \`isActive\` is required; each other field states what enabling a mode does to it. A file that has never been shared has nothing stored to fall back on, so enabling any mode other than \`public\` must carry its credential in the same request. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated file share.' },
     }),

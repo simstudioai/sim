@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listLogs",
         "summary": "List Logs",
-        "description": "List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. This list predates the shared sort convention: it has no `sortBy` (the sort column is fixed to execution start time) and spells the direction `order` rather than `sortOrder`. Runs are hard-deleted once they pass the payer's log retention window, so an older run is absent from this list rather than reported as removed. The window is 30 days from run start on the free plan; Pro and Team have none configured and keep runs indefinitely; Enterprise sets its own per organization, with an optional per-workspace override, and is also unbounded until configured. A workflow's `runCount` is never reduced by this deletion, so a workflow can report runs while this list is empty. Trace spans are stored separately from the log row and are pruned on their own retention schedule: `includeTraceSpans=true` on a run whose stored spans have aged out returns `traceSpans: []` rather than an error, so an empty array does not mean the run recorded no spans.",
+        "description": "List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. This list predates the shared sort convention: it has no `sortBy` (the sort column is fixed to execution start time) and spells the direction `order` rather than `sortOrder`. Runs are hard-deleted once they pass the payer's log retention window, so an older run is absent from this list rather than reported as removed. The window is 30 days from run start on the free plan; Pro and Team have none configured and keep runs indefinitely; Enterprise sets its own per organization, with an optional per-workspace override, and is also unbounded until configured. A workflow's `runCount` is never reduced by this deletion, so a workflow can report runs while this list is empty.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -171,9 +171,9 @@
             "name": "includeTraceSpans",
             "in": "query",
             "required": false,
-            "description": "Whether to include block-level trace spans.",
+            "description": "Whether to include block-level trace spans. Spans are stored apart from the log row and pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error — an empty array does not mean the run recorded none.",
             "schema": {
-              "description": "Whether to include block-level trace spans.",
+              "description": "Whether to include block-level trace spans. Spans are stored apart from the log row and pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error — an empty array does not mean the run recorded none.",
               "type": "boolean"
             }
           },
@@ -195,8 +195,6 @@
             "schema": {
               "description": "Maximum log entries per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
               "type": "integer",
-              "minimum": 1,
-              "maximum": 1000,
               "default": 100
             }
           },
@@ -297,7 +295,7 @@
       "get": {
         "operationId": "getLog",
         "summary": "Get Log",
-        "description": "Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. The returned `workflowState` snapshot has credential values redacted: OAuth credential references and secret (`password`) sub-block values are null, while `{{VAR}}` environment-variable references are preserved so consecutive snapshots stay diffable. Trace spans are stored separately from the log row and are pruned on their own retention schedule: a run whose stored spans have aged out returns `traceSpans: []` rather than an error, so an empty array does not mean the run recorded no spans.",
+        "description": "Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are stored apart from the log row and pruned on their own retention schedule, so an empty `traceSpans` array does not mean the run recorded none.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -1138,7 +1136,9 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "description": "Canonical slash-prefixed folder path. `/` is the workspace root."
+                    "title": "Folder path",
+                    "description": "Canonical slash-prefixed folder path. `/` is the workspace root. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+                    "maxLength": 4096
                   },
                   {
                     "type": "null"

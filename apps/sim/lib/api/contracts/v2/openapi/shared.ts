@@ -215,6 +215,21 @@ export const FULL_SET_LIST =
   'The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.'
 
 /**
+ * Appended to a `GET` whose route declares `headSafe: false` because the read
+ * has an effect — an outbound connection, or an audit event.
+ *
+ * The sentence this replaced promised the opposite of what the route now does.
+ * The short-circuit used to sit between admission and parsing, so a `HEAD`
+ * returned a bodiless `200` for an id the same caller's `GET` answered `403` or
+ * `404` for — an existence oracle. `defineV2JsonRoute`/`defineV2BinaryRoute`
+ * now admit, parse, and authorize a `HEAD` through the use case's `authorize`
+ * phase before answering it bodiless, so its refusals mirror the `GET`'s.
+ * Pinned by `contracts/v2/openapi/head-not-safe.test.ts`.
+ */
+export const HEAD_MIRRORS_GET =
+  'A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise.'
+
+/**
  * Appended to an operation whose semantic operation sets `workspaceApiKey: 'deny'`.
  * That policy is structural — an `admin` operation can never accept a workspace key —
  * so it is not something a workspace owner can grant around.
