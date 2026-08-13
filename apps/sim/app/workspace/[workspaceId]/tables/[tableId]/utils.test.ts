@@ -156,21 +156,17 @@ describe('cleanCellValue', () => {
     expect(cleanCellValue('Bug, Docs', column)).toEqual(['opt_a', 'opt_b'])
     expect(cleanCellValue(['opt_b'], column)).toEqual(['opt_b'])
     expect(cleanCellValue('Bug, Bug', column)).toEqual(['opt_a'])
-    // A part matching no option is refused rather than silently dropped: this helper
-    // runs the same registry coercion the server does, and the server now rejects it.
-    expect(cleanCellValue('Nope', column)).toBeNull()
-    expect(cleanCellValue('Bug, Nope', column)).toBeNull()
+    expect(cleanCellValue('Nope', column)).toEqual([])
   })
 
   /**
-   * The refusal above is `coerce`'s, not the last word the registry has on the
-   * value: `salvage` reads the same paste as the one option that resolved. That
-   * reading is reserved for writes with no caller to answer — a CSV row, a block
-   * output — and a typed cell has one, so this helper must not reach for it. The
-   * pairing is asserted rather than described so a future helper that "improves"
-   * the paste by salvaging it fails here.
+   * The grid writes through a first-party route, which runs the `null` policy —
+   * a member the paste names that resolves to no option is dropped, and the ones
+   * that do resolve are kept. Erasing the cell instead would lose two live
+   * options over one deleted one. The registry pairing is asserted rather than
+   * described so a helper that stops consulting `salvage` fails here.
    */
-  it('refuses a partial multiselect paste the registry could still salvage', () => {
+  it('keeps the members of a partial multiselect paste that still resolve', () => {
     const column = {
       name: 'tags',
       type: 'select',
@@ -181,11 +177,12 @@ describe('cleanCellValue', () => {
       ],
     } as const
 
+    expect(columnTypeOf(column).coerce('Bug, Nope', column)).toEqual({ ok: false })
     expect(columnTypeOf(column).salvage?.('Bug, Nope', column)).toEqual({
       ok: true,
       value: ['opt_a'],
     })
-    expect(cleanCellValue('Bug, Nope', column)).toBeNull()
+    expect(cleanCellValue('Bug, Nope', column)).toEqual(['opt_a'])
   })
 })
 

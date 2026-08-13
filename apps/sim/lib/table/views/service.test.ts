@@ -341,7 +341,7 @@ describe('view config column-reference normalization', () => {
     return values.config
   }
 
-  function create(config: TableViewConfig) {
+  function create(config: TableViewConfig, strictRefs = true) {
     return createTableView({
       tableId: 'table-1',
       workspaceId: 'ws-1',
@@ -349,6 +349,7 @@ describe('view config column-reference normalization', () => {
       config,
       userId: 'user-1',
       columns,
+      strictRefs,
     })
   }
 
@@ -397,7 +398,7 @@ describe('view config column-reference normalization', () => {
     })
   })
 
-  it('refuses a filter on a column that does not exist', async () => {
+  it('refuses a filter on a column that does not exist for a strict caller', async () => {
     queueTableRows(tableViews, [{ total: 0 }])
     dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
 
@@ -407,7 +408,7 @@ describe('view config column-reference normalization', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
-  it('refuses a sort on a column that does not exist', async () => {
+  it('refuses a sort on a column that does not exist for a strict caller', async () => {
     queueTableRows(tableViews, [{ total: 0 }])
     dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
 
@@ -415,6 +416,48 @@ describe('view config column-reference normalization', () => {
       name: 'TableViewValidationError',
     })
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  /**
+   * "Save as view" hands back the filter the grid is displaying, dangling leaf
+   * and all — the same slice the Save chip sends to the update path, which has
+   * always tolerated it. Refusing one and accepting the other would 400 the two
+   * menu items against each other.
+   */
+  it('stores the same dangling reference for a first-party caller', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await create(
+      { filter: { all: [{ field: 'col_gone', op: 'eq', value: 'x' }] }, sort: [] },
+      false
+    )
+
+    expect(insertedConfig().filter).toEqual({
+      all: [{ field: 'col_gone', op: 'eq', value: 'x' }],
+    })
+  })
+
+  /**
+   * A user column may legally be named `createdAt`. The name→id rewrite would
+   * otherwise point the stored ref at that column's JSONB cell while every read
+   * still resolves the literal to `user_table_rows.created_at`.
+   */
+  it('leaves a system field alone even when a user column carries its name', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await createTableView({
+      tableId: 'table-1',
+      workspaceId: 'ws-1',
+      name: 'My View',
+      config: { sort: [{ field: 'createdAt', direction: 'desc' }] },
+      userId: 'user-1',
+      columns: [...columns, { id: 'col_c', name: 'createdAt', type: 'string' }],
+      strictRefs: true,
+    })
+
+    expect(insertedConfig().sort).toEqual([{ field: 'createdAt', direction: 'desc' }])
   })
 
   it('refuses a nonexistent filter column on a configPatch too', async () => {
@@ -426,6 +469,7 @@ describe('view config column-reference normalization', () => {
         tableId: 'table-1',
         configPatch: { filter: { all: [{ field: 'ghost', op: 'eq', value: 'x' }] } },
         columns,
+        strictRefs: true,
       })
     ).rejects.toMatchObject({ name: 'TableViewValidationError' })
   })
@@ -462,8 +506,24 @@ describe('view config column-reference normalization', () => {
         tableId: 'table-1',
         config: { filter: { all: [{ field: 'col_other_ghost', op: 'eq', value: 'x' }] } },
         columns,
+        strictRefs: true,
       })
     ).rejects.toMatchObject({ name: 'TableViewValidationError' })
+  })
+
+  it('accepts that same new reference from a first-party caller', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: { all: [{ field: 'col_other_ghost', op: 'eq', value: 'x' }] } },
+        columns,
+      })
+    ).resolves.not.toBeNull()
   })
 
   it('keeps a sort on a system row column, which is sortable but not in schema.columns', () => {

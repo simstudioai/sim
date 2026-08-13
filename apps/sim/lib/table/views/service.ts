@@ -123,6 +123,28 @@ function configColumnRefs(config: TableViewConfig): string[] {
 }
 
 /**
+ * `name → id` for a view config, minus the names that already mean something
+ * else as a reference.
+ *
+ * The rewrite is a lookup with pass-through, so a name entry would otherwise
+ * beat the meaning a ref already has. A user column may legally be NAMED `id`,
+ * `createdAt`, or `updatedAt` — nothing reserves those — and a legacy column
+ * with no `id` has `getColumnId(col) === col.name`, so a rename can leave one
+ * column's id equal to another's name. In both cases the write would rewrite the
+ * ref to the user column while every read still resolves the literal to the
+ * system row column or the original column, so the saved view would silently
+ * sort or filter on something the caller did not name.
+ */
+function viewConfigRefMap(columns: readonly ColumnDefinition[]): Map<string, string> {
+  const byName = buildColumnIdByName(columns)
+  const liveIds = new Set(columns.map(getColumnId))
+  for (const name of byName.keys()) {
+    if (liveIds.has(name) || SYSTEM_COLUMN_FIELDS.has(name)) byName.delete(name)
+  }
+  return byName
+}
+
+/**
  * `columns` plus a placeholder for each exempt reference that no longer resolves,
  * so the shared query validators accept it without being taught about views. The
  * placeholders exist for the length of one validation call and are never stored.
@@ -159,20 +181,23 @@ function tolerantColumns(
  * the user drags, and racing a concurrent column delete must self-heal through
  * {@link pruneViewConfig}, not fail the drag.
  *
- * `carriedForward` names the references the STORED config already holds, and
- * they are exempt. Deleting a column leaves every view that filtered on it
- * dangling — `pruneViewConfig` deliberately does not prune a filter — so without
- * the exemption the view becomes unwritable: the Save chip sends the whole
+ * `carriedForward` names the references that are exempt from that refusal.
+ * Deleting a column leaves every view that filtered on it dangling —
+ * `pruneViewConfig` deliberately does not prune a filter — so without the
+ * exemption the view becomes unwritable: the Save chip sends the whole
  * `{filter, sort, hiddenColumns}` slice, and a user changing the sort would be
  * refused over a condition they did not touch, with no way to save the removal
- * of anything else first. A reference the caller INTRODUCES is still refused.
+ * of anything else first. The v2 surface exempts only what the STORED config
+ * already held, so a reference the caller INTRODUCES is refused; a first-party
+ * caller exempts its own refs too, which is the behavior the grid has always
+ * had — see {@link CreateTableViewData.strictRefs}.
  */
 export function normalizeViewConfigForStorage(
   config: TableViewConfig,
   columns: ColumnDefinition[],
   carriedForward: readonly string[] = []
 ): TableViewConfig {
-  const stored = remapViewConfigColumnRefs(config, buildColumnIdByName(columns))
+  const stored = remapViewConfigColumnRefs(config, viewConfigRefMap(columns))
   const known = tolerantColumns(columns, carriedForward)
   try {
     if (stored.filter) validateStoragePredicate(stored.filter, known)
@@ -345,6 +370,19 @@ export interface CreateTableViewData {
   config: TableViewConfig
   userId: string
   columns: ColumnDefinition[]
+  /**
+   * Whether to refuse a filter or sort reference naming no live column. Set by
+   * the `/api/v2` surface only, whose caller authored the config in this request
+   * and can be told which reference was wrong.
+   *
+   * Absent — the first-party grid, which does not author these refs so much as
+   * carry them: a view filtered on a since-deleted column keeps the dangling
+   * leaf through every read (`pruneViewConfig` spares filters) and hands it
+   * straight back on the next save. Refusing it would 400 "Save as view" on a
+   * config the Save chip accepts, one menu item apart, over a condition the user
+   * never touched.
+   */
+  strictRefs?: boolean
 }
 
 /**
@@ -364,7 +402,11 @@ export interface CreateTableViewData {
  */
 export async function createTableView(data: CreateTableViewData): Promise<TableView> {
   const name = normalizeName(data.name)
-  const config = normalizeViewConfigForStorage(data.config, data.columns)
+  const config = normalizeViewConfigForStorage(
+    data.config,
+    data.columns,
+    data.strictRefs ? [] : configColumnRefs(data.config)
+  )
 
   const row = await withTableViewsLock(data.tableId, async (trx) => {
     const [existing] = await trx
@@ -411,6 +453,8 @@ export interface UpdateTableViewData {
   configPatch?: TableViewConfig
   isDefault?: boolean
   columns: ColumnDefinition[]
+  /** See {@link CreateTableViewData.strictRefs}. */
+  strictRefs?: boolean
 }
 
 /**
@@ -445,7 +489,14 @@ export async function updateTableView(data: UpdateTableViewData): Promise<TableV
       .limit(1)
     if (!existing) return null
 
-    const carriedForward = configColumnRefs((existing.config ?? {}) as TableViewConfig)
+    const stored = configColumnRefs((existing.config ?? {}) as TableViewConfig)
+    const carriedForward = data.strictRefs
+      ? stored
+      : [
+          ...stored,
+          ...configColumnRefs(data.config ?? {}),
+          ...configColumnRefs(data.configPatch ?? {}),
+        ]
     const config =
       data.config === undefined
         ? undefined

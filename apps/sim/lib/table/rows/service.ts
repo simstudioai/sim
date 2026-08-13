@@ -120,10 +120,22 @@ const logger = createLogger('TableRowsService')
  * @returns Inserted row
  * @throws Error if validation fails or capacity exceeded
  */
+export interface RowWriteOptions {
+  /**
+   * What this write does with a value its column's type cannot coerce. Defaults
+   * to `null` — the cell is blanked and the write succeeds, which is what every
+   * first-party surface (the workspace grid, `/api/table`, `/api/v1`, the
+   * Copilot table tools, the executor's Table block) has always done. The
+   * `/api/v2` surface opts into `reject`. See {@link UncoercibleValuePolicy}.
+   */
+  uncoercibleValues?: UncoercibleValuePolicy
+}
+
 export async function insertRow(
   data: InsertRowData,
   table: TableDefinition,
-  requestId: string
+  requestId: string,
+  options: RowWriteOptions = {}
 ): Promise<TableRow> {
   const insertProof = assertRowInsert(table)
 
@@ -134,7 +146,7 @@ export async function insertRow(
   }
 
   // Validate against schema
-  const schemaValidation = coerceRowToSchema(data.data, table.schema)
+  const schemaValidation = coerceRowToSchema(data.data, table.schema, options.uncoercibleValues)
   if (!schemaValidation.valid) {
     throw new OrchestrationError(
       'validation',
@@ -228,7 +240,8 @@ export async function insertRow(
 export async function batchInsertRows(
   data: BatchInsertData,
   table: TableDefinition,
-  requestId: string
+  requestId: string,
+  options: RowWriteOptions = {}
 ): Promise<TableRow[]> {
   // Best-effort capacity check against the workspace's current plan limit. Import
   // paths call `batchInsertRowsWithTx` directly and gate capacity up front instead.
@@ -238,7 +251,9 @@ export async function batchInsertRows(
     addedRows: data.rows.length,
   })
 
-  const result = await db.transaction((trx) => batchInsertRowsWithTx(trx, data, table, requestId))
+  const result = await db.transaction((trx) =>
+    batchInsertRowsWithTx(trx, data, table, requestId, options)
+  )
   notifyTableRowUsage({
     workspaceId: table.workspaceId,
     currentRowCount: table.rowCount,
@@ -262,7 +277,8 @@ export async function batchInsertRowsWithTx(
   trx: DbTransaction,
   data: BatchInsertData,
   table: TableDefinition,
-  requestId: string
+  requestId: string,
+  options: RowWriteOptions = {}
 ): Promise<TableRow[]> {
   assertRowInsert(table)
 
@@ -277,7 +293,7 @@ export async function batchInsertRowsWithTx(
       )
     }
 
-    const schemaValidation = coerceRowToSchema(row, table.schema)
+    const schemaValidation = coerceRowToSchema(row, table.schema, options.uncoercibleValues)
     if (!schemaValidation.valid) {
       throw new OrchestrationError(
         'validation',
@@ -402,7 +418,8 @@ export function dispatchAfterBatchInsert(
 export async function replaceTableRows(
   data: ReplaceRowsData,
   table: TableDefinition,
-  requestId: string
+  requestId: string,
+  options: RowWriteOptions = {}
 ): Promise<ReplaceRowsResult> {
   // All existing rows are deleted, so the footprint is just the new set. Checked
   // before the tx opens — never inside it (the plan lookup is a separate pool read).
@@ -411,7 +428,9 @@ export async function replaceTableRows(
     currentRowCount: 0,
     addedRows: data.rows.length,
   })
-  const result = await db.transaction((trx) => replaceTableRowsWithTx(trx, data, table, requestId))
+  const result = await db.transaction((trx) =>
+    replaceTableRowsWithTx(trx, data, table, requestId, options)
+  )
   notifyTableRowUsage({
     workspaceId: table.workspaceId,
     currentRowCount: 0,
@@ -432,7 +451,8 @@ export async function replaceTableRowsWithTx(
   trx: DbTransaction,
   data: ReplaceRowsData,
   table: TableDefinition,
-  requestId: string
+  requestId: string,
+  options: RowWriteOptions = {}
 ): Promise<ReplaceRowsResult> {
   assertRowDelete(table)
   assertRowInsert(table)
@@ -455,7 +475,7 @@ export async function replaceTableRowsWithTx(
       )
     }
 
-    const schemaValidation = coerceRowToSchema(row, table.schema)
+    const schemaValidation = coerceRowToSchema(row, table.schema, options.uncoercibleValues)
     if (!schemaValidation.valid) {
       throw new OrchestrationError(
         'validation',
@@ -591,7 +611,8 @@ export async function replaceTableRowsWithTx(
 export async function upsertRow(
   data: UpsertRowData,
   table: TableDefinition,
-  requestId: string
+  requestId: string,
+  options: RowWriteOptions = {}
 ): Promise<UpsertResult> {
   const schema = table.schema
   const uniqueColumns = getUniqueColumns(schema)
@@ -643,7 +664,7 @@ export async function upsertRow(
     throw new OrchestrationError('validation', sizeValidation.errors.join(', '))
   }
 
-  const schemaValidation = coerceRowToSchema(data.data, schema)
+  const schemaValidation = coerceRowToSchema(data.data, schema, options.uncoercibleValues)
   if (!schemaValidation.valid) {
     throw new OrchestrationError(
       'validation',
@@ -1553,27 +1574,13 @@ class GuardRejected extends Error {
  * @returns Updated row
  * @throws Error if row not found or validation fails
  */
-export interface UpdateRowOptions {
+export interface UpdateRowOptions extends RowWriteOptions {
   /**
    * Marks the write as the workflow/enrichment engine filling its own output
    * cells, which exempts it from the update lock. Set by `cell-write.ts` only —
    * see {@link assertRowUpdate}.
    */
   computedWrite?: boolean
-}
-
-/**
- * A computed write has no caller to answer with a 400 — the block already ran,
- * and failing the write would strand the whole cell run over one output that
- * does not fit its bound column. It blanks that cell instead. Every other write
- * carries a value someone asked to store, so an uncoercible one is refused.
- *
- * The policy governs the patch's own keys. A merged row also carries cells this
- * request never touched; those always follow `null`, whatever the policy —
- * see `PatchedKeys` in `@/lib/table/validation`.
- */
-function uncoercibleValuePolicy(options: { computedWrite?: boolean }): UncoercibleValuePolicy {
-  return options.computedWrite ? 'null' : 'reject'
 }
 
 /**
@@ -1637,7 +1644,7 @@ export async function updateRow(
   const schemaValidation = coerceRowToSchema(
     mergedData,
     table.schema,
-    uncoercibleValuePolicy(options),
+    options.uncoercibleValues,
     Object.keys(data.data)
   )
   if (!schemaValidation.valid) {
@@ -1823,13 +1830,14 @@ type BulkUpdateMatch = { id: string; data: RowData }
 function bulkUpdateValidationError(
   table: TableDefinition,
   row: BulkUpdateMatch,
-  patch: RowData
+  patch: RowData,
+  policy: UncoercibleValuePolicy | undefined
 ): string | null {
   const mergedData = { ...row.data, ...patch }
   const sizeValidation = validateRowSize(mergedData)
   if (!sizeValidation.valid) return sizeValidation.errors.join(', ')
 
-  const schemaValidation = coerceRowToSchema(mergedData, table.schema, 'reject', Object.keys(patch))
+  const schemaValidation = coerceRowToSchema(mergedData, table.schema, policy, Object.keys(patch))
   return schemaValidation.valid ? null : schemaValidation.errors.join(', ')
 }
 
@@ -1837,10 +1845,11 @@ function bulkUpdateValidationError(
 function validateBulkUpdateMatches(
   table: TableDefinition,
   rows: BulkUpdateMatch[],
-  patch: RowData
+  patch: RowData,
+  policy: UncoercibleValuePolicy | undefined
 ): void {
   for (const row of rows) {
-    const error = bulkUpdateValidationError(table, row, patch)
+    const error = bulkUpdateValidationError(table, row, patch, policy)
     if (error) throw new OrchestrationError('validation', `Row ${row.id}: ${error}`)
   }
 }
@@ -1855,8 +1864,19 @@ async function persistBulkUpdateBatch(params: {
   now: Date
   secretProvenance: BulkUpdateData['secretProvenance']
   requestId: string
+  uncoercibleValues: UncoercibleValuePolicy | undefined
 }): Promise<{ rows: BulkUpdateMatch[]; affectedRowIds: string[] }> {
-  const { table, rows, patch, patchJson, filterClause, now, secretProvenance, requestId } = params
+  const {
+    table,
+    rows,
+    patch,
+    patchJson,
+    filterClause,
+    now,
+    secretProvenance,
+    requestId,
+    uncoercibleValues,
+  } = params
   const ids = rows.map((row) => row.id)
   const persistedRows: BulkUpdateMatch[] = []
   const affectedRowIds = await db.transaction(async (trx) => {
@@ -1881,7 +1901,8 @@ async function persistBulkUpdateBatch(params: {
         const skippedRowIds: string[] = []
         for (const currentRow of currentRows) {
           const row = { id: currentRow.id, data: currentRow.data as RowData }
-          if (bulkUpdateValidationError(table, row, patch)) skippedRowIds.push(row.id)
+          if (bulkUpdateValidationError(table, row, patch, uncoercibleValues))
+            skippedRowIds.push(row.id)
           else persistedRows.push(row)
         }
         if (skippedRowIds.length > 0) {
@@ -1974,7 +1995,8 @@ function dispatchBulkUpdateEffects(
 export async function updateRowsByFilter(
   table: TableDefinition,
   data: BulkUpdateData,
-  requestId: string
+  requestId: string,
+  options: RowWriteOptions = {}
 ): Promise<BulkOperationResult> {
   assertRowUpdate(table, patchColumnIds(data.data))
   if (Object.keys(data.data).length === 0) {
@@ -1993,7 +2015,7 @@ export async function updateRowsByFilter(
     eq(userTableRows.workspaceId, table.workspaceId)
   )
 
-  coerceRowValues(data.data, table.schema)
+  coerceRowValues(data.data, table.schema, options.uncoercibleValues)
   const uniqueColumns = getUniqueColumns(table.schema)
   const uniqueColumnsInUpdate = uniqueColumns.filter((col) => getColumnId(col) in data.data)
   const patchJson = JSON.stringify(data.data)
@@ -2017,7 +2039,7 @@ export async function updateRowsByFilter(
       })
       if (page.length === 0) break
 
-      validateBulkUpdateMatches(table, page, data.data)
+      validateBulkUpdateMatches(table, page, data.data, options.uncoercibleValues)
       matchingRowCount += page.length
       singleMatchingRow ??= page[0]
       afterId = page[page.length - 1].id
@@ -2077,6 +2099,7 @@ export async function updateRowsByFilter(
         now,
         secretProvenance: data.secretProvenance,
         requestId,
+        uncoercibleValues: options.uncoercibleValues,
       })
       affectedRowIds.push(...persisted.affectedRowIds)
       dispatchBulkUpdateEffects(
@@ -2109,7 +2132,7 @@ export async function updateRowsByFilter(
     return { affectedCount: 0, affectedRowIds: [] }
   }
 
-  validateBulkUpdateMatches(table, matchingRows, data.data)
+  validateBulkUpdateMatches(table, matchingRows, data.data, options.uncoercibleValues)
   if (uniqueColumnsInUpdate.length > 0) {
     if (matchingRows.length > 1) {
       throw new OrchestrationError(
@@ -2144,6 +2167,7 @@ export async function updateRowsByFilter(
     now,
     secretProvenance: data.secretProvenance,
     requestId,
+    uncoercibleValues: options.uncoercibleValues,
   })
   const { affectedRowIds } = persisted
 
@@ -2164,7 +2188,7 @@ export async function updateRowsByFilter(
   }
 }
 
-export interface BatchUpdateRowsOptions {
+export interface BatchUpdateRowsOptions extends RowWriteOptions {
   /**
    * Marks the batch as workflow/enrichment output cells (the backfill runner),
    * exempting it from the update lock. See {@link assertRowUpdate}.
@@ -2263,7 +2287,7 @@ export async function batchUpdateRows(
     const schemaValidation = coerceRowToSchema(
       merged,
       table.schema,
-      uncoercibleValuePolicy(options),
+      options.uncoercibleValues,
       Object.keys(update.data)
     )
     if (!schemaValidation.valid) {

@@ -84,6 +84,7 @@ export const createTableViewUseCase = defineAuthorizedTableUseCase({
         config: input.config,
         userId: attribution.attributedUserId,
         columns,
+        strictRefs: true,
       })
       return { view, table: context.table, columns }
     } catch (error) {
@@ -135,6 +136,7 @@ export const updateTableViewUseCase = defineAuthorizedTableUseCase({
         configPatch: input.configPatch,
         isDefault: input.isDefault,
         columns,
+        strictRefs: true,
       })
       if (!view) throw new OrchestrationError('not_found', 'View not found')
       return {
