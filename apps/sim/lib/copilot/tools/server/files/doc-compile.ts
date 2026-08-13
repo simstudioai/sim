@@ -15,7 +15,12 @@ import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { getContentType } from '@/app/api/files/utils'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
-import { loadCompiledDoc, storeCompiledDoc } from './doc-compiled-store'
+import {
+  loadCompiledDoc,
+  loadPublishedCompiledDoc,
+  publishCompiledDocArtifact,
+  storeCompiledDoc,
+} from './doc-compiled-store'
 
 const logger = createLogger('CopilotDocCompile')
 
@@ -567,6 +572,14 @@ export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> 
     referencedImages.artifactIdentity
   )
   if (existing) {
+    if (referencedImages.artifactIdentity) {
+      await publishCompiledDocArtifact(
+        workspaceId,
+        source,
+        fmt.ext,
+        referencedImages.artifactIdentity
+      )
+    }
     const contributingFiles = referencedImageIdentities(referencedImages)
     return {
       buffer: existing,
@@ -600,6 +613,8 @@ export async function loadCompiledDocByExt(
       return buffer ? { buffer, contentType: fmt.contentType } : null
     }
     if (!options.allowLegacyReferencedArtifact) return null
+    const publishedBuffer = await loadPublishedCompiledDoc(workspaceId, source, fmt.ext)
+    if (publishedBuffer) return { buffer: publishedBuffer, contentType: fmt.contentType }
     const legacyBuffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
     return legacyBuffer ? { buffer: legacyBuffer, contentType: fmt.contentType } : null
   }
@@ -743,7 +758,12 @@ export async function resolveServableDocBytes(args: {
       return compileDocInLegacySandbox({ source, fileName, workspaceId, ownerKey, signal }, fmt)
     }
     const referencedFileIds = collectReferencedFileIds(source)
-    if (referencedFileIds.size > 0 && filePrincipal) {
+    if (referencedFileIds.size > 0) {
+      if (!filePrincipal) {
+        throw new Error(
+          'Referenced document resolution requires an authorized workspace file principal'
+        )
+      }
       return compileDoc({ source, fileName, workspaceId, filePrincipal, ownerKey, signal })
     }
     const stored = await loadCompiledDocByExt(workspaceId, source, extNoDot, {
