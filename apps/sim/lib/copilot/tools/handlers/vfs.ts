@@ -163,6 +163,13 @@ function truncateDocsPageToInlineCap(page: { content: string; totalLines: number
   return null
 }
 
+/**
+ * Routes grep by content source. `docs/<page>` uses one network-backed docs
+ * page; `uploads/<file>` uses one chat-scoped upload; workspace file paths use
+ * one authorized file; all remaining paths use the materialized in-memory VFS.
+ * External and dynamic file contents are therefore opt-in and single-target,
+ * while an unscoped grep searches only static VFS resources and metadata.
+ */
 export async function executeVfsGrep(
   params: Record<string, unknown>,
   context: ExecutionContext
