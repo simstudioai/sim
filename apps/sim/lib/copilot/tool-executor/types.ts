@@ -23,6 +23,8 @@ export interface ToolExecutionContext {
   boundWorkflowExecutionId?: string
   billingAttribution?: BillingAttributionSnapshot
   copilotToolExecution?: boolean
+  /** Trusted lifecycle classification stamped by the server, never from model parameters. */
+  copilotInteractionMode?: 'interactive' | 'headless'
   /** Server-owned base image selected from the fixed Go route for this turn. */
   sandboxProfile?: 'mothership'
   requestMode?: string

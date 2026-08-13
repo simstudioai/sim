@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema, requiredFieldSchema } from '@/lib/api/contracts/primitives'
+import {
+  nonEmptyIdSchema,
+  organizationRoleSchema,
+  requiredFieldSchema,
+} from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 
 export const workspaceScopeSchema = z.enum(['active', 'archived', 'all'])
@@ -264,7 +268,7 @@ export const workspaceHostContextSchema = z.object({
     isHostOrganizationMember: z.boolean(),
     isHostOrganizationAdmin: z.boolean(),
     /** Optional for rolling compatibility with app versions that predate organization-role projection. */
-    organizationRole: z.string().nullable().optional(),
+    organizationRole: organizationRoleSchema.nullable().optional(),
   }),
 })
 

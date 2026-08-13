@@ -1,6 +1,9 @@
-import { toError } from '@sim/utils/errors'
-import { getCreditBalance, getUserUsageData, getUserUsageLimitInfo } from '@/lib/billing'
+import {
+  executeCopilotPlatformContextUseCase,
+  messageForCopilotPlatformContextError,
+} from '@/lib/copilot/application/execute-platform-context-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { readAccountBilling } from '@/lib/platform-context/application/read-account-billing'
 
 /**
  * Live billing snapshot for the requesting user: plan, current-period usage
@@ -11,33 +14,14 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/typ
  */
 export async function executeGetAccountBilling(context: ExecutionContext): Promise<ToolCallResult> {
   try {
-    const [usage, credits, limitInfo] = await Promise.all([
-      getUserUsageData(context.userId),
-      getCreditBalance(context.userId),
-      getUserUsageLimitInfo(context.userId),
-    ])
-
+    const output = await executeCopilotPlatformContextUseCase(context, readAccountBilling, {
+      workspaceId: context.workspaceId ?? '',
+    })
     return {
       success: true,
-      output: {
-        plan: limitInfo.plan,
-        billingScope: limitInfo.scope,
-        organizationId: limitInfo.organizationId,
-        usage: {
-          currentPeriodCost: usage.currentUsage,
-          limit: usage.limit,
-          remaining: Math.max(0, usage.limit - usage.currentUsage),
-          percentUsed: usage.percentUsed,
-          isExceeded: usage.isExceeded,
-          billingPeriodEnd: usage.billingPeriodEnd,
-        },
-        credits: {
-          balance: credits.balance,
-          scope: credits.entityType,
-        },
-      },
+      output,
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return { success: false, error: messageForCopilotPlatformContextError(error) }
   }
 }

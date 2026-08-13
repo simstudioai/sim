@@ -3,11 +3,31 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetWorkspaceHostContextForViewer, mockResolveVerifiedUserAccessControlContext } =
-  vi.hoisted(() => ({
-    mockGetWorkspaceHostContextForViewer: vi.fn(),
-    mockResolveVerifiedUserAccessControlContext: vi.fn(),
-  }))
+const {
+  mockGetWorkspaceHostContextForViewer,
+  mockResolveVerifiedUserAccessControlContext,
+  mockLoadWorkspace,
+  mockResolvePermission,
+} = vi.hoisted(() => ({
+  mockGetWorkspaceHostContextForViewer: vi.fn(),
+  mockResolveVerifiedUserAccessControlContext: vi.fn(),
+  mockLoadWorkspace: vi.fn(),
+  mockResolvePermission: vi.fn(),
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: (actual: string | null, required: string) => {
+    const rank = { read: 1, write: 2, admin: 3 } as const
+    return (
+      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
+    )
+  },
+  resolveEffectiveWorkspacePermission: mockResolvePermission,
+}))
+
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadActiveWorkspaceApplicationContext: mockLoadWorkspace,
+}))
 
 vi.mock('@/lib/workspaces/host-context', () => ({
   getWorkspaceHostContextForViewer: mockGetWorkspaceHostContextForViewer,
@@ -23,8 +43,13 @@ import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/types'
 
 const context = {
   userId: 'user-1',
+  workflowId: '',
   workspaceId: 'workspace-1',
-} as ExecutionContext
+  chatId: 'chat-1',
+  toolCallId: 'tool-call-1',
+  copilotToolExecution: true,
+  copilotInteractionMode: 'interactive',
+} as const satisfies ExecutionContext
 
 function enterpriseHost(permission: 'read' | 'write' | 'admin') {
   return {
@@ -60,6 +85,13 @@ function enterpriseHost(permission: 'read' | 'write' | 'admin') {
 describe('executeGetEnterpriseContext', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockLoadWorkspace.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: 'org-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'owner-1',
+    })
+    mockResolvePermission.mockResolvedValue('read')
   })
 
   it('requires a current workspace', async () => {
@@ -70,6 +102,21 @@ describe('executeGetEnterpriseContext', () => {
       error: 'A current workspace is required to resolve enterprise access.',
     })
     expect(mockGetWorkspaceHostContextForViewer).not.toHaveBeenCalled()
+  })
+
+  it('rejects headless execution before loading workspace or enterprise context', async () => {
+    const result = await executeGetEnterpriseContext({
+      ...context,
+      copilotInteractionMode: 'headless',
+    })
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Live platform context is available only in an interactive Copilot session.',
+    })
+    expect(mockLoadWorkspace).not.toHaveBeenCalled()
+    expect(mockGetWorkspaceHostContextForViewer).not.toHaveBeenCalled()
+    expect(mockResolveVerifiedUserAccessControlContext).not.toHaveBeenCalled()
   })
 
   it('keeps external workspace administration separate from organization authority', async () => {
@@ -201,9 +248,38 @@ describe('executeGetEnterpriseContext', () => {
           capabilities: {
             canRead: true,
             canEdit: false,
-            canRun: false,
+            canRun: true,
             canDeploy: false,
             canManageWorkspace: false,
+          },
+        },
+      },
+    })
+  })
+
+  it('does not advertise deployment when every deployment surface is hidden', async () => {
+    mockGetWorkspaceHostContextForViewer.mockResolvedValue(enterpriseHost('admin'))
+    mockResolveVerifiedUserAccessControlContext.mockResolvedValue({
+      organizationId: 'org-1',
+      entitled: true,
+      permissionGroup: null,
+      config: {
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        hideDeployApi: true,
+        hideDeployMcp: true,
+        hideDeployChatbot: true,
+      },
+    })
+
+    const result = await executeGetEnterpriseContext(context)
+
+    expect(result).toMatchObject({
+      success: true,
+      output: {
+        workspace: {
+          capabilities: {
+            canRun: true,
+            canDeploy: false,
           },
         },
       },
@@ -268,7 +344,10 @@ describe('executeGetEnterpriseContext', () => {
 
     const result = await executeGetEnterpriseContext(context)
 
-    expect(result).toEqual({ success: false, error: 'workspace lookup failed' })
+    expect(result).toEqual({
+      success: false,
+      error: 'The operation failed due to a system error. Please retry.',
+    })
     expect(mockResolveVerifiedUserAccessControlContext).not.toHaveBeenCalled()
   })
 
@@ -280,6 +359,9 @@ describe('executeGetEnterpriseContext', () => {
 
     const result = await executeGetEnterpriseContext(context)
 
-    expect(result).toEqual({ success: false, error: 'access-control lookup failed' })
+    expect(result).toEqual({
+      success: false,
+      error: 'The operation failed due to a system error. Please retry.',
+    })
   })
 })

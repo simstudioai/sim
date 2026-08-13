@@ -52,10 +52,10 @@ import {
   UpdateDeploymentVersion,
   UpdateWorkspaceMcpServer,
 } from '@/lib/copilot/generated/tool-catalog-v1'
+import { executeGetAccountBilling } from '@/lib/copilot/tools/handlers/account'
 import { executeGetEnterpriseContext } from '@/lib/copilot/tools/handlers/enterprise-context'
 import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
 import { getRegisteredServerToolNames } from '@/lib/copilot/tools/server/router'
-import { executeGetAccountBilling } from '../tools/handlers/account'
 import { executeDeployCustomBlock } from '../tools/handlers/deployment/custom-block'
 import {
   executeDeployApi,

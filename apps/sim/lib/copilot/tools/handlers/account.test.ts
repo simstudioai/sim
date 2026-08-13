@@ -3,119 +3,105 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetUserUsageData, mockGetCreditBalance, mockGetUserUsageLimitInfo } = vi.hoisted(
-  () => ({
-    mockGetUserUsageData: vi.fn(),
-    mockGetCreditBalance: vi.fn(),
-    mockGetUserUsageLimitInfo: vi.fn(),
-  })
-)
+const mocks = vi.hoisted(() => ({
+  loadWorkspace: vi.fn(),
+  resolvePermission: vi.fn(),
+  getAccountBillingSnapshot: vi.fn(),
+}))
 
-vi.mock('@/lib/billing', () => ({
-  getUserUsageData: mockGetUserUsageData,
-  getCreditBalance: mockGetCreditBalance,
-  getUserUsageLimitInfo: mockGetUserUsageLimitInfo,
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: (actual: string | null, required: string) => {
+    const rank = { read: 1, write: 2, admin: 3 } as const
+    return (
+      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
+    )
+  },
+  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
+}))
+
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
+}))
+
+vi.mock('@/lib/billing/core/account-billing-snapshot', () => ({
+  getAccountBillingSnapshot: mocks.getAccountBillingSnapshot,
 }))
 
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 import { executeGetAccountBilling } from '@/lib/copilot/tools/handlers/account'
 
-const context = { userId: 'user-1' } as ExecutionContext
+const context = {
+  userId: 'user-1',
+  workflowId: '',
+  workspaceId: 'workspace-1',
+  chatId: 'chat-1',
+  toolCallId: 'tool-call-1',
+  copilotToolExecution: true,
+  copilotInteractionMode: 'interactive',
+} as const satisfies ExecutionContext
+
+const snapshot = {
+  plan: 'team',
+  billingScope: 'organization' as const,
+  organizationId: 'org-1',
+  usage: {
+    currentPeriodCost: 18.5,
+    limit: 40,
+    remaining: 21.5,
+    percentUsed: 46.25,
+    isExceeded: false,
+    billingPeriodEnd: new Date('2026-09-01T00:00:00Z'),
+  },
+  credits: { balance: 25, scope: 'organization' as const },
+}
 
 describe('executeGetAccountBilling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.loadWorkspace.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: 'org-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'owner-1',
+    })
+    mocks.resolvePermission.mockResolvedValue('read')
+    mocks.getAccountBillingSnapshot.mockResolvedValue(snapshot)
   })
 
-  it('returns the org-aware plan, usage, and credit snapshot', async () => {
-    const periodEnd = new Date('2026-09-01T00:00:00Z')
-    mockGetUserUsageData.mockResolvedValue({
-      currentUsage: 18.5,
-      limit: 40,
-      percentUsed: 46.25,
-      isWarning: false,
-      isExceeded: false,
-      billingPeriodStart: new Date('2026-08-01T00:00:00Z'),
-      billingPeriodEnd: periodEnd,
-      lastPeriodCost: 31,
-    })
-    mockGetCreditBalance.mockResolvedValue({
-      balance: 25,
-      entityType: 'organization',
-      entityId: 'org-1',
-    })
-    mockGetUserUsageLimitInfo.mockResolvedValue({
-      currentLimit: 40,
-      canEdit: false,
-      minimumLimit: 0,
-      plan: 'team',
-      updatedAt: null,
-      scope: 'organization',
-      organizationId: 'org-1',
-    })
-
-    const result = await executeGetAccountBilling(context)
-
-    expect(mockGetUserUsageData).toHaveBeenCalledWith('user-1')
-    expect(mockGetCreditBalance).toHaveBeenCalledWith('user-1')
-    expect(mockGetUserUsageLimitInfo).toHaveBeenCalledWith('user-1')
-    expect(result).toEqual({
+  it('returns the existing account billing tool result shape after authorization', async () => {
+    await expect(executeGetAccountBilling(context)).resolves.toEqual({
       success: true,
-      output: {
-        plan: 'team',
-        billingScope: 'organization',
-        organizationId: 'org-1',
-        usage: {
-          currentPeriodCost: 18.5,
-          limit: 40,
-          remaining: 21.5,
-          percentUsed: 46.25,
-          isExceeded: false,
-          billingPeriodEnd: periodEnd,
-        },
-        credits: { balance: 25, scope: 'organization' },
-      },
+      output: snapshot,
     })
+    expect(mocks.getAccountBillingSnapshot).toHaveBeenCalledWith('user-1')
   })
 
-  it('clamps remaining to zero when usage exceeds the limit', async () => {
-    mockGetUserUsageData.mockResolvedValue({
-      currentUsage: 45,
-      limit: 40,
-      percentUsed: 112.5,
-      isWarning: false,
-      isExceeded: true,
-      billingPeriodStart: null,
-      billingPeriodEnd: null,
-      lastPeriodCost: 0,
+  it.each(['headless' as const, undefined])(
+    'fails closed for a non-interactive lifecycle (%s) before protected lookup',
+    async (copilotInteractionMode) => {
+      const result = await executeGetAccountBilling({
+        ...context,
+        copilotInteractionMode,
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Live platform context is available only in an interactive Copilot session.',
+      })
+      expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+      expect(mocks.resolvePermission).not.toHaveBeenCalled()
+      expect(mocks.getAccountBillingSnapshot).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not expose an underlying billing failure', async () => {
+    mocks.getAccountBillingSnapshot.mockRejectedValue(
+      new Error('connection secret from billing database')
+    )
+
+    await expect(executeGetAccountBilling(context)).resolves.toEqual({
+      success: false,
+      error: 'The operation failed due to a system error. Please retry.',
     })
-    mockGetCreditBalance.mockResolvedValue({ balance: 0, entityType: 'user', entityId: 'user-1' })
-    mockGetUserUsageLimitInfo.mockResolvedValue({
-      currentLimit: 40,
-      canEdit: true,
-      minimumLimit: 0,
-      plan: 'pro',
-      updatedAt: null,
-      scope: 'user',
-      organizationId: null,
-    })
-
-    const result = await executeGetAccountBilling(context)
-
-    expect(result.success).toBe(true)
-    expect(result.output).toMatchObject({
-      plan: 'pro',
-      usage: { remaining: 0, isExceeded: true },
-    })
-  })
-
-  it('surfaces a billing lookup failure as a tool error', async () => {
-    mockGetUserUsageData.mockRejectedValue(new Error('stats row missing'))
-    mockGetCreditBalance.mockResolvedValue({ balance: 0, entityType: 'user', entityId: 'user-1' })
-    mockGetUserUsageLimitInfo.mockResolvedValue({})
-
-    const result = await executeGetAccountBilling(context)
-
-    expect(result).toEqual({ success: false, error: 'stats row missing' })
   })
 })
