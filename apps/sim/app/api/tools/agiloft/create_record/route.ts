@@ -168,7 +168,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             const declined = AGILOFT_EXCEPTION.test(described)
             logger.error(`[${requestId}] Agiloft create returned no record ID`, {
               table: params.table,
-              login: params.login,
               fields: Object.keys(fieldValues),
               declined,
             })
@@ -219,10 +218,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
        * 500 is what would have the caller retry and duplicate the record, which
        * is the failure this operation exists to prevent.
        */
+      /**
+       * The message goes through the same redaction the caller-facing error
+       * does: it can carry upstream text, and the credentials travel in this
+       * request's body. The login is not recorded at all - whoever reads this
+       * already knows which account the block is configured with, and it is
+       * half of a credential pair.
+       */
       logger.error(`[${requestId}] Agiloft create failed after the request was sent`, {
-        error,
+        error: redactAgiloftSecrets(toError(error).message, params),
         table: params.table,
-        login: params.login,
       })
 
       return NextResponse.json({

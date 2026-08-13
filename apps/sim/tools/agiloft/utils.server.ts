@@ -109,26 +109,33 @@ export async function agiloftLoginPinned(
     ),
   })
 
+  const rawText = await response.text()
+
   /**
    * Login posts the credentials in its form body, so an error page echoing the
    * submitted parameters echoes them. Redacted while the text is still whole,
    * before any of the messages below truncate it.
+   *
+   * Only the messages use this. Parsing stays on `rawText`: a token is opaque
+   * base64, so a short credential can appear inside it by coincidence, and
+   * redacting first would rewrite the token and break every request that
+   * carries it.
    */
-  const text = redactAgiloftSecrets(await response.text(), params)
+  const safeText = redactAgiloftSecrets(rawText, params)
 
   if (!response.ok) {
-    throw new Error(`Agiloft login failed (${response.status}): ${describeAgiloftError(text)}`)
+    throw new Error(`Agiloft login failed (${response.status}): ${describeAgiloftError(safeText)}`)
   }
 
   let data: { access_token?: string; authentication_scheme?: string }
   try {
-    data = JSON.parse(text)
+    data = JSON.parse(rawText)
   } catch {
-    throw new Error(`Agiloft login returned a non-JSON response: ${truncate(text, 200)}`)
+    throw new Error(`Agiloft login returned a non-JSON response: ${truncate(safeText, 200)}`)
   }
 
   if (!data.access_token) {
-    throw new Error(`Agiloft login did not return an access token: ${truncate(text, 200)}`)
+    throw new Error(`Agiloft login did not return an access token: ${truncate(safeText, 200)}`)
   }
 
   const scheme = (data.authentication_scheme || 'Bearer').trim() || 'Bearer'
