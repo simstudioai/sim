@@ -46,6 +46,27 @@ export const DEFAULT_MAX_JSON_BODY_BYTES = Math.min(
   PROXY_CLIENT_MAX_BODY_BYTES
 )
 
+/**
+ * Clamps a per-route body cap to {@link PROXY_CLIENT_MAX_BODY_BYTES}.
+ *
+ * A route that raises `maxBodyBytes` above the proxy ceiling cannot actually
+ * receive a body that large: the proxy truncates the stream, the handler parses
+ * a prefix, and the caller gets `400 "Request body must be valid JSON"` for a
+ * request whose only fault was its size. Clamping at the point of use turns that
+ * into an accurate `413`; nothing that succeeds today changes, because a body
+ * over the ceiling already fails — just less honestly.
+ *
+ * Consequence worth keeping in view: `MAX_WORKSPACE_FILE_INLINE_BODY_BYTES`
+ * (70 MB) exists so a 50 MiB file can be sent inline as base64, and that ceiling
+ * stays unreachable until `experimental.proxyClientMaxBodySize` is raised in
+ * `apps/sim/next.config.ts`. Raising it changes the memory profile of every
+ * `/api` route, so it is a separate decision — this clamp only makes the limit
+ * that is actually in force report itself correctly.
+ */
+function clampToProxyLimit(maxBytes: number): number {
+  return Math.min(maxBytes, PROXY_CLIENT_MAX_BODY_BYTES)
+}
+
 export interface ValidationErrorBody {
   error: string
   details: z.core.$ZodIssue[]
@@ -76,7 +97,8 @@ export interface ParseRequestOptions {
   /**
    * Maximum number of bytes to read for the JSON body before rejecting with a
    * 413. Defaults to {@link DEFAULT_MAX_JSON_BODY_BYTES}. Raise this only for
-   * routes that legitimately accept large JSON payloads (e.g. inline file uploads).
+   * routes that legitimately accept large JSON payloads (e.g. inline file uploads);
+   * a value above what the proxy forwards is clamped — see {@link clampToProxyLimit}.
    */
   maxBodyBytes?: number
   /** Treat an absent or whitespace-only body as `undefined` before contract validation. */
@@ -163,8 +185,9 @@ export async function parseJsonBody(
       response: NextResponse<{ error: string }>
     }
 > {
+  const limit = clampToProxyLimit(maxBytes)
   try {
-    return { success: true, data: await readJsonBodyWithLimit(request, maxBytes) }
+    return { success: true, data: await readJsonBodyWithLimit(request, limit) }
   } catch (error) {
     if (invalidJson === 'throw') throw error
     if (isPayloadSizeLimitError(error)) {
@@ -172,7 +195,7 @@ export async function parseJsonBody(
         success: false,
         reason: 'too_large',
         response: NextResponse.json(
-          { error: `Request body exceeds the maximum allowed size of ${maxBytes} bytes` },
+          { error: `Request body exceeds the maximum allowed size of ${limit} bytes` },
           { status: 413 }
         ),
       }
@@ -203,13 +226,14 @@ export async function parseOptionalJsonBody(
       response: NextResponse<{ error: string }>
     }
 > {
+  const limit = clampToProxyLimit(maxBytes)
   try {
-    assertContentLengthWithinLimit(request.headers, maxBytes, REQUEST_BODY_LABEL)
+    assertContentLengthWithinLimit(request.headers, limit, REQUEST_BODY_LABEL)
 
     const stream = request.body
     const text = stream
       ? new TextDecoder().decode(
-          await readStreamToBufferWithLimit(stream, { maxBytes, label: REQUEST_BODY_LABEL })
+          await readStreamToBufferWithLimit(stream, { maxBytes: limit, label: REQUEST_BODY_LABEL })
         )
       : await request.text()
 
@@ -223,7 +247,7 @@ export async function parseOptionalJsonBody(
         success: false,
         reason: 'too_large',
         response: NextResponse.json(
-          { error: `Request body exceeds the maximum allowed size of ${maxBytes} bytes` },
+          { error: `Request body exceeds the maximum allowed size of ${limit} bytes` },
           { status: 413 }
         ),
       }
