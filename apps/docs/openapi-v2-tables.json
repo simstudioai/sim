@@ -6611,7 +6611,8 @@
                   "type": "boolean"
                 }
               },
-              "required": ["name", "type"]
+              "required": ["name", "type"],
+              "additionalProperties": false
             },
             "description": "Columns created for producer outputs."
           },
@@ -6750,7 +6751,8 @@
                   "type": "boolean"
                 }
               },
-              "required": ["name", "type"]
+              "required": ["name", "type"],
+              "additionalProperties": false
             }
           },
           "mappingUpdates": {

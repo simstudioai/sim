@@ -1,5 +1,5 @@
 import { v2CreateSkillContract, v2ListSkillsContract } from '@/lib/api/contracts/v2/skills'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -14,7 +14,10 @@ import { toV2Skill, toV2SkillSummary } from '@/app/api/v2/skills/utils'
 
 /** Every param that changes which skills, in which order, this list returns. */
 function skillCursorFilters(query: { workspaceId: string; search?: string }) {
-  return cursorScopeKey({ workspaceId: query.workspaceId, search: query.search })
+  return cursorScopeKey(cursorRoute(v2ListSkillsContract), {
+    workspaceId: query.workspaceId,
+    search: query.search,
+  })
 }
 
 export const dynamic = 'force-dynamic'

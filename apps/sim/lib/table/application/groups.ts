@@ -567,15 +567,44 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
     const previousGroup = (context.table.schema.workflowGroups ?? []).find(
       (group) => group.id === input.groupId
     )
+    /**
+     * An enrichment group's outputs come from the registry, not from a workflow,
+     * and it stores `workflowId: ''` — so there is nothing to resolve a new
+     * output coordinate against. Validating one anyway resolved the empty id and
+     * answered `404 Workflow not found`, which made an enrichment group's output
+     * set permanently unextendable. Only a body that supplies a `workflowId`
+     * converts the group to workflow-backed and needs workflow metadata.
+     */
+    const producerIsEnrichment =
+      input.workflowId === undefined &&
+      previousGroup !== undefined &&
+      (previousGroup.type === 'enrichment' || !previousGroup.workflowId)
+    /**
+     * A `newOutputColumns` entry that no resulting output names is dropped by the
+     * writer, so a caller asking for a column got a 200 and no column. Refuse it
+     * the way group creation refuses an orphan `outputColumns` entry.
+     */
+    if (input.newOutputColumns?.length) {
+      const requestedOutputNames = new Set((input.outputs ?? []).map((output) => output.columnName))
+      const orphan = input.newOutputColumns.find((column) => !requestedOutputNames.has(column.name))
+      if (orphan) {
+        throw new OrchestrationError(
+          'validation',
+          `newOutputColumns entry "${orphan.name}" has no matching outputs[].columnName`
+        )
+      }
+    }
     const previousOutputKeys = new Set(
       previousGroup?.outputs.map((output) => `${output.blockId}::${output.path}`) ?? []
     )
     const workflowChanged =
       input.workflowId !== undefined && input.workflowId !== previousGroup?.workflowId
-    const outputCoordinatesToValidate =
-      input.outputs?.filter(
-        (output) => workflowChanged || !previousOutputKeys.has(`${output.blockId}::${output.path}`)
-      ) ?? []
+    const outputCoordinatesToValidate = producerIsEnrichment
+      ? []
+      : (input.outputs?.filter(
+          (output) =>
+            workflowChanged || !previousOutputKeys.has(`${output.blockId}::${output.path}`)
+        ) ?? [])
     const workflowMetadataRequired =
       input.workflowId !== undefined ||
       outputCoordinatesToValidate.length > 0 ||

@@ -4,6 +4,7 @@ import {
   v2WorkflowRunListStatusValueSchema,
 } from '@/lib/api/contracts/v2/workflows'
 import {
+  cursorRoute,
   cursorScopeKey,
   instantScopePart,
   UNREADABLE_CURSOR_MESSAGE,
@@ -23,8 +24,7 @@ function runCursorFilters(
   workflowId: string,
   query: { status?: string; trigger?: string; startDate?: string; endDate?: string }
 ) {
-  return cursorScopeKey({
-    workflowId,
+  return cursorScopeKey(cursorRoute(v2ListWorkflowRunsContract, { id: workflowId }), {
     status: query.status,
     trigger: query.trigger,
     startDate: instantScopePart(query.startDate),

@@ -2492,7 +2492,7 @@
             "description": "Whether the server tools are available to workflows."
           },
           "connectionStatus": {
-            "description": "Result of the most recent connection attempt. Registration and re-registration store a configuration without contacting the endpoint, so a server begins — and returns to — `disconnected` until a tool discovery runs.",
+            "description": "Result of the most recent connection attempt. Registration and re-registration establish no connection — the auth-type probe they may send does not count as one — so a server begins, and returns to, `disconnected` until a tool discovery runs.",
             "type": "string",
             "enum": ["connected", "disconnected", "error"]
           },
@@ -2694,8 +2694,7 @@
             "description": "Absolute HTTP or HTTPS endpoint URL without `{{ENV_VAR}}` references. It determines server identity and is immutable: delete and recreate the server to change endpoints."
           },
           "authType": {
-            "description": "Authentication method. Applied server-side as `headers` when omitted; registration never contacts the server, so an omitted value is never detected from it.",
-            "default": "headers",
+            "description": "Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method.",
             "type": "string",
             "enum": ["none", "headers", "oauth"]
           },
@@ -2881,8 +2880,7 @@
             "maxLength": 2048
           },
           "authType": {
-            "description": "Authentication method. Applied server-side as `headers` when omitted; registration never contacts the server, so an omitted value is never detected from it.",
-            "default": "headers",
+            "description": "Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method.",
             "type": "string",
             "enum": ["none", "headers", "oauth"]
           },

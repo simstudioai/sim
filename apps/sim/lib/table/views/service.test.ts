@@ -408,6 +408,42 @@ describe('view config column-reference normalization', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
+  /**
+   * The layout half used to answer 200 and store a name no read ever shows,
+   * while the same unknown name in `filter` answered 400 — one request, two
+   * policies.
+   */
+  it('refuses a hidden column that does not exist for a strict caller', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(create({ hiddenColumns: ['ghost'] })).rejects.toMatchObject({
+      name: 'TableViewValidationError',
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('refuses an unknown column in every other layout key too', async () => {
+    for (const config of [
+      { columnOrder: ['ghost'] },
+      { pinnedColumns: ['ghost'] },
+      { columnWidths: { ghost: 120 } },
+    ]) {
+      queueTableRows(tableViews, [{ total: 0 }])
+      await expect(create(config)).rejects.toMatchObject({ name: 'TableViewValidationError' })
+    }
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('keeps storing a first-party layout reference that no longer resolves', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await create({ hiddenColumns: ['col_gone'] }, false)
+
+    expect(insertedConfig().hiddenColumns).toEqual(['col_gone'])
+  })
+
   it('refuses a sort on a column that does not exist for a strict caller', async () => {
     queueTableRows(tableViews, [{ total: 0 }])
     dbChainMockFns.returning.mockResolvedValueOnce([storedRow])

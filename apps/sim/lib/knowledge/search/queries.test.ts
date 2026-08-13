@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { buildTagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
 import { getStructuredTagFilters } from '@/lib/knowledge/search/queries'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
@@ -20,10 +21,14 @@ const embeddingTable = {
  * The global `drizzle-orm` mock renders `sql` fragments to a `?`-placeholder
  * string via `toSQL()`, so we can assert the exact predicate each filter builds.
  */
+function render(condition: unknown) {
+  return (condition as { toSQL: () => { sql: string; params: unknown[] } }).toSQL()
+}
+
 function renderOne(filters: StructuredFilter[]) {
   const conditions = getStructuredTagFilters(filters, embeddingTable)
   expect(conditions).toHaveLength(1)
-  return (conditions[0] as unknown as { toSQL: () => { sql: string; params: unknown[] } }).toSQL()
+  return render(conditions[0])
 }
 
 describe('getStructuredTagFilters', () => {
@@ -152,8 +157,17 @@ describe('getStructuredTagFilters', () => {
       expect(sql).toBe('? != ?')
       expect(params).toEqual(['boolean1', false])
     })
+  })
 
-    it('ORs two filters on the same slot and keeps them one condition', () => {
+  /**
+   * The callers spread the returned conditions into `and(...)`, so one condition
+   * per filter is what makes the whole array conjunctive. Grouping same-slot
+   * filters into a single OR'd condition made search answer an impossible
+   * predicate with a full page while the document list, which ANDs the same
+   * filters, answered with nothing.
+   */
+  describe('every filter is a conjunct, including two naming the same tag', () => {
+    it('emits one condition per filter for two filters on the same slot', () => {
       const conditions = getStructuredTagFilters(
         [
           { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'a' },
@@ -161,11 +175,62 @@ describe('getStructuredTagFilters', () => {
         ],
         embeddingTable
       )
-      expect(conditions).toHaveLength(1)
-      const joined = (conditions[0] as unknown as { values: unknown[] }).values[0] as {
-        toSQL: () => { sql: string; params: unknown[] }
-      }
-      expect(joined.toSQL().params).toEqual(['tag1', 'a', 'tag1', 'b'])
+      expect(conditions).toHaveLength(2)
+      expect(render(conditions[0]).params).toEqual(['tag1', 'a'])
+      expect(render(conditions[1]).params).toEqual(['tag1', 'b'])
+    })
+
+    it('keeps an impossible same-tag range as two conditions rather than a union', () => {
+      const conditions = getStructuredTagFilters(
+        [
+          { tagSlot: 'number1', fieldType: 'number', operator: 'gte', value: '9' },
+          { tagSlot: 'number1', fieldType: 'number', operator: 'lte', value: '2' },
+        ],
+        embeddingTable
+      )
+      expect(conditions).toHaveLength(2)
+      expect(render(conditions[0]).sql).toBe('? >= ?')
+      expect(render(conditions[1]).sql).toBe('? <= ?')
+      expect(conditions.every((condition) => !render(condition).sql.includes('OR'))).toBe(true)
+    })
+
+    it('still emits one condition per filter across different slots', () => {
+      const conditions = getStructuredTagFilters(
+        [
+          { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'a' },
+          { tagSlot: 'number1', fieldType: 'number', operator: 'gte', value: '9' },
+          { tagSlot: 'boolean1', fieldType: 'boolean', operator: 'eq', value: 'true' },
+        ],
+        embeddingTable
+      )
+      expect(conditions).toHaveLength(3)
+    })
+  })
+
+  /**
+   * The document list builds one predicate per filter and pushes each into a
+   * single `and(...)`. Search must yield the same number of conjuncts for the
+   * same filters, or the two surfaces answer different questions over one tag
+   * vocabulary.
+   */
+  describe('agreement with the document-list surface', () => {
+    it('produces the same number of conjuncts as the document-list builder', () => {
+      const filters: StructuredFilter[] = [
+        { tagSlot: 'number1', fieldType: 'number', operator: 'gte', value: '9' },
+        { tagSlot: 'number1', fieldType: 'number', operator: 'lte', value: '2' },
+      ]
+
+      const listConditions = filters.map((filter) =>
+        buildTagFilterCondition({
+          tagSlot: filter.tagSlot,
+          fieldType: 'number',
+          operator: filter.operator,
+          value: filter.value,
+        })
+      )
+
+      expect(listConditions.every((condition) => condition !== undefined)).toBe(true)
+      expect(getStructuredTagFilters(filters, embeddingTable)).toHaveLength(listConditions.length)
     })
   })
 })

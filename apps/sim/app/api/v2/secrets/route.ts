@@ -1,5 +1,5 @@
 import { v2ListSecretsContract } from '@/lib/api/contracts/v2/secrets'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -16,7 +16,7 @@ export const revalidate = 0
 
 /** Every param that changes which secrets, in which order, this list returns. */
 function secretCursorFilters(query: { workspaceId: string; scope?: string; search?: string }) {
-  return cursorScopeKey({
+  return cursorScopeKey(cursorRoute(v2ListSecretsContract), {
     workspaceId: query.workspaceId,
     scope: query.scope,
     search: query.search,

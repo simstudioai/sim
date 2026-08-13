@@ -1274,10 +1274,19 @@ export const v2ListWorkflowGroupsContract = defineRouteContract({
  * shape carries `workflowGroupId` because the client mints the group id before
  * posting; v2 server-generates it, so the field is stamped from the group being
  * written rather than being a caller's to supply (and get wrong).
+ *
+ * `.strict()` is what makes that omission observable. `omit()` yields an
+ * ordinary object schema, and the enclosing body's `.strict()` binds its own
+ * level only — so a caller who kept the first-party `workflowGroupId` had it
+ * stripped, silently overwritten with the server-minted id, and answered 201.
+ * The same key is now a 400 naming the field, matching how `POST /v2/tables`
+ * refuses it on initial columns.
  */
-const v2WorkflowGroupOutputColumnSchema = workflowGroupOutputColumnSchema.omit({
-  workflowGroupId: true,
-})
+const v2WorkflowGroupOutputColumnSchema = workflowGroupOutputColumnSchema
+  .omit({
+    workflowGroupId: true,
+  })
+  .strict()
 
 /**
  * A group names its producer two mutually exclusive ways, and the underlying

@@ -21,15 +21,30 @@ import {
 } from '@/lib/core/utils/stream-limits'
 
 /**
- * Default upper bound on the JSON request body that contract routes will read
- * and parse into memory. Next.js App Router imposes no body cap, so without
- * this an unauthenticated caller could buffer an arbitrarily large body before
- * schema validation runs. Override per-route via `ParseRequestOptions.maxBodyBytes`.
- * Falls back to 50 MB if the env value is missing or non-numeric so a misconfig
- * can never silently disable the cap (a NaN limit would never reject).
+ * Next.js buffers the client body for the proxy and *silently truncates* anything
+ * past `experimental.proxyClientMaxBodySize` (default 10 MB), and `apps/sim/proxy.ts`
+ * matches `/api/:path*`. A larger body therefore reaches the handler as a truncated
+ * prefix, which fails JSON parsing — so an oversized request has to be rejected on
+ * its declared size before it is read, or the truncation gets misreported as a
+ * malformed body.
  */
-export const DEFAULT_MAX_JSON_BODY_BYTES =
-  Number.parseInt(env.API_MAX_JSON_BODY_BYTES, 10) || 50 * 1024 * 1024
+const PROXY_CLIENT_MAX_BODY_BYTES = 10 * 1024 * 1024
+
+/**
+ * Default upper bound on the JSON request body that contract routes will read
+ * and parse into memory. Without a cap an unauthenticated caller could buffer a
+ * large body before schema validation runs. Override per-route via
+ * `ParseRequestOptions.maxBodyBytes`.
+ *
+ * Falls back to 50 MB if the env value is missing or non-numeric so a misconfig
+ * can never silently disable the cap (a NaN limit would never reject), then
+ * clamps to {@link PROXY_CLIENT_MAX_BODY_BYTES} because the app can never
+ * actually receive more than the proxy forwards.
+ */
+export const DEFAULT_MAX_JSON_BODY_BYTES = Math.min(
+  Number.parseInt(env.API_MAX_JSON_BODY_BYTES, 10) || 50 * 1024 * 1024,
+  PROXY_CLIENT_MAX_BODY_BYTES
+)
 
 export interface ValidationErrorBody {
   error: string

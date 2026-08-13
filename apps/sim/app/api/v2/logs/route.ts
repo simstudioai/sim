@@ -5,6 +5,7 @@ import {
   v2LogStatusSchema,
 } from '@/lib/api/contracts/v2/logs'
 import {
+  cursorRoute,
   cursorScopeKey,
   instantScopePart,
   parseUnorderedList,
@@ -45,7 +46,7 @@ function logCursorFilters(query: {
   folderPaths?: string
   order?: string
 }) {
-  return cursorScopeKey({
+  return cursorScopeKey(cursorRoute(v2ListLogsContract), {
     workspaceId: query.workspaceId,
     workflowIds: unorderedScopePart(query.workflowIds),
     triggers: unorderedScopePart(query.triggers),

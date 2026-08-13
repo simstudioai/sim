@@ -111,6 +111,29 @@ const table: TableDefinition = {
   createdAt: new Date('2026-08-01T00:00:00.000Z'),
   updatedAt: new Date('2026-08-01T00:00:00.000Z'),
 }
+/** An enrichment group stores `workflowId: ''` — there is no workflow to resolve. */
+const enrichmentGroup: WorkflowGroup = {
+  id: 'group-enrichment',
+  workflowId: '',
+  enrichmentId: 'company-domain',
+  type: 'enrichment',
+  outputs: [{ blockId: '', path: 'domain', columnName: 'column-domain' }],
+}
+const enrichmentTable: TableDefinition = {
+  ...table,
+  schema: {
+    columns: [
+      { id: 'column-name', name: 'name', type: 'string' },
+      {
+        id: 'column-domain',
+        name: 'domain',
+        type: 'string',
+        workflowGroupId: 'group-enrichment',
+      },
+    ],
+    workflowGroups: [enrichmentGroup],
+  },
+}
 const principal = {
   kind: 'delegated' as const,
   serviceId: 'copilot' as const,
@@ -404,6 +427,87 @@ describe('workflow and enrichment Table application commands', () => {
       expect.objectContaining({ outputs: group.outputs, name: 'Renamed group' }),
       'request-1'
     )
+  })
+
+  it('extends an enrichment group with a new output without resolving a workflow', async () => {
+    mocks.resolveContext.mockResolvedValueOnce({
+      tableId: table.id,
+      table: enrichmentTable,
+      workspaceId: table.workspaceId,
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+    mocks.updateGroup.mockImplementation(async (input) => ({
+      ...enrichmentTable,
+      schema: {
+        ...enrichmentTable.schema,
+        workflowGroups: [{ ...enrichmentGroup, outputs: input.outputs ?? enrichmentGroup.outputs }],
+      },
+    }))
+
+    await updateTableGroupUseCase.execute({
+      principal,
+      input: {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        groupId: enrichmentGroup.id,
+        outputs: [...enrichmentGroup.outputs, { blockId: '', path: 'name', columnName: 'zz_z' }],
+        newOutputColumns: [{ name: 'zz_z', type: 'string' }],
+      },
+    })
+
+    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
+    expect(mocks.updateGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        groupId: enrichmentGroup.id,
+        newOutputColumns: [{ name: 'zz_z', type: 'string', workflowGroupId: enrichmentGroup.id }],
+      }),
+      'request-1'
+    )
+  })
+
+  it('still resolves the workflow for a new output coordinate on a manual group', async () => {
+    await updateTableGroupUseCase.execute({
+      principal,
+      input: {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        groupId: group.id,
+        outputs: [...group.outputs, { blockId: 'block-2', path: 'score', columnName: 'score' }],
+        newOutputColumns: [{ name: 'score', type: 'number' }],
+      },
+    })
+
+    expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      assertedWorkspaceId: 'workspace-1',
+    })
+    expect(mocks.updateGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        newOutputColumns: [{ name: 'score', type: 'number', workflowGroupId: group.id }],
+      }),
+      'request-1'
+    )
+  })
+
+  it('refuses an output column no output names instead of dropping it', async () => {
+    await expect(
+      updateTableGroupUseCase.execute({
+        principal,
+        input: {
+          tableId: table.id,
+          workspaceId: table.workspaceId,
+          groupId: group.id,
+          newOutputColumns: [{ name: 'zz_w', type: 'string' }],
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'newOutputColumns entry "zz_w" has no matching outputs[].columnName',
+    })
+
+    expect(mocks.updateGroup).not.toHaveBeenCalled()
   })
 
   it('does not start auto-run when the generic update saves a legacy enabled group', async () => {
