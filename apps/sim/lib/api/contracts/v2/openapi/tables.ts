@@ -156,6 +156,7 @@ const declaredRoutes = [
       success: { description: 'The created table.' },
     }),
     {
+      query: v2CreateTableContract.query,
       body: documentedSchema(
         v2CreateTableContract.body,
         'CreateTableRequest',
@@ -253,6 +254,7 @@ const declaredRoutes = [
       success: { description: 'The updated table.' },
     }),
     {
+      query: v2UpdateTableContract.query,
       params: documentedSchema(
         v2UpdateTableContract.params,
         'UpdateTableParams',
@@ -284,6 +286,7 @@ const declaredRoutes = [
       success: { description: 'The updated table columns.' },
     }),
     {
+      query: v2AddTableColumnContract.query,
       params: documentedSchema(
         v2AddTableColumnContract.params,
         'AddTableColumnParams',
@@ -315,6 +318,7 @@ const declaredRoutes = [
       success: { description: 'The updated table columns.' },
     }),
     {
+      query: v2UpdateTableColumnContract.query,
       params: documentedSchema(
         v2UpdateTableColumnContract.params,
         'UpdateTableColumnParams',
@@ -346,6 +350,7 @@ const declaredRoutes = [
       success: { description: 'The surviving table columns.' },
     }),
     {
+      query: v2DeleteTableColumnContract.query,
       params: documentedSchema(
         v2DeleteTableColumnContract.params,
         'DeleteTableColumnParams',
@@ -409,6 +414,7 @@ const declaredRoutes = [
       success: { description: 'The inserted row or rows.' },
     }),
     {
+      query: v2CreateTableRowsContract.query,
       params: documentedSchema(
         v2CreateTableRowsContract.params,
         'CreateTableRowsParams',
@@ -440,6 +446,7 @@ const declaredRoutes = [
       success: { description: 'The bulk update result.' },
     }),
     {
+      query: v2UpdateRowsByFilterContract.query,
       params: documentedSchema(
         v2UpdateRowsByFilterContract.params,
         'UpdateTableRowsParams',
@@ -478,6 +485,7 @@ const declaredRoutes = [
       success: { description: 'The bulk deletion result.' },
     }),
     {
+      query: v2DeleteTableRowsContract.query,
       params: documentedSchema(
         v2DeleteTableRowsContract.params,
         'DeleteTableRowsParams',
@@ -539,6 +547,7 @@ const declaredRoutes = [
       success: { description: 'The updated table row.' },
     }),
     {
+      query: v2UpdateTableRowContract.query,
       params: documentedSchema(
         v2UpdateTableRowContract.params,
         'UpdateTableRowParams',
@@ -601,6 +610,7 @@ const declaredRoutes = [
       success: { description: 'The upserted row and operation performed.' },
     }),
     {
+      query: v2UpsertTableRowContract.query,
       params: documentedSchema(
         v2UpsertTableRowContract.params,
         'UpsertTableRowParams',
@@ -639,6 +649,7 @@ const declaredRoutes = [
       success: { description: 'A page of matching table rows.' },
     }),
     {
+      query: v2QueryRowsContract.query,
       params: documentedSchema(
         v2QueryRowsContract.params,
         'QueryTableRowsParams',
@@ -678,6 +689,7 @@ const declaredRoutes = [
       success: { description: 'The number of matching table rows.' },
     }),
     {
+      query: v2QueryRowsCountContract.query,
       params: documentedSchema(
         v2QueryRowsCountContract.params,
         'CountTableRowsParams',
@@ -744,6 +756,7 @@ const declaredRoutes = [
       success: { description: 'The created table view.' },
     }),
     {
+      query: v2CreateTableViewContract.query,
       params: documentedSchema(
         v2CreateTableViewContract.params,
         'CreateTableViewParams',
@@ -816,6 +829,7 @@ const declaredRoutes = [
       success: { description: 'The updated table view.' },
     }),
     {
+      query: v2UpdateTableViewContract.query,
       params: documentedSchema(
         v2UpdateTableViewContract.params,
         'UpdateTableViewParams',
@@ -908,6 +922,7 @@ const declaredRoutes = [
       success: { description: 'The created workflow group and resulting columns.' },
     }),
     {
+      query: v2AddWorkflowGroupContract.query,
       params: documentedSchema(
         v2AddWorkflowGroupContract.params,
         'AddTableWorkflowGroupParams',
@@ -950,6 +965,7 @@ const declaredRoutes = [
       success: { description: 'The updated workflow group and resulting columns.' },
     }),
     {
+      query: v2UpdateWorkflowGroupContract.query,
       params: documentedSchema(
         v2UpdateWorkflowGroupContract.params,
         'UpdateTableWorkflowGroupParams',
@@ -981,6 +997,7 @@ const declaredRoutes = [
       success: { description: 'Workflow-group deletion acknowledgement and surviving columns.' },
     }),
     {
+      query: v2DeleteWorkflowGroupContract.query,
       params: documentedSchema(
         v2DeleteWorkflowGroupContract.params,
         'DeleteTableWorkflowGroupParams',
@@ -1013,6 +1030,7 @@ const declaredRoutes = [
       success: { description: 'The accepted table-column dispatch.' },
     }),
     {
+      query: v2RunTableColumnContract.query,
       params: documentedSchema(
         v2RunTableColumnContract.params,
         'RunTableColumnsParams',
@@ -1044,6 +1062,7 @@ const declaredRoutes = [
       success: { description: 'The accepted row enrichment dispatch.' },
     }),
     {
+      query: v2RunRowEnrichmentContract.query,
       params: documentedSchema(
         v2RunRowEnrichmentContract.params,
         'RunRowEnrichmentParams',
@@ -1076,6 +1095,7 @@ const declaredRoutes = [
       success: { description: 'The matching table cells.' },
     }),
     {
+      query: v2FindTableRowsContract.query,
       params: documentedSchema(
         v2FindTableRowsContract.params,
         'FindTableRowsParams',
@@ -1114,6 +1134,7 @@ const declaredRoutes = [
       success: { description: 'The created table import and optional transfer instructions.' },
     }),
     {
+      query: v2CreateTableImportContract.query,
       body: documentedSchema(
         v2CreateTableImportContract.body,
         'CreateTableImportRequest',
@@ -1303,6 +1324,7 @@ const declaredRoutes = [
       success: { description: 'The created table export.' },
     }),
     {
+      query: v2CreateTableExportContract.query,
       params: documentedSchema(
         v2CreateTableExportContract.params,
         'CreateTableExportParams',
@@ -1427,6 +1449,7 @@ const declaredRoutes = [
       success: { description: 'The number of canceled cell runs.' },
     }),
     {
+      query: v2CancelTableRunsContract.query,
       params: documentedSchema(
         v2CancelTableRunsContract.params,
         'CancelTableRunsParams',
@@ -1482,6 +1505,7 @@ const declaredRoutes = [
       success: { description: 'The created table folder.' },
     }),
     {
+      query: v2CreateTableFolderContract.query,
       body: documentedSchema(
         v2CreateTableFolderContract.body,
         'CreateTableFolderRequest',
@@ -1507,6 +1531,7 @@ const declaredRoutes = [
       success: { description: 'The relocated table folder.' },
     }),
     {
+      query: v2RelocateTableFolderContract.query,
       body: documentedSchema(
         v2RelocateTableFolderContract.body,
         'RelocateTableFolderRequest',

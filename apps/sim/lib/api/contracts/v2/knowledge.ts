@@ -6,7 +6,7 @@ import {
   knowledgeDocumentParamsSchema,
   nullableWireDateSchema,
 } from '@/lib/api/contracts/knowledge/shared'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v1ChunkingConfigSchema,
@@ -660,6 +660,7 @@ export const v2ListKnowledgeBasesContract = defineRouteContract({
 export const v2CreateKnowledgeBaseContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge',
+  query: noInputSchema,
   body: v2CreateKnowledgeBaseBodySchema,
   response: {
     mode: 'json',
@@ -692,6 +693,7 @@ export const v2GetKnowledgeBaseContract = defineRouteContract({
 export const v2UpdateKnowledgeBaseContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/knowledge/[id]',
+  query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2UpdateKnowledgeBaseBodySchema,
   response: {
@@ -748,6 +750,7 @@ export const v2ListKnowledgeFoldersContract = defineRouteContract({
 export const v2CreateKnowledgeFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge/folders',
+  query: noInputSchema,
   body: v2CreateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FolderSchema), status: 201 },
 })
@@ -755,6 +758,7 @@ export const v2CreateKnowledgeFolderContract = defineRouteContract({
 export const v2RelocateKnowledgeFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/knowledge/folders',
+  query: noInputSchema,
   body: v2RelocateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FolderSchema) },
 })
@@ -843,6 +847,7 @@ export type V2KnowledgeSearchBody = z.input<typeof v2KnowledgeSearchBodySchema>
 export const v2SearchKnowledgeContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge/search',
+  query: noInputSchema,
   body: v2KnowledgeSearchBodySchema,
   response: {
     mode: 'json',
@@ -962,6 +967,7 @@ export const v2UploadKnowledgeDocumentContract = defineRouteContract({
 export const v2CreateKnowledgeDocumentUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge/[id]/documents/uploads',
+  query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2CreateKnowledgeDocumentUploadBodySchema,
   response: {
@@ -1236,6 +1242,7 @@ const v2UpdateKnowledgeDocumentDataSchema = z.union([
 export const v2UpdateKnowledgeDocumentContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/knowledge/[id]/documents/[documentId]',
+  query: noInputSchema,
   params: v2KnowledgeDocumentParamsSchema,
   body: v2UpdateKnowledgeDocumentBodySchema,
   response: {
@@ -1338,6 +1345,7 @@ export const v2BulkKnowledgeDocumentsDataSchema = z
 export const v2BulkUpdateKnowledgeDocumentsContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/knowledge/[id]/documents',
+  query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2BulkKnowledgeDocumentsBodySchema,
   response: {

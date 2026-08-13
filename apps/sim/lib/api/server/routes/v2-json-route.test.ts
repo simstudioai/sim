@@ -14,7 +14,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import type { ParsedRequest, ParseRequestOptions } from '@/lib/api/server/validation'
-import type { OperationUseCase } from '@/lib/core/application'
+import {
+  NoWorkspaceAccessError,
+  type OperationUseCase,
+  PrincipalKindAuthorizationError,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
 
@@ -487,5 +491,136 @@ describe('defineV2JsonRoute', () => {
     await expect(response.json()).resolves.toEqual({
       error: { code: 'PAYLOAD_TOO_LARGE', message: 'Import archive is too large' },
     })
+  })
+})
+
+/**
+ * A `HEAD` on a route whose `GET` is not safe must answer the question the `GET`
+ * would answer, minus the effect — not merely the question admission can answer.
+ *
+ * The builder used to return {@link v2HeadNoEffect} straight after
+ * authenticate + rate-limit, so any valid API key drew a bodiless 200 for a
+ * denied principal kind, a nonexistent id, another tenant's workspace, and even
+ * a request missing a required param — while the `GET` beside it answered 403.
+ * That is an existence oracle: the probe reveals what the caller is not
+ * authorized to know. The fix runs the use case's authorization phase and stops
+ * before its business phase.
+ */
+describe('defineV2JsonRoute HEAD on a route that is not head-safe', () => {
+  const headContract = defineRouteContract({
+    method: 'GET',
+    path: '/api/v2/widgets/[widgetId]',
+    params: z.object({ widgetId: z.string() }).strict(),
+    query: z.object({ workspaceId: z.string().min(1) }).strict(),
+    response: { mode: 'json', schema: z.object({ data: z.object({ value: z.string() }) }) },
+  })
+
+  type HeadInput = { widgetId: string; workspaceId: string }
+
+  function createHeadHandler(overrides: {
+    authorize?: (args: { input: HeadInput }) => Promise<void>
+    execute?: () => Promise<Result>
+    omitAuthorize?: boolean
+  }) {
+    const useCase: OperationUseCase<typeof operation, HeadInput, Result> = {
+      operation,
+      execute: overrides.execute ?? (async () => ({ value: 'ok' })),
+      authorize: overrides.omitAuthorize ? undefined : (overrides.authorize ?? (async () => {})),
+    }
+    return defineV2JsonRoute({
+      contract: headContract,
+      auth: v2ApiKeyAuth,
+      operation,
+      headSafe: false,
+      rateLimit: v2RateLimits.publicApi,
+      errorPolicy: v2OrchestrationErrorPolicy,
+      mapInput: ({ params, query }) => ({ widgetId: params.widgetId, ...query }),
+      useCase,
+      present: (result) => ({ data: result }),
+    })
+  }
+
+  const headContext = { params: Promise.resolve({ widgetId: 'widget-1' }) }
+
+  function headRequest(query = 'workspaceId=workspace-1'): NextRequest {
+    return new NextRequest(`http://localhost/api/v2/widgets/widget-1?${query}`, {
+      method: 'HEAD',
+      headers: { 'x-api-key': 'secret' },
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
+    v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
+  })
+
+  it('answers a denied principal kind with the status its GET would produce', async () => {
+    const execute = vi.fn(async () => ({ value: 'ok' }))
+    const response = await createHeadHandler({
+      execute,
+      authorize: async () => {
+        throw new PrincipalKindAuthorizationError('workspace_api_key', operation.id)
+      },
+    })(headRequest(), headContext)
+
+    expect(response.status).toBe(403)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('answers a nonexistent resource with 404 rather than confirming it exists', async () => {
+    const execute = vi.fn(async () => ({ value: 'ok' }))
+    const response = await createHeadHandler({
+      execute,
+      authorize: async () => {
+        throw new OrchestrationError('not_found', 'Widget not found')
+      },
+    })(headRequest(), headContext)
+
+    expect(response.status).toBe(404)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('answers an unauthorized workspace with the GET`s own refusal status', async () => {
+    const execute = vi.fn(async () => ({ value: 'ok' }))
+    const response = await createHeadHandler({
+      execute,
+      authorize: async () => {
+        throw new NoWorkspaceAccessError()
+      },
+    })(headRequest('workspaceId=someone-elses-workspace'), headContext)
+
+    expect(response.status).toBe(403)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects a missing required param instead of answering 200', async () => {
+    const authorize = vi.fn(async () => {})
+    const response = await createHeadHandler({ authorize })(headRequest(''), headContext)
+
+    expect(response.status).toBe(400)
+    expect(authorize).not.toHaveBeenCalled()
+  })
+
+  it('answers an authorized probe bodiless without running the business phase', async () => {
+    const execute = vi.fn(async () => ({ value: 'ok' }))
+    const authorize = vi.fn(async () => {})
+    const response = await createHeadHandler({ execute, authorize })(headRequest(), headContext)
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('')
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        input: { widgetId: 'widget-1', workspaceId: 'workspace-1' },
+      })
+    )
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('refuses at definition time to build the route when the use case cannot authorize', () => {
+    expect(() => createHeadHandler({ omitAuthorize: true })).toThrow(/authorize/)
   })
 })

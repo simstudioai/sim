@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { mcpAuthTypeSchema, mcpServerSchema, mcpTransportSchema } from '@/lib/api/contracts/mcp'
 import {
   booleanQueryFlagSchema,
+  noInputSchema,
   nonEmptyIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -369,6 +370,7 @@ export const v2ListMcpServersContract = defineRouteContract({
 export const v2CreateMcpServerContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/mcp-servers',
+  query: noInputSchema,
   body: v2CreateMcpServerBodySchema,
   response: {
     mode: 'json',
@@ -391,6 +393,7 @@ export const v2GetMcpServerContract = defineRouteContract({
 export const v2UpdateMcpServerContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/mcp-servers/[id]',
+  query: noInputSchema,
   params: v2McpServerParamsSchema,
   body: v2UpdateMcpServerBodySchema,
   response: {

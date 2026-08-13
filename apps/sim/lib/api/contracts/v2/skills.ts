@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   skillContentSchema,
   skillDescriptionSchema,
@@ -168,6 +168,7 @@ export const v2ListSkillsContract = defineRouteContract({
 export const v2CreateSkillContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/skills',
+  query: noInputSchema,
   body: v2CreateSkillBodySchema,
   response: {
     mode: 'json',
@@ -190,6 +191,7 @@ export const v2GetSkillContract = defineRouteContract({
 export const v2UpdateSkillContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/skills/[id]',
+  query: noInputSchema,
   params: v2SkillParamsSchema,
   body: v2UpdateSkillBodySchema,
   response: {

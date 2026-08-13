@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   customToolFunctionParametersSchema,
   customToolSchemaSchema,
@@ -182,6 +182,7 @@ export const v2ListCustomToolsContract = defineRouteContract({
 export const v2CreateCustomToolContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/custom-tools',
+  query: noInputSchema,
   body: v2CreateCustomToolBodySchema,
   response: {
     mode: 'json',
@@ -204,6 +205,7 @@ export const v2GetCustomToolContract = defineRouteContract({
 export const v2UpdateCustomToolContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/custom-tools/[id]',
+  query: noInputSchema,
   params: v2CustomToolParamsSchema,
   body: v2UpdateCustomToolBodySchema,
   response: {

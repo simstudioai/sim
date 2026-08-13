@@ -12,7 +12,8 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
-import type { OperationUseCase } from '@/lib/core/application'
+import { NoWorkspaceAccessError, type OperationUseCase } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
@@ -42,6 +43,7 @@ const contract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/widgets/[widgetId]',
   params: z.object({ widgetId: z.string() }),
+  query: z.object({ workspaceId: z.string().min(1) }).strict(),
   response: { mode: 'binary' },
 })
 
@@ -53,10 +55,16 @@ interface Result {
   bytes: string
 }
 
-function createHandler(options: { headSafe?: boolean; execute: () => Promise<Result> }) {
+function createHandler(options: {
+  headSafe?: boolean
+  execute: () => Promise<Result>
+  authorize?: () => Promise<void>
+  omitAuthorize?: boolean
+}) {
   const useCase: OperationUseCase<typeof operation, Input, Result> = {
     operation,
     execute: options.execute,
+    authorize: options.omitAuthorize ? undefined : (options.authorize ?? (async () => {})),
   }
   return defineV2BinaryRoute({
     contract,
@@ -71,8 +79,8 @@ function createHandler(options: { headSafe?: boolean; execute: () => Promise<Res
   })
 }
 
-function request(method: 'GET' | 'HEAD'): NextRequest {
-  return new NextRequest('http://localhost/api/v2/widgets/widget-1', {
+function request(method: 'GET' | 'HEAD', query = 'workspaceId=workspace-1'): NextRequest {
+  return new NextRequest(`http://localhost/api/v2/widgets/widget-1?${query}`, {
     method,
     headers: { 'x-api-key': 'secret' },
   })
@@ -123,5 +131,58 @@ describe('defineV2BinaryRoute', () => {
 
     expect(v2RouteMocks.authenticate).toHaveBeenCalledOnce()
     expect(v2RouteMocks.operationRate).toHaveBeenCalled()
+  })
+
+  /**
+   * A download `HEAD` used to answer 200 from admission alone, so any valid API
+   * key could enumerate file ids across every workspace — the `GET` beside it
+   * answered 403. It now runs the use case's authorization phase and renders the
+   * refusal through the route's error policy, so the probe never says more than
+   * the download would.
+   */
+  it('answers a denied HEAD with the status its GET would produce', async () => {
+    const execute = vi.fn(async () => ({ bytes: 'payload' }))
+    const response = await createHandler({
+      headSafe: false,
+      execute,
+      authorize: async () => {
+        throw new NoWorkspaceAccessError()
+      },
+    })(request('HEAD'), context)
+
+    expect(response.status).toBe(403)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('answers a HEAD for a nonexistent resource with 404, not 200', async () => {
+    const execute = vi.fn(async () => ({ bytes: 'payload' }))
+    const response = await createHandler({
+      headSafe: false,
+      execute,
+      authorize: async () => {
+        throw new OrchestrationError('not_found', 'Widget not found')
+      },
+    })(request('HEAD'), context)
+
+    expect(response.status).toBe(404)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects a HEAD missing a required param instead of answering 200', async () => {
+    const execute = vi.fn(async () => ({ bytes: 'payload' }))
+    const authorize = vi.fn(async () => {})
+    const response = await createHandler({ headSafe: false, execute, authorize })(
+      request('HEAD', ''),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(authorize).not.toHaveBeenCalled()
+  })
+
+  it('refuses at definition time to build a not-head-safe route that cannot authorize', () => {
+    expect(() =>
+      createHandler({ headSafe: false, omitAuthorize: true, execute: async () => ({ bytes: '' }) })
+    ).toThrow(/authorize/)
   })
 })

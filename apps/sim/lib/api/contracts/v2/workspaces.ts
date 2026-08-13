@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
@@ -72,6 +72,7 @@ export type V2WorkspaceMemberCursor = z.output<typeof v2WorkspaceMemberCursorSch
 export const v2GetWorkspaceContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workspaces/[workspaceId]',
+  query: noInputSchema,
   params: v2WorkspaceParamsSchema,
   response: { mode: 'json', schema: v2DataResponse(v2WorkspaceSchema) },
 })

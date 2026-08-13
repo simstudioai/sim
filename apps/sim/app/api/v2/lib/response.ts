@@ -121,15 +121,22 @@ function successHeaders(options: V2SuccessOptions): Record<string, string> {
 }
 
 /**
- * The bodiless 200 a `HEAD` receives from a route whose `GET` is not safe.
+ * The bodiless 200 a `HEAD` receives from a route whose `GET` is not safe, once
+ * that `HEAD` has been authorized.
  *
  * RFC 9110 §9.3.2 lets Next alias `HEAD` onto `GET` only because §9.2.1 defines
  * `HEAD` as safe — "essentially read-only". A `GET` that opens an outbound
  * connection or writes a row breaks that assumption, and an uptime monitor or
  * link checker walking the documented URL list would drive those effects
- * invisibly on every probe. Such a route answers the authorization and
- * rate-limit questions and stops there. `HEAD` carries no body in any case, so
- * nothing the caller can observe is fabricated.
+ * invisibly on every probe. Such a route runs everything the `GET` runs up to
+ * and including resource authorization, then stops before the business phase.
+ *
+ * The 200 here is unconditional **by construction**: the v2 route builders only
+ * reach this function after `useCase.authorize` has resolved, and render every
+ * rejection through the route's own error policy. Calling it before that check —
+ * as the builders originally did, straight after admission — turns it into an
+ * existence oracle, because a valid API key for any workspace then draws a 200
+ * for a resource that same key's `GET` answers 403 or 404 for.
  */
 export function v2HeadNoEffect(options: V2SuccessOptions = {}): NextResponse {
   return new NextResponse(null, { status: options.status ?? 200, headers: successHeaders(options) })

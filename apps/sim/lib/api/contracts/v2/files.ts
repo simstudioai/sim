@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   isCanonicalBase64,
+  noInputSchema,
   workspaceFileIdSchema,
   workspaceFileNameSchema,
   workspaceIdSchema,
@@ -438,6 +439,7 @@ export const v2ListFileFoldersContract = defineRouteContract({
 export const v2CreateFileFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/folders',
+  query: noInputSchema,
   body: v2CreateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FolderSchema), status: 201 },
 })
@@ -445,6 +447,7 @@ export const v2CreateFileFolderContract = defineRouteContract({
 export const v2RelocateFileFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/files/folders',
+  query: noInputSchema,
   body: v2RelocateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FolderSchema) },
 })
@@ -535,6 +538,7 @@ export const v2ListFilesContract = defineRouteContract({
 export const v2CreateFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files',
+  query: noInputSchema,
   body: v2CreateFileBodySchema,
   response: {
     mode: 'json',
@@ -546,6 +550,7 @@ export const v2CreateFileContract = defineRouteContract({
 export const v2CreateFileUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/uploads',
+  query: noInputSchema,
   body: v2CreateFileUploadBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2CreateFileUploadDataSchema), status: 201 },
 })
@@ -602,6 +607,7 @@ export const v2GetFileContract = defineRouteContract({
 export const v2RenameFileContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/files/[fileId]',
+  query: noInputSchema,
   params: v2FileParamsSchema,
   body: v2RenameFileBodySchema,
   response: {
@@ -624,6 +630,7 @@ export const v2DeleteFileContract = defineRouteContract({
 export const v2RestoreFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/[fileId]/restore',
+  query: noInputSchema,
   params: v2FileParamsSchema,
   body: v2RestoreFileBodySchema,
   response: {
@@ -635,6 +642,7 @@ export const v2RestoreFileContract = defineRouteContract({
 export const v2MoveFileItemsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/move',
+  query: noInputSchema,
   body: v2MoveFileItemsBodySchema,
   response: {
     mode: 'json',
@@ -645,6 +653,7 @@ export const v2MoveFileItemsContract = defineRouteContract({
 export const v2BulkDeleteFilesContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/bulk-delete',
+  query: noInputSchema,
   body: v2BulkDeleteFilesBodySchema,
   response: {
     mode: 'json',
@@ -676,6 +685,7 @@ export const v2GetFileShareContract = defineRouteContract({
 export const v2UpsertFileShareContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/files/[fileId]/share',
+  query: noInputSchema,
   params: v2FileParamsSchema,
   body: v2UpsertFileShareBodySchema,
   response: {
@@ -687,6 +697,7 @@ export const v2UpsertFileShareContract = defineRouteContract({
 export const v2UpdateFileContentContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/files/[fileId]/content',
+  query: noInputSchema,
   params: v2FileParamsSchema,
   body: v2UpdateFileContentBodySchema,
   response: {

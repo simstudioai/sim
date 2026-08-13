@@ -126,6 +126,7 @@ const routes = [
       success: { description: 'The requested diagnostic log representation.' },
     }),
     {
+      query: v2GetLogContract.query,
       params: documentedSchema(
         v2GetLogContract.params,
         'GetLogParams',

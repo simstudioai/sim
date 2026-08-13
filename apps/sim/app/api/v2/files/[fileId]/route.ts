@@ -32,10 +32,13 @@ export const revalidate = 0
  * Downloading is not a safe read: it records a `FILE_DOWNLOADED` audit event and
  * pulls the bytes out of object storage. Next aliases `HEAD` onto `GET`, and RFC
  * 9110 §9.2.1 defines `HEAD` as safe, so this route declares itself not
- * head-safe — a `HEAD` is authenticated and rate-limited, then answered bodiless
- * without auditing or fetching. Without that, an uptime monitor or link checker
- * walking the documented URL list would fabricate a download event on every
- * probe, for a download that never happened.
+ * head-safe. A `HEAD` is admitted, parsed, and authorized through
+ * `downloadWorkspaceFileStream.authorize` — the same workspace-scoped file
+ * resolution and access check the `GET` performs — then answered bodiless
+ * without auditing or fetching. Without the not-head-safe declaration an uptime
+ * monitor walking the documented URL list would fabricate a download event on
+ * every probe; without the authorization step the probe would instead confirm a
+ * file id the caller has no right to know exists.
  */
 export const GET = defineV2BinaryRoute({
   contract: v2DownloadFileContract,

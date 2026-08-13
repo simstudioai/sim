@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import {
   booleanQueryFlagSchema,
+  noInputSchema,
   runIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -308,6 +309,7 @@ export const v2ListLogsContract = defineRouteContract({
 export const v2GetLogContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/logs/[runId]',
+  query: noInputSchema,
   params: v2LogParamsSchema,
   response: {
     mode: 'json',

@@ -17,7 +17,7 @@ import {
   V2ApiKeyUnauthenticatedError,
 } from '@/lib/api/server/routes/v2-api-key-auth'
 import { type ParseRequestOptions, parseRequest } from '@/lib/api/server/validation'
-import type { ApplicationOperation } from '@/lib/core/application'
+import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -146,6 +146,59 @@ export interface V2ErrorPolicy {
   render(error: unknown): NextResponse | null
 }
 
+/**
+ * Refuses at module load to build a `headSafe: false` route whose use case
+ * cannot answer the authorization question on its own.
+ *
+ * Such a route must decide a `HEAD` without executing the use case, and the only
+ * honest way to do that is to run the use case's authorization phase alone. A
+ * use case that does not expose one leaves the builder with nothing but
+ * admission to answer from, which is precisely the existence oracle
+ * `headSafe: false` used to ship. Failing here turns the next occurrence into a
+ * boot failure instead of a silent 200.
+ */
+export function requireHeadAuthorizableUseCase(
+  contract: { method: string; path: string },
+  headSafe: boolean | undefined,
+  useCase: Pick<OperationUseCase<ApplicationOperation, unknown, unknown>, 'authorize'>
+): void {
+  if (headSafe !== false) return
+  if (typeof useCase.authorize === 'function') return
+  throw new Error(
+    `V2 route ${contract.method} ${contract.path} declares headSafe: false but its use case has no authorize(); a HEAD would have to answer from authentication alone and would leak the resource's existence.`
+  )
+}
+
+/**
+ * The bodiless answer a `HEAD` gets on a route whose `GET` is not safe.
+ *
+ * Authorization runs first and its failures render through the route's own error
+ * policy, so the status a caller sees is the status their `GET` would have
+ * produced — 400, 401, 403, 404, 429 — and only an authorized caller reaches the
+ * 200. What a `HEAD` never reaches is the use case's business phase, so the
+ * outbound connection, the row write, and the audit event stay unfired.
+ */
+export async function v2HeadAuthorizationResponse(args: {
+  useCase: Pick<OperationUseCase<ApplicationOperation, unknown, unknown>, 'authorize'>
+  principal: V2ApiKeyAuthContext['principal']
+  input: unknown
+  request: NextRequest
+  errorPolicy: V2ErrorPolicy
+}): Promise<NextResponse> {
+  try {
+    await args.useCase.authorize?.({
+      principal: args.principal,
+      input: args.input,
+      request: args.request,
+    })
+  } catch (error) {
+    const response = args.errorPolicy.render(error)
+    if (response) return response
+    throw error
+  }
+  return v2HeadNoEffect()
+}
+
 export const v2OrchestrationErrorPolicy = {
   render(error) {
     return v2CaughtOrchestrationError(error)
@@ -230,9 +283,17 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
    * Whether this route's `GET` is safe enough for Next's `HEAD`→`GET` aliasing
    * to run it. Defaults to `true`, which is correct for a read.
    *
-   * Set `false` when the `GET` opens an outbound connection or writes a row.
-   * Such a route still authenticates and rate-limits a `HEAD`, then answers a
-   * bodiless 200 without executing the use case — see {@link v2HeadNoEffect}.
+   * Set `false` when the `GET` opens an outbound connection or writes a row. A
+   * `HEAD` on such a route is admitted, parsed, and **authorized** exactly as
+   * the `GET` would be, then answered bodiless without running the use case's
+   * business phase — see {@link v2HeadNoEffect}.
+   *
+   * Stopping any earlier than authorization is what made this an existence
+   * oracle: admission proves only that the caller holds *a* valid key, so a
+   * `HEAD` answered at that point returned 200 for a resource the very same
+   * caller's `GET` answered 403 or 404 for. A `headSafe: false` route therefore
+   * requires a use case exposing `authorize`, checked at definition time by
+   * {@link requireHeadAuthorizableUseCase}.
    */
   headSafe?: boolean
   parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
@@ -260,6 +321,7 @@ export function defineV2JsonRoute<
     options.operation,
     options.useCase.operation
   )
+  requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
@@ -278,10 +340,6 @@ export function defineV2JsonRoute<
       if (!admission.success) return admission.response
       const { auth } = admission
 
-      if (request.method === 'HEAD' && options.headSafe === false) {
-        return v2HeadNoEffect()
-      }
-
       if (options.beforeParse) {
         const rawParams = context?.params ? await context.params : {}
         try {
@@ -299,6 +357,24 @@ export function defineV2JsonRoute<
         validationErrorResponse: v2ValidationError,
       })
       if (!parsed.success) return parsed.response
+
+      if (request.method === 'HEAD' && options.headSafe === false) {
+        let input: I
+        try {
+          input = options.mapInput(parsed.data)
+        } catch (error) {
+          const response = options.errorPolicy.render(error)
+          if (response) return response
+          throw error
+        }
+        return v2HeadAuthorizationResponse({
+          useCase: options.useCase,
+          principal: auth.principal,
+          input,
+          request,
+          errorPolicy: options.errorPolicy,
+        })
+      }
 
       try {
         const input = options.mapInput(parsed.data)
