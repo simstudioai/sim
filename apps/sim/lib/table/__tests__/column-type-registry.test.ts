@@ -91,12 +91,11 @@ describe('conversion write-back', () => {
   // transformed value back — filters and sorts apply `jsonbCast` to whatever is
   // stored, so a value left in its old shape breaks every query on the column.
   it.each`
-    type          | stored           | expected
-    ${'date'}     | ${1700000000000} | ${'2023-11-14T22:13:20.000Z'}
-    ${'date'}     | ${'2024-01-01'}  | ${'2024-01-01'}
-    ${'currency'} | ${'$1,234.56'}   | ${1234.56}
-    ${'currency'} | ${'1.234,56'}    | ${1234.56}
-    ${'number'}   | ${'1999'}        | ${1999}
+    type          | stored          | expected
+    ${'date'}     | ${'2024-01-01'} | ${'2024-01-01'}
+    ${'currency'} | ${'$1,234.56'}  | ${1234.56}
+    ${'currency'} | ${'1.234,56'}   | ${1234.56}
+    ${'number'}   | ${'1999'}       | ${1999}
   `('$type coerces $stored to a value its jsonbCast can read', ({ type, stored, expected }) => {
     const column = { name: 'c', type } as ColumnDefinition
     const result = COLUMN_TYPE_REGISTRY[type as ColumnType].coerce(stored, column)
@@ -104,11 +103,18 @@ describe('conversion write-back', () => {
   })
 
   it('never leaves a numeric-cast type holding something Postgres cannot cast', () => {
-    // The concrete failure this guards: an epoch number left in a `date`
-    // column makes `(data->>'col')::timestamptz` throw on every query.
+    // The concrete failure this guards: a number left in a `date` column makes
+    // `(data->>'col')::timestamptz` throw on every query. A bare number is now
+    // refused outright rather than read as epoch milliseconds — the value
+    // cannot say whether it means seconds or milliseconds, and both readings
+    // are in range — so the column can never come to hold one either way.
     for (const definition of ALL_COLUMN_TYPES) {
       if (definition.jsonbCast !== 'timestamptz') continue
-      const coerced = definition.coerce(1700000000000, { name: 'c', type: definition.id })
+      expect(definition.coerce(1700000000000, { name: 'c', type: definition.id }).ok).toBe(false)
+      const coerced = definition.coerce('2023-11-14T22:13:20.000Z', {
+        name: 'c',
+        type: definition.id,
+      })
       expect(coerced.ok).toBe(true)
       expect(typeof (coerced as { value: unknown }).value).toBe('string')
     }
@@ -135,16 +141,17 @@ describe('intentional divergences from the pre-registry behavior', () => {
     }
   })
 
-  it('refuses to bulk-convert a number column to date', () => {
-    // `date.coerce` accepts an epoch for a single deliberate write, but
-    // reinterpreting a whole numeric column as epoch milliseconds is
-    // destructive and irreversible — 1, 5, 42 would become three timestamps in
-    // January 1970. The gate may be stricter than `coerce`, never looser.
+  it('refuses a number as a date, on the write path and the bulk gate alike', () => {
+    // The gate used to be stricter than `coerce` here: a whole numeric column
+    // reinterpreted as epoch milliseconds would turn 1, 5, 42 into three
+    // timestamps in January 1970. The write path had the same problem one value
+    // at a time — `1600000000` is September 2020 as seconds and January 1970 as
+    // milliseconds, both in range — so `coerce` now refuses a bare number too
+    // and the gate needs no override.
     const column: ColumnDefinition = { name: 'd', type: 'date' }
     for (const value of [0, 1, 42, 1700000000]) {
       expect(isValueCompatible(value, column)).toBe(false)
-      // The write path still accepts it.
-      expect(COLUMN_TYPE_REGISTRY.date.coerce(value as never, column).ok).toBe(true)
+      expect(COLUMN_TYPE_REGISTRY.date.coerce(value as never, column).ok).toBe(false)
     }
     expect(isValueCompatible('2024-01-01', column)).toBe(true)
   })

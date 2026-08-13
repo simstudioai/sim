@@ -50,9 +50,20 @@ export const selectColumnType: ColumnTypeDefinition = {
   },
 
   coerce(value, column) {
+    if (column.multiple) {
+      // `resolveSelectCellValue` DROPS parts that match no option, which is
+      // right for a display read of a cell whose option was since deleted, but
+      // is a silent discard on a write: `["green"]` would resolve to `[]` and
+      // store an empty cell for a value the caller asked to keep. A write only
+      // coerces when every part it named resolves — the same rule the single
+      // branch has always had, and the same rule `isCompatibleWith` uses for
+      // the bulk conversion.
+      const options = column.options ?? []
+      const parts = splitMultiSelectInput(value)
+      if (parts.some((part) => resolveSelectOptionId(part, options) === null)) return { ok: false }
+    }
     const resolved = resolveSelectCellValue(value, column)
-    // A multi target always resolves (to `[]` at worst); a single target that
-    // matches no option has nothing safe to store.
+    // A single target that matches no option has nothing safe to store.
     return resolved === null ? { ok: false } : { ok: true, value: resolved }
   },
 

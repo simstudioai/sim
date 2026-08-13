@@ -397,4 +397,44 @@ describe('v2 table request bounds', () => {
     expect(bounds.maxItems).toBe(MAX_RUN_TARGET_ROW_IDS)
     expect(bounds.minItems).toBe(1)
   })
+
+  /**
+   * The shared group shape defaults `workflowId` to `''`, so the published
+   * schema advertised `default: ""` while `refineGroupSource` 400s any manual
+   * group that omits it — a documented fallback that always fails.
+   */
+  it('does not advertise a workflowId default the create refuses to honor', () => {
+    const json = z.toJSONSchema(tableContracts.v2AddWorkflowGroupBodySchema, {
+      io: 'input',
+      unrepresentable: 'any',
+    }) as {
+      properties?: { group?: { properties?: { workflowId?: { default?: unknown } } } }
+    }
+
+    expect(json.properties?.group?.properties?.workflowId?.default).toBeUndefined()
+    expect(
+      tableContracts.v2AddWorkflowGroupBodySchema.safeParse({
+        workspaceId: '6fc7631d-88cd-46f8-9f0a-d4764daef7f8',
+        group: {
+          type: 'manual',
+          outputs: [{ blockId: 'block-1', path: 'result', columnName: 'Result' }],
+        },
+        outputColumns: [{ name: 'Result', type: 'string' }],
+      }).success
+    ).toBe(false)
+  })
+
+  /**
+   * `*` is the wildcard, not `%`. Nothing published said so, so `like: "Hi%"`
+   * matched zero rows with a 200 while `like: "Hi*"` matched 1358.
+   */
+  it('publishes the predicate operator grammar, including the wildcard', () => {
+    const published = JSON.stringify(
+      z.toJSONSchema(v2QueryRowsBodySchema, { io: 'input', unrepresentable: 'any' })
+    )
+
+    expect(published).toContain('`*` is the only wildcard')
+    expect(published).toContain('single-select accepts `eq`, `ne`, `in`, `nin`')
+    expect(published).toContain('isEmpty')
+  })
 })

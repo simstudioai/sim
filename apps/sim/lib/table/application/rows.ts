@@ -43,7 +43,7 @@ import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized
 import { resolveActiveTableContext } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
-import { buildIdByName } from '@/lib/table/column-keys'
+import { buildIdByName, unknownColumnNames } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableRowsChanged } from '@/lib/table/events'
@@ -115,8 +115,33 @@ function actorUserId(
   }).attributedUserId
 }
 
+/**
+ * Refuses a wire row naming a column the table does not have.
+ *
+ * The name→id remap drops unrecognised keys, so without this an insert of
+ * `{"nosuchcol":"x"}` created an empty row under a 201, and a patch of
+ * `{"zzz":"x"}` answered `updatedCount: 0` — indistinguishable from a predicate
+ * that matched nothing, and in both cases the client is told the write
+ * succeeded. Naming the offending columns is the only answer that lets a caller
+ * tell a typo apart from an empty match.
+ */
+function assertKnownColumnNames(
+  data: RowData,
+  idByName: ReadonlyMap<string, string>,
+  rowLabel?: string
+): void {
+  const unknown = unknownColumnNames(data, idByName)
+  if (unknown.length === 0) return
+  const where = rowLabel ? `${rowLabel}: ` : ''
+  throw new TableRowsValidationError(
+    `${where}Unknown column${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}`
+  )
+}
+
 function namedDataToStorage(data: RowData, table: TableDefinition): RowData {
-  return rowDataNameToId(data, buildIdByName(table.schema))
+  const idByName = buildIdByName(table.schema)
+  assertKnownColumnNames(data, idByName)
+  return rowDataNameToId(data, idByName)
 }
 
 /**
@@ -126,7 +151,10 @@ function namedDataToStorage(data: RowData, table: TableDefinition): RowData {
  */
 function namedRowsToStorage(rows: readonly RowData[], table: TableDefinition): RowData[] {
   const idByName = buildIdByName(table.schema)
-  return rows.map((row) => rowDataNameToId(row, idByName))
+  return rows.map((row, index) => {
+    assertKnownColumnNames(row, idByName, `Row ${index + 1}`)
+    return rowDataNameToId(row, idByName)
+  })
 }
 
 /**

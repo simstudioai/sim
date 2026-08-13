@@ -59,6 +59,15 @@ export const TABLE_LIMITS = {
    * bounds every reader that materializes a workspace's folder tree.
    */
   MAX_VIEWS_PER_TABLE: 100,
+  /**
+   * Workflow/enrichment groups per table. Same reason as
+   * {@link TABLE_LIMITS.MAX_VIEWS_PER_TABLE}: `GET /tables/{id}/groups` is a
+   * full-set read that always answers `nextCursor: null`, so its published
+   * "bounded set" claim is only true if the write side keeps it true. The
+   * indirect bound (every group must add at least one output column, and
+   * columns are capped) does not survive an update path that adds no columns.
+   */
+  MAX_WORKFLOW_GROUPS_PER_TABLE: 100,
 } as const
 
 /**

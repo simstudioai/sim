@@ -5010,7 +5010,7 @@
             "description": "Unique workspace identifier."
           },
           "filter": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
           },
           "data": {
             "description": "Row-data patch applied to every matching row.",
@@ -5081,7 +5081,7 @@
             "description": "Unique workspace identifier."
           },
           "filter": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
           },
           "limit": {
             "description": "Maximum matching rows to delete.",
@@ -5281,7 +5281,7 @@
             "description": "Unique workspace identifier."
           },
           "predicate": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
           },
           "sort": {
             "description": "Ordered table-row sort specification.",
@@ -5381,7 +5381,7 @@
             "description": "Unique workspace identifier."
           },
           "predicate": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
           }
         },
         "required": ["workspaceId"],
@@ -5639,7 +5639,7 @@
                 "description": "Saved row predicate, or null when the view is unfiltered.",
                 "anyOf": [
                   {
-                    "description": "Recursive predicate condition or group, normalized to a grouped predicate after validation."
+                    "description": "Recursive predicate condition or group, normalized to a grouped predicate after validation. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
                   },
                   {
                     "type": "null"
@@ -5752,7 +5752,7 @@
                 "description": "Saved row predicate, or null when the view is unfiltered.",
                 "anyOf": [
                   {
-                    "description": "Recursive predicate condition or group, normalized to a grouped predicate after validation."
+                    "description": "Recursive predicate condition or group, normalized to a grouped predicate after validation. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
                   },
                   {
                     "type": "null"
@@ -5832,7 +5832,7 @@
                 "description": "Saved row predicate, or null when the view is unfiltered.",
                 "anyOf": [
                   {
-                    "description": "Recursive predicate condition or group, normalized to a grouped predicate after validation."
+                    "description": "Recursive predicate condition or group, normalized to a grouped predicate after validation. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
                   },
                   {
                     "type": "null"
@@ -5970,7 +5970,7 @@
                 },
                 "columnName": {
                   "type": "string",
-                  "description": "Table column receiving the output."
+                  "description": "Name of the table column receiving the output."
                 }
               },
               "required": ["blockId", "path", "columnName"],
@@ -5990,7 +5990,7 @@
                 },
                 "columnName": {
                   "type": "string",
-                  "description": "Source table column name."
+                  "description": "Name of the source table column."
                 }
               },
               "required": ["inputName", "columnName"],
@@ -6156,9 +6156,9 @@
                 "minLength": 1
               },
               "workflowId": {
-                "default": "",
-                "description": "Backing workflow identifier for a manual group.",
-                "type": "string"
+                "description": "Backing workflow identifier. Required when `type` is `manual` (which is also the default when `type` is omitted); omit it for an `enrichment` group.",
+                "type": "string",
+                "minLength": 1
               },
               "enrichmentId": {
                 "description": "Registry enrichment identifier.",
@@ -6686,7 +6686,7 @@
             }
           },
           "filter": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
           },
           "excludeRowIds": {
             "description": "Rows excluded from a select-all run scope.",
@@ -6829,7 +6829,7 @@
             "description": "Case-insensitive cell substring to find."
           },
           "predicate": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
           },
           "sort": {
             "description": "Ordered table-row sort specification.",
@@ -7953,7 +7953,7 @@
             "minLength": 1
           },
           "filter": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids."
           },
           "excludeRowIds": {
             "description": "Rows excluded from an all-scope cancellation.",

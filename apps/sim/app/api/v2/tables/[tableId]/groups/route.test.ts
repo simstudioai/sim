@@ -87,7 +87,7 @@ describe('/api/v2/tables/[tableId]/groups', () => {
     v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.list.mockResolvedValue({ groups: [group] })
+    mocks.list.mockResolvedValue({ table, groups: [group] })
     mocks.create.mockResolvedValue({ table, group })
     mocks.update.mockResolvedValue({ table, group, changed: true, startAutoRun: false })
     mocks.remove.mockResolvedValue({ table, groupId: 'group-1' })
@@ -100,7 +100,10 @@ describe('/api/v2/tables/[tableId]/groups', () => {
     const response = await GET(req, context)
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: [group], nextCursor: null })
+    expect(await response.json()).toEqual({
+      data: [{ ...group, outputs: [{ ...group.outputs[0], columnName: 'Result' }] }],
+      nextCursor: null,
+    })
     expect(mocks.list).toHaveBeenCalledWith({
       principal,
       input: { tableId: 'table-1', workspaceId: WORKSPACE_ID },
@@ -136,6 +139,25 @@ describe('/api/v2/tables/[tableId]/groups', () => {
 
     expect(response.status).toBe(201)
     expect((await response.json()).data.group.id).toBe('group-1')
+
+    /**
+     * `columnName` is sent as a column name and stored as a column id; reading
+     * back the id under the same field made the value un-round-trippable and
+     * unmatched by anything else on a surface that is otherwise name-keyed.
+     */
+    const created = await POST(
+      writeRequest('POST', {
+        workspaceId: WORKSPACE_ID,
+        group: {
+          workflowId: 'workflow-1',
+          type: 'manual',
+          outputs: [{ blockId: 'block-1', path: 'result', columnName: 'Result' }],
+        },
+        outputColumns: [{ name: 'Result', type: 'string' }],
+      }),
+      context
+    )
+    expect((await created.json()).data.group.outputs[0].columnName).toBe('Result')
     expect(mocks.create).toHaveBeenCalledWith({
       principal,
       input: expect.objectContaining({
