@@ -96,6 +96,7 @@ export const PUT = withRouteHandler(
         domain: body.domain,
         clientId: body.clientId,
         clientSecret: body.clientSecret,
+        certificateId: body.certificateId,
         orgId: body.orgId,
         dataCenter: body.dataCenter,
         authMethod: body.authMethod,

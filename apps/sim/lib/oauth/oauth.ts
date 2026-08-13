@@ -40,6 +40,7 @@ import {
   MicrosoftSharepointIcon,
   MicrosoftTeamsIcon,
   MondayIcon,
+  NetSuiteIcon,
   NotionIcon,
   OutlookIcon,
   PipedriveIcon,
@@ -860,6 +861,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'snowflake',
+  },
+  netsuite: {
+    name: 'Oracle NetSuite',
+    icon: NetSuiteIcon,
+    services: {
+      netsuite: {
+        name: 'Oracle NetSuite',
+        description:
+          'Manage NetSuite records, queries, datasets, batches, metadata, and asynchronous jobs.',
+        providerId: 'netsuite',
+        serviceAccountProviderId: 'netsuite-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'netsuite',
   },
   reddit: {
     name: 'Reddit',

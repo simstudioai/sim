@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest'
 import {
   BOX_SERVICE_ACCOUNT_PROVIDER_ID,
   getClientCredentialAccountDescriptor,
+  NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
+  normalizeNetSuiteSuiteTalkOrigin,
   partitionClientCredentialFields,
   resolveClientCredentialAuthMethod,
   resolveSalesforceAuthMethod,
@@ -16,6 +18,7 @@ import {
 const salesforce = getClientCredentialAccountDescriptor(SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID)!
 const box = getClientCredentialAccountDescriptor(BOX_SERVICE_ACCOUNT_PROVIDER_ID)!
 const zohoDesk = getClientCredentialAccountDescriptor(ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID)!
+const netSuite = getClientCredentialAccountDescriptor(NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID)!
 
 const ids = (fields: { id: string }[]) => fields.map((field) => field.id)
 
@@ -37,6 +40,16 @@ describe('partitionClientCredentialFields', () => {
     it('ignores an auth method a single-grant provider does not declare', () => {
       const { required } = partitionClientCredentialFields(box, 'jwt_bearer')
       expect(ids(required)).toEqual(['clientId', 'clientSecret', 'orgId'])
+    })
+
+    it('declares the complete NetSuite certificate credential', () => {
+      const { visible, required } = partitionClientCredentialFields(netSuite, undefined)
+      expect(ids(visible)).toEqual(['orgId', 'clientId', 'certificateId', 'privateKey'])
+      expect(ids(required)).toEqual(['orgId', 'clientId', 'certificateId', 'privateKey'])
+      expect(netSuite.fields.find((field) => field.id === 'privateKey')).toMatchObject({
+        secret: true,
+        multiline: true,
+      })
     })
   })
 
@@ -74,6 +87,25 @@ describe('partitionClientCredentialFields', () => {
       expect(ids(visible)).toContain('authMethod')
       expect(ids(required)).not.toContain('authMethod')
     })
+  })
+})
+
+describe('normalizeNetSuiteSuiteTalkOrigin', () => {
+  it('normalizes an account-specific HTTPS Company URL', () => {
+    expect(
+      normalizeNetSuiteSuiteTalkOrigin(' https://1234567-SB1.suitetalk.api.netsuite.com/ ')
+    ).toBe('https://1234567-sb1.suitetalk.api.netsuite.com')
+  })
+
+  it.each([
+    'http://1234567.suitetalk.api.netsuite.com',
+    'https://suitetalk.api.netsuite.com',
+    'https://1234567.suitetalk.api.netsuite.com/services/rest/record/v1',
+    'https://1234567.suitetalk.api.netsuite.com?account=other',
+    'https://1234567.suitetalk.api.netsuite.com.evil.example',
+    'https://user@1234567.suitetalk.api.netsuite.com',
+  ])('rejects the non-authoritative SuiteTalk URL %j', (value) => {
+    expect(normalizeNetSuiteSuiteTalkOrigin(value)).toBeUndefined()
   })
 })
 

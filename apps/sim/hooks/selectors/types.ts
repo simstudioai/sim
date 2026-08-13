@@ -23,6 +23,9 @@ export type SelectorKey =
   | 'microsoft.planner.plans'
   | 'notion.databases'
   | 'notion.pages'
+  | 'netsuite.recordTypes'
+  | 'netsuite.datasets'
+  | 'netsuite.asyncTasks'
   | 'pipedrive.pipelines'
   | 'sharepoint.lists'
   | 'trello.boards'
@@ -111,6 +114,8 @@ export interface SelectorContext {
   logGroupName?: string
   mcpServerId?: string
   tableId?: string
+  /** NetSuite asynchronous job whose bounded task list a picker enumerates. */
+  jobId?: string
   /** Snowflake database holding the objects a picker enumerates. */
   database?: string
   /** Snowflake schema holding the objects a picker enumerates. */

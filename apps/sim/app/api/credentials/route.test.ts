@@ -18,10 +18,12 @@ import { TokenServiceAccountValidationError } from '@/lib/credentials/token-serv
 
 const {
   mockCheckWorkspaceAccess,
+  mockGetCredentialActorContext,
   mockGetCredentialCreationWorkspaceContext,
   mockVerifyAndBuildServiceAccountSecret,
 } = vi.hoisted(() => ({
   mockCheckWorkspaceAccess: vi.fn(),
+  mockGetCredentialActorContext: vi.fn(),
   mockGetCredentialCreationWorkspaceContext: vi.fn(),
   mockVerifyAndBuildServiceAccountSecret: vi.fn(),
 }))
@@ -39,6 +41,10 @@ vi.mock('@/lib/credentials/environment', () => ({
 
 vi.mock('@/lib/credentials/oauth', () => ({
   syncWorkspaceOAuthCredentialsForUser: vi.fn(),
+}))
+
+vi.mock('@/lib/credentials/access', () => ({
+  getCredentialActorContext: mockGetCredentialActorContext,
 }))
 
 vi.mock('@/lib/oauth', () => ({
@@ -132,6 +138,12 @@ describe('POST /api/credentials', () => {
       memberUserIds: ['user-1'],
       canWrite: true,
     })
+    mockGetCredentialActorContext.mockResolvedValue({
+      member: null,
+      hasWorkspaceAccess: true,
+      canWriteWorkspace: true,
+      isAdmin: true,
+    })
   })
 
   describe('client-credential service accounts', () => {
@@ -186,6 +198,142 @@ describe('POST /api/credentials', () => {
           orgId: 'acct_123',
         })
       )
+    })
+
+    it('threads NetSuite certificate credentials through the create contract', async () => {
+      mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
+        providerId: 'netsuite-service-account',
+        encryptedServiceAccountKey: 'encrypted-netsuite-blob',
+        displayName: 'Oracle NetSuite 1234567',
+        auditMetadata: { principalKind: 'tenant', principalId: '1234567' },
+        principal: { kind: 'tenant', id: '1234567' },
+      })
+      queueTableRows(credential, [])
+      queueTableRows(credential, [])
+      queueTableRows(credential, [
+        {
+          id: 'credential-netsuite',
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          displayName: 'Oracle NetSuite 1234567',
+          description: null,
+          providerId: 'netsuite-service-account',
+          accountId: null,
+          envKey: null,
+          envOwnerUserId: null,
+          encryptedServiceAccountKey: 'encrypted-netsuite-blob',
+          createdBy: 'user-1',
+          createdAt: new Date('2026-08-11T00:00:00.000Z'),
+          updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+        },
+      ])
+
+      const response = await POST(
+        createMockRequest('POST', {
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'netsuite-service-account',
+          orgId: 'https://1234567.suitetalk.api.netsuite.com',
+          clientId: 'netsuite-client-id',
+          certificateId: 'netsuite-certificate-id',
+          privateKey: '-----BEGIN PRIVATE KEY-----key',
+        })
+      )
+
+      expect(response.status).toBe(201)
+      expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+        'netsuite-service-account',
+        expect.objectContaining({
+          orgId: 'https://1234567.suitetalk.api.netsuite.com',
+          clientId: 'netsuite-client-id',
+          certificateId: 'netsuite-certificate-id',
+          privateKey: '-----BEGIN PRIVATE KEY-----key',
+        })
+      )
+    })
+
+    it('conflicts for an existing non-NetSuite service account instead of dropping new secrets', async () => {
+      mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
+        providerId: 'zoom-service-account',
+        encryptedServiceAccountKey: 'new-secret-ciphertext',
+        displayName: 'Production Zoom',
+        auditMetadata: {},
+        principal: { kind: 'tenant', id: 'zoom-account' },
+      })
+      queueTableRows(credential, [
+        {
+          id: 'existing-credential',
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          displayName: 'Production Zoom',
+          providerId: 'zoom-service-account',
+        },
+      ])
+
+      const response = await POST(
+        createMockRequest('POST', {
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'zoom-service-account',
+          displayName: 'Production Zoom',
+          orgId: 'zoom-account',
+          clientId: 'new-client-id',
+          clientSecret: 'new-client-secret',
+        })
+      )
+      const body = await response.json()
+
+      expect(response.status).toBe(409)
+      expect(body.code).toBe('duplicate_display_name')
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    })
+
+    it('preserves an exact-ID Slack custom-bot create replay', async () => {
+      const credentialId = '22222222-3333-4444-8555-666666666666'
+      const existing = {
+        id: credentialId,
+        workspaceId: WORKSPACE_ID,
+        type: 'service_account',
+        displayName: 'Production Slack Bot',
+        description: null,
+        providerId: 'slack-custom-bot',
+        accountId: null,
+        envKey: null,
+        envOwnerUserId: null,
+        encryptedServiceAccountKey: 'existing-secret-ciphertext',
+        createdBy: 'user-1',
+        createdAt: new Date('2026-08-11T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+      }
+      mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
+        providerId: 'slack-custom-bot',
+        encryptedServiceAccountKey: 'replayed-secret-ciphertext',
+        displayName: existing.displayName,
+        auditMetadata: {},
+        principal: null,
+      })
+      queueTableRows(credential, [existing])
+
+      const response = await POST(
+        createMockRequest('POST', {
+          id: credentialId,
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'slack-custom-bot',
+          displayName: existing.displayName,
+          signingSecret: 'slack-signing-secret',
+          botToken: 'xoxb-slack-bot-token',
+        })
+      )
+
+      const body = await response.json()
+      expect({ status: response.status, body }).toMatchObject({
+        status: 200,
+        body: { credential: { id: credentialId } },
+      })
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     })
 
     it('maps a verification failure to a 400 with the validation code', async () => {

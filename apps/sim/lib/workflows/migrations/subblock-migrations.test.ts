@@ -167,6 +167,76 @@ describe('migrateSubblockIds', () => {
     })
   })
 
+  describe('netsuite block', () => {
+    it('moves legacy entity values to manual selector fields and discards inline credentials', () => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'netsuite',
+          subBlocks: {
+            recordType: { id: 'recordType', type: 'short-input', value: 'customer' },
+            datasetId: { id: 'datasetId', type: 'short-input', value: 'customworkbook237' },
+            statusTaskId: { id: 'statusTaskId', type: 'short-input', value: 'task-status' },
+            resultTaskId: { id: 'resultTaskId', type: 'short-input', value: 'task-result' },
+            suiteTalkUrl: {
+              id: 'suiteTalkUrl',
+              type: 'short-input',
+              value: 'https://1234567.suitetalk.api.netsuite.com',
+            },
+            clientId: { id: 'clientId', type: 'short-input', value: 'legacy-client' },
+            certificateId: {
+              id: 'certificateId',
+              type: 'short-input',
+              value: 'legacy-certificate',
+            },
+            privateKey: {
+              id: 'privateKey',
+              type: 'long-input',
+              value: '-----BEGIN PRIVATE KEY-----legacy-secret',
+            },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.subBlocks.recordTypeManual?.value).toBe('customer')
+      expect(blocks.b1.subBlocks.datasetIdManual?.value).toBe('customworkbook237')
+      expect(blocks.b1.subBlocks.statusTaskIdManual?.value).toBe('task-status')
+      expect(blocks.b1.subBlocks.resultTaskIdManual?.value).toBe('task-result')
+      for (const retiredId of ['suiteTalkUrl', 'clientId', 'certificateId', 'privateKey']) {
+        expect(blocks.b1.subBlocks[retiredId], retiredId).toBeUndefined()
+        expect(blocks.b1.subBlocks[`_removed_${retiredId}`], retiredId).toBeUndefined()
+      }
+      const serialized = JSON.stringify(blocks.b1)
+      expect(serialized).not.toContain('legacy-client')
+      expect(serialized).not.toContain('legacy-certificate')
+      expect(serialized).not.toContain('BEGIN PRIVATE KEY')
+    })
+
+    it('keeps an already-selected manual value over its legacy counterpart', () => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'netsuite',
+          subBlocks: {
+            statusTaskId: { id: 'statusTaskId', type: 'short-input', value: 'stale-task' },
+            statusTaskIdManual: {
+              id: 'statusTaskIdManual',
+              type: 'short-input',
+              value: 'current-task',
+            },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.subBlocks.statusTaskId).toBeUndefined()
+      expect(blocks.b1.subBlocks.statusTaskIdManual?.value).toBe('current-task')
+    })
+  })
+
   /**
    * An earlier version of this migration renamed retired fields into a
    * `_removed_*` key instead of deleting them, so deployed workflows still hold

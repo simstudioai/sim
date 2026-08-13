@@ -114,6 +114,24 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
     host: '_removed_host',
     apiKey: '_removed_apiKey',
   },
+  /**
+   * NetSuite moved certificate credentials out of workflow state and into one
+   * reusable service-account credential. Legacy free-text entity identifiers
+   * map to the advanced members of their new selector pairs so preview
+   * workflows preserve those values without pretending a picker resolved
+   * them. Long-lived signing material has no in-block replacement and must be
+   * discarded so it cannot survive under an unreachable subblock key.
+   */
+  netsuite: {
+    recordType: 'recordTypeManual',
+    datasetId: 'datasetIdManual',
+    statusTaskId: 'statusTaskIdManual',
+    resultTaskId: 'resultTaskIdManual',
+    suiteTalkUrl: '_removed_suiteTalkUrl',
+    clientId: '_removed_clientId',
+    certificateId: '_removed_certificateId',
+    privateKey: '_removed_privateKey',
+  },
   rippling: {
     action: '_removed_action',
     candidateDepartment: '_removed_candidateDepartment',

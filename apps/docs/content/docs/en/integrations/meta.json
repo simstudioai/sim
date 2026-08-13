@@ -165,6 +165,8 @@
     "mongodb",
     "mysql",
     "neo4j",
+    "netsuite",
+    "netsuite-service-account",
     "neverbounce",
     "new_relic",
     "notion",

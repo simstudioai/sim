@@ -8625,6 +8625,17 @@ export function NewRelicIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function NetSuiteIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 93.9 59.4' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        fill='#C74634'
+        d='M30.5 59.4H65c16.4-.4 29.3-14.1 28.9-30.4C93.5 13.1 80.7.4 65 0H30.5C14.1-.4.4 12.5 0 28.9s12.5 30 28.9 30.4c.5.1 1 .1 1.6.1m33.7-10.5h-33c-10.6-.3-18.9-9.2-18.6-19.8C13 19 21.1 10.8 31.2 10.5h33c10.6-.3 19.5 8 19.8 18.6s-8 19.5-18.6 19.8z'
+      />
+    </svg>
+  )
+}
+
 export function WizaIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 51 49' fill='none' xmlns='http://www.w3.org/2000/svg'>
