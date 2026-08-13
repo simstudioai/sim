@@ -122,6 +122,27 @@ const canonicalCredBlockConfig = {
   ],
 }
 
+const mixedTriggerCredBlockConfig = {
+  type: 'mixedtriggercred',
+  name: 'Mixed Trigger Credential',
+  outputs: {},
+  subBlocks: [
+    { id: 'credential', type: 'oauth-input', canonicalParamId: 'oauthCredential', mode: 'basic' },
+    {
+      id: 'manualCredential',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+    },
+    {
+      id: 'triggerCredentials',
+      type: 'oauth-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'trigger',
+    },
+  ],
+}
+
 // Mirrors video_generator_v3: routes provider -> tool; only video_falai has hosting.
 const videoBlockConfig = {
   type: 'video_generator_v3',
@@ -235,6 +256,7 @@ const blockConfigsByType: Record<string, unknown> = {
   huggingface: huggingfaceBlockConfig,
   knowledge: knowledgeBlockConfig,
   canonicalcred: canonicalCredBlockConfig,
+  mixedtriggercred: mixedTriggerCredBlockConfig,
   video_generator_v3: videoBlockConfig,
   custom_key_block: customKeyBlockConfig,
   image_generator_v2: imageBlockConfig,
@@ -1161,6 +1183,32 @@ describe('collectUnresolvedReferences', () => {
     expect(mockValidateSelectorIds).toHaveBeenCalledWith('oauth-input', 'good-but-missing', CTX)
     expect(refs).toHaveLength(1)
     expect(refs[0]).toMatchObject({ field: 'credential', kind: 'credential' })
+  })
+
+  it('validates the trigger credential instead of a dormant action credential', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['trigger-credential'] })
+    const state = {
+      blocks: {
+        c1: {
+          type: 'mixedtriggercred',
+          name: 'Trigger',
+          triggerMode: true,
+          data: { canonicalModes: { oauthCredential: 'advanced' } },
+          subBlocks: {
+            credential: { value: 'dormant-action' },
+            manualCredential: { value: 'dormant-action-manual' },
+            triggerCredentials: { value: 'trigger-credential' },
+          },
+        },
+      },
+    }
+
+    const refs = await collectUnresolvedReferences(state, CTX)
+
+    expect(mockValidateSelectorIds).toHaveBeenCalledOnce()
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith('oauth-input', 'trigger-credential', CTX)
+    expect(refs).toHaveLength(1)
+    expect(refs[0]).toMatchObject({ field: 'triggerCredentials', kind: 'credential' })
   })
 })
 

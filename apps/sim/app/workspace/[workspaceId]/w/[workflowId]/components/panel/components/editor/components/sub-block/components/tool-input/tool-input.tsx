@@ -105,6 +105,7 @@ import {
   type CanonicalIndex,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   isCanonicalPair,
   reindexToolCanonicalModes,
   resolveCanonicalMode,
@@ -526,13 +527,14 @@ export const ToolInput = memo(function ToolInput({
     for (const [toolIndex, tool] of selectedTools.entries()) {
       const blockConfig = allBlocks.find((b: { type: string }) => b.type === tool.type)
       if (!blockConfig?.subBlocks) continue
-      const toolCanonical = buildCanonicalIndex(blockConfig.subBlocks)
+      const actionSubBlocks = getCanonicalSubBlocksForSurface(blockConfig.subBlocks, false)
+      const toolCanonical = buildCanonicalIndex(actionSubBlocks)
       const scopedOverrides = scopeCanonicalModesForTool(
         canonicalModeOverrides,
         toolIndex,
         tool.type
       )
-      const reactiveSubBlock = blockConfig.subBlocks.find(
+      const reactiveSubBlock = actionSubBlocks.find(
         (sb: { reactiveCondition?: unknown }) => sb.reactiveCondition
       )
       const reactiveCond = reactiveSubBlock?.reactiveCondition as
@@ -1744,14 +1746,17 @@ export const ToolInput = memo(function ToolInput({
                 )
               : null
 
-          const toolCanonicalIndex: CanonicalIndex | null = toolBlock?.subBlocks
-            ? buildCanonicalIndex(toolBlock.subBlocks)
+          const toolActionSubBlocks = toolBlock?.subBlocks
+            ? getCanonicalSubBlocksForSurface(toolBlock.subBlocks, false)
+            : null
+          const toolCanonicalIndex: CanonicalIndex | null = toolActionSubBlocks
+            ? buildCanonicalIndex(toolActionSubBlocks)
             : null
 
           const toolContextValues = toolCanonicalIndex
             ? buildPreviewContextValues(tool.params || {}, {
                 blockType: tool.type,
-                subBlocks: toolBlock!.subBlocks,
+                subBlocks: toolActionSubBlocks!,
                 canonicalIndex: toolCanonicalIndex,
                 values: { operation: tool.operation, ...tool.params },
                 overrides: toolScopedOverrides,
@@ -2149,6 +2154,7 @@ export const ToolInput = memo(function ToolInput({
                             effectiveParamId={effectiveParamId}
                             toolType={tool.type}
                             toolParams={tool.params}
+                            canonicalModeOverrides={toolScopedOverrides}
                             onParamChange={handleParamChange}
                             disabled={disabled}
                             canonicalToggle={canonicalToggleProp}

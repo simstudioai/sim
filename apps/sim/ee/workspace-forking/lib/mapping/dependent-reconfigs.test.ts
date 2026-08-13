@@ -18,12 +18,21 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 const blockWith = (subBlocks: SubBlockConfig[]): BlockConfig =>
   ({ name: 'Test', description: '', subBlocks, outputs: {} }) as unknown as BlockConfig
 
+const subBlock = (
+  id: string,
+  type: SubBlockConfig['type'],
+  config: Partial<SubBlockConfig> = {}
+): SubBlockConfig => ({ id, title: id, type, ...config }) as SubBlockConfig
+
 const sourceState = (
   blockType: string,
-  subBlocks: Record<string, { value: unknown }>
+  subBlocks: Record<string, { value: unknown }>,
+  overrides: Partial<WorkflowState['blocks'][string]> = {}
 ): WorkflowState =>
   ({
-    blocks: { 'block-1': { id: 'block-1', type: blockType, name: 'Block', subBlocks } },
+    blocks: {
+      'block-1': { id: 'block-1', type: blockType, name: 'Block', subBlocks, ...overrides },
+    },
     edges: [],
     loops: {},
     parallels: {},
@@ -153,6 +162,62 @@ describe('collectForkDependentReconfigs', () => {
     // sync - it is never remapped, so its dependents are never cleared and there is nothing
     // to re-pick. No reconfig is offered.
     expect(result).toEqual([])
+  })
+
+  it('uses only the trigger surface and its active canonical context', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        subBlock('credential', 'oauth-input', { mode: 'basic' }),
+        subBlock('actionFolder', 'folder-selector', {
+          dependsOn: ['credential'],
+          selectorKey: 'google.drive',
+        }),
+        subBlock('triggerCredentials', 'oauth-input', { mode: 'trigger' }),
+        subBlock('triggerFolder', 'folder-selector', {
+          dependsOn: ['triggerCredentials'],
+          selectorKey: 'google.drive',
+          mode: 'trigger',
+        }),
+        subBlock('triggerSpreadsheetSelector', 'file-selector', {
+          canonicalParamId: 'spreadsheetId',
+          mode: 'trigger',
+        }),
+        subBlock('triggerManualSpreadsheetId', 'short-input', {
+          canonicalParamId: 'spreadsheetId',
+          mode: 'trigger-advanced',
+        }),
+      ])
+    )
+    const state = sourceState(
+      'google_drive',
+      {
+        credential: { value: 'stale-action-credential' },
+        actionFolder: { value: 'stale-action-folder' },
+        triggerCredentials: { value: 'trigger-credential' },
+        triggerFolder: { value: 'trigger-folder' },
+        triggerSpreadsheetSelector: { value: 'stale-basic-spreadsheet' },
+        triggerManualSpreadsheetId: { value: 'active-advanced-spreadsheet' },
+      },
+      {
+        name: 'Drive Trigger',
+        triggerMode: true,
+        data: { canonicalModes: { spreadsheetId: 'advanced' } },
+      }
+    )
+
+    const result = collectForkDependentReconfigs(
+      [replaceItem],
+      new Map([['wf-src', state]]),
+      resolve
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      parentSourceId: 'trigger-credential',
+      subBlockKey: 'triggerFolder',
+      currentValue: 'trigger-folder',
+      context: { spreadsheetId: 'active-advanced-spreadsheet' },
+    })
   })
 
   it('emits a knowledge-base-dependent document selector', () => {

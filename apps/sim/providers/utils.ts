@@ -1,6 +1,5 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
 import type OpenAI from 'openai'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
@@ -17,11 +16,14 @@ import {
   buildCanonicalIndex,
   type CanonicalGroup,
   type CanonicalModeOverrides,
+  getCanonicalSubBlocksForSurface,
   isCanonicalPair,
   resolveActiveCanonicalValue,
+  resolveCanonicalMode,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
+import type { SubBlockConfig } from '@/blocks/types'
 import { isCustomTool } from '@/executor/constants'
 import {
   getComputerUseModels,
@@ -509,8 +511,10 @@ export function extractAndParseJSON(content: string): any {
  * canonical id — like the unique-tool-id suffix below — must resolve it first.
  * Mode selection mirrors {@link transformBlockTool}'s execution-time
  * `paramsTransform` so the resolved id matches the params the tool actually runs
- * with. When the active selector has no value, the original canonical value is
- * preserved for direct-id callers and nested tools in advanced mode.
+ * with. A direct canonical value is preserved for legacy callers unless the
+ * selected mode has a modern selector/manual member key. An inactive raw member
+ * cannot displace that legacy value, while a present selected member remains
+ * authoritative even when it was explicitly cleared.
  *
  * @returns The params with canonical resource ids resolved (non-destructive)
  */
@@ -525,11 +529,16 @@ function resolveCanonicalResourceParams(
     // Route through the canonical SOT: an explicit scoped override wins, else the value heuristic -
     // no `?? 'basic'` (which ignored an advanced-only value when basic was empty).
     const explicitMode = scopedCanonicalModes?.[group.canonicalId]
-    const chosen = resolveActiveCanonicalValue(
-      group,
-      params,
-      explicitMode ? { [group.canonicalId]: explicitMode } : undefined
+    const overrides = explicitMode ? { [group.canonicalId]: explicitMode } : undefined
+    const activeMode = resolveCanonicalMode(group, params, overrides)
+    const activeSourceIds =
+      activeMode === 'advanced' ? group.advancedIds : group.basicId ? [group.basicId] : []
+    const hasActiveCanonicalMember = activeSourceIds.some((sourceId) =>
+      Object.hasOwn(params, sourceId)
     )
+    if (hasActiveCanonicalMember) delete resolved[group.canonicalId]
+
+    const chosen = resolveActiveCanonicalValue(group, params, overrides)
     if (chosen !== undefined) resolved[group.canonicalId] = chosen
   }
   return resolved
@@ -777,12 +786,20 @@ export async function transformBlockTool(
 
   const userProvidedParams = block.params || {}
 
-  const canonicalGroups: CanonicalGroup[] = blockDef?.subBlocks
-    ? Object.values(buildCanonicalIndex(blockDef.subBlocks).groupsById).filter(isCanonicalPair)
-    : []
+  const allSubBlocks = (blockDef?.subBlocks ?? []) as SubBlockConfig[]
+  const actionSubBlocks = getCanonicalSubBlocksForSurface(allSubBlocks, false)
+  const actionSubBlockIds = new Set(actionSubBlocks.map((subBlock) => subBlock.id))
+  const inactiveSurfaceIds = allSubBlocks
+    .filter((subBlock) => !actionSubBlockIds.has(subBlock.id))
+    .map((subBlock) => subBlock.id)
+  const canonicalGroups: CanonicalGroup[] = Object.values(
+    buildCanonicalIndex(actionSubBlocks).groupsById
+  ).filter(isCanonicalPair)
+  const actionUserProvidedParams = { ...userProvidedParams }
+  for (const subBlockId of inactiveSurfaceIds) delete actionUserProvidedParams[subBlockId]
 
   const resolvedResourceParams = resolveCanonicalResourceParams(
-    userProvidedParams,
+    actionUserProvidedParams,
     canonicalGroups,
     scopedCanonicalModes
   )
@@ -834,23 +851,31 @@ export async function transformBlockTool(
     | undefined
   const blockInputDefs = blockDef?.inputs as Record<string, any> | undefined
 
-  const needsTransform = blockParamsFn || blockInputDefs || canonicalGroups.length > 0
+  const needsTransform =
+    blockParamsFn || blockInputDefs || canonicalGroups.length > 0 || inactiveSurfaceIds.length > 0
   const paramsTransform = needsTransform
     ? (params: Record<string, any>): Record<string, any> => {
         let result = { ...params }
+        for (const subBlockId of inactiveSurfaceIds) delete result[subBlockId]
 
         for (const group of canonicalGroups) {
           // Route through the canonical SOT: an explicit scoped override wins, else the value
           // heuristic - no `?? 'basic'` (which dropped an advanced-only value when basic was empty).
           const explicitMode = scopedCanonicalModes?.[group.canonicalId]
-          const chosen = resolveActiveCanonicalValue(
-            group,
-            result,
-            explicitMode ? { [group.canonicalId]: explicitMode } : undefined
+          const overrides = explicitMode ? { [group.canonicalId]: explicitMode } : undefined
+          const activeMode = resolveCanonicalMode(group, result, overrides)
+          const activeSourceIds =
+            activeMode === 'advanced' ? group.advancedIds : group.basicId ? [group.basicId] : []
+          const hasActiveCanonicalMember = activeSourceIds.some((sourceId) =>
+            Object.hasOwn(result, sourceId)
           )
+          const chosen = resolveActiveCanonicalValue(group, result, overrides)
 
           const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
-          result = omit(result, sourceIds)
+          const keysToRemove = hasActiveCanonicalMember
+            ? [...sourceIds, group.canonicalId]
+            : sourceIds
+          for (const sourceId of keysToRemove) delete result[sourceId]
 
           if (chosen !== undefined) {
             result[group.canonicalId] = chosen

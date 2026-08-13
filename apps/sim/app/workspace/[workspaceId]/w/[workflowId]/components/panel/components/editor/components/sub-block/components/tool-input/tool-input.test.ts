@@ -8,6 +8,32 @@ import {
   isMcpToolAlreadySelected,
   isWorkflowAlreadySelected,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/utils'
+import { getDependencyCanonicalModeOverrides } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-dependency-block-type'
+
+describe('nested tool dependency modes', () => {
+  it.each([
+    {
+      name: 'uses the nested tool modes instead of the host modes',
+      context: { blockType: 'table', canonicalModeOverrides: { tableId: 'advanced' as const } },
+      host: { '0:tableId': 'basic' as const },
+      expected: { tableId: 'advanced' },
+    },
+    {
+      name: 'keeps missing nested modes missing instead of inheriting host modes',
+      context: { blockType: 'table', canonicalModeOverrides: undefined },
+      host: { '0:tableId': 'advanced' as const },
+      expected: undefined,
+    },
+    {
+      name: 'uses host modes outside a nested tool',
+      context: null,
+      host: { tableId: 'basic' as const },
+      expected: { tableId: 'basic' },
+    },
+  ] as const)('$name', ({ context, host, expected }) =>
+    expect(getDependencyCanonicalModeOverrides(context, host)).toEqual(expected)
+  )
+})
 
 describe('isMcpToolAlreadySelected', () => {
   describe('basic functionality', () => {

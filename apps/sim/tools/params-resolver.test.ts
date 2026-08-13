@@ -42,4 +42,47 @@ describe('buildPreviewContextValues', () => {
     })
     expect(result.knowledgeBaseId).toBe('kb-basic')
   })
+
+  it.each([
+    ['basic', { knowledgeBaseSelector: null, manualKnowledgeBaseId: 'stale-advanced' }, null],
+    ['advanced', { knowledgeBaseSelector: 'stale-basic', manualKnowledgeBaseId: '' }, ''],
+  ] as const)(
+    'keeps a cleared %s value instead of previewing the dormant mode',
+    (mode, clearedValues, expected) => {
+      const result = buildPreviewContextValues(clearedValues, {
+        blockType: 'knowledge',
+        subBlocks: [],
+        canonicalIndex,
+        values: clearedValues,
+        overrides: { knowledgeBaseId: mode },
+      })
+
+      expect(result.knowledgeBaseId).toBe(expected)
+    }
+  )
+
+  it('drops a stale direct canonical parameter when a modern member is explicitly cleared', () => {
+    const params = { knowledgeBaseId: 'legacy-direct', knowledgeBaseSelector: null }
+    const result = buildPreviewContextValues(params, {
+      blockType: 'knowledge',
+      subBlocks: [],
+      canonicalIndex,
+      values: params,
+      overrides: { knowledgeBaseId: 'basic' },
+    })
+
+    expect(result.knowledgeBaseId).toBeNull()
+  })
+
+  it('preserves the legacy direct fallback when no mode has been persisted', () => {
+    const params = { knowledgeBaseId: 'legacy-direct', knowledgeBaseSelector: null }
+    const result = buildPreviewContextValues(params, {
+      blockType: 'knowledge',
+      subBlocks: [],
+      canonicalIndex,
+      values: params,
+    })
+
+    expect(result.knowledgeBaseId).toBe('legacy-direct')
+  })
 })

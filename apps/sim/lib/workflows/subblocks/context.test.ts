@@ -74,6 +74,27 @@ describe('buildSelectorContextFromBlock', () => {
     ).toBe('kb-advanced')
   })
 
+  it('resolves selector context only from the active trigger surface', () => {
+    const subBlocks = {
+      credential: { value: null },
+      manualCredential: { value: 'stale-action-credential' },
+      triggerCredentials: { value: 'trigger-credential' },
+    }
+
+    expect(
+      buildSelectorContextFromBlock('google_calendar', subBlocks, {
+        canonicalModes: { oauthCredential: 'advanced' },
+        triggerMode: true,
+      }).oauthCredential
+    ).toBe('trigger-credential')
+
+    expect(
+      buildSelectorContextFromBlock('google_calendar', subBlocks, {
+        canonicalModes: { oauthCredential: 'advanced' },
+      }).oauthCredential
+    ).toBe('stale-action-credential')
+  })
+
   it('should skip null/empty values', () => {
     const ctx = buildSelectorContextFromBlock('knowledge', {
       knowledgeBaseSelector: {

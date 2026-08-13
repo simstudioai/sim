@@ -28,7 +28,7 @@ import {
 } from '@/ee/workspace-forking/lib/promote/sync-blockers'
 import type { ForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 import {
-  createCanonicalModeGates,
+  createBlockCanonicalModeGates,
   type ForkReference,
   type ForkReferenceResolver,
   type ForkRemapKind,
@@ -88,24 +88,27 @@ function baseSubBlockId(key: string): string {
 function collectForkWorkflowReferences(
   subBlocks: SubBlockRecord,
   config: ReturnType<typeof getBlock>,
-  canonicalModes: CanonicalModeOverrides | undefined
+  canonicalModes: CanonicalModeOverrides | undefined,
+  triggerMode?: boolean
 ): Array<{ workflowId: string; subBlockKey: string }> {
   const out: Array<{ workflowId: string; subBlockKey: string }> = []
   // Collapse each canonical pair to its ACTIVE member and skip condition-hidden fields: only a
   // value that serializes is a ref that a sync would clear (the advanced
   // `manualWorkflowId`/`manualWorkflowIds` are user-owned and preserved verbatim, an inactive
   // operation's selector never executes) - neither may become an unresolvable sync blocker.
-  // Shares {@link createCanonicalModeGates} with the reference scan, so the scalar `workflowId`
+  // Shares {@link createBlockCanonicalModeGates} with the reference scan, so the scalar
+  // `workflowId`
   // pair, the deployments block's scalar `workflowSelector` pair, and the logs block's
   // multi-select `workflowSelector` (`workflowIds` group) all resolve through their OWN group. A
   // missing config or a non-pair member is never skipped (no-pair states keep emitting).
-  const gates = createCanonicalModeGates(
-    config?.subBlocks,
+  const gates = createBlockCanonicalModeGates(
+    config,
     buildSubBlockValues(subBlocks),
-    canonicalModes
+    canonicalModes,
+    triggerMode
   )
   const detectionSkipped = (key: string) =>
-    gates.isDormantMember(key) || gates.isConditionHidden(key)
+    gates.isInactiveSurfaceMember(key) || gates.isDormantMember(key) || gates.isConditionHidden(key)
   for (const [key, subBlock] of Object.entries(subBlocks)) {
     if (!subBlock || typeof subBlock !== 'object') continue
     const baseKey = baseSubBlockId(key)
@@ -198,6 +201,7 @@ export function collectForkClearedRefCandidates(
         blockName: blockLabel,
         blockType: block.type,
         canonicalModes: block.data?.canonicalModes,
+        triggerMode: block.triggerMode,
       })
       for (const ref of scan.unmapped) {
         if (CLEARED_REF_EXCLUDED_KINDS.has(ref.kind)) continue
@@ -219,7 +223,8 @@ export function collectForkClearedRefCandidates(
       for (const wfRef of collectForkWorkflowReferences(
         subBlocks,
         config,
-        block.data?.canonicalModes
+        block.data?.canonicalModes,
+        block.triggerMode
       )) {
         if (workflowIdMap.has(wfRef.workflowId)) continue
         out.push({
@@ -371,7 +376,8 @@ function hasForkSyncBlockerCandidates(
       const workflowRefs = collectForkWorkflowReferences(
         subBlocks,
         getBlock(block.type),
-        block.data?.canonicalModes
+        block.data?.canonicalModes,
+        block.triggerMode
       )
       if (workflowRefs.some((ref) => !workflowIdMap.has(ref.workflowId))) return true
     }

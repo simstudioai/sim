@@ -3,7 +3,7 @@ import {
   type CanonicalIndex,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
-  getCanonicalValues,
+  getCanonicalSubBlocksForSurface,
   isCanonicalPair,
   reindexToolCanonicalModes,
   resolveCanonicalMode,
@@ -18,6 +18,7 @@ export {
   type CanonicalIndex,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   isCanonicalPair,
   reindexToolCanonicalModes,
   resolveCanonicalMode,
@@ -50,10 +51,12 @@ export function buildPreviewContextValues(
 
   for (const [canonicalId, group] of Object.entries(context.canonicalIndex.groupsById)) {
     if (isCanonicalPair(group)) {
-      const mode = resolveCanonicalMode(group, context.values, context.overrides)
-      const { basicValue, advancedValue } = getCanonicalValues(group, context.values)
-      result[canonicalId] =
-        mode === 'advanced' ? (advancedValue ?? basicValue) : (basicValue ?? advancedValue)
+      result[canonicalId] = resolveDependencyValue(
+        canonicalId,
+        context.values,
+        context.canonicalIndex,
+        context.overrides
+      )
     }
   }
 

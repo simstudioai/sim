@@ -5,6 +5,8 @@ import {
   buildCanonicalIndex,
   buildSubBlockValues,
   type CanonicalModeOverrides,
+  getCanonicalSubBlocksForSurface,
+  isPureTriggerBlockConfig,
   resolveActiveCanonicalValue,
 } from './visibility'
 
@@ -54,7 +56,12 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
 export function buildSelectorContextFromBlock(
   blockType: string,
   subBlocks: Record<string, SubBlockState | { value?: unknown }>,
-  opts?: { workflowId?: string; workspaceId?: string; canonicalModes?: CanonicalModeOverrides }
+  opts?: {
+    workflowId?: string
+    workspaceId?: string
+    canonicalModes?: CanonicalModeOverrides
+    triggerMode?: boolean
+  }
 ): SelectorContext {
   const context: SelectorContext = {}
   if (opts?.workflowId) context.workflowId = opts.workflowId
@@ -63,7 +70,13 @@ export function buildSelectorContextFromBlock(
   const blockConfig = getBlock(blockType)
   if (!blockConfig) return context
 
-  const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+  const activeSubBlocks = getCanonicalSubBlocksForSurface(
+    blockConfig.subBlocks,
+    opts?.triggerMode === true || isPureTriggerBlockConfig(blockConfig)
+  )
+  const activeSubBlockIds = new Set(activeSubBlocks.map((subBlock) => subBlock.id))
+  const configuredSubBlockIds = new Set(blockConfig.subBlocks.map((subBlock) => subBlock.id))
+  const canonicalIndex = buildCanonicalIndex(activeSubBlocks)
   const values = buildSubBlockValues(subBlocks)
   const resolvedGroups = new Set<string>()
 
@@ -77,6 +90,8 @@ export function buildSelectorContextFromBlock(
   }
 
   for (const [subBlockId, subBlock] of Object.entries(subBlocks)) {
+    if (configuredSubBlockIds.has(subBlockId) && !activeSubBlockIds.has(subBlockId)) continue
+
     const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockId]
     if (canonicalId) {
       // A canonical group resolves to its ACTIVE member only (no last-write-wins between a

@@ -8,9 +8,11 @@ import {
   buildCanonicalIndex,
   buildSubBlockValues,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   getCanonicalValues,
   isCanonicalPair,
   isNonEmptyValue,
+  isPureTriggerBlockConfig,
   isSubBlockHidden,
   isToolInputOnlySubBlock,
   resolveCanonicalMode,
@@ -511,7 +513,12 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
     isCustomBlock && blockConfig.subBlocks.some((config) => !RESERVED_PARAMS.has(config.id))
   const isTriggerContext = block.triggerMode ?? false
   const isTriggerCategory = blockConfig.category === 'triggers'
-  const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+  const canonicalIndex = buildCanonicalIndex(
+    getCanonicalSubBlocksForSurface(
+      blockConfig.subBlocks,
+      isTriggerContext || isPureTriggerBlockConfig(blockConfig)
+    )
+  )
   const allValues = buildSubBlockValues(block.subBlocks)
 
   Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
@@ -587,7 +594,7 @@ export function extractBlockParams(block: BlockState): Record<string, any> {
     const { basicValue, advancedValue } = getCanonicalValues(group, params)
     const hasExplicitOverride = canonicalModeOverrides?.[group.canonicalId] != null
     const pairMode =
-      hasExplicitOverride || !legacyAdvancedMode
+      hasExplicitOverride || !legacyAdvancedMode || !isCanonicalPair(group)
         ? resolveCanonicalMode(group, allValues, canonicalModeOverrides)
         : 'advanced'
     const chosen = pairMode === 'advanced' ? advancedValue : basicValue
@@ -648,7 +655,12 @@ export function collectBlockFieldIssues(
   const displayAdvancedOptions = block.advancedMode ?? false
   const isTriggerContext = block.triggerMode ?? false
   const isTriggerCategory = blockConfig.category === 'triggers'
-  const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks || [])
+  const canonicalIndex = buildCanonicalIndex(
+    getCanonicalSubBlocksForSurface(
+      blockConfig.subBlocks || [],
+      isTriggerContext || isPureTriggerBlockConfig(blockConfig)
+    )
+  )
   const canonicalModeOverrides = block.data?.canonicalModes
   const allValues = buildSubBlockValues(block.subBlocks)
 

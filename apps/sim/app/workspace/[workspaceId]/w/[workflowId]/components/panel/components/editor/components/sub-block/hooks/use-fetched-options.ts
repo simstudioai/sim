@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
+import {
+  buildCanonicalIndex,
+  getCanonicalSubBlocksForSurface,
+  isPureTriggerBlockConfig,
+  resolveDependencyValue,
+} from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -73,10 +78,15 @@ export function useFetchedOptions({
   const blockState = useWorkflowStore((state) => state.blocks[blockId])
   const blockConfig = blockState?.type ? getBlock(blockState.type) : null
   const canonicalModeOverrides = blockState?.data?.canonicalModes
-  const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
-  )
+  const canonicalIndex = useMemo(() => {
+    const subBlocks = blockConfig?.subBlocks || []
+    return buildCanonicalIndex(
+      getCanonicalSubBlocksForSurface(
+        subBlocks,
+        Boolean(blockState?.triggerMode) || isPureTriggerBlockConfig(blockConfig ?? undefined)
+      )
+    )
+  }, [blockConfig?.subBlocks, blockState?.triggerMode])
 
   const dependencyValues = useStoreWithEqualityFn(
     useSubBlockStore,

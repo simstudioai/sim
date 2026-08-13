@@ -5,7 +5,9 @@ import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import {
   buildCanonicalIndex,
+  getCanonicalSubBlocksForSurface,
   isNonEmptyValue,
+  isPureTriggerBlockConfig,
   normalizeDependencyValue,
   parseDependsOn,
   resolveDependencyValue,
@@ -15,7 +17,10 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useDependencyBlockType } from './use-dependency-block-type'
+import {
+  getDependencyCanonicalModeOverrides,
+  useDependencyBlockContext,
+} from './use-dependency-block-type'
 
 /**
  * Centralized dependsOn gating for sub-block components.
@@ -35,17 +40,26 @@ export function useDependsOnGate(
   const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
   const blockState = useWorkflowStore((state) => state.blocks[blockId])
 
-  const dependencyBlockType = useDependencyBlockType()
+  const dependencyBlockContext = useDependencyBlockContext()
+  const dependencyBlockType = dependencyBlockContext?.blockType
   const blockConfig = dependencyBlockType
     ? getBlock(dependencyBlockType)
     : blockState?.type
       ? getBlock(blockState.type)
       : null
-  const canonicalIndex = useMemo(
-    () => buildCanonicalIndex(blockConfig?.subBlocks || []),
-    [blockConfig?.subBlocks]
+  const canonicalIndex = useMemo(() => {
+    const subBlocks = blockConfig?.subBlocks || []
+    return buildCanonicalIndex(
+      getCanonicalSubBlocksForSurface(
+        subBlocks,
+        Boolean(blockState?.triggerMode) || isPureTriggerBlockConfig(blockConfig ?? undefined)
+      )
+    )
+  }, [blockConfig?.subBlocks, blockState?.triggerMode])
+  const canonicalModeOverrides = getDependencyCanonicalModeOverrides(
+    dependencyBlockContext,
+    blockState?.data?.canonicalModes
   )
-  const canonicalModeOverrides = blockState?.data?.canonicalModes
 
   // Parse dependsOn config to get all/any field lists
   const { allFields, anyFields, allDependsOnFields } = useMemo(

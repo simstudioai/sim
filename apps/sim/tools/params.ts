@@ -4,6 +4,7 @@ import {
   buildCanonicalIndex,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   isCanonicalPair,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
@@ -1049,7 +1050,8 @@ export function getSubBlocksForToolInput(
     }
 
     const allSubBlocks = blockConfig.subBlocks as BlockSubBlockConfig[]
-    const canonicalIndex = buildCanonicalIndex(allSubBlocks)
+    const actionSubBlocks = getCanonicalSubBlocksForSurface(allSubBlocks, false)
+    const canonicalIndex = buildCanonicalIndex(actionSubBlocks)
 
     // Build values for condition evaluation
     const values = currentValues || {}
@@ -1072,7 +1074,7 @@ export function getSubBlocksForToolInput(
 
     const filtered: BlockSubBlockConfig[] = []
 
-    for (const sb of allSubBlocks) {
+    for (const sb of actionSubBlocks) {
       // Skip excluded types
       if (EXCLUDED_SUBBLOCK_TYPES.has(sb.type)) continue
 
@@ -1147,7 +1149,7 @@ export function getSubBlocksForToolInput(
           const mode = resolveCanonicalMode(group, valuesWithOperation, canonicalModeOverrides)
           if (mode === 'advanced') {
             // Find the advanced variant
-            const advancedSb = allSubBlocks.find((s) => group.advancedIds.includes(s.id))
+            const advancedSb = actionSubBlocks.find((s) => group.advancedIds.includes(s.id))
             if (advancedSb) {
               filtered.push({ ...advancedSb, paramVisibility: visibility })
             }
@@ -1156,7 +1158,7 @@ export function getSubBlocksForToolInput(
             if (group.basicId === sb.id) {
               filtered.push({ ...sb, paramVisibility: visibility })
             } else {
-              const basicSb = allSubBlocks.find((s) => s.id === group.basicId)
+              const basicSb = actionSubBlocks.find((s) => s.id === group.basicId)
               if (basicSb) {
                 filtered.push({ ...basicSb, paramVisibility: visibility })
               }

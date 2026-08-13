@@ -10,7 +10,9 @@ import {
   buildSubBlockValues,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   isNonEmptyValue,
+  isPureTriggerBlockConfig,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
@@ -69,6 +71,8 @@ interface EmitAnchoredParams {
   targetWorkflowId: string
   /** Canonical-mode overrides for resolving the active parent member (undefined -> value heuristic). */
   canonicalModes?: CanonicalModeOverrides
+  /** Restrict a mixed action/trigger block to its trigger subblocks. */
+  triggerMode?: boolean
   /** Memoized so the deterministic target block id is derived at most once per block. */
   resolveTargetBlockId: () => string
   /** Map a dependent's config id to its wire `subBlockKey` (identity, or nested `tools[i].id`). */
@@ -101,6 +105,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
     blockName,
     targetWorkflowId,
     canonicalModes,
+    triggerMode,
     resolveTargetBlockId,
     makeSubBlockKey,
     makeTitle,
@@ -108,15 +113,20 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
     chaining,
     out,
   } = params
-  const fullContext = buildSelectorContextFromBlock(contextBlockType, contextSubBlocks)
-  const canonicalIndex = buildCanonicalIndex(config.subBlocks)
-  const gates = createCanonicalModeGates(config.subBlocks, values, canonicalModes)
-  const configById = new Map(config.subBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg]))
+  const triggerSurface = triggerMode === true || isPureTriggerBlockConfig(config)
+  const activeSubBlocks = getCanonicalSubBlocksForSurface(config.subBlocks, triggerSurface)
+  const fullContext = buildSelectorContextFromBlock(contextBlockType, contextSubBlocks, {
+    canonicalModes,
+    triggerMode: triggerSurface,
+  })
+  const canonicalIndex = buildCanonicalIndex(activeSubBlocks)
+  const gates = createCanonicalModeGates(activeSubBlocks, values, canonicalModes)
+  const configById = new Map(activeSubBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg]))
   // A field could hang off two anchors (or be reachable via two paths); emit it once.
   const seen = new Set<string>()
 
   for (const anchor of PARENT_ANCHORS) {
-    for (const anchorCfg of config.subBlocks) {
+    for (const anchorCfg of activeSubBlocks) {
       if (anchorCfg.type !== anchor.subBlockType || !anchorCfg.id) continue
       // An anchor whose canonical pair is in ADVANCED (manual) mode is skipped entirely: the
       // active value is the user-owned manual member's, which is verbatim by policy - a sync
@@ -147,7 +157,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
         if (typeof value === 'string' && value) context[key] = value
       }
 
-      for (const clear of getWorkflowSearchDependentClears(config.subBlocks, anchorCfg.id)) {
+      for (const clear of getWorkflowSearchDependentClears(activeSubBlocks, anchorCfg.id)) {
         const dependent = configById.get(clear.subBlockId)
         if (!dependent?.id || !dependent.selectorKey) continue
         // Skip fields gated off by their `condition` - a selector under a now-inactive
@@ -277,6 +287,7 @@ export function collectForkDependentReconfigs(
         blockName: block.name,
         targetWorkflowId: item.targetWorkflowId,
         canonicalModes: block.data?.canonicalModes,
+        triggerMode: block.triggerMode === true,
         resolveTargetBlockId: resolveBlockId,
         makeSubBlockKey: (id) => id,
         makeTitle: (dependent) => dependent.title ?? dependent.id ?? '',

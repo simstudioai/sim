@@ -281,10 +281,10 @@ function extractPrefixedModes(
  * `type` — so that two tool entries of the SAME type (e.g. two Table tools on one Agent block) get
  * independent canonical modes instead of colliding on a shared `${toolType}:${canonicalId}` key.
  *
- * Falls back to the legacy `${legacyToolType}:` prefix (the pre-instance-scoping format) when no
- * index-scoped key matches, so an override saved before this scoping change isn't silently dropped -
- * it keeps applying (type-shared, the old behavior) until the user re-toggles it explicitly, at which
- * point it's rewritten under the new index-scoped key.
+ * Uses the legacy `${legacyToolType}:` prefix (the pre-instance-scoping format) as a baseline, so an
+ * override saved before this scoping change isn't silently dropped. Index-scoped entries override
+ * that baseline per canonical id, allowing a tool whose modes were only partially rewritten to keep
+ * the remaining legacy choices until the user re-toggles them.
  *
  * Returns `undefined` when there are no overrides, no `toolIndex`, and no legacy match.
  */
@@ -296,8 +296,9 @@ export function scopeCanonicalModesForTool(
   if (!overrides) return undefined
   const scoped =
     toolIndex !== undefined ? extractPrefixedModes(overrides, `${toolIndex}:`) : undefined
-  if (scoped) return scoped
-  return legacyToolType ? extractPrefixedModes(overrides, `${legacyToolType}:`) : undefined
+  const legacy = legacyToolType ? extractPrefixedModes(overrides, `${legacyToolType}:`) : undefined
+  if (!scoped) return legacy
+  return legacy ? { ...legacy, ...scoped } : scoped
 }
 
 const INDEX_SCOPED_KEY = /^(\d+):(.+)$/
@@ -462,6 +463,21 @@ export function shouldUseSubBlockForTriggerModeCanonicalIndex(
   return isTriggerModeSubBlock(subBlock) || isTriggerConfigSubBlock(subBlock)
 }
 
+/**
+ * Project a block's canonical members onto the active action or trigger surface.
+ *
+ * Canonical aliases may fall back within the selected surface, but a hidden action/trigger twin
+ * must never satisfy a dependency on the other surface.
+ */
+export function getCanonicalSubBlocksForSurface(
+  subBlocks: SubBlockConfig[],
+  triggerSurface: boolean
+): SubBlockConfig[] {
+  return triggerSurface
+    ? subBlocks.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
+    : subBlocks.filter((subBlock) => !shouldUseSubBlockForTriggerModeCanonicalIndex(subBlock))
+}
+
 export function isPureTriggerBlockConfig(blockConfig?: TriggerVisibilityBlockConfig): boolean {
   return Boolean(blockConfig?.triggers?.enabled && blockConfig.category === 'triggers')
 }
@@ -481,7 +497,12 @@ export function isSubBlockVisibleForTriggerMode(
 }
 
 /**
- * Resolve the dependency value for a dependsOn key, honoring canonical swaps.
+ * Resolve a dependency through its canonical Basic/Advanced group.
+ *
+ * A valid persisted mode is authoritative: exact member reads preserve explicit clears, canonical
+ * reads may use another populated member on the same side (notably trigger aliases), and the
+ * opposite side is never consulted. Without a valid mode, the historical value-based fallback is
+ * preserved for workflows saved before canonical modes existed.
  */
 export function resolveDependencyValue(
   dependencyKey: string,
@@ -499,6 +520,42 @@ export function resolveDependencyValue(
 
   const group = canonicalIndex.groupsById[canonicalId]
   if (!group) return values[dependencyKey]
+
+  const explicitMode = overrides?.[canonicalId]
+  const hasValidExplicitMode =
+    (explicitMode === 'basic' && Boolean(group.basicId)) ||
+    (explicitMode === 'advanced' && group.advancedIds.length > 0)
+  const memberIds = Object.entries(canonicalIndex.canonicalIdBySubBlockId)
+    .filter(([, memberCanonicalId]) => memberCanonicalId === canonicalId)
+    .map(([memberId]) => memberId)
+
+  if (hasValidExplicitMode) {
+    const activeMemberIds =
+      explicitMode === 'advanced'
+        ? group.advancedIds
+        : [group.basicId, ...memberIds.filter((id) => !group.advancedIds.includes(id))].filter(
+            (id, index, ids): id is string => Boolean(id) && ids.indexOf(id) === index
+          )
+
+    if (activeMemberIds.includes(dependencyKey) && Object.hasOwn(values, dependencyKey)) {
+      return values[dependencyKey]
+    }
+
+    for (const memberId of activeMemberIds) {
+      if (Object.hasOwn(values, memberId) && isNonEmptyValue(values[memberId])) {
+        return values[memberId]
+      }
+    }
+
+    for (const memberId of activeMemberIds) {
+      if (Object.hasOwn(values, memberId)) return values[memberId]
+    }
+
+    if (dependencyKey === canonicalId || activeMemberIds.includes(dependencyKey)) {
+      return values[canonicalId]
+    }
+    return undefined
+  }
 
   const { basicValue, advancedValue } = getCanonicalValues(group, values)
   const mode = resolveCanonicalMode(group, values, overrides)

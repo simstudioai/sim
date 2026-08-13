@@ -340,6 +340,23 @@ describe('getBlockMetrics preview row estimation', () => {
     expect(spread.height).toBe(plain.height)
   })
 
+  it('measures exactly the two active trigger rows', () => {
+    mockGetBlock.mockReturnValue(tableLikeConfig)
+    const block = createTableBlock('basic')
+    block.triggerMode = true
+    block.subBlocks = {
+      ...block.subBlocks,
+      eventType: { id: 'eventType', type: 'dropdown', value: 'new_row' },
+    }
+
+    expect(getBlockMetrics(block).height).toBe(
+      BLOCK_DIMENSIONS.HEADER_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
+        2 * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_CONTENT_GAP
+    )
+  })
+
   it('never estimates a card shorter than the rows it can actually paint', () => {
     /*
      * The estimate only runs for a block that has never mounted, and on the

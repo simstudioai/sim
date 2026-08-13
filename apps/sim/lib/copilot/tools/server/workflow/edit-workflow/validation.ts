@@ -11,7 +11,9 @@ import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
+  getCanonicalSubBlocksForSurface,
   isCanonicalPair,
+  isPureTriggerBlockConfig,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
@@ -1019,11 +1021,15 @@ function collectSelectorFields(
     const blockConfig = getBlock(blockType)
     if (!blockConfig) continue
 
-    const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+    const activeSubBlocks = getCanonicalSubBlocksForSurface(
+      blockConfig.subBlocks,
+      blockData.triggerMode === true || isPureTriggerBlockConfig(blockConfig)
+    )
+    const canonicalIndex = buildCanonicalIndex(activeSubBlocks)
     const allValues = buildSubBlockValues(blockData.subBlocks || {})
     const canonicalModeOverrides = blockData.data?.canonicalModes
 
-    for (const subBlockConfig of blockConfig.subBlocks) {
+    for (const subBlockConfig of activeSubBlocks) {
       if (!SELECTOR_TYPES.has(subBlockConfig.type)) continue
 
       // oauth-input credentials are only validated when explicitly requested
