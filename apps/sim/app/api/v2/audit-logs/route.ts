@@ -1,5 +1,5 @@
 import { v2ListAuditLogsContract } from '@/lib/api/contracts/v2/audit-logs'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorScopeKey, instantScopePart } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -31,8 +31,8 @@ function auditLogCursorFilters(query: {
     resourceId: query.resourceId,
     workspaceId: query.workspaceId,
     actorEmail: query.actorEmail,
-    startDate: query.startDate,
-    endDate: query.endDate,
+    startDate: instantScopePart(query.startDate),
+    endDate: instantScopePart(query.endDate),
   })
 }
 

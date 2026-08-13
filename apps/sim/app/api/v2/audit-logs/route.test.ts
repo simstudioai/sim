@@ -128,6 +128,31 @@ describe('v2 audit-log routes', () => {
     expect(mocks.list).not.toHaveBeenCalled()
   })
 
+  /**
+   * A window bound selects by instant, and the query schema admits every
+   * sub-second spelling of one, so the same window written a different way must
+   * resume rather than 400.
+   */
+  it('resumes a cursor whose window bound is respelled to the same instant', async () => {
+    const minted = await listLogs(
+      new NextRequest(
+        'http://localhost:3000/api/v2/audit-logs?organizationId=org-1&startDate=2026-01-01T00%3A00%3A00Z'
+      )
+    )
+    const { nextCursor } = await minted.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    mocks.list.mockClear()
+    const resumed = await listLogs(
+      new NextRequest(
+        `http://localhost:3000/api/v2/audit-logs?organizationId=org-1&startDate=2026-01-01T00%3A00%3A00.000Z&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(resumed.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalled()
+  })
+
   it('resumes a cursor replayed under the filters it was minted with', async () => {
     const minted = await listLogs(
       new NextRequest(

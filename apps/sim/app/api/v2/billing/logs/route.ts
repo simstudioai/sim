@@ -1,5 +1,5 @@
 import { v2ListBillingLogsContract } from '@/lib/api/contracts/v2/billing'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorScopeKey, instantScopePart } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2BillingErrorPolicies } from '@/lib/billing/api/route-policies'
 import { listBillingLogs } from '@/lib/billing/application/list-billing-logs'
@@ -20,6 +20,10 @@ export const revalidate = 0
  * window would produce a different stamp on every request and reject each next
  * page. `period=30d` and an explicit custom range covering the same days are
  * therefore two scopes, which is right — one is a moving window.
+ *
+ * The explicit bounds still bind by instant rather than spelling. That is a
+ * pure function of the caller's own text, so it collapses `…00Z` and `…00.000Z`
+ * without resolving anything against the clock.
  */
 function billingLogCursorFilters(query: {
   source?: string
@@ -32,8 +36,8 @@ function billingLogCursorFilters(query: {
     source: query.source,
     workspaceId: query.workspaceId,
     period: query.period,
-    startDate: query.startDate,
-    endDate: query.endDate,
+    startDate: instantScopePart(query.startDate),
+    endDate: instantScopePart(query.endDate),
   })
 }
 
