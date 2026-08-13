@@ -917,11 +917,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id.",
+            "description": "Skill to retrieve, update, or delete. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id."
+              "description": "Skill to retrieve, update, or delete. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
             }
           },
           {
@@ -991,11 +991,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id.",
+            "description": "Skill to retrieve, update, or delete. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id."
+              "description": "Skill to retrieve, update, or delete. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
             }
           }
         ],
@@ -1071,11 +1071,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id.",
+            "description": "Skill to retrieve, update, or delete. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id."
+              "description": "Skill to retrieve, update, or delete. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
             }
           },
           {
@@ -3107,7 +3107,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Unique skill identifier. Built-in skills use their name as the id."
+            "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
           },
           "name": {
             "type": "string",
@@ -3186,7 +3186,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Unique skill identifier. Built-in skills use their name as the id."
+            "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
           },
           "name": {
             "type": "string",
