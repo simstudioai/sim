@@ -369,6 +369,34 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(mockDecryptSecret).not.toHaveBeenCalled()
   })
 
+  it('threads a NetSuite certificate ID through reconnect', async () => {
+    mockCredential({
+      providerId: 'netsuite-service-account',
+      displayName: 'Production NetSuite',
+    })
+    mockIsClientCredentialAccountProviderId.mockReturnValue(true)
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'netsuite-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'Production NetSuite',
+      auditMetadata: {},
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      orgId: 'https://1234567.suitetalk.api.netsuite.com',
+      clientId: 'client-id',
+      certificateId: 'certificate-id',
+      privateKey: '-----BEGIN PRIVATE KEY-----rotated',
+    })
+
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'netsuite-service-account',
+      expect.objectContaining({ certificateId: 'certificate-id' })
+    )
+  })
+
   it('surfaces a rebuild failure as a validation error and writes nothing', async () => {
     mockCredential()
     mockStoredBlob({ type: 'service_account', client_email: OLD_EMAIL })

@@ -188,6 +188,58 @@ describe('POST /api/credentials', () => {
       )
     })
 
+    it('threads NetSuite certificate credentials through the create contract', async () => {
+      mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
+        providerId: 'netsuite-service-account',
+        encryptedServiceAccountKey: 'encrypted-netsuite-blob',
+        displayName: 'Oracle NetSuite 1234567',
+        auditMetadata: { principalKind: 'tenant', principalId: '1234567' },
+        principal: { kind: 'tenant', id: '1234567' },
+      })
+      queueTableRows(credential, [])
+      queueTableRows(credential, [])
+      queueTableRows(credential, [
+        {
+          id: 'credential-netsuite',
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          displayName: 'Oracle NetSuite 1234567',
+          description: null,
+          providerId: 'netsuite-service-account',
+          accountId: null,
+          envKey: null,
+          envOwnerUserId: null,
+          encryptedServiceAccountKey: 'encrypted-netsuite-blob',
+          createdBy: 'user-1',
+          createdAt: new Date('2026-08-11T00:00:00.000Z'),
+          updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+        },
+      ])
+
+      const response = await POST(
+        createMockRequest('POST', {
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'netsuite-service-account',
+          orgId: 'https://1234567.suitetalk.api.netsuite.com',
+          clientId: 'netsuite-client-id',
+          certificateId: 'netsuite-certificate-id',
+          privateKey: '-----BEGIN PRIVATE KEY-----key',
+        })
+      )
+
+      expect(response.status).toBe(201)
+      expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+        'netsuite-service-account',
+        expect.objectContaining({
+          orgId: 'https://1234567.suitetalk.api.netsuite.com',
+          clientId: 'netsuite-client-id',
+          certificateId: 'netsuite-certificate-id',
+          privateKey: '-----BEGIN PRIVATE KEY-----key',
+        })
+      )
+    })
+
     it('maps a verification failure to a 400 with the validation code', async () => {
       mockVerifyAndBuildServiceAccountSecret.mockRejectedValueOnce(
         new TokenServiceAccountValidationError('invalid_credentials', 400, {

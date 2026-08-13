@@ -70,6 +70,7 @@ export interface PerformCreateCredentialParams {
   botToken?: string
   clientId?: string
   clientSecret?: string
+  certificateId?: string
   orgId?: string
   dataCenter?: string
   authMethod?: string
@@ -250,6 +251,7 @@ export async function performCreateCredential(
           serviceAccountJson: params.serviceAccountJson,
           clientId: params.clientId,
           clientSecret: params.clientSecret,
+          certificateId: params.certificateId,
           orgId: params.orgId,
           dataCenter: params.dataCenter,
           authMethod: params.authMethod,
