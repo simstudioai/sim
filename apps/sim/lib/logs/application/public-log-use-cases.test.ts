@@ -33,6 +33,12 @@ vi.mock('@/lib/logs/public-queries', () => ({
 
 vi.mock('@/lib/folders/queries', () => ({
   loadActiveFolderPathIndex: mocks.loadFolders,
+  resolveFolderPathFilter: (index: { idByPath: Map<string, string> }, path: string | undefined) => {
+    if (path === undefined) return { kind: 'unfiltered' }
+    if (path === '/') return { kind: 'folder', folderId: null }
+    const folderId = index.idByPath.get(path)
+    return folderId === undefined ? { kind: 'noMatch' } : { kind: 'folder', folderId }
+  },
 }))
 
 /**
@@ -290,23 +296,50 @@ describe('public log application use cases', () => {
     expect(result.items).toHaveLength(1)
   })
 
-  it('returns a typed not-found for a missing folder', async () => {
-    await expect(
-      listPublicLogs.execute({
-        principal: workspacePrincipal,
-        input: {
-          workspaceId: 'workspace-1',
-          filters: {},
-          folderPaths: ['/missing'],
-          limit: 50,
-          includeFullDetails: false,
-          includeFinalOutput: false,
-          includeTraceSpans: false,
-        },
-      })
-    ).rejects.toMatchObject({ code: 'not_found' })
+  /**
+   * Every other `/logs` filter answers a value nothing matches with an empty
+   * page, and this one used to answer `404 Folder not found` — which also made
+   * the list a folder-existence oracle. The scope must still reach the query:
+   * dropping the unresolved path and sending no scope at all would return the
+   * whole workspace's logs.
+   */
+  it('returns an empty page for a folder path that matches nothing', async () => {
+    const result = await listPublicLogs.execute({
+      principal: workspacePrincipal,
+      input: {
+        workspaceId: 'workspace-1',
+        filters: {},
+        folderPaths: ['/missing'],
+        limit: 50,
+        includeFullDetails: false,
+        includeFinalOutput: false,
+        includeTraceSpans: false,
+      },
+    })
 
-    expect(mocks.listLogs).not.toHaveBeenCalled()
+    expect(mocks.listLogs).toHaveBeenCalledWith(
+      expect.objectContaining({ folderScope: { includesRoot: false, folderIds: [] } })
+    )
+    expect(result.nextCursor).toBeNull()
+  })
+
+  it('keeps the folders that do resolve when one path in the set does not', async () => {
+    await listPublicLogs.execute({
+      principal: workspacePrincipal,
+      input: {
+        workspaceId: 'workspace-1',
+        filters: {},
+        folderPaths: ['/agents', '/missing'],
+        limit: 50,
+        includeFullDetails: false,
+        includeFinalOutput: false,
+        includeTraceSpans: false,
+      },
+    })
+
+    expect(mocks.listLogs).toHaveBeenCalledWith(
+      expect.objectContaining({ folderScope: { includesRoot: false, folderIds: ['folder-1'] } })
+    )
   })
 
   it('propagates run-store failures', async () => {

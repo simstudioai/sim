@@ -23,6 +23,7 @@ import {
   v1WorkflowExportPayloadSchema,
 } from '@/lib/api/contracts/v1/workflows'
 import {
+  V2_FOLDER_FILTER_MISS,
   v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
@@ -132,7 +133,7 @@ export const v2ListWorkflowsQuerySchema = z
     workspaceId: workspaceIdSchema.describe('Workspace whose workflows should be listed.'),
     folderPath: v2FolderPathInputSchema
       .optional()
-      .describe('Restrict results to workflows in this folder path.'),
+      .describe(`Restrict results to workflows in this folder path. ${V2_FOLDER_FILTER_MISS}`),
     deployedOnly: booleanQueryFlagSchema
       .optional()
       .default(false)

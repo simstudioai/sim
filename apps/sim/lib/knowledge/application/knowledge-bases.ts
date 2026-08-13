@@ -14,7 +14,7 @@ import {
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
@@ -229,22 +229,28 @@ async function executeListKnowledgeBases(args: {
   context: KnowledgeWorkspaceContext
 }): Promise<ListKnowledgeBasesResult> {
   /**
-   * The folder index renders each row's `folderPath` and the folder filter
-   * resolves the caller's `folderPath` to an id. Neither reads the other, so
-   * they run together rather than adding a serial round-trip to a list route.
+   * One index read serves both jobs: rendering each row's `folderPath` and
+   * resolving the caller's `folderPath` filter to an id. The list previously
+   * paid for a second, lock-taking read for the filter alone, which it needed
+   * only to raise the 404 this list no longer answers.
    */
-  const [index, folderId] = await Promise.all([
-    loadActiveFolderPathIndex(args.context.workspaceId, 'knowledge_base', undefined, {
-      maxRows: MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE,
-    }),
-    args.input.folderPath === undefined
-      ? undefined
-      : resolveKnowledgeFolderPath(args.context.workspaceId, args.input.folderPath).then(
-          (resolved) => resolved.folderId
-        ),
-  ])
+  const index = await loadActiveFolderPathIndex(
+    args.context.workspaceId,
+    'knowledge_base',
+    undefined,
+    { maxRows: MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE }
+  )
+  const folderFilter = resolveFolderPathFilter(index, args.input.folderPath)
+  if (folderFilter.kind === 'noMatch') {
+    return {
+      knowledgeBases: [],
+      nextCursorKeys: null,
+      sortBy: args.input.sortBy ?? 'createdAt',
+      sortOrder: args.input.sortOrder ?? 'asc',
+    }
+  }
   const page = await getWorkspaceKnowledgeBases(args.context.workspaceId, 'active', {
-    folderId,
+    folderId: folderFilter.kind === 'folder' ? folderFilter.folderId : undefined,
     search: args.input.search,
     sortBy: args.input.sortBy,
     sortOrder: args.input.sortOrder,

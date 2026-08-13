@@ -8,6 +8,7 @@ import type {
   ContractParams,
   ContractQuery,
 } from '@/lib/api/contracts'
+import { blankQueryValueValidationError } from '@/lib/api/server/blank-query-values'
 import { nulByteValidationError } from '@/lib/api/server/nul-bytes'
 import { env } from '@/lib/core/config/env'
 import {
@@ -62,6 +63,14 @@ export interface ParseRequestOptions {
   maxBodyBytes?: number
   /** Treat an absent or whitespace-only body as `undefined` before contract validation. */
   optionalJsonBody?: boolean
+  /**
+   * Reject a query parameter that is present but blank, instead of letting
+   * coercion read it as `0`/`false`/the default. See
+   * {@link blankQueryValueValidationError}. The v2 builders set this for the
+   * whole v2 surface; it is opt-in so the internal surface, whose own clients
+   * send blanks today, is unaffected.
+   */
+  rejectBlankQueryValues?: boolean
 }
 
 export function serializeZodIssues(error: z.ZodError): z.core.$ZodIssue[] {
@@ -275,6 +284,18 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
       return parsedBody
     }
     body = parsedBody.data
+  }
+
+  if (options?.rejectBlankQueryValues) {
+    const blank = blankQueryValueValidationError(rawQuery)
+    if (blank) {
+      return {
+        success: false,
+        response: options.validationErrorResponse
+          ? options.validationErrorResponse(blank)
+          : validationErrorResponse(blank),
+      }
+    }
   }
 
   const params = contract.params

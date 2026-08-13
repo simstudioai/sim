@@ -9,6 +9,7 @@ import {
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v1ListLogsQuerySchema } from '@/lib/api/contracts/v1/logs'
 import {
+  V2_FOLDER_FILTER_MISS,
   v2CursorListResponse,
   v2DataResponse,
   v2FolderPathInputSchema,
@@ -255,7 +256,7 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     order: v2RunOrderSchema('execution'),
     folderPaths: z
       .string()
-      .describe('Comma-separated workflow folder paths to include.')
+      .describe(`Comma-separated workflow folder paths to include. ${V2_FOLDER_FILTER_MISS}`)
       .optional()
       .transform((value, ctx) => {
         if (value === undefined) return undefined

@@ -9,6 +9,7 @@ import {
 import { shareAuthTypeSchema, shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  V2_FOLDER_FILTER_MISS,
   v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
@@ -305,11 +306,11 @@ export const v2ListFilesQuerySchema = z
     /** Restrict to one file folder. Omit to list the whole workspace. */
     folderPath: v2FolderPathInputSchema
       .optional()
-      .describe('Restrict results to files directly inside this folder.'),
+      .describe(`Restrict results to files directly inside this folder. ${V2_FOLDER_FILTER_MISS}`),
     scope: v2FileScopeSchema
       .default('active')
       .describe(
-        'Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns 404 when the containing folder was archived too.'
+        'Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns an empty page when the containing folder was archived too.'
       ),
     search: v2SearchSchema.describe('Case-insensitive substring match against the file name.'),
     ...v2SortFields(v2FileSortFields, { sortBy: 'uploadedAt', sortOrder: 'asc' }),

@@ -43,6 +43,7 @@ import {
   v1ListTablesQuerySchema,
 } from '@/lib/api/contracts/v1/tables'
 import {
+  V2_FOLDER_FILTER_MISS,
   V2_SEARCH_MAX_LENGTH,
   v2CreateFolderBodySchema,
   v2CursorListResponse,
@@ -338,7 +339,7 @@ export const v2ListTablesQuerySchema = z
     workspaceId: workspaceIdSchema.describe('Workspace whose tables should be listed.'),
     folderPath: v2FolderPathInputSchema
       .optional()
-      .describe('Restrict results to tables in this folder.'),
+      .describe(`Restrict results to tables in this folder. ${V2_FOLDER_FILTER_MISS}`),
     search: v2SearchSchema,
     ...v2SortFields(v2TableSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
     ...v2PaginationFields({

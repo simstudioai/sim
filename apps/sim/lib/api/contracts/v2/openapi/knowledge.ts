@@ -70,7 +70,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'listKnowledgeBases',
       summary: 'List Knowledge Bases',
-      description: `List knowledge bases in a workspace with folder filtering, search, and sorting. Paginate with \`limit\` and \`cursor\`, stopping when \`nextCursor\` is null. An unknown \`folderPath\` is a 404. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List knowledge bases in a workspace with folder filtering, search, and sorting. Paginate with \`limit\` and \`cursor\`, stopping when \`nextCursor\` is null. An unknown \`folderPath\` returns an empty page. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of knowledge bases.' },
     }),
