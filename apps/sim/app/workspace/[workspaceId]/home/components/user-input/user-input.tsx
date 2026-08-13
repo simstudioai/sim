@@ -46,6 +46,16 @@ export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/ty
 
 const logger = createLogger('UserInput')
 
+/**
+ * Whether the element is somewhere the user could be typing. Focusing the composer on mount
+ * must not steal focus from another field, but may take it from a link or button — opening a
+ * chat leaves the sidebar link focused, and the composer should win.
+ */
+function isTextEntry(element: HTMLElement): boolean {
+  const tag = element.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || element.isContentEditable
+}
+
 interface UserInputProps {
   defaultValue?: string
   draftScopeKey?: string
@@ -453,12 +463,10 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
 
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => {
+      if (!document.hasFocus()) return
       const active = document.activeElement
-      const pageHasFocus = document.hasFocus()
-      const hasNeutralFocus = active === document.body || active === document.documentElement
-      if (pageHasFocus && hasNeutralFocus) {
-        textareaRef.current?.focus()
-      }
+      if (active instanceof HTMLElement && isTextEntry(active)) return
+      textareaRef.current?.focus()
     })
     return () => window.cancelAnimationFrame(raf)
   }, [textareaRef])
