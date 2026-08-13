@@ -87,8 +87,13 @@ export const identifyUserTool: ToolConfig<
       if (params.name) body.name = params.name
       if (params.email) body.email = params.email
 
-      const timestamp = Number(params.timestamp)
-      if (params.timestamp && Number.isFinite(timestamp)) body.timestamp = timestamp
+      if (params.timestamp) {
+        const timestamp = Number(params.timestamp)
+        if (!Number.isFinite(timestamp)) {
+          throw new Error('LogRocket Identify User: timestamp must be milliseconds since epoch')
+        }
+        body.timestamp = timestamp
+      }
 
       if (params.traits) {
         let parsed: unknown
