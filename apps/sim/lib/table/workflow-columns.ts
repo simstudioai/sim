@@ -1072,8 +1072,6 @@ export async function runWorkflowColumn(opts: {
   return { dispatchId, shouldSignalRowsChanged: true }
 }
 
-// ───────────────────────────── Validation ─────────────────────────────
-
 /**
  * Validates schema-level invariants. Run on every `addTableColumn`,
  * `addWorkflowGroup`, `updateWorkflowGroup`, `renameColumn`, `reorderColumns`,
