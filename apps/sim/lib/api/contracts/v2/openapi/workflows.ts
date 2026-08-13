@@ -16,6 +16,7 @@ import {
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
   WORKSPACE_ERRORS,
+  withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   EXECUTE_OPTION_CONSTRAINTS,
@@ -158,7 +159,7 @@ const resumeQueuedResponseSchema = documentedSchema(
   [QUEUED_RUN_EXAMPLE]
 )
 
-const routes = [
+const declaredRoutes = [
   defineOpenApiRoute(
     v2ListWorkflowsContract,
     workflowOperation({
@@ -859,6 +860,8 @@ const routes = [
     }
   ),
 ] as const
+
+const routes = declaredRoutes.map(withRequestBodyErrors)
 
 export const workflowsOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-workflows.json',

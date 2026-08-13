@@ -37,6 +37,7 @@ import {
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
   WORKSPACE_ERRORS,
+  withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   defineOpenApiDocument,
@@ -64,7 +65,7 @@ function knowledgeOperation(
   }
 }
 
-const routes = [
+const declaredRoutes = [
   defineOpenApiRoute(
     v2ListKnowledgeBasesContract,
     knowledgeOperation({
@@ -748,6 +749,8 @@ const routes = [
     }
   ),
 ] as const
+
+const routes = declaredRoutes.map(withRequestBodyErrors)
 
 export const knowledgeOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-knowledge.json',

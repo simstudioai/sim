@@ -39,6 +39,7 @@ import {
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
   WORKSPACE_ERRORS,
+  withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   defineOpenApiDocument,
@@ -118,7 +119,7 @@ function auditOperation(
   }
 }
 
-const routes = [
+const declaredRoutes = [
   defineOpenApiRoute(
     v2ListFilesContract,
     filesOperation({
@@ -839,6 +840,8 @@ const routes = [
     }
   ),
 ] as const
+
+const routes = declaredRoutes.map(withRequestBodyErrors)
 
 export const filesAuditOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-files-audit.json',
