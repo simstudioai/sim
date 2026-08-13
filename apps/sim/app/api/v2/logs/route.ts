@@ -6,6 +6,7 @@ import {
 } from '@/lib/api/contracts/v2/logs'
 import {
   cursorScopeKey,
+  parseUnorderedList,
   UNREADABLE_CURSOR_MESSAGE,
   unorderedScopePart,
 } from '@/lib/api/cursor-binding'
@@ -76,8 +77,8 @@ export const GET = defineV2JsonRoute({
     return {
       workspaceId: query.workspaceId,
       filters: {
-        workflowIds: query.workflowIds?.split(',').filter(Boolean),
-        triggers: query.triggers?.split(',').filter(Boolean),
+        workflowIds: parseUnorderedList(query.workflowIds),
+        triggers: parseUnorderedList(query.triggers),
         level: query.level,
         startDate: query.startDate ? new Date(query.startDate) : undefined,
         endDate: query.endDate ? new Date(query.endDate) : undefined,
@@ -90,7 +91,7 @@ export const GET = defineV2JsonRoute({
         cursor: decodedCursor ?? undefined,
         order: query.order,
       },
-      folderPaths: query.folderPaths?.split(',').filter(Boolean),
+      folderPaths: parseUnorderedList(query.folderPaths),
       limit: query.limit,
       includeFullDetails:
         query.details === 'full' || query.includeFinalOutput || query.includeTraceSpans,

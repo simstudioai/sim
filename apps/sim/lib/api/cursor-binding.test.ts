@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { cursorScopeKey, unorderedScopePart } from '@/lib/api/cursor-binding'
+import { cursorScopeKey, parseUnorderedList, unorderedScopePart } from '@/lib/api/cursor-binding'
 import {
   cursorSortKey,
   decodeOffsetCursor,
@@ -205,6 +205,18 @@ describe('unordered filter scope parts', () => {
       cursorScopeKey({ workflowIds: unorderedScopePart('A,B') })
     )
     expect(unorderedScopePart('B,A,B')).toBe('A,B')
+  })
+
+  /**
+   * The scope and the query must read one parse. When the scope trimmed members
+   * and the route split the raw value itself, `A,B` and `A, B` shared a
+   * fingerprint while selecting different rows — a cursor accepted across a
+   * change that moved the sequence, which is the failure the binding prevents.
+   */
+  it('parses the members it fingerprints', () => {
+    expect(parseUnorderedList('A, B')).toEqual(['A', 'B'])
+    expect(parseUnorderedList('A,B')).toEqual(parseUnorderedList('A, B'))
+    expect(unorderedScopePart('A, B')).toBe(parseUnorderedList('A, B')?.join(','))
   })
 
   it('still separates genuinely different sets', () => {

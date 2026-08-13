@@ -63,12 +63,28 @@ export type CursorScopePart =
  * {@link canonicalJson} already sorts object keys, so this only has to normalize
  * the list. Members are de-duplicated as well as sorted: the filters compile to
  * `inArray`, which is set membership, so `A,A,B` selects exactly what `A,B` does
- * and must not bind to a different page. Empty members are dropped because the
- * parsers drop them too.
+ * and must not bind to a different page.
+ *
+ * Derived from {@link parseUnorderedList} rather than parsing again, so the
+ * members this fingerprints are exactly the members the query filters on. A
+ * route that canonicalized here and split the raw value itself would give
+ * `A,B` and `A, B` one fingerprint and two different result sets.
  */
 export function unorderedScopePart(raw: string | undefined): string | undefined {
+  const members = parseUnorderedList(raw)
+  return members && members.length > 0 ? members.join(',') : undefined
+}
+
+/**
+ * The members of a comma-separated filter, trimmed, de-duplicated, and sorted.
+ *
+ * The one parse for both halves of a bound list filter: pass the array to the
+ * query and {@link unorderedScopePart} to the cursor scope. Callers must not
+ * re-split the raw value for one half — that is what lets the two drift.
+ */
+export function parseUnorderedList(raw: string | undefined): string[] | undefined {
   if (raw === undefined) return undefined
-  const members = [
+  return [
     ...new Set(
       raw
         .split(',')
@@ -76,7 +92,6 @@ export function unorderedScopePart(raw: string | undefined): string | undefined 
         .filter((member) => member.length > 0)
     ),
   ].sort()
-  return members.length > 0 ? members.join(',') : undefined
 }
 
 /**
