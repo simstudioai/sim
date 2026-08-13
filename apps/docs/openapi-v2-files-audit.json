@@ -58,9 +58,9 @@
             "name": "folderPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to files directly inside this folder.",
+            "description": "Restrict results to files directly inside this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
             "schema": {
-              "description": "Restrict results to files directly inside this folder.",
+              "description": "Restrict results to files directly inside this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
               "$ref": "#/components/schemas/FolderPathInput"
             }
           },
@@ -68,10 +68,10 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns 404 when the containing folder was archived too.",
+            "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns an empty page when the containing folder was archived too.",
             "schema": {
               "default": "active",
-              "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns 404 when the containing folder was archived too.",
+              "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns an empty page when the containing folder was archived too.",
               "type": "string",
               "enum": ["active", "archived"]
             }
@@ -2074,7 +2074,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "The request is invalid.",
+        "description": "The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.",
         "content": {
           "application/json": {
             "schema": {

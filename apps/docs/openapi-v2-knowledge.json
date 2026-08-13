@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listKnowledgeBases",
         "summary": "List Knowledge Bases",
-        "description": "List knowledge bases in a workspace with folder filtering, search, and sorting. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null. An unknown `folderPath` is a 404. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "List knowledge bases in a workspace with folder filtering, search, and sorting. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null. An unknown `folderPath` returns an empty page. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -54,9 +54,9 @@
             "name": "folderPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to knowledge bases in this folder.",
+            "description": "Restrict results to knowledge bases in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
             "schema": {
-              "description": "Restrict results to knowledge bases in this folder.",
+              "description": "Restrict results to knowledge bases in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
               "$ref": "#/components/schemas/FolderPathInput"
             }
           },
@@ -2035,7 +2035,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "The request is invalid.",
+        "description": "The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.",
         "content": {
           "application/json": {
             "schema": {
