@@ -912,16 +912,20 @@ video {
   display: none !important;
 }
 
-/* Ensure API reference pages use the same font as the rest of the docs */
+/* Ensure API reference pages use the same font as the rest of the docs.
+   `.font-mono` is excluded: parameter names, types, and paths are code tokens
+   and must stay monospace. Without the exclusion this rule outranks the
+   `.font-mono` class rule on specificity (id + element beats one class) and
+   every identifier on the page silently renders in the body sans face. */
 #nd-page:has(.api-page-header),
 #nd-page:has(.api-page-header) h2,
 #nd-page:has(.api-page-header) h3,
 #nd-page:has(.api-page-header) h4,
-#nd-page:has(.api-page-header) p,
-#nd-page:has(.api-page-header) span,
-#nd-page:has(.api-page-header) div,
-#nd-page:has(.api-page-header) label,
-#nd-page:has(.api-page-header) button {
+#nd-page:has(.api-page-header) p:not(.font-mono),
+#nd-page:has(.api-page-header) span:not(.font-mono),
+#nd-page:has(.api-page-header) div:not(.font-mono),
+#nd-page:has(.api-page-header) label:not(.font-mono),
+#nd-page:has(.api-page-header) button:not(.font-mono) {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -1162,20 +1166,27 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   position: relative;
 }
 
+/* Status-code trigger. Sits directly beside the content-type label in the
+   Response header, so it carries the same face, size, and weight — the chevron
+   is what marks it as interactive, not extra typographic weight. */
+#nd-page:has(.api-page-header) button.response-section-dropdown-trigger,
 .response-section-dropdown-trigger {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.125rem 0.25rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-fd-muted-foreground);
+  height: 1.25rem;
+  padding: 0 0.25rem;
+  font-size: 0.78125rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  color: var(--text-secondary);
   background: none;
   border: none;
   cursor: pointer;
   border-radius: 0.375rem;
   transition: color 0.15s;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 .response-section-dropdown-trigger:hover {
   color: var(--color-fd-foreground);
@@ -1234,10 +1245,21 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   height: 0.875rem;
 }
 
+/* Content-type label. The Response header renders this class while the Request
+   Body header renders a fumadocs `code.text-xs`; left alone the two sit at
+   different weights (400 vs 500) and faces, so the lower one reads lighter than
+   the upper one despite being the same string. Both are pinned here. */
+#nd-page:has(.api-page-header) span.response-section-content-type,
 .response-section-content-type {
-  font-size: 0.875rem;
-  color: var(--color-fd-muted-foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.78125rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
 /* Response schema container — remove border to match Path Parameters style */
@@ -1262,25 +1284,75 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   order: 1;
 }
 
-/* Type badge — order 2, grey pill */
+/* Type token — order 2. One recipe for every shape the type slot takes:
+   a scalar (`string`), a union (`string | null`, a flex wrapper of links), and
+   a schema reference (`Workflow summary`, a button that opens the schema).
+   It reuses the docs inline-code recipe (--surface-4 + --border-1 + mono) so a
+   type reads as code wherever it appears, and the explicit 20px box height —
+   the platform ChipTag height — keeps a union the same height as a scalar
+   instead of the 26px its nested links would otherwise force. */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
-  > span.text-sm.font-mono.text-fd-muted-foreground {
+  > span.text-sm.font-mono.text-fd-muted-foreground,
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
   order: 2;
-  background-color: var(--surface-5);
-  color: var(--text-secondary);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: var(--text-xs);
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  .flex.flex-wrap.items-center.gap-3.not-prose
-  > span.text-sm.font-mono.text-fd-muted-foreground {
+  display: inline-flex;
+  align-items: center;
+  height: 1.25rem;
+  gap: 0.375rem;
   background-color: var(--surface-4);
+  border: 1px solid var(--border-1);
+  color: var(--text-body);
+  padding: 0 0.3125rem;
+  border-radius: 0.375rem;
+  font-size: 0.78125rem;
+  line-height: 1;
+  font-weight: 400;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+/* Union members and schema references carry their own underline, which makes
+   them read heavier than a plain scalar sitting in the identical box. Defer it
+   to hover so the affordance survives without breaking the row's even weight. */
+/* Nested union members inherit the token's own face and colour from the slot
+   above them. The reset must not be extended to a slot that *is* the button
+   (a schema reference), whose parent is the row — inheriting there would pull
+   the row's 14px sans back in and undo the token styling. */
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground
+  :is(a, button) {
+  text-decoration: none;
+  color: inherit;
+  font-size: inherit;
+  font-family: inherit;
+}
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > button.text-sm.font-mono.text-fd-muted-foreground {
+  text-decoration: none;
+}
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground
+  :is(a, button):hover,
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > button.text-sm.font-mono.text-fd-muted-foreground:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Union separator — recede it so `string | null` reads as one token rather
+   than two competing ones. */
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground
+  > span {
+  color: var(--text-muted, var(--text-secondary));
+  opacity: 0.6;
 }
 
 /* Hide the "*" inside the name span — we'll add "required" as a ::after on the flex row */
@@ -1288,21 +1360,22 @@ html.dark
   display: none;
 }
 
-/* Required badge — order 3, red pill */
+/* Required marker — order 3. Constraint metadata, not an error: it carries the
+   error *text* colour for scannability but no error fill, so a page of eight
+   required parameters does not read as eight alarms. Uncontained, so the type
+   token stays the only box on the row. */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
   content: "required";
   order: 3;
   display: inline-flex;
   align-items: center;
-  background-color: var(--badge-error-bg);
   color: var(--badge-error-text);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: var(--text-xs);
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.78125rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 /* Optional "?" indicator — hide it */
 #nd-page:has(.api-page-header)
@@ -1341,61 +1414,48 @@ html.dark
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground::after {
   content: "string";
-  font-size: var(--text-xs);
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  background-color: var(--surface-5);
-  color: var(--text-secondary);
-  padding: 0.1875rem 0.5rem;
+  font-size: 0.78125rem;
+  line-height: 1;
+  font-weight: 400;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  background-color: var(--surface-4);
+  border: 1px solid var(--border-1);
+  color: var(--text-body);
+  height: 1.25rem;
+  padding: 0 0.3125rem;
   border-radius: 0.375rem;
   display: inline-flex;
   align-items: center;
 }
-html.dark
-  #nd-page:has(.api-page-header)
-  div.my-4
-  > .flex.flex-wrap.items-center.gap-3.not-prose
-  > span.text-sm.font-mono.text-fd-muted-foreground::after {
-  background-color: var(--surface-4);
-}
 
-/* "header" badge via ::before on the auth flex row */
+/* "header" location via ::before on the auth flex row — uncontained metadata,
+   matching the `required` marker rather than the type token. */
 #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::before {
   content: "header";
   order: 3;
   display: inline-flex;
   align-items: center;
-  background-color: var(--surface-5);
   color: var(--text-secondary);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: var(--text-xs);
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  div.my-4
-  > .flex.flex-wrap.items-center.gap-3.not-prose::before {
-  background-color: var(--surface-4);
+  font-size: 0.78125rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
-/* "required" badge via ::after on the auth flex row — red pill */
+/* "required" marker via ::after on the auth flex row */
 #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after {
   content: "required";
   order: 4;
   display: inline-flex;
   align-items: center;
-  background-color: var(--badge-error-bg);
   color: var(--badge-error-text);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: var(--text-xs);
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.78125rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 /* Hide "In: header" text below auth property — redundant with the header badge */
 #nd-page:has(.api-page-header) div.my-4 .prose-no-margin p:has(> code) {
@@ -1425,36 +1485,31 @@ html.dark
   border-color: var(--surface-active);
 }
 
-/* Body/Callback section "application/json" label — remove inline code styling */
+/* Body/Callback section "application/json" label — strip the inline-code chrome
+   and match `.response-section-content-type` exactly. These two render the same
+   string in the Request Body and Response headers; left divergent, the Response
+   one reads visibly lighter than the Request Body one on the same page. */
 #nd-page:has(.api-page-header) .flex.gap-2.items-center.justify-between p.not-prose code.text-xs,
 #nd-page:has(.api-page-header) .flex.justify-between.gap-2.items-end p.not-prose code.text-xs {
   background: none !important;
   border: none !important;
   padding: 0 !important;
-  color: var(--color-fd-muted-foreground) !important;
-  font-size: 0.875rem !important;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif !important;
+  color: var(--text-secondary) !important;
+  font-size: 0.78125rem !important;
+  line-height: 1.25rem !important;
+  font-weight: 400 !important;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace !important;
 }
 
-/* Object/array type triggers in property rows — order 2 + badge chip styling */
+/* Object/array type triggers only need their order here — the type-token rule
+   above owns their chrome. They previously carried a second, divergent chip
+   definition (--surface-5, 11px sans, weight 500), which is why a union or a
+   schema reference rendered a different size, weight, and face than the plain
+   scalar sitting next to it. */
 #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
 #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
   order: 2;
-  background-color: var(--surface-5);
-  color: var(--text-secondary);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: var(--text-xs);
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-}
-html.dark #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
-html.dark
-  #nd-page:has(.api-page-header)
-  .flex.flex-wrap.items-center.gap-3.not-prose
-  > span:has(> button) {
-  background-color: var(--surface-4);
 }
 
 /* Section headings (Authorization, Path Parameters, etc.) — consistent top spacing */
