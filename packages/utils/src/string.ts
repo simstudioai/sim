@@ -6,7 +6,7 @@
  * scan, the multipart field scan, and the canonical folder-path decoder —
  * rejects it, so the predicate lives here instead of being restated at each.
  */
-export const NUL_CHARACTER = '\u0000'
+const NUL_CHARACTER = '\u0000'
 
 /** Reports whether `value` carries a `U+0000`. See {@link NUL_CHARACTER}. */
 export function containsNulCharacter(value: string): boolean {

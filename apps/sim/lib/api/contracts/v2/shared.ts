@@ -362,24 +362,25 @@ export function v2LimitSchema(options: V2LimitOptions = {}) {
 }
 
 /**
- * The v2 `cursor` param: the opaque token a previous page returned as
- * `nextCursor`. Empty is rejected rather than treated as "start over", so a
- * caller that accidentally forwards an empty string learns about it instead of
- * looping on page one.
- */
-export function v2CursorSchema(
-  description = 'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.'
-) {
-  return z.string().min(1, 'cursor must be a non-empty token').optional().describe(description)
-}
-
-/**
  * The `limit` + `cursor` pair for a paged v2 list. Spread into a query object;
  * a list that returns `nextCursor` must accept both, and must actually apply
  * them.
+ *
+ * `cursor` is the opaque token a previous page returned as `nextCursor`. Empty
+ * is rejected rather than treated as "start over", so a caller that accidentally
+ * forwards an empty string learns about it instead of looping on page one.
  */
 export function v2PaginationFields(options: V2LimitOptions = {}) {
-  return { limit: v2LimitSchema(options), cursor: v2CursorSchema() }
+  return {
+    limit: v2LimitSchema(options),
+    cursor: z
+      .string()
+      .min(1, 'cursor must be a non-empty token')
+      .optional()
+      .describe(
+        'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.'
+      ),
+  }
 }
 
 /**

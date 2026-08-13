@@ -311,14 +311,14 @@ export type UncoercibleValuePolicy = 'reject' | 'null'
  * Omit it when every key in `data` is caller-supplied — a whole-row insert, or a
  * patch validated on its own.
  */
-export type PatchedKeys = ReadonlySet<string> | readonly string[]
+export type PatchedKeys = readonly string[]
 
 function policyResolver(
   policy: UncoercibleValuePolicy,
   patchedKeys: PatchedKeys | undefined
 ): (key: string) => UncoercibleValuePolicy {
   if (patchedKeys === undefined) return () => policy
-  const patched = patchedKeys instanceof Set ? patchedKeys : new Set(patchedKeys)
+  const patched = new Set(patchedKeys)
   return (key) => (patched.has(key) ? policy : 'null')
 }
 
