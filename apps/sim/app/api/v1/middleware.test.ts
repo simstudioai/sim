@@ -61,6 +61,7 @@ describe('checkRateLimit', () => {
       authenticated: true,
       userId: 'user-1',
       keyType: 'personal',
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
     })
     mockGetSubscription.mockResolvedValue({ plan: 'team' })
     mockGetRateLimit.mockReturnValue(TEAM_BUCKET)
@@ -76,6 +77,16 @@ describe('checkRateLimit', () => {
 
     expect(result.limit).toBe(TEAM_BUCKET.maxTokens)
     expect(result.limit).not.toBe(TEAM_BUCKET.refillRate)
+  })
+
+  it('preserves the authenticated API-key Principal for application operations', async () => {
+    const result = await checkRateLimit(request(), 'workflows')
+
+    expect(result.principal).toEqual({
+      kind: 'personal_api_key',
+      userId: 'user-1',
+      keyId: 'key-1',
+    })
   })
 
   it('never reports more remaining than the limit', async () => {
@@ -196,6 +207,7 @@ describe('rate-limit snapshot context', () => {
       authenticated: true,
       userId: 'user-1',
       keyType: 'personal',
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
     })
     mockGetSubscription.mockResolvedValue({ plan: 'team' })
     mockGetRateLimit.mockReturnValue(TEAM_BUCKET)

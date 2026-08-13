@@ -206,7 +206,7 @@ describe('workspace file downloads', () => {
   it('routes a record with no content type by its extension', async () => {
     await downloadStream('file-1')
 
-    expect(mocks.fetchServable).toHaveBeenCalledWith(file, expect.anything())
+    expect(mocks.fetchServable).toHaveBeenCalledWith(file, SESSION, expect.anything())
     expect(mocks.downloadStream).not.toHaveBeenCalled()
   })
 

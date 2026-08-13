@@ -239,7 +239,31 @@ describe('resolveServableDocBytes', () => {
     ).rejects.toThrow(
       'Referenced document resolution requires an authorized workspace file principal'
     )
-    expect(mockLoadPublishedCompiledDoc).not.toHaveBeenCalled()
+    expect(mockLoadPublishedCompiledDoc).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      source.toString('utf-8'),
+      'pdf'
+    )
+    expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
+  })
+
+  it('lets a principal-less private adapter use output published by an authorized compile', async () => {
+    const source = Buffer.from(`image = await getFileBase64('reference-1')`, 'utf-8')
+    const publishedArtifact = Buffer.from('%PDF-published')
+    mockLoadPublishedCompiledDoc.mockResolvedValue(publishedArtifact)
+
+    await expect(
+      resolveServableDocBytes({
+        rawBuffer: source,
+        fileName: 'report.pdf',
+        workspaceId: WORKSPACE_ID,
+      })
+    ).resolves.toEqual({
+      buffer: publishedArtifact,
+      contentType: 'application/pdf',
+    })
+    expect(mockReadWorkspaceFileMetadata).not.toHaveBeenCalled()
+    expect(mockReadWorkspaceFileContent).not.toHaveBeenCalled()
     expect(mockLoadCompiledDoc).not.toHaveBeenCalled()
   })
 

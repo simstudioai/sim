@@ -94,7 +94,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 }))
 
 vi.mock('@/lib/workspace-files/api', () => ({
-  internalSessionOrExecutorAuth: { authenticate: mockAuthenticateWorkspaceFile },
+  internalWorkspaceFileServeAuth: { authenticate: mockAuthenticateWorkspaceFile },
 }))
 
 vi.mock('@/lib/workspace-files/application/read-workspace-file-content-by-key', () => ({

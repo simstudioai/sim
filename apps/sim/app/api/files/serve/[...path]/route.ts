@@ -19,7 +19,7 @@ import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspac
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
-import { internalSessionOrExecutorAuth } from '@/lib/workspace-files/api'
+import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
@@ -168,7 +168,7 @@ export const GET = withRouteHandler(
       const storageContext = inferContextFromKey(cloudKey)
       const workspacePrincipal =
         storageContext === 'workspace'
-          ? await internalSessionOrExecutorAuth.authenticate(request, { path })
+          ? await internalWorkspaceFileServeAuth.authenticate(request, { path })
           : undefined
       const legacyAuthResult = workspacePrincipal
         ? undefined
