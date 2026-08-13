@@ -521,6 +521,16 @@ export function useCloudStorageConfigured(enabled = true) {
     enabled,
     retry: false,
     staleTime: CLOUD_STORAGE_CONFIGURED_STALE_TIME,
+    /**
+     * Escapes the global `retryOnMount: false`, which an infinite `staleTime` and
+     * `retry: false` would otherwise turn into a permanent failure: one transient
+     * error leaves this query errored for the tab's lifetime, and consumers fail
+     * closed — the upload path treats "unknown" as "not configured", so a single
+     * blip would disable cloud-backed uploads until a full reload. The key is
+     * global, so navigating or switching workspace cannot recover it either.
+     * Matches {@link useVoiceSettings}, which carries the same three options.
+     */
+    retryOnMount: true,
   })
 }
 
