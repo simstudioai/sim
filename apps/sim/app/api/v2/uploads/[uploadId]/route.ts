@@ -22,6 +22,11 @@ interface LocalPutRouteParams {
 /**
  * Local-storage data plane for a signed whole-object PUT upload session.
  *
+ * Raw `withRouteHandler` rather than a v2 builder: the signed `upload-token`
+ * header is the credential, so there is no API key, `Principal`, or semantic
+ * operation for a builder to authenticate and authorize against, and the body
+ * is streamed straight to storage rather than parsed.
+ *
  * Absent from the public OpenAPI documents by design — see
  * `UNDOCUMENTED_V2_ROUTES` in `scripts/check-openapi-specs.ts` — but the error
  * envelope is not part of that exemption. This is the one step that moves the

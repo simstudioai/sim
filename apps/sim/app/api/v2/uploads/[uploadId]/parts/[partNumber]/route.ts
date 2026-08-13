@@ -27,6 +27,10 @@ interface LocalPartRouteParams {
  * Local-storage data plane for signed multipart PUT URLs. Cloud deployments return provider URLs
  * instead, so this route is never in the cloud byte path.
  *
+ * Raw `withRouteHandler` rather than a v2 builder, for the same reason as the
+ * whole-object PUT beside it: a signed token credential and a streamed body,
+ * with no `Principal` or semantic operation for a builder to act on.
+ *
  * Absent from the public OpenAPI documents by design — see
  * `UNDOCUMENTED_V2_ROUTES` in `scripts/check-openapi-specs.ts` — but it answers
  * in the canonical `{ error: { code, message } }` envelope like the rest of the
