@@ -1,4 +1,5 @@
-import { db, pinnedItem } from '@sim/db'
+import { db } from '@sim/db'
+import { pinnedItem } from '@sim/db/schema'
 import { and, eq, ne } from 'drizzle-orm'
 import {
   type PinnedItemApi,

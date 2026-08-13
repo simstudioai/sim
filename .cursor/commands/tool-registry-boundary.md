@@ -63,9 +63,9 @@ If it fails, do not add the entry to an allowlist — there isn't one. Find the 
 
 Run it with `--verbose` to print per-route module counts, which is also the quickest way to see whether a change moved the graph.
 
-The same command also ratchets those counts. `scripts/check-tool-registry-boundary.baseline.json` records each entry's module count plus its heaviest "gateway" modules (how many modules reach the graph *only* through each one). `--check` — what CI runs — fails when an entry exceeds its baseline by more than `max(25 modules, 2%)`, and names the gateway whose weight grew along with the import chain that reaches it. That catches the graph bloat the registry rule misses: the `listTables` prefetch that cost the Tables page 444 modules never touched `@/tools/registry`.
+The same command also ratchets those counts against `check-tool-registry-boundary.baseline.json`. `--check` (what CI runs) fails when an entry exceeds its baseline by more than `max(25 modules, 2%)`, naming the import chain responsible. This catches bloat the registry rule misses — a prefetch importing `listTables` cost the Tables page 444 modules without ever touching `@/tools/registry`.
 
-When the growth is deliberate (a real new feature on the page), re-record it with `--update-baseline` and commit the JSON. When an entry *shrinks*, the check says so and passes — re-record then too, or the win is silently spendable again.
+Re-record with `--update-baseline` and commit the JSON when growth is deliberate. A *shrink* passes but is reported — re-record then too, or the win is silently spendable again.
 
 ## How to verify an edge actually got cut
 

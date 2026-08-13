@@ -13,10 +13,9 @@ import {
  * Uses the same query key and mapper as the client `useGeneralSettings` hook, so the
  * hydrated entry is indistinguishable from one a client fetch produced.
  *
- * Callers must `await` this. An unawaited prefetch is still `pending` when `dehydrate`
- * runs, and a pending query is shipped with its promise — so a rejection would hydrate
- * the client query into an error state that `retryOnMount: false` never retries, leaving
- * the panel broken for the rest of the session.
+ * Callers must `await` this. Only a settled query is dehydrated, so an unawaited prefetch
+ * is dropped from the payload entirely and the panel waterfalls on every load as if it had
+ * never been prefetched.
  */
 export function prefetchGeneralSettings(queryClient: QueryClient) {
   return queryClient.prefetchQuery({

@@ -1075,15 +1075,6 @@ export async function runWorkflowColumn(opts: {
 // ───────────────────────────── Validation ─────────────────────────────
 
 /**
-/**
- * Removes the given column names from a group's `dependencies.columns` and from
- * its `inputMappings` (any mapping whose source `columnName` was removed). When
- * either list ends up empty, drops the field entirely so schema validation
- * doesn't see an empty object. Returns the same group reference when nothing
- * changed.
- */
-
-/**
  * Validates schema-level invariants. Run on every `addTableColumn`,
  * `addWorkflowGroup`, `updateWorkflowGroup`, `renameColumn`, `reorderColumns`,
  * etc. Returns a list of human-readable errors (empty if valid).

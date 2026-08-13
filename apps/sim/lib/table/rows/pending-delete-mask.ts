@@ -1,4 +1,5 @@
-import { db, tableJobs, userTableRows } from '@sim/db'
+import { db } from '@sim/db'
+import { tableJobs, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, lte, notInArray, type SQL, sql } from 'drizzle-orm'
