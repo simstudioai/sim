@@ -12,8 +12,6 @@ const CORE_AGENT_TOOL_TYPES = new Set([
   'file_v5',
 ])
 
-const EXCLUDED_AGENT_TOOL_TYPES = new Set(['evaluator', 'mcp', 'file'])
-
 /**
  * Checks whether a registered block should appear in the agent tool picker.
  */
@@ -21,9 +19,7 @@ export function isAgentToolBlock(
   block: Pick<BlockConfig, 'category' | 'hideFromToolbar' | 'type'>
 ): boolean {
   return (
-    !block.hideFromToolbar &&
-    (block.category === 'tools' || CORE_AGENT_TOOL_TYPES.has(block.type)) &&
-    !EXCLUDED_AGENT_TOOL_TYPES.has(block.type)
+    !block.hideFromToolbar && (block.category === 'tools' || CORE_AGENT_TOOL_TYPES.has(block.type))
   )
 }
 

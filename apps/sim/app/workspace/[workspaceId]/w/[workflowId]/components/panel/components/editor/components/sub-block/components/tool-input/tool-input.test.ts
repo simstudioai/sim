@@ -11,10 +11,13 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/utils'
 
 describe('isAgentToolBlock', () => {
-  it('includes the current File block and excludes the legacy File block', () => {
+  it('includes the current File block', () => {
     expect(isAgentToolBlock({ type: 'file_v5', category: 'blocks', hideFromToolbar: false })).toBe(
       true
     )
+  })
+
+  it('excludes hidden blocks such as the legacy File block', () => {
     expect(isAgentToolBlock({ type: 'file', category: 'blocks', hideFromToolbar: true })).toBe(
       false
     )
