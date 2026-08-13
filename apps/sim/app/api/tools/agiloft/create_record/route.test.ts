@@ -239,6 +239,66 @@ describe('EWCreate', () => {
     expect(data.error).toContain('retrying creates a second record')
   })
 
+  /**
+   * A typed exception is Agiloft declining the create outright, so nothing was
+   * written and the caller must not be warned about a phantom record.
+   */
+  it('reports a typed refusal as a definite failure, not an unconfirmed write', async () => {
+    arrangeCreate(
+      res({
+        text: '<html><body>EWWrongDataException has occurred: No column bogus in table contract</body></html>',
+      })
+    )
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"bogus":"x"}' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('no record was written')
+    expect(data.error).not.toContain('may exist')
+  })
+
+  it('refuses a record ID that is not a number rather than chaining it downstream', async () => {
+    arrangeCreate(res({ text: "EWREST_id='353;DROP';" }))
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { success: boolean; output: { id: string | null } }
+
+    expect(data.success).toBe(false)
+    expect(data.output.id).toBeNull()
+  })
+
+  /**
+   * The request was already on the wire, so the write may have committed. A 500
+   * here is what would have the caller retry and duplicate the record.
+   */
+  it('settles a transport failure after the request was sent instead of returning 500', async () => {
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockRejectedValueOnce(
+      new Error('socket hang up')
+    )
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('could not be confirmed')
+    expect(data.error).toContain('retrying creates a second record')
+  })
+
+  it('keeps the instance password out of a relayed transport error', async () => {
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockRejectedValueOnce(
+      new Error(`upstream echoed $password=${PLACEHOLDER_PASSWORD}`)
+    )
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+    const data = (await response.json()) as { error?: string }
+
+    expect(data.error).not.toContain(PLACEHOLDER_PASSWORD)
+    expect(data.error).toContain('[redacted]')
+  })
+
   it('rejects a data parameter that is not JSON without calling Agiloft', async () => {
     const response = await POST(createMockRequest('POST', { ...baseBody, data: 'title = X' }))
     const data = (await response.json()) as { success: boolean; error?: string }

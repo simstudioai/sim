@@ -12,6 +12,21 @@ import type { HttpMethod, ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgiloftAuthServer')
 
+/**
+ * Refuses redirects on any request that carries Agiloft credentials.
+ *
+ * `secureFetchWithPinnedIP` replays the whole options object to a redirect's
+ * `Location` — same method, same body — and `stripAuthOnRedirect` only removes
+ * the `Authorization` header, which does nothing for `$login`/`$password` in a
+ * form body. The redirect target is checked for private addresses but is not
+ * held to the original host, so a 3xx would POST the instance's credentials to
+ * whatever public host it names. On a write it would also re-send the create.
+ *
+ * None of these operations redirect in normal use; Agiloft's redirect decorator
+ * is opt-in per call and this connector never asks for it.
+ */
+const AGILOFT_NO_REDIRECT = { maxRedirects: 0 } as const
+
 export interface AgiloftRequestConfig {
   url: string
   method: HttpMethod
@@ -75,6 +90,7 @@ export async function agiloftLoginPinned(
   const response = await secureFetchWithPinnedIP(`${base}/ewws/EWLogin`, resolvedIP, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    ...AGILOFT_NO_REDIRECT,
     body: formEncode(
       filterUndefined({
         $KB: params.knowledgeBase,
@@ -263,6 +279,7 @@ export async function executeAlrestRequest<R extends ToolResponse>(
       method: req.method,
       headers: { ...req.headers, Authorization: session.authorization },
       body: req.body,
+      ...AGILOFT_NO_REDIRECT,
     })
     return await transformResponse(response)
   } finally {
@@ -294,6 +311,7 @@ export async function executeEwRequest<R extends ToolResponse>(
     method: req.method,
     headers: req.headers,
     body: req.body,
+    ...AGILOFT_NO_REDIRECT,
   })
   return await transformResponse(response)
 }

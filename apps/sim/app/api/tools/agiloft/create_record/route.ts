@@ -14,11 +14,37 @@ import {
   buildCreateRecordUrl,
   describeAgiloftError,
 } from '@/tools/agiloft/utils'
-import { executeEwRequest } from '@/tools/agiloft/utils.server'
+import { executeEwRequest, resolveAgiloftInstance } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('AgiloftCreateRecordAPI')
+
+/**
+ * Opens every failure where the write may already have committed. The caller
+ * has to be told not to retry blindly: a second create writes a second record
+ * rather than recovering the first.
+ */
+const UNCONFIRMED_PREFIX =
+  'The create could not be confirmed, so the record may exist. Check the table before retrying - retrying creates a second record.'
+
+/** A typed Agiloft exception means the create was declined, not left in doubt. */
+const AGILOFT_EXCEPTION = /EW[A-Za-z]*Exception/
+
+/**
+ * Strips the instance credentials out of an error string.
+ *
+ * Errors relayed to the caller can carry upstream text, and a servlet error
+ * page that echoes submitted request parameters would carry the password that
+ * now travels in the request body.
+ */
+function redactSecrets(message: string, params: { login: string; password: string }): string {
+  let safe = message
+  for (const secret of [params.password, params.login]) {
+    if (secret) safe = safe.split(secret).join('[redacted]')
+  }
+  return safe
+}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -86,64 +112,123 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    const result = await executeEwRequest<AgiloftRecordResponse>(
-      params,
-      (base) => ({
-        url: buildCreateRecordUrl(base),
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: requestBody,
-      }),
-      async (response) => {
-        const text = await response.text()
+    /**
+     * Resolved here rather than only inside the executor so a rejected instance
+     * URL stays a pre-flight failure. Everything thrown after this point has to
+     * be treated as "the request may have been transmitted".
+     */
+    try {
+      await resolveAgiloftInstance(params.instanceUrl)
+    } catch (error) {
+      logger.warn(`[${requestId}] Rejected Agiloft instance URL`, { error })
+      return NextResponse.json(
+        { success: false, output: { id: null, fields: {} }, error: toError(error).message },
+        { status: 400 }
+      )
+    }
 
-        /**
-         * Every failure below is one Agiloft already decided on, so each is
-         * reported in a 200 body with `success: false`. A non-2xx status would
-         * make the tool runner retry, and a retried create writes a second
-         * record rather than converging on the first.
-         */
-        if (!response.ok) {
-          return {
-            success: false,
-            output: { id: null, fields: {} },
-            error: `Agiloft error ${response.status}: ${describeAgiloftError(truncate(text, 300))}`,
+    let result: AgiloftRecordResponse
+    try {
+      result = await executeEwRequest<AgiloftRecordResponse>(
+        params,
+        (base) => ({
+          url: buildCreateRecordUrl(base),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: requestBody,
+        }),
+        async (response) => {
+          const text = await response.text()
+          const described = truncate(describeAgiloftError(text), 300)
+
+          /**
+           * Every failure below is one Agiloft already decided on, so each is
+           * reported in a 200 body with `success: false`. A non-2xx status would
+           * make the tool runner retry, and a retried create writes a second
+           * record rather than converging on the first.
+           */
+          if (!response.ok) {
+            return {
+              success: false,
+              output: { id: null, fields: {} },
+              error: `${UNCONFIRMED_PREFIX} Agiloft answered ${response.status}: ${described}`,
+            }
           }
-        }
 
-        const values = parseEwRest(text)
-        const id = values.get('id')
+          const values = parseEwRest(text)
+          const id = values.get('id')
 
-        /**
-         * EWCreate publishes the new record's ID as `EWREST_id`. Reaching this
-         * branch means the write may well have landed while the ID did not come
-         * back, so the caller is told not to retry blindly: a second attempt
-         * would create a duplicate rather than recover the first record.
-         */
-        if (!id) {
-          logger.error(`[${requestId}] Agiloft create returned no record ID`, {
-            table: params.table,
-          })
-          return {
-            success: false,
-            output: { id: null, fields: {} },
-            error: `Agiloft accepted the create but returned no record ID, so the record may exist. Check the table before retrying - retrying creates a second record. Response: ${describeAgiloftError(truncate(text, 300))}`,
+          /**
+           * A typed exception in the body is Agiloft declining the create, so
+           * nothing was written and a corrected retry is safe. Only an
+           * unexplained missing ID leaves the write in doubt.
+           */
+          if (!id) {
+            const refused = AGILOFT_EXCEPTION.test(described)
+            logger.error(`[${requestId}] Agiloft create returned no record ID`, {
+              table: params.table,
+              login: params.login,
+              fields: Object.keys(fieldValues),
+              refused,
+            })
+            return {
+              success: false,
+              output: { id: null, fields: {} },
+              error: refused
+                ? `Agiloft refused the create, so no record was written: ${described}`
+                : `${UNCONFIRMED_PREFIX} Agiloft accepted the create but returned no record ID: ${described}`,
+            }
           }
-        }
 
-        /**
-         * EWCreate documents only the ID, but any other assignment it returns is
-         * a field value on the new record, so it is passed through rather than
-         * dropped. Usually empty.
-         */
-        const fields: Record<string, unknown> = {}
-        for (const [key, value] of values) {
-          if (key !== 'id') fields[key] = value
-        }
+          /**
+           * The ID is chained straight into reads, updates, and deletes, and the
+           * response format is unescaped text, so a value that is not a plain
+           * record ID is refused rather than passed downstream.
+           */
+          if (!/^\d+$/.test(id)) {
+            logger.error(`[${requestId}] Agiloft create returned a non-numeric record ID`, {
+              table: params.table,
+            })
+            return {
+              success: false,
+              output: { id: null, fields: {} },
+              error: `${UNCONFIRMED_PREFIX} Agiloft returned a record ID that is not a number.`,
+            }
+          }
 
-        return { success: true, output: { id, fields } }
-      }
-    )
+          /**
+           * EWCreate documents only the ID, but any other assignment it returns is
+           * a field value on the new record, so it is passed through rather than
+           * dropped. Usually empty.
+           */
+          const fields: Record<string, unknown> = {}
+          for (const [key, value] of values) {
+            if (key !== 'id') fields[key] = value
+          }
+
+          return { success: true, output: { id, fields } }
+        }
+      )
+    } catch (error) {
+      /**
+       * The request was already on the wire when this threw — a timeout, a
+       * reset, a refused redirect, an oversized body. The write may have
+       * committed, so this is a settled failure carrying the same warning. A
+       * 500 is what would have the caller retry and duplicate the record, which
+       * is the failure this operation exists to prevent.
+       */
+      logger.error(`[${requestId}] Agiloft create failed after the request was sent`, {
+        error,
+        table: params.table,
+        login: params.login,
+      })
+
+      return NextResponse.json({
+        success: false,
+        output: { id: null, fields: {} },
+        error: `${UNCONFIRMED_PREFIX} ${redactSecrets(toError(error).message, params)}`,
+      })
+    }
 
     return NextResponse.json(result)
   } catch (error) {

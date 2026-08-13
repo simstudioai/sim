@@ -70,7 +70,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
          * the two halves deliberately use different conventions. Do not
          * "correct" this to `parseEwRest` to match create.
          */
-        const returned = (await readAlrestJson<Record<string, unknown>[]>(response)) ?? []
+        const payload = await readAlrestJson<Record<string, unknown>[]>(response)
+
+        /**
+         * `result` is documented as an array, but a single-record or empty-object
+         * answer would make an unchecked `.slice` throw a TypeError that escapes
+         * as a 500. Normalising keeps an unexpected shape a readable result.
+         */
+        const returned = Array.isArray(payload) ? payload : payload ? [payload] : []
         const records = returned.slice(0, AGILOFT_MAX_SEARCH_RECORDS)
 
         if (returned.length > records.length) {
