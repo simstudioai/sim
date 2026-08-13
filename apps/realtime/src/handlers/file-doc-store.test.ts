@@ -20,6 +20,8 @@ interface Backing {
   readerClosed: boolean
   /** Failed reads served, so a test can prove the loop is not spinning at the read cadence. */
   reads: number
+  /** When each read was attempted, so a test can assert the BACKOFF rather than a count in a window. */
+  readTimes: number[]
   /** `connect()` calls, so a test can prove a closed reader is re-opened rather than abandoned. */
   connects: number
 }
@@ -64,6 +66,7 @@ function makeClient(): any {
     },
     xRead: async (streams: { key: string; id: string }[]) => {
       b().reads++
+      b().readTimes.push(Date.now())
       if (b().readerClosed) {
         client.isOpen = false
         throw new Error('The client is closed')
@@ -152,6 +155,7 @@ describe('FileDocStore', () => {
       failXAdd: 0,
       readerClosed: false,
       reads: 0,
+      readTimes: [],
       connects: 0,
     }
     stores = []
@@ -205,15 +209,21 @@ describe('FileDocStore', () => {
     state.backing!.readerClosed = false
     await sleep(1000)
 
-    // A fresh blip must retry at the START of the backoff curve, not at the cap.
+    // A fresh blip must retry at the START of the backoff curve, not partway up it. Assert the DELAY
+    // itself: counting attempts inside a fixed window cannot tell the two apart, because the jittered
+    // delay for a carried streak (1.6–2.4s) overlaps any window wide enough to catch a reset one.
     state.backing!.readerClosed = true
-    const before = state.backing!.reads
-    await sleep(1900)
-    const attempts = state.backing!.reads - before
+    state.backing!.readTimes.length = 0
+    await vi.waitFor(() => expect(state.backing!.readTimes.length).toBeGreaterThanOrEqual(2), {
+      timeout: 5000,
+      interval: 50,
+    })
+    const [first, second] = state.backing!.readTimes
 
-    // Streak reset ⇒ retries at ~0, ~0.5s, ~1.5s ⇒ 3 attempts (2 even if the machine is loaded and
-    // every sleep overshoots by half). Streak carried over ⇒ ~2s then ~4s ⇒ at most 1.
-    expect(attempts).toBeGreaterThanOrEqual(2)
+    // Streak reset ⇒ the first delay is 500ms ±20% ⇒ 400–600ms. Streak carried over ⇒ it is the third
+    // delay, 2000ms ±20% ⇒ 1600–2400ms. Disjoint ranges, so this cannot pass on the wrong one without
+    // the machine stalling the shorter sleep by 65%.
+    expect(second - first).toBeLessThan(1000)
     doc.destroy()
   })
 
