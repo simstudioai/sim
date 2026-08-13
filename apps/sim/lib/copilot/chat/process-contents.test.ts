@@ -328,7 +328,30 @@ describe('processContextsServer - docs contexts', () => {
       {
         type: 'docs',
         tag: '@Docs',
-        content: JSON.stringify(results),
+        content: JSON.stringify({ results }),
+      },
+    ])
+  })
+
+  it('preserves the search note when @Docs has no relevant matches', async () => {
+    const note =
+      'No relevant matches. This does NOT mean the docs lack this topic. Rephrase the query.'
+    searchDocsExecute.mockResolvedValue({ results: [], query: 'new topic', totalResults: 0, note })
+
+    const result = await processContextsServer(
+      [{ kind: 'docs', label: 'Docs' }],
+      'user-1',
+      '@Docs new topic',
+      'ws-1',
+      undefined,
+      new ResolvedSecretTraceRegistry()
+    )
+
+    expect(result).toEqual([
+      {
+        type: 'docs',
+        tag: '@Docs',
+        content: JSON.stringify({ results: [], note }),
       },
     ])
   })

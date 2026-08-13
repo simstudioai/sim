@@ -331,7 +331,10 @@ export async function processContextsServer(
               resolvedSecretTraceRegistry,
             }
           )
-          const content = JSON.stringify(res?.results || [])
+          const content = JSON.stringify({
+            results: res?.results || [],
+            ...(res?.note ? { note: res.note } : {}),
+          })
           return { type: 'docs', tag: ctx.label ? `@${ctx.label}` : '@', content }
         } catch (e) {
           logger.error('Failed to process docs context', e)
