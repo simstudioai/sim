@@ -458,4 +458,65 @@ describe('applyTargetedLayout', () => {
       result.loop.position.x + loopMetrics.width
     )
   })
+
+  it('relocates a newly added note off a block it was created on top of', () => {
+    // A copilot note is born at the (0,0) placeholder, and a fresh workflow's
+    // start block lives at (0,0) too. The pre-edit snapshot does not contain
+    // the note, so the overlap counts as introduced by this edit and the note
+    // must be moved to the stack below the flow, not preserved as intentional.
+    const blocks = {
+      start: createBlock('start', { position: { x: 0, y: 0 } }),
+      note: createBlock('note', {
+        type: 'note',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          content: { id: 'content', type: 'long-input', value: 'Explains the workflow' },
+        },
+      }),
+    }
+
+    const result = applyTargetedLayout(blocks, [], {
+      changedBlockIds: ['note'],
+      previousBlocks: { start: blocks.start },
+    })
+
+    const startMetrics = getBlockMetrics(result.start)
+    expect(result.start.position).toEqual({ x: 0, y: 0 })
+    expect(result.note.position.y).toBeGreaterThanOrEqual(
+      result.start.position.y + startMetrics.height + DEFAULT_VERTICAL_SPACING
+    )
+  })
+
+  it('preserves a pre-existing note arrangement when an unrelated block is laid out', () => {
+    const blocks = {
+      start: createBlock('start', { position: { x: 0, y: 0 } }),
+      note: createBlock('note', {
+        type: 'note',
+        position: { x: 60, y: 10 },
+        subBlocks: {
+          content: { id: 'content', type: 'long-input', value: 'Deliberately parked here' },
+        },
+      }),
+      added: createBlock('added', { position: { x: 0, y: 0 } }),
+    }
+
+    const edges: Edge[] = [{ id: 'e1', source: 'start', target: 'added' }]
+
+    const result = applyTargetedLayout(blocks, edges, {
+      changedBlockIds: ['added'],
+      previousBlocks: {
+        start: createBlock('start', { position: { x: 0, y: 0 } }),
+        note: createBlock('note', {
+          type: 'note',
+          position: { x: 60, y: 10 },
+          subBlocks: {
+            content: { id: 'content', type: 'long-input', value: 'Deliberately parked here' },
+          },
+        }),
+      },
+    })
+
+    expect(result.note.position).toEqual({ x: 60, y: 10 })
+    expect(result.added.position.x).toBeGreaterThan(result.start.position.x)
+  })
 })

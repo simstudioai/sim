@@ -490,6 +490,7 @@ export class WorkflowDiffEngine {
             shiftSourceBlockIds,
             horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
             verticalSpacing: DEFAULT_VERTICAL_SPACING,
+            previousBlocks: mergedBaseline.blocks,
           })
 
           Object.entries(layoutedBlocks).forEach(([id, layoutBlock]) => {
