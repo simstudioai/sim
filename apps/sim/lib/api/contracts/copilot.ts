@@ -140,6 +140,14 @@ export const copilotChatAbortBodySchema = z.object({
 })
 export type CopilotChatAbortBody = z.input<typeof copilotChatAbortBodySchema>
 
+export const copilotChatSteerBodySchema = z.object({
+  streamId: z.string().min(1, 'streamId is required'),
+  chatId: z.string().min(1, 'chatId is required'),
+  steeringId: z.string().min(1, 'steeringId is required'),
+  content: z.string().min(1, 'content is required').max(32_768, 'content is too long'),
+})
+export type CopilotChatSteerBody = z.input<typeof copilotChatSteerBodySchema>
+
 export const copilotChatGetQuerySchema = z
   .object({
     workflowId: z.string().optional(),
