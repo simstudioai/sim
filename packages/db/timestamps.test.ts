@@ -116,10 +116,10 @@ describe('naive timestamp UTC pinning', () => {
   it('recovers the same UTC instant through either parser once drizzle maps it', () => {
     const throughDrizzleParser = naiveColumn.mapFromDriverValue(
       resolveTimestampParser(true)(NAIVE_WIRE_VALUE)
-    )
+    ) as Date
     const throughUtcParser = naiveColumn.mapFromDriverValue(
       resolveTimestampParser(false)(NAIVE_WIRE_VALUE)
-    )
+    ) as Date
 
     expect(throughDrizzleParser.toISOString()).toBe(NAIVE_WIRE_INSTANT)
     expect(throughUtcParser.toISOString()).toBe(NAIVE_WIRE_INSTANT)
