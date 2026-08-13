@@ -210,7 +210,7 @@
       "get": {
         "operationId": "listMcpServers",
         "summary": "List MCP Servers",
-        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{id}/tools` runs a discovery.",
+        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{id}/tools` runs a discovery.",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -333,7 +333,7 @@
       "post": {
         "operationId": "createMcpServer",
         "summary": "Create MCP Server",
-        "description": "Register an MCP server in a workspace. The endpoint URL determines server identity, so a URL already registered in the workspace is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{id}` instead. Registration stores the configuration and never connects to the endpoint, so a 201 is not evidence the server is reachable: it comes back `disconnected` and the workspace tool registry treats it as unavailable until `GET /api/v2/mcp-servers/{id}/tools` succeeds.",
+        "description": "Register an MCP server in a workspace. The endpoint URL is the server identity, so a URL already registered here is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{id}` instead. Registration never connects to the endpoint: the server comes back `disconnected` and stays unavailable until `GET /api/v2/mcp-servers/{id}/tools` succeeds.",
         "tags": ["MCP Servers"],
         "requestBody": {
           "required": true,
@@ -409,11 +409,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "MCP server the operation acts on.",
+            "description": "Unique MCP server identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "MCP server the operation acts on."
+              "description": "Unique MCP server identifier."
             }
           },
           {
@@ -483,11 +483,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "MCP server the operation acts on.",
+            "description": "Unique MCP server identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "MCP server the operation acts on."
+              "description": "Unique MCP server identifier."
             }
           }
         ],
@@ -560,11 +560,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "MCP server the operation acts on.",
+            "description": "Unique MCP server identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "MCP server the operation acts on."
+              "description": "Unique MCP server identifier."
             }
           },
           {
@@ -629,18 +629,18 @@
       "get": {
         "operationId": "listMcpServerTools",
         "summary": "List MCP Server Tools",
-        "description": "Connect to a registered MCP server and return the tools it exposes, completing onboarding without opening the Sim UI. Unlike most reads this one has side effects: it opens a live connection to the third-party server and writes `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh` on the server resource. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Discovery itself bounds the set at 1,000 tools and 5 MB of tool payload per server. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch. An unreachable, slow, or cooling-down server is a `503`; a stored OAuth grant that no longer works is a `409` with `error.details.code` `MCP_SERVER_REAUTHORIZATION_REQUIRED`, which only a human reauthorizing in Sim can clear. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Connect to a registered MCP server and return the tools it exposes. This read has side effects: it opens a live connection to the third-party server and writes `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh`. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Discovery is bounded at 1,000 tools and 5 MB of tool payload per server. The bounded set is returned in one page; `nextCursor` is always null. An unreachable, slow, or cooling-down server is a `503`; a stored OAuth grant that no longer works is a `409` with `error.details.code` `MCP_SERVER_REAUTHORIZATION_REQUIRED`, which only a human reauthorizing in Sim can clear. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["MCP Servers"],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "MCP server the operation acts on.",
+            "description": "Unique MCP server identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "MCP server the operation acts on."
+              "description": "Unique MCP server identifier."
             }
           },
           {
@@ -718,7 +718,7 @@
       "get": {
         "operationId": "listSkills",
         "summary": "List Skills",
-        "description": "List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.",
+        "description": "List workspace and built-in skills with opaque cursor pagination. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content.",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -841,7 +841,7 @@
       "post": {
         "operationId": "createSkill",
         "summary": "Create Skill",
-        "description": "Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Skills"],
         "requestBody": {
           "required": true,
@@ -917,11 +917,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Skill to retrieve, update, or delete. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
+            "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Skill to retrieve, update, or delete. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
+              "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
             }
           },
           {
@@ -984,18 +984,18 @@
       "patch": {
         "operationId": "updateSkill",
         "summary": "Update Skill",
-        "description": "Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Skills"],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Skill to retrieve, update, or delete. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
+            "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Skill to retrieve, update, or delete. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
+              "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
             }
           }
         ],
@@ -1064,18 +1064,18 @@
       "delete": {
         "operationId": "deleteSkill",
         "summary": "Delete Skill",
-        "description": "Delete a workspace skill. Built-in skills are read-only and cannot be deleted. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Delete a workspace skill. Built-in skills are read-only and cannot be deleted. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Skills"],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Skill to retrieve, update, or delete. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
+            "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Skill to retrieve, update, or delete. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
+              "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
             }
           },
           {
@@ -1140,7 +1140,7 @@
       "get": {
         "operationId": "listCustomTools",
         "summary": "List Custom Tools",
-        "description": "List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.",
+        "description": "List code-backed custom tools defined in a workspace, with opaque cursor pagination. Legacy personal tools are excluded.",
         "tags": ["Custom Tools"],
         "parameters": [
           {
@@ -1339,11 +1339,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Custom tool to retrieve, update, or delete.",
+            "description": "Unique custom tool identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Custom tool to retrieve, update, or delete."
+              "description": "Unique custom tool identifier."
             }
           },
           {
@@ -1413,11 +1413,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Custom tool to retrieve, update, or delete.",
+            "description": "Unique custom tool identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Custom tool to retrieve, update, or delete."
+              "description": "Unique custom tool identifier."
             }
           }
         ],
@@ -1493,11 +1493,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Custom tool to retrieve, update, or delete.",
+            "description": "Unique custom tool identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Custom tool to retrieve, update, or delete."
+              "description": "Unique custom tool identifier."
             }
           },
           {
@@ -1562,7 +1562,7 @@
       "get": {
         "operationId": "listCredentials",
         "summary": "List Credentials",
-        "description": "List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.",
+        "description": "List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are not exposed.",
         "tags": ["Credentials"],
         "parameters": [
           {
@@ -1709,7 +1709,7 @@
       "get": {
         "operationId": "listSecrets",
         "summary": "List Secrets",
-        "description": "List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "List workspace and caller-owned personal secret metadata with opaque cursor pagination. Only names, scope, role, and timestamps are returned; secret values are never returned. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -1845,7 +1845,7 @@
       "put": {
         "operationId": "setSecret",
         "summary": "Set Secret",
-        "description": "Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -1945,7 +1945,7 @@
       "delete": {
         "operationId": "deleteSecret",
         "summary": "Delete Secret",
-        "description": "Delete a workspace or caller-owned personal secret without reading or returning its stored value. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Delete a workspace or caller-owned personal secret without reading or returning its stored value. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -2072,13 +2072,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.",
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset."
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -2153,7 +2153,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -2168,7 +2168,7 @@
         }
       },
       "PayloadTooLarge": {
-        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -2213,7 +2213,7 @@
         }
       },
       "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced. The response is written to a connection that is already gone, so the caller that caused it never reads it; it is documented only on operations where an abort can leave work running. There, `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
+        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
         "content": {
           "application/json": {
             "schema": {
@@ -2233,7 +2233,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -2393,7 +2393,7 @@
           },
           "isExternal": {
             "type": "boolean",
-            "description": "Whether the member belongs to a different organization than the workspace. True for an explicitly granted member whose own organization differs from the workspace's; false for the workspace owner and for a member sharing the workspace organization. Inherited organization-administrator access is always reported as false, so this is not a signal that access came from outside the explicit member list."
+            "description": "Whether the member belongs to a different organization than the workspace. True only for an explicitly granted member whose own organization differs; inherited organization-administrator access is always reported as false, so this does not detect every outside caller."
           },
           "joinedAt": {
             "type": "string",

@@ -693,13 +693,17 @@ export const v2TableRowsQuerySchema = tableRowsQueryBaseSchema
      * `DEFAULT_QUERY_LIMIT` through the inner default.
      */
     limit: tableRowsQueryBaseSchema.shape.limit
-      .describe('Maximum rows to return in the current page.')
+      .describe(
+        `Maximum rows to return per page. Must be a whole number from 1 to ${V2_MAX_ROW_LIMIT}. Defaults to ${V2_DEFAULT_ROW_LIMIT}.`
+      )
       .prefault(TABLE_LIMITS.DEFAULT_QUERY_LIMIT),
     cursor: z
       .string()
       .min(1, 'cursor must be a non-empty token')
       .optional()
-      .describe('Opaque cursor returned by the previous page.'),
+      .describe(
+        'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.'
+      ),
   })
   .strict()
 export type V2TableRowsQuery = z.output<typeof v2TableRowsQuerySchema>
@@ -972,7 +976,7 @@ export const v2UpsertTableRowBodySchema = upsertTableRowBodySchema
   .omit(OMIT_PRIVATE_PROVENANCE)
   .extend({
     data: v2RowDataSchema.describe(
-      'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging PATCH /rows/{rowId}.'
+      'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging `PATCH /api/v2/tables/{tableId}/rows/{rowId}`.'
     ),
   })
   .strict()
@@ -1819,8 +1823,12 @@ export const v2CreateTableImportDataSchema = z
         session: v2WorkspaceFileTableImportSchema.describe(
           'Created workspace-file import session.'
         ),
-        uploadToken: z.null().describe('Always null for workspace-file imports.'),
-        transfer: z.null().describe('Always null for workspace-file imports.'),
+        uploadToken: z
+          .null()
+          .describe('Always null; a workspace-file import has no upload to authorize.'),
+        transfer: z
+          .null()
+          .describe('Always null; a workspace-file import has no bytes to transfer.'),
       })
       .strict(),
   ])

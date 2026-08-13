@@ -280,7 +280,7 @@ const routes = [
       operationId: 'listMcpServers',
       summary: 'List MCP Servers',
       description:
-        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{id}/tools` runs a discovery.',
+        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{id}/tools` runs a discovery.',
       errors: RESOURCE_ERRORS,
       success: { description: 'MCP servers registered in the workspace.' },
     }),
@@ -306,7 +306,7 @@ const routes = [
       operationId: 'createMcpServer',
       summary: 'Create MCP Server',
       description:
-        'Register an MCP server in a workspace. The endpoint URL determines server identity, so a URL already registered in the workspace is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{id}` instead. Registration stores the configuration and never connects to the endpoint, so a 201 is not evidence the server is reachable: it comes back `disconnected` and the workspace tool registry treats it as unavailable until `GET /api/v2/mcp-servers/{id}/tools` succeeds.',
+        'Register an MCP server in a workspace. The endpoint URL is the server identity, so a URL already registered here is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{id}` instead. Registration never connects to the endpoint: the server comes back `disconnected` and stays unavailable until `GET /api/v2/mcp-servers/{id}/tools` succeeds.',
       errors: RESOURCE_CONFLICT_BODY_ERRORS,
       success: { description: 'The MCP server was registered.' },
     }),
@@ -439,7 +439,7 @@ const routes = [
     resourceOperation('MCP Servers', {
       operationId: 'listMcpServerTools',
       summary: 'List MCP Server Tools',
-      description: `Connect to a registered MCP server and return the tools it exposes, completing onboarding without opening the Sim UI. Unlike most reads this one has side effects: it opens a live connection to the third-party server and writes \`connectionStatus\`, \`toolCount\`, \`lastError\`, and \`lastToolsRefresh\` on the server resource. ${HEAD_MIRRORS_GET} Discovery itself bounds the set at 1,000 tools and 5 MB of tool payload per server. ${FULL_SET_LIST} An unreachable, slow, or cooling-down server is a \`503\`; a stored OAuth grant that no longer works is a \`409\` with \`error.details.code\` \`MCP_SERVER_REAUTHORIZATION_REQUIRED\`, which only a human reauthorizing in Sim can clear. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Connect to a registered MCP server and return the tools it exposes. This read has side effects: it opens a live connection to the third-party server and writes \`connectionStatus\`, \`toolCount\`, \`lastError\`, and \`lastToolsRefresh\`. ${HEAD_MIRRORS_GET} Discovery is bounded at 1,000 tools and 5 MB of tool payload per server. ${FULL_SET_LIST} An unreachable, slow, or cooling-down server is a \`503\`; a stored OAuth grant that no longer works is a \`409\` with \`error.details.code\` \`MCP_SERVER_REAUTHORIZATION_REQUIRED\`, which only a human reauthorizing in Sim can clear. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Tools exposed by the MCP server.' },
     }),
@@ -471,7 +471,7 @@ const routes = [
       operationId: 'listSkills',
       summary: 'List Skills',
       description:
-        'List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.',
+        'List workspace and built-in skills with opaque cursor pagination. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content.',
       errors: RESOURCE_ERRORS,
       success: { description: 'Skills available in the workspace.' },
     }),
@@ -627,7 +627,7 @@ const routes = [
       operationId: 'listCustomTools',
       summary: 'List Custom Tools',
       description:
-        'List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.',
+        'List code-backed custom tools defined in a workspace, with opaque cursor pagination. Legacy personal tools are excluded.',
       errors: RESOURCE_ERRORS,
       success: { description: 'Custom tools defined in the workspace.' },
     }),
@@ -785,7 +785,7 @@ const routes = [
       operationId: 'listCredentials',
       summary: 'List Credentials',
       description:
-        'List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.',
+        'List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are not exposed.',
       errors: RESOURCE_ERRORS,
       success: { description: 'Credentials visible to the caller.' },
     }),
@@ -810,7 +810,7 @@ const routes = [
     resourceOperation('Secrets', {
       operationId: 'listSecrets',
       summary: 'List Secrets',
-      description: `List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned. Paginate with \`limit\` and \`cursor\`, stopping when \`nextCursor\` is null. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List workspace and caller-owned personal secret metadata with opaque cursor pagination. Only names, scope, role, and timestamps are returned; secret values are never returned. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Secret metadata visible to the caller.' },
     }),

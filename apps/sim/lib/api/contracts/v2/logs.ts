@@ -52,7 +52,7 @@ const v2LogCostSchema = z
 export const v2LogStatusSchema = z
   .enum(PERSISTED_WORKFLOW_EXECUTION_STATUSES)
   .describe(
-    'Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not run to completion and the run is waiting to be resumed again. **This differs from the run resources for the same run:** `GET /api/v2/workflows/{id}/runs` and `GET /api/v2/workflows/{id}/runs/{runId}` additionally report `paused` for a run held at a human-in-the-loop pause point, which this field reports as `pending`. Use the run resources when the pause state matters.'
+    'Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not complete; a run held at a human-in-the-loop pause point reads `pending` here, and `paused` on the workflow run resources. Use those when the pause state matters.'
   )
 
 /** Execution `files` is a per-run jsonb array of attachment metadata. */
@@ -82,7 +82,7 @@ const v2LogWorkflowStateSchema = z
   )
   .nullable()
   .describe(
-    'Workflow graph snapshot captured for the run, with credential values redacted: `oauth-input`, `password: true`, and table sub-block values are null; sensitive nested tool parameters and every parameter without authoritative codec metadata are null; and `{{VAR}}` references in non-opaque fields are preserved. Null when no snapshot is retained.'
+    'Workflow graph snapshot captured for the run, or null when none is retained. Credential-bearing values are redacted to null: `oauth-input`, `password: true`, table sub-block values, sensitive nested tool parameters, and any parameter without authoritative codec metadata. `{{VAR}}` references in non-opaque fields are preserved.'
   )
 
 const v2LogWorkflowSummarySchema = z.object({
@@ -196,9 +196,7 @@ export const v2LogDetailSchema = z
 export type V2LogDetail = z.output<typeof v2LogDetailSchema>
 
 export const v2LogParamsSchema = z.object({
-  runId: runIdSchema.describe(
-    'The unique run identifier shared by lifecycle and diagnostic resources.'
-  ),
+  runId: runIdSchema.describe('Unique workflow run identifier.'),
 })
 
 export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
@@ -229,7 +227,7 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       .default('basic'),
     includeTraceSpans: booleanQueryFlagSchema
       .describe(
-        'Whether to include block-level trace spans. Spans are stored apart from the log row and pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error — an empty array does not mean the run recorded none.'
+        'Whether to include block-level trace spans. Spans are pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error.'
       )
       .optional()
       .default(false),

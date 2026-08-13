@@ -402,13 +402,12 @@ export function v2RunWindowBoundSchema(field: 'startDate' | 'endDate') {
  * {@link LIST_SORT_ORDERS}, the same one `sortOrder` publishes everywhere else.
  */
 export function v2RunOrderSchema(subject: 'execution' | 'run') {
-  const noun = subject === 'execution' ? 'logs' : 'runs'
   return z
     .enum(LIST_SORT_ORDERS)
     .optional()
     .default('desc')
     .describe(
-      `Sort direction by ${subject} start time. This operation deviates from the v2 \`sortBy\` + \`sortOrder\` convention: ${noun} are sortable only by start time, so the direction is carried by this single \`order\` param and \`sortBy\`/\`sortOrder\` are not accepted.`
+      `Sort direction by ${subject} start time. This list is sortable only by ${subject} start time, so it takes \`order\` in place of \`sortBy\`/\`sortOrder\`, which it rejects.`
     )
 }
 
@@ -420,7 +419,7 @@ export function v2RunOrderSchema(subject: 'execution' | 'run') {
 export const V2_SEARCH_MAX_LENGTH = 200
 
 /**
- * Added to `sortBy` wherever `name` is sortable.
+ * Added to `sortBy` wherever a text name column is sortable.
  *
  * Name ordering is `ORDER BY` on the stored text with no `COLLATE` and no
  * `lower()`, so it is whatever the server database's collation does — under a
@@ -429,8 +428,9 @@ export const V2_SEARCH_MAX_LENGTH = 200
  * spec must not promise one; what it can promise is that Sim does not case-fold,
  * which is the part a caller gets wrong.
  */
-const NAME_SORT_COLLATION =
-  'Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.'
+export function nameSortCollation(field = 'name') {
+  return `Sorting by \`${field}\` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.`
+}
 
 export const v2SearchSchema = z
   .string()
@@ -438,7 +438,7 @@ export const v2SearchSchema = z
   .min(1, 'search cannot be empty')
   .max(V2_SEARCH_MAX_LENGTH, 'search is too long')
   .optional()
-  .describe('Case-insensitive substring search on the resource name.')
+  .describe('Case-insensitive substring match against the resource name.')
 
 /**
  * Appended to every list folder-filter description.
@@ -494,7 +494,7 @@ function canonicalFolderPathSchema(parser: (path: string) => string[]) {
  * character count — a name outside the unreserved set spends up to twelve
  * bytes per source character.
  */
-const FOLDER_PATH_FORMAT = `Segments are percent-encoded, so a folder shown as "New folder" is \`/New%20folder\`: everything outside \`A-Z a-z 0-9 - _ . ~\` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal \`.\` or \`..\` segment are rejected. At most ${MAX_FOLDER_PATH_SEGMENTS} segments and ${MAX_FOLDER_PATH_BYTES} encoded bytes.`
+const FOLDER_PATH_FORMAT = `Segments are percent-encoded, so a folder shown as "New folder" is \`/New%20folder\`: everything outside \`A-Z a-z 0-9 - _ . ~\` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal \`.\` or \`..\` segment are rejected. At most ${MAX_FOLDER_PATH_SEGMENTS} segments and ${MAX_FOLDER_PATH_BYTES} encoded bytes.`
 
 /** Canonical slash-prefixed folder path. `/` is the workspace root. */
 export const v2FolderPathSchema = canonicalFolderPathSchema(parseFolderPath).meta({
@@ -632,7 +632,7 @@ export function v2SortFields<const F extends readonly [string, ...string[]]>(
   defaults: { sortBy: F[number]; sortOrder: V2SortOrder }
 ) {
   const sortByDescription = fields.includes('name')
-    ? `Field used to sort the result. ${NAME_SORT_COLLATION}`
+    ? `Field used to sort the result. ${nameSortCollation()}`
     : 'Field used to sort the result.'
   return {
     sortBy: z.enum(fields).default(defaults.sortBy).describe(sortByDescription),

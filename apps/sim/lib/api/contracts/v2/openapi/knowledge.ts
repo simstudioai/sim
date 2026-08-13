@@ -70,7 +70,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'listKnowledgeBases',
       summary: 'List Knowledge Bases',
-      description: `List knowledge bases in a workspace with folder filtering, search, and sorting. Paginate with \`limit\` and \`cursor\`, stopping when \`nextCursor\` is null. An unknown \`folderPath\` returns an empty page. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List knowledge bases in a workspace with folder filtering, search, sorting, and opaque cursor pagination. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of knowledge bases.' },
     }),
@@ -94,7 +94,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'createKnowledgeBase',
       summary: 'Create Knowledge Base',
-      description: `Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown \`folderPath\` is a 404. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown \`folderPath\` is a \`404\`. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The created knowledge base.' },
     }),
@@ -213,7 +213,7 @@ const routes = [
       operationId: 'searchKnowledge',
       summary: 'Search Knowledge',
       description:
-        'Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. The request body is capped at 2 MiB; a larger body is a 413.',
+        'Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. A request body over 2 MiB is a `413`.',
       errors: [...WORKSPACE_ERRORS, 'UsageLimitExceeded', 'NotFound', 'PayloadTooLarge'],
       success: { description: 'Matching document chunks ordered by relevance.' },
     }),
@@ -246,7 +246,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'listKnowledgeTags',
       summary: 'List Tags',
-      description: `List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Filters and document reads use display names; document writes address slots, each in its declared type. The vocabulary is bounded by the fixed slot table. ${FULL_SET_LIST}`,
+      description: `List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Filters and document reads use display names; document writes address slots. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The knowledge base tag vocabulary.' },
     }),
@@ -277,7 +277,7 @@ const routes = [
       operationId: 'listKnowledgeDocuments',
       summary: 'List Documents',
       description:
-        'List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Each document carries its tag values keyed by tag display name; resolve those names to write slots with `GET /api/v2/knowledge/{id}/tags`.',
+        'List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Tag values are keyed by display name; resolve those to write slots with `GET /api/v2/knowledge/{id}/tags`.',
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of knowledge documents.' },
     }),
@@ -307,7 +307,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'bulkUpdateKnowledgeDocuments',
       summary: 'Bulk Enable or Disable Documents',
-      description: `Enable or disable many documents in one request, either by identifier or, with \`selectAll\`, every document in the knowledge base. Bulk delete is deliberately not offered: the bulk path records no audit entries, so deletions go through \`DELETE /api/v2/knowledge/{id}/documents/{documentId}\`, which audits each one. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Enable or disable many documents in one request, either by identifier or, with \`selectAll\`, every document in the knowledge base. Bulk delete is not offered; delete documents one at a time with \`DELETE /api/v2/knowledge/{id}/documents/{documentId}\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The number and identifiers of the documents that changed.' },
     }),
@@ -583,7 +583,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'updateKnowledgeDocument',
       summary: 'Update Document',
-      description: `Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state — \`chunkCount\`, \`tokenCount\`, \`characterCount\`, \`processingStatus\`, \`processingError\` — is written by the processing pipeline and cannot be asserted here. Resolve a tag display name to its slot with \`GET /api/v2/knowledge/{id}/tags\`. The returned document omits the connector provenance the detail read carries. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state is read-only. Resolve a tag display name to its slot with \`GET /api/v2/knowledge/{id}/tags\`. The returned document omits the connector provenance the detail read carries. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated document, or the requeue acknowledgement.' },
     }),
@@ -616,7 +616,7 @@ const routes = [
       operationId: 'deleteKnowledgeDocument',
       summary: 'Delete Document',
       description:
-        'Remove one document from a knowledge base. What that means depends on the document. A directly uploaded document is deleted outright along with its indexed chunks. A connector-backed document is instead excluded: its row survives, marked excluded and disabled so it stops being searchable and a later connector sync does not re-add it, and its embeddings are not deleted. Either way the document no longer appears in listings or search results.',
+        'Remove one document from a knowledge base. An uploaded document is deleted outright with its indexed chunks. A connector-backed document is instead excluded — its row and embeddings survive, but it stops being searchable and a later sync does not re-add it. Either way it no longer appears in listings or search results.',
       errors: RESOURCE_ERRORS,
       success: { description: 'Knowledge document deletion acknowledgement.' },
     }),

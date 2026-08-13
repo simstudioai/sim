@@ -249,7 +249,7 @@ const declaredRoutes = [
     tableOperation({
       operationId: 'updateTable',
       summary: 'Update Table',
-      description: `Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nThis operation is NOT atomic. Name, description, and folder are written independently in that order, so a 4xx does NOT mean nothing changed: the error body carries \`details.applied\` naming the fields that landed. Retry with only the fields missing from it.\n\n${FOLDER_TREE_TOO_LARGE}`,
+      description: `Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nNOT atomic: name, description, and folder are written independently, so a 4xx does not mean nothing changed. The error body carries \`details.applied\` naming the fields that landed — retry with only the ones missing from it.\n\n${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated table.' },
     }),
@@ -605,7 +605,7 @@ const declaredRoutes = [
       operationId: 'upsertTableRow',
       summary: 'Upsert Row',
       description:
-        'Insert a row or update the existing row that conflicts on a selected unique column.\n\nWARNING — the update branch REPLACES the row, it does not merge. `data` is treated as the complete new row value, so every column you omit is cleared on the matched row. Upserting 2 of 10 columns blanks the other 8. This differs from `PATCH /api/v2/tables/{tableId}/rows/{rowId}`, which merges the patch into the existing row data. Send the full row here, or use PATCH when you only mean to change a subset.',
+        'Insert a row or update the existing row that conflicts on a selected unique column.\n\nWARNING — the update branch REPLACES the row, it does not merge. `data` is the complete new row value, so every column you omit is cleared on the matched row. Send the full row here, or use `PATCH /api/v2/tables/{tableId}/rows/{rowId}` to change a subset.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'The upserted row and operation performed.' },
     }),
@@ -684,7 +684,7 @@ const declaredRoutes = [
       operationId: 'countTableRows',
       summary: 'Count Rows',
       description:
-        'Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and rowCount on the table resource counts every row rather than the predicate matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.',
+        'Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and `rowCount` on the table resource counts every row rather than the matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.',
       errors: TABLE_QUERY_ERRORS,
       success: { description: 'The number of matching table rows.' },
     }),
@@ -960,7 +960,7 @@ const declaredRoutes = [
       operationId: 'updateTableWorkflowGroup',
       summary: 'Update Workflow Group',
       description:
-        'Restructure a workflow group, its producer, outputs, or execution behavior.\n\nOutput leaf types are resolved against the group\u2019s workflow outside the write lock. If the group is repointed at a different workflow concurrently, that snapshot is invalidated and the request returns `409` — retry the update.',
+        'Restructure a workflow group, its producer, outputs, or execution behavior. Repointing the group at a different workflow concurrently invalidates the resolved output types and returns `409` — retry the update.',
       errors: RESOURCE_MUTATION_ERRORS,
       success: { description: 'The updated workflow group and resulting columns.' },
     }),
@@ -1163,7 +1163,7 @@ const declaredRoutes = [
       operationId: 'getTableImport',
       summary: 'Get Table Import',
       description:
-        'Read progress and terminal state for a durable table import.\n\nAn upload-backed import has no durable record until its upload completes, so send the signed upload control token to read it during the `uploading` phase; without the token that phase returns `404`.',
+        'Read progress and terminal state for a durable table import.\n\nAn upload-backed import has no durable record until its upload completes, so send the signed upload control token to read it during the `uploading` phase; without the token that phase is a `404`.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The requested table import.' },
     }),
@@ -1201,7 +1201,7 @@ const declaredRoutes = [
       operationId: 'cancelTableImport',
       summary: 'Cancel Table Import',
       description:
-        'Cancel an upload or processing import without rolling back committed row batches.\n\nCanceling an import that is not in a cancelable state returns `409` naming the current status, and that includes an expired import — `expired` is a terminal import status, not a `410`. An import id that never existed, or one whose retention window already purged the record, returns `404`.',
+        'Cancel an upload or processing import without rolling back committed row batches.\n\nAn import that is not in a cancelable state, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The canceled table import.' },
     }),
@@ -1238,7 +1238,7 @@ const declaredRoutes = [
       operationId: 'createTableImportPartUrls',
       summary: 'Create Table Import Part URLs',
       description:
-        'Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.\n\nThe import must still be in the `uploading` state. An import that has moved on — including one that has `expired` — returns `409` naming the current status; a purged or unknown import id returns `404`.',
+        'Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.\n\nThe import must still be `uploading`; one that has moved on, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The signed multipart upload URLs.' },
     }),
@@ -1282,7 +1282,7 @@ const declaredRoutes = [
       operationId: 'completeTableImportUpload',
       summary: 'Complete Table Import Upload',
       description:
-        'Verify or assemble the uploaded CSV and begin processing with the same import id.\n\nCompleting an import that is no longer awaiting an upload — including one that has `expired` — returns `409` naming the current status; a purged or unknown import id returns `404`.',
+        'Verify or assemble the uploaded CSV and begin processing with the same import id.\n\nAn import no longer awaiting an upload, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'Locked'],
       success: { description: 'The table import after upload completion.' },
     }),
@@ -1413,7 +1413,7 @@ const declaredRoutes = [
       operationId: 'downloadTableExport',
       summary: 'Download Table Export',
       description:
-        'Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached the `completed` status. An export still processing, or one that failed or was canceled, returns `409` naming the current status. An export whose generated file is no longer available — the retention window elapsed, or the object was purged — returns `404` (`Export file is no longer available`), not `410`.',
+        'Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached `completed`; one still processing, failed, or canceled is a `409` naming the current status. An export whose file is no longer available is a `404`, not a `410`.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Signed table-export download information.' },
     }),
@@ -1609,7 +1609,7 @@ export const tablesOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim Tables API v2',
     description:
-      'Manage tables, typed columns, rows, saved views, workflow groups, folders, imports, and exports through the public v2 API. Row data is keyed by column name.',
+      'Version 2 of the Sim REST API for tables, typed columns, rows, saved views, workflow groups, folders, imports, and exports. Row data is keyed by column name.',
     version: '2.0.0',
     contact: { name: 'Sim Support', email: 'help@sim.ai', url: 'https://www.sim.ai' },
     license: { name: 'Apache 2.0', url: 'https://www.apache.org/licenses/LICENSE-2.0.html' },

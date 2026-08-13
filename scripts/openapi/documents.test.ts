@@ -8,6 +8,7 @@ import { logsOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi
 import { resourcesOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/resources'
 import {
   FOLDER_TREE_TOO_LARGE,
+  RUN_RETENTION,
   WORKSPACE_API_KEY_DENIED,
   WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND,
 } from '../../apps/sim/lib/api/contracts/v2/openapi/shared'
@@ -403,5 +404,60 @@ describe('knowledge and files documented error sets', () => {
 
     expect(description).toContain(WORKSPACE_API_KEY_DENIED)
     expect(description).not.toContain(WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND)
+  })
+})
+
+/**
+ * Shared parameter vocabulary.
+ *
+ * `cursor` and `sortOrder` appear on dozens of operations across the seven
+ * documents, and each is sourced from one schema in `contracts/v2/shared.ts`. A
+ * caller reading two families back to back cannot tell a reworded copy from a
+ * different contract, so a divergence is a defect rather than a style choice.
+ * This pins each to one string; a list that hand-rolls its own `cursor` fails
+ * here.
+ *
+ * `startDate`/`endDate` are deliberately excluded: the run-window pair and the
+ * billing usage window share a name but filter different sequences.
+ */
+describe('shared parameter descriptions do not fork', () => {
+  const SINGLE_VOICE_PARAMETERS = ['cursor', 'sortOrder'] as const
+
+  const descriptionsByParameter = new Map<string, Set<string>>()
+  for (const document of DOCUMENTS) {
+    const spec = generateOpenApiDocument(document)
+    for (const operation of operations(spec)) {
+      for (const parameter of (operation.parameters ?? []) as JsonObject[]) {
+        const name = parameter.name as string
+        if (!SINGLE_VOICE_PARAMETERS.includes(name as (typeof SINGLE_VOICE_PARAMETERS)[number])) {
+          continue
+        }
+        const seen = descriptionsByParameter.get(name) ?? new Set<string>()
+        seen.add(parameter.description as string)
+        descriptionsByParameter.set(name, seen)
+      }
+    }
+  }
+
+  it.each(SINGLE_VOICE_PARAMETERS)('publishes one description for %s', (name) => {
+    expect([...(descriptionsByParameter.get(name) ?? [])]).toHaveLength(1)
+  })
+})
+
+/**
+ * The run-retention window is the one fact that explains an empty run list on a
+ * workflow reporting a non-zero `runCount`, and it is published on both reads
+ * over `workflow_execution_logs` from one constant. Pinning both keeps a future
+ * trim from silently dropping it off one of them.
+ */
+describe('run retention is published on both run reads', () => {
+  it.each([
+    [logsOpenApiDocument, 'listLogs'],
+    [workflowsOpenApiDocument, 'listWorkflowRunsV2'],
+  ] as const)('%#: names the retention window', (document, operationId) => {
+    const description = document.routes.find((route) => route.operation.operationId === operationId)
+      ?.operation.description
+
+    expect(description).toContain(RUN_RETENTION)
   })
 })

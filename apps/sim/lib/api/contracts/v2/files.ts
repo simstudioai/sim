@@ -61,13 +61,13 @@ export const v2FileSchema = z
       .number()
       .nonnegative()
       .describe(
-        'Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source rather than the rendered document, so this does not predict how many bytes `GET /files/{fileId}` returns — that endpoint serves the compiled artifact, which is typically much larger.'
+        'Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes `GET /files/{fileId}` returns.'
       )
       .meta({ examples: [1024] }),
     type: z
       .string()
       .describe(
-        'MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source, so this describes the source and not what `GET /files/{fileId}` serves — that endpoint returns the compiled artifact under the rendered document type.'
+        'MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type `GET /files/{fileId}` serves.'
       )
       .meta({ examples: ['text/csv'] }),
     key: z
@@ -257,7 +257,7 @@ export const v2CreateFileBodySchema = z
       .max(70_000_000, 'content is too large')
       .default('')
       .describe(
-        'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413. Use an upload session for anything larger.'
+        'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger.'
       ),
     encoding: z
       .enum(['utf-8', 'base64'])
@@ -310,7 +310,7 @@ export const v2ListFilesQuerySchema = z
     scope: v2FileScopeSchema
       .default('active')
       .describe(
-        'Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns an empty page when the containing folder was archived too.'
+        'Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
       ),
     search: v2SearchSchema.describe('Case-insensitive substring match against the file name.'),
     ...v2SortFields(v2FileSortFields, { sortBy: 'uploadedAt', sortOrder: 'asc' }),
@@ -518,7 +518,7 @@ export const v2UpdateFileContentBodySchema = z
       .string()
       .max(70_000_000, 'content is too large')
       .describe(
-        'Complete replacement content for the file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413.'
+        'Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`.'
       ),
     encoding: z
       .enum(['utf-8', 'base64'])

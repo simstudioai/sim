@@ -87,7 +87,7 @@ export type V2SkillDeleteData = z.output<typeof v2SkillDeleteDataSchema>
 
 export const v2SkillParamsSchema = z.object({
   id: nonEmptyIdSchema.describe(
-    'Skill to retrieve, update, or delete. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.'
+    'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.'
   ),
 })
 export type V2SkillParams = z.output<typeof v2SkillParamsSchema>

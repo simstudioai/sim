@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim Tables API v2",
-    "description": "Manage tables, typed columns, rows, saved views, workflow groups, folders, imports, and exports through the public v2 API. Row data is keyed by column name.",
+    "description": "Version 2 of the Sim REST API for tables, typed columns, rows, saved views, workflow groups, folders, imports, and exports. Row data is keyed by column name.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listTables",
         "summary": "List Tables",
-        "description": "List tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "List tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -64,9 +64,9 @@
             "name": "search",
             "in": "query",
             "required": false,
-            "description": "Case-insensitive substring search on the resource name.",
+            "description": "Case-insensitive substring match against the resource name.",
             "schema": {
-              "description": "Case-insensitive substring search on the resource name.",
+              "description": "Case-insensitive substring match against the resource name.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -239,7 +239,7 @@
       "get": {
         "operationId": "getTable",
         "summary": "Get Table",
-        "description": "Retrieve a table with its metadata, column schema, locks, and current job. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Retrieve a table with its metadata, column schema, locks, and current job. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -393,7 +393,7 @@
       "patch": {
         "operationId": "updateTable",
         "summary": "Update Table",
-        "description": "Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nThis operation is NOT atomic. Name, description, and folder are written independently in that order, so a 4xx does NOT mean nothing changed: the error body carries `details.applied` naming the fields that landed. Retry with only the fields missing from it.\n\nA workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nNOT atomic: name, description, and folder are written independently, so a 4xx does not mean nothing changed. The error body carries `details.applied` naming the fields that landed — retry with only the ones missing from it.\n\nA workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -746,10 +746,10 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum rows to return in the current page.",
+            "description": "Maximum rows to return per page. Must be a whole number from 1 to 1000. Defaults to 100.",
             "schema": {
               "default": 100,
-              "description": "Maximum rows to return in the current page.",
+              "description": "Maximum rows to return per page. Must be a whole number from 1 to 1000. Defaults to 100.",
               "type": "integer",
               "minimum": 1,
               "maximum": 1000
@@ -759,9 +759,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -1323,7 +1323,7 @@
       "post": {
         "operationId": "upsertTableRow",
         "summary": "Upsert Row",
-        "description": "Insert a row or update the existing row that conflicts on a selected unique column.\n\nWARNING — the update branch REPLACES the row, it does not merge. `data` is treated as the complete new row value, so every column you omit is cleared on the matched row. Upserting 2 of 10 columns blanks the other 8. This differs from `PATCH /api/v2/tables/{tableId}/rows/{rowId}`, which merges the patch into the existing row data. Send the full row here, or use PATCH when you only mean to change a subset.",
+        "description": "Insert a row or update the existing row that conflicts on a selected unique column.\n\nWARNING — the update branch REPLACES the row, it does not merge. `data` is the complete new row value, so every column you omit is cleared on the matched row. Send the full row here, or use `PATCH /api/v2/tables/{tableId}/rows/{rowId}` to change a subset.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1484,7 +1484,7 @@
       "post": {
         "operationId": "countTableRows",
         "summary": "Count Rows",
-        "description": "Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and rowCount on the table resource counts every row rather than the predicate matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.",
+        "description": "Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and `rowCount` on the table resource counts every row rather than the matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1563,7 +1563,7 @@
       "get": {
         "operationId": "listTableViews",
         "summary": "List Views",
-        "description": "List the bounded set of saved table views, with references to removed columns pruned on read. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List the bounded set of saved table views, with references to removed columns pruned on read. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1976,7 +1976,7 @@
       "get": {
         "operationId": "listTableWorkflowGroups",
         "summary": "List Workflow Groups",
-        "description": "List the workflow and enrichment groups that can be dispatched for a table. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List the workflow and enrichment groups that can be dispatched for a table. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2130,7 +2130,7 @@
       "patch": {
         "operationId": "updateTableWorkflowGroup",
         "summary": "Update Workflow Group",
-        "description": "Restructure a workflow group, its producer, outputs, or execution behavior.\n\nOutput leaf types are resolved against the group’s workflow outside the write lock. If the group is repointed at a different workflow concurrently, that snapshot is invalidated and the request returns `409` — retry the update.",
+        "description": "Restructure a workflow group, its producer, outputs, or execution behavior. Repointing the group at a different workflow concurrently invalidates the resolved output types and returns `409` — retry the update.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2626,7 +2626,7 @@
       "get": {
         "operationId": "getTableImport",
         "summary": "Get Table Import",
-        "description": "Read progress and terminal state for a durable table import.\n\nAn upload-backed import has no durable record until its upload completes, so send the signed upload control token to read it during the `uploading` phase; without the token that phase returns `404`.",
+        "description": "Read progress and terminal state for a durable table import.\n\nAn upload-backed import has no durable record until its upload completes, so send the signed upload control token to read it during the `uploading` phase; without the token that phase is a `404`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2711,7 +2711,7 @@
       "delete": {
         "operationId": "cancelTableImport",
         "summary": "Cancel Table Import",
-        "description": "Cancel an upload or processing import without rolling back committed row batches.\n\nCanceling an import that is not in a cancelable state returns `409` naming the current status, and that includes an expired import — `expired` is a terminal import status, not a `410`. An import id that never existed, or one whose retention window already purged the record, returns `404`.",
+        "description": "Cancel an upload or processing import without rolling back committed row batches.\n\nAn import that is not in a cancelable state, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2801,7 +2801,7 @@
       "post": {
         "operationId": "createTableImportPartUrls",
         "summary": "Create Table Import Part URLs",
-        "description": "Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.\n\nThe import must still be in the `uploading` state. An import that has moved on — including one that has `expired` — returns `409` naming the current status; a purged or unknown import id returns `404`.",
+        "description": "Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.\n\nThe import must still be `uploading`; one that has moved on, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2905,7 +2905,7 @@
       "post": {
         "operationId": "completeTableImportUpload",
         "summary": "Complete Table Import Upload",
-        "description": "Verify or assemble the uploaded CSV and begin processing with the same import id.\n\nCompleting an import that is no longer awaiting an upload — including one that has `expired` — returns `409` naming the current status; a purged or unknown import id returns `404`.",
+        "description": "Verify or assemble the uploaded CSV and begin processing with the same import id.\n\nAn import no longer awaiting an upload, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3233,7 +3233,7 @@
       "get": {
         "operationId": "downloadTableExport",
         "summary": "Download Table Export",
-        "description": "Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached the `completed` status. An export still processing, or one that failed or was canceled, returns `409` naming the current status. An export whose generated file is no longer available — the retention window elapsed, or the object was purged — returns `404` (`Export file is no longer available`), not `410`.",
+        "description": "Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached `completed`; one still processing, failed, or canceled is a `409` naming the current status. An export whose file is no longer available is a `404`, not a `410`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3391,7 +3391,7 @@
       "get": {
         "operationId": "listTablesFolders",
         "summary": "List Folders",
-        "description": "List table folders, optionally restricting the result to direct children of a canonical parent path. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List table folders, optionally restricting the result to direct children of a canonical parent path. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3784,13 +3784,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.",
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset."
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -3865,7 +3865,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -3880,7 +3880,7 @@
         }
       },
       "PayloadTooLarge": {
-        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -3925,7 +3925,7 @@
         }
       },
       "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced. The response is written to a connection that is already gone, so the caller that caused it never reads it; it is documented only on operations where an abort can leave work running. There, `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
+        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
         "content": {
           "application/json": {
             "schema": {
@@ -3945,7 +3945,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -3999,7 +3999,7 @@
       },
       "FolderPathInput": {
         "title": "Folder path input",
-        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
         "maxLength": 4096,
         "type": "string"
       },
@@ -4125,7 +4125,7 @@
           "folderPath": {
             "type": "string",
             "title": "Folder path",
-            "description": "Canonical slash-prefixed folder path. `/` is the workspace root. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+            "description": "Canonical slash-prefixed folder path. `/` is the workspace root. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
             "maxLength": 4096
           },
           "locks": {
@@ -5379,7 +5379,7 @@
             "description": "Unique workspace identifier."
           },
           "data": {
-            "description": "Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging PATCH /rows/{rowId}.",
+            "description": "Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging `PATCH /api/v2/tables/{tableId}/rows/{rowId}`.",
             "$ref": "#/components/schemas/V2TableRowData"
           },
           "conflictTarget": {
@@ -7645,11 +7645,11 @@
               },
               "uploadToken": {
                 "type": "null",
-                "description": "Always null for workspace-file imports."
+                "description": "Always null; a workspace-file import has no upload to authorize."
               },
               "transfer": {
                 "type": "null",
-                "description": "Always null for workspace-file imports."
+                "description": "Always null; a workspace-file import has no bytes to transfer."
               }
             },
             "required": ["session", "uploadToken", "transfer"],
@@ -8390,7 +8390,7 @@
       },
       "NonRootFolderPathInput": {
         "title": "Non-root folder path input",
-        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
         "maxLength": 4096,
         "type": "string"
       },

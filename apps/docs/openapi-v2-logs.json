@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listLogs",
         "summary": "List Logs",
-        "description": "List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. This list predates the shared sort convention: it has no `sortBy` (the sort column is fixed to execution start time) and spells the direction `order` rather than `sortOrder`. Runs are hard-deleted once they pass the payer's log retention window, so an older run is absent from this list rather than reported as removed. The window is 30 days from run start on the free plan; Pro and Team have none configured and keep runs indefinitely; Enterprise sets its own per organization, with an optional per-workspace override, and is also unbounded until configured. A workflow's `runCount` is never reduced by this deletion, so a workflow can report runs while this list is empty.",
+        "description": "List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -171,9 +171,9 @@
             "name": "includeTraceSpans",
             "in": "query",
             "required": false,
-            "description": "Whether to include block-level trace spans. Spans are stored apart from the log row and pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error — an empty array does not mean the run recorded none.",
+            "description": "Whether to include block-level trace spans. Spans are pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error.",
             "schema": {
-              "description": "Whether to include block-level trace spans. Spans are stored apart from the log row and pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error — an empty array does not mean the run recorded none.",
+              "description": "Whether to include block-level trace spans. Spans are pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error.",
               "type": "boolean"
             }
           },
@@ -213,10 +213,10 @@
             "name": "order",
             "in": "query",
             "required": false,
-            "description": "Sort direction by execution start time. This operation deviates from the v2 `sortBy` + `sortOrder` convention: logs are sortable only by start time, so the direction is carried by this single `order` param and `sortBy`/`sortOrder` are not accepted.",
+            "description": "Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.",
             "schema": {
               "default": "desc",
-              "description": "Sort direction by execution start time. This operation deviates from the v2 `sortBy` + `sortOrder` convention: logs are sortable only by start time, so the direction is carried by this single `order` param and `sortBy`/`sortOrder` are not accepted.",
+              "description": "Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.",
               "type": "string",
               "enum": ["asc", "desc"]
             }
@@ -295,20 +295,20 @@
       "get": {
         "operationId": "getLog",
         "summary": "Get Log",
-        "description": "Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are stored apart from the log row and pruned on their own retention schedule, so an empty `traceSpans` array does not mean the run recorded none.",
+        "description": "Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty `traceSpans` array does not mean the run recorded none.",
         "tags": ["Logs"],
         "parameters": [
           {
             "name": "runId",
             "in": "path",
             "required": true,
-            "description": "The unique run identifier shared by lifecycle and diagnostic resources.",
+            "description": "Unique workflow run identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9._:-]+$",
-              "description": "The unique run identifier shared by lifecycle and diagnostic resources."
+              "description": "Unique workflow run identifier."
             }
           }
         ],
@@ -400,13 +400,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.",
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset."
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -481,7 +481,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -496,7 +496,7 @@
         }
       },
       "PayloadTooLarge": {
-        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -541,7 +541,7 @@
         }
       },
       "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced. The response is written to a connection that is already gone, so the caller that caused it never reads it; it is documented only on operations where an abort can leave work running. There, `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
+        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
         "content": {
           "application/json": {
             "schema": {
@@ -561,7 +561,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -653,7 +653,7 @@
               "failed",
               "cancelled"
             ],
-            "description": "Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not run to completion and the run is waiting to be resumed again. **This differs from the run resources for the same run:** `GET /api/v2/workflows/{id}/runs` and `GET /api/v2/workflows/{id}/runs/{runId}` additionally report `paused` for a run held at a human-in-the-loop pause point, which this field reports as `pending`. Use the run resources when the pause state matters."
+            "description": "Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not complete; a run held at a human-in-the-loop pause point reads `pending` here, and `paused` on the workflow run resources. Use those when the pause state matters."
           },
           "level": {
             "type": "string",
@@ -1049,7 +1049,7 @@
               "failed",
               "cancelled"
             ],
-            "description": "Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not run to completion and the run is waiting to be resumed again. **This differs from the run resources for the same run:** `GET /api/v2/workflows/{id}/runs` and `GET /api/v2/workflows/{id}/runs/{runId}` additionally report `paused` for a run held at a human-in-the-loop pause point, which this field reports as `pending`. Use the run resources when the pause state matters."
+            "description": "Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not complete; a run held at a human-in-the-loop pause point reads `pending` here, and `paused` on the workflow run resources. Use those when the pause state matters."
           },
           "level": {
             "type": "string",
@@ -1137,7 +1137,7 @@
                   {
                     "type": "string",
                     "title": "Folder path",
-                    "description": "Canonical slash-prefixed folder path. `/` is the workspace root. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+                    "description": "Canonical slash-prefixed folder path. `/` is the workspace root. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
                     "maxLength": 4096
                   },
                   {
@@ -1228,7 +1228,7 @@
                 "type": "null"
               }
             ],
-            "description": "Workflow graph snapshot captured for the run, with credential values redacted: `oauth-input`, `password: true`, and table sub-block values are null; sensitive nested tool parameters and every parameter without authoritative codec metadata are null; and `{{VAR}}` references in non-opaque fields are preserved. Null when no snapshot is retained."
+            "description": "Workflow graph snapshot captured for the run, or null when none is retained. Credential-bearing values are redacted to null: `oauth-input`, `password: true`, table sub-block values, sensitive nested tool parameters, and any parameter without authoritative codec metadata. `{{VAR}}` references in non-opaque fields are preserved."
           },
           "traceSpans": {
             "type": "array",

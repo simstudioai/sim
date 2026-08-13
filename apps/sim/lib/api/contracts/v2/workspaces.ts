@@ -46,7 +46,7 @@ export const v2WorkspaceMemberSchema = z
     isExternal: z
       .boolean()
       .describe(
-        "Whether the member belongs to a different organization than the workspace. True for an explicitly granted member whose own organization differs from the workspace's; false for the workspace owner and for a member sharing the workspace organization. Inherited organization-administrator access is always reported as false, so this is not a signal that access came from outside the explicit member list."
+        'Whether the member belongs to a different organization than the workspace. True only for an explicitly granted member whose own organization differs; inherited organization-administrator access is always reported as false, so this does not detect every outside caller.'
       ),
     joinedAt: v2TimestampSchema.describe('ISO 8601 timestamp when access was granted.'),
   })

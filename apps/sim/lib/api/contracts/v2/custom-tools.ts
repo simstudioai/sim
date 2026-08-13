@@ -106,7 +106,7 @@ export const v2CustomToolDeleteDataSchema = z
 export type V2CustomToolDeleteData = z.output<typeof v2CustomToolDeleteDataSchema>
 
 export const v2CustomToolParamsSchema = z.object({
-  id: nonEmptyIdSchema.describe('Custom tool to retrieve, update, or delete.'),
+  id: nonEmptyIdSchema.describe('Unique custom tool identifier.'),
 })
 export type V2CustomToolParams = z.output<typeof v2CustomToolParamsSchema>
 

@@ -123,7 +123,7 @@ const routes = [
     filesOperation({
       operationId: 'listFiles',
       summary: 'List Files',
-      description: `List workspace files with search, sorting, folder filtering, and opaque cursor pagination. Defaults to active files; pass \`scope=archived\` to page over soft-deleted files, whose \`deletedAt\` is non-null and which \`POST /files/{fileId}/restore\` can bring back. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List workspace files with search, sorting, folder filtering, and opaque cursor pagination. Defaults to active files; pass \`scope=archived\` to page over soft-deleted ones. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of workspace files.' },
     }),
@@ -361,7 +361,7 @@ const routes = [
       operationId: 'deleteFile',
       summary: 'Delete File',
       description:
-        'Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in the default listing and is no longer readable through the API, and its stored bytes are never removed. Archiving an already-archived file is a `404`, not a no-op. List archived files with `GET /files?scope=archived` and reverse the delete with `POST /files/{fileId}/restore`.',
+        'Archive a workspace file. This is a soft delete: the file stops appearing in the default listing and is no longer readable through the API, but its stored bytes are never removed. Archiving an already-archived file is a `404`, not a no-op. List archived files with `GET /files?scope=archived`, and reverse the delete with `POST /files/{fileId}/restore`.',
       errors: RESOURCE_ERRORS,
       success: { description: 'Deletion confirmation.' },
     }),
@@ -430,7 +430,7 @@ const routes = [
       operationId: 'restoreFile',
       summary: 'Restore File',
       description:
-        'Reverse a soft delete and return the file to the workspace. Restore is not a pure undo — the file comes back at the workspace root, and gains a `_restored` suffix when another file there already holds its name — so read `folderPath` and `name` off the response. Restoring an already-active file is a no-op that returns it, so a retry is safe. An archived workspace is a 400, and a name the restore could not free is a 409.',
+        'Reverse a soft delete and return the file to the workspace. Not a pure undo: the file comes back at the workspace root, and gains a `_restored` suffix when another file there already holds its name, so read `folderPath` and `name` off the response. Restoring an already-active file returns it unchanged, so a retry is safe. An archived workspace is a `400`, and a name the restore could not free is a `409`.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The file as it exists after the restore.' },
     }),
@@ -618,7 +618,7 @@ const routes = [
     filesOperation({
       operationId: 'upsertFileShare',
       summary: 'Enable or Disable File Share',
-      description: `Create or partially update a server-tokenized public share. Only \`isActive\` is required; each other field states what enabling a mode does to it. A file that has never been shared has nothing stored to fall back on, so enabling any mode other than \`public\` must carry its credential in the same request. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create or partially update a server-tokenized public share. Only \`isActive\` is required; each other field states what enabling a mode does to it. Enabling any mode other than \`public\` on a file that has never been shared must carry its credential in the same request. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated file share.' },
     }),
@@ -844,7 +844,7 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim API v2 — Files & Audit Logs',
     description:
-      'Version 2 of the Sim REST API for workspace files and organization audit logs. Lists use opaque cursors, and rate-limit state is returned in response headers. Download File streams raw bytes as `application/octet-stream`; every other response uses the canonical v2 data, cursor-list, or error envelope.',
+      'Version 2 of the Sim REST API for workspace files, resumable uploads, public shares, and organization audit logs.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',

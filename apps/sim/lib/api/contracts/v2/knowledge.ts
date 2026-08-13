@@ -17,6 +17,7 @@ import {
   v1SearchTagFilterSchema,
 } from '@/lib/api/contracts/v1/knowledge'
 import {
+  nameSortCollation,
   V2_FOLDER_FILTER_MISS,
   v2CreateFolderBodySchema,
   v2CursorListResponse,
@@ -407,7 +408,7 @@ export const v2KnowledgeSearchDataSchema = z
      */
     rerankerStatus: rerankerStatusSchema
       .describe(
-        'What the reranker did on this search. `applied` means it ordered the results, which carry `rerankerScore`. `unavailable` means reranking was requested and attempted but could not complete, so results are in vector order and carry no `rerankerScore` — the search still succeeded, and the request is worth retrying. `skipped` means there was nothing to rank: a tag-only search, or no matching chunks. `not_requested` means `rerankerEnabled` was absent or false.'
+        'What the reranker did on this search. `applied` means it ordered the results, which carry `rerankerScore`. `unavailable` means it was attempted but could not complete, so results are in vector order with no `rerankerScore` — the search still succeeded, and is worth retrying. `skipped` means there was nothing to rank. `not_requested` means `rerankerEnabled` was absent or false.'
       )
       .meta({ examples: ['applied'] }),
   })
@@ -827,7 +828,7 @@ export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema
       .array(v2KnowledgeSearchTagFilterSchema)
       .optional()
       .describe(
-        'Structured tag filters. Supported across multiple knowledge bases, but each filtered tag must resolve to the same slot and field type in every knowledge base selected; a tag missing from one of them, or defined inconsistently across them, is rejected and those knowledge bases must be searched separately. A tag name defined in none of the selected knowledge bases is rejected, never ignored; list the available names with GET /api/v2/knowledge/{id}/tags.'
+        'Structured tag filters. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{id}/tags`.'
       ),
     searchMode: v1KnowledgeSearchBodySchema.shape.searchMode.describe(
       'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.'
@@ -836,7 +837,7 @@ export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema
       .boolean()
       .optional()
       .describe(
-        'Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, which has no query to rank against. Reranking is billed as an additional search unit. Whether it actually ran is reported by `rerankerStatus` on the response: reranking is best-effort, and a provider failure falls back to vector ordering rather than failing the search.'
+        'Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, and billed as an additional search unit. Reranking is best-effort — a provider failure falls back to vector ordering, so check `rerankerStatus` on the response.'
       ),
     /**
      * Defaulted, matching the internal search contract this one otherwise
@@ -955,7 +956,7 @@ export const v2ListKnowledgeDocumentsQuerySchema = v1ListKnowledgeDocumentsQuery
       'Filter by whether documents are enabled for search.'
     ),
     sortBy: v1ListKnowledgeDocumentsQuerySchema.shape.sortBy.describe(
-      'Document field used to sort results.'
+      `Field used to sort the result. ${nameSortCollation('filename')}`
     ),
     sortOrder: v1ListKnowledgeDocumentsQuerySchema.shape.sortOrder.describe('Sort direction.'),
     tagFilters: z

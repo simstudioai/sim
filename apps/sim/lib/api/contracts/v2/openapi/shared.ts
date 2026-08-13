@@ -61,13 +61,13 @@ export const ERROR_RESPONSES = {
   RunIdConflict: {
     status: 409,
     description:
-      'The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.',
+      'The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.',
     headers: ['X-Run-Id'],
   },
   PayloadTooLarge: {
     status: 413,
     description:
-      'The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.',
+      'The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.',
   },
   UnsupportedMediaType: {
     status: 415,
@@ -100,13 +100,13 @@ export const ERROR_RESPONSES = {
   ClientClosedRequest: {
     status: 499,
     description:
-      'The client closed the connection before the response was produced. The response is written to a connection that is already gone, so the caller that caused it never reads it; it is documented only on operations where an abort can leave work running. There, `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.',
+      'The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.',
   },
   InternalError: { status: 500, description: 'An unexpected server error occurred.' },
   ServiceUnavailable: {
     status: 503,
     description:
-      'A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.',
+      'A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.',
     headers: ['Retry-After'],
   },
 } as const satisfies Readonly<Record<string, OpenApiErrorResponse>>
@@ -202,8 +202,7 @@ export const V2_API_KEY_SECURITY_SCHEMES = {
  * rendering one back do not need this sentence: the shared `413` response
  * description already covers them.
  */
-export const FOLDER_TREE_TOO_LARGE =
-  'A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.'
+export const FOLDER_TREE_TOO_LARGE = 'A workspace folder tree over 10,000 folders is a `413`.'
 
 /**
  * Appended to a list whose result set is bounded by construction, so it answers
@@ -215,8 +214,7 @@ export const FOLDER_TREE_TOO_LARGE =
  * promise. The authoritative membership is pinned in
  * `contracts/v2/__tests__/list-pagination.test.ts` as `FULL_SET_LISTS`.
  */
-export const FULL_SET_LIST =
-  'The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.'
+export const FULL_SET_LIST = 'The bounded set is returned in one page; `nextCursor` is always null.'
 
 /**
  * Appended to a `GET` whose route declares `headSafe: false` because the read
@@ -239,7 +237,7 @@ export const HEAD_MIRRORS_GET =
  * so it is not something a workspace owner can grant around.
  */
 export const WORKSPACE_API_KEY_DENIED =
-  'A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.'
+  'A workspace API key is rejected with `403`; use a personal API key.'
 
 /**
  * {@link WORKSPACE_API_KEY_DENIED} for an operation behind the resource-concealment
@@ -247,7 +245,7 @@ export const WORKSPACE_API_KEY_DENIED =
  * the caller learns nothing about the resource.
  */
 export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
-  'A workspace API key cannot call this operation. Because unauthorized resources are concealed, the rejection is reported as `404` rather than `403`; use a personal API key.'
+  'A workspace API key is rejected as `404` rather than `403`, because unauthorized resources are concealed; use a personal API key.'
 
 /**
  * Appended to the two reads over `workflow_execution_logs`, which is the only
@@ -264,14 +262,12 @@ export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
  * enabled.
  *
  * Stated because deletion is otherwise invisible: an aged-out run is not a
- * tombstone or a 404, it is simply absent, and `runCount` on the workflow is
- * never decremented to match — so a free-plan workflow can report dozens of
- * runs beside an empty list and nothing in either response explains the gap.
- * Kept as one constant so the two sibling reads cannot drift into two
- * paraphrases of one window.
+ * tombstone or a 404, it is simply absent. The matching `runCount` caveat lives
+ * on that field rather than here. Kept as one constant so the two sibling reads
+ * cannot drift into two paraphrases of one window.
  */
 export const RUN_RETENTION =
-  "Runs are hard-deleted once they pass the payer's log retention window, so an older run is absent from this list rather than reported as removed. The window is 30 days from run start on the free plan; Pro and Team have none configured and keep runs indefinitely; Enterprise sets its own per organization, with an optional per-workspace override, and is also unbounded until configured. A workflow's `runCount` is never reduced by this deletion, so a workflow can report runs while this list is empty."
+  "Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override."
 
 export const V2_COMMON_HEADERS = {
   'X-RateLimit-Limit': {
@@ -300,7 +296,7 @@ export const V2_COMMON_HEADERS = {
       id: 'RetryAfterHeader',
       title: 'Retry after',
       description:
-        'Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.',
+        'Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.',
     }),
   },
   'X-Run-Id': {

@@ -63,10 +63,10 @@ export const v2WorkflowRunIdSchema = runIdSchema
  * double-executes (fresh id per attempt) or hard-fails (same id per attempt).
  */
 const X_RUN_ID_DESCRIPTION =
-  'Caller-supplied run identifier, available only to API-key callers. This is a one-shot uniqueness claim, NOT an idempotency key: the first request to use a value starts a run, and any later request reusing it fails with 409 and `error.details.code: "RUN_ID_CONFLICT"` instead of replaying the original result. To retry safely, generate a fresh value per attempt and reconcile duplicates yourself, or omit the header and let the server allocate the run identifier.'
+  'Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: "RUN_ID_CONFLICT"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.'
 
 const X_SIM_VIA_DESCRIPTION =
-  'Comma-separated workflow identifiers describing the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically when one workflow calls another; supply it yourself only when relaying an existing chain. A chain already at the maximum depth is rejected with 409 and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`, which is how runaway recursion between workflows is stopped.'
+  'Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.'
 
 export const v2ExecuteWorkflowHeadersSchema = z
   .object({
@@ -77,7 +77,7 @@ export const v2ExecuteWorkflowHeadersSchema = z
     id: 'ExecuteWorkflowHeaders',
     title: 'Execute workflow headers',
     description:
-      'Optional one-shot run-identifier claim and workflow call-chain marker for a workflow execution. Reusing an `X-Run-Id` returns 409 and `error.details.code: "RUN_ID_CONFLICT"`; it does not replay the earlier run. An `X-Sim-Via` chain at maximum depth returns 409 and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.',
+      'Optional one-shot run-identifier claim and workflow call-chain marker for a workflow execution.',
   })
 export type V2ExecuteWorkflowHeaders = z.input<typeof v2ExecuteWorkflowHeadersSchema>
 
@@ -189,7 +189,7 @@ export const v2WorkflowListItemSchema = z
       .int()
       .nonnegative()
       .describe(
-        'Runs that finished successfully. A run that failed, was cancelled, or is still paused is not counted, and the counter is never reduced when a run ages out of log retention — so this is not the number of runs `GET /api/v2/workflows/{id}/runs` returns, in either direction.'
+        'Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{id}/runs`, in either direction.'
       ),
     lastRunAt: z
       .string()
@@ -343,7 +343,7 @@ export const v2DeployWorkflowDataSchema = v2DeploymentStateSchema
     id: 'DeployResult',
     title: 'Deploy result',
     description:
-      'Deployment attempt accepted for processing. Activation is asynchronous; `latestDeploymentAttempt` on this response is the attempt handle. The request is NOT idempotent — every POST mints a new deployment version, so a retry after a timeout creates a second version rather than returning the first. `latestDeploymentAttempt` is returned only here: `GET /workflows/{id}` does not carry it, so poll activation with `isDeployed` and `deployedAt` on the workflow, or with `isActive` on `GET /workflows/{id}/versions`.',
+      'Deployment attempt accepted for processing. Activation is asynchronous, and `latestDeploymentAttempt` is the attempt handle — returned only here. Poll activation with `isDeployed` and `deployedAt` on the workflow, or `isActive` on `GET /workflows/{id}/versions`.',
   })
 export type V2DeployWorkflowData = z.output<typeof v2DeployWorkflowDataSchema>
 
@@ -660,7 +660,7 @@ export const v2WorkflowVersionDetailSchema = z
       .describe('ISO 8601 timestamp when this version was created.')
       .meta({ format: 'date-time' }),
     state: deployedWorkflowStateSchema.describe(
-      'Deployed workflow graph snapshot pinned by this version. Credential-bearing values are redacted: `oauth-input`, `password: true`, and table sub-block values are null; sensitive nested tool parameters and every parameter without authoritative codec metadata are null.'
+      'Deployed workflow graph snapshot pinned by this version, with credential-bearing values redacted to null: `oauth-input`, `password: true`, table sub-block values, sensitive nested tool parameters, and any parameter without authoritative codec metadata.'
     ),
   })
   .meta({
@@ -864,7 +864,7 @@ export const v2ExecuteWorkflowBodySchema = z
       .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
       .optional()
       .describe(
-        "Requested server-side timeout for an asynchronous run, in seconds. This is an upper bound on the request, not the effective timeout: the run uses the smaller of this value and the account plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout with no warning. Rejected with 400 unless `async` is true."
+        "Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true."
       ),
     stream: z
       .boolean()
@@ -955,7 +955,7 @@ export const v2ExecuteWorkflowDataSchema = z
     id: 'WorkflowRunResult',
     title: 'Workflow run result',
     description:
-      'Synchronous workflow run output and in-band execution status. Run failures are reported in band, not as HTTP errors — a synchronous run that exceeds its execution timeout returns HTTP 200 with `status: "failed"` and `error.code: "TIMEOUT"`, so always branch on `status` rather than on the HTTP status alone.',
+      'Synchronous workflow run output and in-band execution status. Run failures are reported in band, not as HTTP errors — a run that exceeds its execution timeout returns HTTP 200 with `status: "failed"` and `error.code: "TIMEOUT"`, so branch on `status`.',
   })
 export type V2ExecuteWorkflowData = z.output<typeof v2ExecuteWorkflowDataSchema>
 
@@ -1065,7 +1065,7 @@ export const v2ResumeWorkflowContract = defineRouteContract({
 })
 
 const RUN_STATUS_DESCRIPTION =
-  'Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` means the run is not executing and is waiting to be resumed: either held at a human-in-the-loop pause point, or left paused because a resume attempt did not run to completion. The status alone does not say which. On the single-run response `paused.automaticResumeWaitingReason` distinguishes them: it is recorded whenever a resume attempt fails and cleared once a resume succeeds, so a null value means the run is waiting on human input. When the failure is not retryable or the automatic retries are exhausted, the reason is prefixed `Automatic resume requires manual intervention: `. Run-list items carry no `paused` object, so the two cases are indistinguishable there.'
+  "Current or terminal run status. `redacting` is transient, reported while a finished run's output is being scrubbed. `paused` means the run is waiting to be resumed — either held at a human-in-the-loop pause point, or left paused by a resume attempt that did not complete. Only the single-run response distinguishes the two, through `paused.automaticResumeWaitingReason`."
 
 /**
  * The list projection passes `workflow_execution_logs.status` through except where it
@@ -1295,14 +1295,14 @@ export const v2CancelWorkflowRunDataSchema = z
     reason: cancelWorkflowExecutionReasonSchema
       .optional()
       .describe(
-        'Machine-readable cancellation outcome. Present on every cancellation, including full successes — it is not a partial-failure marker. `recorded` means cancellation was durably recorded (the normal success value). `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal could not be written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step when cancelling a paused human-in-the-loop run.'
+        'Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` is the success value. `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal was not written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step for a paused run.'
       ),
   })
   .meta({
     id: 'CancelWorkflowRunResult',
     title: 'Cancel workflow run result',
     description:
-      'Outcome of a workflow run cancellation request. Cancelling a run that has already reached a terminal state (completed, failed, or cancelled) succeeds with no effect rather than returning an error — treat this endpoint as best-effort and poll the run to observe the final state.',
+      'Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, so poll the run to observe its final state.',
   })
 export type V2CancelWorkflowRunData = z.output<typeof v2CancelWorkflowRunDataSchema>
 

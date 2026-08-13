@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listKnowledgeBases",
         "summary": "List Knowledge Bases",
-        "description": "List knowledge bases in a workspace with folder filtering, search, and sorting. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null. An unknown `folderPath` returns an empty page. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "List knowledge bases in a workspace with folder filtering, search, sorting, and opaque cursor pagination. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -64,9 +64,9 @@
             "name": "search",
             "in": "query",
             "required": false,
-            "description": "Case-insensitive substring search on the resource name.",
+            "description": "Case-insensitive substring match against the resource name.",
             "schema": {
-              "description": "Case-insensitive substring search on the resource name.",
+              "description": "Case-insensitive substring match against the resource name.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -172,7 +172,7 @@
       "post": {
         "operationId": "createKnowledgeBase",
         "summary": "Create Knowledge Base",
-        "description": "Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown `folderPath` is a 404. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown `folderPath` is a `404`. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -241,7 +241,7 @@
       "get": {
         "operationId": "getKnowledgeBase",
         "summary": "Get Knowledge Base",
-        "description": "Retrieve a knowledge base by identifier. Inaccessible knowledge bases are reported as not found. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Retrieve a knowledge base by identifier. Inaccessible knowledge bases are reported as not found. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -318,7 +318,7 @@
       "patch": {
         "operationId": "updateKnowledgeBase",
         "summary": "Update Knowledge Base",
-        "description": "Update a knowledge base name, description, chunking configuration, or folder placement. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Update a knowledge base name, description, chunking configuration, or folder placement. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -474,7 +474,7 @@
       "post": {
         "operationId": "searchKnowledge",
         "summary": "Search Knowledge",
-        "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. The request body is capped at 2 MiB; a larger body is a 413.",
+        "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. A request body over 2 MiB is a `413`.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -543,7 +543,7 @@
       "get": {
         "operationId": "listKnowledgeTags",
         "summary": "List Tags",
-        "description": "List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Filters and document reads use display names; document writes address slots, each in its declared type. The vocabulary is bounded by the fixed slot table. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Filters and document reads use display names; document writes address slots. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -619,7 +619,7 @@
       "get": {
         "operationId": "listKnowledgeDocuments",
         "summary": "List Documents",
-        "description": "List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Each document carries its tag values keyed by tag display name; resolve those names to write slots with `GET /api/v2/knowledge/{id}/tags`.",
+        "description": "List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Tag values are keyed by display name; resolve those to write slots with `GET /api/v2/knowledge/{id}/tags`.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -685,10 +685,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Document field used to sort results.",
+            "description": "Field used to sort the result. Sorting by `filename` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "uploadedAt",
-              "description": "Document field used to sort results.",
+              "description": "Field used to sort the result. Sorting by `filename` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": [
                 "filename",
@@ -786,7 +786,7 @@
       "patch": {
         "operationId": "bulkUpdateKnowledgeDocuments",
         "summary": "Bulk Enable or Disable Documents",
-        "description": "Enable or disable many documents in one request, either by identifier or, with `selectAll`, every document in the knowledge base. Bulk delete is deliberately not offered: the bulk path records no audit entries, so deletions go through `DELETE /api/v2/knowledge/{id}/documents/{documentId}`, which audits each one. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Enable or disable many documents in one request, either by identifier or, with `selectAll`, every document in the knowledge base. Bulk delete is not offered; delete documents one at a time with `DELETE /api/v2/knowledge/{id}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1449,7 +1449,7 @@
       "patch": {
         "operationId": "updateKnowledgeDocument",
         "summary": "Update Document",
-        "description": "Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state — `chunkCount`, `tokenCount`, `characterCount`, `processingStatus`, `processingError` — is written by the processing pipeline and cannot be asserted here. Resolve a tag display name to its slot with `GET /api/v2/knowledge/{id}/tags`. The returned document omits the connector provenance the detail read carries. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state is read-only. Resolve a tag display name to its slot with `GET /api/v2/knowledge/{id}/tags`. The returned document omits the connector provenance the detail read carries. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1537,7 +1537,7 @@
       "delete": {
         "operationId": "deleteKnowledgeDocument",
         "summary": "Delete Document",
-        "description": "Remove one document from a knowledge base. What that means depends on the document. A directly uploaded document is deleted outright along with its indexed chunks. A connector-backed document is instead excluded: its row survives, marked excluded and disabled so it stops being searchable and a later connector sync does not re-add it, and its embeddings are not deleted. Either way the document no longer appears in listings or search results.",
+        "description": "Remove one document from a knowledge base. An uploaded document is deleted outright with its indexed chunks. A connector-backed document is instead excluded — its row and embeddings survive, but it stops being searchable and a later sync does not re-add it. Either way it no longer appears in listings or search results.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1624,7 +1624,7 @@
       "get": {
         "operationId": "listKnowledgeFolders",
         "summary": "List Folders",
-        "description": "List folders in the knowledge-base folder tree with filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "List folders in the knowledge-base folder tree with filtering and sorting. The bounded set is returned in one page; `nextCursor` is always null. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1736,7 +1736,7 @@
       "post": {
         "operationId": "createKnowledgeFolder",
         "summary": "Create Folder",
-        "description": "Create a folder in the knowledge-base folder tree. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Create a folder in the knowledge-base folder tree. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -1803,7 +1803,7 @@
       "patch": {
         "operationId": "relocateKnowledgeFolder",
         "summary": "Rename or Move Folder",
-        "description": "Rename or move a folder and atomically rewrite descendant paths. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Rename or move a folder and atomically rewrite descendant paths. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -2014,13 +2014,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.",
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset."
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -2095,7 +2095,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -2110,7 +2110,7 @@
         }
       },
       "PayloadTooLarge": {
-        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -2155,7 +2155,7 @@
         }
       },
       "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced. The response is written to a connection that is already gone, so the caller that caused it never reads it; it is documented only on operations where an abort can leave work running. There, `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
+        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
         "content": {
           "application/json": {
             "schema": {
@@ -2175,7 +2175,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -2229,7 +2229,7 @@
       },
       "FolderPathInput": {
         "title": "Folder path input",
-        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
         "maxLength": 4096,
         "type": "string"
       },
@@ -2699,7 +2699,7 @@
           "rerankerStatus": {
             "type": "string",
             "enum": ["not_requested", "skipped", "unavailable", "applied"],
-            "description": "What the reranker did on this search. `applied` means it ordered the results, which carry `rerankerScore`. `unavailable` means reranking was requested and attempted but could not complete, so results are in vector order and carry no `rerankerScore` — the search still succeeded, and the request is worth retrying. `skipped` means there was nothing to rank: a tag-only search, or no matching chunks. `not_requested` means `rerankerEnabled` was absent or false.",
+            "description": "What the reranker did on this search. `applied` means it ordered the results, which carry `rerankerScore`. `unavailable` means it was attempted but could not complete, so results are in vector order with no `rerankerScore` — the search still succeeded, and is worth retrying. `skipped` means there was nothing to rank. `not_requested` means `rerankerEnabled` was absent or false.",
             "examples": ["applied"]
           }
         },
@@ -2818,7 +2818,7 @@
             "maximum": 100
           },
           "tagFilters": {
-            "description": "Structured tag filters. Supported across multiple knowledge bases, but each filtered tag must resolve to the same slot and field type in every knowledge base selected; a tag missing from one of them, or defined inconsistently across them, is rejected and those knowledge bases must be searched separately. A tag name defined in none of the selected knowledge bases is rejected, never ignored; list the available names with GET /api/v2/knowledge/{id}/tags.",
+            "description": "Structured tag filters. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{id}/tags`.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/V2KnowledgeSearchTagFilter"
@@ -2838,7 +2838,7 @@
             ]
           },
           "rerankerEnabled": {
-            "description": "Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, which has no query to rank against. Reranking is billed as an additional search unit. Whether it actually ran is reported by `rerankerStatus` on the response: reranking is best-effort, and a provider failure falls back to vector ordering rather than failing the search.",
+            "description": "Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, and billed as an additional search unit. Reranking is best-effort — a provider failure falls back to vector ordering, so check `rerankerStatus` on the response.",
             "type": "boolean"
           },
           "rerankerModel": {
@@ -4087,7 +4087,7 @@
       },
       "NonRootFolderPathInput": {
         "title": "Non-root folder path input",
-        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
         "maxLength": 4096,
         "type": "string"
       },

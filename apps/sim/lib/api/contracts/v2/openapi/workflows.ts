@@ -324,7 +324,7 @@ const routes = [
       operationId: 'getWorkflowDeployment',
       summary: 'Get Workflow Deployment',
       description:
-        'Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only place `needsRedeployment` is published — the deploy, undeploy, and rollback responses cannot carry it, because they answer at the moment the draft and the live version are equal.',
+        'Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only operation that publishes `needsRedeployment`.',
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The current deployment state.'),
     }),
@@ -372,7 +372,7 @@ const routes = [
     workflowOperation({
       operationId: 'deployWorkflow',
       summary: 'Deploy Workflow',
-      description: `Create and asynchronously activate a deployment version. This request is not idempotent: every call mints a new deployment version, so retrying after a timeout creates a second version rather than returning the first. A deployment that would conflict with an existing webhook path is a 409. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create and asynchronously activate a deployment version. Not idempotent: every call mints a new version, so a retry after a timeout creates a second one. A deployment that would conflict with an existing webhook path is a \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted deployment attempt.'),
     }),
@@ -563,7 +563,7 @@ const routes = [
     workflowOperation({
       operationId: 'executeWorkflowV2',
       summary: 'Execute Workflow',
-      description: `Execute a deployed workflow synchronously, asynchronously, or as Server-Sent Events. Public workflows permit anonymous synchronous and streaming execution; asynchronous execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with \`status: "failed"\` and \`error.code: "TIMEOUT"\` rather than an HTTP error, so branch on \`status\`. The optional \`X-Run-Id\` header is a one-shot uniqueness claim, not an idempotency key: reusing a value returns 409 with \`error.details.code: "RUN_ID_CONFLICT"\` and never replays the earlier run. ${EXECUTE_OPTION_CONSTRAINTS}`,
+      description: `Execute a deployed workflow synchronously, asynchronously, or as Server-Sent Events. Public workflows permit anonymous synchronous and streaming execution; asynchronous execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with \`status: "failed"\` and \`error.code: "TIMEOUT"\` rather than an HTTP error, so branch on \`status\`. ${EXECUTE_OPTION_CONSTRAINTS}`,
       errors: [
         'BadRequest',
         'Unauthorized',
@@ -606,7 +606,7 @@ const routes = [
     workflowRunOperation({
       operationId: 'listWorkflowRunsV2',
       summary: 'List Workflow Runs',
-      description: `List recorded runs of a workflow with filtering and opaque cursor pagination. Ordering deviates from the v2 \`sortBy\` + \`sortOrder\` convention: runs are sortable only by start time, so direction is carried by the single \`order\` param. ${RUN_RETENTION}`,
+      description: `List recorded runs of a workflow with filtering and opaque cursor pagination. ${RUN_RETENTION}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('A page of workflow runs.'),
     }),
@@ -711,7 +711,7 @@ const routes = [
       operationId: 'cancelRunV2',
       summary: 'Cancel Workflow Run',
       description:
-        'Request cancellation of a running, queued, or paused workflow run. Cancelling a run that has already reached a terminal state succeeds with no effect rather than returning an error. A run produced by a table workflow group is a 409 when its cell can no longer accept the cancellation, because the run and its cell must reach the cancelled state together.',
+        'Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state succeeds with no effect. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: jsonSuccess('The cancellation outcome.'),
     }),

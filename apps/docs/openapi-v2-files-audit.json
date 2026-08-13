@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim API v2 — Files & Audit Logs",
-    "description": "Version 2 of the Sim REST API for workspace files and organization audit logs. Lists use opaque cursors, and rate-limit state is returned in response headers. Download File streams raw bytes as `application/octet-stream`; every other response uses the canonical v2 data, cursor-list, or error envelope.",
+    "description": "Version 2 of the Sim REST API for workspace files, resumable uploads, public shares, and organization audit logs.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -40,7 +40,7 @@
       "get": {
         "operationId": "listFiles",
         "summary": "List Files",
-        "description": "List workspace files with search, sorting, folder filtering, and opaque cursor pagination. Defaults to active files; pass `scope=archived` to page over soft-deleted files, whose `deletedAt` is non-null and which `POST /files/{fileId}/restore` can bring back. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "List workspace files with search, sorting, folder filtering, and opaque cursor pagination. Defaults to active files; pass `scope=archived` to page over soft-deleted ones. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -68,10 +68,10 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns an empty page when the containing folder was archived too.",
+            "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
             "schema": {
               "default": "active",
-              "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns an empty page when the containing folder was archived too.",
+              "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
               "type": "string",
               "enum": ["active", "archived"]
             }
@@ -697,7 +697,7 @@
       "delete": {
         "operationId": "deleteFile",
         "summary": "Delete File",
-        "description": "Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in the default listing and is no longer readable through the API, and its stored bytes are never removed. Archiving an already-archived file is a `404`, not a no-op. List archived files with `GET /files?scope=archived` and reverse the delete with `POST /files/{fileId}/restore`.",
+        "description": "Archive a workspace file. This is a soft delete: the file stops appearing in the default listing and is no longer readable through the API, but its stored bytes are never removed. Archiving an already-archived file is a `404`, not a no-op. List archived files with `GET /files?scope=archived`, and reverse the delete with `POST /files/{fileId}/restore`.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -857,7 +857,7 @@
       "post": {
         "operationId": "restoreFile",
         "summary": "Restore File",
-        "description": "Reverse a soft delete and return the file to the workspace. Restore is not a pure undo — the file comes back at the workspace root, and gains a `_restored` suffix when another file there already holds its name — so read `folderPath` and `name` off the response. Restoring an already-active file is a no-op that returns it, so a retry is safe. An archived workspace is a 400, and a name the restore could not free is a 409.",
+        "description": "Reverse a soft delete and return the file to the workspace. Not a pure undo: the file comes back at the workspace root, and gains a `_restored` suffix when another file there already holds its name, so read `folderPath` and `name` off the response. Restoring an already-active file returns it unchanged, so a retry is safe. An archived workspace is a `400`, and a name the restore could not free is a `409`.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1019,7 +1019,7 @@
       "get": {
         "operationId": "listAuditLogs",
         "summary": "List Audit Logs",
-        "description": "List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Audit Logs"],
         "parameters": [
           {
@@ -1192,7 +1192,7 @@
       "get": {
         "operationId": "getAuditLog",
         "summary": "Get Audit Log",
-        "description": "Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Audit Logs"],
         "parameters": [
           {
@@ -1413,7 +1413,7 @@
       "patch": {
         "operationId": "upsertFileShare",
         "summary": "Enable or Disable File Share",
-        "description": "Create or partially update a server-tokenized public share. Only `isActive` is required; each other field states what enabling a mode does to it. A file that has never been shared has nothing stored to fall back on, so enabling any mode other than `public` must carry its credential in the same request. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Create or partially update a server-tokenized public share. Only `isActive` is required; each other field states what enabling a mode does to it. Enabling any mode other than `public` on a file that has never been shared must carry its credential in the same request. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1644,7 +1644,7 @@
       "get": {
         "operationId": "listFilesFolders",
         "summary": "List Folders",
-        "description": "List workspace file folders with optional parent-path filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List workspace file folders with optional parent-path filtering and sorting. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -2053,13 +2053,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.",
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset."
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -2134,7 +2134,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -2149,7 +2149,7 @@
         }
       },
       "PayloadTooLarge": {
-        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -2194,7 +2194,7 @@
         }
       },
       "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced. The response is written to a connection that is already gone, so the caller that caused it never reads it; it is documented only on operations where an abort can leave work running. There, `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
+        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
         "content": {
           "application/json": {
             "schema": {
@@ -2214,7 +2214,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -2268,7 +2268,7 @@
       },
       "FolderPathInput": {
         "title": "Folder path input",
-        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
         "maxLength": 4096,
         "type": "string"
       },
@@ -2288,12 +2288,12 @@
           "size": {
             "type": "number",
             "minimum": 0,
-            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source rather than the rendered document, so this does not predict how many bytes `GET /files/{fileId}` returns — that endpoint serves the compiled artifact, which is typically much larger.",
+            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes `GET /files/{fileId}` returns.",
             "examples": [1024]
           },
           "type": {
             "type": "string",
-            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source, so this describes the source and not what `GET /files/{fileId}` serves — that endpoint returns the compiled artifact under the rendered document type.",
+            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type `GET /files/{fileId}` serves.",
             "examples": ["text/csv"]
           },
           "key": {
@@ -2457,7 +2457,7 @@
           },
           "content": {
             "default": "",
-            "description": "Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413. Use an upload session for anything larger.",
+            "description": "Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger.",
             "type": "string",
             "maxLength": 70000000
           },
@@ -2970,12 +2970,12 @@
           "size": {
             "type": "number",
             "minimum": 0,
-            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source rather than the rendered document, so this does not predict how many bytes `GET /files/{fileId}` returns — that endpoint serves the compiled artifact, which is typically much larger.",
+            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes `GET /files/{fileId}` returns.",
             "examples": [1024]
           },
           "type": {
             "type": "string",
-            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source, so this describes the source and not what `GET /files/{fileId}` serves — that endpoint returns the compiled artifact under the rendered document type.",
+            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type `GET /files/{fileId}` serves.",
             "examples": ["text/csv"]
           },
           "key": {
@@ -3501,7 +3501,7 @@
           "content": {
             "type": "string",
             "maxLength": 70000000,
-            "description": "Complete replacement content for the file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413."
+            "description": "Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`."
           },
           "encoding": {
             "default": "utf-8",
@@ -3673,7 +3673,7 @@
       },
       "NonRootFolderPathInput": {
         "title": "Non-root folder path input",
-        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. Unicode is supported encoded. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
         "maxLength": 4096,
         "type": "string"
       },
