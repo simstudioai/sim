@@ -164,7 +164,7 @@ describe('collab streaming integration — moving pieces', () => {
     reopened.destroy()
   })
 
-  it('EMPTY-COLLAPSE ON THE STREAM PATH: an agent body with a huge blank run does not strand empties', () => {
+  it('EMPTY-BOUND ON THE STREAM PATH: an agent body with a huge blank run does not strand empties', () => {
     const A = makeCollabEditor()
     A.editor.commands.setContent(parseMarkdownToDoc('# Title\n\nintro'), { contentType: 'json' })
     const session = beginAgentStream(A.editor)!
@@ -173,9 +173,11 @@ describe('collab streaming integration — moving pieces', () => {
     endAgentStream(session)
 
     console.log(
-      `\n[STREAM-COLLAPSE] text=${JSON.stringify(A.editor.state.doc.textContent)} empty=${emptyParas(A.editor)}`
+      `\n[STREAM-BOUND] text=${JSON.stringify(A.editor.state.doc.textContent)} empty=${emptyParas(A.editor)}`
     )
-    expect(emptyParas(A.editor)).toBe(0) // collapse protects the live streaming path, not just static open
+    // ~200 blank paragraphs' worth of run arrives; the parse bound caps what reaches the live doc, so the
+    // streaming path is protected exactly like a static open — no unbounded node explosion in the CRDT.
+    expect(emptyParas(A.editor)).toBe(20)
     expect(A.editor.state.doc.textContent).toContain('tail paragraph')
   })
 
@@ -196,5 +198,46 @@ describe('collab streaming integration — moving pieces', () => {
     expect(fragStr(A.doc)).toBe(fragStr(D.doc))
     expect(D.editor.state.doc.textContent).toContain('streamed body')
     expect(emptyParas(D.editor)).toBe(0)
+  })
+
+  /**
+   * Every writer to the shared document has to produce the editor's normal form, or the one that does
+   * not silently removes what the others add. A frame whose body ends on a list, heading, table, or rule
+   * parses WITHOUT the trailing paragraph the seed puts there — reconciling toward that bare parse
+   * deleted it from the live room, and the next client to bind wrote it back, reopening the
+   * placeholder-vs-live divergence the seed normalization exists to close.
+   */
+  it.each([
+    ['ends on a list', ['# T\n\nintro\n\n- a', '# T\n\nintro\n\n- a\n- b']],
+    ['ends on a heading', ['# T\n\nintro\n\n## Sec', '# T\n\nintro\n\n## Section']],
+    ['ends on a table', ['# T\n\n| a |\n| --- |\n| 1 |']],
+  ])('AGENT STREAM KEEPS THE EDITOR NORMAL FORM: %s', (_label, frames) => {
+    const doc = markdownToYDoc('# T\n\nintro\n\n- seed')
+    const awareness = new Awareness(doc)
+    const editor = new Editor({
+      extensions: createMarkdownEditorExtensions({
+        placeholder: '',
+        collaboration: {
+          doc,
+          awareness,
+          user: { name: 'U', color: '#fff', clientId: doc.clientID },
+        },
+      }),
+    })
+    const trailingIsEmptyParagraph = () => {
+      const fragment = doc.getXmlFragment('default')
+      const last = fragment.get(fragment.length - 1)
+      return last instanceof Y.XmlElement && last.nodeName === 'paragraph' && last.length === 0
+    }
+    expect(trailingIsEmptyParagraph()).toBe(true)
+
+    const session = beginAgentStream(editor)!
+    for (const frame of frames) applyAgentStreamFrame(editor, session, frame)
+    endAgentStream(session)
+
+    expect(trailingIsEmptyParagraph()).toBe(true)
+    editor.destroy()
+    awareness.destroy()
+    doc.destroy()
   })
 })
