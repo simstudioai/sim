@@ -2676,3 +2676,155 @@ export function getViewportInfo(): unknown {
     height: window.innerHeight,
   }
 }
+
+/**
+ * Describes whatever sits at a viewport point, descending through open shadow
+ * roots and same-origin iframes. Coordinate-addressed actions have no
+ * snapshot ref to revalidate, so this probe is their safety check: the driver
+ * refuses file inputs outright and reports what the point resolves to so the
+ * model can confirm it hit what the screenshot showed.
+ */
+export function describePointTarget(x: number, y: number): unknown {
+  if (
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    x < 0 ||
+    y < 0 ||
+    x >= window.innerWidth ||
+    y >= window.innerHeight
+  ) {
+    return { error: 'outside-viewport' }
+  }
+
+  let doc: Document = document
+  let localX = x
+  let localY = y
+  let element: Element | null = null
+  for (let depth = 0; depth < 10; depth++) {
+    if (typeof doc.elementFromPoint !== 'function') break
+    let found: Element | null = doc.elementFromPoint(localX, localY)
+    // Open shadow roots re-hit-test at the same point until a leaf host.
+    for (let shadowDepth = 0; shadowDepth < 10; shadowDepth++) {
+      const shadow = (found as HTMLElement | null)?.shadowRoot
+      const inner = shadow?.elementFromPoint(localX, localY)
+      if (!inner || inner === found) break
+      found = inner
+    }
+    element = found
+    const tag = String(found?.tagName || '').toUpperCase()
+    if ((tag !== 'IFRAME' && tag !== 'FRAME') || !found) break
+    try {
+      const innerDoc = (found as HTMLIFrameElement).contentDocument
+      if (!innerDoc) break
+      const rect = found.getBoundingClientRect()
+      localX -= rect.left + (found as HTMLIFrameElement).clientLeft
+      localY -= rect.top + (found as HTMLIFrameElement).clientTop
+      doc = innerDoc
+    } catch {
+      // Cross-origin frame — cannot inspect further; report the frame itself.
+      break
+    }
+  }
+  if (!element) return { found: false }
+
+  const tag = String(element.tagName || '').toUpperCase()
+  const inputType =
+    tag === 'INPUT' ? String((element as HTMLInputElement).type || 'text').toLowerCase() : ''
+  const secret =
+    tag === 'INPUT' &&
+    (inputType === 'password' ||
+      String(element.getAttribute('autocomplete') || '')
+        .toLowerCase()
+        .split(/\s+/)
+        .some((token) => token === 'current-password' || token === 'new-password'))
+  const editable = Boolean(
+    tag === 'TEXTAREA' ||
+      (tag === 'INPUT' &&
+        ['text', 'search', 'email', 'url', 'tel', 'number', 'password'].includes(inputType)) ||
+      (element as HTMLElement).isContentEditable
+  )
+
+  const name = (
+    element.getAttribute('aria-label') ||
+    element.getAttribute('title') ||
+    element.getAttribute('alt') ||
+    ((element as HTMLElement).innerText ?? element.textContent ?? '')
+  )
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80)
+  const role = element.getAttribute('role') || ''
+  const style = element.ownerDocument.defaultView?.getComputedStyle(element)
+
+  return {
+    found: true,
+    element: name
+      ? `${tag.toLowerCase()}${role ? `[${role}]` : ''} "${name}"`
+      : `${tag.toLowerCase()}${role ? `[${role}]` : ''}`,
+    tag: tag.toLowerCase(),
+    role,
+    editable,
+    secret,
+    fileInput: tag === 'INPUT' && inputType === 'file',
+    disabled:
+      (element as HTMLInputElement).disabled === true ||
+      element.getAttribute('aria-disabled') === 'true',
+    canvas: tag === 'CANVAS',
+    crossOriginFrame: tag === 'IFRAME' || tag === 'FRAME',
+    cursor: style?.cursor || '',
+  }
+}
+
+/**
+ * Reports whether the currently-focused element accepts text insertion, for
+ * browser_insert_text — which types at the caret instead of addressing a
+ * snapshot ref. Secrecy is separately (and authoritatively) probed by
+ * activeElementSecrecy before any insertion.
+ */
+export function describeFocusedEditable(): unknown {
+  let active = document.activeElement as HTMLElement | null
+  for (let depth = 0; active && depth < 10; depth++) {
+    const shadow = active.shadowRoot
+    if (shadow?.activeElement) {
+      active = shadow.activeElement as HTMLElement
+      continue
+    }
+    break
+  }
+  if (!active || active === document.body) return { editable: false, reason: 'none' }
+  const tag = String(active.tagName || '').toUpperCase()
+  const inputType =
+    tag === 'INPUT' ? String((active as HTMLInputElement).type || 'text').toLowerCase() : ''
+  if (tag === 'INPUT' || tag === 'TEXTAREA') {
+    const field = active as HTMLInputElement | HTMLTextAreaElement
+    if (field.disabled || active.getAttribute('aria-disabled') === 'true') {
+      return { editable: false, reason: 'disabled' }
+    }
+    if (field.readOnly || active.getAttribute('aria-readonly') === 'true') {
+      return { editable: false, reason: 'readonly' }
+    }
+    if (
+      tag === 'INPUT' &&
+      !['text', 'search', 'email', 'url', 'tel', 'number', 'password'].includes(inputType)
+    ) {
+      return { editable: false, reason: 'not-text' }
+    }
+    return { editable: true, kind: tag === 'TEXTAREA' ? 'textarea' : `input:${inputType}` }
+  }
+  if (active.isContentEditable) {
+    if (active.getAttribute('aria-disabled') === 'true') {
+      return { editable: false, reason: 'disabled' }
+    }
+    if (active.getAttribute('aria-readonly') === 'true') {
+      return { editable: false, reason: 'readonly' }
+    }
+    return { editable: true, kind: 'contenteditable' }
+  }
+  // A canvas-rendered editor (Google Docs) focuses a hidden proxy or the
+  // canvas region itself; trusted IME insertion still reaches it, so report
+  // it as insertable rather than refusing.
+  if (tag === 'CANVAS' || active.getAttribute('role') === 'textbox') {
+    return { editable: true, kind: tag === 'CANVAS' ? 'canvas' : 'textbox-role' }
+  }
+  return { editable: false, reason: 'not-editable' }
+}

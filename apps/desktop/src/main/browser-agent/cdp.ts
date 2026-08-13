@@ -10,6 +10,7 @@
  */
 import type { BrowserTheme } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import type { WebContents, WebFrameMain } from 'electron'
 
 const logger = createLogger('BrowserAgentCdp')
@@ -127,12 +128,29 @@ export async function setColorScheme(contents: WebContents, theme: BrowserTheme)
   })
 }
 
+/** Live drag-interception state while a dragPointer call is in flight. */
+interface DragInterception {
+  intercepted: boolean
+  data: Record<string, unknown> | null
+}
+const dragInterceptionsByContents = new WeakMap<WebContents, DragInterception>()
+
 function handleDebuggerEvent(
   contents: WebContents,
   method: string,
   params: Record<string, unknown>,
   parentSessionId?: string
 ): void {
+  if (method === 'Input.dragIntercepted') {
+    const interception = dragInterceptionsByContents.get(contents)
+    if (interception) {
+      interception.intercepted = true
+      const data = params.data
+      interception.data =
+        data && typeof data === 'object' ? (data as Record<string, unknown>) : null
+    }
+    return
+  }
   if (method === 'Target.attachedToTarget') {
     const sessionId = typeof params.sessionId === 'string' ? params.sessionId : ''
     const targetInfo = params.targetInfo
@@ -367,7 +385,9 @@ interface CdpViewport {
  * edge within {@link MAX_SCREENSHOT_EDGE}. Falls back to an unclipped capture
  * when layout metrics are unavailable.
  */
-export async function captureScreenshot(contents: WebContents): Promise<string> {
+export async function captureScreenshot(
+  contents: WebContents
+): Promise<{ dataUrl: string; scale: number }> {
   const metrics = await send<{
     cssLayoutViewport?: CdpViewport
     layoutViewport?: CdpViewport
@@ -376,6 +396,8 @@ export async function captureScreenshot(contents: WebContents): Promise<string> 
   const viewport = metrics?.cssLayoutViewport ?? metrics?.layoutViewport
   const width = viewport?.clientWidth ?? 0
   const height = viewport?.clientHeight ?? 0
+  const scale =
+    width > 0 && height > 0 ? Math.min(1, MAX_SCREENSHOT_EDGE / Math.max(width, height)) : 1
   const clip =
     width > 0 && height > 0
       ? {
@@ -383,7 +405,7 @@ export async function captureScreenshot(contents: WebContents): Promise<string> 
           y: 0,
           width,
           height,
-          scale: Math.min(1, MAX_SCREENSHOT_EDGE / Math.max(width, height)),
+          scale,
         }
       : undefined
 
@@ -392,7 +414,7 @@ export async function captureScreenshot(contents: WebContents): Promise<string> 
     quality: SCREENSHOT_QUALITY,
     ...(clip ? { clip } : {}),
   })
-  return `data:image/jpeg;base64,${result.data}`
+  return { dataUrl: `data:image/jpeg;base64,${result.data}`, scale }
 }
 
 /** One half of a trusted key press (`Input.dispatchKeyEvent` params). */
@@ -430,7 +452,8 @@ export async function clickAt(
   contents: WebContents,
   x: number,
   y: number,
-  moveBeforePress = true
+  moveBeforePress = true,
+  clickCount = 1
 ): Promise<void> {
   if (moveBeforePress) await moveMouse(contents, x, y)
   let pressed = false
@@ -439,22 +462,26 @@ export async function clickAt(
     // response (navigation/process swap). In that ambiguous case a release is
     // safer than leaving Blink's pointer state stuck down.
     pressed = true
-    await sendInput(contents, 'Input.dispatchMouseEvent', {
-      type: 'mousePressed',
-      x,
-      y,
-      button: 'left',
-      buttons: 1,
-      clickCount: 1,
-    })
-    await sendInput(contents, 'Input.dispatchMouseEvent', {
-      type: 'mouseReleased',
-      x,
-      y,
-      button: 'left',
-      buttons: 0,
-      clickCount: 1,
-    })
+    // A multi-click is a sequence of press/release pairs with an increasing
+    // clickCount — Blink synthesizes dblclick from the pair whose count is 2.
+    for (let count = 1; count <= clickCount; count++) {
+      await sendInput(contents, 'Input.dispatchMouseEvent', {
+        type: 'mousePressed',
+        x,
+        y,
+        button: 'left',
+        buttons: 1,
+        clickCount: count,
+      })
+      await sendInput(contents, 'Input.dispatchMouseEvent', {
+        type: 'mouseReleased',
+        x,
+        y,
+        button: 'left',
+        buttons: 0,
+        clickCount: count,
+      })
+    }
     pressed = false
   } finally {
     if (pressed && !contents.isDestroyed()) {
@@ -469,6 +496,131 @@ export async function clickAt(
         buttons: 0,
         clickCount: 1,
       }).catch(() => {})
+    }
+  }
+}
+
+/**
+ * Drags the pointer from one viewport point to another through the trusted
+ * pipeline: press, a threshold-crossing nudge, interpolated moves with the
+ * button held, a settle hold over the target, then release or drop.
+ *
+ * Two drag models are covered by the one call. Pointer-sensor libraries
+ * (dnd-kit, react-beautiful-dnd, canvas apps) treat the held-button move
+ * sequence exactly like a human drag. Native HTML5 `draggable="true"`
+ * sources instead START a Blink drag session on the press+move — with
+ * `Input.setInterceptDrags` enabled, Chromium reports it as
+ * `Input.dragIntercepted` and the remaining movement is delivered as trusted
+ * `Input.dispatchDragEvent` dragEnter/dragOver events ending in a `drop`
+ * (the technique Playwright uses). Both paths are trusted input.
+ */
+export async function dragPointer(
+  contents: WebContents,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  steps = 12,
+  stepDelayMs = 20
+): Promise<{ nativeDragIntercepted: boolean }> {
+  const interception: DragInterception = { intercepted: false, data: null }
+  dragInterceptionsByContents.set(contents, interception)
+  let interceptEnabled = false
+  try {
+    await send(contents, 'Input.setInterceptDrags', { enabled: true })
+    interceptEnabled = true
+  } catch {
+    // Chromium without drag interception: the pointer-only path still works
+    // for pointer-sensor drags; native HTML5 sources will report no effect.
+  }
+  await moveMouse(contents, from.x, from.y)
+  let pressed = false
+  let dragEnterSent = false
+  const dragMove = async (x: number, y: number) => {
+    if (interception.intercepted && interception.data) {
+      await sendInput(contents, 'Input.dispatchDragEvent', {
+        type: dragEnterSent ? 'dragOver' : 'dragEnter',
+        x,
+        y,
+        data: interception.data,
+      })
+      dragEnterSent = true
+    } else {
+      await sendInput(contents, 'Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x,
+        y,
+        button: 'left',
+        buttons: 1,
+      })
+    }
+  }
+  try {
+    pressed = true
+    await sendInput(contents, 'Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: from.x,
+      y: from.y,
+      button: 'left',
+      buttons: 1,
+      clickCount: 1,
+    })
+    // Small first nudge so libraries with a start threshold (commonly 3-8px)
+    // register the drag before the pointer sweeps across the page.
+    await dragMove(from.x + Math.sign(to.x - from.x || 1) * 4, from.y + 2)
+    await sleep(stepDelayMs)
+    const stepCount = Math.max(2, steps)
+    for (let step = 1; step <= stepCount; step++) {
+      const progress = step / stepCount
+      await dragMove(from.x + (to.x - from.x) * progress, from.y + (to.y - from.y) * progress)
+      await sleep(stepDelayMs)
+    }
+    // Hold over the target so drop zones running enter/over animations settle
+    // before the release lands.
+    await sleep(120)
+    if (interception.intercepted && interception.data) {
+      await sendInput(contents, 'Input.dispatchDragEvent', {
+        type: 'drop',
+        x: to.x,
+        y: to.y,
+        data: interception.data,
+      })
+      // Blink ended the intercepted drag session itself; a trailing
+      // mouseReleased would be a stray click on the drop target.
+      pressed = false
+    } else {
+      await sendInput(contents, 'Input.dispatchMouseEvent', {
+        type: 'mouseReleased',
+        x: to.x,
+        y: to.y,
+        button: 'left',
+        buttons: 0,
+        clickCount: 1,
+      })
+      pressed = false
+    }
+    return { nativeDragIntercepted: interception.intercepted }
+  } finally {
+    if (pressed && !contents.isDestroyed()) {
+      if (interception.intercepted && interception.data) {
+        await sendInput(contents, 'Input.dispatchDragEvent', {
+          type: 'dragCancel',
+          x: to.x,
+          y: to.y,
+          data: interception.data,
+        }).catch(() => {})
+      } else {
+        await sendInput(contents, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased',
+          x: to.x,
+          y: to.y,
+          button: 'left',
+          buttons: 0,
+          clickCount: 1,
+        }).catch(() => {})
+      }
+    }
+    dragInterceptionsByContents.delete(contents)
+    if (interceptEnabled && !contents.isDestroyed()) {
+      await send(contents, 'Input.setInterceptDrags', { enabled: false }).catch(() => {})
     }
   }
 }

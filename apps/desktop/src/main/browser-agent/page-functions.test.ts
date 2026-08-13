@@ -5,6 +5,8 @@ import {
   activeElementSecrecy,
   clickElement,
   collectSnapshot,
+  describeFocusedEditable,
+  describePointTarget,
   focusElementForTyping,
   getViewportInfo,
   hoverElement,
@@ -155,6 +157,8 @@ describe('serialization contract', () => {
     ['readPageText', readPageText, []],
     ['pageContainsText', pageContainsText, ['needle']],
     ['getViewportInfo', getViewportInfo, []],
+    ['describePointTarget', describePointTarget, [10, 10]],
+    ['describeFocusedEditable', describeFocusedEditable, []],
   ]
 
   it.each(cases)('%s is self-contained', (_name, fn, args) => {
@@ -1371,5 +1375,82 @@ describe('pressKeyOnPage', () => {
       pressed: 'a',
     })
     expect(seen).toEqual(['a'])
+  })
+})
+
+describe('describePointTarget', () => {
+  function pointAt(el: Element | null): void {
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => el,
+    })
+  }
+
+  it('describes the element at a viewport point', () => {
+    document.body.innerHTML = '<button aria-label="Send message">Send</button>'
+    pointAt(document.querySelector('button'))
+
+    expect(describePointTarget(10, 10)).toMatchObject({
+      found: true,
+      tag: 'button',
+      element: 'button "Send message"',
+      editable: false,
+      fileInput: false,
+      secret: false,
+    })
+  })
+
+  it('flags file inputs and password fields at the point', () => {
+    document.body.innerHTML = '<input type="file" />'
+    pointAt(document.querySelector('input'))
+    expect(describePointTarget(10, 10)).toMatchObject({ found: true, fileInput: true })
+
+    document.body.innerHTML = '<input type="password" />'
+    pointAt(document.querySelector('input'))
+    expect(describePointTarget(10, 10)).toMatchObject({
+      found: true,
+      secret: true,
+      editable: true,
+    })
+  })
+
+  it('rejects points outside the viewport', () => {
+    expect(describePointTarget(-5, 10)).toEqual({ error: 'outside-viewport' })
+    expect(describePointTarget(10, window.innerHeight + 5)).toEqual({
+      error: 'outside-viewport',
+    })
+  })
+})
+
+describe('describeFocusedEditable', () => {
+  it('reports no focus when the body holds focus', () => {
+    setActiveElement(document, document.body)
+    expect(describeFocusedEditable()).toEqual({ editable: false, reason: 'none' })
+  })
+
+  it('reports a writable input as insertable', () => {
+    document.body.innerHTML = '<input type="text" />'
+    setActiveElement(document, document.querySelector('input'))
+    expect(describeFocusedEditable()).toEqual({ editable: true, kind: 'input:text' })
+  })
+
+  it('reports a read-only input as not insertable', () => {
+    document.body.innerHTML = '<input type="text" readonly />'
+    setActiveElement(document, document.querySelector('input'))
+    expect(describeFocusedEditable()).toEqual({ editable: false, reason: 'readonly' })
+  })
+
+  it('reports a focused contenteditable editor as insertable', () => {
+    document.body.innerHTML = '<div></div>'
+    const editor = document.querySelector('div') as HTMLElement
+    Object.defineProperty(editor, 'isContentEditable', { get: () => true })
+    setActiveElement(document, editor)
+    expect(describeFocusedEditable()).toEqual({ editable: true, kind: 'contenteditable' })
+  })
+
+  it('treats a focused canvas editor surface as insertable', () => {
+    document.body.innerHTML = '<canvas></canvas>'
+    setActiveElement(document, document.querySelector('canvas'))
+    expect(describeFocusedEditable()).toEqual({ editable: true, kind: 'canvas' })
   })
 })

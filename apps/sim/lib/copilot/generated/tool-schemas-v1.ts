@@ -214,6 +214,160 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['dispatched'],
     },
   },
+  browser_click_at: {
+    parameters: {
+      type: 'object',
+      properties: {
+        clickCount: {
+          type: 'number',
+          description: '1 = single click (default), 2 = double-click, 3 = triple-click.',
+        },
+        x: {
+          type: 'number',
+          description:
+            "X in CSS pixels within the current viewport. When read off a browser_screenshot, divide the image pixel value by the screenshot's scale.",
+        },
+        y: {
+          type: 'number',
+          description:
+            'Y in CSS pixels within the current viewport, converted from screenshot pixels the same way as x.',
+        },
+      },
+      required: ['x', 'y'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        activeTab: {
+          type: 'object',
+          description: 'New active tab after a tab-changing click.',
+          properties: {
+            tabId: {
+              type: 'string',
+              description: 'Stable browser tab id.',
+            },
+            url: {
+              type: 'string',
+              description: 'New active tab URL.',
+            },
+          },
+        },
+        clickCount: {
+          type: 'number',
+          description: 'The click count that was dispatched (1, 2, or 3).',
+        },
+        clickedAt: {
+          type: 'object',
+          description: 'The CSS-pixel viewport point that was clicked.',
+          properties: {
+            x: {
+              type: 'number',
+              description: 'Clicked X in CSS viewport pixels.',
+            },
+            y: {
+              type: 'number',
+              description: 'Clicked Y in CSS viewport pixels.',
+            },
+          },
+        },
+        dialogs: {
+          type: 'array',
+          description: 'Visible DOM dialogs remaining after the click.',
+          items: {
+            type: 'string',
+          },
+        },
+        dispatched: {
+          type: 'boolean',
+          description: 'Whether the native pointer click was dispatched at the point.',
+        },
+        effect: {
+          type: 'object',
+          description:
+            'Detailed postcondition signals; generic title/DOM/scroll churn is weak evidence unless the tool documents otherwise.',
+          properties: {
+            dialogChanged: {
+              type: 'boolean',
+              description: 'The visible DOM dialog set changed.',
+            },
+            domChanged: {
+              type: 'boolean',
+              description: 'The DOM mutation revision changed; weak evidence on its own.',
+            },
+            fieldChanged: {
+              type: 'boolean',
+              description: 'The safely inspectable focused-field state changed.',
+            },
+            focusChanged: {
+              type: 'boolean',
+              description: 'The focused element changed.',
+            },
+            popupChanged: {
+              type: 'boolean',
+              description: 'The visible popup/menu set changed.',
+            },
+            scrollChanged: {
+              type: 'boolean',
+              description: 'A tracked scroll offset changed; weak evidence except for scroll keys.',
+            },
+            tabChanged: {
+              type: 'boolean',
+              description: 'The active browser tab changed.',
+            },
+            targetChanged: {
+              type: 'boolean',
+              description: "The requested target's checked/selected/expanded/open state changed.",
+            },
+            titleChanged: {
+              type: 'boolean',
+              description: 'The document title changed; weak evidence on its own.',
+            },
+            urlChanged: {
+              type: 'boolean',
+              description: 'The observed URL changed.',
+            },
+          },
+        },
+        effectObserved: {
+          type: 'boolean',
+          description:
+            'Whether a strong page change (URL/dialog/popup/target, or focus into an editable) followed the click.',
+        },
+        note: {
+          type: 'string',
+          description: 'Caution or follow-up guidance, present when the click needs verification.',
+        },
+        notices: {
+          type: 'array',
+          description:
+            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          items: {
+            type: 'string',
+          },
+        },
+        possibleEffectObserved: {
+          type: 'boolean',
+          description: 'Whether only weaker background churn (DOM/title) was observed.',
+        },
+        target: {
+          type: 'string',
+          description:
+            'What the point resolved to before the click (tag/role and accessible name) — confirm it matches the intended target.',
+        },
+        targetCursor: {
+          type: 'string',
+          description:
+            "The CSS cursor at the point (e.g. 'pointer', 'text', 'crosshair') — a hint about what kind of surface was hit.",
+        },
+        trusted: {
+          type: 'boolean',
+          description:
+            'True — coordinate and drag input always use the trusted Chromium pointer pipeline.',
+        },
+      },
+      required: ['dispatched'],
+    },
+  },
   browser_close_tab: {
     parameters: {
       type: 'object',
@@ -226,6 +380,171 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['tabId'],
     },
     resultSchema: undefined,
+  },
+  browser_drag: {
+    parameters: {
+      type: 'object',
+      properties: {
+        fromElementId: {
+          type: 'number',
+          description:
+            'Drag source element id from the latest snapshot. Alternative to fromX/fromY.',
+        },
+        fromX: {
+          type: 'number',
+          description:
+            'Drag source X in CSS viewport pixels (paired with fromY) when no source element id is available.',
+        },
+        fromY: {
+          type: 'number',
+          description: 'Drag source Y in CSS viewport pixels.',
+        },
+        toElementId: {
+          type: 'number',
+          description: 'Drop target element id from the latest snapshot. Alternative to toX/toY.',
+        },
+        toX: {
+          type: 'number',
+          description: 'Drop target X in CSS viewport pixels (paired with toY).',
+        },
+        toY: {
+          type: 'number',
+          description: 'Drop target Y in CSS viewport pixels.',
+        },
+      },
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        dialogs: {
+          type: 'array',
+          description: 'Visible DOM dialogs remaining after the click.',
+          items: {
+            type: 'string',
+          },
+        },
+        dispatched: {
+          type: 'boolean',
+          description: 'Whether the full drag gesture was dispatched.',
+        },
+        effect: {
+          type: 'object',
+          description:
+            'Detailed postcondition signals; generic title/DOM/scroll churn is weak evidence unless the tool documents otherwise.',
+          properties: {
+            dialogChanged: {
+              type: 'boolean',
+              description: 'The visible DOM dialog set changed.',
+            },
+            domChanged: {
+              type: 'boolean',
+              description: 'The DOM mutation revision changed; weak evidence on its own.',
+            },
+            fieldChanged: {
+              type: 'boolean',
+              description: 'The safely inspectable focused-field state changed.',
+            },
+            focusChanged: {
+              type: 'boolean',
+              description: 'The focused element changed.',
+            },
+            popupChanged: {
+              type: 'boolean',
+              description: 'The visible popup/menu set changed.',
+            },
+            scrollChanged: {
+              type: 'boolean',
+              description: 'A tracked scroll offset changed; weak evidence except for scroll keys.',
+            },
+            tabChanged: {
+              type: 'boolean',
+              description: 'The active browser tab changed.',
+            },
+            targetChanged: {
+              type: 'boolean',
+              description: "The requested target's checked/selected/expanded/open state changed.",
+            },
+            titleChanged: {
+              type: 'boolean',
+              description: 'The document title changed; weak evidence on its own.',
+            },
+            urlChanged: {
+              type: 'boolean',
+              description: 'The observed URL changed.',
+            },
+          },
+        },
+        effectObserved: {
+          type: 'boolean',
+          description:
+            'Whether an observable page change (DOM/URL/dialog/target/scroll) followed the drag.',
+        },
+        from: {
+          type: 'object',
+          description: 'The resolved drag source.',
+          properties: {
+            element: {
+              type: 'string',
+              description: 'What that endpoint resolved to, when known.',
+            },
+            x: {
+              type: 'number',
+              description: 'Endpoint X in CSS viewport pixels.',
+            },
+            y: {
+              type: 'number',
+              description: 'Endpoint Y in CSS viewport pixels.',
+            },
+          },
+        },
+        nativeHtml5Drag: {
+          type: 'boolean',
+          description:
+            'True when the page started a native HTML5 drag and it was completed as a real drag-and-drop; false for a pointer-sensor drag.',
+        },
+        note: {
+          type: 'string',
+          description:
+            'Caution or follow-up guidance — e.g. verify the drop with a fresh snapshot when no effect was observed.',
+        },
+        notices: {
+          type: 'array',
+          description:
+            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          items: {
+            type: 'string',
+          },
+        },
+        possibleEffectObserved: {
+          type: 'boolean',
+          description: 'Whether only weaker background churn (DOM/title) was observed.',
+        },
+        to: {
+          type: 'object',
+          description: 'The resolved drop target.',
+          properties: {
+            element: {
+              type: 'string',
+              description: 'What that endpoint resolved to, when known.',
+            },
+            x: {
+              type: 'number',
+              description: 'Endpoint X in CSS viewport pixels.',
+            },
+            y: {
+              type: 'number',
+              description: 'Endpoint Y in CSS viewport pixels.',
+            },
+          },
+        },
+        trusted: {
+          type: 'boolean',
+          description:
+            'True — coordinate and drag input always use the trusted Chromium pointer pipeline.',
+        },
+      },
+      required: ['dispatched'],
+    },
   },
   browser_extract: {
     parameters: {
@@ -408,6 +727,142 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['hovered'],
+    },
+  },
+  browser_insert_text: {
+    parameters: {
+      type: 'object',
+      properties: {
+        submit: {
+          type: 'boolean',
+          description: 'Press Enter after inserting. Default false.',
+        },
+        text: {
+          type: 'string',
+          description: 'The text to insert at the caret. Must be non-empty.',
+        },
+      },
+      required: ['text'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        activeElement: {
+          type: 'string',
+          description: 'Focused element kind after the action.',
+        },
+        dispatched: {
+          type: 'boolean',
+          description: 'Whether the text was inserted through the native IME pipeline.',
+        },
+        effect: {
+          type: 'object',
+          description:
+            'Detailed postcondition signals; generic title/DOM/scroll churn is weak evidence unless the tool documents otherwise.',
+          properties: {
+            dialogChanged: {
+              type: 'boolean',
+              description: 'The visible DOM dialog set changed.',
+            },
+            domChanged: {
+              type: 'boolean',
+              description: 'The DOM mutation revision changed; weak evidence on its own.',
+            },
+            fieldChanged: {
+              type: 'boolean',
+              description: 'The safely inspectable focused-field state changed.',
+            },
+            focusChanged: {
+              type: 'boolean',
+              description: 'The focused element changed.',
+            },
+            popupChanged: {
+              type: 'boolean',
+              description: 'The visible popup/menu set changed.',
+            },
+            scrollChanged: {
+              type: 'boolean',
+              description: 'A tracked scroll offset changed; weak evidence except for scroll keys.',
+            },
+            tabChanged: {
+              type: 'boolean',
+              description: 'The active browser tab changed.',
+            },
+            targetChanged: {
+              type: 'boolean',
+              description: "The requested target's checked/selected/expanded/open state changed.",
+            },
+            titleChanged: {
+              type: 'boolean',
+              description: 'The document title changed; weak evidence on its own.',
+            },
+            urlChanged: {
+              type: 'boolean',
+              description: 'The observed URL changed.',
+            },
+          },
+        },
+        effectObserved: {
+          type: 'boolean',
+          description:
+            'Whether a field or page change confirmed the insertion. Canvas editors cannot echo one — verify visually.',
+        },
+        insertedChars: {
+          type: 'number',
+          description: 'How many characters were inserted.',
+        },
+        kind: {
+          type: 'string',
+          description:
+            'The kind of focused editable that received the text (input:*, textarea, contenteditable, canvas, textbox-role).',
+        },
+        note: {
+          type: 'string',
+          description:
+            'Caution or follow-up guidance, e.g. that a canvas editor needs visual verification.',
+        },
+        notices: {
+          type: 'array',
+          description:
+            'Pending auto-handled JavaScript alert/confirm/prompt notices since the previous successful browser result.',
+          items: {
+            type: 'string',
+          },
+        },
+        possibleEffectObserved: {
+          type: 'boolean',
+          description: 'Whether only weaker background churn was observed.',
+        },
+        redacted: {
+          type: 'boolean',
+          description: 'Whether sensitive focused-field details were withheld.',
+        },
+        selectedChars: {
+          type: 'number',
+          description: 'Number of selected characters when safely inspectable.',
+        },
+        submitDispatched: {
+          type: 'boolean',
+          description: 'Whether Enter was actually dispatched.',
+        },
+        submitRequested: {
+          type: 'boolean',
+          description: 'Whether Enter was requested after insertion.',
+        },
+        trusted: {
+          type: 'boolean',
+          description: 'True — insertion uses the trusted input pipeline.',
+        },
+        valueLength: {
+          type: 'number',
+          description: 'Focused non-secret field length when safely inspectable.',
+        },
+        valuePreview: {
+          type: 'string',
+          description: 'Bounded focused non-secret field preview when safely inspectable.',
+        },
+      },
+      required: ['dispatched'],
     },
   },
   browser_list_sessions: {

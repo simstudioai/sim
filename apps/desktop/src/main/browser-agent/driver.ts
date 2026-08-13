@@ -46,6 +46,8 @@ import {
   activeElementSecrecy,
   clickElement,
   collectSnapshot,
+  describeFocusedEditable,
+  describePointTarget,
   focusElementForTyping,
   getViewportInfo,
   hoverElement,
@@ -891,6 +893,11 @@ function unwrapPageResult(result: unknown): unknown {
     }
     if (code === 'not-editable') {
       throw new ToolError('That element is not a text input — pick an editable element.')
+    }
+    if (code === 'outside-viewport') {
+      throw new ToolError(
+        'That point is outside the visible viewport. Coordinates are CSS pixels within the current viewport — when reading them off a browser_screenshot, divide image pixels by its scale, and scroll the target into view first.'
+      )
     }
     if (code === 'ambiguous-editable') {
       throw new ToolError(
@@ -2002,19 +2009,21 @@ async function executeToolInner(
 
     case 'browser_screenshot': {
       const contents = session.requireAutomationTab().view.webContents
-      const dataUrl = await cdp.captureScreenshot(contents).catch(() => null)
-      if (dataUrl === null) {
+      const shot = await cdp.captureScreenshot(contents).catch(() => null)
+      if (shot === null) {
         throw new ToolError(
           'Could not capture the page. Use browser_snapshot or browser_read_text instead.'
         )
       }
-      if (dataUrl.length > 8_000_000) {
+      if (shot.dataUrl.length > 8_000_000) {
         throw new ToolError(
           'The screenshot result was too large to return safely. Use browser_snapshot or browser_read_text instead.'
         )
       }
       const viewport = await execInPage(contents, getViewportInfo, []).catch(() => null)
-      return { dataUrl, viewport }
+      // scale maps image pixels back to CSS viewport pixels for the
+      // coordinate tools: cssX = imageX / scale.
+      return { dataUrl: shot.dataUrl, viewport, scale: shot.scale }
     }
 
     case 'browser_extract': {
@@ -3101,6 +3110,287 @@ async function executeToolInner(
               note: possibleEffectObserved
                 ? 'Only background DOM/title churn followed the hover; a tooltip/menu was not confirmed.'
                 : 'No tooltip, menu, focus, or other strong hover effect was observed.',
+            }
+          : {}),
+      }
+    }
+
+    case 'browser_click_at': {
+      const clickedTab = session.requireAutomationTab()
+      const contents = clickedTab.view.webContents
+      const x = requireNum(params, 'x')
+      const y = requireNum(params, 'y')
+      const clickCount = num(params, 'clickCount') ?? 1
+      if (![1, 2, 3].includes(clickCount)) {
+        throw new ToolError('clickCount must be 1 (click), 2 (double-click), or 3 (triple-click).')
+      }
+      const clickNavigationEpoch = navigationEpoch(contents)
+      assertCurrentExecution()
+      assertActiveContents(contents)
+      const pointTarget = unwrapPageResult(
+        await execInPage(contents, describePointTarget, [x, y], false, executionDeadline)
+      )
+      if (!isRecordLike(pointTarget) || pointTarget.found !== true) {
+        throw new ToolError(
+          'Nothing is rendered at that point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, divide image pixels by its scale.'
+        )
+      }
+      if (pointTarget.fileInput === true) {
+        throw new ToolError(
+          'Refusing to click a file input because it opens a native chooser the browser agent cannot inspect or complete. Ask the user to upload the file themselves.'
+        )
+      }
+      const beforePage = await pageActionState(contents, true)
+      const beforeElement = await activeElementState(contents)
+      assertCurrentExecution()
+      assertActiveContents(contents, clickNavigationEpoch)
+      try {
+        await cdp.clickAt(contents, x, y, true, clickCount)
+      } catch (error) {
+        throw new ToolError(
+          `Native click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
+        )
+      }
+      await sleep(150)
+      const afterElement = await activeElementState(contents)
+      const afterPage = await pageActionState(contents)
+      const observation = pageEffect(beforePage, afterPage, beforeElement, afterElement)
+      const activeTab = session.automationTab()
+      const tabChanged = activeTab?.id !== clickedTab.id
+      const effectObserved =
+        observation.effect.urlChanged ||
+        observation.effect.dialogChanged ||
+        observation.effect.popupChanged ||
+        observation.effect.targetChanged ||
+        (pointTarget.editable === true && observation.effect.focusChanged) ||
+        tabChanged
+      const dialogs = Array.isArray(afterPage.dialogs) ? afterPage.dialogs.map(String) : []
+      const notes: string[] = []
+      if (pointTarget.secret === true) {
+        notes.push(
+          'The point resolves to a password field. Focusing it is fine, but typing there is refused — call browser_request_takeover for credentials.'
+        )
+      }
+      if (pointTarget.crossOriginFrame === true) {
+        notes.push(
+          'The point lands inside an embedded frame that could not be inspected; the click was dispatched but its target is unverified.'
+        )
+      }
+      if (!effectObserved) {
+        notes.push(
+          observation.possibleEffectObserved || tabChanged
+            ? 'Only background DOM/title churn followed the click; inspect the page before treating it as successful.'
+            : 'No strong observable page change followed the click; inspect the page before treating it as successful.'
+        )
+      }
+      return {
+        dispatched: true,
+        trusted: true,
+        activation: 'native-pointer',
+        clickedAt: { x, y },
+        clickCount,
+        target: pointTarget.element,
+        targetCursor: pointTarget.cursor,
+        effectObserved,
+        possibleEffectObserved: observation.possibleEffectObserved || tabChanged,
+        effect: { ...observation.effect, tabChanged },
+        dialogs,
+        ...(tabChanged && activeTab
+          ? { activeTab: { tabId: activeTab.id, url: activeTab.view.webContents.getURL() } }
+          : {}),
+        ...(notes.length > 0 ? { note: notes.join(' ') } : {}),
+      }
+    }
+
+    case 'browser_insert_text': {
+      const text = requireStr(params, 'text')
+      const submit = params.submit === true
+      const contents = session.requireAutomationTab().view.webContents
+      const insertNavigationEpoch = navigationEpoch(contents)
+      const target: PageExecutionTarget = focusedPageTarget(contents)
+      const secrecy = await execInPage(target, activeElementSecrecy, []).catch(() => 'opaque')
+      if (secrecy === 'secret') throw new ToolError(PASSWORD_REFUSAL)
+      if (secrecy === 'opaque') {
+        throw new ToolError(
+          'Focus is inside a cross-origin frame whose contents cannot be inspected, so this ' +
+            'insertion could reach a password field. Call browser_request_takeover if the user needs to type here.'
+        )
+      }
+      const focusState = unwrapPageResult(
+        await execInPage(target, describeFocusedEditable, [], false, executionDeadline)
+      )
+      if (!isRecordLike(focusState) || focusState.editable !== true) {
+        const reason = isRecordLike(focusState) ? String(focusState.reason || '') : ''
+        throw new ToolError(
+          reason === 'none'
+            ? 'No element is focused. Click the field first (browser_click or browser_click_at), then insert text.'
+            : `The focused element does not accept text${reason ? ` (${reason})` : ''}. Focus an editable field first.`
+        )
+      }
+      const beforePage = await pageActionState(target, true)
+      const beforeElement = await activeElementState(target)
+      assertCurrentExecution()
+      assertActiveContents(contents, insertNavigationEpoch)
+      assertFocusedTargetUnchanged(contents, target)
+      try {
+        await cdp.insertText(contents, text)
+      } catch (error) {
+        throw new ToolError(
+          `Native text insertion failed (${getErrorMessage(error)}). Take a fresh snapshot before retrying.`
+        )
+      }
+      let submitDispatched = false
+      if (submit) {
+        await sleep(25)
+        assertCurrentExecution()
+        assertActiveContents(contents, insertNavigationEpoch)
+        try {
+          await dispatchKeyCombo(contents, parseKeyCombo('Enter'))
+          submitDispatched = true
+        } catch {
+          // Reported below through submitDispatched: false.
+        }
+      }
+      await sleep(150)
+      const state = await activeElementState(target)
+      const afterPage = await pageActionState(target)
+      const observation = pageEffect(beforePage, afterPage, beforeElement, state)
+      const effectObserved =
+        observation.effect.fieldChanged ||
+        observation.effect.urlChanged ||
+        observation.effect.dialogChanged ||
+        observation.effect.targetChanged
+      return {
+        dispatched: true,
+        trusted: true,
+        kind: focusState.kind,
+        insertedChars: text.length,
+        ...state,
+        effectObserved,
+        possibleEffectObserved: observation.possibleEffectObserved,
+        effect: observation.effect,
+        submitRequested: submit,
+        submitDispatched,
+        ...(focusState.kind === 'canvas' || focusState.kind === 'textbox-role'
+          ? {
+              note: 'The focused editor is canvas/model-backed, so field readback cannot confirm the text — verify visually with browser_screenshot.',
+            }
+          : !effectObserved
+            ? {
+                note: 'Insertion produced no observable field or page change; inspect the page before continuing.',
+              }
+            : {}),
+      }
+    }
+
+    case 'browser_drag': {
+      const draggedTab = session.requireAutomationTab()
+      const contents = draggedTab.view.webContents
+      const dragNavigationEpoch = navigationEpoch(contents)
+
+      const resolveEndpoint = async (
+        which: 'from' | 'to'
+      ): Promise<{ x: number; y: number; element?: string }> => {
+        const elementId = num(params, `${which}ElementId`)
+        if (elementId !== undefined) {
+          const target = pageTargetForElement(contents, elementId)
+          if (frameExecutionTarget(target, contents)) {
+            throw new ToolError(
+              `Dragging elements inside embedded frames is not supported. Use ${which}X/${which}Y viewport coordinates instead.`
+            )
+          }
+          const prepared = unwrapPageResult(
+            await execInPageWithSettleGrace(
+              target,
+              clickElement,
+              [elementId, false, false],
+              executionDeadline
+            )
+          )
+          if (
+            !isRecordLike(prepared) ||
+            typeof prepared.x !== 'number' ||
+            typeof prepared.y !== 'number'
+          ) {
+            throw new ToolError(`Could not resolve the ${which} element for the drag.`)
+          }
+          return {
+            x: prepared.x,
+            y: prepared.y,
+            ...(typeof prepared.element === 'string' ? { element: prepared.element } : {}),
+          }
+        }
+        const pointX = num(params, `${which}X`)
+        const pointY = num(params, `${which}Y`)
+        if (pointX === undefined || pointY === undefined) {
+          throw new ToolError(
+            `Provide either ${which}ElementId or both ${which}X and ${which}Y for the drag ${which === 'from' ? 'source' : 'target'}.`
+          )
+        }
+        const probe = unwrapPageResult(
+          await execInPage(
+            contents,
+            describePointTarget,
+            [pointX, pointY],
+            false,
+            executionDeadline
+          )
+        )
+        if (!isRecordLike(probe) || probe.found !== true) {
+          throw new ToolError(
+            `Nothing is rendered at the ${which} point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, divide image pixels by its scale.`
+          )
+        }
+        return {
+          x: pointX,
+          y: pointY,
+          ...(typeof probe.element === 'string' ? { element: probe.element } : {}),
+        }
+      }
+
+      assertCurrentExecution()
+      assertActiveContents(contents)
+      const from = await resolveEndpoint('from')
+      const to = await resolveEndpoint('to')
+      if (Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1) {
+        throw new ToolError('The drag source and target are the same point; nothing to drag.')
+      }
+      const beforePage = await pageActionState(contents, true)
+      const beforeElement = await activeElementState(contents)
+      assertCurrentExecution()
+      assertActiveContents(contents, dragNavigationEpoch)
+      let interception: { nativeDragIntercepted: boolean }
+      try {
+        interception = await cdp.dragPointer(contents, from, to)
+      } catch (error) {
+        throw new ToolError(
+          `Native drag dispatch failed (${getErrorMessage(error)}). The pointer may have been mid-drag; take a fresh snapshot to see the page's current state before retrying.`
+        )
+      }
+      await sleep(200)
+      const afterElement = await activeElementState(contents)
+      const afterPage = await pageActionState(contents)
+      const observation = pageEffect(beforePage, afterPage, beforeElement, afterElement)
+      const effectObserved =
+        observation.effect.domChanged ||
+        observation.effect.urlChanged ||
+        observation.effect.dialogChanged ||
+        observation.effect.targetChanged ||
+        observation.effect.scrollChanged
+      const dialogs = Array.isArray(afterPage.dialogs) ? afterPage.dialogs.map(String) : []
+      return {
+        dispatched: true,
+        trusted: true,
+        nativeHtml5Drag: interception.nativeDragIntercepted,
+        from,
+        to,
+        effectObserved,
+        possibleEffectObserved: observation.possibleEffectObserved,
+        effect: observation.effect,
+        dialogs,
+        ...(!effectObserved
+          ? {
+              note: 'No observable page change followed the drag. Verify with browser_snapshot or browser_screenshot; some drop targets only commit on their own animation frame.',
             }
           : {}),
       }
