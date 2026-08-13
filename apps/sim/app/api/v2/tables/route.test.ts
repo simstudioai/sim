@@ -36,6 +36,7 @@ vi.mock('@/lib/table/billing', () => ({
   getMaxRowsPerTable: mocks.getMaxRowsPerTable,
 }))
 
+import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { GET, POST } from '@/app/api/v2/tables/route'
 
@@ -93,6 +94,72 @@ describe('/api/v2/tables', () => {
       sortOrder: 'asc',
     })
     mocks.create.mockResolvedValue({ table, folderPath: '/' })
+  })
+
+  /**
+   * The cursor a page mints is bound to the filters that produced it, so
+   * resuming it under a different `search` or `folderPath` is a 400 rather than
+   * a page silently sequenced against rows the new filter excludes. Pins the
+   * binding end-to-end — both the mint in `present` and the read in `mapInput` —
+   * because the contract-level sweep only checks a hand-maintained map of param
+   * names and stays green when a route drops the stamp entirely.
+   */
+  it('refuses a cursor minted under a different filter', async () => {
+    mocks.list.mockResolvedValue({
+      tables: [{ table, folderPath: '/' }],
+      nextKeys: ['Contacts', 'table-1'],
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+
+    const minted = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25&search=alpha`
+      )
+    )
+    const { nextCursor } = await minted.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    mocks.list.mockClear()
+    const replayed = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25&search=beta&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(replayed.status).toBe(400)
+    expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  it('resumes a cursor replayed under the filters it was minted with', async () => {
+    mocks.list.mockResolvedValue({
+      tables: [{ table, folderPath: '/' }],
+      nextKeys: ['Contacts', 'table-1'],
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+
+    const minted = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25&search=alpha`
+      )
+    )
+    const { nextCursor } = await minted.json()
+
+    mocks.list.mockClear()
+    const resumed = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25&search=alpha&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(resumed.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal,
+      input: expect.objectContaining({ after: ['Contacts', 'table-1'] }),
+      request: expect.anything(),
+    })
   })
 
   it('lists through the semantic use case and preserves the cursor envelope', async () => {
