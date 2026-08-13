@@ -113,7 +113,11 @@ import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useFolderMap } from '@/hooks/queries/folders'
-import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
+import {
+  useAutoConnect,
+  useAutoFocusOnClick,
+  useSnapToGridSize,
+} from '@/hooks/queries/general-settings'
 import {
   findLockedAncestorFolder,
   isFolderOrAncestorLocked,
@@ -403,6 +407,8 @@ const WorkflowContent = React.memo(
     const isAutoConnectEnabled = useAutoConnect()
     const autoConnectRef = useRef(isAutoConnectEnabled)
     autoConnectRef.current = isAutoConnectEnabled
+
+    const isAutoFocusOnClickEnabled = useAutoFocusOnClick()
 
     // Panel open states for context menu
     const isVariablesOpen = useVariablesModalStore((state) => state.isOpen)
@@ -4320,12 +4326,14 @@ const WorkflowContent = React.memo(
         /**
          * Focus the clicked block: animate the camera so the card centers in
          * the canvas frame. Plain clicks focus both regular cards and subflow
-         * containers; multi-select keeps the camera still.
+         * containers; multi-select keeps the camera still. Users who would
+         * rather keep their own framing turn this off in general settings.
          * onNodeClick never fires after a drag.
          */
         if (
           !embedded &&
           !isMultiSelect &&
+          isAutoFocusOnClickEnabled &&
           (node.type === 'workflowBlock' ||
             node.type === 'noteBlock' ||
             node.type === 'subflowNode')
@@ -4334,7 +4342,15 @@ const WorkflowContent = React.memo(
           focusBlockInView(node)
         }
       },
-      [activeWorkflowId, blocks, getNodes, embedded, focusBlockInView, workflowIdParam]
+      [
+        activeWorkflowId,
+        blocks,
+        getNodes,
+        embedded,
+        focusBlockInView,
+        isAutoFocusOnClickEnabled,
+        workflowIdParam,
+      ]
     )
 
     /**
