@@ -61,6 +61,62 @@ export function resolveOAuthServiceForSlug(slug: string): OAuthServiceMatch | nu
 }
 
 /**
+ * Catalog block type for every OAuth key that can name it — the service id its
+ * block declares, the provider id that service registers, and any additional
+ * authorization servers it accepts (Salesforce sandbox).
+ *
+ * Credential surfaces are handed an OAuth identity, not a block type, which is
+ * why they historically rendered a bare mark from `OAUTH_PROVIDERS` — the only
+ * registry they could reach. That map carries an icon and no colour, so the
+ * same service showed its brand on the canvas and a flat grey in a connect
+ * dialog. This is the bridge back: given any OAuth id, the block whose config
+ * owns the icon and `bgColor`.
+ *
+ * First write wins, so a family provider resolves to the same member every
+ * time rather than flipping with catalog order.
+ */
+const BLOCK_TYPE_BY_OAUTH_KEY: ReadonlyMap<string, string> = (() => {
+  const index = new Map<string, string>()
+  const add = (key: string | undefined, blockType: string) => {
+    if (!key) return
+    const normalized = key.toLowerCase()
+    if (!index.has(normalized)) index.set(normalized, blockType)
+  }
+
+  for (const integration of INTEGRATIONS_DATA) {
+    if (integration.authType !== 'oauth' || !integration.oauthServiceId) continue
+    const service = getServiceConfigByServiceId(integration.oauthServiceId)
+    if (!service) continue
+    add(integration.oauthServiceId, integration.type)
+    add(service.providerId, integration.type)
+    for (const extraProviderId of service.additionalProviderIds ?? []) {
+      add(extraProviderId, integration.type)
+    }
+  }
+
+  return index
+})()
+
+/**
+ * Block type behind an OAuth identity, so a credential surface can render the
+ * same tile the canvas does. Keys are tried in order — pass the most specific
+ * first (a service id before the provider id it resolves to).
+ *
+ * Returns `undefined` when no catalog integration claims the id, which is the
+ * signal to keep whatever mark the caller already had rather than invent one.
+ */
+export function resolveIntegrationBlockTypeForOAuth(
+  ...keys: readonly (string | undefined)[]
+): string | undefined {
+  for (const key of keys) {
+    if (!key) continue
+    const blockType = BLOCK_TYPE_BY_OAUTH_KEY.get(key.toLowerCase())
+    if (blockType) return blockType
+  }
+  return undefined
+}
+
+/**
  * An integration that exposes a service-account connect flow, resolved to the
  * catalog slug whose detail page mounts `ConnectServiceAccountModal`.
  */

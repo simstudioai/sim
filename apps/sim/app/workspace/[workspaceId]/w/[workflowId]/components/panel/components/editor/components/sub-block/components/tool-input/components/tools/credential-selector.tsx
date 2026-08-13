@@ -1,8 +1,7 @@
 'use client'
 
-import { createElement, useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Button, Combobox } from '@sim/emcn'
-import { SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
@@ -16,6 +15,7 @@ import {
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { ProviderIcon } from '@/app/workspace/[workspaceId]/components/provider-icon'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
@@ -25,15 +25,9 @@ import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-const getProviderIcon = (providerName: OAuthProvider) => {
-  const { baseProvider } = parseProvider(providerName)
-  const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
-
-  if (!baseProviderConfig) {
-    return <SquareArrowUpRight className='size-3' />
-  }
-  return createElement(baseProviderConfig.icon, { className: 'size-3' })
-}
+const getProviderIcon = (providerName: OAuthProvider) => (
+  <ProviderIcon provider={providerName} className='size-3' />
+)
 
 const getProviderName = (providerName: OAuthProvider) => {
   const serviceConfig = getServiceConfigByProviderId(providerName)

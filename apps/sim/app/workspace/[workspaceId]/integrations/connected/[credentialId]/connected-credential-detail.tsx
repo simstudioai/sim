@@ -8,7 +8,6 @@ import {
   ChipInput,
   ChipLink,
   ChipTextarea,
-  cn,
   Send,
   toast,
 } from '@sim/emcn'
@@ -28,10 +27,6 @@ import {
   UnsavedChangesModal,
   useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
-import {
-  RESOURCE_TILE_BASE,
-  RESOURCE_TILE_PLAIN,
-} from '@/app/workspace/[workspaceId]/components/resource-tile'
 import {
   ConnectServiceAccountModal,
   type ServiceAccountProviderId,
@@ -244,15 +239,11 @@ export function ConnectedCredentialDetail({
       <CredentialDetailLayout back={back} actions={actions}>
         <CredentialDetailHeading
           leading={
-            display?.icon ? (
-              <IntegrationTile blockType={integrationBlockType} icon={display.icon} />
-            ) : (
-              <div className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}>
-                <span className='text-[var(--text-tertiary)] text-small'>
-                  {resolveProviderLabel(credential.providerId).slice(0, 1) || '?'}
-                </span>
-              </div>
-            )
+            <IntegrationTile
+              blockType={integrationBlockType}
+              icon={display?.icon ?? undefined}
+              fallbackLabel={resolveProviderLabel(credential.providerId).slice(0, 1) || '?'}
+            />
           }
           title={headingTitle}
           subtitle={display?.detailSubtitle ?? 'Connected service'}

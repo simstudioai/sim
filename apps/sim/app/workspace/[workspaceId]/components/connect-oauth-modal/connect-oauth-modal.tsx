@@ -19,6 +19,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthReturnContext } from '@/lib/credentials/client-state'
 import { ADD_CONNECTOR_SEARCH_PARAM, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { defaultCredentialDisplayName } from '@/lib/credentials/display-name'
+import { resolveIntegrationBlockTypeForOAuth } from '@/lib/integrations'
 import {
   getProviderIdFromServiceId,
   OAUTH_PROVIDERS,
@@ -26,6 +27,7 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getScopeDescription, getServiceConfigByProviderId } from '@/lib/oauth/utils'
+import { BlockTile } from '@/blocks/block-tile'
 import { useCreateCredentialDraft, useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
 
@@ -172,6 +174,20 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     const provider = (props.provider ?? providerId) as OAuthProvider
     return resolveService(provider, props.serviceId ?? providerId)
   }, [props.serviceName, props.serviceIcon, props.provider, props.serviceId, providerId])
+
+  /**
+   * The block behind this OAuth identity, so the dialog wears the same brand
+   * tile the canvas and the integrations catalog do. Falls back to the bare
+   * `OAUTH_PROVIDERS` mark for an id no catalog integration claims.
+   */
+  const headerIcon = useMemo(() => {
+    const blockType = resolveIntegrationBlockTypeForOAuth(
+      props.serviceId,
+      props.provider,
+      providerId
+    )
+    return blockType ? <BlockTile blockType={blockType} size='md' /> : ProviderIcon
+  }, [props.serviceId, props.provider, providerId, ProviderIcon])
 
   const workspaceId = isConnect ? props.workspaceId : ''
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
@@ -343,7 +359,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title}>
-      <ChipModalHeader icon={ProviderIcon} onClose={handleClose}>
+      <ChipModalHeader icon={headerIcon} onClose={handleClose}>
         {title}
       </ChipModalHeader>
       <ChipModalBody>

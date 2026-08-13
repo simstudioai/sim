@@ -7,7 +7,6 @@ import { randomFloat } from '@sim/utils/random'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { GmailIcon, SlackIcon } from '@/components/icons'
 import {
   INTEGRATIONS,
   type OAuthServiceMatch,
@@ -16,6 +15,7 @@ import {
 } from '@/lib/integrations'
 import { captureEvent } from '@/lib/posthog/client'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { getBlockTileIcon } from '@/blocks/accent'
 import { getBareIconStyle } from '@/blocks/brand-icon-style'
 import { getAllBlockMeta } from '@/blocks/registry'
 import type { ModuleTag } from '@/blocks/types'
@@ -225,26 +225,36 @@ function computeActions(services: readonly ServiceInfo[], signals: Signals): Act
 }
 
 /**
+ * Integrations pinned to the first paint. Named by block type so the mark comes
+ * from the same registry every other surface reads, rather than a second copy
+ * imported here that could drift from the block's own icon.
+ */
+const INITIAL_INTEGRATIONS = [
+  { blockType: 'slack', slug: 'slack', name: 'Slack' },
+  { blockType: 'gmail', slug: 'gmail', name: 'Gmail' },
+] as const
+
+/**
  * Initial actions rendered on first paint, before OAuth/credentials queries
  * resolve. For users with no connections this is also the final result, so the
  * section never flashes. Users with existing connections briefly see this
  * before the personalized recompute replaces it.
  */
 const INITIAL_ACTIONS: Action[] = [
-  {
-    kind: 'integration',
-    id: 'integrate-slack',
-    label: 'Integrate with Slack',
-    icon: SlackIcon,
-    slug: 'slack',
-  },
-  {
-    kind: 'integration',
-    id: 'integrate-gmail',
-    label: 'Integrate with Gmail',
-    icon: GmailIcon,
-    slug: 'gmail',
-  },
+  ...INITIAL_INTEGRATIONS.flatMap<Action>(({ blockType, slug, name }) => {
+    const icon = getBlockTileIcon(blockType)
+    return icon
+      ? [
+          {
+            kind: 'integration',
+            id: `integrate-${slug}`,
+            label: `Integrate with ${name}`,
+            icon,
+            slug,
+          },
+        ]
+      : []
+  }),
   toPromptAction(TABLE_STARTERS[0]),
   ...CANDIDATES.filter((c) => c.blockType === 'github' && c.featured)
     .slice(0, 1)
