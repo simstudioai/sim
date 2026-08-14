@@ -146,7 +146,8 @@ export const AzureDataExplorerBlock: BlockConfig<AzureDataExplorerTableResponse>
         ],
         azure_data_explorer_drop_table: [{ text: 'Drop table', field: 'table', core: true }],
         azure_data_explorer_show_table_details: [
-          { text: 'Read details for', field: 'table', core: true },
+          'Read table details',
+          { text: 'for', field: 'table' },
           { text: 'in', field: 'database' },
         ],
         azure_data_explorer_list_functions: [
@@ -156,7 +157,8 @@ export const AzureDataExplorerBlock: BlockConfig<AzureDataExplorerTableResponse>
           { text: 'List ingestion failures in', field: 'database', core: true },
         ],
         azure_data_explorer_show_operations: [
-          { text: 'Check operation', field: 'operationId', core: true },
+          'Check cluster operations',
+          { text: 'for', field: 'operationId' },
         ],
       },
     },

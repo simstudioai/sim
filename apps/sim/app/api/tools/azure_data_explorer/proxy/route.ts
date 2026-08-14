@@ -171,9 +171,7 @@ function selectPrimaryTable(
   contents: TableOfContents | null
 ): KustoTable | null {
   if (tables.length === 0) return null
-  if (contents?.primaryOrdinal !== null && contents !== null) {
-    return tables[contents.primaryOrdinal] ?? tables[0]
-  }
+  if (contents?.primaryOrdinal != null) return tables[contents.primaryOrdinal] ?? tables[0]
   return tables[0]
 }
 
