@@ -7,7 +7,9 @@
  * still watching once the pointer is off the node, because no further
  * `pointerleave` can arrive.
  */
+
 import { act, useEffect } from 'react'
+import { sleep } from '@sim/utils/helpers'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { useActionMenuSwell } from './use-action-menu-swell'
@@ -20,6 +22,8 @@ beforeAll(() => {
   } as unknown as typeof ResizeObserver
 })
 
+/** Clears the hook's 100ms hover-leave delay and its 40ms swell close with margin. */
+const SETTLE_PASS_MS = 160
 const ACTION_MENU_RECT = { left: 100, right: 240, top: 40, bottom: 70 }
 /** Comfortably outside the bar's hover band, which extends 28px above `top`. */
 const AWAY_POINT = { clientX: 600, clientY: 400 }
@@ -87,7 +91,7 @@ function pointerEvent(type: string, init: PointerEventInit) {
 async function settle() {
   for (let pass = 0; pass < 2; pass++) {
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 160))
+      await sleep(SETTLE_PASS_MS)
     })
   }
 }
@@ -113,7 +117,6 @@ describe('useActionMenuSwell', () => {
     })
     expect(state.swellOpen).toBe(true)
 
-    /* Leaving the card arms the retract and installs the gap tracker. */
     act(() => {
       node.dispatchEvent(pointerEvent('pointerleave', {}))
     })

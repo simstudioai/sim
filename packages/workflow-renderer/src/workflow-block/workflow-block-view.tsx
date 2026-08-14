@@ -64,12 +64,8 @@ const TAB_LENGTH_HEADER_ONLY_PX = 10
 /** The error knob is deliberately the shortest of the connection knobs — it is
  *  a secondary output, and a full-length tab crowds the card's bottom corner. */
 const TAB_HEIGHT_RATIO = 0.5
-/**
- * Cursor-swell sides for a card that takes no input. Matching the subflow
- * start node, only the source edge may swell, so a trigger never raises a knob
- * on the edge where every other card shows its input.
- */
-const SOURCE_ONLY_CURSOR_SIDES = ['right'] as const
+const DEFAULT_TARGET_SIDE: WorkflowConnectionSide = 'left'
+const DEFAULT_SOURCE_SIDE: WorkflowConnectionSide = 'right'
 const CARD_CORNER_RADIUS_PX = 16
 const CORNER_SLACK_PX = 4
 const ACTION_MENU_RIGHT_INSET_PX = 24
@@ -747,16 +743,14 @@ export function WorkflowBlockView({
   const rowTabLength = clampTabLength(
     branchRowCount <= 2 ? TAB_LENGTH_SMALL_PX : TAB_LENGTH_SMALL_PX - (branchRowCount - 2) * 2
   )
-  const defaultTargetSide: WorkflowConnectionSide = 'left'
-  const defaultSourceSide: WorkflowConnectionSide = 'right'
   const borderPorts = useMemo<WorkflowBorderPort[]>(() => {
     const ports: WorkflowBorderPort[] = []
     if (shouldShowDefaultHandles) {
       ports.push({
         id: WORKFLOW_TARGET_HANDLE_ID,
-        side: defaultTargetSide,
+        side: DEFAULT_TARGET_SIDE,
         position: 'center',
-        plateau: mainTabLength(defaultTargetSide),
+        plateau: mainTabLength(DEFAULT_TARGET_SIDE),
         color: tabFill(WORKFLOW_TARGET_HANDLE_ID),
       })
     }
@@ -786,9 +780,9 @@ export function WorkflowBlockView({
     } else if (type !== 'response') {
       ports.push({
         id: WORKFLOW_SOURCE_HANDLE_ID,
-        side: defaultSourceSide,
+        side: DEFAULT_SOURCE_SIDE,
         position: 'center',
-        plateau: mainTabLength(defaultSourceSide),
+        plateau: mainTabLength(DEFAULT_SOURCE_SIDE),
         color: tabFill(WORKFLOW_SOURCE_HANDLE_ID),
       })
     }
@@ -811,8 +805,6 @@ export function WorkflowBlockView({
     conditionRows,
     actionMenuSwellOpen,
     actionMenuWidth,
-    defaultSourceSide,
-    defaultTargetSide,
     highlightedHandles,
     routerRows,
     rowTabLength,
@@ -880,7 +872,6 @@ export function WorkflowBlockView({
           }
           isSelected={usesSelectedVisuals}
           height={blockHeight}
-          cursorSwellSides={shouldShowDefaultHandles ? undefined : SOURCE_ONLY_CURSOR_SIDES}
           canStartConnection={supportsCursorHandle}
           canReceiveConnection={shouldShowDefaultHandles}
           onCursorHandleChange={supportsCursorHandle ? onCursorHandleChange : undefined}

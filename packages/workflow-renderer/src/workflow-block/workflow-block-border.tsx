@@ -1450,10 +1450,10 @@ export function WorkflowBlockBorder({
         // returning to an edge immediately restores the swell.
         if (isPointerOverTrackingRoot(clientX, clientY)) {
           /*
-           * Drop the magnetized port too. Only the in-band path below
-           * recomputes it, so leaving the band upward onto the action bar left
-           * the last knob pinned at hover amplitude — the card kept a port
-           * puffed out with the pointer nowhere near it.
+           * Only the in-band path below recomputes the magnetized port, so
+           * leaving the band upward onto the action bar left the last knob
+           * pinned at hover amplitude — a port puffed out with the pointer
+           * nowhere near it.
            */
           hoveredPortRef.current = null
           cursorHoverAllowedRef.current = false
@@ -1633,10 +1633,16 @@ export function WorkflowBlockBorder({
   }, [canStartConnection, cursorSwellEnabled, cursorSwellSides])
 
   useEffect(() => {
-    if (!cursorSwellEnabled || !canReceiveConnection) {
+    if (!cursorSwellEnabled) {
       resetPointerTrackingRef.current()
       return
     }
+    /*
+     * Nothing to reset on this exit: the tracker is shared with this card's own
+     * hover, a separate capability, and clearing it would undo the layout
+     * effect's `:hover` bootstrap for a card that mounted under the pointer.
+     */
+    if (!canReceiveConnection) return
 
     /*
      * A connection drag captures the pointer on the origin card's handle, so
