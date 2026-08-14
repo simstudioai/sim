@@ -509,13 +509,6 @@ export const importWorkflowAsSuperuserBodySchema = z.object({
 
 export type ImportWorkflowAsSuperuserBody = z.input<typeof importWorkflowAsSuperuserBodySchema>
 
-export const importWorkflowAsSuperuserPermissiveBodySchema = z
-  .object({
-    workflowId: z.string().optional(),
-    targetWorkspaceId: z.string().optional(),
-  })
-  .passthrough()
-
 export const importWorkflowAsSuperuserResponseSchema = z.object({
   success: z.literal(true),
   newWorkflowId: z.string(),

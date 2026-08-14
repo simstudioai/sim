@@ -108,10 +108,6 @@ export function escapeCsvValue(value: unknown): string {
   return str
 }
 
-export function convertRowsToCsv(rows: Record<string, unknown>[]): string {
-  return convertRowsToCsvWithProvenance(rows).content
-}
-
 export function normalizeOutputWorkspaceFileName(outputPath: string): string {
   const segments = decodeVfsPathSegments(outputPath.trim().replace(/^\/+|\/+$/g, ''))
   const fileName = segments.at(-1)

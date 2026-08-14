@@ -383,9 +383,3 @@ export function executeLocalFilesystemTool(
     }
   )
 }
-
-export const userLocalVfsTestHelpers = {
-  mountVfsRoot,
-  vfsPathForUri,
-  localUriForVfsPath,
-}

@@ -93,13 +93,6 @@ const validateAndBuildNoteBody = (params: WealthboxWriteParams): Record<string, 
   return body
 }
 
-// Utility function to handle API errors
-export const handleApiError = (response: Response, errorText: string): never => {
-  throw new Error(
-    `Failed to create Wealthbox note: ${response.status} ${response.statusText} - ${errorText}`
-  )
-}
-
 // Utility function to format note response
 export const formatNoteResponse = (data: any): WealthboxWriteResponse => {
   if (!data) {

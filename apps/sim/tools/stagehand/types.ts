@@ -30,16 +30,6 @@ export const STAGEHAND_USAGE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete usage statistics output definition
- */
-export const STAGEHAND_USAGE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Token usage and timing statistics from agent execution',
-  optional: true,
-  properties: STAGEHAND_USAGE_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for agent action objects
  * Based on Stagehand AgentAction interface
  */
@@ -92,15 +82,6 @@ export const STAGEHAND_ACTION_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete agent action output definition
- */
-export const STAGEHAND_ACTION_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Record of an action performed by the agent',
-  properties: STAGEHAND_ACTION_OUTPUT_PROPERTIES,
-}
-
-/**
  * Actions array output definition
  */
 export const STAGEHAND_ACTIONS_OUTPUT: OutputProperty = {
@@ -133,15 +114,6 @@ export const STAGEHAND_AGENT_RESULT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete agent result output definition
- */
-export const STAGEHAND_AGENT_RESULT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Complete result from the Stagehand agent execution',
-  properties: STAGEHAND_AGENT_RESULT_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for act() method results
  * Based on Stagehand ActResult interface
  */
@@ -165,66 +137,6 @@ export const STAGEHAND_ACT_ACTION_OUTPUT_PROPERTIES = {
       type: 'string',
       description: 'Method argument value',
     },
-  },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for act() result
- */
-export const STAGEHAND_ACT_RESULT_OUTPUT_PROPERTIES = {
-  success: {
-    type: 'boolean',
-    description: 'Whether the act operation completed successfully',
-  },
-  message: {
-    type: 'string',
-    description: 'Detailed message about the actions performed',
-  },
-  actionDescription: {
-    type: 'string',
-    description: 'High-level description of what was done',
-    optional: true,
-  },
-  actions: {
-    type: 'array',
-    description: 'List of individual actions performed',
-    items: {
-      type: 'object',
-      properties: STAGEHAND_ACT_ACTION_OUTPUT_PROPERTIES,
-    },
-  },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for extract() method when called without schema
- * Returns pageText or extraction string
- */
-export const STAGEHAND_SIMPLE_EXTRACT_OUTPUT_PROPERTIES = {
-  pageText: {
-    type: 'string',
-    description: 'Raw text content of the page (when no instruction provided)',
-    optional: true,
-  },
-  extraction: {
-    type: 'string',
-    description: 'Extracted content based on instruction (when no schema provided)',
-    optional: true,
-  },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for extract() method result with schema
- * The actual structure depends on the user-provided schema
- */
-export const STAGEHAND_EXTRACT_OUTPUT_PROPERTIES = {
-  data: {
-    type: 'object',
-    description: 'Extracted structured data matching the provided schema',
-  },
-  schema: {
-    type: 'object',
-    description: 'The schema that was used for extraction',
-    optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
 

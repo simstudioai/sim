@@ -192,18 +192,6 @@ export function buildServiceUrl(
   return `${baseUrl}/ccx/service/${tenant}/${svc.name}/${svc.version}`
 }
 
-/**
- * Builds the WSDL URL for a Workday SOAP service. Retained for backwards compatibility
- * with any external consumers; the runtime no longer fetches the WSDL.
- */
-export function buildWsdlUrl(
-  tenantUrl: string,
-  tenant: string,
-  service: WorkdayServiceKey
-): string {
-  return `${buildServiceUrl(tenantUrl, tenant, service)}?wsdl`
-}
-
 const XML_ENTITIES: Record<string, string> = {
   '&': '&amp;',
   '<': '&lt;',

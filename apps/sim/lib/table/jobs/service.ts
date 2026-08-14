@@ -387,25 +387,6 @@ export async function getTableJob(
   return job ?? null
 }
 
-/**
- * Stamps an export job's generated-file storage key onto its payload (`{ resultKey }` merge).
- * Scoped to the still-running job so a superseded attempt can't clobber a newer run's result.
- * The download route reads it; the janitor deletes the file when the terminal job is pruned.
- */
-export async function setJobResultKey(
-  tableId: string,
-  jobId: string,
-  resultKey: string
-): Promise<void> {
-  await db
-    .update(tableJobs)
-    .set({
-      payload: sql`coalesce(${tableJobs.payload}, '{}'::jsonb) || jsonb_build_object('resultKey', ${resultKey}::text)`,
-      updatedAt: new Date(),
-    })
-    .where(ownsActiveJob(tableId, jobId))
-}
-
 /** Stamps an export result only while the canonical workspace-scoped job is active. */
 export async function setJobResultKeyInWorkspace(
   tableId: string,

@@ -125,10 +125,6 @@ export function classifyStartBlock<T extends MinimalBlock>(block: T): StartBlock
   return classifyStartBlockType(block.type, { category, triggerModeEnabled })
 }
 
-export function isLegacyStartPath(path: StartBlockPath): boolean {
-  return path !== StartBlockPath.UNIFIED
-}
-
 function toEntries<T extends MinimalBlock>(blocks: Record<string, T> | T[]): Array<[string, T]> {
   if (Array.isArray(blocks)) {
     return blocks.map((block, index) => {

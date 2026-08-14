@@ -4402,21 +4402,6 @@ presetOverlays.set('can', (w, h) => {
   ]
 })
 
-/**
- * Get overlay paths for a preset shape (3D top faces, etc.).
- * Returns empty array if the shape has no overlays.
- */
-export function getPresetOverlays(
-  shapeType: string,
-  w: number,
-  h: number,
-  adjustments?: Map<string, number>
-): PresetOverlay[] {
-  const key = shapeType.toLowerCase()
-  const gen = presetOverlays.get(key) ?? presetOverlays.get(shapeType)
-  return gen ? gen(w, h, adjustments) : []
-}
-
 // Multi-path preset shapes — complex shapes with multiple SVG paths
 // Each path has its own fill modifier and stroke behavior, matching OOXML spec.
 

@@ -719,22 +719,6 @@ export const pollingIdempotency = new IdempotencyService({
 })
 
 /**
- * Used by the internal `/api/billing/update-cost` endpoint (copilot,
- * workspace-chat, MCP, mothership) to dedupe cost-recording calls. Storage
- * is forced to Postgres: the operation writes AI cost to `user_stats`,
- * and if Redis evicts the dedup key under memory pressure (high call
- * volume) or drops it on restart, a retry would double-record usage —
- * real money. DB storage fate-shares with `user_stats` and is
- * eviction-proof; ~1-5ms added latency is invisible against LLM call
- * latency.
- */
-export const billingIdempotency = new IdempotencyService({
-  namespace: 'billing',
-  ttlSeconds: 60 * 60, // 1 hour
-  forceStorage: 'database',
-})
-
-/**
  * Dedupes a chat send by its client-generated `userMessageId`, so re-sending
  * one is safe.
  *

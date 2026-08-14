@@ -22,46 +22,12 @@ export interface ZohoCrmPageInfo {
   moreRecords: boolean
 }
 
-export const ZOHO_CRM_PAGE_INFO_OUTPUT = {
-  type: 'object' as const,
-  description: 'Pagination metadata returned by Zoho CRM',
-  properties: {
-    page: { type: 'number' as const, description: 'Current page number', optional: true },
-    perPage: { type: 'number' as const, description: 'Records requested per page', optional: true },
-    count: {
-      type: 'number' as const,
-      description: 'Number of records in this page',
-      optional: true,
-    },
-    moreRecords: { type: 'boolean' as const, description: 'Whether further pages are available' },
-  },
-}
-
 /** A CRM write result entry, as returned in the `data` array of insert/update/upsert. */
 export interface ZohoCrmWriteResult {
   id: string | null
   code: string | null
   status: string | null
   message: string | null
-}
-
-export const ZOHO_CRM_WRITE_RESULT_OUTPUT = {
-  type: 'array' as const,
-  description: 'Per-record results returned by Zoho CRM',
-  properties: {
-    id: { type: 'string' as const, description: 'Record ID', optional: true },
-    code: {
-      type: 'string' as const,
-      description: 'Zoho result code (e.g. SUCCESS)',
-      optional: true,
-    },
-    status: { type: 'string' as const, description: 'Result status', optional: true },
-    message: {
-      type: 'string' as const,
-      description: 'Human-readable result message',
-      optional: true,
-    },
-  },
 }
 
 export interface ZohoCrmGetRecordsParams extends ZohoBaseParams {

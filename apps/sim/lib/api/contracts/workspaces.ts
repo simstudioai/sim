@@ -161,14 +161,6 @@ export const workspaceMemberSchema = z.object({
 
 export type WorkspaceMember = z.output<typeof workspaceMemberSchema>
 
-export const workspacePreviewBodySchema = z
-  .object({
-    code: z
-      .string({ error: 'code is required' })
-      .refine((code) => code.trim().length > 0, { message: 'code is required' }),
-  })
-  .passthrough()
-
 export const workspaceMetricsExecutionsQuerySchema = z.object({
   startTime: z.string().optional(),
   endTime: z.string().optional(),

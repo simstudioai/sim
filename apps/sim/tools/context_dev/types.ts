@@ -374,15 +374,6 @@ export const BRAND_OUTPUT_PROPERTIES = {
   primary_language: { type: 'string', description: 'Primary language of the brand site' },
 } as const
 
-/** Output schema for the reduced brand object returned by the simplified endpoint. */
-export const SIMPLIFIED_BRAND_OUTPUT_PROPERTIES = {
-  domain: { type: 'string', description: 'Brand domain' },
-  title: { type: 'string', description: 'Brand title' },
-  colors: { type: 'json', description: 'Brand colors (hex and name)' },
-  logos: { type: 'json', description: 'Brand logos with mode, colors, resolution, and type' },
-  backdrops: { type: 'json', description: 'Brand backdrop images' },
-} as const
-
 /** Output schema for a single extracted product. */
 export const PRODUCT_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Product name' },

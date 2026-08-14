@@ -24,10 +24,6 @@ export function registerHandlers(entries: Record<string, ToolHandler>): void {
   }
 }
 
-export function getRegisteredToolIds(): string[] {
-  return Array.from(handlerRegistry.keys())
-}
-
 export function hasHandler(toolId: string): boolean {
   return handlerRegistry.has(toolId)
 }

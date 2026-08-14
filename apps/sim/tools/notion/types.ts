@@ -191,32 +191,6 @@ export const FILE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Emoji object properties.
- * @see https://developers.notion.com/reference/emoji-object
- */
-export const EMOJI_OUTPUT_PROPERTIES = {
-  type: { type: 'string', description: 'Always "emoji" for standard emojis' },
-  emoji: { type: 'string', description: 'The emoji character' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Custom emoji object properties.
- * @see https://developers.notion.com/reference/emoji-object
- */
-export const CUSTOM_EMOJI_OUTPUT_PROPERTIES = {
-  type: { type: 'string', description: 'Always "custom_emoji"' },
-  custom_emoji: {
-    type: 'object',
-    description: 'Custom emoji details',
-    properties: {
-      id: { type: 'string', description: 'Custom emoji UUID' },
-      name: { type: 'string', description: 'Custom emoji name', optional: true },
-      url: { type: 'string', description: 'URL to custom emoji image', optional: true },
-    },
-  },
-} as const satisfies Record<string, OutputProperty>
-
-/**
  * Icon output (can be emoji, custom_emoji, or file)
  */
 export const ICON_OUTPUT: OutputProperty = {
@@ -328,15 +302,6 @@ export const DATABASE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete database output definition for array items
- */
-export const DATABASE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Notion database object',
-  properties: DATABASE_OUTPUT_PROPERTIES,
-}
-
-/**
  * Block object properties from Notion API.
  * @see https://developers.notion.com/reference/block
  */
@@ -356,15 +321,6 @@ export const BLOCK_OUTPUT_PROPERTIES = {
   in_trash: { type: 'boolean', description: 'Whether the block is in trash' },
   has_children: { type: 'boolean', description: 'Whether the block has nested blocks' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete block output definition for array items
- */
-export const BLOCK_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Notion block object',
-  properties: BLOCK_OUTPUT_PROPERTIES,
-}
 
 /**
  * Pagination output properties for list responses.
