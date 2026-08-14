@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -48,10 +48,6 @@ function verifySalesforceSharedSecret(request: Request, secret: string): boolean
     return true
   }
   return verifyTokenAuth(request, secret)
-}
-
-function asRecord(body: unknown): Record<string, unknown> {
-  return isRecordLike(body) ? (body as Record<string, unknown>) : {}
 }
 
 function extractRecordCore(body: Record<string, unknown>): Record<string, unknown> {
@@ -134,7 +130,7 @@ export const salesforceHandler: WebhookProviderHandler = {
 
     const { isSalesforceEventMatch } = await import('@/triggers/salesforce/utils')
     const configuredObjectType = providerConfig.objectType as string | undefined
-    const obj = asRecord(body)
+    const obj = toRecord(body)
 
     if (!isSalesforceEventMatch(triggerId, obj, configuredObjectType)) {
       logger.debug(
@@ -151,7 +147,7 @@ export const salesforceHandler: WebhookProviderHandler = {
     const rawPc = (ctx.webhook as { providerConfig?: unknown }).providerConfig
     const pc = isRecordLike(rawPc) ? (rawPc as Record<string, unknown>) : {}
     const id = typeof pc.triggerId === 'string' ? pc.triggerId : ''
-    const body = asRecord(ctx.body)
+    const body = toRecord(ctx.body)
 
     const record = extractRecordCore(body)
     const objectType =
@@ -296,7 +292,7 @@ export const salesforceHandler: WebhookProviderHandler = {
   },
 
   extractIdempotencyId(body: unknown): string | null {
-    const b = asRecord(body)
+    const b = toRecord(body)
     const record = extractRecordCore(b)
     const id = pickRecordId(b, record)
     const et =

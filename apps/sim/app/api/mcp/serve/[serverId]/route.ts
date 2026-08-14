@@ -279,10 +279,6 @@ function toToolInputSchema(schema: unknown): Partial<Tool['inputSchema']> {
   }
 }
 
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return isRecordLike(value)
-}
-
 function parseJsonValue(text: string): { success: true; value: unknown } | { success: false } {
   if (!text) return { success: true, value: {} }
   try {

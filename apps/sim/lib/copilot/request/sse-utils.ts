@@ -1,4 +1,3 @@
-import { isRecordLike } from '@sim/utils/object'
 import { STREAM_BUFFER_MAX_DEDUP_ENTRIES } from '@/lib/copilot/constants'
 import {
   isToolCallStreamEvent,
@@ -8,10 +7,6 @@ import {
 } from '@/lib/copilot/request/session'
 import { TOOL_CALL_STATUS } from '@/lib/copilot/request/session/event'
 import type { StreamEvent } from '@/lib/copilot/request/types'
-
-/** Safely cast event.data to a record for property access. */
-export const asRecord = (data: unknown): Record<string, unknown> =>
-  (isRecordLike(data) ? data : {}) as Record<string, unknown>
 
 /**
  * In-memory tool event dedupe with bounded size.

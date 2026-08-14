@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type {
   AsyncCompletionSignal,
   AsyncTerminalCompletionSnapshot,
@@ -16,7 +16,7 @@ import {
   MothershipStreamV1ToolPhase,
   type MothershipStreamV1ToolResultPayload,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { asRecord, markToolResultSeen } from '@/lib/copilot/request/sse-utils'
+import { markToolResultSeen } from '@/lib/copilot/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/copilot/request/tool-call-state'
 import type {
   ContentBlock,
@@ -177,7 +177,7 @@ export function getToolCallUI(data: MothershipStreamV1ToolCallDescriptor): {
   internal: boolean
   hidden: boolean
 } {
-  const raw = asRecord(data.ui)
+  const raw = toRecord(data.ui)
   return {
     clientExecutable:
       raw.clientExecutable === true || data.executor === MothershipStreamV1ToolExecutor.client,

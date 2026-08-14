@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import type { RabbitmqGetOverviewParams, RabbitmqGetOverviewResponse } from '@/tools/rabbitmq/types'
 import {
   buildAuthHeaders,
@@ -19,10 +19,6 @@ const EMPTY_OVERVIEW = {
   queueTotals: {},
   messageStats: {},
 } as const
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return isRecordLike(value) ? (value as Record<string, unknown>) : {}
-}
 
 function asStringOrNull(value: unknown): string | null {
   return typeof value === 'string' ? value : null
@@ -64,9 +60,9 @@ export const rabbitmqGetOverviewTool: ToolConfig<
         erlangVersion: asStringOrNull(data?.erlang_version),
         clusterName: asStringOrNull(data?.cluster_name),
         node: asStringOrNull(data?.node),
-        objectTotals: asRecord(data?.object_totals),
-        queueTotals: asRecord(data?.queue_totals),
-        messageStats: asRecord(data?.message_stats),
+        objectTotals: toRecord(data?.object_totals),
+        queueTotals: toRecord(data?.queue_totals),
+        messageStats: toRecord(data?.message_stats),
       },
     }
   },
