@@ -233,8 +233,36 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
     requireBoundedGroupItems(input.group.outputs, 'Workflow group outputs')
     requireBoundedGroupItems(input.outputColumns, 'Workflow group output columns')
     requireBoundedGroupItems(input.group.inputMappings, 'Workflow group input mappings')
+    /**
+     * Creation must refuse the coordinate an update refuses. A group stores the
+     * mapping a run reads to fill a cell, so an output naming a workflow output
+     * that does not exist — or an enrichment output the registry does not
+     * define — creates a column nothing can ever populate, and the caller only
+     * discovers it when they later try to edit the group.
+     *
+     * `workflowId` is the producer discriminator, not `type`: an enrichment
+     * template spawned from the workflow sidebar carries `type: 'enrichment'`
+     * with a backing workflow and workflow output coordinates, and only a group
+     * with no workflow is filled from the enrichment registry.
+     */
     if (input.group.workflowId) {
-      await resolveRelatedWorkflowForTableRoute(input.group.workflowId, context.workspaceId)
+      const resolvedWorkflow = await resolveRelatedWorkflowForTableRoute(
+        input.group.workflowId,
+        context.workspaceId
+      )
+      validateRequestedOutputs(
+        input.group.outputs.map((output) => ({
+          blockId: output.blockId ?? '',
+          path: output.path ?? '',
+        })),
+        resolvedWorkflow,
+        input.group.workflowId
+      )
+    } else if (input.group.enrichmentId) {
+      requireKnownEnrichmentOutputIds(
+        requireEnrichment(input.group.enrichmentId),
+        input.group.outputs.map((output) => output.outputId)
+      )
     }
     const outputNames = new Set(input.group.outputs.map((output) => output.columnName))
     const orphan = input.outputColumns.find((column) => !outputNames.has(column.name))
@@ -586,6 +614,35 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
     const previousGroup = (context.table.schema.workflowGroups ?? []).find(
       (group) => group.id === input.groupId
     )
+    /**
+     * `type` is provenance, not a producer switch. What a run actually reads is
+     * the pair the group was created with — `workflowId` for a workflow-backed
+     * group, `enrichmentId` for a registry one — and neither is settable here:
+     * the update body has no `enrichmentId` field at all. So a `type` flip only
+     * ever relabels a group into a coordinate creation refuses, and one it
+     * cannot be talked back out of.
+     *
+     * `manual` → `enrichment` leaves `enrichmentId` undefined, which is the
+     * exact shape `refineGroupSource` rejects on create, and it bricks the
+     * group for output editing: `addWorkflowTableGroupOutput` and
+     * `updateWorkflowTableGroup` both refuse a group whose `type` reads
+     * `enrichment`. `enrichment` → `manual` is worse — it keeps `enrichmentId`
+     * but steers the runner off the enrichment branch and onto the workflow
+     * one, where the group's `workflowId` is `''` and every cell run fails.
+     *
+     * Re-sending the type the group already has stays a no-op, so a caller that
+     * echoes back a whole group is unaffected.
+     */
+    if (
+      previousGroup &&
+      input.type !== undefined &&
+      input.type !== (previousGroup.type ?? 'manual')
+    ) {
+      throw new OrchestrationError(
+        'validation',
+        `Workflow group "${input.groupId}" cannot change type from "${previousGroup.type ?? 'manual'}" to "${input.type}"; create a new group for a different producer`
+      )
+    }
     /**
      * An enrichment group's outputs come from the registry, not from a workflow,
      * and it stores `workflowId: ''` — so there is nothing to resolve a new

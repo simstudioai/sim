@@ -1684,8 +1684,16 @@ export const updateWorkflowGroupBodySchema = z.object({
   deploymentMode: workflowGroupDeploymentModeSchema
     .optional()
     .describe('Replacement workflow execution mode.'),
-  /** Update the group's provenance. Omit to leave unchanged. */
-  type: workflowGroupTypeSchema.optional().describe('Replacement workflow-group producer type.'),
+  /**
+   * Echo of the group's provenance. A producer is fixed at creation: this body
+   * has no `enrichmentId` field, so it can never supply the coordinate a new
+   * type would need. A `type` that differs from the stored one is a 400.
+   */
+  type: workflowGroupTypeSchema
+    .optional()
+    .describe(
+      "Workflow-group producer type. Must match the group's stored type — a group's producer cannot be changed after creation."
+    ),
   /** Toggle the group's persisted auto-run flag. Omit to leave unchanged. */
   autoRun: z.boolean().optional().describe('Replacement automatic-run setting.'),
 })
