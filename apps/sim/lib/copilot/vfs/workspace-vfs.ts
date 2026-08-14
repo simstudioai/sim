@@ -60,6 +60,7 @@ import {
   buildVfsFolderPathMap,
   canonicalWorkflowVfsDir,
   canonicalWorkspaceFilePath,
+  decodeVfsSegmentSafe,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
 import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
@@ -1032,9 +1033,18 @@ export class WorkspaceVFS {
     const normalized = path.replace(/^\/+/, '')
     // Prefer the path verbatim when it is itself a file leaf (e.g. a file literally
     // named "content"); otherwise drop a trailing "/content" read suffix.
-    const leaf = this.files.has(normalized) ? normalized : normalized.replace(/\/content$/, '')
+    let leaf = this.files.has(normalized) ? normalized : normalized.replace(/\/content$/, '')
 
-    const isWorkspaceFilePath = /^(recently-deleted\/)?files(\/|$)/.test(leaf)
+    let isWorkspaceFilePath = /^(recently-deleted\/)?files(\/|$)/.test(leaf)
+    if (isWorkspaceFilePath && !this.files.has(leaf)) {
+      // Same encoding tolerance as vfs_read: a decoded display form that maps
+      // to exactly one canonical key resolves instead of erroring.
+      const decodedEquivalent = this.resolveDecodedEquivalent(leaf)
+      if (decodedEquivalent) {
+        leaf = decodedEquivalent
+        isWorkspaceFilePath = /^(recently-deleted\/)?files(\/|$)/.test(leaf)
+      }
+    }
     if (!isWorkspaceFilePath || !this.files.has(leaf)) {
       const suggestions = this.suggestSimilar(leaf)
       const hint =
@@ -1076,6 +1086,25 @@ export class WorkspaceVFS {
 
   suggestSimilar(missingPath: string, max?: number): string[] {
     return ops.suggestSimilar(this.keyView(true), missingPath, max)
+  }
+
+  /**
+   * Resolves a missing path to an existing one when the two differ ONLY by
+   * percent-encoding (the model typed the decoded display form — spaces
+   * instead of %20). Returns the canonical existing path when exactly one key
+   * decodes to the same segments; ambiguity or a genuine miss returns null so
+   * the not-found error (with suggestions) still fires. Never fuzzy: same
+   * name, different bytes only.
+   */
+  resolveDecodedEquivalent(missingPath: string): string | null {
+    const target = decodeVfsPathSegmentsSafe(missingPath)
+    let match: string | null = null
+    for (const key of this.keyView(true).keys()) {
+      if (decodeVfsPathSegmentsSafe(key) !== target) continue
+      if (match !== null) return null
+      match = key
+    }
+    return match
   }
 
   private async resolveWorkspaceFileForDynamicRead(
@@ -2687,4 +2716,11 @@ export type { FileReadResult } from '@/lib/copilot/vfs/file-reader'
  */
 export function sanitizeName(name: string): string {
   return normalizeVfsSegment(name)
+}
+
+function decodeVfsPathSegmentsSafe(path: string): string {
+  return path
+    .split('/')
+    .map((segment) => decodeVfsSegmentSafe(segment))
+    .join('/')
 }

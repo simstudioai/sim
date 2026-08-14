@@ -163,3 +163,20 @@ describe('WorkspaceVFS lazy grep resilience', () => {
     ).rejects.toThrow('cannot be materialized')
   })
 })
+
+describe('WorkspaceVFS decoded-equivalent resolution', () => {
+  it('resolves a decoded path to its single encoded twin and rejects ambiguity', () => {
+    const vfs = new WorkspaceVFS({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
+    const internals = vfs as unknown as { files: Map<string, string> }
+    internals.files.set('workflows/Elder%20v2/The%20Elder/state.json', '{}')
+
+    expect(vfs.resolveDecodedEquivalent('workflows/Elder v2/The Elder/state.json')).toBe(
+      'workflows/Elder%20v2/The%20Elder/state.json'
+    )
+    expect(vfs.resolveDecodedEquivalent('workflows/Elder v2/The Elder/meta.json')).toBeNull()
+
+    // Two keys decoding identically (pathological) must refuse to guess.
+    internals.files.set('workflows/Elder v2/The Elder/state.json', '{}')
+    expect(vfs.resolveDecodedEquivalent('workflows/Elder v2/The Elder/state.json')).toBeNull()
+  })
+})

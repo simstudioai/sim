@@ -2,7 +2,13 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { glob, grep, grepReadResult, WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
+import {
+  glob,
+  grep,
+  grepReadResult,
+  pathWithinGrepScope,
+  WorkspaceFileGrepError,
+} from '@/lib/copilot/vfs/operations'
 import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 
 function vfsFromEntries(entries: [string, string][]): Map<string, string> {
@@ -233,5 +239,20 @@ describe('grepReadResult placeholders', () => {
     // Untagged, so it is content — text alone never makes something a placeholder.
     const { content } = readPlaceholder.binaryFile('app.bin', 'text/plain', 10)
     expect(grepResult({ content, totalLines: 1 })).toHaveLength(1)
+  })
+})
+
+describe('decode-normalized matching', () => {
+  it('glob matches a decoded display pattern against encoded keys, returning canonical paths', () => {
+    const files = new Map([['workflows/Elder%20v2/The%20Elder/state.json', '{}']])
+    const matches = glob(files, 'workflows/Elder v2/**')
+    expect(matches).toContain('workflows/Elder%20v2/The%20Elder/state.json')
+  })
+
+  it('grep scope written in decoded form filters in encoded keys', () => {
+    expect(
+      pathWithinGrepScope('workflows/Elder%20v2/The%20Elder/state.json', 'workflows/Elder v2')
+    ).toBe(true)
+    expect(pathWithinGrepScope('workflows/Other/state.json', 'workflows/Elder v2')).toBe(false)
   })
 })

@@ -421,7 +421,7 @@ export async function executeVfsRead(
           success: false,
           error: isOversizedReadPlaceholder(fileContent)
             ? fileContent.content
-            : 'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
+            : `Read result too large to return inline. Locate the relevant section first — grep({pattern: \"...\", path: \"${path}\"}) — then page it with read({path: \"${path}\", offset: <line>, limit: <lines>}). Avoid catch-all greps or full-file reads because they waste context window.`,
         }
       }
       const windowedFileContent = applyWindow(fileContent)
@@ -458,7 +458,22 @@ export async function executeVfsRead(
       }
     }
 
-    const result = await vfs.read(path, offset, limit)
+    let resolvedReadPath = path
+    let result = await vfs.read(path, offset, limit)
+    if (!result) {
+      // Same name, wrong encoding (spaces instead of %20) is the most common
+      // path mistake and carries zero ambiguity — resolve it instead of
+      // bouncing the model through a not-found round-trip.
+      const decodedEquivalent = vfs.resolveDecodedEquivalent(path)
+      if (decodedEquivalent) {
+        logger.info('vfs_read resolved decoded-equivalent path', {
+          requested: path,
+          resolved: decodedEquivalent,
+        })
+        resolvedReadPath = decodedEquivalent
+        result = await vfs.read(decodedEquivalent, offset, limit)
+      }
+    }
     if (!result) {
       const suggestions = vfs.suggestSimilar(path)
       logger.warn('vfs_read file not found', { path, suggestions })
