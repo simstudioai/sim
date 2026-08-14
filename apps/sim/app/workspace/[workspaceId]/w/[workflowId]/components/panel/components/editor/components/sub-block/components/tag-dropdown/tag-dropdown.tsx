@@ -29,7 +29,6 @@ import type {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/types'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { getBlock } from '@/blocks'
-import { VARIABLE_TILE_COLOR } from '@/blocks/accent'
 import { BlockTile } from '@/blocks/block-tile'
 import type { BlockConfig } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
@@ -154,6 +153,16 @@ export const getTagSearchTerm = (text: string, cursorPosition: number): string =
 
   return textBeforeCursor.slice(lastOpenBracket + 1).toLowerCase()
 }
+
+/**
+ * Color constants for block type icons in the tag dropdown.
+ */
+const BLOCK_COLORS = {
+  VARIABLE: '#2F8BFF',
+  DEFAULT: '#2F55FF',
+  LOOP: '#2FB3FF',
+  PARALLEL: '#FEE12B',
+} as const
 
 /**
  * Prefix constants for special tag types.
@@ -1700,7 +1709,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   <>
                     <PopoverSection rootOnly>
                       <div className='flex items-center gap-1.5'>
-                        <BlockTile bgColor={VARIABLE_TILE_COLOR} fallbackLabel='V' size='sm' />
+                        <BlockTile bgColor={BLOCK_COLORS.VARIABLE} fallbackLabel='V' size='sm' />
                         Variables
                       </div>
                     </PopoverSection>

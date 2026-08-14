@@ -1,16 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { stripVersionSuffix } from '@sim/utils/string'
 import { describe, expect, it } from 'vitest'
 import integrationsJson from '@/lib/integrations/integrations.json'
 import {
-  resolveIntegrationBlockTypeForOAuth,
   resolveOAuthServiceForSlug,
   resolveServiceAccountIntegration,
 } from '@/lib/integrations/oauth-service'
 import type { Integration } from '@/lib/integrations/types'
-import { getBlockTileColor, getBlockTileIcon } from '@/blocks/accent'
 
 const INTEGRATIONS = integrationsJson.integrations as readonly Integration[]
 
@@ -182,96 +179,5 @@ describe('resolveServiceAccountIntegration', () => {
     expect(resolveServiceAccountIntegration('dropbox')).toBeNull()
     expect(resolveServiceAccountIntegration('')).toBeNull()
     expect(resolveServiceAccountIntegration('   ')).toBeNull()
-  })
-})
-
-/**
- * Integrations whose `oauthServiceId` is shared with a sibling, so the id names
- * a pair rather than a block: Google Slides rides Drive's service, Jira Service
- * Management rides Jira's. The bridge deliberately resolves none of them.
- */
-const SHARED_OAUTH_ID_SLUGS = ['google-drive', 'google-slides', 'jira', 'jira-service-management']
-
-/** Resolved block type with any version suffix dropped, for stable assertions. */
-function baseTypeFor(...keys: (string | undefined)[]): string | undefined {
-  const blockType = resolveIntegrationBlockTypeForOAuth(...keys)
-  return blockType ? stripVersionSuffix(blockType) : undefined
-}
-
-describe('resolveIntegrationBlockTypeForOAuth', () => {
-  it.concurrent('resolves a service id, a provider id, and an extra auth server', () => {
-    // Each is a distinct key shape a credential surface can be holding: the
-    // service id a block declares, the provider id that service registers, and
-    // the second authorization server Salesforce accepts. The catalog carries
-    // versioned types (`gmail_v2`), so compare on the base — the version that
-    // wins is whichever the catalog lists first and is not the contract here.
-    expect(baseTypeFor('gmail')).toBe('gmail')
-    expect(baseTypeFor('google-email')).toBe('gmail')
-    expect(baseTypeFor('salesforce-sandbox')).toBe('salesforce')
-  })
-
-  it.concurrent('is case-insensitive and skips empty keys', () => {
-    expect(baseTypeFor('GOOGLE-EMAIL')).toBe('gmail')
-    expect(resolveIntegrationBlockTypeForOAuth(undefined, '', 'slack')).toBeDefined()
-  })
-
-  it.concurrent('takes the first key that resolves, so callers can order by specificity', () => {
-    // A connect dialog passes the service id before the provider id it derives
-    // from; the specific one has to win or every Google service would render
-    // whichever member the catalog happens to list first.
-    expect(baseTypeFor('google-sheets', 'google-email')).toBe('google_sheets')
-    expect(baseTypeFor('unknown-service', 'google-email')).toBe('gmail')
-  })
-
-  it.concurrent('returns undefined for an id no catalog integration claims', () => {
-    // The signal to keep the caller's existing mark rather than invent one.
-    expect(resolveIntegrationBlockTypeForOAuth('not-a-real-service')).toBeUndefined()
-    expect(resolveIntegrationBlockTypeForOAuth()).toBeUndefined()
-    expect(resolveIntegrationBlockTypeForOAuth(undefined, '')).toBeUndefined()
-  })
-
-  it.concurrent('refuses to guess when one OAuth id names more than one block', () => {
-    // Google Slides is authenticated by Drive's service and JSM by Jira's, so
-    // these ids name a pair. Answering with either member would put the wrong
-    // brand on the other's connect dialog, so the bridge declines.
-    expect(resolveIntegrationBlockTypeForOAuth('google-drive')).toBeUndefined()
-    expect(resolveIntegrationBlockTypeForOAuth('jira')).toBeUndefined()
-  })
-
-  it.concurrent('resolves every OAuth integration whose id names it alone', () => {
-    // A credential surface that cannot reach a block type falls back to the
-    // colourless OAUTH_PROVIDERS mark, which is the bug this bridge exists to
-    // close — so every unambiguous integration must be in the index, and the
-    // only permitted misses are the shared ids above.
-    const unresolved = INTEGRATIONS.filter(
-      (integration) =>
-        integration.authType === 'oauth' &&
-        integration.oauthServiceId &&
-        !resolveIntegrationBlockTypeForOAuth(integration.oauthServiceId)
-    ).map((integration) => integration.slug)
-
-    expect(unresolved.sort()).toEqual(SHARED_OAUTH_ID_SLUGS)
-  })
-})
-
-describe('the OAuth bridge reaches a renderable tile', () => {
-  it('resolves every OAuth integration to a block carrying both an icon and a fill', () => {
-    // The bridge exists so a credential surface can draw the block's tile.
-    // A type that resolves but has no registered icon or colour would paint an
-    // empty square in the connect dialog — worse than the grey mark it replaced.
-    const broken = INTEGRATIONS.filter(
-      (integration) =>
-        integration.authType === 'oauth' &&
-        integration.oauthServiceId &&
-        !SHARED_OAUTH_ID_SLUGS.includes(integration.slug)
-    ).flatMap((integration) => {
-      const blockType = resolveIntegrationBlockTypeForOAuth(integration.oauthServiceId)
-      if (!blockType) return [`${integration.slug}: unresolved`]
-      if (!getBlockTileIcon(blockType)) return [`${integration.slug} -> ${blockType}: no icon`]
-      if (!getBlockTileColor(blockType)) return [`${integration.slug} -> ${blockType}: no fill`]
-      return []
-    })
-
-    expect(broken).toEqual([])
   })
 })

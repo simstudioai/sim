@@ -50,7 +50,6 @@ import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { getAllBlocks } from '@/blocks'
-import { BlockTile } from '@/blocks/block-tile'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { BlockConfig } from '@/blocks/types'
 import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
@@ -740,7 +739,12 @@ function BlockToolRow({
           checked={isBlockAllowed}
           onCheckedChange={() => onToggleBlock()}
         />
-        <BlockTile blockType={block.type} icon={BlockIcon} bgColor={block.bgColor} />
+        <div
+          className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+          style={{ background: block.bgColor }}
+        >
+          {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
+        </div>
         <button
           type='button'
           onClick={() => isBlockAllowed && isExpandable && setExpanded((prev) => !prev)}
@@ -1776,11 +1780,12 @@ export function GroupDetail({
                             checked={isIntegrationAllowed(block.type)}
                             onCheckedChange={() => toggleIntegration(block.type)}
                           />
-                          <BlockTile
-                            blockType={block.type}
-                            icon={BlockIcon}
-                            bgColor={block.bgColor}
-                          />
+                          <div
+                            className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+                            style={{ background: block.bgColor }}
+                          >
+                            {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
+                          </div>
                           <span className='truncate text-sm'>{block.name}</span>
                         </label>
                         {block.description && (

@@ -32,8 +32,9 @@ import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/creden
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
-import { ConnectorTile } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-tile'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
+import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
@@ -308,6 +309,7 @@ function ConnectorCard({
 
   const connectorDef = CONNECTOR_META_REGISTRY[connector.connectorType]
   const Icon = connectorDef?.icon
+  const brandBg = getBlock(connector.connectorType)?.bgColor ?? null
   const statusConfig =
     STATUS_CONFIG[connector.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.active
 
@@ -357,7 +359,24 @@ function ConnectorCard({
       <div className='flex items-center justify-between gap-2 px-2 py-2'>
         <div className='flex min-w-0 items-center gap-2.5'>
           <div className='relative size-9 flex-shrink-0'>
-            <ConnectorTile connectorType={connector.connectorType} icon={Icon} />
+            <div
+              className={cn(
+                'flex size-full items-center justify-center rounded-xl border',
+                brandBg
+                  ? 'border-[var(--border-1)]'
+                  : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
+              )}
+              style={brandBg ? { background: brandBg } : undefined}
+            >
+              {Icon && (
+                <Icon
+                  className={cn(
+                    'size-5',
+                    brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
+                  )}
+                />
+              )}
+            </div>
             {connector.status === 'disabled' && (
               <TriangleAlert className='-right-0.5 -top-0.5 absolute size-3 text-[var(--caution)]' />
             )}

@@ -244,7 +244,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
         const block = blocks?.[out.blockId]
         const blockConfig = block?.type ? getBlock(block.type) : undefined
         const blockIconInfo: BlockIconInfo | undefined = blockConfig?.icon
-          ? { icon: blockConfig.icon }
+          ? { icon: blockConfig.icon, color: blockConfig.bgColor || '#2F55FF' }
           : undefined
         const blockName = block?.name?.trim() || undefined
         // Flag a missing source block only once the workflow state has loaded
