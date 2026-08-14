@@ -41,6 +41,15 @@ describe('resolveResourceOrigin', () => {
     expect(resolveResourceOrigin('http://myorg.crm.dynamics.com', config).ok).toBe(false)
   })
 
+  it('rejects an explicit port, which no provider serves its resource on', () => {
+    expect(resolveResourceOrigin('https://myorg.crm.dynamics.com:8443', config).ok).toBe(false)
+  })
+
+  it('accepts the default https port, which URL drops from the origin', () => {
+    const result = resolveResourceOrigin('https://myorg.crm.dynamics.com:443', config)
+    expect(result).toEqual({ ok: true, origin: 'https://myorg.crm.dynamics.com' })
+  })
+
   it('rejects embedded credentials', () => {
     expect(resolveResourceOrigin('https://u:p@myorg.crm.dynamics.com', config).ok).toBe(false)
   })

@@ -40,6 +40,15 @@ export function resolveResourceOrigin(
   if (parsed.username || parsed.password) {
     return { ok: false, error: `${config.title} must not contain credentials` }
   }
+  /**
+   * `URL` drops the port only when it is the scheme default, so anything left
+   * here is explicit. The origin becomes an OAuth audience and the base for
+   * every API request, and providers publish their resource on the default
+   * port — a port-qualified origin would be a resource nobody serves.
+   */
+  if (parsed.port) {
+    return { ok: false, error: `${config.title} must not include a port` }
+  }
 
   /**
    * The allowlist is the whole security control here: no private address,

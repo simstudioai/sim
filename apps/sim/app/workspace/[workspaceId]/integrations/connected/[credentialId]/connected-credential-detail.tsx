@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { resolveCredentialDisplay } from '@/lib/integrations'
+import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import {
   AddPeopleModal,
   CredentialDetailHeading,
@@ -113,6 +114,19 @@ export function ConnectedCredentialDetail({
   const handleReconnectOAuth = async () => {
     if (!credential || credential.type !== 'oauth' || !credential.providerId || !workspaceId) return
     try {
+      /**
+       * A reconnect must return to the environment the credential belongs to,
+       * and this surface has no way to supply it — `WorkspaceCredential` carries
+       * no granted scopes to read the origin back from. Checked before the draft
+       * is written so a refusal leaves nothing behind.
+       */
+      const resourceConfig = getServiceConfigByProviderId(credential.providerId)?.resourceUrl
+      if (resourceConfig) {
+        throw new Error(
+          `Reconnecting ${credential.displayName} needs its ${resourceConfig.title}. Disconnect it here, then connect the account again to enter one.`
+        )
+      }
+
       await createDraft.mutateAsync({
         workspaceId,
         providerId: credential.providerId,
