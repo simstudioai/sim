@@ -72,28 +72,38 @@ export function resolveOAuthServiceForSlug(slug: string): OAuthServiceMatch | nu
  * dialog. This is the bridge back: given any OAuth id, the block whose config
  * owns the icon and `bgColor`.
  *
- * First write wins, so a family provider resolves to the same member every
- * time rather than flipping with catalog order.
+ * A key two integrations both claim resolves to neither. Google Slides is
+ * authenticated by Drive's `google-drive` service and Jira Service Management
+ * by Jira's `jira`, so those ids name a pair, not a block — and picking the
+ * one that happens to sort first would put Drive's tile on the dialog opening
+ * Slides. Dropping the key falls the caller back to the service-specific mark
+ * it already had, which is the honest answer: no wrong brand.
  */
 const BLOCK_TYPE_BY_OAUTH_KEY: ReadonlyMap<string, string> = (() => {
-  const index = new Map<string, string>()
-  const add = (key: string | undefined, blockType: string) => {
+  const claims = new Map<string, Set<string>>()
+  const claim = (key: string | undefined, blockType: string) => {
     if (!key) return
     const normalized = key.toLowerCase()
-    if (!index.has(normalized)) index.set(normalized, blockType)
+    const owners = claims.get(normalized)
+    if (owners) owners.add(blockType)
+    else claims.set(normalized, new Set([blockType]))
   }
 
   for (const integration of INTEGRATIONS_DATA) {
     if (integration.authType !== 'oauth' || !integration.oauthServiceId) continue
     const service = getServiceConfigByServiceId(integration.oauthServiceId)
     if (!service) continue
-    add(integration.oauthServiceId, integration.type)
-    add(service.providerId, integration.type)
+    claim(integration.oauthServiceId, integration.type)
+    claim(service.providerId, integration.type)
     for (const extraProviderId of service.additionalProviderIds ?? []) {
-      add(extraProviderId, integration.type)
+      claim(extraProviderId, integration.type)
     }
   }
 
+  const index = new Map<string, string>()
+  for (const [key, owners] of claims) {
+    if (owners.size === 1) index.set(key, owners.values().next().value as string)
+  }
   return index
 })()
 

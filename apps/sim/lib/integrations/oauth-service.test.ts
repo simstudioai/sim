@@ -185,6 +185,13 @@ describe('resolveServiceAccountIntegration', () => {
   })
 })
 
+/**
+ * Integrations whose `oauthServiceId` is shared with a sibling, so the id names
+ * a pair rather than a block: Google Slides rides Drive's service, Jira Service
+ * Management rides Jira's. The bridge deliberately resolves none of them.
+ */
+const SHARED_OAUTH_ID_SLUGS = ['google-drive', 'google-slides', 'jira', 'jira-service-management']
+
 /** Resolved block type with any version suffix dropped, for stable assertions. */
 function baseTypeFor(...keys: (string | undefined)[]): string | undefined {
   const blockType = resolveIntegrationBlockTypeForOAuth(...keys)
@@ -223,10 +230,19 @@ describe('resolveIntegrationBlockTypeForOAuth', () => {
     expect(resolveIntegrationBlockTypeForOAuth(undefined, '')).toBeUndefined()
   })
 
-  it.concurrent('resolves every OAuth integration in the catalog to a block type', () => {
+  it.concurrent('refuses to guess when one OAuth id names more than one block', () => {
+    // Google Slides is authenticated by Drive's service and JSM by Jira's, so
+    // these ids name a pair. Answering with either member would put the wrong
+    // brand on the other's connect dialog, so the bridge declines.
+    expect(resolveIntegrationBlockTypeForOAuth('google-drive')).toBeUndefined()
+    expect(resolveIntegrationBlockTypeForOAuth('jira')).toBeUndefined()
+  })
+
+  it.concurrent('resolves every OAuth integration whose id names it alone', () => {
     // A credential surface that cannot reach a block type falls back to the
     // colourless OAUTH_PROVIDERS mark, which is the bug this bridge exists to
-    // close — so no OAuth integration may be missing from the index.
+    // close — so every unambiguous integration must be in the index, and the
+    // only permitted misses are the shared ids above.
     const unresolved = INTEGRATIONS.filter(
       (integration) =>
         integration.authType === 'oauth' &&
@@ -234,7 +250,7 @@ describe('resolveIntegrationBlockTypeForOAuth', () => {
         !resolveIntegrationBlockTypeForOAuth(integration.oauthServiceId)
     ).map((integration) => integration.slug)
 
-    expect(unresolved).toEqual([])
+    expect(unresolved.sort()).toEqual(SHARED_OAUTH_ID_SLUGS)
   })
 })
 
@@ -244,7 +260,10 @@ describe('the OAuth bridge reaches a renderable tile', () => {
     // A type that resolves but has no registered icon or colour would paint an
     // empty square in the connect dialog — worse than the grey mark it replaced.
     const broken = INTEGRATIONS.filter(
-      (integration) => integration.authType === 'oauth' && integration.oauthServiceId
+      (integration) =>
+        integration.authType === 'oauth' &&
+        integration.oauthServiceId &&
+        !SHARED_OAUTH_ID_SLUGS.includes(integration.slug)
     ).flatMap((integration) => {
       const blockType = resolveIntegrationBlockTypeForOAuth(integration.oauthServiceId)
       if (!blockType) return [`${integration.slug}: unresolved`]
