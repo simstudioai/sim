@@ -811,15 +811,34 @@ export async function importAgentCookies(
 }
 
 /**
+ * The single site permission a browsing surface cannot withhold: the one every
+ * "Copy" button on the web goes through. Blanket-denying it made
+ * `navigator.clipboard.writeText` reject with `NotAllowedError`, so those
+ * buttons did nothing at all — no error, no copied text — while the legacy
+ * `document.execCommand('copy')` path kept working, which is why only some
+ * sites looked broken.
+ *
+ * Granting it hands the page no reach it lacked: Chromium still requires the
+ * document to be focused and to hold a transient user activation, and a
+ * sanitized write only places text the page already renders onto the clipboard.
+ * Reading stays denied — that is the direction that would leak whatever the
+ * user last copied from anywhere else.
+ */
+const ALLOWED_SITE_PERMISSIONS = new Set(['clipboard-sanitized-write'])
+
+/**
  * Default-deny hardening for the agent partition. Site permissions remain
- * denied, while uploads use Chromium's native file chooser and downloads are
- * saved into the device-level browser download directory.
+ * denied apart from ALLOWED_SITE_PERMISSIONS, while uploads use Chromium's
+ * native file chooser and downloads are saved into the device-level browser
+ * download directory.
  */
 function configureAgentPartition(ses: Session): void {
   if (configuredPartitions.has(ses)) return
   configuredPartitions.add(ses)
-  ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
-  ses.setPermissionCheckHandler(() => false)
+  ses.setPermissionRequestHandler((_wc, permission, callback) =>
+    callback(ALLOWED_SITE_PERMISSIONS.has(permission))
+  )
+  ses.setPermissionCheckHandler((_wc, permission) => ALLOWED_SITE_PERMISSIONS.has(permission))
   // Service workers do not inherit a tab's user agent. With only the tab's set,
   // the document request carries the browser string while the worker's own
   // script request still announces Electron — and on a site that routes its
