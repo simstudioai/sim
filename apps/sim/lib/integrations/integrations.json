@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-13",
+  "updatedAt": "2026-08-14",
   "integrations": [
     {
       "type": "onepassword",
@@ -2216,6 +2216,81 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity", "microsoft-365"]
+    },
+    {
+      "type": "azure_data_explorer",
+      "slug": "azure-data-explorer",
+      "name": "Azure Data Explorer",
+      "description": "Query and manage Azure Data Explorer (Kusto) clusters with KQL",
+      "longDescription": "Run Kusto Query Language queries against Azure Data Explorer and Fabric Eventhouse clusters, discover databases, tables, and schemas, push small batches of rows inline, and run management commands. Authenticates with a Microsoft Entra service principal using client credentials, so no interactive sign-in is needed.",
+      "bgColor": "#FFFFFF",
+      "iconName": "AzureDataExplorerIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/azure_data_explorer",
+      "operations": [
+        {
+          "name": "Run Query",
+          "description": "Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table."
+        },
+        {
+          "name": "List Databases",
+          "description": "List the databases on an Azure Data Explorer cluster that the service principal can access."
+        },
+        {
+          "name": "List Tables",
+          "description": "List the tables in an Azure Data Explorer database, with their folder and docstring."
+        },
+        {
+          "name": "Show Table Schema",
+          "description": "Read the column schema of an Azure Data Explorer table in CSL form (e.g., \"Timestamp:datetime,Level:string\"). Use this before writing a KQL query against an unfamiliar table."
+        },
+        {
+          "name": "Show Database Schema",
+          "description": "Read the full schema of an Azure Data Explorer database as a flat list of every table and column, so an agent can discover the data model in one call."
+        },
+        {
+          "name": "Show Table Details",
+          "description": "Read size, row count, hot-cache footprint, and effective policies for a table — or for every table in the database when no table is given. Use it to see how much data a table actually holds before querying it."
+        },
+        {
+          "name": "List Functions",
+          "description": "List the stored functions in an Azure Data Explorer database, with their parameters and bodies, so an agent can reuse existing logic instead of rewriting it."
+        },
+        {
+          "name": "Ingest Rows Inline",
+          "description": "Push rows directly into an Azure Data Explorer table with .ingest inline. Data is parsed as CSV against the table schema unless an ingestion property says otherwise. Intended for small batches — use queued or streaming ingestion for production volumes."
+        },
+        {
+          "name": "Ingest From Query",
+          "description": "Materialize the result of a KQL query into a table with .set, .append, .set-or-append, or .set-or-replace. Use this to build rollup or summary tables instead of pushing rows from a workflow."
+        },
+        {
+          "name": "Create Table",
+          "description": "Create a table in an Azure Data Explorer database from a CSL column schema. Succeeds without changing anything if a table of the same name already exists."
+        },
+        {
+          "name": "Drop Table",
+          "description": "Drop a table from an Azure Data Explorer database. This permanently deletes the table and its data, and returns the tables that remain."
+        },
+        {
+          "name": "Show Ingestion Failures",
+          "description": "List ingestion failures recorded for a database, with the failing table, error code, root cause detail, and whether the failure is permanent or transient. Failures are retained for 14 days."
+        },
+        {
+          "name": "Show Operations",
+          "description": "Check the state of administrative operations on a cluster, such as an async ingestion. Given an operation ID it returns that operation latest update; with no ID it returns the operations from the last two weeks."
+        },
+        {
+          "name": "Management Command (advanced)",
+          "description": "Run an Azure Data Explorer management command (a control command starting with \".\") such as .show, .create, .alter, or .drop. Write commands change cluster state permanently; use the Query operation for reads."
+        }
+      ],
+      "operationCount": 14,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["data-analytics", "data-warehouse", "cloud", "monitoring"]
     },
     {
       "type": "azure_devops",

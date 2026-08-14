@@ -18,6 +18,10 @@ import { AsanaBlock, AsanaBlockMeta } from '@/blocks/blocks/asana'
 import { AshbyBlock, AshbyBlockMeta } from '@/blocks/blocks/ashby'
 import { AthenaBlock, AthenaBlockMeta } from '@/blocks/blocks/athena'
 import { AttioBlock, AttioBlockMeta } from '@/blocks/blocks/attio'
+import {
+  AzureDataExplorerBlock,
+  AzureDataExplorerBlockMeta,
+} from '@/blocks/blocks/azure_data_explorer'
 import { AzureDevOpsBlock, AzureDevOpsBlockMeta } from '@/blocks/blocks/azure_devops'
 import { BoxBlock, BoxBlockMeta } from '@/blocks/blocks/box'
 import { BrandfetchBlock, BrandfetchBlockMeta } from '@/blocks/blocks/brandfetch'
@@ -373,6 +377,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   ashby: AshbyBlock,
   athena: AthenaBlock,
   attio: AttioBlock,
+  azure_data_explorer: AzureDataExplorerBlock,
   azure_devops: AzureDevOpsBlock,
   box: BoxBlock,
   brandfetch: BrandfetchBlock,
@@ -709,6 +714,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   ashby: AshbyBlockMeta,
   athena: AthenaBlockMeta,
   attio: AttioBlockMeta,
+  azure_data_explorer: AzureDataExplorerBlockMeta,
   azure_devops: AzureDevOpsBlockMeta,
   box: BoxBlockMeta,
   brandfetch: BrandfetchBlockMeta,
