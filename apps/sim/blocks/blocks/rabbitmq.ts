@@ -357,7 +357,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       title: 'Message Count',
       type: 'short-input',
       placeholder: '1',
-      description: 'Maximum number of messages to retrieve, up to 100',
+      description: 'Maximum number of messages to retrieve, up to 50',
       condition: { field: 'operation', value: 'rabbitmq_get_messages' },
     },
     {

@@ -212,7 +212,7 @@ describe('rabbitmq_get_messages bounds', () => {
   })
 
   it('caps a count the broker would otherwise accept unbounded', () => {
-    expect(body({ queue: 'orders', count: 100_000 }).count).toBe(100)
+    expect(body({ queue: 'orders', count: 100_000 }).count).toBe(50)
     expect(body({ queue: 'orders', count: 0 }).count).toBe(1)
     expect(body({ queue: 'orders', count: 25 }).count).toBe(25)
   })
@@ -420,20 +420,35 @@ describe('rabbitmq_get_messages response budget', () => {
       number
     >
 
-  it('keeps the whole batch under the shared transport response cap', () => {
-    const TRANSPORT_CAP = 10 * 1024 * 1024
-    for (const count of [1, 10, 50, 100]) {
+  const TRANSPORT_CAP = 10 * 1024 * 1024
+  // `truncate` bounds the payload only — the broker returns AMQP properties in full — so the
+  // worst case a batch can produce is every message also carrying a full content header frame.
+  const FRAME_MAX = 131_072
+
+  it('keeps payloads plus worst-case message metadata under the transport cap', () => {
+    for (const count of [1, 2, 10, 25, 50, 100]) {
       const sent = body({ queue: 'q', count, truncate: 100_000_000 })
-      // base64 inflates payloads by 4/3 before JSON escaping, so budget against the worst case.
-      expect(sent.count * sent.truncate * (4 / 3)).toBeLessThan(TRANSPORT_CAP)
+      expect(sent.count * (sent.truncate * (4 / 3) + FRAME_MAX)).toBeLessThan(TRANSPORT_CAP)
     }
+  })
+
+  it('caps the batch so reserved metadata alone cannot exhaust the budget', () => {
+    expect(body({ queue: 'q', count: 100_000 }).count).toBe(50)
+    expect(body({ queue: 'q', count: 100_000 }).count * FRAME_MAX).toBeLessThan(TRANSPORT_CAP)
   })
 
   it('caps a single oversized truncate request', () => {
     expect(body({ queue: 'q', truncate: 100_000_000 }).truncate).toBe(1_000_000)
   })
 
-  it('leaves a reasonable truncate untouched', () => {
+  it('leaves a reasonable truncate untouched at a low count', () => {
     expect(body({ queue: 'q', truncate: 20_000, count: 5 }).truncate).toBe(20_000)
+  })
+
+  it('shortens payloads rather than failing the retrieval when count is high', () => {
+    expect(body({ queue: 'q', truncate: 50_000, count: 2 }).truncate).toBe(50_000)
+    const high = body({ queue: 'q', truncate: 50_000, count: 50 }).truncate
+    expect(high).toBeLessThan(50_000)
+    expect(high).toBeGreaterThanOrEqual(1_024)
   })
 })

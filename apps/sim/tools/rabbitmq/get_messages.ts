@@ -19,21 +19,35 @@ const ACK_MODES = new Set([
 
 /**
  * The broker applies no upper bound of its own to `count`, so a single call could pull an
- * unbounded number of messages of unbounded size into memory. Both dimensions are bounded here:
- * `count` caps how many messages come back, and `truncate` caps each payload broker-side so the
- * oversized bytes are never transferred at all. The truncate default matches the management UI's own.
+ * unbounded number of messages into memory, and the shared tool transport rejects any response
+ * body over 10MB before a tool ever sees it. Both dimensions are bounded here.
  */
-const MAX_MESSAGE_COUNT = 100
+const MAX_MESSAGE_COUNT = 50
 const DEFAULT_TRUNCATE_BYTES = 50_000
+const MIN_TRUNCATE_BYTES = 1_024
+const MAX_TRUNCATE_BYTES = 1_000_000
 
 /**
- * Payload budget for one call. The shared tool transport rejects any response body over 10MB,
- * and `count * truncate` alone could exceed that — base64 payloads inflate a further 4/3 on top,
- * before JSON escaping. Keeping the combined payload under this budget means a large `truncate`
- * degrades to shorter payloads rather than failing the whole retrieval at the transport cap.
+ * Budget for one retrieval, kept under the transport's 10MB cap with room for the JSON envelope.
  */
-const MAX_TOTAL_PAYLOAD_BYTES = 4_000_000
-const MAX_TRUNCATE_BYTES = 1_000_000
+const RESPONSE_BUDGET_BYTES = 8_000_000
+
+/**
+ * Per-message allowance for AMQP properties and headers. `truncate` bounds the payload only —
+ * the broker returns properties in full — so the budget has to reserve space for them rather
+ * than assume they are small. This figure is RabbitMQ's default `frame_max`, which bounds the
+ * content header frame carrying a message's properties, so any message published by a standard
+ * AMQP client fits inside it.
+ *
+ * The one case this cannot cover is a message published through the management HTTP API itself,
+ * which bypasses `frame_max` and accepts properties up to that API's ~10MB request-body limit.
+ * Retrieving several of those can still exceed the transport cap and surfaces as a response-size
+ * error; the remedy is a lower `count`.
+ */
+const PER_MESSAGE_METADATA_RESERVE_BYTES = 131_072
+
+/** base64 payloads inflate 4/3 on the wire before JSON escaping. */
+const BASE64_INFLATION = 4 / 3
 
 function resolveCount(count: number | undefined): number {
   if (typeof count !== 'number' || !Number.isFinite(count)) return 1
@@ -41,16 +55,22 @@ function resolveCount(count: number | undefined): number {
 }
 
 /**
- * Resolves the per-message byte limit actually sent to the broker, bounded both per message and
- * across the whole batch so the response always fits inside the shared transport cap.
+ * Resolves the per-message payload limit sent to the broker. The whole batch — payloads plus the
+ * reserved metadata allowance for every message — is held inside {@link RESPONSE_BUDGET_BYTES},
+ * so asking for a large `truncate` alongside a large `count` yields shorter payloads rather than
+ * a retrieval that fails at the transport cap.
  */
 function resolveTruncate(truncate: number | undefined, count: number | undefined): number {
+  const messages = resolveCount(count)
   const requested =
     typeof truncate === 'number' && Number.isFinite(truncate)
       ? Math.max(Math.trunc(truncate), 1)
       : DEFAULT_TRUNCATE_BYTES
-  const budgeted = Math.floor(MAX_TOTAL_PAYLOAD_BYTES / resolveCount(count))
-  return Math.max(Math.min(requested, MAX_TRUNCATE_BYTES, budgeted), 1)
+
+  const payloadBudget = RESPONSE_BUDGET_BYTES - messages * PER_MESSAGE_METADATA_RESERVE_BYTES
+  const perMessageBudget = Math.floor(payloadBudget / messages / BASE64_INFLATION)
+
+  return Math.max(Math.min(requested, MAX_TRUNCATE_BYTES, perMessageBudget), MIN_TRUNCATE_BYTES)
 }
 
 export const rabbitmqGetMessagesTool: ToolConfig<
@@ -95,7 +115,7 @@ export const rabbitmqGetMessagesTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: `Truncate payloads longer than this many bytes. Defaults to ${DEFAULT_TRUNCATE_BYTES} and is capped at ${MAX_TRUNCATE_BYTES}, and lowered further when a large count would push the response past the transport limit. Each message reports whether it was truncated`,
+      description: `Truncate payloads longer than this many bytes. Defaults to ${DEFAULT_TRUNCATE_BYTES}, capped at ${MAX_TRUNCATE_BYTES}, and lowered further at high counts so the whole batch stays inside the response limit. Each message reports whether it was truncated`,
     },
   },
 
