@@ -16,6 +16,7 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { buildFallbackDeliveryFingerprint } from '@/lib/webhooks/providers/utils'
+import { ashbyErrorMessage } from '@/tools/ashby/utils'
 
 const logger = createLogger('WebhookProvider:Ashby')
 
@@ -212,9 +213,15 @@ export const ashbyHandler: WebhookProviderHandler = {
       const responseBody = (await ashbyResponse.json().catch(() => ({}))) as Record<string, unknown>
 
       if (!ashbyResponse.ok || !responseBody.success) {
-        const errorInfo = responseBody.errorInfo as Record<string, string> | undefined
-        const errorMessage =
-          errorInfo?.message || (responseBody.message as string) || 'Unknown Ashby API error'
+        // Ashby documents two error shapes and uses both. Reading only
+        // `errorInfo.message` misses the `errors: [{ message, parameter }]` form,
+        // which is what a missing-permission failure arrives in - and the
+        // duplicate-webhook branch below only fires when the message was
+        // extracted, so losing it costs the user the actionable guidance.
+        const errorMessage = ashbyErrorMessage(
+          responseBody,
+          (responseBody.message as string) || 'Unknown Ashby API error'
+        )
 
         let userFriendlyMessage = 'Failed to create webhook subscription in Ashby'
         if (ashbyResponse.status === 401) {
@@ -305,7 +312,11 @@ export const ashbyHandler: WebhookProviderHandler = {
           `[${ctx.requestId}] Failed to delete Ashby webhook (non-fatal): ${ashbyResponse.status}`,
           { response: responseBody }
         )
-        if (ctx.strict) throw new Error(`Failed to delete Ashby webhook: ${ashbyResponse.status}`)
+        if (ctx.strict) {
+          throw new Error(
+            `Failed to delete Ashby webhook: ${ashbyErrorMessage(responseBody, `HTTP ${ashbyResponse.status}`)}`
+          )
+        }
       }
     } catch (error) {
       logger.warn(`[${ctx.requestId}] Error deleting Ashby webhook (non-fatal)`, error)

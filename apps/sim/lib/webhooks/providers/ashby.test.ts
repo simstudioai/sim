@@ -3,7 +3,7 @@
  */
 import crypto from 'crypto'
 import { createMockRequest } from '@sim/testing'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ashbyHandler } from '@/lib/webhooks/providers/ashby'
 
 describe('ashbyHandler', () => {
@@ -133,6 +133,66 @@ describe('ashbyHandler', () => {
         id: 'app-1',
         currentInterviewStage: { id: 'stage-1', title: 'Offer', stageType: 'Offer' },
       })
+    })
+  })
+
+  describe('createSubscription error reporting', () => {
+    const realFetch = globalThis.fetch
+    afterEach(() => {
+      globalThis.fetch = realFetch
+    })
+
+    const ctx = {
+      requestId: 'req-1',
+      webhook: {
+        id: 'wh-1',
+        path: '/api/webhooks/trigger/abc',
+        providerConfig: { apiKey: 'k', triggerId: 'ashby_job_create' },
+      },
+    } as never
+
+    const respondWith = (body: unknown, status = 200) => {
+      globalThis.fetch = vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify(body), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          })
+        ) as never
+    }
+
+    it('surfaces the object-shaped errors array Ashby documents', async () => {
+      // Reading only errorInfo.message misses this form, which is what a
+      // missing-permission failure arrives in - the user would see
+      // 'Unknown Ashby API error' instead of the actual cause.
+      respondWith({ success: false, errors: [{ message: 'missing_endpoint_permission' }] })
+      await expect(ashbyHandler.createSubscription?.(ctx)).rejects.toThrow(
+        /missing_endpoint_permission/
+      )
+    })
+
+    it('surfaces the plain-string errors array Ashby also returns', async () => {
+      respondWith({ success: false, errors: ['webhook_not_found'] })
+      await expect(ashbyHandler.createSubscription?.(ctx)).rejects.toThrow(/webhook_not_found/)
+    })
+
+    it('still prefers errorInfo.message when Ashby sends both shapes at once', async () => {
+      respondWith({
+        success: false,
+        errors: ['webhook_not_found'],
+        errorInfo: { code: 'webhook_not_found', message: 'Webhook not found' },
+      })
+      await expect(ashbyHandler.createSubscription?.(ctx)).rejects.toThrow(/Webhook not found/)
+    })
+
+    it('keeps the actionable duplicate-webhook guidance reachable', async () => {
+      // The duplicate branch only fires when the message was extracted, so an
+      // unparsed error costs the user the instructions for fixing it.
+      respondWith({ success: false, errors: [{ message: 'duplicate webhook for this url' }] })
+      await expect(ashbyHandler.createSubscription?.(ctx)).rejects.toThrow(
+        /Ashby Settings > API\/Webhooks/
+      )
     })
   })
 
