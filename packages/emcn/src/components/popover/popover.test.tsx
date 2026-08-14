@@ -57,6 +57,31 @@ describe('PopoverScrollArea', () => {
     expect(fade?.dataset.scrollEdgeFadeVariant).toBe('panel')
   })
 
+  it('can hide scrollbar chrome while preserving the scroll viewport', () => {
+    mount(
+      <PopoverScrollArea scrollbar='hidden'>
+        <div>Items</div>
+      </PopoverScrollArea>
+    )
+
+    const scrollArea = container?.querySelector<HTMLElement>('[data-popover-scroll]')
+    expect(scrollArea?.className).toContain('[scrollbar-width:none]')
+    expect(scrollArea?.className).toContain('[&::-webkit-scrollbar]:hidden')
+    expect(scrollArea?.className).toContain('overflow-y-auto')
+    expect(scrollArea?.className).toContain('overflow-x-hidden')
+  })
+
+  it('can defer the bottom fade to an overlapping action surface', () => {
+    mount(
+      <PopoverScrollArea bottomFade={false}>
+        <div>Items</div>
+      </PopoverScrollArea>
+    )
+
+    expect(container?.querySelector('[data-popover-scroll-fade="top"]')).not.toBeNull()
+    expect(container?.querySelector('[data-popover-scroll-fade="bottom"]')).toBeNull()
+  })
+
   it('reveals edge fades only when more content exists in that direction', () => {
     mount(
       <PopoverScrollArea>

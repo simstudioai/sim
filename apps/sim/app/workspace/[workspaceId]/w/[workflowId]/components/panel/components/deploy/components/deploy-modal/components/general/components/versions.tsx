@@ -2,62 +2,54 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
-  Button,
-  cn,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverTrigger,
+  Chip,
+  ChipInput,
+  ChipTag,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Skeleton,
-  Tooltip,
 } from '@sim/emcn'
-import { FileText, MoreVertical, Pencil, RefreshCw, SendToBack } from '@sim/emcn/icons'
-import { formatDateTime } from '@sim/utils/formatting'
+import {
+  Circle,
+  CircleAlert,
+  CirclePause,
+  CornerUpRight,
+  FileText,
+  MoreHorizontal,
+  Pencil,
+  RefreshCw,
+  SendToBack,
+} from '@sim/emcn/icons'
+import { formatDateTime, formatRelativeTime } from '@sim/utils/formatting'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import { VersionDescriptionModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/components/version-description-modal'
 import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
-import { VersionDescriptionModal } from './version-description-modal'
-
-const HEADER_TEXT_CLASS = 'text-[var(--text-tertiary)] text-caption'
-const ROW_TEXT_CLASS = 'text-[var(--text-primary)] text-caption'
-const COLUMN_BASE_CLASS = 'flex-shrink-0'
-
-const COLUMN_WIDTHS = {
-  VERSION: 'w-[180px]',
-  DEPLOYED_BY: 'w-[140px]',
-  TIMESTAMP: 'flex-1',
-  ACTIONS: 'w-[56px]',
-} as const
 
 interface VersionsProps {
   workflowId: string | null
   versions: WorkflowDeploymentVersionResponse[]
   versionsLoading: boolean
   isPromotingVersion: boolean
-  selectedVersion: number | null
-  onSelectVersion: (version: number | null) => void
+  onSelectVersion: (version: number) => void
   onPromoteToLive: (version: number) => void
   onLoadDeployment: (version: number) => void
 }
 
-/**
- * Displays a list of workflow deployment versions with actions
- * for viewing, promoting to live, renaming, and loading deployments.
- */
+/** Displays compact deployment history with detail and management actions. */
 export function Versions({
   workflowId,
   versions,
   versionsLoading,
   isPromotingVersion,
-  selectedVersion,
   onSelectVersion,
   onPromoteToLive,
   onLoadDeployment,
 }: VersionsProps) {
   const [editingVersion, setEditingVersion] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
-  const [openDropdown, setOpenDropdown] = useState<number | null>(null)
   const [descriptionModalVersion, setDescriptionModalVersion] = useState<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -71,21 +63,18 @@ export function Versions({
   }, [editingVersion])
 
   const handleStartRename = (version: number, currentName: string | null | undefined) => {
-    setOpenDropdown(null)
     setEditingVersion(version)
     setEditValue(currentName || `v${version}`)
   }
 
   const handleSaveRename = (version: number) => {
     if (renameMutation.isPending) return
-    // Clearing the name is a no-op — the version number is always the canonical reference.
     if (!workflowId || !editValue.trim()) {
       setEditingVersion(null)
       return
     }
 
-    const currentVersion = versions.find((v) => v.version === version)
-    // Compare against the `v{n}` fallback so re-submitting the displayed token saves no redundant name.
+    const currentVersion = versions.find((candidate) => candidate.version === version)
     const currentName = currentVersion?.name || `v${version}`
 
     if (editValue.trim() === currentName) {
@@ -100,9 +89,7 @@ export function Versions({
         name: editValue.trim(),
       },
       {
-        onSuccess: () => {
-          setEditingVersion(null)
-        },
+        onSuccess: () => setEditingVersion(null),
       }
     )
   }
@@ -112,292 +99,171 @@ export function Versions({
     setEditValue('')
   }
 
-  const handleRowClick = (version: number) => {
-    if (editingVersion === version) return
-    onSelectVersion(selectedVersion === version ? null : version)
-  }
-
-  const handlePromote = (version: number) => {
-    if (isPromotingVersion) return
-    setOpenDropdown(null)
-    onPromoteToLive(version)
-  }
-
-  const handleLoadDeployment = (version: number) => {
-    setOpenDropdown(null)
-    onLoadDeployment(version)
-  }
-
-  const handleOpenDescriptionModal = (version: number) => {
-    setOpenDropdown(null)
-    setDescriptionModalVersion(version)
-  }
-
   const descriptionModalVersionData =
-    descriptionModalVersion !== null
-      ? versions.find((v) => v.version === descriptionModalVersion)
-      : null
-
-  if (versionsLoading && versions.length === 0) {
-    return (
-      <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
-        <div className='flex h-[30px] items-center bg-[var(--surface-1)] px-4'>
-          <div className={cn(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS)}>
-            <Skeleton className='h-[12px] w-[50px]' />
-          </div>
-          <div className={cn(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS)}>
-            <Skeleton className='h-[12px] w-[76px]' />
-          </div>
-          <div className={cn(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
-            <Skeleton className='h-[12px] w-[68px]' />
-          </div>
-          <div className={cn(COLUMN_WIDTHS.ACTIONS, COLUMN_BASE_CLASS)} />
-        </div>
-        <div className='bg-[var(--surface-2)]'>
-          {[0, 1].map((i) => (
-            <div key={i} className='flex h-[36px] items-center px-4'>
-              <div className={cn(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS, 'min-w-0 pr-2')}>
-                <div className='flex items-center gap-4'>
-                  <Skeleton className='size-[6px] rounded-xs' />
-                  <Skeleton className='h-[12px] w-[60px]' />
-                </div>
-              </div>
-              <div className={cn(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS, 'min-w-0')}>
-                <Skeleton className='h-[12px] w-[80px]' />
-              </div>
-              <div className={cn(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
-                <Skeleton className='h-[12px] w-[160px]' />
-              </div>
-              <div
-                className={cn(COLUMN_WIDTHS.ACTIONS, COLUMN_BASE_CLASS, 'flex justify-end gap-0.5')}
-              >
-                <Skeleton className='size-[20px] rounded-sm' />
-                <Skeleton className='size-[20px] rounded-sm' />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  if (versions.length === 0) {
-    return (
-      <div className='flex h-[120px] flex-col items-center justify-center gap-1 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-6 text-center'>
-        <p className='font-medium text-[var(--text-secondary)] text-small'>No versions yet</p>
-        <p className='text-[var(--text-muted)] text-small'>
-          Your deployment history will appear here.
-        </p>
-      </div>
-    )
-  }
+    descriptionModalVersion === null
+      ? null
+      : versions.find((version) => version.version === descriptionModalVersion)
+  const orderedVersions = [...versions].sort((first, second) => {
+    if (first.isActive !== second.isActive) return first.isActive ? -1 : 1
+    return second.version - first.version
+  })
 
   return (
-    <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
-      <div className='flex h-[30px] items-center bg-[var(--surface-1)] px-4'>
-        <div className={cn(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS)}>
-          <span className={HEADER_TEXT_CLASS}>Version</span>
-        </div>
-        <div className={cn(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS)}>
-          <span className={HEADER_TEXT_CLASS}>Deployed by</span>
-        </div>
-        <div className={cn(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
-          <span className={HEADER_TEXT_CLASS}>Timestamp</span>
-        </div>
-        <div className={cn(COLUMN_WIDTHS.ACTIONS, COLUMN_BASE_CLASS)} />
-      </div>
+    <div className='relative'>
+      {(versions.length > 0 || versionsLoading) && (
+        <div
+          aria-hidden='true'
+          className='absolute top-[18px] bottom-9 left-[13px] w-px bg-[var(--border)]'
+        />
+      )}
 
-      <div className='bg-[var(--surface-2)]'>
-        {versions.map((v) => {
-          const isSelected = selectedVersion === v.version
-          const operationStatus =
-            !v.isActive && v.latestOperationStatus !== 'active' ? v.latestOperationStatus : null
-          const isOperationPending =
-            operationStatus === 'preparing' || operationStatus === 'activating'
-          /** Exactly one parenthetical per row; selection already highlights the row. */
-          const rowLabel = v.isActive
-            ? 'live'
-            : isOperationPending
-              ? 'pending'
-              : operationStatus === 'failed'
-                ? 'failed'
-                : isSelected
-                  ? 'selected'
-                  : null
+      {versionsLoading &&
+        versions.length === 0 &&
+        [0, 1].map((index) => (
+          <div key={index} className='relative flex min-h-[54px] items-start gap-1'>
+            <span className='relative z-10 mt-1 flex size-7 shrink-0 items-center justify-center bg-[var(--popover-surface)]'>
+              <Skeleton className='size-[14px] rounded-full' />
+            </span>
+            <div className='min-w-0 flex-1 space-y-1.5 px-2 py-2'>
+              <Skeleton className='h-3 w-24' />
+              <Skeleton className='h-2.5 w-40' />
+            </div>
+            <Skeleton className='mt-1 size-7 rounded-sm' />
+          </div>
+        ))}
 
-          return (
-            <div
-              key={v.id}
-              role='button'
-              tabIndex={0}
-              className={cn(
-                'flex h-[36px] cursor-pointer items-center px-4 transition-colors duration-100',
-                isSelected
-                  ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] hover-hover:bg-[color-mix(in_srgb,var(--accent)_15%,transparent)]'
-                  : 'hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--border)]'
-              )}
-              onClick={() => handleRowClick(v.version)}
-              onKeyDown={(e) => {
-                if (e.target !== e.currentTarget) return
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  handleRowClick(v.version)
+      {orderedVersions.map((version) => {
+        const operationStatus =
+          !version.isActive && version.latestOperationStatus !== 'active'
+            ? version.latestOperationStatus
+            : null
+        const isOperationPending =
+          operationStatus === 'preparing' || operationStatus === 'activating'
+        const TimelineIcon = version.isActive
+          ? CornerUpRight
+          : isOperationPending
+            ? CirclePause
+            : operationStatus === 'failed'
+              ? CircleAlert
+              : Circle
+        const deploymentVerb = version.isActive ? 'Promoted' : 'Deployed'
+        const versionLabel = formatVersionLabel(version.version, version.name)
+
+        return (
+          <div key={version.id} className='group relative flex min-h-[54px] items-start gap-1'>
+            <span className='relative z-10 mt-1 flex size-7 shrink-0 items-center justify-center bg-[var(--popover-surface)]'>
+              <TimelineIcon
+                className={
+                  version.isActive
+                    ? 'size-[14px] translate-x-1 text-[var(--text-primary)]'
+                    : operationStatus === 'failed'
+                      ? 'size-[14px] text-red-500'
+                      : 'size-[14px] text-[var(--text-icon)]'
                 }
-              }}
-            >
-              <div className={cn(COLUMN_WIDTHS.VERSION, COLUMN_BASE_CLASS, 'min-w-0 pr-2')}>
-                <div className='flex items-center gap-4'>
-                  <div
-                    className={cn(
-                      'size-[6px] shrink-0 rounded-xs',
-                      v.isActive
-                        ? 'bg-[var(--indicator-active)]'
-                        : isOperationPending
-                          ? 'bg-amber-400'
-                          : operationStatus === 'failed'
-                            ? 'bg-red-400'
-                            : 'bg-[var(--indicator-inactive)]'
-                    )}
-                    title={
-                      v.isActive
-                        ? 'Live'
-                        : isOperationPending
-                          ? 'Pending'
-                          : operationStatus === 'failed'
-                            ? 'Failed'
-                            : 'Inactive'
-                    }
+                aria-hidden='true'
+              />
+            </span>
+
+            <div className='flex min-w-0 flex-1 items-start rounded-sm p-1 transition-colors duration-100 hover-hover:bg-[var(--surface-4)]'>
+              {editingVersion === version.version ? (
+                <div className='min-w-0 flex-1 p-1'>
+                  <ChipInput
+                    ref={inputRef}
+                    value={editValue}
+                    onChange={(event) => setEditValue(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        handleSaveRename(version.version)
+                      } else if (event.key === 'Escape') {
+                        event.preventDefault()
+                        handleCancelRename()
+                      }
+                    }}
+                    onBlur={() => handleSaveRename(version.version)}
+                    className='w-full'
+                    inputClassName='font-medium'
+                    maxLength={100}
+                    disabled={renameMutation.isPending}
+                    autoComplete='off'
+                    autoCorrect='off'
+                    autoCapitalize='off'
+                    spellCheck='false'
+                    aria-label={`Rename ${versionLabel}`}
                   />
-                  {editingVersion === v.version ? (
-                    <Input
-                      ref={inputRef}
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          handleSaveRename(v.version)
-                        } else if (e.key === 'Escape') {
-                          e.preventDefault()
-                          handleCancelRename()
-                        }
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      onBlur={() => handleSaveRename(v.version)}
-                      className={cn(
-                        'h-auto w-full border-0 bg-transparent p-0 text-[var(--text-primary)] text-caption leading-5 shadow-none outline-none focus:outline-none focus-visible:ring-0'
-                      )}
-                      maxLength={100}
-                      disabled={renameMutation.isPending}
-                      autoComplete='off'
-                      autoCorrect='off'
-                      autoCapitalize='off'
-                      spellCheck='false'
-                    />
-                  ) : (
-                    <span className={cn('flex min-w-0 items-center gap-1.5', ROW_TEXT_CLASS)}>
-                      <span className='shrink-0 text-[var(--text-tertiary)] tabular-nums'>
-                        v{v.version}
+                </div>
+              ) : (
+                <button
+                  type='button'
+                  className='min-w-0 flex-1 rounded-sm p-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]'
+                  onClick={() => onSelectVersion(version.version)}
+                >
+                  <span className='block min-w-0'>
+                    <span className='flex min-w-0 items-center gap-2'>
+                      <span className='truncate font-medium text-[var(--text-primary)] text-small'>
+                        {versionLabel}
                       </span>
-                      {v.name && <span className='truncate'>{v.name}</span>}
-                      {rowLabel && (
-                        <span className='shrink-0 text-[var(--text-tertiary)]'>({rowLabel})</span>
+                      {version.isActive && <ChipTag variant='gray'>Live</ChipTag>}
+                      {(isOperationPending || operationStatus === 'failed') && (
+                        <ChipTag variant={operationStatus === 'failed' ? 'red' : 'amber'}>
+                          {operationStatus === 'failed' ? 'Failed' : 'Pending'}
+                        </ChipTag>
                       )}
                     </span>
+                    <span
+                      className='mt-0.5 block truncate text-[var(--text-muted)] text-xs'
+                      title={formatDateTime(new Date(version.createdAt))}
+                    >
+                      {deploymentVerb} {formatRelativeTime(version.createdAt)} by{' '}
+                      {version.deployedBy || 'Unknown'}
+                    </span>
+                  </span>
+                </button>
+              )}
+
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Chip
+                    type='button'
+                    leftIcon={MoreHorizontal}
+                    className='mr-1 shrink-0'
+                    disabled={isPromotingVersion}
+                    aria-label={`Manage ${versionLabel}`}
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end' sideOffset={4}>
+                  <DropdownMenuItem
+                    onSelect={() => handleStartRename(version.version, version.name)}
+                  >
+                    <Pencil />
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setDescriptionModalVersion(version.version)}>
+                    <FileText />
+                    {version.description ? 'Edit description' : 'Add description'}
+                  </DropdownMenuItem>
+                  {!version.isActive && (
+                    <DropdownMenuItem onSelect={() => onPromoteToLive(version.version)}>
+                      <RefreshCw />
+                      Promote to live
+                    </DropdownMenuItem>
                   )}
-                </div>
-              </div>
-
-              <div className={cn(COLUMN_WIDTHS.DEPLOYED_BY, COLUMN_BASE_CLASS, 'min-w-0')}>
-                <span className={cn('block truncate text-[var(--text-tertiary)]', ROW_TEXT_CLASS)}>
-                  {v.deployedBy || 'Unknown'}
-                </span>
-              </div>
-
-              <div className={cn(COLUMN_WIDTHS.TIMESTAMP, 'min-w-0')}>
-                <span className={cn('block truncate text-[var(--text-tertiary)]', ROW_TEXT_CLASS)}>
-                  {formatDateTime(new Date(v.createdAt))}
-                </span>
-              </div>
-
-              <div
-                className={cn(
-                  COLUMN_WIDTHS.ACTIONS,
-                  COLUMN_BASE_CLASS,
-                  'flex items-center justify-end gap-0.5'
-                )}
-              >
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      variant='ghost'
-                      className={cn(
-                        '!p-1',
-                        !v.description &&
-                          'text-[var(--text-quaternary)] hover-hover:text-[var(--text-tertiary)]'
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleOpenDescriptionModal(v.version)
-                      }}
-                    >
-                      <FileText className='size-3.5' />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='top' className='max-w-[240px]'>
-                    {v.description ? (
-                      <p className='line-clamp-3 text-caption'>{v.description}</p>
-                    ) : (
-                      <p className='text-caption'>Add description</p>
-                    )}
-                  </Tooltip.Content>
-                </Tooltip.Root>
-                <Popover
-                  open={openDropdown === v.version}
-                  onOpenChange={(open) => setOpenDropdown(open ? v.version : null)}
-                >
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      className='!p-1'
-                      disabled={isPromotingVersion}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <MoreVertical className='size-3.5' />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align='end' sideOffset={4} minWidth={160} maxWidth={200} border>
-                    <PopoverItem onClick={() => handleStartRename(v.version, v.name)}>
-                      <Pencil className='size-3' />
-                      <span>Rename</span>
-                    </PopoverItem>
-                    <PopoverItem onClick={() => handleOpenDescriptionModal(v.version)}>
-                      <FileText className='size-3' />
-                      <span>{v.description ? 'Edit description' : 'Add description'}</span>
-                    </PopoverItem>
-                    {!v.isActive && (
-                      <PopoverItem onClick={() => handlePromote(v.version)}>
-                        <RefreshCw className='size-3' />
-                        <span>Promote to live</span>
-                      </PopoverItem>
-                    )}
-                    <PopoverItem onClick={() => handleLoadDeployment(v.version)}>
-                      <SendToBack className='size-3' />
-                      <span>Load deployment</span>
-                    </PopoverItem>
-                  </PopoverContent>
-                </Popover>
-              </div>
+                  <DropdownMenuItem onSelect={() => onLoadDeployment(version.version)}>
+                    <SendToBack />
+                    Restore as draft
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-          )
-        })}
-      </div>
+          </div>
+        )
+      })}
 
       {workflowId && descriptionModalVersionData && (
         <VersionDescriptionModal
           key={descriptionModalVersionData.version}
           open={descriptionModalVersion !== null}
-          onOpenChange={(open) => !open && setDescriptionModalVersion(null)}
+          onOpenChange={(nextOpen) => !nextOpen && setDescriptionModalVersion(null)}
           workflowId={workflowId}
           version={descriptionModalVersionData.version}
           versionName={formatVersionLabel(

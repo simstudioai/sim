@@ -286,6 +286,7 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
           </div>
 
           <div
+            data-panel-resize-handle=''
             className="before:-translate-x-1/2 absolute top-0 bottom-0 left-[-4px] z-20 w-[8px] cursor-ew-resize before:absolute before:inset-y-0 before:left-1/2 before:w-[2px] before:bg-[var(--border)] before:opacity-0 before:transition-opacity before:duration-150 before:ease-out before:content-[''] hover-hover:before:opacity-100 focus-visible:outline-none focus-visible:before:opacity-100 active:before:opacity-100"
             onPointerDown={handlePointerDown}
             onKeyDown={handleKeyDown}

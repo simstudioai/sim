@@ -1,23 +1,25 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { type ReactElement, useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Badge,
-  Button,
+  Chip,
   ChipConfirmModal,
-  ChipSwitch,
+  ChipTag,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTabs,
-  ModalTabsContent,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+  ScrollEdgeFade,
   Tooltip,
   toast,
 } from '@sim/emcn'
+import { ArrowLeft, MoreHorizontal, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
@@ -27,6 +29,19 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
+import {
+  ApiDeploy,
+  ChatDeploy,
+  type ExistingChat,
+  GeneralDeploy,
+  McpDeploy,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components'
+import { ApiInfoModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/components/api-info-modal'
+import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
+import type {
+  DeploymentAccessMethod,
+  DeploymentAccessView,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/general'
 import {
   releaseDeployAction,
   tryAcquireDeployAction,
@@ -54,12 +69,11 @@ import { syncLocalDraftFromServer } from '@/stores/workflows/sync-local-draft'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { ApiDeploy, ChatDeploy, type ExistingChat, GeneralDeploy, McpDeploy } from './components'
-import { ApiInfoModal } from './components/general/components/api-info-modal'
 
-const logger = createLogger('DeployModal')
+const logger = createLogger('DeployPopover')
 
-interface DeployModalProps {
+interface DeployPopoverProps {
+  trigger: ReactElement
   open: boolean
   onOpenChange: (open: boolean) => void
   workflowId: string | null
@@ -81,15 +95,16 @@ interface WorkflowDeploymentInfoUI {
   isPublicApi: boolean
 }
 
-type TabView = 'general' | 'api' | 'chat' | 'mcp'
+type DeployView = 'general' | DeploymentAccessView
 
-const DEPLOY_MODAL_TABS = new Set<TabView>(['general', 'api', 'chat', 'mcp'])
+const DEPLOY_POPOVER_TABS = new Set<DeployView>(['general', 'api', 'chat', 'mcp'])
 
-function isDeployModalTab(value: unknown): value is TabView {
-  return typeof value === 'string' && DEPLOY_MODAL_TABS.has(value as TabView)
+function isDeployPopoverTab(value: unknown): value is DeployView {
+  return typeof value === 'string' && DEPLOY_POPOVER_TABS.has(value as DeployView)
 }
 
-export function DeployModal({
+export function DeployPopover({
+  trigger,
   open,
   onOpenChange,
   workflowId,
@@ -99,7 +114,7 @@ export function DeployModal({
   isLoadingDeployedState,
   deployReadiness,
   isDeploymentSettling,
-}: DeployModalProps) {
+}: DeployPopoverProps) {
   const queryClient = useQueryClient()
   const params = useParams()
   const workspaceId = params?.workspaceId as string
@@ -108,7 +123,8 @@ export function DeployModal({
   const { data: workflowMap = {} } = useWorkflowMap(workspaceId)
   const workflowMetadata = workflowId ? workflowMap[workflowId] : undefined
   const workflowWorkspaceId = workflowMetadata?.workspaceId ?? null
-  const [activeTab, setActiveTab] = useState<TabView>('general')
+  const [activeTab, setActiveTab] = useState<DeployView>('general')
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [chatSubmitting, setChatSubmitting] = useState(false)
   const [deployError, setDeployError] = useState<string | null>(null)
   const [isFinalizingDeploy, setIsFinalizingDeploy] = useState(false)
@@ -126,18 +142,15 @@ export function DeployModal({
   const chatSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const deployActionIdRef = useRef(0)
   const activateVersionInFlightRef = useRef(false)
+  const deployScrollAreaRef = useRef<HTMLDivElement>(null)
+  const deployPopoverContentRef = useRef<HTMLDivElement>(null)
+  const [showBottomFade, setShowBottomFade] = useState(false)
 
   const [isCreateKeyModalOpen, setIsCreateKeyModalOpen] = useState(false)
   const [isApiInfoModalOpen, setIsApiInfoModalOpen] = useState(false)
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
-  const deployTabs = [
-    { value: 'general' as const, label: 'General' },
-    ...(!permissionConfig.hideDeployApi ? [{ value: 'api' as const, label: 'API' }] : []),
-    ...(!permissionConfig.hideDeployMcp ? [{ value: 'mcp' as const, label: 'MCP' }] : []),
-    ...(!permissionConfig.hideDeployChatbot ? [{ value: 'chat' as const, label: 'Chat' }] : []),
-  ]
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''
@@ -176,10 +189,70 @@ export function DeployModal({
   const activateVersionMutation = useActivateDeploymentVersion()
 
   const versions = versionsData?.versions ?? []
+  const selectedVersionInfo = versions.find((version) => version.version === selectedVersion)
+  const accessMethods: DeploymentAccessMethod[] = [
+    ...(!permissionConfig.hideDeployApi
+      ? [
+          {
+            id: 'api' as const,
+            label: 'API',
+            description: 'Run this workflow from your application',
+            status: isDeployed ? 'Ready' : 'Deploy first',
+          },
+        ]
+      : []),
+    ...(!permissionConfig.hideDeployMcp
+      ? [
+          {
+            id: 'mcp' as const,
+            label: 'MCP',
+            description: 'Expose this workflow as a tool',
+            status: hasMcpServers ? 'Connected' : 'Set up',
+          },
+        ]
+      : []),
+    ...(!permissionConfig.hideDeployChatbot
+      ? [
+          {
+            id: 'chat' as const,
+            label: 'Chat',
+            description: 'Launch a hosted chat experience',
+            status: chatExists ? 'Live' : 'Set up',
+          },
+        ]
+      : []),
+  ]
   const deploymentAttemptStatus = deploymentInfoData?.latestDeploymentAttempt?.status
   const attemptErrorMessage =
     deploymentInfoData?.latestDeploymentAttempt?.error?.message ??
     (deploymentAttemptStatus === 'failed' ? 'Deployment preparation failed' : null)
+
+  const updateBottomFade = useCallback(() => {
+    const scrollArea = deployScrollAreaRef.current
+    if (!scrollArea) return
+
+    setShowBottomFade(scrollArea.scrollTop + scrollArea.clientHeight < scrollArea.scrollHeight - 1)
+  }, [])
+
+  useEffect(() => {
+    const scrollArea = deployScrollAreaRef.current
+    if (!scrollArea || !open) return
+
+    updateBottomFade()
+
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateBottomFade)
+    resizeObserver?.observe(scrollArea)
+
+    const mutationObserver =
+      typeof MutationObserver === 'undefined' ? null : new MutationObserver(updateBottomFade)
+    mutationObserver?.observe(scrollArea, { childList: true, subtree: true })
+
+    return () => {
+      resizeObserver?.disconnect()
+      mutationObserver?.disconnect()
+    }
+  }, [open, updateBottomFade])
 
   const isWorkflowStillActive = (targetWorkflowId: string) => {
     return useWorkflowRegistry.getState().activeWorkflowId === targetWorkflowId
@@ -218,6 +291,7 @@ export function DeployModal({
     deployActionIdRef.current += 1
     setIsFinalizingDeploy(false)
     setUndeployTargetWorkflowId(null)
+    setSelectedVersion(null)
   }, [workflowId])
 
   const getApiKeyLabel = (value?: string | null) => {
@@ -260,6 +334,7 @@ export function DeployModal({
   useEffect(() => {
     if (open && workflowId) {
       setActiveTab('general')
+      setSelectedVersion(null)
       setDeployError(null)
       setChatSuccess(false)
 
@@ -293,18 +368,21 @@ export function DeployModal({
   }, [open, workflowId])
 
   useEffect(() => {
-    const handleOpenDeployModal = (event: Event) => {
+    const handleOpenDeployPopover = (event: Event) => {
       const customEvent = event as CustomEvent<{ tab?: unknown }>
       onOpenChange(true)
-      if (isDeployModalTab(customEvent.detail?.tab)) {
+      setSelectedVersion(null)
+      if (isDeployPopoverTab(customEvent.detail?.tab)) {
         setActiveTab(customEvent.detail.tab)
+      } else {
+        setActiveTab('general')
       }
     }
 
-    window.addEventListener('open-deploy-modal', handleOpenDeployModal)
+    window.addEventListener('open-deploy-modal', handleOpenDeployPopover)
 
     return () => {
-      window.removeEventListener('open-deploy-modal', handleOpenDeployModal)
+      window.removeEventListener('open-deploy-modal', handleOpenDeployPopover)
     }
   }, [onOpenChange])
 
@@ -461,14 +539,37 @@ export function DeployModal({
     }
   }
 
-  const handleCloseModal = () => {
+  const handleClosePopover = useCallback(() => {
     deployActionIdRef.current += 1
     setIsFinalizingDeploy(false)
     if (workflowId) releaseDeployAction(workflowId)
     setChatSubmitting(false)
     setDeployError(null)
+    setSelectedVersion(null)
     onOpenChange(false)
-  }
+  }, [onOpenChange, workflowId])
+
+  useEffect(() => {
+    if (!open) return
+
+    const handleDocumentPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (deployPopoverContentRef.current?.contains(target)) return
+      if (
+        target.closest(
+          '[data-deploy-popover-trigger], [data-panel-resize-handle], [data-native-surface-overlay]'
+        )
+      ) {
+        return
+      }
+
+      handleClosePopover()
+    }
+
+    document.addEventListener('pointerdown', handleDocumentPointerDown, true)
+    return () => document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
+  }, [handleClosePopover, open])
 
   const handleChatDeployed = async () => {
     if (!workflowId) return
@@ -508,54 +609,162 @@ export function DeployModal({
 
   const isSubmitting = deployMutation.isPending || isFinalizingDeploy
   const isUndeploying = undeployMutation.isPending
+  const hasVisibleAttemptStatus =
+    deploymentAttemptStatus === 'preparing' ||
+    deploymentAttemptStatus === 'activating' ||
+    deploymentAttemptStatus === 'failed'
+
+  const handlePanelOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      onOpenChange(true)
+      return
+    }
+    handleClosePopover()
+  }
+
+  const isOverview = activeTab === 'general' && selectedVersionInfo === undefined
+  const headerTitle = selectedVersionInfo
+    ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
+    : activeTab === 'api'
+      ? 'API access'
+      : activeTab === 'mcp'
+        ? 'MCP access'
+        : activeTab === 'chat'
+          ? 'Chat deployment'
+          : isDeployed
+            ? 'Production deployment'
+            : 'Deploy workflow'
+  const handleBackToOverview = () => {
+    if (selectedVersionInfo) {
+      setSelectedVersion(null)
+      return
+    }
+    setActiveTab('general')
+  }
 
   return (
-    <>
-      <Modal open={open} onOpenChange={handleCloseModal}>
-        <ModalContent size='lg' className='h-[76vh]'>
-          <ModalHeader>Deploy workflow</ModalHeader>
-
-          <ModalTabs
-            value={activeTab}
-            onValueChange={(value) => setActiveTab(value as TabView)}
-            className='flex min-h-0 flex-1 flex-col'
-          >
-            <ChipSwitch<TabView>
-              value={activeTab}
-              onChange={setActiveTab}
-              options={deployTabs}
-              aria-label='Deployment section'
-              className='mt-3 ml-4 self-start'
-            />
-
-            <ModalBody className='min-h-0 flex-1'>
-              <ModalDescription className='sr-only'>
-                Configure and manage workflow deployment settings including API, MCP, and chat
-                options.
-              </ModalDescription>
-              {deployError && (
-                <div className='mb-3' role='alert'>
-                  <Badge variant='red' size='lg' dot className='max-w-full truncate'>
-                    {deployError}
-                  </Badge>
+    <Popover open={open} onOpenChange={handlePanelOpenChange}>
+      <PopoverTrigger asChild data-deploy-popover-trigger=''>
+        {trigger}
+      </PopoverTrigger>
+      <PopoverAnchor asChild>
+        <span
+          aria-hidden='true'
+          className='-bottom-2 pointer-events-none absolute right-2 size-0'
+        />
+      </PopoverAnchor>
+      <PopoverContent
+        ref={deployPopoverContentRef}
+        align='end'
+        side='bottom'
+        sideOffset={0}
+        updatePositionStrategy='always'
+        collisionPadding={12}
+        maxHeight={620}
+        minWidth={440}
+        appearance='dropdown'
+        className='z-[calc(var(--z-modal)-1)] w-[440px] overflow-hidden p-0'
+        aria-label='Deploy workflow'
+        onInteractOutside={(event) => {
+          const target = event.target
+          if (target instanceof Element && target.closest('[data-panel-resize-handle]')) {
+            event.preventDefault()
+          }
+        }}
+      >
+        <div className='relative flex max-h-[min(620px,calc(100vh-80px))] flex-col overflow-hidden'>
+          <div className='p-3'>
+            <div className='flex items-center justify-between gap-3'>
+              <div className='flex min-w-0 items-center gap-2'>
+                {!isOverview && (
+                  <Chip
+                    type='button'
+                    leftIcon={ArrowLeft}
+                    className='shrink-0'
+                    onClick={handleBackToOverview}
+                    aria-label='Back to deployment overview'
+                  />
+                )}
+                <h2 className='truncate font-medium text-[var(--text-primary)] text-sm'>
+                  {headerTitle}
+                </h2>
+              </div>
+              {isOverview && (
+                <div className='flex shrink-0 items-center gap-1'>
+                  {!isDeployed && !hasVisibleAttemptStatus ? (
+                    <ChipTag variant='gray'>Not deployed</ChipTag>
+                  ) : (
+                    <StatusBadge
+                      isDeployed={isDeployed}
+                      needsRedeployment={needsRedeployment}
+                      attemptStatus={deploymentAttemptStatus}
+                      attemptErrorMessage={attemptErrorMessage}
+                    />
+                  )}
+                  {isDeployed && (
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <Chip
+                          type='button'
+                          leftIcon={MoreHorizontal}
+                          aria-label='Deployment actions'
+                        />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align='end' sideOffset={4}>
+                        <DropdownMenuItem
+                          onSelect={() => workflowId && setUndeployTargetWorkflowId(workflowId)}
+                        >
+                          <Trash />
+                          Undeploy workflow…
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
               )}
-              <ModalTabsContent value='general'>
+            </div>
+          </div>
+
+          <div className='relative min-h-0 flex-1 overflow-hidden'>
+            <div
+              ref={deployScrollAreaRef}
+              className={cn('h-full overflow-y-auto px-3 pb-3', isOverview ? 'pt-0' : 'pt-3')}
+              onScroll={updateBottomFade}
+            >
+              <p className='sr-only'>
+                Configure and manage workflow deployment settings including API, MCP, and chat
+                options.
+              </p>
+              {deployError && !isOverview && (
+                <div className='mb-3' role='alert'>
+                  <ChipTag variant='red' className='max-w-full truncate'>
+                    {deployError}
+                  </ChipTag>
+                </div>
+              )}
+
+              {activeTab === 'general' && (
                 <GeneralDeploy
+                  key={workflowId ?? 'no-workflow'}
                   workflowId={workflowId}
-                  deployedState={deployedState}
-                  isLoadingDeployedState={isLoadingDeployedState}
                   versions={versions}
                   versionsLoading={versionsLoading}
                   isPromotingVersion={isActivatingVersion || activateVersionMutation.isPending}
                   deployReadiness={deployReadiness}
+                  accessMethods={accessMethods}
+                  selectedVersion={selectedVersion}
+                  onSelectVersion={setSelectedVersion}
+                  onOpenAccessMethod={(view) => {
+                    setSelectedVersion(null)
+                    setActiveTab(view)
+                  }}
                   onPromoteToLive={handlePromoteToLive}
-                  onLoadDeploymentComplete={handleCloseModal}
+                  onLoadDeploymentComplete={handleClosePopover}
                   onLoadDeploymentBlocked={setDeployError}
                 />
-              </ModalTabsContent>
+              )}
 
-              <ModalTabsContent value='api' className='h-full'>
+              {activeTab === 'api' && (
                 <ApiDeploy
                   workflowId={workflowId}
                   deploymentInfo={deploymentInfo}
@@ -565,9 +774,9 @@ export function DeployModal({
                   selectedStreamingOutputs={selectedStreamingOutputs}
                   onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
                 />
-              </ModalTabsContent>
+              )}
 
-              <ModalTabsContent value='chat'>
+              {activeTab === 'chat' && (
                 <ChatDeploy
                   workflowId={workflowId || ''}
                   deploymentInfo={deploymentInfo}
@@ -578,82 +787,77 @@ export function DeployModal({
                   setChatSubmitting={setChatSubmitting}
                   canRevealPassword={userPermissions.canAdmin}
                   onValidationChange={setIsChatFormValid}
-                  onDeploymentComplete={handleCloseModal}
+                  onDeploymentComplete={handleClosePopover}
                   onDeployed={handleChatDeployed}
                   onVersionActivated={() => {}}
                 />
-              </ModalTabsContent>
+              )}
 
-              <ModalTabsContent value='mcp' className='h-full'>
-                {workflowId && (
-                  <McpDeploy
-                    workflowId={workflowId}
-                    workflowName={workflowMetadata?.name || 'Workflow'}
-                    workflowDescription={workflowMetadata?.description}
-                    isDeployed={isDeployed}
-                    deployedState={deployedState}
-                    isLoadingDeployedState={isLoadingDeployedState}
-                    onSubmittingChange={setMcpToolSubmitting}
-                    onCanSaveChange={setMcpToolCanSave}
-                    onSaveDisabledReasonChange={setMcpToolSaveDisabledReason}
-                    onActiveServerChange={setMcpActiveServerId}
-                  />
-                )}
-              </ModalTabsContent>
-            </ModalBody>
-          </ModalTabs>
+              {activeTab === 'mcp' && workflowId && (
+                <McpDeploy
+                  workflowId={workflowId}
+                  workflowName={workflowMetadata?.name || 'Workflow'}
+                  workflowDescription={workflowMetadata?.description}
+                  isDeployed={isDeployed}
+                  deployedState={deployedState}
+                  isLoadingDeployedState={isLoadingDeployedState}
+                  onSubmittingChange={setMcpToolSubmitting}
+                  onCanSaveChange={setMcpToolCanSave}
+                  onSaveDisabledReasonChange={setMcpToolSaveDisabledReason}
+                  onActiveServerChange={setMcpActiveServerId}
+                />
+              )}
+            </div>
 
-          {activeTab === 'general' && (
+            <ScrollEdgeFade position='bottom' variant='panel' visible={showBottomFade} />
+          </div>
+
+          {activeTab === 'general' && selectedVersionInfo === undefined && (
             <GeneralFooter
               isDeployed={isDeployed}
               needsRedeployment={needsRedeployment}
               isSubmitting={isSubmitting}
-              isUndeploying={isUndeploying}
               deployReadiness={deployReadiness}
               isDeploymentSettling={isDeploymentSettling}
-              attemptStatus={deploymentAttemptStatus}
-              attemptErrorMessage={attemptErrorMessage}
+              errorMessage={deployError}
               onDeploy={onDeploy}
               onRedeploy={handleRedeploy}
-              onUndeploy={() => {
-                if (workflowId) setUndeployTargetWorkflowId(workflowId)
-              }}
             />
           )}
           {activeTab === 'api' && (
-            <ModalFooter className='items-center justify-between'>
+            <div className='flex items-center justify-between gap-2 px-3 py-3'>
               <div />
               <div className='flex items-center gap-2'>
-                <Button variant='default' onClick={() => setIsApiInfoModalOpen(true)}>
+                <Chip variant='border' onClick={() => setIsApiInfoModalOpen(true)}>
                   Edit API Info
-                </Button>
-                <Button
-                  variant='tertiary'
+                </Chip>
+                <Chip
+                  variant='primary'
                   onClick={() => setIsCreateKeyModalOpen(true)}
                   disabled={createButtonDisabled}
                 >
                   Generate API Key
-                </Button>
+                </Chip>
               </div>
-            </ModalFooter>
+            </div>
           )}
           {activeTab === 'chat' && (
-            <ModalFooter className='items-center justify-between'>
+            <div className='flex items-center justify-between gap-2 px-3 py-3'>
               <div />
               <div className='flex items-center gap-2'>
                 {chatExists && (
-                  <Button
+                  <Chip
                     type='button'
-                    variant='default'
+                    variant='border'
                     onClick={handleChatDelete}
                     disabled={chatSubmitting}
                   >
                     Delete
-                  </Button>
+                  </Chip>
                 )}
-                <Button
+                <Chip
                   type='button'
-                  variant='tertiary'
+                  variant='primary'
                   onClick={handleChatFormSubmit}
                   disabled={chatSubmitting || !isChatFormValid}
                 >
@@ -668,17 +872,17 @@ export function DeployModal({
                       : chatExists
                         ? 'Update'
                         : 'Launch Chat'}
-                </Button>
+                </Chip>
               </div>
-            </ModalFooter>
+            </div>
           )}
           {activeTab === 'mcp' && isDeployed && hasMcpServers && (
-            <ModalFooter className='items-center justify-between'>
+            <div className='flex items-center justify-between gap-2 px-3 py-3'>
               <div />
               <div className='flex items-center gap-2'>
-                <Button
+                <Chip
                   type='button'
-                  variant='default'
+                  variant='border'
                   onClick={() =>
                     navigateToSettings({
                       section: 'workflow-mcp-servers',
@@ -687,18 +891,18 @@ export function DeployModal({
                   }
                 >
                   Manage
-                </Button>
+                </Chip>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <span>
-                      <Button
+                      <Chip
                         type='button'
-                        variant='tertiary'
+                        variant='primary'
                         onClick={handleMcpToolFormSubmit}
                         disabled={mcpToolSubmitting || !mcpToolCanSave}
                       >
                         {mcpToolSubmitting ? 'Saving...' : 'Save Tool'}
-                      </Button>
+                      </Chip>
                     </span>
                   </Tooltip.Trigger>
                   {mcpToolSaveDisabledReason && (
@@ -706,22 +910,22 @@ export function DeployModal({
                   )}
                 </Tooltip.Root>
               </div>
-            </ModalFooter>
+            </div>
           )}
-        </ModalContent>
-      </Modal>
+        </div>
+      </PopoverContent>
 
       <ChipConfirmModal
         open={Boolean(undeployTargetWorkflowId)}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setUndeployTargetWorkflowId(null)
         }}
-        srTitle='Undeploy API'
-        title='Undeploy API'
+        srTitle='Undeploy workflow'
+        title='Undeploy workflow'
         text={[
           'Are you sure you want to undeploy this workflow? ',
           {
-            text: 'This will remove the API endpoint and make it unavailable to external users.',
+            text: 'This removes the live endpoint and disconnects deployed access methods.',
             error: true,
           },
         ]}
@@ -751,7 +955,7 @@ export function DeployModal({
           workflowId={workflowId}
         />
       )}
-    </>
+    </Popover>
   )
 }
 
@@ -781,9 +985,9 @@ function StatusBadge({
     return (
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Badge variant='amber' size='lg' dot className='cursor-default'>
+          <ChipTag variant='amber' className='cursor-default'>
             {isRetrying ? 'Retrying' : 'Pending'}
-          </Badge>
+          </ChipTag>
         </Tooltip.Trigger>
         <Tooltip.Content side='top' className='max-w-[320px]'>
           {isRetrying && <p className='text-caption'>{attemptErrorMessage}</p>}
@@ -805,9 +1009,9 @@ function StatusBadge({
     return (
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Badge variant='red' size='lg' dot className='cursor-default'>
+          <ChipTag variant='red' className='cursor-default'>
             Failed
-          </Badge>
+          </ChipTag>
         </Tooltip.Trigger>
         <Tooltip.Content side='top' className='max-w-[320px]'>
           <p className='text-caption'>{attemptErrorMessage || 'Deployment preparation failed.'}</p>
@@ -823,94 +1027,82 @@ function StatusBadge({
 
   if (!isDeployed) return null
 
-  return (
-    <Badge variant={needsRedeployment ? 'amber' : 'green'} size='lg' dot>
-      {needsRedeployment ? 'Update deployment' : 'Live'}
-    </Badge>
-  )
+  if (!needsRedeployment) {
+    return <ChipTag variant='gray'>Live</ChipTag>
+  }
+
+  return <ChipTag variant='amber'>Update deployment</ChipTag>
 }
 
 interface GeneralFooterProps {
   isDeployed?: boolean
   needsRedeployment: boolean
   isSubmitting: boolean
-  isUndeploying: boolean
   deployReadiness: DeployReadiness
   isDeploymentSettling: boolean
-  attemptStatus?: DeploymentAttemptStatus
-  attemptErrorMessage?: string | null
+  errorMessage?: string | null
   onDeploy: () => Promise<void>
   onRedeploy: () => Promise<void>
-  onUndeploy: () => void
 }
 
 function GeneralFooter({
   isDeployed,
   needsRedeployment,
   isSubmitting,
-  isUndeploying,
   deployReadiness,
   isDeploymentSettling,
-  attemptStatus,
-  attemptErrorMessage,
+  errorMessage,
   onDeploy,
   onRedeploy,
-  onUndeploy,
 }: GeneralFooterProps) {
-  const isDeployBlocked =
-    deployReadiness.isBlocked || isDeploymentSettling || isSubmitting || isUndeploying
+  const isDeployBlocked = deployReadiness.isBlocked || isDeploymentSettling || isSubmitting
   const blockedMessage =
-    deployReadiness.isBlocked && !deployReadiness.isSyncing && !isSubmitting && !isUndeploying
+    deployReadiness.isBlocked && !deployReadiness.isSyncing && !isSubmitting
       ? deployReadiness.tooltip
       : null
-  const status = (
-    <div className='flex min-w-0 flex-col gap-1'>
-      <StatusBadge
-        isDeployed={Boolean(isDeployed)}
-        needsRedeployment={needsRedeployment}
-        attemptStatus={attemptStatus}
-        attemptErrorMessage={attemptErrorMessage}
-      />
-      {blockedMessage && (
-        <div
-          className='max-w-[300px] truncate text-[var(--text-muted)] text-xs'
-          title={blockedMessage}
-        >
-          {blockedMessage}
-        </div>
-      )}
-    </div>
-  )
+  const footerMessage = errorMessage || blockedMessage
   const deployActionLoading = isSubmitting || isDeploymentSettling
-
-  if (!isDeployed) {
-    return (
-      <ModalFooter className='items-center justify-between'>
-        {status}
-        <div className='flex items-center gap-2'>
-          <Button variant='tertiary' onClick={onDeploy} disabled={isDeployBlocked}>
-            {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
-            Deploy
-          </Button>
-        </div>
-      </ModalFooter>
-    )
-  }
+  const isUpToDate = Boolean(isDeployed && !needsRedeployment && !isDeploymentSettling)
+  const actionLabel = deployActionLoading
+    ? isDeployed
+      ? 'Updating deployment…'
+      : 'Deploying workflow…'
+    : !isDeployed
+      ? 'Deploy workflow'
+      : needsRedeployment
+        ? 'Update deployment'
+        : 'Up to date'
 
   return (
-    <ModalFooter className='items-center justify-between'>
-      {status}
-      <div className='flex items-center gap-2'>
-        <Button variant='default' onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
-          {isUndeploying ? 'Undeploying...' : 'Undeploy'}
-        </Button>
-        {(needsRedeployment || isDeploymentSettling) && (
-          <Button variant='tertiary' onClick={onRedeploy} disabled={isDeployBlocked}>
-            {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
-            Update
-          </Button>
-        )}
-      </div>
-    </ModalFooter>
+    <div className='absolute inset-x-0 bottom-0 isolate z-20 flex flex-col items-stretch gap-1 px-3 py-3 [--scroll-edge-fade-surface:var(--popover-surface)]'>
+      <ScrollEdgeFade
+        position='bottom'
+        variant='action'
+        className={cn('z-0 transform-gpu', footerMessage ? 'h-[calc(100%+1rem)]' : 'h-full')}
+        visible
+      />
+      {footerMessage && (
+        <ChipTag
+          variant='red'
+          className='relative z-10 w-full min-w-0'
+          role='alert'
+          title={footerMessage}
+        >
+          <span className='min-w-0 truncate'>{footerMessage}</span>
+        </ChipTag>
+      )}
+      <Chip
+        variant='primary'
+        fullWidth
+        className='relative z-10 justify-center [&>span]:flex-none'
+        leftAdornment={
+          deployActionLoading ? <Loader className='size-[14px] shrink-0' animate /> : undefined
+        }
+        onClick={isDeployed ? onRedeploy : onDeploy}
+        disabled={isDeployBlocked || isUpToDate}
+      >
+        {actionLabel}
+      </Chip>
+    </div>
   )
 }

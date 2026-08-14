@@ -7,9 +7,9 @@
  * secret/credential value fields, and any standalone labeled input that would
  * otherwise hand-roll the chip chrome with custom classNames.
  *
- * The chrome lives on the wrapper so a leading `icon` and a trailing
- * `endAdornment` (reveal / copy buttons) sit flush next to a transparent inner
- * `<input>`. The leading icon uses the same 1.5 gap as `Chip`. It shares the
+ * The chrome lives on the wrapper so a leading `icon` or `startAdornment` and a
+ * trailing `endAdornment` (reveal / copy buttons) sit flush next to a transparent
+ * inner `<input>`. The leading icon uses the same 1.5 gap as `Chip`. It shares the
  * chip-field chrome with {@link ChipTextarea}, shows no focus ring — keep the
  * surface calm and rely on the caret for focus. Pass `error` to swap the border
  * to the error token.
@@ -36,6 +36,8 @@ type ChipInputSurface = 'field' | 'button'
 export interface ChipInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   /** Leading icon component (e.g. `Search` from `@sim/emcn/icons`). Rendered at 14px in `--text-icon`, with the chip's 1.5 gap. */
   icon?: ChipInputIcon
+  /** Custom content rendered before the input (e.g. a fixed URL prefix). */
+  startAdornment?: React.ReactNode
   /** Trailing content rendered after the input (e.g. reveal / copy buttons). */
   endAdornment?: React.ReactNode
   /** Marks the field invalid; swaps the border to the error token. */
@@ -62,6 +64,7 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
       className,
       inputClassName,
       icon: Icon,
+      startAdornment,
       endAdornment,
       error,
       surface = 'field',
@@ -83,6 +86,7 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
       )}
     >
       {Icon ? <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' /> : null}
+      {startAdornment}
       <input
         ref={ref}
         type={type}

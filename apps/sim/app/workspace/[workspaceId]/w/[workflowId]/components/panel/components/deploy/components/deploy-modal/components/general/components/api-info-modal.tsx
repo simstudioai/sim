@@ -2,17 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Badge,
-  ButtonGroup,
-  ButtonGroupItem,
   ChipConfirmModal,
+  ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Input,
+  ChipSwitch,
+  ChipTag,
   Label,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -29,6 +28,11 @@ import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subb
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 type NormalizedField = InputFormatField & { name: string }
+
+const ACCESS_OPTIONS = [
+  { value: 'api_key', label: 'API Key' },
+  { value: 'public', label: 'Public' },
+] as const
 
 interface ApiInfoModalProps {
   open: boolean
@@ -218,13 +222,13 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
           {!isPublicApiDisabled && (
             <ChipModalField type='custom' title='Access'>
-              <ButtonGroup
+              <ChipSwitch
                 value={accessMode}
-                onValueChange={(val) => setAccessMode(val as 'api_key' | 'public')}
-              >
-                <ButtonGroupItem value='api_key'>API Key</ButtonGroupItem>
-                <ButtonGroupItem value='public'>Public</ButtonGroupItem>
-              </ButtonGroup>
+                onChange={setAccessMode}
+                options={ACCESS_OPTIONS}
+                aria-label='API access'
+                size='compact'
+              />
               <p className='mt-1 text-[var(--text-secondary)] text-caption'>
                 {accessMode === 'public'
                   ? 'Anyone can call this API without authentication. You will be billed for all usage.'
@@ -246,15 +250,13 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                         <span className='block truncate text-[var(--text-tertiary)] text-sm'>
                           {field.name}
                         </span>
-                        <Badge variant='type' size='sm'>
-                          {field.type || 'string'}
-                        </Badge>
+                        <ChipTag variant='field'>{field.type || 'string'}</ChipTag>
                       </div>
                     </div>
                     <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                       <div className='flex flex-col gap-1.5'>
                         <Label className='text-small'>Description</Label>
-                        <Input
+                        <ChipInput
                           value={paramDescriptions[field.name] || ''}
                           onChange={(e) => handleParamDescriptionChange(field.name, e.target.value)}
                           placeholder={`Enter description for ${field.name}`}

@@ -694,6 +694,10 @@ PopoverContent.displayName = 'PopoverContent'
 interface PopoverScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Progressive fade density. Compact is the canonical menu treatment. */
   fadeVariant?: ScrollEdgeFadeVariant
+  /** Whether this viewport owns its bottom edge fade. */
+  bottomFade?: boolean
+  /** Whether the scroll viewport exposes its native scrollbar chrome. */
+  scrollbar?: 'thin' | 'hidden'
 }
 
 /**
@@ -701,7 +705,18 @@ interface PopoverScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {
  * edge fades that reveal additional content without clipping rows.
  */
 const PopoverScrollArea = React.forwardRef<HTMLDivElement, PopoverScrollAreaProps>(
-  ({ className, children, fadeVariant = 'compact', onScroll, ...props }, ref) => {
+  (
+    {
+      className,
+      children,
+      fadeVariant = 'compact',
+      bottomFade = true,
+      scrollbar = 'thin',
+      onScroll,
+      ...props
+    },
+    ref
+  ) => {
     const scrollRef = React.useRef<HTMLDivElement>(null)
     const [edges, setEdges] = React.useState({ top: false, bottom: false })
 
@@ -763,8 +778,10 @@ const PopoverScrollArea = React.forwardRef<HTMLDivElement, PopoverScrollAreaProp
       <div className='-my-1.5 relative flex max-h-full min-h-0 flex-1 overflow-hidden [--scroll-edge-fade-surface:var(--popover-surface)]'>
         <div
           className={cn(
-            'min-h-0 flex-1 overflow-auto overscroll-contain py-1.5',
-            thinScrollbarClass,
+            'min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain py-1.5',
+            scrollbar === 'thin'
+              ? thinScrollbarClass
+              : '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
             fadeVariant === 'compact' ? 'scroll-py-3' : 'scroll-py-12',
             '[&>div:has([data-popover-section]):not(:first-child)]:mt-1.5',
             className
@@ -782,12 +799,14 @@ const PopoverScrollArea = React.forwardRef<HTMLDivElement, PopoverScrollAreaProp
           visible={edges.top}
           data-popover-scroll-fade='top'
         />
-        <ScrollEdgeFade
-          position='bottom'
-          variant={fadeVariant}
-          visible={edges.bottom}
-          data-popover-scroll-fade='bottom'
-        />
+        {bottomFade && (
+          <ScrollEdgeFade
+            position='bottom'
+            variant={fadeVariant}
+            visible={edges.bottom}
+            data-popover-scroll-fade='bottom'
+          />
+        )}
       </div>
     )
   }

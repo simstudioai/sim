@@ -43,4 +43,15 @@ describe('ScrollEdgeFade', () => {
     expect(fade?.className).toContain('h-12')
     expect(fade?.dataset.scrollEdgeFadeVariant).toBe('panel')
   })
+
+  it('uses a stronger treatment behind floating actions', () => {
+    mount(<ScrollEdgeFade position='bottom' variant='action' />)
+
+    const fade = container?.querySelector<HTMLElement>('[data-scroll-edge-fade="bottom"]')
+    const strongestBlur = fade?.querySelector<HTMLElement>('.backdrop-blur-\\[16px\\]')
+
+    expect(fade?.className).toContain('h-20')
+    expect(fade?.dataset.scrollEdgeFadeVariant).toBe('action')
+    expect(strongestBlur).not.toBeNull()
+  })
 })
