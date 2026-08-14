@@ -41,6 +41,7 @@ A few things worth knowing before you build:
 - **Results are capped at 10,000 rows.** Every result reports `rowCount`, `totalRowCount`, and `truncated`, so a query that returned more than the cap says so rather than quietly looking complete. Aggregate with `summarize` or bound the query with `take` instead of pulling raw rows.
 - **Ingest Rows Inline is for small batches.** It is ideal for tens or hundreds of rows from a workflow run. For continuous or high-volume loading, use Azure Data Explorer's queued or streaming ingestion instead.
 - **Ingest From Query defaults to `set-or-append`**, which adds to an existing table. `set-or-replace` discards everything already in the target table — pick it only when you mean to rebuild the rollup from scratch. For a large backfill, turn on the background option and poll Show Operations with the operation ID it returns.
+- **Ingest From Query matches columns by position, not by name.** Kusto aligns the query result to the target table on column type and order, so a query that projects the right columns in the wrong order ingests data into the wrong columns without erroring. End the query with an explicit `project` in the table's column order, and confirm with Show Table Schema first.
 - **Drop Table is permanent.** It deletes the table and its data. Give an agent the `viewers` role rather than `admins` unless a workflow genuinely needs to change schema.
 {/* MANUAL-CONTENT-END */}
 
@@ -332,7 +333,7 @@ Push rows directly into an Azure Data Explorer table with .ingest inline. Data i
 
 ### Azure Data Explorer Ingest From Query
 
-Materialize the result of a KQL query into a table with .set, .append, .set-or-append, or .set-or-replace. Use this to build rollup or summary tables instead of pushing rows from a workflow.
+Materialize the result of a KQL query into a table with .set, .append, .set-or-append, or .set-or-replace. Use this to build rollup or summary tables instead of pushing rows from a workflow. Kusto matches the query result to the target table by column type and position, NOT by column name, so project the columns in exactly the table's order or the data lands in the wrong columns.
 
 #### Input
 
@@ -346,7 +347,7 @@ Materialize the result of a KQL query into a table with .set, .append, .set-or-a
 | `database` | string | Yes | Database containing the target table |
 | `table` | string | Yes | Table to ingest the query result into |
 | `mode` | string | No | set \(create, fail if it exists\), append \(add to an existing table\), set-or-append \(default\), or set-or-replace \(replace all data\) |
-| `sourceQuery` | string | Yes | KQL query whose result becomes the ingested data \(e.g., LogsTable \| where Level == "Error" \| where Timestamp &gt; ago\(1h\)\) |
+| `sourceQuery` | string | Yes | KQL query whose result becomes the ingested data \(e.g., LogsTable \| where Level == "Error" \| where Timestamp &gt; ago\(1h\)\). Project the columns in the target table\'s order — matching is positional, not by name |
 | `async` | boolean | No | Return immediately with an OperationId and keep ingesting in the background. Check progress with Show Operations |
 | `ingestionProperties` | string | No | Optional ingestion properties clause contents, e.g. distributed=true, tags=\"\[''daily''\]\" |
 

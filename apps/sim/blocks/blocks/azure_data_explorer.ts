@@ -90,6 +90,19 @@ Examples:
 
 Return ONLY the schema - no explanations, no parentheses, no markdown fences.`
 
+/**
+ * Kusto matches an ingested query result to the target table positionally, by
+ * column type — never by column name — so the prompt has to make column order
+ * explicit or the generated query quietly fills the wrong columns.
+ */
+const INGEST_QUERY_WAND_PROMPT = `${KQL_WAND_PROMPT.replace('Return ONLY the KQL query - no explanations, no markdown fences.', '')}
+This query's result is ingested into an existing table. Kusto matches columns by
+position and type, NOT by name, so the projected columns must come out in the
+target table's column order. Use an explicit \`project\` listing the columns in
+that order as the final operator.
+
+Return ONLY the KQL query - no explanations, no markdown fences.`
+
 /** Switch and dropdown values arrive as booleans or their string form. */
 function toBoolean(value: unknown): true | undefined {
   return value === true || value === 'true' ? true : undefined
@@ -303,7 +316,7 @@ export const AzureDataExplorerBlock: BlockConfig<AzureDataExplorerTableResponse>
       required: { field: 'operation', value: 'azure_data_explorer_ingest_from_query' },
       wandConfig: {
         enabled: true,
-        prompt: KQL_WAND_PROMPT,
+        prompt: INGEST_QUERY_WAND_PROMPT,
         placeholder: 'Describe the rows you want to materialize into the table',
       },
     },
@@ -625,7 +638,7 @@ export const AzureDataExplorerBlockMeta = {
       description:
         'Build or refresh a summary table in Azure Data Explorer from a query over raw data.',
       content:
-        '# Materialize A Rollup Table\n\nTurn an expensive query over raw telemetry into a small table that is cheap to read.\n\n## Steps\n1. Run Show Table Details on the source table to see how much data the query will scan.\n2. Write the aggregating KQL — `summarize` the raw rows into the shape you want, bucketing time with `bin()` where relevant.\n3. Run Ingest From Query against the target table. Use `set-or-append` to add the new window to an existing rollup, `set-or-replace` to rebuild it from scratch, and `set` only for the first run.\n4. For a large backfill, enable the background option and poll Show Operations with the returned operation ID until the state is Completed.\n5. Run Query against the rollup to confirm the row count and time range look right.\n\n## Output\nReport the target table, the mode used, the rows or extents produced, and the verification query result. Call out that `set-or-replace` discards the existing data in the table.',
+        '# Materialize A Rollup Table\n\nTurn an expensive query over raw telemetry into a small table that is cheap to read.\n\n## Steps\n1. Run Show Table Details on the source table to see how much data the query will scan.\n2. Run Show Table Schema on the **target** table. Kusto matches an ingested query result to the table by column position and type, never by name, so you need its exact column order before writing the query.\n3. Write the aggregating KQL — `summarize` the raw rows into the shape you want, bucketing time with `bin()` where relevant — and end it with an explicit `project` listing the columns in the target table order.\n4. Run Ingest From Query against the target table. Use `set-or-append` to add the new window to an existing rollup, `set-or-replace` to rebuild it from scratch, and `set` only for the first run.\n5. For a large backfill, enable the background option and poll Show Operations with the returned operation ID until the state is Completed.\n6. Run Query against the rollup and spot-check a few rows to confirm each column holds what it should, not just that the row count is plausible.\n\n## Output\nReport the target table, the mode used, the rows or extents produced, and the verification query result. Call out that `set-or-replace` discards the existing data in the table, and that a mismatched column order corrupts data silently rather than failing.',
     },
     {
       name: 'debug-ingestion-failures',

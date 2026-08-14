@@ -19,7 +19,7 @@ export const azureDataExplorerIngestFromQueryTool: ToolConfig<
   id: 'azure_data_explorer_ingest_from_query',
   name: 'Azure Data Explorer Ingest From Query',
   description:
-    'Materialize the result of a KQL query into a table with .set, .append, .set-or-append, or .set-or-replace. Use this to build rollup or summary tables instead of pushing rows from a workflow.',
+    "Materialize the result of a KQL query into a table with .set, .append, .set-or-append, or .set-or-replace. Use this to build rollup or summary tables instead of pushing rows from a workflow. Kusto matches the query result to the target table by column type and position, NOT by column name, so project the columns in exactly the table's order or the data lands in the wrong columns.",
   version: '1.0.0',
   params: {
     clusterUri: {
@@ -76,7 +76,7 @@ export const azureDataExplorerIngestFromQueryTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'KQL query whose result becomes the ingested data (e.g., LogsTable | where Level == "Error" | where Timestamp > ago(1h))',
+        'KQL query whose result becomes the ingested data (e.g., LogsTable | where Level == "Error" | where Timestamp > ago(1h)). Project the columns in the target table\'s order — matching is positional, not by name',
     },
     async: {
       type: 'boolean',
