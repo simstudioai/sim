@@ -228,6 +228,7 @@ const RECONNECT_TAIL_ERROR =
 const MAX_RECONNECT_ATTEMPTS = 10
 const RECONNECT_BASE_DELAY_MS = 1000
 const RECONNECT_MAX_DELAY_MS = 30_000
+const RECONNECT_EXHAUSTED_RECHECK_MS = 30_000
 const STREAM_BATCH_FETCH_TIMEOUT_MS = 10_000
 const STREAM_CHAT_ID_RESOLVE_TIMEOUT_MS = 10_000
 const CHAT_HISTORY_RECOVERY_TIMEOUT_MS = 10_000
@@ -1470,6 +1471,10 @@ export function useChat(
     () => {}
   )
   const recoveringQueuedSendHandoffRef = useRef<ActiveQueuedSendHandoffRecovery | null>(null)
+  const recoverActiveStreamRef = useRef<
+    (reason: 'pageshow' | 'visible' | 'online' | 'exhausted_recheck') => Promise<void>
+  >(async () => {})
+  const reconnectExhaustedRecheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const detachedChatResolutionControllersRef = useRef<Set<AbortController>>(new Set())
@@ -3242,7 +3247,29 @@ export function useChat(
         maxAttempts: MAX_RECONNECT_ATTEMPTS,
       })
       if (streamGenRef.current === gen) {
+        /**
+         * Never give up silently: surface the failure so the pane shows why
+         * the live stream stopped instead of a torn-down transcript. Callers
+         * own the finalize on a false return (every call site finalizes with
+         * error: true), which refetches the persisted transcript; if the
+         * server turn is still running, the visibility/online recovery path
+         * re-attaches on the next pageshow/visible/online event.
+         */
         setIsReconnecting(false)
+        setError(RECONNECT_TAIL_ERROR)
+        /**
+         * The tab may stay visible (no pageshow/visible/online event will ever
+         * fire) while the server turn keeps running detached. One bounded
+         * recheck re-enters recovery once the transient network condition has
+         * had time to clear; recovery itself no-ops when nothing is active.
+         */
+        if (reconnectExhaustedRecheckTimerRef.current) {
+          clearTimeout(reconnectExhaustedRecheckTimerRef.current)
+        }
+        reconnectExhaustedRecheckTimerRef.current = setTimeout(() => {
+          reconnectExhaustedRecheckTimerRef.current = null
+          void recoverActiveStreamRef.current('exhausted_recheck')
+        }, RECONNECT_EXHAUSTED_RECHECK_MS)
       }
       return false
     },
@@ -3251,7 +3278,7 @@ export function useChat(
   retryReconnectRef.current = retryReconnect
 
   const recoverActiveStreamFromRedis = useCallback(
-    async (reason: 'pageshow' | 'visible' | 'online'): Promise<void> => {
+    async (reason: 'pageshow' | 'visible' | 'online' | 'exhausted_recheck'): Promise<void> => {
       const startingChatId = chatIdRef.current
       const startingSelectedChatId = selectedChatIdRef.current
       const chatId = startingChatId ?? startingSelectedChatId
@@ -3386,6 +3413,7 @@ export function useChat(
     },
     [getActiveStreamIdForChat, queryClient, resumeOrFinalize, setTransportReconnecting]
   )
+  recoverActiveStreamRef.current = recoverActiveStreamFromRedis
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
@@ -3417,6 +3445,10 @@ export function useChat(
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('pageshow', handlePageShow)
       window.removeEventListener('online', handleOnline)
+      if (reconnectExhaustedRecheckTimerRef.current) {
+        clearTimeout(reconnectExhaustedRecheckTimerRef.current)
+        reconnectExhaustedRecheckTimerRef.current = null
+      }
     }
   }, [recoverActiveStreamFromRedis])
 

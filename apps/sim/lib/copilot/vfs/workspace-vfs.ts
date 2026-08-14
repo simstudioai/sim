@@ -747,7 +747,13 @@ export class WorkspaceVFS {
       if (!scope || ops.pathWithinGrepScope(path, scope)) targets.push(path)
     }
     if (targets.length === 0) return
-    await Promise.all(targets.map((path) => this.resolveLazyPath(path)))
+    // One unmaterializable artifact (e.g. an over-limit knowledge base's
+    // documents.json) must not fail the whole sweep — that would make every
+    // unscoped grep on the workspace error on content the caller never asked
+    // about. Skip it: grep proceeds over everything that resolved, the loader
+    // stays re-armed, and reading the failing path directly still surfaces its
+    // own error (resolveLazyPath logs each failure).
+    await Promise.allSettled(targets.map((path) => this.resolveLazyPath(path)))
   }
 
   /**

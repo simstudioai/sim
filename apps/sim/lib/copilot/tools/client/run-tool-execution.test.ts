@@ -57,6 +57,11 @@ const setCurrentExecutionId = vi.fn()
 const getCurrentExecutionId = vi.fn()
 const getWorkflowExecution = vi.fn(() => ({ isExecuting: false }))
 
+// Neutralize the confirm-retry backoff so exhaustion tests stay fast.
+vi.mock('@sim/utils/retry', () => ({
+  backoffWithJitter: () => 0,
+}))
+
 vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils', () => ({
   executeWorkflowWithFullLogging,
 }))
@@ -265,6 +270,9 @@ describe('run tool execution cancellation', () => {
       })
       .mockResolvedValueOnce({ ok: false, status: 503 })
       .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: false, status: 503 })
       .mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -273,7 +281,7 @@ describe('run tool execution cancellation', () => {
       async: true,
     })
 
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(6))
     await vi.waitFor(() => expect(isRunToolActiveForId('tool-recover-async')).toBe(false))
     loadExecutionPointer.mockResolvedValueOnce({
       workflowId: 'wf-1',
@@ -283,10 +291,10 @@ describe('run tool execution cancellation', () => {
 
     await expect(bindRunToolToExecution('tool-recover-async', 'wf-1')).resolves.toBe(true)
 
-    expect(fetchMock).toHaveBeenCalledTimes(4)
-    expect(fetchMock.mock.calls[3][0]).toBe('/api/copilot/confirm')
-    expect(fetchMock.mock.calls[3][1]?.body).toContain('"status":"background"')
-    expect(fetchMock.mock.calls[3][1]?.body).toContain('"executionId":"exec-recover-async"')
+    expect(fetchMock).toHaveBeenCalledTimes(7)
+    expect(fetchMock.mock.calls[6][0]).toBe('/api/copilot/confirm')
+    expect(fetchMock.mock.calls[6][1]?.body).toContain('"status":"background"')
+    expect(fetchMock.mock.calls[6][1]?.body).toContain('"executionId":"exec-recover-async"')
     expect(
       fetchMock.mock.calls.filter(([url]) => url === '/api/workflows/wf-1/execute')
     ).toHaveLength(1)

@@ -247,7 +247,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     )
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
-      'run_function',
+      'function_execute',
       expect.objectContaining({
         envVars: { API_KEY: 'secret-value' },
         secretScope: 'selected',
@@ -272,7 +272,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
 
     expect(mockMaterializeCopilotCodeSecrets).not.toHaveBeenCalled()
     expect(mockExecuteTool).toHaveBeenCalledWith(
-      'run_function',
+      'function_execute',
       expect.objectContaining({ envVars: {}, secretScope: 'selected', mountedSecrets: [] }),
       { resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry) }
     )
@@ -305,7 +305,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
         requestedNames: names,
       })
       expect(mockExecuteTool).toHaveBeenCalledWith(
-        'run_function',
+        'function_execute',
         expect.objectContaining({ code, language, mountedSecrets: names }),
         { resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry) }
       )
@@ -332,7 +332,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
       requestedNames: ['CLI_TOKEN'],
     })
     expect(mockExecuteTool).toHaveBeenCalledWith(
-      'run_function',
+      'function_execute',
       expect.objectContaining({ code, language: 'shell', mountedSecrets: ['CLI_TOKEN'] }),
       {
         resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
@@ -353,7 +353,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     )
 
     expect(mockExecuteTool).toHaveBeenCalledWith(
-      'run_function',
+      'function_execute',
       expect.objectContaining({
         _context: expect.not.objectContaining({ sandboxProfile: expect.anything() }),
       }),
@@ -373,7 +373,7 @@ describe('executeFunctionExecute trace-secret provenance', () => {
 
     expect(mockHasWorkspaceSandboxAccess).toHaveBeenCalledWith('ws_1')
     expect(mockExecuteTool).toHaveBeenCalledWith(
-      'run_function',
+      'function_execute',
       expect.objectContaining({ sandboxId: 'sandbox-1' }),
       expect.objectContaining({ internalSandboxProfile: 'mothership' })
     )

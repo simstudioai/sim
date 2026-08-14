@@ -83,6 +83,23 @@ function normalizeOtlpMetricsUrl(url: string): string {
   }
 }
 
+// Logs counterpart to `normalizeOtlpMetricsUrl` — same parsed-pathname
+// handling, targeting the /v1/logs signal path.
+function normalizeOtlpLogsUrl(url: string): string {
+  if (!url) return url
+  try {
+    const u = new URL(url)
+    const path = u.pathname.replace(/\/$/, '')
+    if (path.endsWith('/v1/logs')) return url
+    u.pathname = path.endsWith('/v1/traces')
+      ? path.replace(/\/v1\/traces$/, '/v1/logs')
+      : `${path}/v1/logs`
+    return u.toString()
+  } catch {
+    return url
+  }
+}
+
 // deployment.environment in the GO value space (dev | staging | prod) without
 // any new infra env var. Every deployed Sim tier already gets
 // APPCONFIG_ENVIRONMENT = the infra env name (dev | staging | production), so we
@@ -177,6 +194,8 @@ async function initializeOpenTelemetry() {
     const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http')
     const { OTLPMetricExporter } = await import('@opentelemetry/exporter-metrics-otlp-http')
     const { PeriodicExportingMetricReader } = await import('@opentelemetry/sdk-metrics')
+    const { OTLPLogExporter } = await import('@opentelemetry/exporter-logs-otlp-http')
+    const { BatchLogRecordProcessor } = await import('@opentelemetry/sdk-logs')
     const { BatchSpanProcessor } = await import('@opentelemetry/sdk-trace-node')
     const { TraceIdRatioBasedSampler, SamplingDecision } = await import(
       '@opentelemetry/sdk-trace-base'
@@ -271,6 +290,19 @@ async function initializeOpenTelemetry() {
       exportIntervalMillis: 60000,
     })
 
+    // Logs share the trace endpoint and headers as well (signal path
+    // /v1/logs). Every @sim/logger line fans out through the global Logs API
+    // (see packages/logger), which the NodeSDK wires to this processor — the
+    // stdout JSON lines continue to CloudWatch unchanged.
+    const logRecordProcessor = new BatchLogRecordProcessor(
+      new OTLPLogExporter({
+        url: normalizeOtlpLogsUrl(telemetryConfig.endpoint),
+        headers: otlpHeaders,
+        timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000),
+        keepAlive: false,
+      })
+    )
+
     // Must be unique per process: replicas sharing one instance id collapse
     // into a single Prometheus series, so their independent cumulative
     // counters interleave and corrupt rate()/increase(). The slug keeps Sim
@@ -320,6 +352,7 @@ async function initializeOpenTelemetry() {
       spanProcessors,
       sampler,
       metricReader,
+      logRecordProcessors: [logRecordProcessor],
     })
 
     sdk.start()

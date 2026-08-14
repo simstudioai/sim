@@ -745,7 +745,15 @@ export async function executeFunctionExecute(
     }
 
     try {
-      const result = await executeAppTool('run_function', enrichedParams, {
+      /**
+       * The copilot-facing tool is named `run_function`, but the app-tool
+       * registry id stays `function_execute` — the validator in tools/index.ts
+       * only admits `internalSandboxProfile` for that id, and every copilot
+       * call carries the internal `mothership` profile. Renaming this inner id
+       * without renaming the registry breaks every copilot sandbox call with
+       * "An internal sandbox profile may only be used with function_execute".
+       */
+      const result = await executeAppTool('function_execute', enrichedParams, {
         resolvedSecretTraceRegistry: mountedRegistry,
         ...(context.abortSignal ? { signal: context.abortSignal } : {}),
         ...(context.sandboxProfile ? { internalSandboxProfile: context.sandboxProfile } : {}),

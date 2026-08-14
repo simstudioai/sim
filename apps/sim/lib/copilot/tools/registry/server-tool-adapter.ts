@@ -44,6 +44,8 @@ export function createServerToolHandler(toolId: string): ToolHandler {
       return { success: true, output: result }
     } catch (error) {
       const caughtError = toError(error)
+      // The generic projection below records the swallowed cause on the active
+      // span itself (messageForCopilotApplicationError) so Tempo carries it.
       logger.error(
         'Server tool execution failed',
         {

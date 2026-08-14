@@ -130,3 +130,36 @@ describe('WorkspaceVFS dynamic render reads', () => {
     })
   })
 })
+
+describe('WorkspaceVFS lazy grep resilience', () => {
+  it('skips an unmaterializable lazy artifact instead of failing the whole sweep', async () => {
+    const vfs = new WorkspaceVFS({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
+    const internals = vfs as unknown as {
+      files: Map<string, string>
+      registerLazy: (path: string, loader: () => Promise<string | null>) => void
+      resolveLazyPath: (path: string) => Promise<string | null>
+    }
+    internals.files.set('workflows/A/state.json', '{"needle": true}')
+    internals.registerLazy.call(vfs, 'knowledgebases/huge/documents.json', async () => {
+      throw new Error(
+        'Knowledge base kb-1 has more than 10000 documents; documents.json cannot be materialized'
+      )
+    })
+    internals.registerLazy.call(
+      vfs,
+      'knowledgebases/small/documents.json',
+      async () => '{"needle": "lazy"}'
+    )
+
+    const matches = (await vfs.grep('needle')) as Array<{ path: string }>
+    const paths = matches.map((m) => m.path)
+    expect(paths).toContain('workflows/A/state.json')
+    expect(paths).toContain('knowledgebases/small/documents.json')
+
+    // Reading the failing artifact directly still surfaces its own error, and
+    // the loader stays re-armed for that read.
+    await expect(
+      internals.resolveLazyPath.call(vfs, 'knowledgebases/huge/documents.json')
+    ).rejects.toThrow('cannot be materialized')
+  })
+})
