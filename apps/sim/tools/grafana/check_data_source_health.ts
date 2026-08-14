@@ -41,35 +41,60 @@ export const checkDataSourceHealthTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `${params.baseUrl.replace(/\/$/, '')}/api/datasources/uid/${params.dataSourceUid.trim()}/health`,
-    method: 'GET',
-    headers: (params) => {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.apiKey}`,
-      }
-      if (params.organizationId) {
-        headers['X-Grafana-Org-Id'] = params.organizationId
-      }
-      return headers
-    },
+    /**
+     * Routed through Sim rather than called directly: Grafana reports an
+     * unhealthy data source with HTTP 400 carrying the same `{status, message}`
+     * payload as a healthy one, and the tool framework would turn that into an
+     * opaque error — so the check could only ever report health, never
+     * ill-health.
+     */
+    url: '/api/tools/grafana/check_data_source_health',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      apiKey: params.apiKey,
+      baseUrl: params.baseUrl,
+      dataSourceUid: params.dataSourceUid,
+      ...(params.organizationId ? { organizationId: params.organizationId } : {}),
+    }),
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = (await response.json()) as {
+      success?: boolean
+      output?: { status?: string; message?: string | null; details?: unknown }
+      error?: string
+    }
+
+    if (!response.ok || data.success === false || !data.output) {
+      throw new Error(data.error || `Grafana health check failed: HTTP ${response.status}`)
+    }
 
     return {
       success: true,
       output: {
-        status: (data.status as string) ?? 'UNKNOWN',
-        message: (data.message as string) ?? '',
+        status: data.output.status ?? 'UNKNOWN',
+        message: data.output.message ?? null,
+        ...(data.output.details === undefined ? {} : { details: data.output.details }),
       },
     }
   },
 
   outputs: {
-    status: { type: 'string', description: 'Health status of the data source (e.g., OK)' },
-    message: { type: 'string', description: 'Detailed health message from the data source' },
+    status: {
+      type: 'string',
+      description:
+        'Verdict Grafana returned for the data source, e.g. OK or ERROR. An unhealthy source reports here rather than failing the tool',
+    },
+    message: {
+      type: 'string',
+      description: "The plugin's diagnostic detail, which carries the reason on a failed check",
+      nullable: true,
+    },
+    details: {
+      type: 'json',
+      description: 'Extra structured detail, when the data source plugin supplies any',
+      optional: true,
+    },
   },
 }

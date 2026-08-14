@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { type NextRequest, NextResponse } from 'next/server'
 import { grafanaUpdateAlertRuleContract } from '@/lib/api/contracts/tools/grafana'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -16,6 +17,11 @@ import { mapAlertRule } from '@/tools/grafana/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GrafanaUpdateAlertRuleAPI')
+
+/** Grafana is reached over two sequential hops, so each one needs its own bound. */
+const OUTBOUND_FETCH_TIMEOUT_MS = 30_000
+/** Upstream error bodies can be a full HTML page; only a prefix is useful. */
+const MAX_ERROR_MESSAGE_LENGTH = 2000
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -64,7 +70,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       getHeaders['X-Grafana-Org-Id'] = params.organizationId
     }
 
-    const getUrl = `${baseUrl}/api/v1/provisioning/alert-rules/${params.alertRuleUid.trim()}`
+    const getUrl = `${baseUrl}/api/v1/provisioning/alert-rules/${encodeURIComponent(params.alertRuleUid.trim())}`
     const getValidation = await validateUrlWithDNS(getUrl, 'baseUrl')
     if (!getValidation.isValid || !getValidation.resolvedIP) {
       return NextResponse.json({
@@ -78,10 +84,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       method: 'GET',
       headers: getHeaders,
       maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+      timeout: OUTBOUND_FETCH_TIMEOUT_MS,
+      stripAuthOnRedirect: true,
     })
 
     if (!getResponse.ok) {
-      const errorText = await getResponse.text()
+      const errorText = truncate(await getResponse.text(), MAX_ERROR_MESSAGE_LENGTH)
       return NextResponse.json({
         success: false,
         output: {},
@@ -89,7 +97,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    const existingRule = (await getResponse.json()) as any
+    const existingRule = (await getResponse.json()) as Record<string, unknown>
 
     if (!existingRule || !existingRule.uid) {
       return NextResponse.json({
@@ -193,7 +201,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers['X-Disable-Provenance'] = 'true'
     }
 
-    const updateUrl = `${baseUrl}/api/v1/provisioning/alert-rules/${params.alertRuleUid.trim()}`
+    const updateUrl = `${baseUrl}/api/v1/provisioning/alert-rules/${encodeURIComponent(params.alertRuleUid.trim())}`
     const urlValidation = await validateUrlWithDNS(updateUrl, 'baseUrl')
     if (!urlValidation.isValid || !urlValidation.resolvedIP) {
       return NextResponse.json({
@@ -208,10 +216,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers,
       body: JSON.stringify(updatedRule),
       maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
+      timeout: OUTBOUND_FETCH_TIMEOUT_MS,
+      stripAuthOnRedirect: true,
     })
 
     if (!updateResponse.ok) {
-      const errorText = await updateResponse.text()
+      const errorText = truncate(await updateResponse.text(), MAX_ERROR_MESSAGE_LENGTH)
       return NextResponse.json({
         success: false,
         output: {},
