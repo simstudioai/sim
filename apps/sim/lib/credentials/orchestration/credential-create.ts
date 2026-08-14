@@ -193,7 +193,7 @@ function failure(
   return { success: false, error, errorCode, ...extra }
 }
 
-async function createCredentialRecord(
+export async function createCredentialRecord(
   params: PerformCreateCredentialParams,
   options: { authorizeWorkspace: boolean }
 ): Promise<PerformCreateCredentialResult> {

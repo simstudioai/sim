@@ -1,14 +1,12 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import type { Principal } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { getCredentialActorContext } from '@/lib/credentials/access'
-import {
-  type CredentialAuthorizationContext,
-  defineAuthorizedCredentialUseCase,
-} from '@/lib/credentials/application/authorized-credential-use-case'
+import { defineAuthorizedCredentialUseCase } from '@/lib/credentials/application/authorized-credential-use-case'
+import { resolveCredentialApplicationContext } from '@/lib/credentials/application/credential-context'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import {
   listCredentialProviderCatalog,
@@ -18,8 +16,9 @@ import {
   type CreateServiceAccountCredentialParams,
   createServiceAccountCredential,
   deleteConnectionCredential,
+  deleteCredentialRecord,
 } from '@/lib/credentials/orchestration'
-import { type CredentialRow, getWorkspaceCredential } from '@/lib/credentials/queries'
+import type { CredentialRow } from '@/lib/credentials/queries'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
@@ -45,10 +44,6 @@ class CredentialProviderUnavailableError extends HttpError {
   }
 }
 
-function principalUserId(principal: Extract<Principal, { kind: 'personal_api_key' }>): string {
-  return principal.userId
-}
-
 export const createServiceAccountCredentialUseCase = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.createServiceAccount,
   resolveContext: async ({ input }: { input: CreateServiceAccountInput }) => {
@@ -63,7 +58,7 @@ export const createServiceAccountCredentialUseCase = defineAuthorizedWorkspaceUs
     const result = await createServiceAccountCredential({
       ...input,
       workspaceId: context.workspaceId,
-      userId: principalUserId(principal),
+      userId: requirePrincipalSubjectUserId(principal),
       request,
     })
     if (!result.success) {
@@ -85,7 +80,10 @@ export const createServiceAccountCredentialUseCase = defineAuthorizedWorkspaceUs
     if (!result.credential) {
       throw new Error('Credential creation succeeded without a credential')
     }
-    const actor = await getCredentialActorContext(result.credential.id, principalUserId(principal))
+    const actor = await getCredentialActorContext(
+      result.credential.id,
+      requirePrincipalSubjectUserId(principal)
+    )
     if (!actor.credential || (!actor.member && !actor.isAdmin)) {
       throw new Error('Created credential is not visible to its creator')
     }
@@ -115,7 +113,7 @@ export const createServiceAccountCredentialUseCase = defineAuthorizedWorkspaceUs
   afterSuccess: ({ principal, context, result }) => {
     if (!result.created) return
     captureServerEvent(
-      principalUserId(principal),
+      requirePrincipalSubjectUserId(principal),
       'credential_connected',
       {
         credential_type: 'service_account',
@@ -130,12 +128,8 @@ export const createServiceAccountCredentialUseCase = defineAuthorizedWorkspaceUs
   },
 })
 
-interface CredentialApplicationContext extends CredentialAuthorizationContext {
-  billedAccountUserId: string
-}
-
 export interface DeleteCredentialInput {
-  workspaceId: string
+  workspaceId?: string
   credentialId: string
 }
 
@@ -144,43 +138,47 @@ export interface DeleteCredentialResult {
   deleted: boolean
 }
 
-async function resolveCredentialContext(
-  input: DeleteCredentialInput
-): Promise<CredentialApplicationContext> {
-  const workspace = await loadActiveWorkspaceApplicationContext(input.workspaceId)
-  if (!workspace) throw new OrchestrationError('not_found', 'Credential not found')
-  const credential = await getWorkspaceCredential({
-    workspaceId: workspace.workspaceId,
-    credentialId: input.credentialId,
-  })
-  if (!credential || !['oauth', 'service_account'].includes(credential.type)) {
-    throw new OrchestrationError('not_found', 'Credential not found')
-  }
-  return { ...workspace, credential }
-}
-
 export const deleteCredentialUseCase = defineAuthorizedCredentialUseCase({
   operation: credentialOperations.delete,
-  resolveContext: async ({ input }: { input: DeleteCredentialInput }) =>
-    resolveCredentialContext(input),
-  async execute({ input, context }): Promise<DeleteCredentialResult> {
-    const deleted = await deleteConnectionCredential({
+  resolveContext: ({ input }: { input: DeleteCredentialInput }) =>
+    resolveCredentialApplicationContext({
       credentialId: input.credentialId,
-      workspaceId: context.workspaceId,
-      reason: 'user_delete',
-    })
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ principal, context }): Promise<DeleteCredentialResult> {
+    const allowedTypes =
+      principal.kind === 'session'
+        ? ['oauth', 'env_workspace', 'env_personal', 'service_account']
+        : principal.kind === 'delegated'
+          ? ['oauth']
+          : ['oauth', 'service_account']
+    if (!allowedTypes.includes(context.credential.type)) {
+      throw new OrchestrationError(
+        'validation',
+        `Only ${allowedTypes.join(', ')} credentials can be managed by this caller`
+      )
+    }
+    const reason = principal.kind === 'delegated' ? 'copilot_delete' : 'user_delete'
+    const deleted =
+      context.credential.type === 'oauth' || context.credential.type === 'service_account'
+        ? await deleteConnectionCredential({
+            credentialId: context.credential.id,
+            workspaceId: context.workspaceId,
+            reason,
+          })
+        : await deleteCredentialRecord({ credential: context.credential, reason })
     return { credential: context.credential, deleted }
   },
-  projectAudit: ({ result }) =>
+  projectAudit: ({ principal, result }) =>
     result.deleted
       ? {
           action: AuditAction.CREDENTIAL_DELETED,
           resourceType: AuditResourceType.CREDENTIAL,
           resourceId: result.credential.id,
           resourceName: result.credential.displayName,
-          description: `Deleted ${result.credential.type} credential "${result.credential.displayName}" (user_delete)`,
+          description: `Deleted ${result.credential.type} credential "${result.credential.displayName}" (${principal.kind === 'delegated' ? 'copilot_delete' : 'user_delete'})`,
           metadata: {
-            reason: 'user_delete',
+            reason: principal.kind === 'delegated' ? 'copilot_delete' : 'user_delete',
             credentialType: result.credential.type,
             providerId: result.credential.providerId,
             accountId: result.credential.accountId,
@@ -190,10 +188,10 @@ export const deleteCredentialUseCase = defineAuthorizedCredentialUseCase({
   afterSuccess: ({ principal, context, result }) => {
     if (!result.deleted) return
     captureServerEvent(
-      principalUserId(principal),
+      requirePrincipalSubjectUserId(principal),
       'credential_deleted',
       {
-        credential_type: result.credential.type as 'oauth' | 'service_account',
+        credential_type: result.credential.type,
         provider_id: result.credential.providerId ?? result.credential.id,
         workspace_id: context.workspaceId,
       },

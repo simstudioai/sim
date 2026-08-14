@@ -41,17 +41,15 @@ describe('listCredentialProviders', () => {
     mocks.listCatalog.mockResolvedValue([])
   })
 
-  it('rejects unsupported principals before canonical workspace loading', async () => {
+  it('allows sessions to inspect deployment availability', async () => {
     const principal: SessionPrincipal = {
       kind: 'session',
       userId: 'user-1',
       sessionId: 'session-1',
     }
 
-    await expect(
-      listCredentialProviders.execute({ principal, input: { workspaceId: 'workspace-1' } })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    await listCredentialProviders.execute({ principal, input: { workspaceId: 'workspace-1' } })
+    expect(mocks.listCatalog).toHaveBeenCalledWith(principal, workspaceContext)
   })
 
   it('allows workspace keys to inspect deployment availability', async () => {

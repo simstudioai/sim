@@ -1,5 +1,6 @@
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { credentialDelegationPolicy } from '@/lib/credentials/application/authorization'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import {
   type CredentialProviderCatalogEntry,
@@ -22,7 +23,7 @@ export const listCredentialProviders = defineAuthorizedWorkspaceUseCase({
     if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
     return context
   },
-  authorizationOptions: {},
+  authorizationOptions: { delegation: credentialDelegationPolicy },
   execute: async ({ principal, context }): Promise<ListCredentialProvidersResult> => ({
     providers: await listCredentialProviderCatalog(principal, context),
   }),

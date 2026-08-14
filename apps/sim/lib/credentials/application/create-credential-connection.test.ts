@@ -81,7 +81,7 @@ describe('createCredentialConnection', () => {
     expect(mocks.loadWorkspace).not.toHaveBeenCalled()
   })
 
-  it('creates a user-bound draft and returns only its browser entrypoint', async () => {
+  it('creates a user-bound draft and returns its canonical connection context', async () => {
     const result = await createCredentialConnection.execute({
       principal: personalPrincipal,
       input: {
@@ -101,7 +101,10 @@ describe('createCredentialConnection', () => {
     })
     expect(result).toEqual({
       authorizationUrl: 'https://sim.ai/api/auth/oauth2/authorize?draftId=draft-1',
+      draftId: 'draft-1',
       expiresAt: new Date('2026-08-12T20:15:00.000Z'),
+      providerId: 'google-email',
+      workspaceId: 'workspace-1',
     })
   })
 

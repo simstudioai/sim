@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import {
   credentialOperations,
-  defineCredentialAdminOperation,
+  defineCredentialOperation,
 } from '@/lib/credentials/application/operations'
 
 describe('credential operations', () => {
@@ -15,7 +15,8 @@ describe('credential operations', () => {
       minimumRole: 'read',
       minimumCredentialRole: 'admin',
       workspaceApiKey: 'deny',
-      principalKinds: ['personal_api_key'],
+      principalKinds: ['session', 'personal_api_key', 'delegated'],
+      delegatedServices: ['copilot'],
     })
     expect(Object.isFrozen(credentialOperations.delete)).toBe(true)
   })
@@ -28,8 +29,8 @@ describe('credential operations', () => {
       principalKinds: ['workspace_api_key'],
     })
 
-    expect(() => defineCredentialAdminOperation(workspaceKeyOperation)).toThrow(
-      'Credential admin operation credentials.test_admin requires a human principal'
+    expect(() => defineCredentialOperation(workspaceKeyOperation, 'admin')).toThrow(
+      'Credential operation credentials.test_admin requires a user-bearing principal'
     )
   })
 })

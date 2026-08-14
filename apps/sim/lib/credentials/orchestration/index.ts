@@ -12,7 +12,7 @@ import {
   getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { type CredentialDeleteReason, deleteCredential } from '@/lib/credentials/deletion'
+import { type CredentialDeleteReason, deleteConnectionCredential } from '@/lib/credentials/deletion'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import {
   deleteWorkspaceEnvCredentials,
@@ -31,10 +31,12 @@ import {
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialOrchestration')
+type CredentialRow = typeof credential.$inferSelect
 
 export { deleteConnectionCredential } from '@/lib/credentials/deletion'
 export {
   type CreateServiceAccountCredentialParams,
+  createCredentialRecord,
   createServiceAccountCredential,
   isProviderOutageCode,
   type PerformCreateCredentialParams,
@@ -162,38 +164,26 @@ export interface PerformCredentialResult {
   workspaceId?: string
   updatedFields?: string[]
   previousDisplayName?: string
+  auditMetadata?: Record<string, unknown>
 }
 
-export async function performUpdateCredential(
-  params: PerformUpdateCredentialParams
+export type UpdateCredentialRecordParams = Omit<
+  PerformUpdateCredentialParams,
+  'userId' | 'actorName' | 'actorEmail' | 'allowedTypes' | 'reason' | 'request'
+> & { credential: CredentialRow }
+
+/** Updates one already-authorized credential without surface authorization or audit. */
+export async function updateCredentialRecord(
+  params: UpdateCredentialRecordParams
 ): Promise<PerformCredentialResult> {
   try {
-    const access = await getCredentialActorContext(params.credentialId, params.userId)
-    if (!access.credential) {
-      return { success: false, error: 'Credential not found', errorCode: 'not_found' }
-    }
-    if (!access.hasWorkspaceAccess || !access.isAdmin) {
-      return {
-        success: false,
-        error: 'Credential admin permission required',
-        errorCode: 'forbidden',
-      }
-    }
-    if (params.allowedTypes && !params.allowedTypes.includes(access.credential.type)) {
-      return {
-        success: false,
-        error: `Only ${params.allowedTypes.join(', ')} credentials can be managed with this tool.`,
-        errorCode: 'validation',
-      }
-    }
-
     const updates: Record<string, unknown> = {}
     if (params.description !== undefined) {
       updates.description = params.description ?? null
     }
     if (
       params.displayName !== undefined &&
-      (access.credential.type === 'oauth' || access.credential.type === 'service_account')
+      (params.credential.type === 'oauth' || params.credential.type === 'service_account')
     ) {
       updates.displayName = params.displayName
     }
@@ -218,8 +208,8 @@ export async function performUpdateCredential(
       params.username !== undefined
     let rotatedSlackBotUserId: string | undefined
     let rotatedAuditMetadata: Record<string, string> | undefined
-    if (hasRotationSecret && access.credential.type === 'service_account') {
-      const providerId = access.credential.providerId ?? ''
+    if (hasRotationSecret && params.credential.type === 'service_account') {
+      const providerId = params.credential.providerId ?? ''
 
       // A reconnect rebuilds the secret blob from the submitted fields only, and
       // the modal never prefills (secrets are never echoed back). For an actual
@@ -249,7 +239,7 @@ export async function performUpdateCredential(
       // One read + decrypt at most, and only for the providers that can use it.
       const storedBlob =
         needsStoredDataCenter || needsStoredAuthMethod || needsStoredUsername || needsStoredIdentity
-          ? await readStoredSecretBlob(access.credential.id)
+          ? await readStoredSecretBlob(params.credential.id)
           : null
 
       try {
@@ -280,7 +270,7 @@ export async function performUpdateCredential(
           const previousIdentity = deriveStoredDisplayName(storedBlob)
           if (
             previousIdentity !== undefined &&
-            previousIdentity === access.credential.displayName &&
+            previousIdentity === params.credential.displayName &&
             secret.displayName &&
             secret.displayName !== previousIdentity
           ) {
@@ -314,7 +304,7 @@ export async function performUpdateCredential(
     }
 
     if (Object.keys(updates).length === 0) {
-      if (access.credential.type === 'oauth' || access.credential.type === 'service_account') {
+      if (params.credential.type === 'oauth' || params.credential.type === 'service_account') {
         return { success: false, error: 'No updatable fields provided.', errorCode: 'validation' }
       }
       return {
@@ -343,31 +333,12 @@ export async function performUpdateCredential(
     }
 
     const updatedFields = auditUpdatedFields(updates)
-    recordAudit({
-      workspaceId: access.credential.workspaceId,
-      actorId: params.userId,
-      actorName: params.actorName ?? undefined,
-      actorEmail: params.actorEmail ?? undefined,
-      action: AuditAction.CREDENTIAL_UPDATED,
-      resourceType: AuditResourceType.CREDENTIAL,
-      resourceId: params.credentialId,
-      resourceName: access.credential.displayName,
-      description: `Updated ${access.credential.type} credential "${access.credential.displayName}"`,
-      // Provider metadata first: the orchestration's own keys stay authoritative
-      // and can never be shadowed by a builder's audit payload.
-      metadata: {
-        ...rotatedAuditMetadata,
-        credentialType: access.credential.type,
-        updatedFields,
-      },
-      request: params.request,
-    })
-
     return {
       success: true,
-      workspaceId: access.credential.workspaceId,
+      workspaceId: params.credential.workspaceId,
       updatedFields,
-      previousDisplayName: access.credential.displayName,
+      previousDisplayName: params.credential.displayName,
+      auditMetadata: rotatedAuditMetadata,
     }
   } catch (error) {
     if (error instanceof Error && error.message.includes('unique')) {
@@ -382,6 +353,137 @@ export async function performUpdateCredential(
   }
 }
 
+/** Preserves the legacy callers while application adapters migrate to the manager above. */
+export async function performUpdateCredential(
+  params: PerformUpdateCredentialParams
+): Promise<PerformCredentialResult> {
+  const access = await getCredentialActorContext(params.credentialId, params.userId)
+  if (!access.credential) {
+    return { success: false, error: 'Credential not found', errorCode: 'not_found' }
+  }
+  if (!access.hasWorkspaceAccess || !access.isAdmin) {
+    return {
+      success: false,
+      error: 'Credential admin permission required',
+      errorCode: 'forbidden',
+    }
+  }
+  if (params.allowedTypes && !params.allowedTypes.includes(access.credential.type)) {
+    return {
+      success: false,
+      error: `Only ${params.allowedTypes.join(', ')} credentials can be managed with this tool.`,
+      errorCode: 'validation',
+    }
+  }
+
+  const result = await updateCredentialRecord({ ...params, credential: access.credential })
+  if (!result.success) return result
+
+  recordAudit({
+    workspaceId: access.credential.workspaceId,
+    actorId: params.userId,
+    actorName: params.actorName ?? undefined,
+    actorEmail: params.actorEmail ?? undefined,
+    action: AuditAction.CREDENTIAL_UPDATED,
+    resourceType: AuditResourceType.CREDENTIAL,
+    resourceId: params.credentialId,
+    resourceName: access.credential.displayName,
+    description: `Updated ${access.credential.type} credential "${access.credential.displayName}"`,
+    metadata: {
+      ...result.auditMetadata,
+      credentialType: access.credential.type,
+      updatedFields: result.updatedFields,
+    },
+    request: params.request,
+  })
+
+  return result
+}
+
+export interface DeleteCredentialRecordParams {
+  credential: CredentialRow
+  reason: CredentialDeleteReason
+}
+
+/** Deletes one already-authorized credential and its backing secret source. */
+export async function deleteCredentialRecord(
+  params: DeleteCredentialRecordParams
+): Promise<boolean> {
+  const { credential: credentialRow } = params
+
+  if (credentialRow.type === 'env_personal') {
+    if (!credentialRow.envKey || !credentialRow.envOwnerUserId) {
+      throw new Error('Personal environment credential is missing its source identity')
+    }
+    const [personalRow] = await db
+      .select({ variables: environment.variables })
+      .from(environment)
+      .where(eq(environment.userId, credentialRow.envOwnerUserId))
+      .limit(1)
+    const current = { ...((personalRow?.variables as Record<string, string> | null) ?? {}) }
+    delete current[credentialRow.envKey]
+    await db
+      .insert(environment)
+      .values({
+        id: credentialRow.envOwnerUserId,
+        userId: credentialRow.envOwnerUserId,
+        variables: current,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [environment.userId],
+        set: { variables: current, updatedAt: new Date() },
+      })
+    await syncPersonalEnvCredentialsForUser({
+      userId: credentialRow.envOwnerUserId,
+      envKeys: Object.keys(current),
+    })
+    return true
+  }
+
+  if (credentialRow.type === 'env_workspace') {
+    if (!credentialRow.envKey) {
+      throw new Error('Workspace environment credential is missing its source identity')
+    }
+    const [workspaceRow] = await db
+      .select({
+        id: workspaceEnvironment.id,
+        createdAt: workspaceEnvironment.createdAt,
+        variables: workspaceEnvironment.variables,
+      })
+      .from(workspaceEnvironment)
+      .where(eq(workspaceEnvironment.workspaceId, credentialRow.workspaceId))
+      .limit(1)
+    const current = { ...((workspaceRow?.variables as Record<string, string> | null) ?? {}) }
+    delete current[credentialRow.envKey]
+    await db
+      .insert(workspaceEnvironment)
+      .values({
+        id: workspaceRow?.id ?? generateId(),
+        workspaceId: credentialRow.workspaceId,
+        variables: current,
+        createdAt: workspaceRow?.createdAt ?? new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [workspaceEnvironment.workspaceId],
+        set: { variables: current, updatedAt: new Date() },
+      })
+    await deleteWorkspaceEnvCredentials({
+      workspaceId: credentialRow.workspaceId,
+      removedKeys: [credentialRow.envKey],
+    })
+    return true
+  }
+
+  return deleteConnectionCredential({
+    credentialId: credentialRow.id,
+    workspaceId: credentialRow.workspaceId,
+    reason: params.reason,
+  })
+}
+
+/** Preserves the legacy callers while application adapters migrate to the manager above. */
 export async function performDeleteCredential(
   params: CredentialActorParams
 ): Promise<PerformCredentialResult> {
@@ -405,148 +507,46 @@ export async function performDeleteCredential(
       }
     }
 
-    if (access.credential.type === 'env_personal' && access.credential.envKey) {
-      const ownerUserId = access.credential.envOwnerUserId
-      if (!ownerUserId) {
-        return { success: false, error: 'Invalid personal secret owner', errorCode: 'validation' }
-      }
-
-      const [personalRow] = await db
-        .select({ variables: environment.variables })
-        .from(environment)
-        .where(eq(environment.userId, ownerUserId))
-        .limit(1)
-
-      const current = ((personalRow?.variables as Record<string, string> | null) ?? {}) as Record<
-        string,
-        string
-      >
-      if (access.credential.envKey in current) delete current[access.credential.envKey]
-
-      await db
-        .insert(environment)
-        .values({ id: ownerUserId, userId: ownerUserId, variables: current, updatedAt: new Date() })
-        .onConflictDoUpdate({
-          target: [environment.userId],
-          set: { variables: current, updatedAt: new Date() },
-        })
-
-      await syncPersonalEnvCredentialsForUser({
-        userId: ownerUserId,
-        envKeys: Object.keys(current),
-      })
-
-      captureServerEvent(
-        params.userId,
-        'credential_deleted',
-        {
-          credential_type: 'env_personal',
-          provider_id: access.credential.envKey,
-          workspace_id: access.credential.workspaceId,
-        },
-        { groups: { workspace: access.credential.workspaceId } }
-      )
-
-      recordAudit({
-        workspaceId: access.credential.workspaceId,
-        actorId: params.userId,
-        actorName: params.actorName ?? undefined,
-        actorEmail: params.actorEmail ?? undefined,
-        action: AuditAction.CREDENTIAL_DELETED,
-        resourceType: AuditResourceType.CREDENTIAL,
-        resourceId: params.credentialId,
-        resourceName: access.credential.displayName,
-        description: `Deleted personal env credential "${access.credential.envKey}"`,
-        metadata: { credentialType: 'env_personal', envKey: access.credential.envKey },
-        request: params.request,
-      })
-
-      return { success: true, workspaceId: access.credential.workspaceId }
-    }
-
-    if (access.credential.type === 'env_workspace' && access.credential.envKey) {
-      const [workspaceRow] = await db
-        .select({
-          id: workspaceEnvironment.id,
-          createdAt: workspaceEnvironment.createdAt,
-          variables: workspaceEnvironment.variables,
-        })
-        .from(workspaceEnvironment)
-        .where(eq(workspaceEnvironment.workspaceId, access.credential.workspaceId))
-        .limit(1)
-
-      const current = ((workspaceRow?.variables as Record<string, string> | null) ?? {}) as Record<
-        string,
-        string
-      >
-      if (access.credential.envKey in current) delete current[access.credential.envKey]
-
-      await db
-        .insert(workspaceEnvironment)
-        .values({
-          id: workspaceRow?.id || generateId(),
-          workspaceId: access.credential.workspaceId,
-          variables: current,
-          createdAt: workspaceRow?.createdAt || new Date(),
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [workspaceEnvironment.workspaceId],
-          set: { variables: current, updatedAt: new Date() },
-        })
-
-      await deleteWorkspaceEnvCredentials({
-        workspaceId: access.credential.workspaceId,
-        removedKeys: [access.credential.envKey],
-      })
-
-      captureServerEvent(
-        params.userId,
-        'credential_deleted',
-        {
-          credential_type: 'env_workspace',
-          provider_id: access.credential.envKey,
-          workspace_id: access.credential.workspaceId,
-        },
-        { groups: { workspace: access.credential.workspaceId } }
-      )
-
-      recordAudit({
-        workspaceId: access.credential.workspaceId,
-        actorId: params.userId,
-        actorName: params.actorName ?? undefined,
-        actorEmail: params.actorEmail ?? undefined,
-        action: AuditAction.CREDENTIAL_DELETED,
-        resourceType: AuditResourceType.CREDENTIAL,
-        resourceId: params.credentialId,
-        resourceName: access.credential.displayName,
-        description: `Deleted workspace env credential "${access.credential.envKey}"`,
-        metadata: { credentialType: 'env_workspace', envKey: access.credential.envKey },
-        request: params.request,
-      })
-
-      return { success: true, workspaceId: access.credential.workspaceId }
-    }
-
-    await deleteCredential({
-      credentialId: params.credentialId,
-      actorId: params.userId,
-      actorName: params.actorName,
-      actorEmail: params.actorEmail,
-      reason: params.reason ?? 'user_delete',
-      request: params.request,
-    })
+    const reason = params.reason ?? 'user_delete'
+    await deleteCredentialRecord({ credential: access.credential, reason })
 
     captureServerEvent(
       params.userId,
       'credential_deleted',
       {
-        credential_type: access.credential.type as 'oauth' | 'service_account',
-        provider_id: access.credential.providerId ?? params.credentialId,
+        credential_type: access.credential.type,
+        provider_id:
+          access.credential.providerId ?? access.credential.envKey ?? params.credentialId,
         workspace_id: access.credential.workspaceId,
       },
       { groups: { workspace: access.credential.workspaceId } }
     )
+
+    const envDescription =
+      access.credential.type === 'env_personal'
+        ? `Deleted personal env credential "${access.credential.envKey}"`
+        : access.credential.type === 'env_workspace'
+          ? `Deleted workspace env credential "${access.credential.envKey}"`
+          : `Deleted ${access.credential.type} credential "${access.credential.displayName}" (${reason})`
+    recordAudit({
+      workspaceId: access.credential.workspaceId,
+      actorId: params.userId,
+      actorName: params.actorName ?? undefined,
+      actorEmail: params.actorEmail ?? undefined,
+      action: AuditAction.CREDENTIAL_DELETED,
+      resourceType: AuditResourceType.CREDENTIAL,
+      resourceId: params.credentialId,
+      resourceName: access.credential.displayName,
+      description: envDescription,
+      metadata: {
+        reason,
+        credentialType: access.credential.type,
+        providerId: access.credential.providerId,
+        accountId: access.credential.accountId,
+        envKey: access.credential.envKey,
+      },
+      request: params.request,
+    })
 
     return { success: true, workspaceId: access.credential.workspaceId }
   } catch (error) {

@@ -46,17 +46,11 @@ export const credentialsListQuerySchema = z.object({
   workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
   type: workspaceCredentialTypeSchema.optional(),
   providerId: z.string().optional(),
+  credentialId: z.string().optional(),
 })
 
 export const credentialIdParamsSchema = z.object({
   id: z.string().min(1),
-})
-
-export const credentialsListGetQuerySchema = z.object({
-  workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
-  type: workspaceCredentialTypeSchema.optional(),
-  providerId: z.string().optional(),
-  credentialId: z.string().optional(),
 })
 
 export const serviceAccountJsonSchema = z
@@ -255,6 +249,18 @@ export const leaveCredentialQuerySchema = z.object({
   credentialId: z.string().min(1),
 })
 
+export const credentialMembershipSchema = z.object({
+  membershipId: z.string(),
+  credentialId: z.string(),
+  workspaceId: z.string(),
+  type: workspaceCredentialTypeSchema,
+  displayName: z.string(),
+  providerId: z.string().nullable(),
+  role: workspaceCredentialRoleSchema,
+  status: workspaceCredentialMemberStatusSchema,
+  joinedAt: z.string().nullable(),
+})
+
 export const workspaceCredentialMemberSchema = z.object({
   id: z.string(),
   userId: z.string(),
@@ -321,6 +327,7 @@ export const listWorkspaceCredentialsContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       credentials: z.array(workspaceCredentialSchema),
+      credential: workspaceCredentialSchema.nullable().optional(),
     }),
   },
 })
@@ -379,6 +386,7 @@ export const createWorkspaceCredentialContract = defineRouteContract({
   body: createCredentialBodySchema,
   response: {
     mode: 'json',
+    status: [200, 201],
     schema: z.object({
       credential: workspaceCredentialSchema,
     }),
@@ -417,6 +425,7 @@ export const upsertWorkspaceCredentialMemberContract = defineRouteContract({
   body: upsertWorkspaceCredentialMemberBodySchema,
   response: {
     mode: 'json',
+    status: [200, 201],
     schema: z.object({
       success: z.literal(true),
       member: workspaceCredentialMemberSchema.optional(),
@@ -434,5 +443,24 @@ export const removeWorkspaceCredentialMemberContract = defineRouteContract({
     schema: z.object({
       success: z.literal(true),
     }),
+  },
+})
+
+export const listCredentialMembershipsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/credentials/memberships',
+  response: {
+    mode: 'json',
+    schema: z.object({ memberships: z.array(credentialMembershipSchema) }),
+  },
+})
+
+export const leaveCredentialMembershipContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/credentials/memberships',
+  query: leaveCredentialQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.literal(true) }),
   },
 })

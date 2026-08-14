@@ -3,15 +3,15 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeOAuth2Contract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth/auth'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getCredentialActorContext } from '@/lib/credentials/access'
+import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/application/connection-target'
+import { createCredentialConnection } from '@/lib/credentials/application/create-credential-connection'
 import { launchCredentialConnection } from '@/lib/credentials/application/launch-credential-connection'
-import { createConnectDraft } from '@/lib/credentials/connect-draft'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/oauth-draft-state'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('OAuth2Authorize')
 
@@ -30,6 +30,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.redirect(loginUrl.toString())
   }
   const userId = session.user.id
+  const sessionId = session.session?.id
+  if (!sessionId) throw new Error('Authenticated session is missing its session ID')
+  const principal = { kind: 'session' as const, userId, sessionId }
 
   const parsed = await parseRequest(authorizeOAuth2Contract, request, {})
   if (!parsed.success) return parsed.response
@@ -40,14 +43,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   let connectionDraftId: string | undefined
   if (draftId) {
     try {
-      const sessionId = session.session?.id
-      if (!sessionId) throw new Error('Authenticated session is missing its session ID')
       const { draft } = await launchCredentialConnection.execute({
-        principal: {
-          kind: 'session',
-          userId,
-          sessionId,
-        },
+        principal,
         input: { draftId },
         request,
       })
@@ -76,65 +73,39 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       : `${baseUrl}/workspace`
 
   try {
-    let reconnectDisplayName: string | undefined
     if (!fromConnectionDraft) {
-      const access = await checkWorkspaceAccess(workspaceId, userId)
-      if (!access.canWrite) {
-        logger.warn('Workspace write access denied for OAuth2 authorize', {
-          userId,
-          workspaceId,
-          providerId,
+      try {
+        const connection = await createCredentialConnection.execute({
+          principal,
+          input: credentialId
+            ? { workspaceId, credentialId, assertedProviderId: providerId }
+            : { workspaceId, providerId },
+          request,
         })
-        return NextResponse.redirect(`${baseUrl}/workspace?error=workspace_access_denied`)
-      }
-
-      if (credentialId) {
-        // Reconnect: the OAuth callback will rebind this credential to the fresh
-        // account, so require the same credential-admin access as the draft POST
-        // route — workspace write alone must not be enough to swap someone's tokens.
-        const actor = await getCredentialActorContext(credentialId, userId, {
-          workspaceAccess: access,
-        })
-        if (
-          !actor.credential ||
-          actor.credential.workspaceId !== workspaceId ||
-          actor.credential.type !== 'oauth' ||
-          !actor.isAdmin
-        ) {
-          logger.warn('Credential admin access denied for OAuth2 reconnect', {
-            userId,
-            workspaceId,
-            providerId,
-            credentialId,
-          })
-          return NextResponse.redirect(`${baseUrl}/workspace?error=credential_access_denied`)
-        }
-        if (actor.credential.providerId !== providerId) {
-          logger.warn('Provider mismatch for OAuth2 reconnect', {
-            userId,
-            workspaceId,
-            providerId,
-            credentialId,
-            credentialProviderId: actor.credential.providerId,
-          })
+        providerId = connection.providerId
+        workspaceId = connection.workspaceId
+        credentialId = connection.credentialId
+        connectionDraftId = connection.draftId
+      } catch (error) {
+        if (error instanceof CredentialConnectionProviderMismatchError) {
           return NextResponse.redirect(`${baseUrl}/workspace?error=credential_provider_mismatch`)
         }
-        reconnectDisplayName = actor.credential.displayName
+        if (credentialId && error instanceof ForbiddenOperationError) {
+          return NextResponse.redirect(`${baseUrl}/workspace?error=credential_access_denied`)
+        }
+        if (error instanceof OrchestrationError && error.code === 'not_found') {
+          return NextResponse.redirect(
+            `${baseUrl}/workspace?error=${credentialId ? 'credential_access_denied' : 'workspace_access_denied'}`
+          )
+        }
+        if (error instanceof OrchestrationError && error.code === 'forbidden') {
+          return NextResponse.redirect(`${baseUrl}/workspace?error=workspace_access_denied`)
+        }
+        throw error
       }
     }
 
     requireConfiguredOAuthClient(providerId)
-
-    if (!draftId) {
-      const draft = await createConnectDraft({
-        userId,
-        workspaceId,
-        providerId,
-        credentialId,
-        displayName: reconnectDisplayName,
-      })
-      connectionDraftId = draft.id
-    }
 
     if (!connectionDraftId) {
       throw new Error('OAuth authorization is missing its credential draft id')

@@ -18,11 +18,17 @@ import { TokenServiceAccountValidationError } from '@/lib/credentials/token-serv
 
 const {
   mockCheckWorkspaceAccess,
+  mockGetCredentialActorContext,
   mockGetCredentialCreationWorkspaceContext,
+  mockLoadWorkspace,
+  mockResolveWorkspacePermission,
   mockVerifyAndBuildServiceAccountSecret,
 } = vi.hoisted(() => ({
   mockCheckWorkspaceAccess: vi.fn(),
+  mockGetCredentialActorContext: vi.fn(),
   mockGetCredentialCreationWorkspaceContext: vi.fn(),
+  mockLoadWorkspace: vi.fn(),
+  mockResolveWorkspacePermission: vi.fn(),
   mockVerifyAndBuildServiceAccountSecret: vi.fn(),
 }))
 
@@ -31,6 +37,24 @@ vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mockCheckWorkspaceAccess,
+}))
+
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadActiveWorkspaceApplicationContext: mockLoadWorkspace,
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: (actual: string | null, required: string) =>
+    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
+  resolveEffectiveWorkspacePermission: mockResolveWorkspacePermission,
+}))
+
+vi.mock('@/lib/credentials/access', () => ({
+  canUseCredential: (access: { member: unknown; isAdmin: boolean; hasWorkspaceAccess: boolean }) =>
+    access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin),
+  getCredentialActorContext: mockGetCredentialActorContext,
+  isSharedCredentialType: (type: string) => type !== 'env_personal',
+  SHARED_CREDENTIAL_TYPES: ['oauth', 'env_workspace', 'service_account'],
 }))
 
 vi.mock('@/lib/credentials/environment', () => ({
@@ -57,6 +81,12 @@ vi.mock('@/lib/credentials/service-account-secret', () => ({
 import { GET, POST } from '@/app/api/credentials/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
+const WORKSPACE_CONTEXT = {
+  workspaceId: WORKSPACE_ID,
+  workspaceOrganizationId: 'org-1',
+  allowPersonalApiKeys: true,
+  billedAccountUserId: 'user-1',
+}
 
 describe('GET /api/credentials', () => {
   beforeEach(() => {
@@ -64,7 +94,10 @@ describe('GET /api/credentials', () => {
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Test User', email: 'test@example.com' },
+      session: { id: 'session-1' },
     })
+    mockLoadWorkspace.mockResolvedValue(WORKSPACE_CONTEXT)
+    mockResolveWorkspacePermission.mockResolvedValue('read')
     mockCheckWorkspaceAccess.mockResolvedValue({
       hasAccess: true,
       canWrite: true,
@@ -120,7 +153,10 @@ describe('POST /api/credentials', () => {
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Test User', email: 'test@example.com' },
+      session: { id: 'session-1' },
     })
+    mockLoadWorkspace.mockResolvedValue(WORKSPACE_CONTEXT)
+    mockResolveWorkspacePermission.mockResolvedValue('write')
     mockCheckWorkspaceAccess.mockResolvedValue({
       hasAccess: true,
       canWrite: true,
@@ -131,6 +167,27 @@ describe('POST /api/credentials', () => {
       organizationId: 'org-1',
       memberUserIds: ['user-1'],
       canWrite: true,
+    })
+    mockGetCredentialActorContext.mockResolvedValue({
+      credential: {
+        id: 'credential-1',
+        workspaceId: WORKSPACE_ID,
+        type: 'service_account',
+        displayName: 'Service account',
+        description: null,
+        providerId: 'zoom-service-account',
+        accountId: null,
+        envKey: null,
+        envOwnerUserId: null,
+        encryptedServiceAccountKey: 'encrypted-blob',
+        createdBy: 'user-1',
+        createdAt: new Date('2026-08-11T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+      },
+      member: { role: 'admin', status: 'active' },
+      hasWorkspaceAccess: true,
+      canWriteWorkspace: true,
+      isAdmin: true,
     })
   })
 

@@ -1,4 +1,6 @@
+import type { WorkspaceCredential } from '@/lib/api/contracts/credentials'
 import type { V2Credential } from '@/lib/api/contracts/v2/credentials'
+import type { CredentialActorContext } from '@/lib/credentials/access'
 import type { CredentialRow, VisibleWorkspaceCredential } from '@/lib/credentials/queries'
 
 type PublicCredentialSource =
@@ -22,5 +24,32 @@ export function toV2Credential(row: PublicCredentialSource): V2Credential {
     role: row.role,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  }
+}
+
+/** Serializes credential metadata for the internal workspace surface. */
+export function toWorkspaceCredential(
+  row: CredentialRow | VisibleWorkspaceCredential,
+  access?: CredentialActorContext
+): WorkspaceCredential {
+  const role = access?.isAdmin
+    ? 'admin'
+    : (access?.member?.role ?? ('role' in row ? row.role : undefined))
+  const status = access?.member?.status ?? (access?.isAdmin ? 'active' : undefined)
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    type: row.type,
+    displayName: row.displayName,
+    description: row.description,
+    providerId: row.providerId,
+    accountId: row.accountId,
+    envKey: row.envKey,
+    envOwnerUserId: row.envOwnerUserId,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    ...(role ? { role } : {}),
+    ...(status ? { status } : {}),
   }
 }

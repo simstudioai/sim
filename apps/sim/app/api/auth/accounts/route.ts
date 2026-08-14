@@ -1,61 +1,23 @@
-import { db } from '@sim/db'
-import { account, credential } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { and, desc, eq } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
-import { connectedAccountsQuerySchema } from '@/lib/api/contracts/oauth-connections'
-import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { listConnectedAccountsContract } from '@/lib/api/contracts/oauth-connections'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import {
+  credentialValidationParseOptions,
+  internalCredentialErrorPolicy,
+} from '@/lib/credentials/api/route-policies'
+import { listConnectedAccountsUseCase } from '@/lib/credentials/application/oauth-accounts'
+import { credentialUserOperations } from '@/lib/credentials/application/operations'
 
-const logger = createLogger('AuthAccountsAPI')
-
-export const GET = withRouteHandler(async (request: NextRequest) => {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { searchParams } = new URL(request.url)
-    const { provider } = connectedAccountsQuerySchema.parse({
-      provider: searchParams.get('provider') || undefined,
-    })
-
-    const whereConditions = [eq(account.userId, session.user.id)]
-
-    if (provider) {
-      whereConditions.push(eq(account.providerId, provider))
-    }
-
-    const accounts = await db
-      .select({
-        id: account.id,
-        accountId: account.accountId,
-        providerId: account.providerId,
-        credentialDisplayName: credential.displayName,
-      })
-      .from(account)
-      .leftJoin(credential, eq(credential.accountId, account.id))
-      .where(and(...whereConditions))
-      .orderBy(desc(account.updatedAt))
-
-    const seen = new Map<string, (typeof accounts)[number]>()
-    for (const acc of accounts) {
-      if (!seen.has(acc.id)) {
-        seen.set(acc.id, acc)
-      }
-    }
-
-    const accountsWithDisplayName = Array.from(seen.values()).map((acc) => ({
-      id: acc.id,
-      accountId: acc.accountId,
-      providerId: acc.providerId,
-      displayName: acc.credentialDisplayName || acc.accountId || acc.providerId,
-    }))
-
-    return NextResponse.json({ accounts: accountsWithDisplayName })
-  } catch (error) {
-    logger.error('Failed to fetch accounts', { error })
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+export const GET = defineInternalJsonRoute({
+  contract: listConnectedAccountsContract,
+  auth: internalSessionAuth,
+  operation: credentialUserOperations.listConnectedAccounts,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal behavior' }),
+  errorPolicy: internalCredentialErrorPolicy,
+  parseOptions: credentialValidationParseOptions,
+  mapInput: ({ query }) => query,
+  useCase: listConnectedAccountsUseCase,
 })

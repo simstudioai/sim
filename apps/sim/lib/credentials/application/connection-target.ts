@@ -18,13 +18,21 @@ export interface ResolvedCredentialConnectionTarget {
   displayName?: string
 }
 
+export class CredentialConnectionProviderMismatchError extends OrchestrationError {
+  constructor() {
+    super('validation', 'Credential provider does not match the requested OAuth provider')
+    this.name = 'CredentialConnectionProviderMismatchError'
+  }
+}
+
 export async function resolveCredentialConnectionTarget(params: {
   principal: Principal
   context: ActiveWorkspaceApplicationContext
   providerId?: string
   credentialId?: string
+  assertedProviderId?: string
 }): Promise<ResolvedCredentialConnectionTarget> {
-  const { principal, context, providerId, credentialId } = params
+  const { principal, context, providerId, credentialId, assertedProviderId } = params
   if (Boolean(providerId) === Boolean(credentialId)) {
     throw new Error('Credential connection requires exactly one target identifier')
   }
@@ -49,6 +57,9 @@ export async function resolveCredentialConnectionTarget(params: {
     throw new OrchestrationError('validation', 'Only OAuth credentials can be reconnected')
   }
   const credentialProviderId = credential.providerId
+  if (assertedProviderId && assertedProviderId !== credentialProviderId) {
+    throw new CredentialConnectionProviderMismatchError()
+  }
 
   const actor = await getCredentialActorContext(targetCredentialId, userId)
   if (!actor.credential || actor.credential.workspaceId !== context.workspaceId) {

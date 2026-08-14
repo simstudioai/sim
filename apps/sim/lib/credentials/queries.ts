@@ -280,3 +280,9 @@ export async function getWorkspaceCredential(params: {
     .limit(1)
   return row ?? null
 }
+
+/** Canonical credential lookup used before its workspace scope is known. */
+export async function getCredentialById(credentialId: string): Promise<CredentialRow | null> {
+  const [row] = await db.select().from(credential).where(eq(credential.id, credentialId)).limit(1)
+  return row ?? null
+}
