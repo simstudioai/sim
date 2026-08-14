@@ -658,7 +658,7 @@ export function normalizeFileInput(
  */
 export const BUILT_IN_TOOL_TYPES = new Set([
   'api',
-  'file',
+  'file_v5',
   'function',
   'knowledge',
   'search',

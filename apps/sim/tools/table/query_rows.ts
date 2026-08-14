@@ -94,6 +94,7 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
         totalCount: data.totalCount,
         limit: data.limit,
         offset: data.offset,
+        nextCursor: data.nextCursor ?? null,
       },
     }
   },
@@ -105,5 +106,11 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
     totalCount: { type: 'number', description: 'Total rows matching filter' },
     limit: { type: 'number', description: 'Limit used in query' },
     offset: { type: 'number', description: 'Offset used in query' },
+    nextCursor: {
+      type: 'string',
+      nullable: true,
+      description:
+        'Non-null when more rows match past this page. A page can end early at the byte budget, so this — not a short rowCount — is what says whether more remain. To page, advance offset by rowCount and stop when this is null.',
+    },
   },
 }
