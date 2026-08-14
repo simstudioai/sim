@@ -1,4 +1,5 @@
 import { ApiClientError } from '@/lib/api/client/errors'
+import { CLIENT_ID_HEADER, getClientId } from '@/lib/api/client-id'
 import type {
   AnyApiRouteContract,
   ApiSchema,
@@ -103,6 +104,10 @@ function buildHeaders(headers: unknown, hasBody: boolean): Record<string, string
   if (hasBody) {
     output['Content-Type'] = 'application/json'
   }
+
+  /** Set here rather than per call site so every request carries it without a decision to get wrong. */
+  const clientId = getClientId()
+  if (clientId) output[CLIENT_ID_HEADER] = clientId
 
   if (headers && typeof headers === 'object') {
     for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {

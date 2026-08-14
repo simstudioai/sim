@@ -1071,6 +1071,18 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
           updatedAt: serverRow.updatedAt,
         }
       })
+
+      // `patchCachedRows` rewrites values in place, which is the whole answer for the default
+      // view. It cannot be for a filtered or column-sorted one: editing a cell can move a row in
+      // or out of the filter and change its sort position and `totalCount`, none of which a
+      // per-row patch can express. Those views are refetched instead — the same split
+      // `useCreateTableRow` makes, and previously supplied by the broadcast this write no longer
+      // makes the acting tab honor.
+      queryClient.invalidateQueries({
+        queryKey: tableKeys.rowsRoot(tableId),
+        exact: false,
+        predicate: (query) => !isDefaultOrderRowsQuery(query.queryKey),
+      })
     },
     onError: (error, _vars, context) => {
       if (context?.previousQueries) {
