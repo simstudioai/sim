@@ -51,6 +51,7 @@ import {
   useDisconnectOAuthService,
   useOAuthConnections,
 } from '@/hooks/queries/oauth/oauth-connections'
+import { useOAuthCredentialDetail } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
 const logger = createLogger('ConnectedCredentialDetail')
@@ -93,15 +94,26 @@ export function ConnectedCredentialDetail({
 
   const form = useCredentialDetailForm({ credential, isAdmin, backHref: integrationsHref })
 
-  /** Scopes granted to this credential's own account, not the provider's union. */
-  const accountScopes = useMemo(() => {
-    if (!credential?.accountId) return undefined
-    for (const service of oauthConnections) {
-      const account = service.accounts?.find((entry) => entry.id === credential.accountId)
-      if (account) return account.scopes
-    }
-    return undefined
-  }, [oauthConnections, credential?.accountId])
+  /**
+   * Scopes granted to this specific credential, read from the workspace-scoped
+   * credential detail rather than `useOAuthConnections` — the latter returns the
+   * *viewer's* connections, so an admin reconnecting a teammate's shared
+   * credential would find no account, and it resolves to a bare catalog on a
+   * failed fetch, which is indistinguishable from "no scopes granted".
+   */
+  const isResourceScoped = Boolean(
+    credential?.providerId && getServiceConfigByProviderId(credential.providerId)?.resourceUrl
+  )
+  const {
+    data: credentialDetail = [],
+    isPending: scopesLoading,
+    isError: scopesUnavailable,
+  } = useOAuthCredentialDetail(
+    isResourceScoped ? credentialId : undefined,
+    undefined,
+    isResourceScoped
+  )
+  const grantedScopes = credentialDetail[0]?.scopes
 
   const oauthServiceNameByProviderId = useMemo(
     () => new Map(oauthConnections.map((service) => [service.providerId, service.name])),
@@ -127,17 +139,20 @@ export function ConnectedCredentialDetail({
     try {
       /**
        * A reconnect must return to the environment the credential already
-       * belongs to, so the origin is read back off the scopes granted to *this*
-       * account rather than asked for again. The account's own scopes are used,
-       * not the connection's union — two accounts on one provider are two
-       * different environments, and the union cannot tell them apart.
+       * belongs to, so the origin is read back off this credential's own granted
+       * scopes rather than asked for again.
        *
        * Resolved before the draft is written so a failure leaves nothing behind.
        */
       const resourceConfig = getServiceConfigByProviderId(credential.providerId)?.resourceUrl
       let resourceUrl: string | undefined
       if (resourceConfig) {
-        resourceUrl = findGrantedResourceOrigin(accountScopes, resourceConfig)
+        if (scopesUnavailable) {
+          throw new Error(
+            `Couldn't read this credential's ${resourceConfig.title}. Try again in a moment.`
+          )
+        }
+        resourceUrl = findGrantedResourceOrigin(grantedScopes, resourceConfig)
         if (!resourceUrl) {
           throw new Error(
             `This credential is not bound to an ${resourceConfig.title}. Disconnect it here, then connect the account again.`
@@ -229,7 +244,7 @@ export function ConnectedCredentialDetail({
                 ? () => setReconnectOpen(true)
                 : handleReconnectOAuth
             }
-            disabled={connectOAuthService.isPending}
+            disabled={connectOAuthService.isPending || (isResourceScoped && scopesLoading)}
             leftIcon={display?.icon ?? undefined}
           >
             Reconnect

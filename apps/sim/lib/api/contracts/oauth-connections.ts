@@ -10,13 +10,6 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 export const oauthAccountSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
-  /**
-   * Scopes granted to this account specifically. The connection's own `scopes`
-   * is the union across its accounts, which cannot answer a per-credential
-   * question — for a service whose scope names a tenant host, two accounts on
-   * one provider are two different environments.
-   */
-  scopes: z.array(z.string()).optional(),
 })
 export type OAuthAccountSummary = z.output<typeof oauthAccountSummarySchema>
 
