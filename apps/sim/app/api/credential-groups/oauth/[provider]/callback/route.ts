@@ -54,10 +54,9 @@ export const GET = withRouteHandler(
 
     const principal = await authenticateCredentialGroupEnrollment(attempt.invitationToken)
     if (!principal) {
-      return NextResponse.json(
-        { error: 'Invitation is invalid or expired.' },
-        { status: 404, headers: { 'Cache-Control': 'no-store' } }
-      )
+      return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
+        oauth: 'unavailable',
+      })
     }
 
     try {

@@ -801,18 +801,9 @@ async function completeResolvedCredentialGroupEnrollment(
   row: NonNullable<Awaited<ReturnType<typeof resolvePublicEnrollmentRowByIdentity>>>,
   identity: PublicCredentialGroupEnrollmentIdentity
 ): Promise<boolean | null> {
-  const enrollment = await buildPublicCredentialGroupEnrollment(row)
-  const activeOptions = enrollment.options.filter((option) => option.status === 'active')
-  const allConnected =
-    activeOptions.length > 0 &&
-    activeOptions.every(
-      (option) => option.connections.length === 1 && option.connections[0]?.status === 'connected'
-    )
-  if (!allConnected) return false
-
-  const now = new Date()
   return db.transaction(async (tx) => {
     await lockCredentialGroupEnrollmentLifecycle(tx, row.enrollment.id)
+    const now = new Date()
     const [current] = await tx
       .select({
         status: credentialGroupEnrollment.status,
@@ -830,6 +821,68 @@ async function completeResolvedCredentialGroupEnrollment(
       current.invitationExpiresAt.getTime() <= now.getTime()
     ) {
       return null
+    }
+
+    const [group] = await tx
+      .select({
+        status: credentialGroup.status,
+        options: credentialGroup.options,
+      })
+      .from(credentialGroup)
+      .where(
+        and(
+          eq(credentialGroup.id, identity.credentialGroupId),
+          eq(credentialGroup.workspaceId, identity.workspaceId)
+        )
+      )
+      .limit(1)
+      .for('update')
+    if (!group || group.status !== 'active') return null
+
+    const activeOptions = group.options.filter((option) => option.status === 'active')
+    if (activeOptions.length === 0) return false
+    const connections = await tx
+      .select({
+        optionId: credential.credentialGroupOptionId,
+        status: credential.managedOauthStatus,
+        scopeVersion: credential.managedOauthScopeVersion,
+        authorizationAppId: credential.authorizationAppId,
+        grantedScopes: credential.grantedScopes,
+        grantedAt: credential.grantedAt,
+      })
+      .from(credential)
+      .where(
+        and(
+          eq(credential.type, 'managed_oauth'),
+          eq(credential.credentialGroupEnrollmentId, row.enrollment.id)
+        )
+      )
+      .for('update')
+
+    for (const option of activeOptions) {
+      if (!isCredentialGroupProvider(option.provider)) {
+        throw new Error(`Unsupported Credential Group provider: ${option.provider}`)
+      }
+      const matchingConnections = connections.filter(
+        (connection) => connection.optionId === option.id
+      )
+      if (matchingConnections.length !== 1) return false
+      const [connection] = matchingConnections
+      if (!connection || connection.status !== 'active' || !connection.grantedAt) return false
+
+      const adapter = getCredentialGroupProviderAdapter(option.provider)
+      const policy = await adapter.getPolicy(option, {
+        workspaceId: identity.workspaceId,
+        credentialGroupId: identity.credentialGroupId,
+        executor: tx,
+      })
+      if (
+        connection.authorizationAppId !== policy.authorizationAppId ||
+        connection.scopeVersion !== policy.scopeVersion ||
+        !adapter.hasRequiredScopes(connection.grantedScopes ?? [], policy.requiredScopes)
+      ) {
+        return false
+      }
     }
 
     const [completed] = await tx

@@ -263,4 +263,64 @@ describe('completeCredentialGroupEnrollment', () => {
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
+
+  it('refuses completion when a connection needs reauthorization under the row locks', async () => {
+    queueTableRows(schemaMock.credentialGroupEnrollment, [
+      {
+        enrollment: { ...ENROLLMENT, status: 'in_progress' },
+        groupId: 'group-1',
+        groupName: 'Group',
+        groupStatus: 'active',
+        options: [
+          {
+            id: 'option-1',
+            provider: 'gmail',
+            label: 'Gmail',
+            required: true,
+            status: 'active',
+          },
+        ],
+        workspaceId: 'workspace-1',
+        workspaceName: 'Workspace',
+        workspaceOwnerId: 'owner-1',
+        inviterName: 'Inviter',
+      },
+    ])
+    queueTableRows(schemaMock.credentialGroupEnrollment, [
+      {
+        status: 'in_progress',
+        invitationTokenHash: ENROLLMENT.invitationTokenHash,
+        invitationExpiresAt: ENROLLMENT.invitationExpiresAt,
+      },
+    ])
+    queueTableRows(schemaMock.credentialGroup, [
+      {
+        status: 'active',
+        options: [
+          {
+            id: 'option-1',
+            provider: 'gmail',
+            label: 'Gmail',
+            required: true,
+            status: 'active',
+          },
+        ],
+      },
+    ])
+    queueTableRows(schemaMock.credential, [
+      {
+        optionId: 'option-1',
+        status: 'needs_reauth',
+        scopeVersion: 1,
+        authorizationAppId: 'google:client',
+        grantedScopes: ['scope'],
+        grantedAt: new Date('2026-08-11T12:05:00.000Z'),
+      },
+    ])
+
+    await expect(completeCredentialGroupEnrollment('invitation-token')).resolves.toBe(false)
+
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(adapter.getPolicy).not.toHaveBeenCalled()
+  })
 })

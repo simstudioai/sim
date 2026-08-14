@@ -97,4 +97,16 @@ describe('credential group OAuth callback', () => {
     expect(mismatchedResponse.status).toBe(400)
     expect(mocks.completeOAuth).not.toHaveBeenCalled()
   })
+
+  it('returns an unavailable enrollment redirect when the invitation was revoked in flight', async () => {
+    mocks.authenticate.mockResolvedValue(null)
+
+    const response = await GET(request('state=state-1&code=code-1'), context)
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe(
+      '/credential-groups/enroll/invitation-token?oauth=unavailable'
+    )
+    expect(mocks.completeOAuth).not.toHaveBeenCalled()
+  })
 })

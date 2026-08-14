@@ -57,7 +57,6 @@ function getEnrollmentStatus(
   const needsReauthorization = enrollment.connections.some(
     (connection) => connection.status === 'needs_reauth'
   )
-  if (enrollment.expired) return { label: 'Expired', invalid: true }
   if (needsReauthorization) return { label: 'Reconnect needed', invalid: false }
   const connectedProviders = new Set(
     enrollment.connections
@@ -71,6 +70,7 @@ function getEnrollmentStatus(
     return { label: 'Connected', invalid: false }
   }
   if (enrollment.status === 'completed') return { label: 'In progress', invalid: false }
+  if (enrollment.expired) return { label: 'Expired', invalid: true }
   if (enrollment.status === 'in_progress') return { label: 'In progress', invalid: false }
   return { label: 'Invited', invalid: false }
 }
