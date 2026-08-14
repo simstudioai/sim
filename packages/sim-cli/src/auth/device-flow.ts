@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
+import { sleep } from '../helpers.js'
 import { SimApiError } from '../http/client.js'
 
 /**
@@ -167,7 +168,7 @@ export async function pollForKey(
       }
     }
 
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+    await sleep(POLL_INTERVAL_MS)
   }
 
   throw new SimApiError('Timed out waiting for browser approval.', 0)
