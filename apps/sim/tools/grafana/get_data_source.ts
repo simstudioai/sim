@@ -36,19 +36,20 @@ export const getDataSourceTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID or UID of the data source to retrieve (e.g., prometheus, P1234AB5678)',
+      description:
+        'The UID of the data source to retrieve (e.g., P1234AB5678). Numeric ids are not supported — Grafana serves those only behind a disabled-by-default feature toggle',
     },
   },
 
   request: {
     url: (params) => {
       const baseUrl = params.baseUrl.replace(/\/$/, '')
-      const id = params.dataSourceId.trim()
-      const isNumericId = /^\d+$/.test(id) && id.length <= 18
-      if (isNumericId) {
-        return `${baseUrl}/api/datasources/${id}`
-      }
-      return `${baseUrl}/api/datasources/uid/${id}`
+      /**
+       * UID only. The numeric-id route `/api/datasources/:id` exists solely
+       * behind Grafana's off-by-default `datasourceLegacyIdApi` feature toggle,
+       * so routing a numeric input there 404s on a stock instance.
+       */
+      return `${baseUrl}/api/datasources/uid/${encodeURIComponent(params.dataSourceId.trim())}`
     },
     method: 'GET',
     headers: (params) => {
