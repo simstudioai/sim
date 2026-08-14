@@ -1054,6 +1054,9 @@ function SearchModalContent({
       ...(pageContext ? rankActionGroup(actionsByGroup.page, 'Actions') : []),
       ...rankActionGroup(actionsByGroup.sim, 'Sim'),
     ]
+    const blockNames = new Set(
+      [...availableBlocks, ...availableTools].map((item) => item.name.toLowerCase())
+    )
 
     return {
       actions: rankedActions.map(({ item, score }) => ({ section: 'actions', item, score })),
@@ -1072,8 +1075,14 @@ function SearchModalContent({
         section: 'triggers',
         item,
         /* The display rename ("Start" → "Start Trigger") costs the exact-name
-           bonus, so a query that IS the trigger's name ranks it like a page row. */
-        score: item.baseName.toLowerCase() === query.toLowerCase() ? PAGE_MATCH_TIER : score,
+           bonus, so a query that IS the trigger's name ranks it like a page row
+           — unless a block shares that name (Gmail, Slack). Then the query names
+           the block first, and the lift would leapfrog its exact-name match. */
+        score:
+          item.baseName.toLowerCase() === query.toLowerCase() &&
+          !blockNames.has(item.baseName.toLowerCase())
+            ? PAGE_MATCH_TIER
+            : score,
       })),
       tools: rank(
         'tools',
