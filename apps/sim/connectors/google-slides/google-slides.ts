@@ -218,7 +218,7 @@ function shouldIncludeSpeakerNotes(sourceConfig: Record<string, unknown>): boole
  * Creates a lightweight stub from a Drive file entry. Content is deferred
  * and only fetched via getDocument for new or changed documents.
  */
-function fileToStub(file: DriveFile): ExternalDocument {
+function fileToStub(file: DriveFile, includeSpeakerNotes: boolean): ExternalDocument {
   return {
     externalId: file.id,
     title: file.name || 'Untitled',
@@ -226,7 +226,12 @@ function fileToStub(file: DriveFile): ExternalDocument {
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: file.webViewLink || `https://docs.google.com/presentation/d/${file.id}/edit`,
-    contentHash: `gslides:${file.id}:${file.modifiedTime ?? ''}`,
+    /**
+     * The speaker-notes setting selects what the rendered content contains, so it
+     * belongs in the hash. Without it, toggling the option leaves every stored
+     * hash matching and no presentation is ever re-hydrated with the new scope.
+     */
+    contentHash: `gslides:${file.id}:${file.modifiedTime ?? ''}:${includeSpeakerNotes ? 'n1' : 'n0'}`,
     metadata: {
       modifiedTime: file.modifiedTime,
       createdTime: file.createdTime,
@@ -314,7 +319,8 @@ export const googleSlidesConnector: ConnectorConfig = {
     const maxDocs = sourceConfig.maxDocs ? Number(sourceConfig.maxDocs) : 0
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
-    let documents = files.map(fileToStub)
+    const includeSpeakerNotes = shouldIncludeSpeakerNotes(sourceConfig)
+    let documents = files.map((file) => fileToStub(file, includeSpeakerNotes))
     let slicedSome = false
     if (maxDocs > 0) {
       const remaining = maxDocs - previouslyFetched
@@ -376,11 +382,8 @@ export const googleSlidesConnector: ConnectorConfig = {
     if (file.trashed) return null
     if (file.mimeType !== PRESENTATION_MIME_TYPE) return null
 
-    const content = await fetchPresentationContent(
-      accessToken,
-      file.id,
-      shouldIncludeSpeakerNotes(sourceConfig)
-    )
+    const includeSpeakerNotes = shouldIncludeSpeakerNotes(sourceConfig)
+    const content = await fetchPresentationContent(accessToken, file.id, includeSpeakerNotes)
 
     /**
      * An image-only deck carries no extractable text. Surfacing it as a skipped
@@ -389,10 +392,15 @@ export const googleSlidesConnector: ConnectorConfig = {
      * presentation would simply be missing and re-fetched on every sync.
      */
     if (!content.trim()) {
-      return { ...fileToStub(file), content: '', contentDeferred: false, skippedReason: NO_TEXT }
+      return {
+        ...fileToStub(file, includeSpeakerNotes),
+        content: '',
+        contentDeferred: false,
+        skippedReason: NO_TEXT,
+      }
     }
 
-    return { ...fileToStub(file), content, contentDeferred: false }
+    return { ...fileToStub(file, includeSpeakerNotes), content, contentDeferred: false }
   },
 
   validateConfig: async (

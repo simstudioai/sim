@@ -39,6 +39,13 @@ const CONTENT_FORMAT_VERSION = 'v2'
  */
 const MAX_WORKSHEETS = 500
 
+/**
+ * Origin every Graph response must stay on. `@odata.nextLink` is server-supplied
+ * and carries the bearer token when followed, so a link pointing anywhere else is
+ * dropped rather than requested.
+ */
+const GRAPH_API_BASE = 'https://graph.microsoft.com/'
+
 /** Maximum rows read from a single worksheet's used range. */
 const MAX_ROWS = 5000
 
@@ -82,6 +89,7 @@ interface Worksheet {
 
 interface WorksheetListResponse {
   value?: Worksheet[]
+  '@odata.nextLink'?: string
 }
 
 interface WorkbookItem {
@@ -243,18 +251,33 @@ async function fetchWorkbookItem(
 
 /** Lists the workbook's worksheets in tab order. */
 async function fetchWorksheets(accessToken: string, basePath: string): Promise<Worksheet[]> {
-  const response = await fetchWithRetry(
-    `${basePath}/workbook/worksheets?$select=id,name,position,visibility&$orderby=position`,
-    {
+  const worksheets: Worksheet[] = []
+  let url: string | undefined =
+    `${basePath}/workbook/worksheets?$select=id,name,position,visibility&$orderby=position`
+
+  /**
+   * Graph paginates collection responses, so a workbook with more sheets than fit
+   * in one page must follow `@odata.nextLink`. Reading only the first page would
+   * drop the remainder from the listing without setting `listingCapped`, and the
+   * sync engine would then reconcile those documents away as deleted. The walk is
+   * bounded by `MAX_WORKSHEETS`, whose truncation the caller does flag.
+   */
+  while (url && worksheets.length <= MAX_WORKSHEETS) {
+    const response = await fetchWithRetry(url, {
       method: 'GET',
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-    }
-  )
+    })
 
-  if (!response.ok) await graphError(response, 'Failed to list worksheets')
+    if (!response.ok) await graphError(response, 'Failed to list worksheets')
 
-  const data = (await response.json()) as WorksheetListResponse
-  return data.value ?? []
+    const data = (await response.json()) as WorksheetListResponse
+    worksheets.push(...(data.value ?? []))
+
+    const next = data['@odata.nextLink']
+    url = next && next.startsWith(GRAPH_API_BASE) ? next : undefined
+  }
+
+  return worksheets
 }
 
 /**

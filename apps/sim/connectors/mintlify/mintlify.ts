@@ -323,9 +323,18 @@ async function discoverFromSitemap(
  */
 function withinBasePath(pages: MintlifyPageLink[], site: MintlifySite): MintlifyPageLink[] {
   if (!site.basePath) return pages
-  return pages.filter(
-    (page) => page.path === site.basePath || page.path.startsWith(`${site.basePath}/`)
-  )
+  return pages.filter((page) => isUnderPath(page.path, site.basePath))
+}
+
+/**
+ * Whether `path` is `prefix` itself or sits beneath it.
+ *
+ * A bare `startsWith` would also match a sibling whose name merely begins with
+ * the prefix — `/guides` would capture `/guides-archive` — so the boundary `/`
+ * is required.
+ */
+function isUnderPath(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`)
 }
 
 /**
@@ -469,7 +478,7 @@ export const mintlifyConnector: ConnectorConfig = {
       }
 
       const filtered = pathPrefix
-        ? discovered.filter((page) => page.path.startsWith(pathPrefix))
+        ? discovered.filter((page) => isUnderPath(page.path, pathPrefix))
         : discovered
 
       if (filtered.length > maxPages && syncContext) {
@@ -591,7 +600,7 @@ export const mintlifyConnector: ConnectorConfig = {
       }
 
       const pathPrefix = resolvePathPrefix(sourceConfig.pathPrefix)
-      if (pathPrefix && !pages.some((page) => page.path.startsWith(pathPrefix))) {
+      if (pathPrefix && !pages.some((page) => isUnderPath(page.path, pathPrefix))) {
         return { valid: false, error: `No pages match the path prefix "${pathPrefix}"` }
       }
 
