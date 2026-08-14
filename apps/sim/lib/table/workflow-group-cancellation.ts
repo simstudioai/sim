@@ -3,6 +3,7 @@ import { tableRowExecutions, userTableDefinitions, workflowExecutionLogs } from 
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray } from 'drizzle-orm'
+import { elapsedDurationMsSql } from '@/lib/logs/execution/duration'
 import { appendTableEvent } from '@/lib/table/events'
 
 const logger = createLogger('WorkflowGroupCancellation')
@@ -149,9 +150,15 @@ export async function cancelWorkflowGroupExecution(
         return { result: { kind: 'already_cancelled_without_sidecar' } as const }
       }
 
+      const cancelledAt = new Date()
       const [cancelledLog] = await tx
         .update(workflowExecutionLogs)
-        .set({ status: 'cancelled', endedAt: new Date(), executionDeadlineAt: null })
+        .set({
+          status: 'cancelled',
+          endedAt: cancelledAt,
+          totalDurationMs: elapsedDurationMsSql(cancelledAt),
+          executionDeadlineAt: null,
+        })
         .where(
           and(
             eq(workflowExecutionLogs.workspaceId, options.workspaceId),
@@ -187,7 +194,12 @@ export async function cancelWorkflowGroupExecution(
     if (workflowLogActive) {
       const [cancelledLog] = await tx
         .update(workflowExecutionLogs)
-        .set({ status: 'cancelled', endedAt: now, executionDeadlineAt: null })
+        .set({
+          status: 'cancelled',
+          endedAt: now,
+          totalDurationMs: elapsedDurationMsSql(now),
+          executionDeadlineAt: null,
+        })
         .where(
           and(
             eq(workflowExecutionLogs.workspaceId, options.workspaceId),

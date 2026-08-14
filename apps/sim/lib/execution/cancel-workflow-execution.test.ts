@@ -281,4 +281,17 @@ describe('cancelWorkflowExecution', () => {
     expect(mockPublishWorkflowGroupCancellationEvent).not.toHaveBeenCalled()
     expect(mockUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }))
   })
+
+  /**
+   * A cancelled run is terminal, so it owes the same two fields every other
+   * terminal write records. Without the duration it is invisible to the
+   * `minDurationMs`/`maxDurationMs` filters on `GET /api/v2/logs`.
+   */
+  it('records how long the cancelled run had been going, not just when it stopped', async () => {
+    await cancelWorkflowExecution(INPUT)
+
+    const [values] = mockUpdateSet.mock.calls.at(-1) as [Record<string, unknown>]
+    expect(values.endedAt).toBeInstanceOf(Date)
+    expect(values.totalDurationMs).toBeDefined()
+  })
 })
