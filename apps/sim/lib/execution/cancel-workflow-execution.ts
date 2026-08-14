@@ -12,7 +12,7 @@ import {
 } from '@/lib/execution/cancellation'
 import { createExecutionEventWriter, readExecutionMetaState } from '@/lib/execution/event-buffer'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
-import { elapsedDurationMsSql } from '@/lib/logs/execution/duration'
+import { cancelledExecutionLogFields } from '@/lib/logs/execution/cancellation'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   cancelWorkflowGroupExecution,
@@ -381,11 +381,7 @@ export async function cancelWorkflowExecution(
       const cancelledAt = new Date()
       await db
         .update(workflowExecutionLogs)
-        .set({
-          status: 'cancelled',
-          endedAt: cancelledAt,
-          totalDurationMs: elapsedDurationMsSql(cancelledAt),
-        })
+        .set(cancelledExecutionLogFields(cancelledAt))
         .where(
           and(
             eq(workflowExecutionLogs.executionId, executionId),

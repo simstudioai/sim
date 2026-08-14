@@ -440,6 +440,13 @@ export const workflowExecutionLogs = pgTable(
     /** Absolute deadline for the current active attempt; cleared while paused or terminal. */
     executionDeadlineAt: timestamp('execution_deadline_at'),
     endedAt: timestamp('ended_at'),
+    /**
+     * Wall clock from `started_at` for a terminal row; for a `pending` (paused)
+     * row, the active duration recorded at the checkpoint, which excludes the
+     * time the run sits waiting. Resuming leaves that checkpoint value in place
+     * while the row accrues time again, so a `running` row's value is stale
+     * until the next terminal write recomputes it.
+     */
     totalDurationMs: integer('total_duration_ms'),
 
     /**

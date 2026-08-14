@@ -17,6 +17,7 @@ import {
   type JobQueueBackend,
   type JobStatus,
   type JobType,
+  TERMINAL_JOB_STATUSES,
   validateMaxDurationSeconds,
 } from '@/lib/core/async-jobs/types'
 import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
@@ -212,12 +213,6 @@ function mapTriggerDevStatus(status: string): JobStatus {
       return JOB_STATUS.PENDING
   }
 }
-
-const TERMINAL_JOB_STATUSES: readonly JobStatus[] = [
-  JOB_STATUS.COMPLETED,
-  JOB_STATUS.FAILED,
-  JOB_STATUS.CANCELLED,
-]
 
 /**
  * Dates the end of a run that trigger.dev already reports as terminal.
