@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { resolveCopilotKnowledgePrincipal } from '@/lib/copilot/application/execute-knowledge-use-case'
+import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import type { SecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
 import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
@@ -28,14 +29,21 @@ const logger = createLogger('VfsTools')
  * viewer (unrevealed previews, kill-switched types). Visibility is memoized per
  * (userId, workspaceId), so repeated tool calls in one turn resolve once.
  */
-async function getGatedVFS(
-  workspaceId: string,
-  userId: string,
-  secretMountPolicy?: SecretMountPolicy
-) {
-  const vis = await getBlockVisibilityForCopilot(userId, workspaceId)
+async function getGatedVFS(context: ExecutionContext) {
+  const workspaceId = context.workspaceId
+  if (!workspaceId) throw new Error('No workspace context available')
+  const knowledgePrincipal = resolveCopilotKnowledgePrincipal(context)
+  const vis = await getBlockVisibilityForCopilot(context.userId, workspaceId)
+  const filePrincipal =
+    context.copilotToolExecution && context.toolCallId
+      ? resolveCopilotFilePrincipal(context)
+      : undefined
   return withBlockVisibility(vis, () =>
-    getOrMaterializeVFS(workspaceId, userId, { secretMountPolicy })
+    getOrMaterializeVFS(workspaceId, context.userId, {
+      secretMountPolicy: context.secretMountPolicy,
+      filePrincipal,
+      knowledgePrincipal,
+    })
   )
 }
 
@@ -179,7 +187,7 @@ export async function executeVfsGrep(
       result = envelope.value
       provenanceFile = envelope.file
     } else {
-      const vfs = await getGatedVFS(workspaceId, context.userId, context.secretMountPolicy)
+      const vfs = await getGatedVFS(context)
       if (isWorkspaceFileGrepPath(rawPath)) {
         const envelope = await vfs.grepFileWithProvenance(rawPath, pattern, grepOptions)
         result = envelope.value
@@ -247,7 +255,7 @@ export async function executeVfsGlob(
   }
 
   try {
-    const vfs = await getGatedVFS(workspaceId, context.userId, context.secretMountPolicy)
+    const vfs = await getGatedVFS(context)
     let files = vfs.glob(pattern)
 
     if (context.chatId && (pattern === 'uploads/*' || pattern.startsWith('uploads/'))) {
@@ -384,7 +392,7 @@ export async function executeVfsRead(
       }
     }
 
-    const vfs = await getGatedVFS(workspaceId, context.userId, context.secretMountPolicy)
+    const vfs = await getGatedVFS(context)
 
     // Plain canonical file leaves are metadata resources. Dynamic file content
     // and inspection paths use explicit suffixes like /content, /style,
@@ -433,6 +441,9 @@ export async function executeVfsRead(
           error:
             'This file result cannot be shared safely because its secret provenance is unavailable.',
         }
+      }
+      if (fileContent.error !== undefined) {
+        return { success: false, error: fileContent.error }
       }
       logger.debug('vfs_read resolved workspace file', {
         path,

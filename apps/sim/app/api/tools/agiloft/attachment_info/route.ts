@@ -7,8 +7,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { AgiloftAttachmentInfoResponse } from '@/tools/agiloft/types'
-import { buildAttachmentInfoUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import { buildAttachmentInfoUrl, describeAgiloftError } from '@/tools/agiloft/utils'
+import { executeEwRequest } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,7 +51,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const result = await executeAgiloftRequest<AgiloftAttachmentInfoResponse>(
+    const result = await executeEwRequest<AgiloftAttachmentInfoResponse>(
       params,
       (base) => ({
         url: buildAttachmentInfoUrl(base, params),
@@ -63,7 +63,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           return {
             success: false,
             output: { attachments: [], totalCount: 0 },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
+            error: `Agiloft error ${response.status}: ${describeAgiloftError(errorText)}`,
           }
         }
 

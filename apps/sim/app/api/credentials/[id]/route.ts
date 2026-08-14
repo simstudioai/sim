@@ -4,8 +4,16 @@ import { updateWorkspaceCredentialContract } from '@/lib/api/contracts/credentia
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { type CredentialActorContext, getCredentialActorContext } from '@/lib/credentials/access'
-import { performDeleteCredential, performUpdateCredential } from '@/lib/credentials/orchestration'
+import {
+  type CredentialActorContext,
+  canUseCredential,
+  getCredentialActorContext,
+} from '@/lib/credentials/access'
+import {
+  isProviderOutageCode,
+  performDeleteCredential,
+  performUpdateCredential,
+} from '@/lib/credentials/orchestration'
 
 const logger = createLogger('CredentialByIdAPI')
 
@@ -45,7 +53,7 @@ export const GET = withRouteHandler(
       if (!access.credential) {
         return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
       }
-      if (!access.hasWorkspaceAccess || (!access.member && !access.isAdmin)) {
+      if (!canUseCredential(access)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
@@ -88,8 +96,12 @@ export const PUT = withRouteHandler(
         domain: body.domain,
         clientId: body.clientId,
         clientSecret: body.clientSecret,
+        certificateId: body.certificateId,
         orgId: body.orgId,
         dataCenter: body.dataCenter,
+        authMethod: body.authMethod,
+        privateKey: body.privateKey,
+        username: body.username,
         request,
       })
       if (!result.success) {
@@ -102,7 +114,9 @@ export const PUT = withRouteHandler(
                 ? 409
                 : // A provider outage during reconnect is infra, not a bad
                   // request — mirror the create route and runtime token route.
-                  result.providerErrorCode === 'provider_unavailable'
+                  // Every provider family names its own outage code, so this
+                  // asks the shared predicate rather than matching one literal.
+                  isProviderOutageCode(result.providerErrorCode)
                   ? 502
                   : result.errorCode === 'validation'
                     ? 400

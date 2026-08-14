@@ -1,7 +1,7 @@
 'use client'
 
 import { createElement, useCallback, useMemo, useRef, useState } from 'react'
-import { Button, ChipCombobox } from '@sim/emcn'
+import { Button, Combobox } from '@sim/emcn'
 import { SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
@@ -220,7 +220,7 @@ export function ToolCredentialSelector({
 
   return (
     <div>
-      <ChipCombobox
+      <Combobox
         options={comboboxOptions}
         value={inputValue}
         selectedValue={selectedId}
@@ -232,6 +232,7 @@ export function ToolCredentialSelector({
         filterOptions={true}
         isLoading={credentialsLoading}
         overlayContent={overlayContent}
+        className={selectedId ? 'pl-7' : ''}
       />
 
       {needsUpdate && (
@@ -291,6 +292,10 @@ export function ToolCredentialSelector({
           requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}
           newScopes={missingRequiredScopes}
           serviceId={serviceId}
+          // A reauthorize must return to the authorization server that issued
+          // the credential — deriving it from the service id would send a
+          // sandbox user to production, where they cannot sign in at all.
+          providerId={selectedCredential?.provider ?? effectiveProviderId}
         />
       )}
     </div>

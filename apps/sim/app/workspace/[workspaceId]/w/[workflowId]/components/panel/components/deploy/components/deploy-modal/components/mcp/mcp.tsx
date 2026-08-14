@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Badge,
   Chip,
   ChipCombobox,
   ChipInput,
-  ChipTag,
-  ChipTextarea,
   type ComboboxOption,
   cn,
   Label,
   Skeleton,
+  Textarea,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
@@ -565,7 +565,7 @@ export function McpDeploy({
         <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
           Description
         </Label>
-        <ChipTextarea
+        <Textarea
           placeholder={
             workflowDescriptionFallback
               ? `Defaults to the workflow description: ${workflowDescriptionFallback}`
@@ -596,7 +596,9 @@ export function McpDeploy({
                     <span className='block truncate text-[var(--text-tertiary)] text-sm'>
                       {field.name}
                     </span>
-                    <ChipTag variant='field'>{field.type}</ChipTag>
+                    <Badge variant='type' size='sm'>
+                      {field.type}
+                    </Badge>
                   </div>
                 </div>
                 <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>

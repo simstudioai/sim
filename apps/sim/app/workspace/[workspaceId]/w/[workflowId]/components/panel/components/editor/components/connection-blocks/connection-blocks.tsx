@@ -1,17 +1,9 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
-import {
-  ChipInput,
-  cn,
-  handleKeyboardActivation,
-  thinScrollbarClass,
-  toast,
-  useCopyToClipboard,
-} from '@sim/emcn'
-import { Box, ChevronDown, Repeat, Search, Split } from '@sim/emcn/icons'
+import { useCallback, useRef, useState } from 'react'
+import { ChevronDown, handleKeyboardActivation } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { WorkflowTypeTag } from '@sim/workflow-renderer'
+import clsx from 'clsx'
 import { useShallow } from 'zustand/react/shallow'
 import {
   FieldItem,
@@ -19,7 +11,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/connection-blocks/components/field-item/field-item'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { useBlockOutputFields } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-output-fields'
-import { getBlock } from '@/blocks/registry'
+import { BlockTile } from '@/blocks/block-tile'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -29,6 +21,7 @@ const logger = createLogger('ConnectionBlocks')
 
 interface ConnectionBlocksProps {
   connections: ConnectedBlock[]
+  currentBlockId: string
 }
 
 interface FieldTreeNodesProps {
@@ -38,7 +31,6 @@ interface FieldTreeNodesProps {
   connection: ConnectedBlock
   isFieldExpanded: (connectionId: string, fieldPath: string) => boolean
   onToggleFieldExpansion: (connectionId: string, fieldPath: string) => void
-  onSelectReference: (reference: string) => void
 }
 
 function FieldTreeNodes({
@@ -48,7 +40,6 @@ function FieldTreeNodes({
   connection,
   isFieldExpanded,
   onToggleFieldExpansion,
-  onSelectReference,
 }: FieldTreeNodesProps) {
   return fields.map((field) => {
     const fieldPath = parentPath ? `${parentPath}.${field.name}` : field.name
@@ -65,7 +56,6 @@ function FieldTreeNodes({
           hasChildren={hasChildren}
           isExpanded={expanded}
           onToggleExpand={(p) => onToggleFieldExpansion(connection.id, p)}
-          onSelectReference={onSelectReference}
         />
         {hasChildren && expanded && (
           <div className='relative mt-0.5 ml-1.5 space-y-0.5 pl-2.5'>
@@ -77,7 +67,6 @@ function FieldTreeNodes({
               connection={connection}
               isFieldExpanded={isFieldExpanded}
               onToggleFieldExpansion={onToggleFieldExpansion}
-              onSelectReference={onSelectReference}
             />
           </div>
         )}
@@ -96,7 +85,6 @@ interface ConnectionItemProps {
   connectionRef: (el: HTMLDivElement | null) => void
   mergedSubBlocks: Record<string, any>
   sourceBlock: { triggerMode?: boolean } | undefined
-  onSelectReference: (reference: string) => void
 }
 
 /**
@@ -112,10 +100,7 @@ function ConnectionItem({
   connectionRef,
   mergedSubBlocks,
   sourceBlock,
-  onSelectReference,
 }: ConnectionItemProps) {
-  const blockConfig = getBlock(connection.type)
-
   const fields = useBlockOutputFields({
     blockId: connection.id,
     blockType: connection.type,
@@ -124,40 +109,28 @@ function ConnectionItem({
   })
   const hasFields = fields.length > 0
 
-  const Icon =
-    blockConfig?.icon ??
-    (connection.type === 'loop' ? Repeat : connection.type === 'parallel' ? Split : Box)
-  const reference = `<${normalizeName(connection.name)}>`
-
   return (
     <div className='mb-0.5 last:mb-0' ref={connectionRef}>
       <div
         role='treeitem'
         aria-expanded={hasFields ? isExpanded : undefined}
-        tabIndex={0}
+        tabIndex={hasFields ? 0 : undefined}
         draggable
         onDragStart={(e) => onConnectionDragStart(e, connection)}
-        className={cn(
+        className={clsx(
           'group flex h-[26px] cursor-grab items-center gap-2 rounded-lg px-1.5 text-sm hover-hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover-hover:bg-[var(--surface-5)]',
-          hasFields ? 'cursor-pointer' : 'cursor-copy'
+          hasFields && 'cursor-pointer'
         )}
-        onClick={() => (hasFields ? onToggleExpand(connection.id) : onSelectReference(reference))}
+        onClick={() => hasFields && onToggleExpand(connection.id)}
         onKeyDown={(event) => {
-          handleKeyboardActivation(event, () =>
-            hasFields ? onToggleExpand(connection.id) : onSelectReference(reference)
-          )
+          if (!hasFields) return
+          handleKeyboardActivation(event, () => onToggleExpand(connection.id))
         }}
       >
-        <WorkflowTypeTag
-          type={connection.type}
-          blockName={connection.name}
-          Icon={Icon}
-          iconBgColor={blockConfig?.bgColor ?? ''}
-          isIntegration={blockConfig?.category === 'tools'}
-        />
+        <BlockTile blockType={connection.type} size='sm' />
         <span
-          className={cn(
-            'truncate font-medium',
+          className={clsx(
+            'truncate',
             'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
           )}
         >
@@ -165,7 +138,7 @@ function ConnectionItem({
         </span>
         {hasFields && (
           <ChevronDown
-            className={cn(
+            className={clsx(
               'size-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
               !isExpanded && '-rotate-90'
             )}
@@ -183,7 +156,6 @@ function ConnectionItem({
             connection={connection}
             isFieldExpanded={isFieldExpanded}
             onToggleFieldExpansion={onToggleFieldExpansion}
-            onSelectReference={onSelectReference}
           />
         </div>
       )}
@@ -194,13 +166,11 @@ function ConnectionItem({
 /**
  * Connection blocks component that displays incoming connections with their schemas
  */
-export function ConnectionBlocks({ connections }: ConnectionBlocksProps) {
+export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBlocksProps) {
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(() => new Set())
   const [expandedFieldPaths, setExpandedFieldPaths] = useState<Set<string>>(() => new Set())
-  const [searchQuery, setSearchQuery] = useState('')
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const connectionRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const { copy } = useCopyToClipboard({ resetMs: 1500 })
 
   const { blocks } = useWorkflowStore(
     useShallow((state) => ({
@@ -278,12 +248,6 @@ export function ConnectionBlocks({ connections }: ConnectionBlocksProps) {
     [expandedFieldPaths]
   )
 
-  const handleSelectReference = async (reference: string) => {
-    if (await copy(reference)) {
-      toast.success('Reference copied')
-    }
-  }
-
   const handleConnectionDragStart = useCallback(
     (e: React.DragEvent, connection: ConnectedBlock) => {
       const normalizedBlockName = normalizeName(connection.name)
@@ -311,101 +275,37 @@ export function ConnectionBlocks({ connections }: ConnectionBlocksProps) {
     []
   )
 
-  const normalizedQuery = searchQuery.trim().toLowerCase()
-  const filteredConnections = useMemo(
-    () =>
-      normalizedQuery
-        ? connections.filter((connection) =>
-            connection.name.toLowerCase().includes(normalizedQuery)
-          )
-        : connections,
-    [connections, normalizedQuery]
-  )
-
   if (!connections || connections.length === 0) {
     return null
   }
 
-  const directConnections = filteredConnections.filter((connection) => connection.distance === 1)
-  const earlierConnections = filteredConnections.filter((connection) => connection.distance > 1)
-
-  const renderConnections = (items: ConnectedBlock[]) =>
-    items.map((connection) => {
-      const mergedSubBlocks = getMergedSubBlocks(connection.id)
-      const sourceBlock = blocks[connection.id]
-
-      return (
-        <ConnectionItem
-          key={connection.id}
-          connection={connection}
-          isExpanded={expandedConnections.has(connection.id)}
-          onToggleExpand={toggleConnectionExpansion}
-          isFieldExpanded={isFieldExpanded}
-          onToggleFieldExpansion={toggleFieldExpansion}
-          onConnectionDragStart={handleConnectionDragStart}
-          onSelectReference={handleSelectReference}
-          connectionRef={(el) => {
-            if (el) {
-              connectionRefs.current.set(connection.id, el)
-            } else {
-              connectionRefs.current.delete(connection.id)
-            }
-          }}
-          mergedSubBlocks={mergedSubBlocks}
-          sourceBlock={sourceBlock}
-        />
-      )
-    })
-
   return (
-    <div className='flex min-h-0 flex-col'>
-      <div className='px-3 py-2'>
-        <ChipInput
-          icon={Search}
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder='Search sources...'
-          aria-label='Search available data sources'
-        />
-        <p className='mt-1.5 px-1 text-[var(--text-muted)] text-micro'>
-          Drag into a field, or click an output to copy its reference.
-        </p>
-      </div>
-      <div
-        ref={scrollContainerRef}
-        className={cn('max-h-[280px] overflow-y-auto px-3 pb-3', thinScrollbarClass)}
-      >
-        {filteredConnections.length === 0 ? (
-          <div className='py-6 text-center text-[var(--text-muted)] text-small'>
-            No matching sources
-          </div>
-        ) : (
-          <div className='space-y-3'>
-            {directConnections.length > 0 && (
-              <section aria-labelledby='direct-data-sources'>
-                <h3
-                  id='direct-data-sources'
-                  className='mb-1 px-1.5 font-medium text-[var(--text-muted)] text-micro'
-                >
-                  {directConnections.length === 1 ? 'Previous step' : 'Previous steps'}
-                </h3>
-                <div className='space-y-0.5'>{renderConnections(directConnections)}</div>
-              </section>
-            )}
-            {earlierConnections.length > 0 && (
-              <section aria-labelledby='earlier-data-sources'>
-                <h3
-                  id='earlier-data-sources'
-                  className='mb-1 px-1.5 font-medium text-[var(--text-muted)] text-micro'
-                >
-                  Earlier steps
-                </h3>
-                <div className='space-y-0.5'>{renderConnections(earlierConnections)}</div>
-              </section>
-            )}
-          </div>
-        )}
-      </div>
+    <div ref={scrollContainerRef} className='space-y-0.5'>
+      {connections.map((connection) => {
+        const mergedSubBlocks = getMergedSubBlocks(connection.id)
+        const sourceBlock = blocks[connection.id]
+
+        return (
+          <ConnectionItem
+            key={connection.id}
+            connection={connection}
+            isExpanded={expandedConnections.has(connection.id)}
+            onToggleExpand={toggleConnectionExpansion}
+            isFieldExpanded={isFieldExpanded}
+            onToggleFieldExpansion={toggleFieldExpansion}
+            onConnectionDragStart={handleConnectionDragStart}
+            connectionRef={(el) => {
+              if (el) {
+                connectionRefs.current.set(connection.id, el)
+              } else {
+                connectionRefs.current.delete(connection.id)
+              }
+            }}
+            mergedSubBlocks={mergedSubBlocks}
+            sourceBlock={sourceBlock}
+          />
+        )
+      })}
     </div>
   )
 }

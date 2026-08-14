@@ -1,19 +1,20 @@
 import type { ReactElement } from 'react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import {
-  Button,
   CODE_LINE_HEIGHT_PX,
   Code as CodeEditor,
   calculateGutterWidth,
   cn,
+  Duplicate,
   getCodeEditorProps,
   highlight,
   languages,
 } from '@sim/emcn'
-import { Check, Duplicate, Wand } from '@sim/emcn/icons'
+import { Check, Wand } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
+import { Button } from '@/components/ui/button'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
   isLikelyReferenceSegment,
@@ -880,17 +881,19 @@ export const Code = memo(function Code({
       {showCopyButton && code && (
         <Button
           type='button'
-          variant='quiet'
-          size='icon'
+          variant='ghost'
+          size='sm'
           onClick={handleCopy}
           disabled={!code}
+          className={cn(
+            'size-8 p-0',
+            'text-muted-foreground/60 transition-all duration-200',
+            'hover-hover:scale-105 hover-hover:bg-muted/50 hover-hover:text-foreground',
+            'active:scale-95'
+          )}
           aria-label='Copy code'
         >
-          {copied ? (
-            <Check className='size-[14px] text-[var(--badge-green-text)]' />
-          ) : (
-            <Duplicate className='size-[14px]' />
-          )}
+          {copied ? <Check className='h-3.5 w-3.5' /> : <Duplicate className='h-3.5 w-3.5' />}
         </Button>
       )}
       {!hideInternalWand && (
@@ -906,11 +909,7 @@ export const Code = memo(function Code({
         />
       )}
 
-      <CodeEditor.Container
-        appearance='field'
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={handleDrop}
-      >
+      <CodeEditor.Container onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
         <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
           {wandConfig?.enabled &&
             !isAiStreaming &&
@@ -918,13 +917,14 @@ export const Code = memo(function Code({
             !readOnly &&
             !hideInternalWand && (
               <Button
-                variant='quiet'
+                variant='ghost'
                 size='icon'
                 onClick={isPromptVisible ? hidePromptInline : showPromptInline}
                 disabled={isAiLoading || isAiStreaming}
                 aria-label='Generate code with AI'
+                className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
               >
-                <Wand className='size-[14px]' />
+                <Wand className='size-4' />
               </Button>
             )}
         </div>

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isPositionedSourceHandle } from '@sim/workflow-types/workflow'
+import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
 import { CONTROL_BACK_EDGE_HANDLES, EDGE, SUBFLOW_CONTROL_EDGE_HANDLES } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { DAGEdge } from '@/executor/dag/types'
@@ -251,7 +251,11 @@ export class EdgeManager {
   }
 
   private shouldActivateEdge(edge: DAGEdge, output: NormalizedBlockOutput): boolean {
-    const handle = edge.sourceHandle
+    /*
+     * Normalized so a deployment snapshot taken while side-anchored handle ids
+     * existed (`source-right`) still routes as the canonical `source` output.
+     */
+    const handle = normalizeWorkflowEdgeSourceHandle(edge.sourceHandle) ?? undefined
 
     if (output.selectedRoute === EDGE.LOOP_EXIT) {
       return handle === EDGE.LOOP_EXIT
@@ -285,10 +289,6 @@ export class EdgeManager {
     if (handle.startsWith(EDGE.ROUTER_PREFIX)) {
       const routeId = handle.substring(EDGE.ROUTER_PREFIX.length)
       return output.selectedRoute === routeId
-    }
-
-    if (isPositionedSourceHandle(handle)) {
-      return !output.error
     }
 
     switch (handle) {

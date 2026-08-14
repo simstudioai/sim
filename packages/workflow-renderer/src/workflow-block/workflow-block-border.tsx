@@ -1,11 +1,21 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import {
-  getHorizontalWorkflowHandleSide,
-  isPositionedSourceHandle,
-  type PositionedSourceHandleSide,
+  WORKFLOW_SOURCE_HANDLE_ID,
+  WORKFLOW_TARGET_HANDLE_ID,
   type WorkflowCardSide,
+  type WorkflowConnectionSide,
 } from '@sim/workflow-types/workflow'
 import { BLOCK_DIMENSIONS } from '../dimensions'
+
+/**
+ * Resolves a point on the card's top or bottom edge into the connection half
+ * it belongs to. Presentation only — it picks which side the swell grows from
+ * and is deliberately not encoded into any persisted handle id.
+ */
+const getConnectionSideForPoint = (pointerX: number, cardWidth: number): WorkflowConnectionSide => {
+  if (!Number.isFinite(pointerX) || !Number.isFinite(cardWidth) || cardWidth <= 0) return 'right'
+  return pointerX < cardWidth / 2 ? 'left' : 'right'
+}
 
 const BORDER_PADDING_PX = 36
 const SAMPLE_SPACING_PX = 1
@@ -126,7 +136,7 @@ export interface WorkflowBorderPort {
 }
 
 export interface WorkflowBorderCursorHandle {
-  side: PositionedSourceHandleSide
+  side: WorkflowConnectionSide
   edgeSide: WorkflowCardSide
   x: number
   y: number
@@ -140,6 +150,18 @@ interface WorkflowBlockBorderProps {
   cursorSwellEnabled?: boolean
   /** Limits pointer-following swells to specific card sides. */
   cursorSwellSides?: readonly WorkflowCardSide[]
+  /**
+   * Whether hovering this card may raise a swell to drag a connection OUT of
+   * it. False for cards that mount no source handle, so the swell never
+   * promises an edge the card cannot start.
+   */
+  canStartConnection?: boolean
+  /**
+   * Whether this card may raise a swell while a connection dragged from
+   * another card passes over it. False for cards that mount no target handle,
+   * so the swell never promises a drop the card cannot accept.
+   */
+  canReceiveConnection?: boolean
   radius?: number
   hasRing: boolean
   ringStyles: string
@@ -147,8 +169,6 @@ interface WorkflowBlockBorderProps {
   isSelected?: boolean
   /** Overrides the selected silhouette while preserving the canonical idle and ring colors. */
   selectedSilhouetteColor?: string
-  /** Paints the action-menu swell at its resting size immediately instead of springing in. */
-  staticActionMenuSwell?: boolean
   /** Overrides the resolved silhouette without changing selected or ring state. */
   silhouetteColorOverride?: string
   /** Fills the card body without changing its silhouette or border color. */
@@ -224,7 +244,7 @@ interface ActiveInterval {
 }
 
 const isPrimaryConnectionPort = (portId: string) =>
-  portId === 'source' || portId === 'target' || isPositionedSourceHandle(portId)
+  portId === WORKFLOW_SOURCE_HANDLE_ID || portId === WORKFLOW_TARGET_HANDLE_ID
 
 /**
  * Every connection knob is the same swell, scaled by its own tab length —
@@ -594,6 +614,18 @@ const findQuietStart = (intervals: ActiveInterval[], perimeterLength: number) =>
   return largestGap > 0 ? start : 0
 }
 
+/** Flat run resampled either side of a bulge, so its tail rejoins the edge. */
+const BULGE_INTERVAL_SLACK_PX = 4
+
+/**
+ * How far either side of a bulge's centre the outline is resampled — wider than
+ * the bulge itself, so the curve has flat perimeter to settle onto. It also
+ * fixes the sample grid a knob has to land on, which is why `visibleBulgeHalf`
+ * measures against it.
+ */
+const bulgeIntervalHalf = (plateau: number, shoulder: number) =>
+  plateau / 2 + shoulder + BULGE_INTERVAL_SLACK_PX
+
 const relativeIntervals = (features: BulgeFeature[], startS: number, perimeterLength: number) => {
   const intervals = features
     .filter(
@@ -606,7 +638,7 @@ const relativeIntervals = (features: BulgeFeature[], startS: number, perimeterLe
     )
     .map((feature) => {
       const center = modulo(feature.center - startS, perimeterLength)
-      const half = feature.plateau / 2 + feature.shoulder + 4
+      const half = bulgeIntervalHalf(feature.plateau, feature.shoulder)
       return { start: center - half, end: center + half }
     })
     .filter((interval) => interval.end > 0 && interval.start < perimeterLength)
@@ -663,19 +695,32 @@ const displacementAt = (
  * Where a bulge stops being drawn, by inverting the shoulder's easing at the
  * visibility threshold. The mathematical footprint (`plateau/2 + shoulder`)
  * overshoots this, because the tail is cut off once it flattens out.
+ *
+ * Pulled back to the silhouette's own sample points. `relativeIntervals`
+ * resamples a bulge over `bulgeIntervalHalf` either side of its centre, split
+ * into whole steps of about `SAMPLE_SPACING_PX` — so the crossing itself falls
+ * between two of them. A knob cut there sits on a grid of its own and drifts
+ * off the curve it is recolouring; see `buildSpanPath` for what that costs.
+ * Retreating to the last sample at or beyond the crossing keeps the knob on
+ * the silhouette's points whatever the bulge measures.
  */
 const visibleBulgeHalf = (plateau: number, shoulder: number, peak: number) => {
   const plateauHalf = plateau / 2
-  if (peak <= BULGE_VISIBLE_THRESHOLD_PX || shoulder <= 0) return plateauHalf
-  const target = 1 - BULGE_VISIBLE_THRESHOLD_PX / peak
-  let low = 0
-  let high = 1
-  for (let step = 0; step < 24; step++) {
-    const mid = (low + high) / 2
-    if (smootherstep(mid) < target) low = mid
-    else high = mid
+  let crossing = plateauHalf
+  if (peak > BULGE_VISIBLE_THRESHOLD_PX && shoulder > 0) {
+    const target = 1 - BULGE_VISIBLE_THRESHOLD_PX / peak
+    let low = 0
+    let high = 1
+    for (let step = 0; step < 24; step++) {
+      const mid = (low + high) / 2
+      if (smootherstep(mid) < target) low = mid
+      else high = mid
+    }
+    crossing = plateauHalf + high * shoulder
   }
-  return plateauHalf + high * shoulder
+  const intervalHalf = bulgeIntervalHalf(plateau, shoulder)
+  const step = (intervalHalf * 2) / Math.max(2, Math.ceil((intervalHalf * 2) / SAMPLE_SPACING_PX))
+  return intervalHalf - Math.floor((intervalHalf - crossing) / step) * step
 }
 
 const appendExactInterval = (
@@ -756,6 +801,7 @@ const appendActiveInterval = (
       `C${control1.x.toFixed(2)} ${control1.y.toFixed(2)} ${control2.x.toFixed(2)} ${control2.y.toFixed(2)} ${next.x.toFixed(2)} ${next.y.toFixed(2)}`
     )
   }
+  return points
 }
 
 /**
@@ -769,6 +815,16 @@ const appendActiveInterval = (
  * off its own knob, leaving a crescent of base colour showing inside it. Giving
  * the knob its own path removes the arc-length bookkeeping altogether: the
  * colour is drawn on the same points the silhouette was.
+ *
+ * Sampled a step wide on each side and then trimmed back to the span. Every
+ * control point is derived from the samples either side of it, so a span that
+ * stopped at its own ends would have to clamp its first and last to the bare
+ * perimeter tangent — and those two segments would bow differently from the
+ * outline they are painted over. The knob was then still flat where the
+ * silhouette had begun its descent, and the uncovered dark stroke read as a
+ * barb off the shoulder tip. Borrowing a sample beyond each end gives every
+ * emitted segment the neighbours the silhouette had, so the two agree command
+ * for command.
  */
 const buildSpanPath = (
   geometry: PerimeterGeometry,
@@ -779,18 +835,13 @@ const buildSpanPath = (
 ) => {
   const length = toS - fromS
   if (length <= 0) return ''
-  const located = pointAtArcLength(geometry, fromS)
-  const displacement = displacementAt(
-    modulo(fromS, geometry.length),
-    features,
-    geometry.length,
-    maximum
-  )
-  const originX = located.point.x + located.point.nx * displacement
-  const originY = located.point.y + located.point.ny * displacement
-  const commands = [`M${originX.toFixed(2)} ${originY.toFixed(2)}`]
-  appendActiveInterval(commands, geometry, features, maximum, fromS, { start: 0, end: length })
-  return commands.join(' ')
+  const commands: string[] = []
+  const points = appendActiveInterval(commands, geometry, features, maximum, fromS, {
+    start: -SAMPLE_SPACING_PX,
+    end: length + SAMPLE_SPACING_PX,
+  })
+  const origin = points[1]
+  return [`M${origin.x.toFixed(2)} ${origin.y.toFixed(2)}`, ...commands.slice(1, -1)].join(' ')
 }
 
 const buildPiecewisePath = (
@@ -840,12 +891,13 @@ export function WorkflowBlockBorder({
   ports,
   cursorSwellEnabled = true,
   cursorSwellSides,
+  canStartConnection = true,
+  canReceiveConnection = true,
   radius = 16,
   hasRing,
   ringStyles,
   isSelected = false,
   selectedSilhouetteColor,
-  staticActionMenuSwell = false,
   silhouetteColorOverride,
   bodyFill = 'var(--surface-2)',
   width,
@@ -856,9 +908,26 @@ export function WorkflowBlockBorder({
 }: WorkflowBlockBorderProps) {
   const clipId = `workflow-border-${useId().replaceAll(':', '')}`
   const svgRef = useRef<SVGSVGElement>(null)
+  /*
+   * A non-positive seed falls back rather than clamping: `useBlockProperties`
+   * yields `block?.height ?? 0`, so a block missing from the store (diff
+   * preview, embedded canvas) seeds 0, and a zero-height perimeter degenerates
+   * — `radius` collapses to 0 and the card paints as a flat line. Any real
+   * height is kept as-is, including one below MIN_PAINTED_HEIGHT: the subflow
+   * Start pill is a deliberate 34px.
+   *
+   * `initialHeight` is the seed for a surface that sizes itself from its own
+   * content rather than the store, which is how a note paints its outline
+   * before the first measurement lands.
+   */
   const [size, setSize] = useState({
     width: width ?? 250,
-    height: height ?? initialHeight ?? 100,
+    height:
+      height && height > 0
+        ? height
+        : initialHeight && initialHeight > 0
+          ? initialHeight
+          : BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT,
   })
   const [renderedPath, setRenderedPath] = useState<{
     d: string
@@ -906,43 +975,58 @@ export function WorkflowBlockBorder({
   onCursorHandleChangeRef.current = onCursorHandleChange
   onActionMenuReadyChangeRef.current = onActionMenuReadyChange
 
+  /*
+   * The silhouette is always measured off the host it is painted on, never
+   * taken from the caller's number.
+   *
+   * The SVG is sized `calc(100% + padding)` of the host but its viewBox is
+   * built from `size`, under `preserveAspectRatio='none'` — so any gap between
+   * the two silently rescales the whole outline, and the card's content spills
+   * past a border drawn for a different height. Card hosts size themselves from
+   * their content against a `minHeight`, and the deterministic estimate behind
+   * that number cannot model a wrapped summary line or an expanded MCP arg
+   * list, so the two do drift.
+   *
+   * `width`/`height` remain as the seed for the very first paint (see the
+   * `useState` above), which is what keeps a card from flashing a default-sized
+   * outline before layout settles. After that the DOM is the only authority.
+   */
   useLayoutEffect(() => {
-    if (height !== undefined) {
-      if (!Number.isFinite(height) || height <= 0) return
-      const nextWidth = width ?? 250
-      setSize((current) =>
-        current.width === nextWidth && Math.abs(current.height - height) < 0.5
-          ? current
-          : { width: nextWidth, height }
-      )
-      return
-    }
     const host = svgRef.current?.parentElement
     if (!host) return
     const update = () => {
       /* offsetWidth/Height, not getBoundingClientRect: the card sits inside
          the canvas' zoom transform and a scaled rect would drift the geometry. */
-      const width = host.offsetWidth
-      /* Clamped: below MIN_PAINTED_HEIGHT the perimeter has no straight run
-         left on the vertical edges and the action-menu tab collapses into the
-         corner arcs. The host carries the same floor; this keeps the geometry
-         correct even if a caller sizes one some other way. */
-      const observedHeight = host.offsetHeight > 0 ? host.offsetHeight : initialHeight
-      if (observedHeight === undefined) return
-      const nextHeight = Math.max(observedHeight, BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT)
-      if (Number.isFinite(width) && Number.isFinite(nextHeight) && width > 0 && nextHeight > 0) {
+      const nextWidth = host.offsetWidth
+      /* Taken as-is. The MIN_PAINTED_HEIGHT floor belongs to the block card,
+         which applies it to its own host — imposing it here would inflate the
+         silhouette of every deliberately shorter surface that shares this
+         border, starting with the 34px subflow Start pill. A zero height (a
+         detached or display:none host) is rejected by the guard below, leaving
+         the seed in place. */
+      const nextHeight = host.offsetHeight
+      if (
+        Number.isFinite(nextWidth) &&
+        Number.isFinite(nextHeight) &&
+        nextWidth > 0 &&
+        nextHeight > 0
+      ) {
         setSize((current) =>
-          current.width === width && current.height === nextHeight
+          current.width === nextWidth && current.height === nextHeight
             ? current
-            : { width, height: nextHeight }
+            : { width: nextWidth, height: nextHeight }
         )
       }
     }
     update()
+    /* Absent in jsdom and any non-DOM renderer. The synchronous `update()`
+       above already sized the outline off the host, so the card still paints
+       correctly — it just will not follow later content changes. */
+    if (typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(update)
     observer.observe(host)
     return () => observer.disconnect()
-  }, [height, initialHeight, width])
+  }, [])
 
   useLayoutEffect(() => {
     const perimeter = buildRoundedRectPerimeter(size.width, size.height, radius)
@@ -955,14 +1039,10 @@ export function WorkflowBlockBorder({
     }
     const actionMenuPort = resolvedPorts.find((port) => port.id === 'action-menu')
     actionMenuSpringRef.current.target = (actionMenuPort?.restAmplitude ?? 0) > 0 ? 1 : 0
-    if (staticActionMenuSwell) {
-      actionMenuSpringRef.current.value = actionMenuSpringRef.current.target
-      actionMenuSpringRef.current.velocity = 0
-    }
     /* Repaint in the same commit: ports or size changed, and a silhouette
        that lags the content by an animation frame reads as a flash. */
     renderNowRef.current()
-  }, [ports, radius, size.height, size.width, staticActionMenuSwell])
+  }, [ports, radius, size.height, size.width])
 
   useLayoutEffect(() => {
     const svg = svgRef.current
@@ -1142,7 +1222,7 @@ export function WorkflowBlockBorder({
         const side =
           edgeSide === 'left' || edgeSide === 'right'
             ? edgeSide
-            : getHorizontalWorkflowHandleSide(point.x, sizeRef.current.width)
+            : getConnectionSideForPoint(point.x, sizeRef.current.width)
         onCursorHandleChangeRef.current?.({
           side,
           edgeSide,
@@ -1369,6 +1449,13 @@ export function WorkflowBlockBorder({
         // Still over the node chrome (action tab / bridge) — keep listening so
         // returning to an edge immediately restores the swell.
         if (isPointerOverTrackingRoot(clientX, clientY)) {
+          /*
+           * Only the in-band path below recomputes the magnetized port, so
+           * leaving the band upward onto the action bar left the last knob
+           * pinned at hover amplitude — a port puffed out with the pointer
+           * nowhere near it.
+           */
+          hoveredPortRef.current = null
           cursorHoverAllowedRef.current = false
           cursorAmplitudeRef.current.target = 0
           startAnimation()
@@ -1502,7 +1589,7 @@ export function WorkflowBlockBorder({
 
     updatePointerTargetRef.current = updatePointerTarget
     resetPointerTrackingRef.current = stopPointerTracking
-    if (cursorSwellEnabled) {
+    if (cursorSwellEnabled && canStartConnection) {
       trackingRoot.addEventListener('pointerenter', onPointerEnter)
       trackingRoot.addEventListener('pointerleave', onPointerLeave)
       trackingRoot.addEventListener('pointerdown', onPointerDown, true)
@@ -1543,13 +1630,19 @@ export function WorkflowBlockBorder({
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current)
       frameRef.current = null
     }
-  }, [cursorSwellEnabled, cursorSwellSides])
+  }, [canStartConnection, cursorSwellEnabled, cursorSwellSides])
 
   useEffect(() => {
     if (!cursorSwellEnabled) {
       resetPointerTrackingRef.current()
       return
     }
+    /*
+     * Nothing to reset on this exit: the tracker is shared with this card's own
+     * hover, a separate capability, and clearing it would undo the layout
+     * effect's `:hover` bootstrap for a card that mounted under the pointer.
+     */
+    if (!canReceiveConnection) return
 
     /*
      * A connection drag captures the pointer on the origin card's handle, so
@@ -1609,7 +1702,7 @@ export function WorkflowBlockBorder({
       }
       resetPointerTrackingRef.current()
     }
-  }, [cursorSwellEnabled, getConnectionNodeId, nodeId])
+  }, [canReceiveConnection, cursorSwellEnabled, getConnectionNodeId, nodeId])
 
   const ring = resolveRing(ringStyles)
   const { d: path } = renderedPath

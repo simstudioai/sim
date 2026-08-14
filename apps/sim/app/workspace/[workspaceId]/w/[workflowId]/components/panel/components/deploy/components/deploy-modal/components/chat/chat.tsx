@@ -2,14 +2,18 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
+  ButtonGroup,
+  ButtonGroupItem,
   ChipConfirmModal,
   ChipEmailsInput,
   ChipInput,
-  ChipSwitch,
-  ChipTextarea,
+  cn,
+  Input,
   Label,
   Loader,
   Skeleton,
+  Switch,
+  Textarea,
   Tooltip,
 } from '@sim/emcn'
 import { Check, TriangleAlert } from '@sim/emcn/icons'
@@ -43,10 +47,6 @@ import {
 const logger = createLogger('ChatDeploy')
 
 const IDENTIFIER_PATTERN = /^[a-z0-9-]+$/
-const BOOLEAN_OPTIONS = [
-  { value: 'off', label: 'Off' },
-  { value: 'on', label: 'On' },
-] as const
 
 interface ChatDeployProps {
   workflowId: string
@@ -402,13 +402,11 @@ export function ChatDeploy({
                 Include thinking
               </Label>
             </div>
-            <ChipSwitch
-              value={formData.includeThinking ? 'on' : 'off'}
-              options={BOOLEAN_OPTIONS}
+            <Switch
+              checked={formData.includeThinking}
               disabled={chatSubmitting}
-              onChange={(value) => updateField('includeThinking', value === 'on')}
+              onCheckedChange={(checked) => updateField('includeThinking', checked)}
               aria-label='Include thinking'
-              size='compact'
             />
           </div>
 
@@ -418,13 +416,11 @@ export function ChatDeploy({
                 Include tool calls
               </Label>
             </div>
-            <ChipSwitch
-              value={formData.includeToolCalls ? 'on' : 'off'}
-              options={BOOLEAN_OPTIONS}
+            <Switch
+              checked={formData.includeToolCalls}
               disabled={chatSubmitting}
-              onChange={(value) => updateField('includeToolCalls', value === 'on')}
+              onCheckedChange={(checked) => updateField('includeToolCalls', checked)}
               aria-label='Include tool calls'
-              size='compact'
             />
           </div>
 
@@ -450,7 +446,7 @@ export function ChatDeploy({
             >
               Welcome message
             </Label>
-            <ChipTextarea
+            <Textarea
               id='welcomeMessage'
               placeholder='Enter a welcome message for your chat'
               value={formData.welcomeMessage}
@@ -593,35 +589,50 @@ function IdentifierInput({
       >
         URL
       </Label>
-      <ChipInput
-        id='chat-url'
-        placeholder='my-chat'
-        value={value}
-        onChange={(event) => handleChange(event.target.value)}
-        required
-        disabled={disabled}
-        error={Boolean(error)}
-        aria-invalid={Boolean(error)}
-        startAdornment={
-          <span className='whitespace-nowrap text-[var(--text-muted)] text-sm'>
-            {getDomainPrefix()}
-          </span>
-        }
-        endAdornment={
-          isChecking ? (
-            <Loader className='size-[14px] shrink-0 text-[var(--text-icon)]' animate />
-          ) : isValid && value && value !== originalIdentifier ? (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <span className='shrink-0' aria-label='Name is available'>
-                  <Check className='size-[14px] text-[var(--brand-accent)]' />
-                </span>
-              </Tooltip.Trigger>
-              <Tooltip.Content>Name is available</Tooltip.Content>
-            </Tooltip.Root>
-          ) : null
-        }
-      />
+      <div
+        className={cn(
+          'relative flex items-stretch overflow-hidden rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)]',
+          error && 'border-[var(--text-error)]'
+        )}
+      >
+        <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-1.5 pl-2 text-[var(--text-secondary)] text-sm'>
+          {getDomainPrefix()}
+        </div>
+        <div className='relative flex-1'>
+          <Input
+            id='chat-url'
+            placeholder='my-chat'
+            value={value}
+            onChange={(e) => handleChange(e.target.value)}
+            required
+            disabled={disabled}
+            className={cn(
+              'rounded-none border-0 bg-transparent pl-0 shadow-none disabled:bg-transparent disabled:opacity-100',
+              (isChecking || (isValid && value)) && 'pr-8'
+            )}
+          />
+          {isChecking ? (
+            <div className='-translate-y-1/2 absolute top-1/2 right-2'>
+              <Loader className='size-4 text-[var(--text-tertiary)]' animate />
+            </div>
+          ) : (
+            isValid &&
+            value &&
+            value !== originalIdentifier && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <div className='-translate-y-1/2 absolute top-1/2 right-2'>
+                    <Check className='size-4 text-[var(--brand-accent)]' />
+                  </div>
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <span>Name is available</span>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )
+          )}
+        </div>
+      </div>
       {error && <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{error}</p>}
       <p className='mt-[6.5px] truncate text-[var(--text-secondary)] text-xs'>
         {isEditingExisting && value ? (
@@ -718,14 +729,17 @@ function AuthSelector({
         <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
           Access control
         </Label>
-        <ChipSwitch
+        <ButtonGroup
           value={authType}
-          onChange={onAuthTypeChange}
-          options={authOptions.map((type) => ({ value: type, label: AUTH_LABELS[type] }))}
+          onValueChange={(val) => onAuthTypeChange(val as AuthType)}
           disabled={disabled}
-          aria-label='Access control'
-          size='compact'
-        />
+        >
+          {authOptions.map((type) => (
+            <ButtonGroupItem key={type} value={type}>
+              {AUTH_LABELS[type]}
+            </ButtonGroupItem>
+          ))}
+        </ButtonGroup>
       </div>
 
       {authType === 'password' && (

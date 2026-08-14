@@ -5,9 +5,6 @@ import { cn, toast } from '@sim/emcn'
 import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/file-doc'
 import type { Extensions, JSONContent } from '@tiptap/core'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
-import { Fragment, Slice } from '@tiptap/pm/model'
-import { NodeSelection } from '@tiptap/pm/state'
-import { dropPoint } from '@tiptap/pm/transform'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
@@ -42,11 +39,11 @@ import { nextCollabReadiness } from './collaboration/readiness'
 import { useFileDocCollaboration } from './collaboration/use-file-doc-collaboration'
 import { createMarkdownEditorExtensions } from './editor-extensions'
 import { findHeadingPos } from './heading-anchors'
+import { moveDraggedImageNode } from './image-drag-move'
 import {
   extractImageFiles,
   extractImgSrcs,
   findHostedImageAttrs,
-  htmlReferencesSrc,
   shouldSkipFileUpload,
 } from './image-paste'
 import {
@@ -114,7 +111,7 @@ function ReadOnlyPlaceholder({ content }: ReadOnlyPlaceholderProps) {
     immediatelyRender: true,
     shouldRerenderOnTransaction: false,
     content,
-    editorProps: { attributes: { class: 'rich-markdown-prose' } },
+    editorProps: { attributes: { class: 'rich-markdown-nodes rich-markdown-prose' } },
   })
   return <EditorContent editor={editor} className={EDITOR_SURFACE_CLASS} />
 }
@@ -540,7 +537,10 @@ export function LoadedRichMarkdownEditor({
     shouldRerenderOnTransaction: false,
     content: initialContent,
     editorProps: {
-      attributes: { class: 'rich-markdown-prose', 'data-owned-shortcuts': 'Mod+K' },
+      attributes: {
+        class: 'rich-markdown-nodes rich-markdown-prose',
+        'data-owned-shortcuts': 'Mod+K',
+      },
       handleKeyDown: (_view, event) => {
         const isSaveShortcut = (event.metaKey || event.ctrlKey) && event.key?.toLowerCase() === 's'
         if (!isSaveShortcut) return false
@@ -615,24 +615,11 @@ export function LoadedRichMarkdownEditor({
        * the browser doesn't navigate away from the editor; internal text drags carry no files and fall
        * through to the default behavior.
        *
-       * Drag-REORDER of an image node is the deceptive case. TipTap's node-view dragstart bypasses
-       * ProseMirror's own drag serialization entirely — no PM `text/html`, no `view.dragging` — but it
-       * DOES NodeSelect the dragged image; what the drop carries instead is the browser's native
-       * enrichment for a dragged `<img>`: an image `File` plus `text/html` whose src is the ABSOLUTE
-       * rendered URL of that exact node. So when the drop's html points at the currently-selected image
-       * node ({@link htmlReferencesSrc}), this drop IS that node being moved, and the move must be
-       * performed here: uploading would duplicate it (the original never moves), and falling through to
-       * ProseMirror is no better — with `view.dragging` unset its default drop PARSES the html into a
-       * copy (persisting the display-layer src, which share/export tracking don't recognize) and never
-       * deletes the original. The gate accepts at most one file (not exactly one): some drag transports
-       * (e.g. CDP-driven input) carry the html alone, and a genuinely external drop can never reference
-       * the currently-selected node's own resolved src.
-       *
-       * The move itself is the same shape as ProseMirror's own: compute the drop point on the
-       * pre-delete doc, delete the source, map the insert position through that delete. A null
-       * `dropPoint` (no valid insertion point) is a handled no-op — the node stays put, still
-       * selected — never a raw-position fallback, which `tr.insert` could throw on (PM's own null
-       * fallback is only safe because it uses the forgiving `replaceRangeWith`).
+       * Drag-REORDER of an image node is the deceptive case, and {@link moveDraggedImageNode} owns it —
+       * uploading would duplicate the image (the original never moves), and falling through to
+       * ProseMirror is no better, since with `view.dragging` unset its default drop PARSES the html into
+       * a copy (persisting the display-layer src, which share/export tracking don't recognize) and never
+       * deletes the original.
        *
        * PM-serialized drags (a text selection spanning an image, dragged from a textblock) still reach
        * the `shouldSkipFileUpload` bail below: PM set `view.dragging` for those itself, so its default
@@ -642,29 +629,13 @@ export function LoadedRichMarkdownEditor({
         if (!view.editable) return false
         const images = extractImageFiles(event.dataTransfer)
         const html = event.dataTransfer?.getData('text/html') ?? ''
-        const { selection } = view.state
         if (
-          images.length <= 1 &&
-          selection instanceof NodeSelection &&
-          selection.node.type.name === 'image' &&
-          htmlReferencesSrc(html, resolveImageSrcRef.current(selection.node.attrs.src))
+          moveDraggedImageNode(view, event, {
+            images,
+            html,
+            resolveSrc: resolveImageSrcRef.current,
+          })
         ) {
-          event.preventDefault()
-          const coords = view.posAtCoords({ left: event.clientX, top: event.clientY })
-          if (!coords) return true
-          const node = selection.node
-          const tr = view.state.tr
-          const insertPos = dropPoint(
-            view.state.doc,
-            coords.pos,
-            new Slice(Fragment.from(node), 0, 0)
-          )
-          if (insertPos === null) return true
-          tr.delete(selection.from, selection.to)
-          const mapped = tr.mapping.map(insertPos)
-          tr.insert(mapped, node)
-          tr.setSelection(NodeSelection.create(tr.doc, mapped))
-          view.dispatch(tr.scrollIntoView())
           return true
         }
         if (shouldSkipFileUpload(images, html, (src) => extractEmbeddedFileRef(src) !== null)) {
@@ -750,6 +721,15 @@ export function LoadedRichMarkdownEditor({
    * is latched, so a fatal rejection that fired before this subscription is not missed.
    */
   useEffect(() => {
+    /**
+     * Readiness is a protocol fact, never a timing guess: the relay attaches a client only once its
+     * room holds the whole document (it awaits the shared-stream catch-up and the server seed before
+     * answering a join), so a completed sync IS the finished document and revealing on it cannot show
+     * an intermediate state. This deliberately does NOT wait for the document to "stop moving" — a
+     * quiet-frame gate was tried and it is unsound in both directions: it delays the reveal of a
+     * document that was already correct, and it opens mid-flight anyway whenever the updates arrive
+     * more than a frame apart (which is what a remote Redis and a long room history produce).
+     */
     const setReady = (ready: boolean) => {
       // Child-local: gates editability (a user must never type into an unsynced/unseeded doc).
       setCollabReady(ready)
@@ -795,12 +775,21 @@ export function LoadedRichMarkdownEditor({
     const report = () => {
       const synced = provider.synced
       const seeded = config.get(FILE_DOC_SEED.flag) === true
-      const next = nextCollabReadiness(syncedOnce, { synced, seeded, offlineSeed })
+      // `joinError` is latched ONLY on the provider's fatal paths (non-retryable rejection, access
+      // revocation, readiness deadline), so it is exactly "this document is abandoned".
+      const fatal = provider.joinError !== null
+      const next = nextCollabReadiness(syncedOnce, { synced, seeded, offlineSeed, fatal })
       syncedOnce = next.syncedOnce
       setReady(next.ready)
     }
+    /**
+     * Re-report unconditionally, not just when the fallback seeds. A fatal that arrives on an ALREADY
+     * seeded doc (access revoked mid-session) leaves `seedFromLoaded` a no-op, so nothing else would
+     * fire an observer and the editor would stay editable on a document the provider has abandoned.
+     */
     const onJoinError = (error: JoinFileDocError) => {
       if (error.retryable === false) seedFromLoaded()
+      report()
     }
 
     // A server edit that changes ONLY the frontmatter (e.g. copilot) updates the config map but not

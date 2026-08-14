@@ -1,28 +1,28 @@
 'use client'
 
 import {
-  ChipCombobox,
   Code as CodeEditor,
-  cn,
+  Combobox,
+  FieldDivider,
   getCodeEditorProps,
+  Input,
   Label,
-  thinScrollbarClass,
 } from '@sim/emcn'
+import { ChevronUp } from '@sim/emcn/icons'
 import SimpleCodeEditor from 'react-simple-code-editor'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
-import { AvailableData } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/available-data'
-import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
 import {
   formatDisplayText,
   getValidWorkflowSearchRange,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import { ReferenceTextInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/reference-text-control'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
-import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
-import { useSubflowEditor } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-subflow-editor'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+import type { ConnectedBlock } from '../../hooks/use-block-connections'
+import { useSubflowEditor } from '../../hooks/use-subflow-editor'
+import { ConnectionBlocks } from '../connection-blocks'
+import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '../constants'
 
 const WORKFLOW_SEARCH_MATCH_PLACEHOLDER = '__WORKFLOW_SEARCH_MATCH__'
 
@@ -38,11 +38,14 @@ interface SubflowEditorProps {
   currentBlock: BlockState
   currentBlockId: string
   subBlocksRef: React.RefObject<HTMLDivElement | null>
+  connectionsHeight: number
+  isResizing: boolean
   hasIncomingConnections: boolean
   incomingConnections: ConnectedBlock[]
+  handleConnectionsResizeMouseDown: (e: React.MouseEvent) => void
+  toggleConnectionsCollapsed: () => void
   userCanEdit: boolean
-  isAvailableDataOpen: boolean
-  onAvailableDataOpenChange: (open: boolean) => void
+  isConnectionsAtMinHeight: boolean
 }
 
 /**
@@ -55,11 +58,14 @@ export function SubflowEditor({
   currentBlock,
   currentBlockId,
   subBlocksRef,
+  connectionsHeight,
+  isResizing,
   hasIncomingConnections,
   incomingConnections,
+  handleConnectionsResizeMouseDown,
+  toggleConnectionsCollapsed,
   userCanEdit,
-  isAvailableDataOpen,
-  onAvailableDataOpenChange,
+  isConnectionsAtMinHeight,
 }: SubflowEditorProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const {
@@ -119,21 +125,16 @@ export function SubflowEditor({
   return (
     <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
       <div ref={subBlocksRef} className='subblocks-section flex flex-1 flex-col overflow-hidden'>
-        <div
-          className={cn(
-            'flex-1 overflow-y-auto overflow-x-hidden px-2 pt-[9px] pb-2',
-            thinScrollbarClass
-          )}
-        >
+        <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-[9px] pb-2'>
           <div
             data-workflow-search-subblock-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type}
             data-workflow-search-canonical-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type}
             className='rounded-md'
           >
-            <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+            <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
               {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
             </Label>
-            <ChipCombobox
+            <Combobox
               options={typeOptions}
               value={currentType || ''}
               onChange={handleSubflowTypeChange}
@@ -142,12 +143,14 @@ export function SubflowEditor({
             />
           </div>
 
+          <FieldDivider className='pb-2.5' />
+
           <div
             data-workflow-search-subblock-id={configSearchFieldId}
             data-workflow-search-canonical-id={configSearchFieldId}
             className='rounded-md'
           >
-            <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+            <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
               {isCountMode
                 ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
                 : isConditionMode
@@ -157,21 +160,19 @@ export function SubflowEditor({
 
             {isCountMode ? (
               <div className='relative'>
-                <ReferenceTextInput
+                <Input
                   type='text'
                   value={inputValue}
                   onChange={handleSubflowIterationsChange}
                   onBlur={handleSubflowIterationsBlur}
                   disabled={!userCanEdit}
-                  className='mb-1'
-                  overlayContent={
-                    <div className='min-w-fit whitespace-pre'>
-                      {formatDisplayText(inputValue, {
-                        workflowSearchHighlight: configSearchHighlight,
-                      })}
-                    </div>
-                  }
+                  className='mb-1 text-transparent caret-[var(--text-primary)] [letter-spacing:inherit]'
                 />
+                <div className='pointer-events-none absolute inset-x-0 top-0 flex h-8 items-center overflow-hidden px-2 font-sans text-sm'>
+                  {formatDisplayText(inputValue, {
+                    workflowSearchHighlight: configSearchHighlight,
+                  })}
+                </div>
                 <div className='text-[var(--text-muted)] text-micro'>
                   Enter a whole number greater than 0.
                 </div>
@@ -222,24 +223,22 @@ export function SubflowEditor({
               data-workflow-search-canonical-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize}
               className='relative mt-4 rounded-md'
             >
-              <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+              <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
                 Parallel Batch Size
               </Label>
-              <ReferenceTextInput
+              <Input
                 type='text'
                 value={batchSizeValue}
                 onChange={handleParallelBatchSizeChange}
                 onBlur={handleParallelBatchSizeBlur}
                 disabled={!userCanEdit}
-                className='mb-1'
-                overlayContent={
-                  <div className='min-w-fit whitespace-pre'>
-                    {formatDisplayText(batchSizeValue, {
-                      workflowSearchHighlight: batchSizeSearchHighlight,
-                    })}
-                  </div>
-                }
+                className='mb-1 text-transparent caret-[var(--text-primary)] [letter-spacing:inherit]'
               />
+              <div className='pointer-events-none absolute inset-x-0 top-[26px] flex h-8 items-center overflow-hidden px-2 font-sans text-sm'>
+                {formatDisplayText(batchSizeValue, {
+                  workflowSearchHighlight: batchSizeSearchHighlight,
+                })}
+              </div>
               <div className='text-[var(--text-muted)] text-micro'>
                 Run 1 to 20 parallel branches at a time.
               </div>
@@ -249,11 +248,48 @@ export function SubflowEditor({
       </div>
 
       {hasIncomingConnections && (
-        <AvailableData
-          connections={incomingConnections}
-          open={isAvailableDataOpen}
-          onOpenChange={onAvailableDataOpenChange}
-        />
+        <div
+          className={
+            'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
+            (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
+          }
+          style={{ height: `${connectionsHeight}px` }}
+        >
+          <div className='relative'>
+            <div
+              role='separator'
+              aria-orientation='horizontal'
+              className='absolute top-[-4px] right-0 left-0 z-30 h-[8px] cursor-ns-resize'
+              onMouseDown={handleConnectionsResizeMouseDown}
+            />
+          </div>
+
+          <div
+            className='flex flex-shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
+            onClick={toggleConnectionsCollapsed}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                toggleConnectionsCollapsed()
+              }
+            }}
+            role='button'
+            tabIndex={0}
+            aria-label={isConnectionsAtMinHeight ? 'Expand connections' : 'Collapse connections'}
+          >
+            <ChevronUp
+              className={
+                'size-[14px] transition-transform' +
+                (!isConnectionsAtMinHeight ? ' rotate-180' : '')
+              }
+            />
+            <div className='text-[var(--text-primary)] text-small'>Connections</div>
+          </div>
+
+          <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
+            <ConnectionBlocks connections={incomingConnections} currentBlockId={currentBlock.id} />
+          </div>
+        </div>
       )}
     </div>
   )

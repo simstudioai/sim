@@ -1,26 +1,33 @@
 'use client'
 
-import type { ComponentType } from 'react'
+import { type ComponentType, useEffect, useState } from 'react'
+import type { DesktopUpdateState } from '@sim/desktop-bridge'
 import {
   Chip,
   chipContentLabelClass,
+  chipPrimaryFillTokens,
   chipVariants,
   cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Skeleton,
 } from '@sim/emcn'
-import { BookOpen, Credit, HelpCircle, Settings, Trash, Users } from '@sim/emcn/icons'
+import { BookOpen, Credit, Download, HelpCircle, Settings, Trash, Users } from '@sim/emcn/icons'
 import { SlackIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { getDesktopUpdates } from '@/lib/desktop'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { SIDEBAR_ITEM_GAP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import {
+  SIDEBAR_ITEM_GAP_CLASS,
+  SIDEBAR_RAIL_CHIP_CLASS,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useUserProfile } from '@/hooks/queries/user-profile'
 import { useWorkspaceInvitePolicy } from '@/hooks/use-workspace-invite-policy'
@@ -44,6 +51,36 @@ const PROFILE_MENU_ITEMS: readonly {
   { section: 'teammates', label: 'Teammates', icon: Users },
   { section: 'recently-deleted', label: 'Recently deleted', icon: Trash },
 ]
+
+function hasAvailableDesktopUpdate(state: DesktopUpdateState): boolean {
+  return state.status === 'available' || state.status === 'downloading' || state.status === 'ready'
+}
+
+function desktopUpdateActionLabel(state: DesktopUpdateState): string {
+  if (state.status === 'downloading') {
+    return state.percent === undefined
+      ? 'Downloading update…'
+      : `Downloading update ${state.percent}%`
+  }
+  return 'Update'
+}
+
+/** Compact primary update circle using the same footprint as the surrounding sidebar icons. */
+function DesktopUpdateIcon({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        className,
+        'flex size-[17px] flex-shrink-0 items-center justify-center rounded-full',
+        chipPrimaryFillTokens
+      )}
+    >
+      {/* Download's default viewBox is asymmetric around its paths. Center the
+          artwork itself, not merely its SVG box, inside the avatar-sized circle. */}
+      <Download className='size-[11px]' viewBox='-1.75 -1.75 24 24' />
+    </span>
+  )
+}
 
 interface SidebarFooterProps {
   workspaceId: string
@@ -91,8 +128,37 @@ export function SidebarFooter({
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { isInvitationsDisabled } = useWorkspaceInvitePolicy(workspaceId)
+  const [updateState, setUpdateState] = useState<DesktopUpdateState>({ status: 'idle' })
+
+  useEffect(() => {
+    const updates = getDesktopUpdates()
+    if (!updates) return
+
+    let stateEventReceived = false
+    const unsubscribe = updates.onState((state) => {
+      stateEventReceived = true
+      setUpdateState(state)
+    })
+    void updates
+      .getState()
+      .then((state) => {
+        if (!stateEventReceived) setUpdateState(state)
+      })
+      .catch(() => {})
+    return unsubscribe
+  }, [])
 
   const name = profile ? profile.name?.trim() || profile.email : ''
+  const updateAvailable = hasAvailableDesktopUpdate(updateState)
+
+  const handleUpdateSelect = () => {
+    const updates = getDesktopUpdates()
+    if (updateState.status === 'ready') {
+      updates?.install()
+    } else if (updateState.status === 'available') {
+      updates?.check()
+    }
+  }
 
   /**
    * Subscription is dropped for viewers the Billing page would turn away — a
@@ -174,11 +240,11 @@ export function SidebarFooter({
           <button
             type='button'
             data-item-id='profile'
-            className={
-              isCollapsed
-                ? cn(chipVariants({ fullWidth: true }), 'min-w-0')
-                : cn(chipVariants(), 'max-w-full')
-            }
+            className={cn(
+              chipVariants({ fullWidth: isCollapsed }),
+              isCollapsed ? 'min-w-0' : 'max-w-full',
+              SIDEBAR_RAIL_CHIP_CLASS
+            )}
           >
             {avatar}
             {profile ? (
@@ -216,23 +282,38 @@ export function SidebarFooter({
    */
   const helpMenu = (
     <DropdownMenu>
-      <SidebarTooltip label='Help' enabled={showCollapsedTooltips}>
+      <SidebarTooltip
+        label={updateAvailable ? 'Help — update available' : 'Help'}
+        enabled={showCollapsedTooltips}
+      >
         <DropdownMenuTrigger asChild>
           <Chip
             data-item-id='help'
-            aria-label='Help'
-            leftIcon={HelpCircle}
+            aria-label={updateAvailable ? 'Help, update available' : 'Help'}
+            leftIcon={updateAvailable ? DesktopUpdateIcon : HelpCircle}
             fullWidth={isCollapsed}
             /* Never shrinks: while the rail animates open the row is briefly wider
                than the rail, and a shrinking chip would be squeezed onto the avatar.
                Holding its size pushes it past the edge, where the aside's clip hides
                it until there is room. */
-            className='flex-shrink-0'
+            className={cn('flex-shrink-0', SIDEBAR_RAIL_CHIP_CLASS)}
           />
         </DropdownMenuTrigger>
       </SidebarTooltip>
       {/* Anchored to whichever edge the trigger sits on, so the menu never overhangs the rail. */}
       <DropdownMenuContent align={isCollapsed ? 'start' : 'end'} side='top' sideOffset={4}>
+        {updateAvailable && (
+          <>
+            <DropdownMenuItem
+              onSelect={handleUpdateSelect}
+              disabled={updateState.status === 'downloading'}
+            >
+              <img src='/favicon/favicon-32x32.png' alt='' className='size-[14px] rounded-[3px]' />
+              {desktopUpdateActionLabel(updateState)}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem onSelect={onOpenDocs}>
           <BookOpen className='size-[14px]' />
           Docs

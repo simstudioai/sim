@@ -5,7 +5,6 @@ import { Button, cn, Input, toast } from '@sim/emcn'
 import { ChevronDown, ChevronRight, ChevronUp, X } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
-import { getVisiblePanelWidth, getVisibleWorkflowHeaderHeight } from '@/lib/core/utils/layout'
 import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
@@ -57,9 +56,11 @@ const SEARCH_PANEL_EXPANDED_HEIGHT = 156
 function getDefaultSearchPanelPosition() {
   if (typeof window === 'undefined') return { x: 100, y: 100 }
 
-  const panelWidth = getVisiblePanelWidth()
+  const panelWidth = Number.parseInt(
+    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
+  )
   const x = window.innerWidth - 8 - panelWidth - 32 - SEARCH_PANEL_WIDTH
-  const y = getVisibleWorkflowHeaderHeight() + 8
+  const y = 40
   return { x, y }
 }
 
@@ -69,8 +70,9 @@ function constrainSearchPanelPosition(position: { x: number; y: number }, height
   const sidebarWidth = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
   )
-  const panelWidth = getVisiblePanelWidth()
-  const headerHeight = getVisibleWorkflowHeaderHeight()
+  const panelWidth = Number.parseInt(
+    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
+  )
   const terminalHeight = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
   )
@@ -80,10 +82,7 @@ function constrainSearchPanelPosition(position: { x: number; y: number }, height
       sidebarWidth,
       Math.min(window.innerWidth - panelWidth - SEARCH_PANEL_WIDTH - 8, position.x)
     ),
-    y: Math.max(
-      headerHeight + 8,
-      Math.min(window.innerHeight - terminalHeight - height - 8, position.y)
-    ),
+    y: Math.max(8, Math.min(window.innerHeight - terminalHeight - height - 8, position.y)),
   }
 }
 

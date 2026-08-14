@@ -173,10 +173,11 @@ function stripEmptyListItemLines(markdown: string): string {
  * round-trip ({@link stripEmptyListItemLines}), restores callout markers the serializer
  * backslash-escapes (`> \[!NOTE\]` → `> [!NOTE]`), and collapses trailing blank lines to a single
  * newline. Interior blank runs are NOT collapsed here — blank lines inside a fenced code block (or a
- * verbatim raw-markdown-snippet) are significant, and a global collapse would corrupt them. Spurious
- * interior blank runs between top-level blocks are removed upstream instead, by
- * {@link parseMarkdownToDoc} stripping empty paragraphs, so a doc that has been through the editor
- * never serializes with an interior blank run outside code in the first place. The table serializer's
+ * verbatim raw-markdown-snippet) are significant, and a global collapse would corrupt them. An interior
+ * run between top-level blocks is significant too: it is how an empty paragraph is written, and
+ * {@link parseMarkdownToDoc} reads exactly the count back out, so collapsing it here would delete the
+ * document's spacing. Only the TRAILING run is collapsed — it can carry no paragraph (see
+ * `clampEmptyParagraphs`) and would otherwise churn the file on every save. The table serializer's
  * spurious surrounding blank lines are trimmed at the source (PipeSafeTable), so no global
  * leading-newline strip is needed here — avoiding clobbering content that legitimately begins with
  * whitespace.

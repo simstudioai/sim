@@ -688,6 +688,7 @@ export const TextEditor = memo(function TextEditor({
               mimeType={file.type}
               filename={file.name}
               workspaceId={workspaceId}
+              fileId={file.id}
               fileKey={file.key}
               isStreaming={isStreaming}
             />

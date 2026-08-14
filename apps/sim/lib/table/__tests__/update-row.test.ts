@@ -138,6 +138,41 @@ describe('updateRow — partial merge', () => {
     expect(data?.values).not.toContain(JSON.stringify({ name: 'Alice', age: 31 }))
   })
 
+  it('blanks an uncoercible cell for a first-party caller, as it always has', async () => {
+    const { coerceRowToSchema } = await import('@/lib/table/validation')
+    await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { age: 31 }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1'
+    )
+
+    expect(coerceRowToSchema).toHaveBeenCalledWith(
+      { name: 'Alice', age: 31 },
+      TABLE.schema,
+      undefined,
+      ['age']
+    )
+  })
+
+  it('holds only the patched keys to the strict policy a v2 caller opts into', async () => {
+    // The merged row carries cells this request never sent. A legacy value in one
+    // of them belongs to an earlier write and must not decide this one.
+    const { coerceRowToSchema } = await import('@/lib/table/validation')
+    await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { age: 31 }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1',
+      { uncoercibleValues: 'reject' }
+    )
+
+    expect(coerceRowToSchema).toHaveBeenCalledWith(
+      { name: 'Alice', age: 31 },
+      TABLE.schema,
+      'reject',
+      ['age']
+    )
+  })
+
   it('allows updating a single column without affecting others', async () => {
     const result = await updateRow(
       { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Bob' }, workspaceId: 'ws-1' },
@@ -265,6 +300,39 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
     expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(false)
   })
 
+  /**
+   * The v2 surface is column-NAME-keyed and resolves `conflictTarget` to its
+   * storage id before this call, so the rejection has to translate back — a
+   * caller that sent `email` cannot act on a `col_…` id it has never seen.
+   */
+  it('upsertRow names the conflict column the caller does, not its storage id', async () => {
+    const table: TableDefinition = {
+      ...TABLE,
+      schema: {
+        columns: [
+          { id: 'col_9934c202', name: 'email', type: 'string' },
+          { id: 'col_2f1a', name: 'slug', type: 'string', unique: true },
+        ],
+      },
+    }
+    vi.mocked(getUniqueColumns).mockReturnValue([
+      { id: 'col_2f1a', name: 'slug', type: 'string', unique: true },
+    ])
+
+    await expect(
+      upsertRow(
+        {
+          tableId: 'tbl-1',
+          workspaceId: 'ws-1',
+          data: { col_9934c202: 'a@b.test' },
+          conflictTarget: 'col_9934c202',
+        },
+        table,
+        'req-1'
+      )
+    ).rejects.toThrow('Column "email" is not a unique column. Available unique columns: slug')
+  })
+
   it('upsertRow acquires the advisory lock on the insert path (no match)', async () => {
     vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
     // Initial existing-row check + post-lock re-check both find no match.
@@ -330,6 +398,7 @@ describe('mutation paths — SET LOCAL timeouts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    dbChainMockFns.execute.mockResolvedValue([{ count: 0 }])
   })
 
   it('insertRow sets the default 10s/3s/5s timeouts', async () => {
@@ -420,6 +489,20 @@ describe('mutation paths — SET LOCAL timeouts', () => {
 
     expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
     expect(findExecutedSqlContaining('hashtextextended')).toBe(true)
+  })
+
+  it('replaceTableRows reports the authoritative bounded delete count', async () => {
+    dbChainMockFns.execute.mockResolvedValue([{ count: 7 }])
+
+    const result = await replaceTableRows(
+      { tableId: 'tbl-1', workspaceId: 'ws-1', rows: [] },
+      { ...TABLE, rowCount: 7 },
+      'req-1'
+    )
+
+    expect(result).toEqual({ deletedCount: 7, insertedCount: 0 })
+    expect(findExecutedSqlContaining('DELETE FROM')).toBe(true)
+    expect(findExecutedSqlContaining('SELECT count(*)::integer AS count FROM deleted')).toBe(true)
   })
 })
 

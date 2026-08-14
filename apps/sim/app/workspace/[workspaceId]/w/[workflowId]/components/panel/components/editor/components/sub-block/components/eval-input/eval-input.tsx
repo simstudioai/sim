@@ -1,12 +1,8 @@
 import { useMemo, useRef } from 'react'
-import { Button, Label, Tooltip } from '@sim/emcn'
+import { Button, cn, Input, Label, Textarea, Tooltip } from '@sim/emcn'
 import { Plus, Trash } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import {
-  ReferenceTextarea,
-  ReferenceTextInput,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/reference-text-control'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
@@ -143,7 +139,7 @@ export function EvalInput({
 
   const renderMetricHeader = (metric: EvalMetric, index: number) => (
     <div className='flex items-center justify-between overflow-hidden rounded-t-[4px] border-[var(--border-1)] border-b bg-[var(--surface-4)] px-2.5 py-[5px]'>
-      <span className='font-medium text-[var(--text-tertiary)] text-sm'>Metric {index + 1}</span>
+      <span className='text-[var(--text-tertiary)] text-sm'>Metric {index + 1}</span>
       <div className='flex items-center gap-2'>
         <Tooltip.Root key={`add-${metric.id}`}>
           <Tooltip.Trigger asChild>
@@ -191,13 +187,21 @@ export function EvalInput({
           <div className='flex flex-col gap-2 border-[var(--border-1)] px-2.5 pt-1.5 pb-2.5'>
             <div key={`name-${metric.id}`} className='flex flex-col gap-1.5'>
               {renderFieldLabel('Name')}
-              <ReferenceTextInput
-                name='name'
-                value={metric.name}
-                onChange={(e) => updateMetric(metric.id, 'name', e.target.value)}
-                placeholder='Accuracy'
-                disabled={isPreview || disabled}
-                overlayContent={
+              <div className='relative'>
+                <Input
+                  name='name'
+                  value={metric.name}
+                  onChange={(e) => updateMetric(metric.id, 'name', e.target.value)}
+                  placeholder='Accuracy'
+                  disabled={isPreview || disabled}
+                  className='text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50'
+                />
+                <div
+                  className={cn(
+                    'pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm',
+                    (isPreview || disabled) && 'opacity-50'
+                  )}
+                >
                   <span className='truncate'>
                     {formatDisplayText(metric.name || '', {
                       accessiblePrefixes,
@@ -205,8 +209,8 @@ export function EvalInput({
                       workflowSearchHighlight: getMetricSearchHighlight(index, ['name']),
                     })}
                   </span>
-                }
-              />
+                </div>
+              </div>
             </div>
 
             <div key={`description-${metric.id}`} className='flex flex-col gap-1.5'>
@@ -227,26 +231,10 @@ export function EvalInput({
 
                   return (
                     <>
-                      <ReferenceTextarea
+                      <Textarea
                         ref={(el) => {
                           if (el) descriptionInputRefs.current[metric.id] = el
                         }}
-                        overlayRef={(el) => {
-                          if (el) descriptionOverlayRefs.current[metric.id] = el
-                          else delete descriptionOverlayRefs.current[metric.id]
-                        }}
-                        overlayContent={
-                          <div className='whitespace-pre-wrap'>
-                            {formatDisplayText(metric.description || '', {
-                              accessiblePrefixes,
-                              highlightAll: !accessiblePrefixes,
-                              workflowSearchHighlight: getMetricSearchHighlight(index, [
-                                'description',
-                              ]),
-                            })}
-                          </div>
-                        }
-                        interactiveOverlay={isPreview || disabled}
                         value={metric.description}
                         onChange={handlers.onChange}
                         onKeyDown={handlers.onKeyDown}
@@ -255,10 +243,30 @@ export function EvalInput({
                         onFocus={handlers.onFocus}
                         placeholder='How accurate is the response?'
                         disabled={isPreview || disabled}
-                        className='min-h-[80px] whitespace-pre-wrap py-2'
-                        overlayClassName='py-2'
+                        className={cn(
+                          'min-h-[80px] whitespace-pre-wrap text-transparent caret-foreground [letter-spacing:inherit]'
+                        )}
                         rows={3}
                       />
+                      <div
+                        ref={(el) => {
+                          if (el) descriptionOverlayRefs.current[metric.id] = el
+                        }}
+                        className={cn(
+                          'absolute inset-0 overflow-auto bg-transparent px-2 py-2 font-sans text-[var(--code-foreground)] text-sm',
+                          !(isPreview || disabled) && 'pointer-events-none'
+                        )}
+                      >
+                        <div className='whitespace-pre-wrap'>
+                          {formatDisplayText(metric.description || '', {
+                            accessiblePrefixes,
+                            highlightAll: !accessiblePrefixes,
+                            workflowSearchHighlight: getMetricSearchHighlight(index, [
+                              'description',
+                            ]),
+                          })}
+                        </div>
+                      </div>
                       {fieldState.showTags && (
                         <TagDropdown
                           visible={fieldState.showTags}
@@ -282,43 +290,45 @@ export function EvalInput({
             <div key={`range-${metric.id}`} className='grid grid-cols-2 gap-2'>
               <div className='flex flex-col gap-1.5'>
                 {renderFieldLabel('Min Value')}
-                <ReferenceTextInput
-                  type='text'
-                  value={metric.range.min ?? ''}
-                  onChange={(e) => updateRange(metric.id, 'min', e.target.value)}
-                  onBlur={(e) => handleRangeBlur(metric.id, 'min', e.target.value)}
-                  disabled={isPreview || disabled}
-                  autoComplete='off'
-                  data-form-type='other'
-                  name='eval-range-min'
-                  overlayContent={
-                    <span className='truncate'>
-                      {formatDisplayText(String(metric.range.min ?? ''), {
-                        workflowSearchHighlight: getMetricSearchHighlight(index, ['range', 'min']),
-                      })}
-                    </span>
-                  }
-                />
+                <div className='relative'>
+                  <Input
+                    type='text'
+                    value={metric.range.min ?? ''}
+                    onChange={(e) => updateRange(metric.id, 'min', e.target.value)}
+                    onBlur={(e) => handleRangeBlur(metric.id, 'min', e.target.value)}
+                    disabled={isPreview || disabled}
+                    autoComplete='off'
+                    data-form-type='other'
+                    name='eval-range-min'
+                    className='text-transparent caret-foreground [letter-spacing:inherit]'
+                  />
+                  <div className='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-sans text-sm'>
+                    {formatDisplayText(String(metric.range.min ?? ''), {
+                      workflowSearchHighlight: getMetricSearchHighlight(index, ['range', 'min']),
+                    })}
+                  </div>
+                </div>
               </div>
               <div className='flex flex-col gap-1.5'>
                 {renderFieldLabel('Max Value')}
-                <ReferenceTextInput
-                  type='text'
-                  value={metric.range.max ?? ''}
-                  onChange={(e) => updateRange(metric.id, 'max', e.target.value)}
-                  onBlur={(e) => handleRangeBlur(metric.id, 'max', e.target.value)}
-                  disabled={isPreview || disabled}
-                  autoComplete='off'
-                  data-form-type='other'
-                  name='eval-range-max'
-                  overlayContent={
-                    <span className='truncate'>
-                      {formatDisplayText(String(metric.range.max ?? ''), {
-                        workflowSearchHighlight: getMetricSearchHighlight(index, ['range', 'max']),
-                      })}
-                    </span>
-                  }
-                />
+                <div className='relative'>
+                  <Input
+                    type='text'
+                    value={metric.range.max ?? ''}
+                    onChange={(e) => updateRange(metric.id, 'max', e.target.value)}
+                    onBlur={(e) => handleRangeBlur(metric.id, 'max', e.target.value)}
+                    disabled={isPreview || disabled}
+                    autoComplete='off'
+                    data-form-type='other'
+                    name='eval-range-max'
+                    className='text-transparent caret-foreground [letter-spacing:inherit]'
+                  />
+                  <div className='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-sans text-sm'>
+                    {formatDisplayText(String(metric.range.max ?? ''), {
+                      workflowSearchHighlight: getMetricSearchHighlight(index, ['range', 'max']),
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

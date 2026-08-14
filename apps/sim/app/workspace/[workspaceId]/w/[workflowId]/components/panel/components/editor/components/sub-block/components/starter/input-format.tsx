@@ -2,8 +2,8 @@ import { useCallback, useRef, useState } from 'react'
 import {
   Badge,
   Button,
-  ChipCombobox,
   Code,
+  Combobox,
   type ComboboxOption,
   calculateGutterWidth,
   cn,
@@ -12,6 +12,7 @@ import {
   getCodeEditorProps,
   handleKeyboardActivation,
   highlight,
+  Input,
   Label,
   languages,
   Tooltip,
@@ -25,7 +26,6 @@ import {
 } from '@/lib/workflows/input-format'
 import { FileUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/file-upload/file-upload'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import { ReferenceTextInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/reference-text-control'
 import {
   controlValueToFiles,
   defaultFileFieldMode,
@@ -111,6 +111,8 @@ export function FieldFormat({
   const nameInputRefs = useRef<Record<string, HTMLInputElement>>({})
   const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const nameOverlayRefs = useRef<Record<string, HTMLDivElement>>({})
+  const descriptionInputRefs = useRef<Record<string, HTMLInputElement>>({})
+  const descriptionOverlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const [fileFieldModes, setFileFieldModes] = useState<Record<string, 'upload' | 'json'>>({})
 
@@ -139,9 +141,7 @@ export function FieldFormat({
   const fields: Field[] = Array.isArray(value) && value.length > 0 ? value : [fallbackField]
   const isReadOnly = isPreview || disabled
 
-  const renderFieldLabel = (label: string) => (
-    <Label className='font-normal text-[var(--text-body)]'>{label}</Label>
-  )
+  const renderFieldLabel = (label: string) => <Label>{label}</Label>
 
   /**
    * Resolves the current editor mode for a file field. The uploader is only
@@ -169,10 +169,9 @@ export function FieldFormat({
     return (
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Button
+          <button
             type='button'
-            variant='quiet'
-            size='icon'
+            className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
             onClick={() =>
               setFileFieldModes((prev) => ({
                 ...prev,
@@ -184,11 +183,11 @@ export function FieldFormat({
           >
             <ArrowLeftRight
               className={cn(
-                'size-[14px]',
+                '!h-[12px] !w-[12px]',
                 mode === 'json' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
               )}
             />
-          </Button>
+          </button>
         </Tooltip.Trigger>
         <Tooltip.Content side='top'>
           <p>{label}</p>
@@ -287,6 +286,14 @@ export function FieldFormat({
   }
 
   /**
+   * Syncs scroll position between description input and overlay for text highlighting
+   */
+  const syncDescriptionOverlayScroll = (fieldId: string, scrollLeft: number) => {
+    const overlay = descriptionOverlayRefs.current[fieldId]
+    if (overlay) overlay.scrollLeft = scrollLeft
+  }
+
+  /**
    * Generates a unique field key for name inputs to avoid collision with value inputs
    */
   const getNameFieldKey = (fieldId: string) => `name-${fieldId}`
@@ -316,28 +323,14 @@ export function FieldFormat({
       (newValue) => updateField(field.id, 'name', newValue)
     )
 
+    const inputClassName = cn('text-transparent [letter-spacing:inherit] caret-foreground')
+
     return (
       <>
-        <ReferenceTextInput
+        <Input
           ref={(el) => {
             if (el) nameInputRefs.current[field.id] = el
           }}
-          overlayRef={(element) => {
-            if (element) nameOverlayRefs.current[field.id] = element
-            else delete nameOverlayRefs.current[field.id]
-          }}
-          overlayContent={
-            <div className='min-w-fit whitespace-pre'>
-              {formatDisplayText(
-                fieldValue,
-                accessiblePrefixes
-                  ? { accessiblePrefixes, workflowSearchHighlight }
-                  : { highlightAll: true, workflowSearchHighlight }
-              )}
-            </div>
-          }
-          interactiveOverlay={isReadOnly}
-          inputClassName='allow-scroll'
           name='name'
           value={fieldValue}
           onChange={handlers.onChange}
@@ -355,8 +348,30 @@ export function FieldFormat({
           placeholder={placeholder}
           disabled={isReadOnly}
           autoComplete='off'
-          className='w-full'
+          className={cn('allow-scroll w-full overflow-x-auto overflow-y-hidden', inputClassName)}
         />
+        <div
+          ref={(el) => {
+            if (el) nameOverlayRefs.current[field.id] = el
+          }}
+          className={cn(
+            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
+            !isReadOnly && 'pointer-events-none'
+          )}
+          style={{ scrollbarWidth: 'none' }}
+        >
+          <div
+            className='w-full whitespace-pre'
+            style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+          >
+            {formatDisplayText(
+              fieldValue,
+              accessiblePrefixes
+                ? { accessiblePrefixes, workflowSearchHighlight }
+                : { highlightAll: true, workflowSearchHighlight }
+            )}
+          </div>
+        </div>
         {fieldState.showTags && (
           <TagDropdown
             visible={fieldState.showTags}
@@ -380,7 +395,7 @@ export function FieldFormat({
     <div
       role='group'
       aria-label={`${title} ${index + 1}`}
-      className='flex cursor-pointer items-center justify-between rounded-t-xl px-2 py-1'
+      className='flex cursor-pointer items-center justify-between rounded-t-[3px] bg-[var(--surface-4)] px-2.5 py-[5px]'
       onClick={() => toggleCollapse(field.id)}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return
@@ -388,7 +403,7 @@ export function FieldFormat({
       }}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
           {field.name || `${title} ${index + 1}`}
         </span>
         {field.name && showType && (
@@ -399,26 +414,21 @@ export function FieldFormat({
       </div>
       <div
         role='presentation'
-        className='flex items-center gap-1 pl-2'
+        className='flex items-center gap-2 pl-2'
         onClick={(e) => e.stopPropagation()}
       >
-        <Button
-          variant='quiet'
-          size='icon'
-          onClick={addField}
-          disabled={isReadOnly}
-          aria-label={`Add ${title}`}
-        >
+        <Button variant='ghost' onClick={addField} disabled={isReadOnly} className='h-auto p-0'>
           <Plus className='size-[14px]' />
+          <span className='sr-only'>Add {title}</span>
         </Button>
         <Button
-          variant='quiet'
-          size='icon'
+          variant='ghost'
           onClick={() => removeField(field.id)}
           disabled={isReadOnly}
-          aria-label='Delete field'
+          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)] hover-hover:opacity-90'
         >
-          <Trash className='size-[14px] text-[var(--text-error)]' />
+          <Trash className='size-[14px]' />
+          <span className='sr-only'>Delete Field</span>
         </Button>
       </div>
     </div>
@@ -430,7 +440,7 @@ export function FieldFormat({
   const renderValueInput = (field: Field) => {
     if (field.type === 'boolean') {
       return (
-        <ChipCombobox
+        <Combobox
           options={BOOLEAN_OPTIONS}
           value={field.value ?? ''}
           onChange={(v) => !isReadOnly && updateField(field.id, 'value', v)}
@@ -460,6 +470,8 @@ export function FieldFormat({
       (newValue) => updateField(field.id, 'value', newValue)
     )
 
+    const inputClassName = cn('text-transparent [letter-spacing:inherit] caret-foreground')
+
     const tagDropdown = fieldState.showTags && (
       <TagDropdown
         visible={fieldState.showTags}
@@ -481,7 +493,7 @@ export function FieldFormat({
         return Array.from({ length: lineCount }, (_, i) => (
           <div
             key={i}
-            className='font-medium font-mono text-[var(--text-muted)] text-xs'
+            className='font-mono text-[var(--text-muted)] text-xs'
             style={{ height: `${21}px`, lineHeight: `${21}px` }}
           >
             {i + 1}
@@ -490,7 +502,7 @@ export function FieldFormat({
       }
 
       return (
-        <Code.Container appearance='field' className='min-h-[120px]'>
+        <Code.Container className='min-h-[120px]'>
           <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
           <Code.Content paddingLeft={`${gutterWidth}px`}>
             <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
@@ -516,7 +528,7 @@ export function FieldFormat({
         return Array.from({ length: lineCount }, (_, i) => (
           <div
             key={i}
-            className='font-medium font-mono text-[var(--text-muted)] text-xs'
+            className='font-mono text-[var(--text-muted)] text-xs'
             style={{ height: `${21}px`, lineHeight: `${21}px` }}
           >
             {i + 1}
@@ -525,7 +537,7 @@ export function FieldFormat({
       }
 
       return (
-        <Code.Container appearance='field' className='min-h-[120px]'>
+        <Code.Container className='min-h-[120px]'>
           <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
           <Code.Content paddingLeft={`${gutterWidth}px`}>
             <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
@@ -575,7 +587,7 @@ export function FieldFormat({
         Array.from({ length: lineCount }, (_, i) => (
           <div
             key={i}
-            className='font-medium font-mono text-[var(--text-muted)] text-xs'
+            className='font-mono text-[var(--text-muted)] text-xs'
             style={{ height: `${21}px`, lineHeight: `${21}px` }}
           >
             {i + 1}
@@ -583,7 +595,7 @@ export function FieldFormat({
         ))
 
       return (
-        <Code.Container appearance='field' className='min-h-[120px]'>
+        <Code.Container className='min-h-[120px]'>
           <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
           <Code.Content paddingLeft={`${gutterWidth}px`}>
             <Code.Placeholder gutterWidth={gutterWidth} show={fieldValue.length === 0}>
@@ -605,26 +617,10 @@ export function FieldFormat({
 
     return (
       <>
-        <ReferenceTextInput
+        <Input
           ref={(el) => {
             if (el) valueInputRefs.current[field.id] = el
           }}
-          overlayRef={(element) => {
-            if (element) overlayRefs.current[field.id] = element
-            else delete overlayRefs.current[field.id]
-          }}
-          overlayContent={
-            <div className='min-w-fit whitespace-pre'>
-              {formatDisplayText(
-                fieldValue,
-                accessiblePrefixes
-                  ? { accessiblePrefixes, workflowSearchHighlight }
-                  : { highlightAll: true, workflowSearchHighlight }
-              )}
-            </div>
-          }
-          interactiveOverlay={isReadOnly}
-          inputClassName='allow-scroll'
           name='value'
           value={fieldValue}
           onChange={handlers.onChange}
@@ -642,8 +638,30 @@ export function FieldFormat({
           placeholder={valuePlaceholder}
           disabled={isReadOnly}
           autoComplete='off'
-          className='w-full'
+          className={cn('allow-scroll w-full overflow-x-auto overflow-y-hidden', inputClassName)}
         />
+        <div
+          ref={(el) => {
+            if (el) overlayRefs.current[field.id] = el
+          }}
+          className={cn(
+            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
+            !isReadOnly && 'pointer-events-none'
+          )}
+          style={{ scrollbarWidth: 'none' }}
+        >
+          <div
+            className='w-full whitespace-pre'
+            style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+          >
+            {formatDisplayText(
+              fieldValue,
+              accessiblePrefixes
+                ? { accessiblePrefixes, workflowSearchHighlight }
+                : { highlightAll: true, workflowSearchHighlight }
+            )}
+          </div>
+        </div>
         {tagDropdown}
       </>
     )
@@ -655,13 +673,13 @@ export function FieldFormat({
         <div
           key={field.id}
           data-field-id={field.id}
-          className='overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)]'
+          className='overflow-hidden rounded-sm border border-[var(--border-1)]'
         >
           {renderFieldHeader(field, index)}
 
           <Expandable expanded={!field.collapsed}>
             <ExpandableContent>
-              <div className='flex flex-col gap-2 border-[var(--border)] border-t p-2'>
+              <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                 <div className='flex flex-col gap-1.5'>
                   {renderFieldLabel('Name')}
                   <div className='relative'>{renderNameInput(field)}</div>
@@ -670,7 +688,7 @@ export function FieldFormat({
                 {showType && (
                   <div className='flex flex-col gap-1.5'>
                     {renderFieldLabel('Type')}
-                    <ChipCombobox
+                    <Combobox
                       options={TYPE_OPTIONS}
                       value={field.type}
                       onChange={(value) => updateField(field.id, 'type', value)}
@@ -683,39 +701,61 @@ export function FieldFormat({
                   <div className='flex flex-col gap-1.5'>
                     {renderFieldLabel('Description')}
                     <div className='relative'>
-                      <ReferenceTextInput
+                      <Input
+                        ref={(el) => {
+                          if (el) descriptionInputRefs.current[field.id] = el
+                        }}
                         value={field.description ?? ''}
                         onChange={(e) => updateField(field.id, 'description', e.target.value)}
+                        onScroll={(e) =>
+                          syncDescriptionOverlayScroll(field.id, e.currentTarget.scrollLeft)
+                        }
+                        onPaste={() =>
+                          setTimeout(() => {
+                            const input = descriptionInputRefs.current[field.id]
+                            input && syncDescriptionOverlayScroll(field.id, input.scrollLeft)
+                          }, 0)
+                        }
                         placeholder={descriptionPlaceholder}
                         disabled={isReadOnly}
-                        interactiveOverlay={isReadOnly}
-                        overlayContent={
-                          <span className='truncate'>
-                            {formatDisplayText(
-                              field.description ?? '',
-                              accessiblePrefixes
-                                ? {
-                                    accessiblePrefixes,
-                                    workflowSearchHighlight: getActiveWorkflowSearchHighlight({
-                                      activeSearchTarget,
-                                      blockId,
-                                      subBlockId,
-                                      valuePath: [index, 'description'],
-                                    }),
-                                  }
-                                : {
-                                    highlightAll: true,
-                                    workflowSearchHighlight: getActiveWorkflowSearchHighlight({
-                                      activeSearchTarget,
-                                      blockId,
-                                      subBlockId,
-                                      valuePath: [index, 'description'],
-                                    }),
-                                  }
-                            )}
-                          </span>
-                        }
+                        autoComplete='off'
+                        className='allow-scroll w-full overflow-x-auto overflow-y-hidden text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50'
                       />
+                      <div
+                        ref={(el) => {
+                          if (el) descriptionOverlayRefs.current[field.id] = el
+                        }}
+                        style={{ scrollbarWidth: 'none' }}
+                        className={cn(
+                          'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
+                          isReadOnly && 'opacity-50'
+                        )}
+                      >
+                        <span className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
+                          {formatDisplayText(
+                            field.description ?? '',
+                            accessiblePrefixes
+                              ? {
+                                  accessiblePrefixes,
+                                  workflowSearchHighlight: getActiveWorkflowSearchHighlight({
+                                    activeSearchTarget,
+                                    blockId,
+                                    subBlockId,
+                                    valuePath: [index, 'description'],
+                                  }),
+                                }
+                              : {
+                                  highlightAll: true,
+                                  workflowSearchHighlight: getActiveWorkflowSearchHighlight({
+                                    activeSearchTarget,
+                                    blockId,
+                                    subBlockId,
+                                    valuePath: [index, 'description'],
+                                  }),
+                                }
+                          )}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}

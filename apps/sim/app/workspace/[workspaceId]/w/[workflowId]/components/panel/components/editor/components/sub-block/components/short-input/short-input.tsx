@@ -1,12 +1,12 @@
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Button, cn } from '@sim/emcn'
+import { cn, Input } from '@sim/emcn'
 import { Wand } from '@sim/emcn/icons'
 import { useReactFlow } from 'reactflow'
+import { Button } from '@/components/ui/button'
 import {
   formatDisplayText,
   getValidWorkflowSearchRange,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import { ReferenceTextInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/reference-text-control'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -229,6 +229,12 @@ export const ShortInput = memo(function ShortInput({
     }
   }, [baseValue, wandHook.isStreaming])
 
+  const handleScroll = useCallback((e: React.UIEvent<HTMLInputElement>) => {
+    if (overlayRef.current) {
+      overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
+    }
+  }, [])
+
   const handlePaste = useCallback((_e: React.ClipboardEvent<HTMLInputElement>) => {
     justPastedRef.current = true
     setTimeout(() => {
@@ -291,8 +297,6 @@ export const ShortInput = memo(function ShortInput({
     }),
     [wandHook]
   )
-
-  const showWandButton = isWandEnabled && !isPreview && !wandHook.isStreaming && !hideInternalWand
 
   return (
     <>
@@ -363,54 +367,61 @@ export const ShortInput = memo(function ShortInput({
                 })
 
             return (
-              <ReferenceTextInput
-                ref={ref as React.RefObject<HTMLInputElement>}
-                className='w-full'
-                inputClassName='allow-scroll'
-                overlayRef={overlayRef}
-                overlayContent={<div className='min-w-fit whitespace-pre'>{formattedText}</div>}
-                overlayClassName={cn(showWandButton && 'pr-7')}
-                interactiveOverlay={isPreview || disabled}
-                readOnly={readOnly}
-                placeholder={placeholder ?? ''}
-                type='text'
-                value={displayValue}
-                onChange={handleChange as (e: React.ChangeEvent<HTMLInputElement>) => void}
-                onFocus={(e) => {
-                  setIsFocused(true)
-                  onFocus(e)
-                }}
-                onBlur={handleBlur}
-                onDrop={onDrop as (e: React.DragEvent<HTMLInputElement>) => void}
-                onDragOver={onDragOver as (e: React.DragEvent<HTMLInputElement>) => void}
-                onPaste={handlePaste}
-                onWheel={handleWheel}
-                onKeyDown={onKeyDown as (e: React.KeyboardEvent<HTMLInputElement>) => void}
-                autoComplete='off'
-                disabled={disabled}
-                endAdornment={
-                  showWandButton ? (
-                    <div className='flex items-center opacity-0 transition-opacity group-hover:opacity-100'>
-                      <Button
-                        variant='quiet'
-                        size='icon'
-                        onClick={
-                          wandHook.isPromptVisible
-                            ? wandHook.hidePromptInline
-                            : wandHook.showPromptInline
-                        }
-                        disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
-                        aria-label='Generate content with AI'
-                      >
-                        <Wand className='size-[14px]' />
-                      </Button>
-                    </div>
-                  ) : undefined
-                }
-              />
+              <>
+                <Input
+                  ref={ref as React.RefObject<HTMLInputElement>}
+                  className='allow-scroll w-full overflow-auto text-transparent caret-foreground [-ms-overflow-style:none] [letter-spacing:inherit] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden'
+                  readOnly={readOnly}
+                  placeholder={placeholder ?? ''}
+                  type='text'
+                  value={displayValue}
+                  onChange={handleChange as (e: React.ChangeEvent<HTMLInputElement>) => void}
+                  onFocus={(e) => {
+                    setIsFocused(true)
+                    onFocus(e)
+                  }}
+                  onBlur={handleBlur}
+                  onDrop={onDrop as (e: React.DragEvent<HTMLInputElement>) => void}
+                  onDragOver={onDragOver as (e: React.DragEvent<HTMLInputElement>) => void}
+                  onScroll={handleScroll}
+                  onPaste={handlePaste}
+                  onWheel={handleWheel}
+                  onKeyDown={onKeyDown as (e: React.KeyboardEvent<HTMLInputElement>) => void}
+                  autoComplete='off'
+                  disabled={disabled}
+                />
+                <div
+                  ref={overlayRef}
+                  className={cn(
+                    'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 pr-3 font-sans text-foreground text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                    (isPreview || disabled) && 'opacity-50',
+                    !(isPreview || disabled) && 'pointer-events-none'
+                  )}
+                >
+                  <div className='min-w-fit whitespace-pre'>{formattedText}</div>
+                </div>
+              </>
             )
           }}
         </SubBlockInputController>
+
+        {/* Wand Button - only show if not hidden by parent */}
+        {isWandEnabled && !isPreview && !wandHook.isStreaming && !hideInternalWand && (
+          <div className='-translate-y-1/2 absolute top-1/2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={
+                wandHook.isPromptVisible ? wandHook.hidePromptInline : wandHook.showPromptInline
+              }
+              disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
+              aria-label='Generate content with AI'
+              className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
+            >
+              <Wand className='size-4' />
+            </Button>
+          </div>
+        )}
       </div>
     </>
   )

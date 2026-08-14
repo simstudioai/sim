@@ -247,6 +247,7 @@ Retrieve detailed call data including trackers, topics, highlights, and AI spotl
 |       ↳ `section` | string | Outline section name |
 |       ↳ `startTime` | number | Section start in seconds from call start |
 |       ↳ `duration` | number | Section duration in seconds |
+|       ↳ `items` | array | Bullet items within the section |
 |     ↳ `keyPoints` | array | AI-generated key points of the call |
 |       ↳ `text` | string | Key point text |
 |     ↳ `callOutcome` | object | AI-determined call outcome \(Call Spotlight\) |
@@ -273,6 +274,9 @@ Retrieve detailed call data including trackers, topics, highlights, and AI spotl
 |         ↳ `occurrences` | array | Details per occurrence |
 |     ↳ `highlights` | array | AI-generated highlights including next steps, action items, and key moments |
 |       ↳ `title` | string | Title of the highlight |
+|       ↳ `items` | array | Individual highlight items |
+|         ↳ `text` | string | Text of the highlight item |
+|         ↳ `startTimes` | array | Start times in seconds from call start |
 |   ↳ `interaction` | object | Interaction statistics |
 |     ↳ `interactionStats` | array | Interaction stat measurements \(Longest Monologue, Interactivity, Patience, etc.\) |
 |       ↳ `name` | string | Stat name |

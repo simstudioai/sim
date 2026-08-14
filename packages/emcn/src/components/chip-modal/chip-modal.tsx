@@ -52,7 +52,6 @@ import { ChipSwitch } from '../chip-switch/chip-switch'
 import { ChipTextarea } from '../chip-textarea/chip-textarea'
 import { Label } from '../label/label'
 import { Modal, ModalContent, useModalDismissDisabled } from '../modal/modal'
-import { thinScrollbarClass } from '../scrollbar/scrollbar'
 import { Tooltip } from '../tooltip/tooltip'
 
 /**
@@ -305,7 +304,6 @@ const ChipModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
       ref={ref}
       className={cn(
         'flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 pt-4 pb-4.5',
-        thinScrollbarClass,
         className
       )}
       {...props}
@@ -361,7 +359,6 @@ const ChipModalPromptBody = React.forwardRef<HTMLDivElement, ChipModalPromptBody
       ref={ref}
       className={cn(
         'flex flex-1 flex-col overflow-y-auto px-3 pt-3 pb-3.5 [&>:first-child]:flex-1',
-        thinScrollbarClass,
         className
       )}
       style={{ ...style, minHeight }}

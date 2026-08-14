@@ -449,6 +449,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     const minimal: ExecutionData = {
       secretProjectionVersion: SECRET_PROJECTION_VERSION,
+      ...(executionData.resolvedSecretTraceProvenance !== undefined
+        ? { resolvedSecretTraceProvenance: executionData.resolvedSecretTraceProvenance }
+        : {}),
       ...(executionData.environment ? { environment: executionData.environment } : {}),
       ...(executionData.trigger ? { trigger: executionData.trigger } : {}),
       ...(executionData.billingAttribution
@@ -1102,8 +1105,18 @@ export class ExecutionLogger implements IExecutionLoggerService {
       builtExecutionData.executionState
     )
 
+    /**
+     * Duplicated top-level so the display projection can still rebuild its
+     * registry after compaction drops `executionState`. Read from the
+     * pre-redaction state: `preservePrivateExecutionStateMetadata` copies the
+     * provenance across verbatim, and this one also survives redaction
+     * producing no state at all.
+     */
+    const runProvenance = builtExecutionData.executionState?.resolvedSecretTraceProvenance
+
     const cleanExecutionData: ExecutionData = {
       ...builtExecutionData,
+      ...(runProvenance !== undefined ? { resolvedSecretTraceProvenance: runProvenance } : {}),
       traceSpans: copyTraceSpansWithoutCosts(preparedTraceSpans),
       finalOutput: pii.finalOutput as BlockOutputData,
       ...(pii.workflowInput !== undefined ? { workflowInput: pii.workflowInput } : {}),

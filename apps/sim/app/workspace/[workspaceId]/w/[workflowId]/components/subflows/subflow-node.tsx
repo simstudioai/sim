@@ -37,6 +37,13 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
   const setCurrentBlockId = usePanelEditorStore((state) => state.setCurrentBlockId)
   const isFocused = currentBlockId === id
 
+  /*
+   * Three separate signals, deliberately. `isRunning` and
+   * `isExecutionHighlighted` are per-container and drive this node's own loader
+   * and border; `isWorkflowRunning` only swaps Run for Stop and disables
+   * mutations. Driving the visuals off the workflow instead would light up
+   * every node on the canvas for the whole run.
+   */
   const isWorkflowRunning = useIsCurrentWorkflowExecuting()
   const isRunning = useIsBlockActive(id)
   const isExecutionHighlighted = useIsBlockInActiveExecutionHandoff(id)

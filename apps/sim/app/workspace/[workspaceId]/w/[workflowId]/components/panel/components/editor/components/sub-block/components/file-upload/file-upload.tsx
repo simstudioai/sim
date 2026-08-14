@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Button, ChipCombobox, cn, Loader } from '@sim/emcn'
+import { Button, Combobox, cn } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -107,7 +107,7 @@ function SingleFileSelector({
 
   return (
     <div className='relative w-full'>
-      <ChipCombobox
+      <Combobox
         options={options}
         value={comboboxValue}
         selectedValue={selectedValue}
@@ -149,14 +149,16 @@ function SingleFileSelector({
       />
       <Button
         type='button'
-        variant='quiet'
-        size='icon'
-        className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10'
+        variant='ghost'
+        className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 size-6 p-0'
         onClick={onClear}
         disabled={isDeleting}
-        aria-label={`Remove ${file.name}`}
       >
-        {isDeleting ? <Loader className='size-[14px]' animate /> : <X className='size-[14px]' />}
+        {isDeleting ? (
+          <div className='size-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+        ) : (
+          <X className='size-4 opacity-50 hover-hover:opacity-100' />
+        )}
       </Button>
     </div>
   )
@@ -568,7 +570,7 @@ export function FileUpload({
     return (
       <div
         key={fileKey}
-        className='relative rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5 transition-colors hover-hover:bg-[var(--surface-active)]'
+        className='relative rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 hover-hover:bg-[var(--surface-active)] dark:bg-[var(--surface-5)]'
       >
         <div className='truncate pr-6 text-sm' title={file.name}>
           <span className='text-[var(--text-primary)]'>
@@ -578,14 +580,16 @@ export function FileUpload({
         </div>
         <Button
           type='button'
-          variant='quiet'
-          size='icon'
-          className='-translate-y-1/2 absolute top-1/2 right-1'
+          variant='ghost'
+          className='-translate-y-1/2 absolute top-1/2 right-[4px] size-6 p-0'
           onClick={(e) => handleRemoveFile(file, e)}
           disabled={isDeleting}
-          aria-label={`Remove ${file.name}`}
         >
-          {isDeleting ? <Loader className='size-[14px]' animate /> : <X className='size-[14px]' />}
+          {isDeleting ? (
+            <div className='size-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+          ) : (
+            <X className='size-4 opacity-50' />
+          )}
         </Button>
       </div>
     )
@@ -595,14 +599,14 @@ export function FileUpload({
     return (
       <div
         key={file.id}
-        className='flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'
+        className='flex items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 dark:bg-[var(--surface-5)]'
       >
         <div className='flex-1 truncate pr-2 text-sm'>
           <span className='text-[var(--text-primary)]'>{file.name}</span>
           <span className='ml-2 text-[var(--text-muted)]'>({formatFileSize(file.size)})</span>
         </div>
         <div className='flex size-5 shrink-0 items-center justify-center'>
-          <Loader className='size-[14px]' animate />
+          <div className='size-3.5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
         </div>
       </div>
     )
@@ -698,25 +702,21 @@ export function FileUpload({
         type='file'
         ref={fileInputRef}
         onChange={handleFileChange}
-        className='hidden'
+        style={{ display: 'none' }}
         accept={acceptedTypes}
         multiple={multiple}
         data-testid='file-input-element'
       />
 
       {showCloudStorageWarning && (
-        <div className='mb-2 text-[var(--text-muted)] text-caption'>
+        <div className='mb-2 text-muted-foreground text-xs'>
           Cloud storage (S3 or Blob) is required for file uploads. Configure S3_BUCKET_NAME and
           AWS_REGION, or Azure Blob env vars.
         </div>
       )}
 
       {/* Error message */}
-      {uploadError && (
-        <div role='alert' className='mb-2 text-[var(--text-error)] text-caption'>
-          {uploadError}
-        </div>
-      )}
+      {uploadError && <div className='mb-2 text-red-600 text-sm'>{uploadError}</div>}
 
       {/* File list with consistent spacing - only show for multiple mode or when uploading */}
       {((hasFiles && multiple) || isUploading) && (
@@ -738,7 +738,7 @@ export function FileUpload({
                   className='h-2 w-full'
                   indicatorClassName='bg-foreground'
                 />
-                <div className='mt-1 text-center text-[var(--text-muted)] text-caption'>
+                <div className='mt-1 text-center text-muted-foreground text-xs'>
                   {uploadProgress < 100 ? 'Uploading...' : 'Upload complete!'}
                 </div>
               </div>
@@ -749,7 +749,7 @@ export function FileUpload({
 
       {/* Add More dropdown for multiple files */}
       {hasFiles && multiple && !isUploading && (
-        <ChipCombobox
+        <Combobox
           options={comboboxOptions}
           value={inputValue}
           onChange={handleComboboxChange}
@@ -793,7 +793,7 @@ export function FileUpload({
 
       {/* Show dropdown selector if no files and not uploading */}
       {!hasFiles && !isUploading && (
-        <ChipCombobox
+        <Combobox
           options={comboboxOptions}
           value={inputValue}
           onChange={handleComboboxChange}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { ChipCombobox, ChipTag, type ComboboxOption } from '@sim/emcn'
+import { Combobox, type ComboboxOption } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
@@ -14,7 +14,7 @@ import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflow
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useFolderMap } from '@/hooks/queries/folders'
-import { fetchKnowledgeBase, KNOWLEDGE_BASE_DETAIL_STALE_TIME } from '@/hooks/queries/kb/knowledge'
+import { fetchKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { collectDuplicateNames, disambiguateLabelByFolder } from '@/hooks/queries/utils/folder-tree'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
@@ -75,9 +75,9 @@ export function KnowledgeBaseSelector({
   const selectedKnowledgeBaseQueries = useQueries({
     queries: selectedIds.map((selectedId) => ({
       queryKey: knowledgeKeys.detail(selectedId),
-      queryFn: ({ signal }) => fetchKnowledgeBase(selectedId, signal),
+      queryFn: () => fetchKnowledgeBase(selectedId),
       enabled: Boolean(selectedId),
-      staleTime: KNOWLEDGE_BASE_DETAIL_STALE_TIME,
+      staleTime: 60 * 1000,
     })),
   })
 
@@ -198,24 +198,31 @@ export function KnowledgeBaseSelector({
               label: labelOf(kb),
             })
             return (
-              <ChipTag
+              <div
                 key={kb.id}
-                variant='field'
-                leftIcon={PackageSearchIcon}
-                rightIcon={!disabled && !isPreview ? X : undefined}
-                rightIconLabel={`Remove ${labelOf(kb)}`}
-                onRightIconClick={
-                  !disabled && !isPreview ? () => handleRemoveKnowledgeBase(kb.id) : undefined
-                }
+                className='inline-flex items-center rounded-md border border-[color-mix(in_srgb,var(--brand-knowledge)_20%,transparent)] bg-[color-mix(in_srgb,var(--brand-knowledge)_10%,transparent)] px-2 py-1 text-xs'
               >
-                {formatDisplayText(labelOf(kb), { workflowSearchHighlight })}
-              </ChipTag>
+                <PackageSearchIcon className='mr-1 size-3 text-[var(--brand-knowledge)]' />
+                <span className='text-[var(--brand-knowledge)]'>
+                  {formatDisplayText(labelOf(kb), { workflowSearchHighlight })}
+                </span>
+                {!disabled && !isPreview && (
+                  <button
+                    type='button'
+                    onClick={() => handleRemoveKnowledgeBase(kb.id)}
+                    className='ml-1 text-[color-mix(in_srgb,var(--brand-knowledge)_60%,transparent)] hover-hover:text-[var(--brand-knowledge)]'
+                    aria-label={`Remove ${labelOf(kb)}`}
+                  >
+                    <X className='size-3' />
+                  </button>
+                )}
+              </div>
             )
           })}
         </div>
       )}
 
-      <ChipCombobox
+      <Combobox
         options={options}
         value={isMultiSelect ? undefined : (selectedIds[0] ?? '')}
         multiSelect={isMultiSelect}

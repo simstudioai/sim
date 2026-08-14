@@ -121,7 +121,7 @@ vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
-vi.mock('@/app/api/workflows/utils', () => ({
+vi.mock('@/lib/workflows/deployment-status', () => ({
   checkNeedsRedeployment: mockCheckNeedsRedeployment,
 }))
 
@@ -1160,6 +1160,7 @@ describe('workflow execute async route', () => {
     expect(response.status).toBe(202)
     expect(body.executionId).toBe('execution-123')
     expect(body.jobId).toBe('job-123')
+    expect(body.statusUrl).toBe('http://localhost:3000/api/jobs/job-123')
     expect(mockClaimExecutionId).toHaveBeenCalledWith('execution-123')
     expect(mockEnqueue).toHaveBeenCalledWith(
       'workflow-execution',
@@ -2614,5 +2615,61 @@ describe('workflow execute async route', () => {
         ? JSON.parse(executionCall.snapshot)
         : executionCall.snapshot
     expect(snapshot.metadata.enforceCredentialAccess).toBe(true)
+  })
+  describe('triggerType override gate', () => {
+    it.each([
+      ['personal API key', EXECUTION_CALLERS[1]],
+      ['workspace API key', EXECUTION_CALLERS[2]],
+      ['public API', EXECUTION_CALLERS[3]],
+    ] as const)(
+      'rejects caller-supplied triggerType "manual" from %s callers',
+      async (_name, caller) => {
+        configureExecutionCaller(caller)
+        const req = createMockRequest(
+          'POST',
+          { hello: 'world', triggerType: 'manual' },
+          { 'Content-Type': 'application/json', ...caller.headers }
+        )
+
+        const response = await POST(req, { params: Promise.resolve({ id: 'workflow-1' }) })
+
+        expect(response.status).toBe(400)
+        await expect(response.json()).resolves.toMatchObject({
+          error: 'External callers cannot override triggerType',
+        })
+        expect(mockPreprocessExecution).not.toHaveBeenCalled()
+      }
+    )
+
+    it('accepts the redundant explicit "api" triggerType from API-key callers', async () => {
+      const caller = EXECUTION_CALLERS[1]
+      configureExecutionCaller(caller)
+      const req = createMockRequest(
+        'POST',
+        { hello: 'world', triggerType: 'api' },
+        { 'Content-Type': 'application/json', ...caller.headers, 'X-Execution-Mode': 'async' }
+      )
+
+      const response = await POST(req, { params: Promise.resolve({ id: 'workflow-1' }) })
+
+      expect(response.status).toBe(202)
+    })
+
+    it('still allows internal JWT callers to set triggerType', async () => {
+      const caller = EXECUTION_CALLERS[4]
+      configureExecutionCaller(caller)
+      const req = createMockRequest(
+        'POST',
+        { hello: 'world', triggerType: 'workflow' },
+        { 'Content-Type': 'application/json', ...caller.headers, 'X-Execution-Mode': 'async' }
+      )
+
+      const response = await POST(req, { params: Promise.resolve({ id: 'workflow-1' }) })
+
+      expect(response.status).toBe(202)
+      expect(mockPreprocessExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ triggerType: 'workflow' })
+      )
+    })
   })
 })

@@ -14,6 +14,7 @@ import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { MutationProof } from '@/lib/table/mutation-locks'
 import { keyBetween, nKeysBetween } from '@/lib/table/order-key'
 import { type DbExecutor, type DbTransaction, withSeqscanOff } from '@/lib/table/planner'
+import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import { mutateTableRowsWithSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import type { RowData, TableDefinition, TableRowSecretProvenanceWrite } from '@/lib/table/types'
@@ -131,8 +132,10 @@ export async function resolveInsertByNeighbor(
     .where(and(eq(userTableRows.tableId, tableId), eq(userTableRows.id, anchorId)))
     .limit(1)
   // The client targets a specific neighbor; a missing one (concurrent delete /
-  // stale view) is an error, not a silent insert at the front.
-  if (!anchor) throw new Error(`Row not found: ${anchorId}`)
+  // stale view / an id the caller made up) is an error, not a silent insert at
+  // the front. It is caller-fixable, so it is classified: a bare `Error` here
+  // is unclassifiable by every layer above and surfaced as a 500 for a 404.
+  if (!anchor) throw new TableRowNotFoundError(anchorId)
   const anchorKey = anchor.orderKey ?? null
   // A null key on the anchor means the table isn't backfilled. order_key is
   // authoritative, so the adjacent-key lookup below can't work — fail loudly

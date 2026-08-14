@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { summarizeNames } from '@/lib/workflows/subblocks/display'
 import type { SubBlockConfig } from '@/blocks/types'
 import { resolveSelectorForSubBlock } from '@/hooks/selectors/resolution'
 import type { SelectorKey } from '@/hooks/selectors/types'
@@ -45,10 +46,27 @@ export function useSelectorDisplayName({
   spreadsheetId,
   fileId,
 }: SelectorDisplayNameArgs) {
-  const detailId = typeof value === 'string' && value.length > 0 ? value : undefined
+  /*
+   * A `multiSelect` selector stores an array. This used to read only a lone
+   * string, so a multi-select channel or folder resolved to nothing and the card
+   * fell through to the `-` sentinel — visible both in its field row and, once
+   * sentences landed, mid-prose.
+   */
+  const selectedIds = useMemo(() => {
+    if (typeof value === 'string') return value.length > 0 ? [value] : []
+    if (Array.isArray(value)) {
+      return value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+    }
+    return []
+  }, [value])
+
+  /* The detail endpoint fetches one option, so it only helps a single selection;
+     a multi-selection resolves out of the list the query already returns. */
+  const detailId = selectedIds.length === 1 ? selectedIds[0] : undefined
+  const hasSelection = selectedIds.length > 0
 
   const resolution = useMemo(() => {
-    if (!subBlock || !detailId) return null
+    if (!subBlock || !hasSelection) return null
     return resolveSelectorForSubBlock(subBlock, {
       workflowId,
       oauthCredential,
@@ -67,7 +85,7 @@ export function useSelectorDisplayName({
     })
   }, [
     subBlock,
-    detailId,
+    hasSelection,
     workflowId,
     oauthCredential,
     domain,
@@ -86,7 +104,7 @@ export function useSelectorDisplayName({
 
   const key = resolution?.key
   const context = resolution?.context ?? {}
-  const enabled = Boolean(key && detailId)
+  const enabled = Boolean(key && hasSelection)
   const resolvedKey: SelectorKey = (key ?? 'slack.channels') as SelectorKey
   const resolvedContext = enabled ? context : {}
 
@@ -102,7 +120,14 @@ export function useSelectorDisplayName({
   })
 
   const optionMap = useSelectorOptionMap(options, detailOption ?? undefined)
-  const displayName = detailId ? (optionMap.get(detailId)?.label ?? null) : null
+
+  /* All or nothing: a partial resolution would silently drop selections, and the
+     caller's raw-value fallback at least shows every id. */
+  const labels = selectedIds.map((id) => optionMap.get(id)?.label)
+  const displayName =
+    hasSelection && labels.every((label): label is string => Boolean(label))
+      ? summarizeNames(labels)
+      : null
 
   return {
     displayName: enabled ? displayName : null,

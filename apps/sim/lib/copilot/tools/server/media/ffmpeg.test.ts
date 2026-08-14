@@ -28,7 +28,17 @@ vi.mock('@/lib/copilot/generated/tool-catalog-v1', () => ({
 }))
 
 vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
-  writeWorkspaceFileByPath: writeWorkspaceFileByPathMock,
+  writeCopilotWorkspaceFileByPath: (_context: unknown, args: unknown) =>
+    writeWorkspaceFileByPathMock(args),
+}))
+
+vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
+  executeCopilotFileUseCase: async () => ({
+    file,
+    content: await fetchWorkspaceFileBufferMock(file),
+  }),
+  resolveCopilotWorkspaceFileReference: (...args: unknown[]) =>
+    resolveWorkspaceFileReferenceMock(...args),
 }))
 
 vi.mock('@/lib/media/ffmpeg', () => ({
@@ -105,6 +115,8 @@ describe('ffmpeg server tool secret provenance', () => {
   const context = {
     userId: 'user-1',
     workspaceId: 'workspace-1',
+    toolCallId: 'tool-1',
+    copilotToolExecution: true as const,
     resolvedSecretTraceRegistry: registry,
   }
 

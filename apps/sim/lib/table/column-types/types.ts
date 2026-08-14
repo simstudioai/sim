@@ -184,6 +184,21 @@ export interface ColumnTypeDefinition {
    */
   isCompatibleWith?(value: unknown, target: ColumnDefinition): boolean
 
+  /**
+   * Last-resort reading of a value {@link coerce} refused, consulted **only**
+   * where the write may not fail: a machine-produced value on a path with no
+   * caller to answer with a 400 — a computed/enrichment cell, a CSV import row,
+   * the cell-write snapshot. The alternative there is not an error, it is a
+   * blanked cell, so a lossy-but-faithful reading beats losing the value
+   * outright.
+   *
+   * Omitted by types where nothing is salvageable. Because it never runs on a
+   * caller-supplied write it may be looser than `coerce` without weakening what
+   * the API refuses — the opposite direction from {@link isCompatibleWith},
+   * which may only ever be stricter.
+   */
+  salvage?(value: JsonValue, column: ColumnDefinition): CoerceResult
+
   /** Stored value → display text (grid cell, CSV, clipboard, width measurement). */
   formatForDisplay(value: unknown, column: ColumnDefinition): string
 

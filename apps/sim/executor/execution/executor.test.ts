@@ -429,3 +429,26 @@ describe('DAGExecutor createExecutionContext useDraftState', () => {
     expect(buildMetadataUseDraftState({ isDeployedContext: false })).toBe(true)
   })
 })
+
+describe('DAGExecutor executor delegation origin', () => {
+  it('copies the canonical origin into the runtime execution context', () => {
+    const executorDelegationOrigin = {
+      subjectUserId: 'user-1',
+      workflowId: 'parent-workflow',
+      executionId: 'parent-execution',
+    }
+    const executor = new DAGExecutor({
+      workflow: { version: '1', blocks: [], connections: [] },
+      contextExtensions: { executorDelegationOrigin },
+    })
+
+    const { context } = (
+      executor as unknown as {
+        createExecutionContext: (workflowId: string) => { context: ExecutionContext }
+      }
+    ).createExecutionContext('child-workflow')
+
+    expect(context.workflowId).toBe('child-workflow')
+    expect(context.executorDelegationOrigin).toBe(executorDelegationOrigin)
+  })
+})

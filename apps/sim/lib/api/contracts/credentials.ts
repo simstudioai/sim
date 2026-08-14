@@ -132,9 +132,21 @@ export const createCredentialBodySchema = z
     botToken: z.string().trim().min(1).optional(),
     clientId: z.string().trim().min(1).max(512).optional(),
     clientSecret: z.string().trim().min(1).max(1024).optional(),
+    certificateId: z.string().trim().min(1).max(512).optional(),
     orgId: z.string().trim().min(1).max(255).optional(),
     /** Optional provider region selector (Zoho Desk data center). */
     dataCenter: z.string().trim().min(1).max(32).optional(),
+    /**
+     * Grant selector for providers offering more than one server-to-server
+     * flow (Salesforce: `client_credentials` | `jwt_bearer`). The descriptor's
+     * option list is the real allowlist — an unrecognized value resolves to the
+     * provider's default rather than failing, so this only bounds length.
+     */
+    authMethod: z.string().trim().min(1).max(64).optional(),
+    /** PEM private key for certificate/JWT-based grants (for example Salesforce or NetSuite). */
+    privateKey: z.string().trim().min(1).max(8192).optional(),
+    /** Run-as username for key-based grants (Salesforce JWT `sub`). */
+    username: z.string().trim().min(1).max(255).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'oauth') {
@@ -208,8 +220,12 @@ export const updateCredentialByIdBodySchema = z
     /** Client-credential service-account secret rotation (reconnect). */
     clientId: z.string().trim().min(1).max(512).optional(),
     clientSecret: z.string().trim().min(1).max(1024).optional(),
+    certificateId: z.string().trim().min(1).max(512).optional(),
     orgId: z.string().trim().min(1).max(255).optional(),
     dataCenter: z.string().trim().min(1).max(32).optional(),
+    authMethod: z.string().trim().min(1).max(64).optional(),
+    privateKey: z.string().trim().min(1).max(8192).optional(),
+    username: z.string().trim().min(1).max(255).optional(),
   })
   .strict()
   .refine(
@@ -223,8 +239,12 @@ export const updateCredentialByIdBodySchema = z
       data.domain !== undefined ||
       data.clientId !== undefined ||
       data.clientSecret !== undefined ||
+      data.certificateId !== undefined ||
       data.orgId !== undefined ||
-      data.dataCenter !== undefined,
+      data.dataCenter !== undefined ||
+      data.authMethod !== undefined ||
+      data.privateKey !== undefined ||
+      data.username !== undefined,
     {
       message: 'At least one field must be provided',
       path: ['displayName'],

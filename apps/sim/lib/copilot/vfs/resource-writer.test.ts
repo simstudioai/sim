@@ -5,19 +5,9 @@ const mocks = vi.hoisted(() => {
     readonly code = 'FILE_EXISTS' as const
   }
 
-  /**
-   * Stands in for the production error, which extends `HttpError`. Only the message is
-   * asserted here; the real class is what carries `statusCode = 403` to `withRouteHandler`.
-   */
-  class WorkspaceAccessDeniedError extends Error {
-    constructor(readonly workspaceId: string) {
-      super(`Workspace access denied: ${workspaceId}`)
-    }
-  }
-
   return {
     FileConflictError,
-    WorkspaceAccessDeniedError,
+    admitCreateWorkspaceFile: vi.fn(),
     ensureWorkspaceFileFolderPath: vi.fn(),
     findWorkspaceFileFolderIdByPath: vi.fn(),
     normalizeWorkspaceFileItemName: vi.fn((name: string) => name.trim()),
@@ -25,13 +15,13 @@ const mocks = vi.hoisted(() => {
     resolveWorkspaceFileReference: vi.fn(),
     updateWorkspaceFileContent: vi.fn(),
     uploadWorkspaceFile: vi.fn(),
-    resolveWorkspaceAccess: vi.fn(),
+    createWorkspaceFileBufferByPath: { execute: vi.fn() },
+    updateWorkspaceFileContentBufferByPath: { execute: vi.fn() },
   }
 })
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  resolveWorkspaceAccess: mocks.resolveWorkspaceAccess,
-  WorkspaceAccessDeniedError: mocks.WorkspaceAccessDeniedError,
+vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
+  admitCreateWorkspaceFile: mocks.admitCreateWorkspaceFile,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
@@ -43,116 +33,100 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   FileConflictError: mocks.FileConflictError,
   getWorkspaceFileByName: mocks.getWorkspaceFileByName,
-  resolveWorkspaceFileReference: mocks.resolveWorkspaceFileReference,
   updateWorkspaceFileContent: mocks.updateWorkspaceFileContent,
   uploadWorkspaceFile: mocks.uploadWorkspaceFile,
 }))
 
-import { validateWorkspaceFileWriteTarget, writeWorkspaceFileByPath } from './resource-writer'
+vi.mock('@/lib/workspace-files/application/write-workspace-file-by-path', () => ({
+  createWorkspaceFileBufferByPath: mocks.createWorkspaceFileBufferByPath,
+  updateWorkspaceFileContentBufferByPath: mocks.updateWorkspaceFileContentBufferByPath,
+}))
+vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
+  resolveWorkspaceFileReference: mocks.resolveWorkspaceFileReference,
+}))
+
+import {
+  validateWorkspaceFileWriteTarget,
+  writeWorkspaceFileByPath,
+} from '@/lib/copilot/vfs/resource-writer'
 
 describe('resource writer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('folder-id')
-    mocks.resolveWorkspaceAccess.mockResolvedValue({
-      exists: true,
-      hasAccess: true,
-      canWrite: true,
-      canAdmin: false,
-      workspace: { id: 'workspace-1' },
-      permission: 'admin',
+    mocks.ensureWorkspaceFileFolderPath.mockResolvedValue({
+      folderId: 'folder-id',
+      createdFolderIds: [],
     })
+    mocks.admitCreateWorkspaceFile.mockResolvedValue(undefined)
   })
 
   it('refuses to write into a workspace the acting user is not a member of', async () => {
-    mocks.resolveWorkspaceAccess.mockResolvedValue({
-      exists: true,
-      hasAccess: false,
-      canWrite: false,
-      canAdmin: false,
-      workspace: { id: 'workspace-victim' },
-      permission: null,
-    })
+    mocks.resolveWorkspaceFileReference.mockRejectedValue(new Error('Insufficient permissions'))
 
     await expect(
       writeWorkspaceFileByPath({
         workspaceId: 'workspace-victim',
-        userId: 'attacker',
+        principal: { kind: 'session', userId: 'attacker', sessionId: 'session-1' },
         target: { path: 'files/README.md', mode: 'overwrite' },
         buffer: Buffer.from('owned'),
         inferredMimeType: 'text/markdown',
       })
-    ).rejects.toThrow('Workspace access denied: workspace-victim')
+    ).rejects.toThrow('Insufficient permissions')
 
-    expect(mocks.resolveWorkspaceAccess).toHaveBeenCalledWith(
-      'workspace-victim',
-      'attacker',
-      undefined
+    expect(mocks.resolveWorkspaceFileReference).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'workspace-victim' })
     )
-    expect(mocks.resolveWorkspaceFileReference).not.toHaveBeenCalled()
-    expect(mocks.updateWorkspaceFileContent).not.toHaveBeenCalled()
-    expect(mocks.uploadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mocks.updateWorkspaceFileContentBufferByPath.execute).not.toHaveBeenCalled()
   })
 
   it('refuses to write for a read-only workspace member', async () => {
-    mocks.resolveWorkspaceAccess.mockResolvedValue({
-      exists: true,
-      hasAccess: true,
-      canWrite: false,
-      canAdmin: false,
-      workspace: { id: 'workspace-1' },
-      permission: 'read',
-    })
+    mocks.admitCreateWorkspaceFile.mockRejectedValue(new Error('Insufficient permissions'))
 
     await expect(
       writeWorkspaceFileByPath({
         workspaceId: 'workspace-1',
-        userId: 'reader',
+        principal: { kind: 'session', userId: 'reader', sessionId: 'session-1' },
         target: { path: 'files/notes.md', mode: 'create' },
         buffer: Buffer.from('hello'),
         inferredMimeType: 'text/markdown',
       })
-    ).rejects.toThrow('Workspace access denied: workspace-1')
+    ).rejects.toThrow('Insufficient permissions')
 
-    expect(mocks.uploadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mocks.createWorkspaceFileBufferByPath.execute).not.toHaveBeenCalled()
   })
 
   it('refuses to validate a write target in a workspace the user cannot write to', async () => {
-    mocks.resolveWorkspaceAccess.mockResolvedValue({
-      exists: true,
-      hasAccess: false,
-      canWrite: false,
-      canAdmin: false,
-      workspace: { id: 'workspace-victim' },
-      permission: null,
-    })
+    mocks.resolveWorkspaceFileReference.mockRejectedValue(new Error('Insufficient permissions'))
 
     await expect(
       validateWorkspaceFileWriteTarget({
         workspaceId: 'workspace-victim',
-        userId: 'attacker',
+        principal: { kind: 'session', userId: 'attacker', sessionId: 'session-1' },
         target: { path: 'files/README.md', mode: 'overwrite' },
       })
-    ).rejects.toThrow('Workspace access denied: workspace-victim')
+    ).rejects.toThrow('Insufficient permissions')
 
-    expect(mocks.resolveWorkspaceFileReference).not.toHaveBeenCalled()
     expect(mocks.findWorkspaceFileFolderIdByPath).not.toHaveBeenCalled()
   })
 
   it('auto-creates missing parent folders for plain workspace file creates', async () => {
-    mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('folder-nested')
-    mocks.getWorkspaceFileByName.mockResolvedValue(null)
-    mocks.uploadWorkspaceFile.mockResolvedValue({
+    mocks.ensureWorkspaceFileFolderPath.mockResolvedValue({
+      folderId: 'folder-nested',
+      createdFolderIds: [],
+    })
+    mocks.createWorkspaceFileBufferByPath.execute.mockResolvedValue({
       id: 'file-report',
       name: 'summary.csv',
       size: 7,
-      type: 'text/csv',
-      url: '/download',
+      contentType: 'text/csv',
+      downloadUrl: '/download',
+      vfsPath: 'files/Reports/2026/summary.csv',
+      mode: 'create',
     })
 
     const result = await writeWorkspaceFileByPath({
       workspaceId: 'workspace-1',
-      userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       target: {
         path: 'files/Reports/2026/summary.csv',
         mode: 'create',
@@ -161,23 +135,15 @@ describe('resource writer', () => {
       inferredMimeType: 'text/csv',
     })
 
-    expect(mocks.ensureWorkspaceFileFolderPath).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      pathSegments: ['Reports', '2026'],
+    expect(mocks.createWorkspaceFileBufferByPath.execute).toHaveBeenCalledWith({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: expect.objectContaining({
+        workspaceId: 'workspace-1',
+        path: 'files/Reports/2026/summary.csv',
+        content: Buffer.from('content'),
+        contentType: 'text/csv',
+      }),
     })
-    expect(mocks.findWorkspaceFileFolderIdByPath).not.toHaveBeenCalled()
-    expect(mocks.uploadWorkspaceFile).toHaveBeenCalledWith(
-      'workspace-1',
-      'user-1',
-      Buffer.from('content'),
-      'summary.csv',
-      'text/csv',
-      {
-        folderId: 'folder-nested',
-        secretProvenance: { status: 'exact', entries: [] },
-      }
-    )
     expect(result).toMatchObject({
       id: 'file-report',
       vfsPath: 'files/Reports/2026/summary.csv',
@@ -191,7 +157,7 @@ describe('resource writer', () => {
 
     const validation = await validateWorkspaceFileWriteTarget({
       workspaceId: 'workspace-1',
-      userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       target: {
         path: 'files/Reports/2026/summary.csv',
         mode: 'create',
@@ -212,7 +178,7 @@ describe('resource writer', () => {
 
     const validation = await validateWorkspaceFileWriteTarget({
       workspaceId: 'workspace-1',
-      userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       target: {
         path: 'files/Reports/2026/summary.csv',
         mode: 'create',
@@ -226,6 +192,35 @@ describe('resource writer', () => {
       vfsPath: 'files/Reports/2026/summary.csv',
       fileName: 'summary.csv',
       folderId: null,
+    })
+  })
+
+  it('authorizes overwrite target resolution through the shared application resolver', async () => {
+    mocks.resolveWorkspaceFileReference.mockResolvedValue({
+      id: 'file-report',
+      name: 'summary.csv',
+      size: 7,
+      type: 'text/csv',
+      folderPath: 'Reports/2026',
+    })
+
+    const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+    const validation = await validateWorkspaceFileWriteTarget({
+      workspaceId: 'workspace-1',
+      principal,
+      target: { path: 'files/Reports/2026/summary.csv', mode: 'overwrite' },
+    })
+
+    expect(mocks.resolveWorkspaceFileReference).toHaveBeenCalledWith({
+      principal,
+      operation: expect.objectContaining({ id: 'files.update_content' }),
+      workspaceId: 'workspace-1',
+      reference: 'files/Reports/2026/summary.csv',
+    })
+    expect(validation).toMatchObject({
+      mode: 'overwrite',
+      existingFileId: 'file-report',
+      vfsPath: 'files/Reports/2026/summary.csv',
     })
   })
 })

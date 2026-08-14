@@ -2,6 +2,29 @@ import { ProspeoIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { ProspeoResponse } from '@/tools/prospeo/types'
 
+const PERSON_IDENTITY_FIELD = [
+  'full_name',
+  'email',
+  'linkedin_url',
+  'first_name',
+  'person_id',
+] as const
+
+const PERSON_COMPANY_FIELD = [
+  'ep_company_name',
+  'ep_company_website',
+  'ep_company_linkedin_url',
+] as const
+
+const COMPANY_IDENTITY_FIELD = [
+  'ec_company_name',
+  'ec_company_website',
+  'ec_company_linkedin_url',
+  'company_id',
+] as const
+
+const SUGGESTION_QUERY_FIELD = ['location_search', 'job_title_search'] as const
+
 export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
   type: 'prospeo',
   name: 'Prospeo',
@@ -14,6 +37,34 @@ export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#FF1A26',
   icon: ProspeoIcon,
+  canvasPresentation: {
+    defaultTitle: 'Prospeo',
+    sentences: {
+      byOperation: {
+        prospeo_enrich_person: [
+          { text: 'Enrich', field: PERSON_IDENTITY_FIELD, core: true },
+          { text: 'at', field: PERSON_COMPANY_FIELD },
+        ],
+        prospeo_enrich_company: [
+          { text: 'Enrich company', field: COMPANY_IDENTITY_FIELD, core: true },
+        ],
+        prospeo_bulk_enrich_person: ['Enrich a batch of person records'],
+        prospeo_bulk_enrich_company: ['Enrich a batch of company records'],
+        prospeo_search_person: [
+          { text: 'Search for people matching', field: 'sp_filters', core: true },
+          { text: ', page', field: 'sp_page' },
+        ],
+        prospeo_search_company: [
+          { text: 'Search for companies matching', field: 'sc_filters', core: true },
+          { text: ', page', field: 'sc_page' },
+        ],
+        prospeo_search_suggestions: [
+          { text: 'Suggest filter values for', field: SUGGESTION_QUERY_FIELD, core: true },
+        ],
+        prospeo_account_information: ['Read plan, credits, and renewal date'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

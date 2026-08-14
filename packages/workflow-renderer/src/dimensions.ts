@@ -33,32 +33,43 @@ export const BLOCK_DIMENSIONS = {
   WORKFLOW_CHIPS_ROW_HEIGHT: 20,
   /** Natural-language summary line height (text-sm with inline value chips). */
   WORKFLOW_SENTENCE_LINE_HEIGHT: 24,
-  /** Footer divider above the error row: 1px border + 6px padding */
-  WORKFLOW_FOOTER_DIVIDER_HEIGHT: 7,
   /** Total vertical spacing around an empty note's single text line. */
   NOTE_CONTENT_PADDING: 10,
   NOTE_MIN_CONTENT_HEIGHT: 20,
-  /** Maximum inline content viewport before the Note begins scrolling. */
+  /** Tallest a note grows inline before its content starts scrolling. */
   NOTE_CONTENT_VIEWPORT_HEIGHT: 200,
+  /** Inset of the subflow Start card from the top of the container body. */
+  SUBFLOW_START_TOP_OFFSET: 12,
+  /** The subflow Start card itself. */
+  SUBFLOW_START_HEIGHT: 34,
+  SUBFLOW_START_WIDTH: 58,
 } as const
 
-/** Keeps note DOM, React Flow bounds, and auto-layout on the same height. */
-export const getNoteBlockHeight = (isEmpty: boolean) =>
+/**
+ * The bounds a note's total on-canvas height can occupy.
+ *
+ * These two numbers are the single source of truth for note sizing — the DOM
+ * host, the border SVG viewBox (`preserveAspectRatio='none'`, so a mismatch
+ * paints the outline stretched), and autolayout all resolve through them.
+ */
+export const NOTE_BLOCK_MIN_HEIGHT =
   BLOCK_DIMENSIONS.HEADER_HEIGHT +
-  (isEmpty
-    ? BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING + BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
-    : BLOCK_DIMENSIONS.NOTE_CONTENT_VIEWPORT_HEIGHT)
+  BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING +
+  BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
+export const NOTE_BLOCK_MAX_HEIGHT =
+  BLOCK_DIMENSIONS.HEADER_HEIGHT + BLOCK_DIMENSIONS.NOTE_CONTENT_VIEWPORT_HEIGHT
 
-/** Clamps measured note content to its compact minimum and scrollable maximum. */
+/** Clamps a note's total height to the bounds the card itself honours. */
+export const clampNoteBlockTotalHeight = (totalHeight: number) =>
+  Math.min(NOTE_BLOCK_MAX_HEIGHT, Math.max(NOTE_BLOCK_MIN_HEIGHT, totalHeight))
+
+/** The height a note paints at when it has nothing measured yet. */
+export const getNoteBlockHeight = (isEmpty: boolean) =>
+  isEmpty ? NOTE_BLOCK_MIN_HEIGHT : NOTE_BLOCK_MAX_HEIGHT
+
+/** Clamps measured note *content* to the same bounds, adding the header. */
 export const clampNoteBlockHeight = (contentHeight: number) =>
-  BLOCK_DIMENSIONS.HEADER_HEIGHT +
-  Math.min(
-    BLOCK_DIMENSIONS.NOTE_CONTENT_VIEWPORT_HEIGHT,
-    Math.max(
-      BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING + BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT,
-      contentHeight
-    )
-  )
+  clampNoteBlockTotalHeight(BLOCK_DIMENSIONS.HEADER_HEIGHT + contentHeight)
 
 /** Gives Notes a stable first frame before the rendered text can be measured. */
 export const estimateNoteBlockHeight = (content: string) => {
@@ -69,16 +80,36 @@ export const estimateNoteBlockHeight = (content: string) => {
   )
 }
 
+/**
+ * A container's box, and the gutter it keeps around the blocks inside it.
+ *
+ * The single source for both halves of that: the layout math that sizes a
+ * container and clamps its children, and the card's own DOM. `subflow-node-view`
+ * renders its header and content box straight from these, so the gap the
+ * geometry reserves is the gap the container actually paints. They used to be
+ * separate — the same four numbers as Tailwind literals in the view — and had
+ * already drifted, the view drawing a 40px header against a constant that
+ * claimed 50.
+ *
+ * Each padding is the gap between a child's edge and the container's, counted
+ * once: the header is accounted for by the child's own position, which
+ * `clampPositionToContainer` floors at `HEADER_HEIGHT + TOP_PADDING`.
+ *
+ * The two edges that carry chrome are wider than the two that are only gutter.
+ * The container's output handle sits on the right, and the resize grip in the
+ * bottom-right corner spans 40px in from both — a child at the gutter width
+ * would sit underneath it.
+ */
 export const CONTAINER_DIMENSIONS = {
   DEFAULT_WIDTH: 500,
   DEFAULT_HEIGHT: 300,
   MIN_WIDTH: 400,
   MIN_HEIGHT: 200,
-  HEADER_HEIGHT: 50,
-  LEFT_PADDING: 16,
+  HEADER_HEIGHT: 40,
+  LEFT_PADDING: 24,
   RIGHT_PADDING: 80,
-  TOP_PADDING: 16,
-  BOTTOM_PADDING: 16,
+  TOP_PADDING: 24,
+  BOTTOM_PADDING: 80,
 } as const
 
 /**
@@ -86,19 +117,25 @@ export const CONTAINER_DIMENSIONS = {
  * sub-block-row-view.tsx, and subflow-node.tsx
  */
 export const HANDLE_POSITIONS = {
-  /** Default Y offset from block top for source/target handles */
-  DEFAULT_Y_OFFSET: 20,
-  /** Error handle offset from block bottom */
-  ERROR_BOTTOM_OFFSET: 17,
   /** Error knob center inset from the card's right edge. */
   ERROR_RIGHT_OFFSET: 30,
   /**
-   * Y of the first condition-row handle: 40px header + 1px divider +
-   * 8px content padding + half of the 20px row
+   * Y of the first condition-row handle: 40px header + 8px content padding +
+   * half of the 20px row. The 1px divider this used to include was removed
+   * from the card, which left every branch handle sitting a pixel low.
    */
-  CONDITION_START_Y: 59,
+  CONDITION_START_Y: 58,
   /** Row pitch: 20px row height (h-5) + 8px flex gap (gap-2) */
   CONDITION_ROW_HEIGHT: 28,
-  /** Subflow start handle Y offset (header 50px + pill offset 16px + pill center 14px) */
-  SUBFLOW_START_Y_OFFSET: 80,
+  /**
+   * Y of every port on a loop/parallel container — its own input and output as
+   * well as the inset Start card's output, which all line up with the centre of
+   * that card. Derived, not spelled out: auto-layout positions edges against
+   * this number while the renderer paints handles at it, so a literal here
+   * silently tilts every container edge the moment the Start card moves.
+   */
+  SUBFLOW_CONNECTION_Y:
+    BLOCK_DIMENSIONS.HEADER_HEIGHT +
+    BLOCK_DIMENSIONS.SUBFLOW_START_TOP_OFFSET +
+    BLOCK_DIMENSIONS.SUBFLOW_START_HEIGHT / 2,
 } as const

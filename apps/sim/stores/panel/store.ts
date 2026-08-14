@@ -1,16 +1,19 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { PANEL_WIDTH } from '@/stores/constants'
 import type { PanelState, PanelTab } from '@/stores/panel/types'
 
-/** Default right inspector tab. Workflow chat is a separate left-side surface. */
-const DEFAULT_TAB: PanelTab = 'toolbar'
+/**
+ * Default panel tab. Falls back to the toolbar when Chat is disabled, since the
+ * copilot tab is not rendered then and would leave the panel body empty.
+ */
+const DEFAULT_TAB: PanelTab = isChatEnabled ? 'copilot' : 'toolbar'
 
 export const usePanelStore = create<PanelState>()(
   persist(
     (set) => ({
       panelWidth: PANEL_WIDTH.DEFAULT,
-      isOpen: true,
       setPanelWidth: (width) => {
         // Only enforce minimum - maximum is enforced dynamically by the resize hook
         const clampedWidth = Math.max(PANEL_WIDTH.MIN, width)
@@ -22,13 +25,12 @@ export const usePanelStore = create<PanelState>()(
       },
       activeTab: DEFAULT_TAB,
       setActiveTab: (tab) => {
-        set({ activeTab: tab, isOpen: true })
+        set({ activeTab: tab })
         // Remove data attribute once React takes control
         if (typeof document !== 'undefined') {
           document.documentElement.removeAttribute('data-panel-active-tab')
         }
       },
-      closePanel: () => set({ isOpen: false }),
       _hasHydrated: false,
       setHasHydrated: (hasHydrated) => {
         set({ _hasHydrated: hasHydrated })

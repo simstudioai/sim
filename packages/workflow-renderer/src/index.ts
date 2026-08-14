@@ -1,7 +1,17 @@
+export {
+  BLOCK_Z_BASE,
+  CONNECTION_PICKER_Z,
+  CONTAINER_CHILD_Z_BASE,
+  EDGE_Z_BASE,
+  EDGE_Z_MAX,
+  getBlockZIndex,
+  getEdgeZIndex,
+} from './canvas-layers'
 export * from './dimensions'
 export { WorkflowEdgeView, type WorkflowEdgeViewProps } from './edge/workflow-edge-view'
 export { humanizeBlockName } from './lib/humanize-block-name'
 export {
+  NOTE_MARKDOWN_FLOW,
   NoteBlockView,
   type NoteBlockViewProps,
   type NoteContentEditorProps,
@@ -12,7 +22,9 @@ export {
   isNoteColor,
   NOTE_COLOR_OPTIONS,
   type NoteColor,
+  type NoteColorOption,
 } from './note/note-colors'
+export { getNoteStringValue, isNoteContentEmpty } from './note/note-content'
 export {
   type SubflowNodeData,
   SubflowNodeView,
@@ -20,6 +32,12 @@ export {
   SubflowStartView,
 } from './subflow/subflow-node-view'
 export type { BlockRunStatus, DiffStatus, EdgeDiffStatus, EdgeRunStatus } from './types'
+export {
+  type CanvasSentenceSegment,
+  CanvasSentenceView,
+  type CanvasSentenceViewProps,
+} from './workflow-block/canvas-sentence-view'
+export { InlineChip, type InlineChipProps } from './workflow-block/inline-chip'
 export {
   CURSOR_SOURCE_HANDLE_ID,
   getCursorBranchSourceHandleId,

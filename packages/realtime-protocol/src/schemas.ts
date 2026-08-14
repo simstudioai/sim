@@ -16,6 +16,17 @@ const PositionSchema = z.object({
   y: z.number(),
 })
 
+/**
+ * Shape only. Bounds are not enforced here because the batch-add and
+ * replace-state ops write the same field without passing through this schema, so
+ * the clamp that actually holds is the one applied on read at execution time.
+ */
+const BlockRetrySchema = z.object({
+  enabled: z.boolean(),
+  maxTries: z.number().int(),
+  waitBetweenTriesMs: z.number().int(),
+})
+
 const AutoConnectEdgeSchema = z.object({
   id: z.string(),
   source: z.string(),
@@ -29,11 +40,11 @@ export const BlockOperationSchema = z.object({
   operation: z.enum([
     BLOCK_OPERATIONS.UPDATE_POSITION,
     BLOCK_OPERATIONS.UPDATE_NAME,
-    BLOCK_OPERATIONS.UPDATE_DESCRIPTION,
     BLOCK_OPERATIONS.TOGGLE_ENABLED,
     BLOCK_OPERATIONS.UPDATE_PARENT,
     BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE,
     BLOCK_OPERATIONS.UPDATE_ERROR_ENABLED,
+    BLOCK_OPERATIONS.UPDATE_RETRY,
     BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE,
     BLOCK_OPERATIONS.REPLACE_CANONICAL_MODES,
     BLOCK_OPERATIONS.TOGGLE_HANDLES,
@@ -43,7 +54,6 @@ export const BlockOperationSchema = z.object({
     id: z.string(),
     type: z.string().optional(),
     name: z.string().optional(),
-    description: z.string().optional(),
     position: PositionSchema.optional(),
     commit: z.boolean().optional(),
     data: z.record(z.string(), z.any()).optional(),
@@ -54,6 +64,7 @@ export const BlockOperationSchema = z.object({
     enabled: z.boolean().optional(),
     advancedMode: z.boolean().optional(),
     errorEnabled: z.boolean().optional(),
+    retry: BlockRetrySchema.optional(),
     horizontalHandles: z.boolean().optional(),
     canonicalId: z.string().optional(),
     canonicalMode: z.enum(['basic', 'advanced']).optional(),

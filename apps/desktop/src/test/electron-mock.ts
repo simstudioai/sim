@@ -11,6 +11,8 @@ import { vi } from 'vitest'
 export const app = {
   name: 'Sim',
   isPackaged: false,
+  userAgentFallback:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Sim/1.0.0 Chrome/140.0.7339.207 Electron/43.1.1 Safari/537.36',
   getVersion: vi.fn(() => '1.0.0'),
   getName: vi.fn(() => 'Sim'),
   setName: vi.fn(),
@@ -35,6 +37,7 @@ export const crashReporter = {
 }
 
 export const shell = {
+  beep: vi.fn(),
   openExternal: vi.fn(() => Promise.resolve()),
   openPath: vi.fn(() => Promise.resolve('')),
   showItemInFolder: vi.fn(),
@@ -55,6 +58,13 @@ export const safeStorage = {
 export const clipboard = {
   writeText: vi.fn(),
   readText: vi.fn(() => ''),
+}
+
+export const systemPreferences = {
+  getMediaAccessStatus: vi.fn(() => 'granted'),
+  askForMediaAccess: vi.fn(() => Promise.resolve(true)),
+  canPromptTouchID: vi.fn(() => false),
+  promptTouchID: vi.fn(() => Promise.resolve()),
 }
 
 export const nativeTheme = {
@@ -135,6 +145,7 @@ function createWebContentsMock() {
     reload: vi.fn(),
     print: vi.fn(),
     focus: vi.fn(),
+    invalidate: vi.fn(),
     isFocused: vi.fn(() => false),
     close: vi.fn(),
     isDestroyed: vi.fn(() => false),
@@ -143,6 +154,7 @@ function createWebContentsMock() {
     findInPage: vi.fn(() => 1),
     stopFindInPage: vi.fn(),
     setBackgroundThrottling: vi.fn(),
+    setUserAgent: vi.fn(),
     setIgnoreMenuShortcuts: vi.fn(),
     getZoomFactor: vi.fn(() => 1),
     setZoomFactor: vi.fn(),
@@ -176,6 +188,7 @@ function createWebContentsMock() {
     session: {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
+      setUserAgent: vi.fn(),
       webRequest: { onBeforeRequest: vi.fn() },
       on: vi.fn(),
     },

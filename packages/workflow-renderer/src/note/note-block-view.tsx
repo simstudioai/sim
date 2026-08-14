@@ -1,4 +1,5 @@
 import {
+  type ComponentProps,
   memo,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
@@ -10,11 +11,12 @@ import {
   useRef,
   useState,
 } from 'react'
+import { ChevronsDownUp, Expand } from '@sim/emcn/icons'
 import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { Button, cn, handleKeyboardActivation, Tooltip } from '@sim/emcn'
-import { ChevronsDownUp, Expand } from '@sim/emcn/icons'
 import { getEmbedInfo } from '@sim/utils/media-embed'
 import { BLOCK_DIMENSIONS, clampNoteBlockHeight, estimateNoteBlockHeight } from '../dimensions'
 import { OverflowSpan } from '../lib/overflow-span'
@@ -35,10 +37,19 @@ type NoteEditingField = 'title' | 'content' | null
 
 export interface NoteContentEditorProps {
   value: string
+  /** The note colour's selection tint, applied to the editor's own prose. */
   selectionClassName: string
+  /** The note colour's caret, so the cursor reads against the card's own fill. */
+  caretClassName: string
+  /**
+   * Viewport point of the click that opened editing, so the caret lands where
+   * the user aimed. The read view sits under a full-bleed overlay that has to
+   * swallow that click to enter editing, so the position cannot reach the
+   * editor any other way. Null for keyboard activation, which has no point.
+   */
+  openedAt: { clientX: number; clientY: number } | null
+  /** Persists as the user types; the note has no uncommitted buffer. */
   onChange: (content: string) => void
-  onBlur: () => void
-  onCancel: () => void
 }
 
 interface EditPointerStart {
@@ -53,9 +64,48 @@ interface NotePointerStart {
 }
 
 /**
- * Compact markdown renderer for note blocks with tight spacing
+ * Whether a drag carries files rather than one of the canvas's own payloads.
+ *
+ * The toolbar's block drags put `application/json` on the transfer and nothing
+ * else, so keying on `Files` is what keeps a note from claiming a drop the
+ * canvas is meant to place.
  */
-const NOTE_REMARK_PLUGINS = [remarkBreaks]
+function isFileDrag(transfer: DataTransfer | null): boolean {
+  return transfer ? Array.from(transfer.types).includes('Files') : false
+}
+
+/** The image files on a drop, in the order the browser reports them. */
+function imageFilesFrom(transfer: DataTransfer | null): File[] {
+  return transfer ? Array.from(transfer.files).filter((file) => file.type.startsWith('image/')) : []
+}
+
+/**
+ * Compact markdown renderer for note blocks with tight spacing.
+ *
+ * Streamdown's `remarkPlugins` prop REPLACES its defaults rather than extending
+ * them, and GFM is one of those defaults — so passing `remarkBreaks` alone
+ * silently dropped task lists, tables, strikethrough and autolinks from the read
+ * view. The editor writes all four (it has TaskList, TableKit and Strike), so a
+ * note round-tripped through editing came back as raw `- [x]` source.
+ */
+const NOTE_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
+
+/**
+ * Checkbox chrome for a GFM task item, matching the editor's own
+ * (`.rich-markdown-nodes input[type="checkbox"]`) declaration for declaration —
+ * including the tick's clip-path — because the two render the same note either
+ * side of a click and any difference reads as the card changing shape.
+ *
+ * `disabled` is what remark-gfm emits and what the read view wants: the note is
+ * not interactive until you click into it, and then the editor owns the control.
+ */
+const NOTE_TASK_CHECKBOX_CLASS = [
+  'mt-[3px] inline-grid size-[16px] shrink-0 appearance-none place-content-center',
+  'rounded-[3px] border border-[var(--border-1)] bg-transparent',
+  'checked:border-[var(--text-primary)] checked:bg-[var(--text-primary)]',
+  "checked:after:size-[10px] checked:after:bg-[var(--surface-2)] checked:after:content-['']",
+  'checked:after:[clip-path:polygon(14%_44%,0_65%,50%_100%,100%_16%,80%_0%,43%_62%)]',
+].join(' ')
 
 const NOTE_COMPONENTS = {
   p: ({ children }: { children?: ReactNode }) => (
@@ -81,8 +131,16 @@ const NOTE_COMPONENTS = {
       {children}
     </h4>
   ),
-  ul: ({ children }: { children?: ReactNode }) => (
-    <ul className='mt-1 mb-1 list-disc space-y-1 break-words pl-6 text-current text-sm'>
+  /* A checklist is not a bulleted list: remark-gfm marks it `contains-task-list`,
+     and the disc and left padding have to come off or every checkbox sits behind
+     a bullet. Same rule the editor's shared node chrome applies. */
+  ul: ({ children, className }: { children?: ReactNode; className?: string }) => (
+    <ul
+      className={cn(
+        'mt-1 mb-1 space-y-1 break-words text-current text-sm',
+        className?.includes('contains-task-list') ? 'list-none pl-0' : 'list-disc pl-6'
+      )}
+    >
       {children}
     </ul>
   ),
@@ -91,7 +149,38 @@ const NOTE_COMPONENTS = {
       {children}
     </ol>
   ),
-  li: ({ children }: { children?: ReactNode }) => <li className='break-words'>{children}</li>,
+  li: ({ children, className }: { children?: ReactNode; className?: string }) => (
+    <li
+      className={cn(
+        'break-words',
+        className?.includes('task-list-item') && 'flex items-start gap-2'
+      )}
+    >
+      {children}
+    </li>
+  ),
+  input: ({ type, checked }: ComponentProps<'input'>) =>
+    type === 'checkbox' ? (
+      <input type='checkbox' checked={checked} disabled className={NOTE_TASK_CHECKBOX_CLASS} />
+    ) : null,
+  /**
+   * `width`/`height` are load-bearing, not decoration: resizing an image in the editor commits the
+   * new width to the node and it serializes as `<img width>`, since markdown has no size syntax.
+   * Dropping them here rendered every image at its natural size in the read view, so a resized note
+   * flipped between two sizes as editing opened and closed.
+   *
+   * `h-auto` keeps the aspect ratio when `max-w-full` shrinks a wide image below its stated width —
+   * the same pairing the editor's node view uses, so both views agree at every card width.
+   */
+  img: ({ src, alt, width, height }: ComponentProps<'img'>) => (
+    <img
+      src={typeof src === 'string' ? src : undefined}
+      alt={alt ?? ''}
+      width={width}
+      height={height}
+      className='my-2 block h-auto max-w-full rounded-md'
+    />
+  ),
   inlineCode: ({ children }: { children?: ReactNode }) => (
     <code className='whitespace-normal rounded bg-black/10 px-1 py-0.5 font-mono text-current text-xs'>
       {children}
@@ -203,9 +292,27 @@ const NOTE_COMPONENTS = {
   ),
 }
 
+/**
+ * Block rhythm for the note's markdown, and the contract the inline editor
+ * mirrors on its ProseMirror root.
+ *
+ * Streamdown wraps its output in a container that applies exactly this by
+ * default, which outranks the per-element margins in {@link NOTE_COMPONENTS} —
+ * so it, not those margins, is what the read view actually paints. Passing it
+ * explicitly makes the rule the note's own: a Streamdown upgrade can no longer
+ * move the read view out from under the editor, which is what made every block
+ * after the first jump the moment editing opened.
+ */
+export const NOTE_MARKDOWN_FLOW = 'space-y-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0'
+
 const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }) {
   return (
-    <Streamdown mode='static' remarkPlugins={NOTE_REMARK_PLUGINS} components={NOTE_COMPONENTS}>
+    <Streamdown
+      mode='static'
+      className={NOTE_MARKDOWN_FLOW}
+      remarkPlugins={NOTE_REMARK_PLUGINS}
+      components={NOTE_COMPONENTS}
+    >
       {content}
     </Streamdown>
   )
@@ -233,11 +340,39 @@ export interface NoteBlockViewProps {
   onNameChange?: (name: string) => boolean
   /** Persists inline note content as the user types. */
   onContentChange?: (content: string) => void
+  /**
+   * A count of writes the host has made to `content` from outside the editor —
+   * the canvas "Add image" action and {@link onImageFilesDrop} today. Each one
+   * ends any in-progress content editing, because the editor seeds its document
+   * once when editing opens: left running, its next keystroke would serialize
+   * that stale document straight over the host's write.
+   */
+  externalContentWrites?: number
+  /**
+   * A count of rename requests the host has made from outside the card — the
+   * canvas context menu's "Rename" is the only one today. The card is the only
+   * surface that can rename a note (the panel editor renders nothing for one),
+   * and its title is only clickable once expanded, so the host expands the card
+   * and bumps this together.
+   */
+  externalRenameRequests?: number
   /** Publishes the measured, clamped canvas height to the editor container. */
   onHeightChange?: (height: number) => void
   onExpandedChange?: (expanded: boolean) => void
-  /** Renders a WYSIWYG markdown editor supplied by the host application. */
-  renderContentEditor?: (props: NoteContentEditorProps) => ReactNode
+  /**
+   * Uploads image files dropped anywhere on the card and appends them to the
+   * note, for the drop the editor cannot take: the card is a read view until it
+   * is expanded and clicked into, so without this the natural gesture — drag an
+   * image from Finder onto the note — lands on the canvas and is swallowed.
+   * Omit to leave the card inert to file drops.
+   */
+  onImageFilesDrop?: (files: File[]) => void
+  /**
+   * Renders the markdown editor. Required rather than optional: an internal
+   * fallback editor would be a second editing surface that production never
+   * reaches, drifting from the real one with only tests to notice.
+   */
+  renderContentEditor: (props: NoteContentEditorProps) => ReactNode
   /** Editor-only action bar; omit in read-only / preview contexts. */
   actionBar?: ReactNode
 }
@@ -260,8 +395,11 @@ export function NoteBlockView({
   onSelect,
   onNameChange,
   onContentChange,
+  externalContentWrites = 0,
+  externalRenameRequests = 0,
   onHeightChange,
   onExpandedChange,
+  onImageFilesDrop,
   renderContentEditor,
   actionBar,
 }: NoteBlockViewProps) {
@@ -270,33 +408,60 @@ export function NoteBlockView({
   const noteLayoutRef = useRef<HTMLDivElement>(null)
   const scrollRegionRef = useRef<HTMLElement>(null)
   const contentMeasureRef = useRef<HTMLDivElement>(null)
-  const contentEditorRef = useRef<HTMLDivElement>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
-  const contentInputRef = useRef<HTMLTextAreaElement>(null)
   const editPointerStartRef = useRef<EditPointerStart>(null)
   const notePointerStartRef = useRef<NotePointerStart>(null)
-  const expandedAnchorHeightRef = useRef(estimateNoteBlockHeight(content))
   const [editingField, setEditingField] = useState<NoteEditingField>(null)
+  const [contentEditOpenedAt, setContentEditOpenedAt] = useState<{
+    clientX: number
+    clientY: number
+  } | null>(null)
   const [draftName, setDraftName] = useState(name ?? '')
   const [draftContent, setDraftContent] = useState(content)
   const [compactHeight, setCompactHeight] = useState(() => estimateNoteBlockHeight(content))
   const [isHovered, setIsHovered] = useState(false)
+  const [isFileDropTarget, setIsFileDropTarget] = useState(false)
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
   const activeContent = editingField === 'content' ? draftContent : content
   const isEmpty = activeContent.trim().length === 0
   const hasVisualFocus = isFocused || isExpanded
   const isInlineEditable = isExpanded && canEdit
-  const hasCustomContentEditor = Boolean(renderContentEditor)
   const blockWidth = isExpanded ? BLOCK_DIMENSIONS.NOTE_EXPANDED_WIDTH : BLOCK_DIMENSIONS.NOTE_WIDTH
   const blockHeight = isExpanded ? BLOCK_DIMENSIONS.NOTE_EXPANDED_HEIGHT : compactHeight
-  if (!isExpanded) expandedAnchorHeightRef.current = compactHeight
-  const layoutHeight = isExpanded ? expandedAnchorHeightRef.current : compactHeight
+  /*
+   * The node's canvas footprint stays at the compact height while the card
+   * overlays at its expanded size, so expanding never shifts the layer below.
+   * `compactHeight` is only ever measured at the compact width, so it already
+   * holds that value throughout the expansion — no separate anchor needed.
+   */
+  const layoutHeight = compactHeight
   const isContentScrollable = canScrollUp || canScrollDown
 
   useEffect(() => {
     if (!isInlineEditable) setEditingField(null)
   }, [isInlineEditable])
+
+  /* Hands the document back to `content`. Idempotent, so the mount-time run and
+     any repeat are both no-ops when nothing is being edited. */
+  useEffect(() => {
+    setEditingField((field) => (field === 'content' ? null : field))
+  }, [externalContentWrites])
+
+  /*
+   * Opens the title on the host's request. Declared after the guard above so it
+   * wins within the same commit: the host expands the card and bumps the count
+   * together, and the guard would otherwise clear the field it just set. The
+   * zero check skips the mount run, which is not a request.
+   */
+  const requestedRenameRef = useRef(externalRenameRequests)
+  useEffect(() => {
+    if (externalRenameRequests === requestedRenameRef.current) return
+    requestedRenameRef.current = externalRenameRequests
+    if (!isInlineEditable) return
+    setDraftName(name ?? '')
+    setEditingField('title')
+  }, [externalRenameRequests, isInlineEditable, name])
 
   useEffect(() => {
     if (!isExpanded || !onExpandedChange) return
@@ -313,18 +478,12 @@ export function NoteBlockView({
     return () => document.removeEventListener('pointerdown', handleCanvasPointerDown, true)
   }, [isExpanded, onExpandedChange])
 
+  /* Content focus is the injected editor's own concern — it owns its caret. */
   useEffect(() => {
-    if (editingField === 'title') {
-      const input = titleInputRef.current
-      input?.focus()
-      input?.setSelectionRange(input.value.length, input.value.length)
-      return
-    }
-    if (editingField === 'content') {
-      const input = contentInputRef.current
-      input?.focus()
-      input?.setSelectionRange(input.value.length, input.value.length)
-    }
+    if (editingField !== 'title') return
+    const input = titleInputRef.current
+    input?.focus()
+    input?.setSelectionRange(input.value.length, input.value.length)
   }, [editingField])
 
   function startEditing(
@@ -344,7 +503,12 @@ export function NoteBlockView({
     if (!isKeyboardActivation && !isIntentionalClick) return
 
     if (field === 'title') setDraftName(name ?? '')
-    if (field === 'content') setDraftContent(content)
+    if (field === 'content') {
+      setDraftContent(content)
+      setContentEditOpenedAt(
+        isKeyboardActivation ? null : { clientX: event.clientX, clientY: event.clientY }
+      )
+    }
     setEditingField(field)
   }
 
@@ -405,6 +569,52 @@ export function NoteBlockView({
     setDraftName(name ?? '')
     setEditingField(null)
   }
+
+  const acceptsImageDrop = Boolean(onImageFilesDrop) && canEdit
+
+  /**
+   * Claims a file drag for the card.
+   *
+   * A drop only fires where the `dragover` was cancelled, and the canvas cancels
+   * its own on the pane behind — so without this the file lands on the canvas,
+   * which has nothing to do with it, and the drag reads as rejected.
+   */
+  function handleFileDragOver(event: React.DragEvent<HTMLDivElement>) {
+    if (!acceptsImageDrop || !isFileDrag(event.dataTransfer)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    setIsFileDropTarget(true)
+  }
+
+  function handleFileDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    /* `dragleave` fires on every crossing into a child as well, and Chrome
+       reports no `relatedTarget` for it — so the pointer's own position is what
+       says whether the card was really left. Reading the node tree instead
+       flickers the highlight off and back on across every child boundary. */
+    const rect = event.currentTarget.getBoundingClientRect()
+    const isInsideCard =
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom
+    if (isInsideCard) return
+    setIsFileDropTarget(false)
+  }
+
+  function handleFileDrop(event: React.DragEvent<HTMLDivElement>) {
+    setIsFileDropTarget(false)
+    if (!acceptsImageDrop) return
+    /* An open editor takes the drop first — it inserts at the point the user
+       aimed at and marks the event handled. Appending here as well would store
+       a second copy of the same image. */
+    if (event.defaultPrevented) return
+
+    const images = imageFilesFrom(event.dataTransfer)
+    if (images.length === 0) return
+    event.preventDefault()
+    onImageFilesDrop?.(images)
+  }
+
   const updateScrollFades = useCallback(() => {
     const scrollRegion = scrollRegionRef.current
     if (!scrollRegion) return
@@ -420,55 +630,48 @@ export function NoteBlockView({
     [updateScrollFades]
   )
 
+  /**
+   * Measures the compact height, and only ever at the compact width.
+   *
+   * An expanded note lays out at `NOTE_EXPANDED_WIDTH`, where the same text
+   * re-wraps shorter. Measuring there would publish that shorter height as the
+   * node's stored height for as long as the note stayed open — the collapse
+   * would then animate to the wrong height and snap once a compact re-measure
+   * landed.
+   *
+   * `editingField` gates this too, and belongs in the dependency list: the
+   * measured node only exists in the non-editing branch, and `editingField` is
+   * cleared by a passive effect, so a collapse that skips blur (losing edit
+   * rights, or the canvas pointerdown capture) commits one frame where the note
+   * is collapsed but the editor is still mounted. Measuring there publishes a
+   * raw estimate, and without the dependency neither this callback nor the
+   * observer below would re-run once the real node came back.
+   */
   const measureBlockHeight = useCallback(() => {
-    let contentHeight =
-      BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING + BLOCK_DIMENSIONS.NOTE_MIN_CONTENT_HEIGHT
+    if (isExpanded || editingField === 'content') return
 
-    if (!isEmpty) {
-      if (editingField === 'content' && contentInputRef.current) {
-        const input = contentInputRef.current
-        const previousHeight = input.style.height
-        input.style.height = '0px'
-        const measuredHeight = input.scrollHeight
-        contentHeight =
-          measuredHeight > 0
-            ? measuredHeight
-            : estimateNoteBlockHeight(activeContent) - BLOCK_DIMENSIONS.HEADER_HEIGHT
-        input.style.height = previousHeight
-      } else if (editingField === 'content' && contentEditorRef.current) {
-        const measuredHeight = contentEditorRef.current.scrollHeight
-        contentHeight =
-          measuredHeight > 0
-            ? measuredHeight
-            : estimateNoteBlockHeight(activeContent) - BLOCK_DIMENSIONS.HEADER_HEIGHT
-      } else if (contentMeasureRef.current) {
-        const measuredHeight = contentMeasureRef.current.scrollHeight
-        contentHeight =
-          measuredHeight > 0
-            ? measuredHeight
-            : estimateNoteBlockHeight(activeContent) - BLOCK_DIMENSIONS.HEADER_HEIGHT
-      } else {
-        contentHeight = estimateNoteBlockHeight(activeContent) - BLOCK_DIMENSIONS.HEADER_HEIGHT
-      }
-    }
+    const measuredContentHeight = isEmpty ? 0 : (contentMeasureRef.current?.scrollHeight ?? 0)
+    const nextCompactHeight =
+      measuredContentHeight > 0
+        ? clampNoteBlockHeight(measuredContentHeight)
+        : estimateNoteBlockHeight(activeContent)
 
-    const nextCompactHeight = clampNoteBlockHeight(contentHeight)
     setCompactHeight((currentHeight) =>
       currentHeight === nextCompactHeight ? currentHeight : nextCompactHeight
     )
     onHeightChange?.(nextCompactHeight)
-  }, [activeContent, editingField, isEmpty, onHeightChange])
+  }, [activeContent, editingField, isEmpty, isExpanded, onHeightChange])
 
   useLayoutEffect(() => {
     measureBlockHeight()
   }, [measureBlockHeight])
 
   useEffect(() => {
-    if (editingField === 'content' || !contentMeasureRef.current) return
+    if (isExpanded || editingField === 'content' || !contentMeasureRef.current) return
     const observer = new ResizeObserver(measureBlockHeight)
     observer.observe(contentMeasureRef.current)
     return () => observer.disconnect()
-  }, [editingField, measureBlockHeight])
+  }, [editingField, isExpanded, measureBlockHeight])
 
   useEffect(() => {
     if (!hasVisualFocus && scrollRegionRef.current) {
@@ -513,8 +716,8 @@ export function NoteBlockView({
     <div
       ref={noteLayoutRef}
       data-note-layout=''
-      className='relative w-[320px]'
-      style={{ height: layoutHeight }}
+      className='relative'
+      style={{ width: BLOCK_DIMENSIONS.NOTE_WIDTH, height: layoutHeight }}
     >
       <div
         ref={actionMenuRootRef}
@@ -548,17 +751,29 @@ export function NoteBlockView({
           className={cn(
             'relative z-20 select-none rounded-2xl transition-[color,width,height] [transition-duration:150ms,280ms,280ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none',
             isExpanded
-              ? 'nodrag w-[520px] cursor-default'
+              ? 'nodrag cursor-default'
               : [
-                  'note-drag-handle w-[320px] [&:active]:cursor-grabbing',
+                  'note-drag-handle [&:active]:cursor-grabbing',
                   hasVisualFocus ? 'cursor-text' : 'cursor-grab',
                 ],
             colorOption.textClassName
           )}
-          style={{ height: blockHeight }}
+          /* Width and height come from the same constants that size the border
+             SVG and the node's canvas bounds — a Tailwind literal here would
+             move the painted card without moving either of those. */
+          style={{ width: blockWidth, height: blockHeight }}
           onPointerDown={recordNotePointerStart}
           onClick={handleNoteClick}
-          onTransitionEnd={updateScrollFades}
+          onDragOver={handleFileDragOver}
+          onDragLeave={handleFileDragLeave}
+          onDrop={handleFileDrop}
+          /* Only the card's own transition. React bubbles this, and the card
+             holds several transitioning children (the expand button, both
+             icons), so an unguarded handler forces a sync layout read on every
+             hover. */
+          onTransitionEnd={(event) => {
+            if (event.target === event.currentTarget) updateScrollFades()
+          }}
           onKeyDown={(event) => {
             if (event.target === event.currentTarget) {
               handleKeyboardActivation(event, () => {
@@ -576,7 +791,10 @@ export function NoteBlockView({
             cursorSwellEnabled={false}
             hasRing={hasRing}
             ringStyles={ringStyles}
-            isSelected={hasVisualFocus}
+            /* A file held over the card lights its own silhouette rather than a
+               second, drop-only outline — the card already has one way of
+               saying "this is the thing you are acting on". */
+            isSelected={hasVisualFocus || isFileDropTarget}
             selectedSilhouetteColor={colorOption.selectedSilhouetteColor}
             silhouetteColorOverride={
               !hasVisualFocus && isHovered ? colorOption.hoverSilhouetteColor : undefined
@@ -608,7 +826,7 @@ export function NoteBlockView({
                     }
                   }}
                   className={cn(
-                    'nodrag nopan nowheel h-7 w-full min-w-0 select-text border-none bg-transparent px-0 text-current text-md caret-current outline-none focus-visible:outline-none',
+                    'nodrag nopan nowheel h-7 w-full min-w-0 select-text border-none bg-transparent px-0 text-[17px] text-current caret-current outline-none focus-visible:outline-none',
                     colorOption.selectionClassName,
                     !isEnabled && 'opacity-50'
                   )}
@@ -624,12 +842,12 @@ export function NoteBlockView({
                     !isEnabled && 'opacity-50'
                   )}
                 >
-                  <OverflowSpan value={name ?? ''} className='truncate text-current text-md' />
+                  <OverflowSpan value={name ?? ''} className='truncate text-[17px] text-current' />
                 </button>
               ) : (
                 <OverflowSpan
                   value={name ?? ''}
-                  className={cn('truncate text-current text-md', !isEnabled && 'opacity-50')}
+                  className={cn('truncate text-[17px] text-current', !isEnabled && 'opacity-50')}
                 />
               )}
             </div>
@@ -687,10 +905,7 @@ export function NoteBlockView({
                 editingField !== 'content' &&
                 'nowheel allow-scroll touch-pan-y',
               !isEmpty && editingField !== 'content' && 'overflow-y-auto',
-              editingField === 'content' &&
-                (hasCustomContentEditor
-                  ? 'nowheel allow-scroll touch-pan-y overflow-y-auto'
-                  : 'overflow-hidden'),
+              editingField === 'content' && 'nowheel allow-scroll touch-pan-y overflow-y-auto',
               editingField !== 'content' &&
                 canScrollUp &&
                 canScrollDown && [
@@ -712,50 +927,56 @@ export function NoteBlockView({
               !isEnabled && 'opacity-50'
             )}
           >
-            {editingField === 'content' && renderContentEditor ? (
+            {editingField === 'content' ? (
               <div
-                ref={contentEditorRef}
-                className='nodrag nopan nowheel min-h-full w-full'
+                /* The card is `select-none` so dragging it around the canvas
+                   never highlights its text. Editing has to opt back in, or the
+                   caret is all you get — no word double-click, no drag-select,
+                   and so nothing the formatting bar can act on. The title input
+                   opts back in the same way. */
+                className='nodrag nopan nowheel min-h-full w-full select-text'
                 onClick={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
+                /* Leaving edit mode is the card's concern, not the injected
+                   editor's — so the editor stays a plain value surface. Escape
+                   is only honoured when nothing already consumed it: the
+                   editor's `/` and `@` menus preventDefault it to close
+                   themselves, and that must not also close the note. */
+                onKeyDown={(event) => {
+                  if (event.key !== 'Escape' || event.defaultPrevented) return
+                  event.preventDefault()
+                  setEditingField(null)
+                }}
+                /* Focus moving inside the editor is not an exit — and neither is
+                   focus moving into the editor's own floating UI. The formatting
+                   bar, the link editor, the `/` menu and a code block's language
+                   menu all portal to the document body, outside the canvas, so
+                   only a move that stays inside the canvas ends editing. */
+                onBlur={(event) => {
+                  /* Leaving the browser is not a decision to stop editing, and
+                     treating it as one is what made "drag an image in from
+                     Finder" impossible: picking the file up blurred the window,
+                     which closed the editor before the drop could land. A window
+                     blur and a click on non-focusable chrome both arrive with a
+                     null `relatedTarget`; whether the document still holds focus
+                     is what separates them. */
+                  if (event.relatedTarget === null && !document.hasFocus()) return
+                  const nextFocus = event.relatedTarget
+                  if (nextFocus instanceof Element && !nextFocus.closest('.react-flow')) return
+                  if (!event.currentTarget.contains(nextFocus)) setEditingField(null)
+                }}
               >
                 {renderContentEditor({
                   value: draftContent,
                   selectionClassName: colorOption.selectionClassName,
+                  caretClassName: colorOption.caretClassName,
+                  openedAt: contentEditOpenedAt,
                   onChange: (nextContent) => {
                     setDraftContent(nextContent)
                     onContentChange?.(nextContent)
                   },
-                  onBlur: () => setEditingField(null),
-                  onCancel: () => setEditingField(null),
                 })}
               </div>
-            ) : editingField === 'content' ? (
-              <textarea
-                ref={contentInputRef}
-                aria-label='Note content'
-                placeholder='Add note…'
-                value={draftContent}
-                onChange={(event) => {
-                  const nextContent = event.target.value
-                  setDraftContent(nextContent)
-                  onContentChange?.(nextContent)
-                }}
-                onBlur={() => setEditingField(null)}
-                onClick={(event) => event.stopPropagation()}
-                onPointerDown={(event) => event.stopPropagation()}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape' || (event.key === 'Enter' && event.metaKey)) {
-                    event.preventDefault()
-                    setEditingField(null)
-                  }
-                }}
-                className={cn(
-                  'nodrag nopan nowheel scrollbar-none h-full w-full select-text resize-none border-none bg-transparent px-0 pt-0.5 pb-2 text-current text-sm leading-[1.25rem] caret-current outline-none focus-visible:outline-none',
-                  colorOption.inputPlaceholderClassName,
-                  colorOption.selectionClassName
-                )}
-              />
             ) : (
               <>
                 {isInlineEditable && (

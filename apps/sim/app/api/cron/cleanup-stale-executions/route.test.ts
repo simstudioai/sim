@@ -37,6 +37,21 @@ function flattenConditions(condition: unknown): MockCondition[] {
   return [node, ...(node.conditions?.flatMap((child) => flattenConditions(child)) ?? [])]
 }
 
+function hasToSQL(value: unknown): value is { toSQL: () => { sql: string; params: unknown[] } } {
+  return typeof value === 'object' && value !== null && 'toSQL' in value
+}
+
+/**
+ * Collects the leaves of a nested `sql` expression. The duration expression is
+ * built by a shared helper, so the values it binds sit one level below the
+ * fragment this route assembles rather than directly in its own params.
+ */
+function flattenSqlParams(expression: { sql: string; params: unknown[] }): unknown[] {
+  return expression.params.flatMap((param) =>
+    hasToSQL(param) ? flattenSqlParams(param.toSQL()) : [param]
+  )
+}
+
 function createRequest() {
   return createMockRequest(
     'GET',
@@ -96,11 +111,7 @@ describe('stale execution cleanup deadline grace', () => {
           'toSQL' in value &&
           value.toSQL().sql.includes('EXTRACT(EPOCH')
       )
-      const totalDurationExpression = update.totalDurationMs.toSQL()
-      const cleanupTimestamp = totalDurationExpression.params.find(
-        (value): value is { toSQL: () => { sql: string; params: unknown[] } } =>
-          typeof value === 'object' && value !== null && 'toSQL' in value
-      )
+      const totalDurationLeaves = flattenSqlParams(update.totalDurationMs.toSQL())
 
       expect(errorExpression.sql).toContain('CASE')
       expect(errorExpression.sql).toContain('IS NOT NULL')
@@ -111,11 +122,9 @@ describe('stale execution cleanup deadline grace', () => {
       )
       expect(staleDurationExpression?.toSQL().sql).toContain('ROUND')
       expect(staleDurationExpression?.toSQL().params).toContain(workflowExecutionLogs.startedAt)
-      expect(totalDurationExpression.sql).toContain('LEAST')
-      expect(totalDurationExpression.sql).toContain('ROUND')
-      expect(totalDurationExpression.params).toContain(2_147_483_647)
-      expect(totalDurationExpression.params).toContain(workflowExecutionLogs.startedAt)
-      expect(cleanupTimestamp?.toSQL().params).toEqual([new Date('2026-08-03T12:10:00.000Z')])
+      expect(totalDurationLeaves).toContain(2_147_483_647)
+      expect(totalDurationLeaves).toContain(workflowExecutionLogs.startedAt)
+      expect(totalDurationLeaves).toContainEqual(new Date('2026-08-03T12:10:00.000Z'))
       expect(update.endedAt).toEqual(new Date('2026-08-03T12:10:00.000Z'))
     } finally {
       vi.useRealTimers()

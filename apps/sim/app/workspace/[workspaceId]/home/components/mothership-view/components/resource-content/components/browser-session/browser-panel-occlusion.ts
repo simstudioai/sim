@@ -36,7 +36,8 @@ export type BrowserPanelOverlay =
   | 'toolbar'
 
 export interface BrowserPanelOverlayController {
-  requestOverlay: (overlay: BrowserPanelOverlay, fallback: () => void) => Promise<void>
+  /** True when the renderer overlay owns the painted frame; false when fallback handled it. */
+  requestOverlay: (overlay: BrowserPanelOverlay, fallback: () => void) => Promise<boolean>
   closeOverlay: (overlay: BrowserPanelOverlay) => Promise<void>
 }
 
@@ -446,30 +447,36 @@ export function useBrowserPanelOcclusion(
   )
 
   const requestOverlay = useCallback(
-    async (overlay: BrowserPanelOverlay, fallback: () => void) => {
-      if (
-        !panelVisibleRef.current ||
-        screenOcclusionPresentRef.current ||
-        activeOverlayRef.current ||
-        pendingOverlayRef.current
-      ) {
-        return
+    async (overlay: BrowserPanelOverlay, fallback: () => void): Promise<boolean> => {
+      if (!panelVisibleRef.current || screenOcclusionPresentRef.current) return false
+      if (activeOverlayRef.current === overlay) return true
+      if (pendingOverlayRef.current === overlay) {
+        await reconcileChainRef.current
+        return activeOverlayRef.current === overlay
       }
 
+      // A different renderer popover can replace the current one without
+      // revealing the native page between them. Keeping a pending popover owns
+      // the existing captured frame while the old controlled menu closes.
       pendingOverlayRef.current = overlay
+      if (activeOverlayRef.current) {
+        activeOverlayRef.current = null
+        setActiveOverlay(null)
+      }
       const ready = await scheduleReconcile()
-      if (!mountedRef.current || pendingOverlayRef.current !== overlay) return
+      if (!mountedRef.current || pendingOverlayRef.current !== overlay) return false
 
       if (ready && nativeHiddenRef.current && desiredLayer() === 'popover') {
         pendingOverlayRef.current = null
         activeOverlayRef.current = overlay
         setActiveOverlay(overlay)
-        return
+        return true
       }
 
       pendingOverlayRef.current = null
       await scheduleReconcile()
       fallback()
+      return false
     },
     [desiredLayer, scheduleReconcile]
   )

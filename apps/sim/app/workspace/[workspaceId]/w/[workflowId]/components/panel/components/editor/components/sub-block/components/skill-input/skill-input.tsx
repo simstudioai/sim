@@ -1,13 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import {
-  Button,
-  ChipCombobox,
-  type ComboboxOptionGroup,
-  chipFieldSurfaceClass,
-  cn,
-} from '@sim/emcn'
+import { Combobox, type ComboboxOptionGroup } from '@sim/emcn'
 import { Plus, X } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { AgentSkillsIcon } from '@/components/icons'
@@ -134,7 +128,7 @@ export function SkillInput({
   return (
     <>
       <div className='w-full space-y-2'>
-        <ChipCombobox
+        <Combobox
           options={[]}
           groups={skillGroups}
           placeholder='Add skill...'
@@ -159,40 +153,41 @@ export function SkillInput({
             return (
               <div
                 key={stored.skillId}
-                className={cn(
-                  'group flex h-[30px] items-center gap-1.5 px-2',
-                  chipFieldSurfaceClass
-                )}
+                className='group relative flex flex-col overflow-hidden rounded-sm border border-[var(--border-1)] transition-all duration-200 ease-in-out'
               >
-                <button
-                  type='button'
-                  className='flex min-w-0 flex-1 items-center gap-1.5 text-left'
+                <div
+                  className='flex cursor-pointer items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-[6.5px]'
                   onClick={() => {
                     if (fullSkill && !disabled && !isPreview) {
                       setEditingSkillId(fullSkill.id)
                       setEditingSkillSnapshot(fullSkill)
                     }
                   }}
-                  disabled={!fullSkill || disabled || isPreview}
                 >
-                  <div className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--border-1)]'>
-                    <AgentSkillsIcon className='size-[10px] text-[var(--text-icon)]' />
+                  <div className='flex min-w-0 flex-1 items-center gap-2'>
+                    <div className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--border-1)]'>
+                      <AgentSkillsIcon className='size-[10px] text-[var(--text-icon)]' />
+                    </div>
+                    <span className='truncate text-[var(--text-primary)] text-small'>
+                      {formatDisplayText(skillName, { workflowSearchHighlight })}
+                    </span>
                   </div>
-                  <span className='truncate text-[var(--text-body)] text-sm'>
-                    {formatDisplayText(skillName, { workflowSearchHighlight })}
-                  </span>
-                </button>
-                {!disabled && !isPreview && (
-                  <Button
-                    type='button'
-                    variant='quiet'
-                    size='icon'
-                    onClick={() => handleRemove(stored.skillId)}
-                    aria-label='Remove skill'
-                  >
-                    <X className='size-[14px]' />
-                  </Button>
-                )}
+                  <div className='flex flex-shrink-0 items-center gap-2'>
+                    {!disabled && !isPreview && (
+                      <button
+                        type='button'
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRemove(stored.skillId)
+                        }}
+                        className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
+                        aria-label='Remove skill'
+                      >
+                        <X className='size-[13px]' />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             )
           })}

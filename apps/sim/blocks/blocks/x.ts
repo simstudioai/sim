@@ -15,6 +15,112 @@ export const XBlock: BlockConfig = {
   integrationType: IntegrationType.Communication,
   bgColor: '#000000',
   icon: xIcon,
+  canvasPresentation: {
+    defaultTitle: 'X',
+    sentences: {
+      byOperation: {
+        x_create_tweet: [
+          { text: 'Post', field: 'text', core: true },
+          { text: ', replying to', field: 'replyToTweetId' },
+          { text: ', quoting', field: 'quoteTweetId' },
+        ],
+        x_delete_tweet: [{ text: 'Delete tweet', field: 'tweetId', core: true }],
+        x_search_tweets: [
+          { text: 'Search recent tweets matching', field: 'query', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        x_get_tweets_by_ids: [{ text: 'Look up tweets', field: 'ids', core: true }],
+        x_get_quote_tweets: [
+          { text: 'List tweets quoting', field: 'tweetId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        x_hide_reply: [
+          { text: 'Set reply', field: 'tweetId', core: true },
+          { text: 'to', field: 'hidden' },
+        ],
+        x_get_user_tweets: [
+          { text: 'List tweets by user', field: 'userId', core: true },
+          { text: ', excluding', field: 'exclude' },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        x_get_user_mentions: [
+          { text: 'List tweets mentioning user', field: 'userId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        x_get_user_timeline: [
+          { text: 'Read the home timeline of user', field: 'userId', core: true },
+          { text: ', excluding', field: 'exclude' },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        x_manage_like: [
+          { text: 'Set like on tweet', field: 'tweetId', core: true },
+          { text: 'to', field: 'action' },
+        ],
+        x_manage_retweet: [
+          { text: 'Set retweet on tweet', field: 'tweetId', core: true },
+          { text: 'to', field: 'retweetAction' },
+        ],
+        x_get_liked_tweets: [
+          { text: 'List tweets liked by user', field: 'userId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        x_get_liking_users: [
+          { text: 'List users who liked tweet', field: 'tweetId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'users' },
+        ],
+        x_get_retweeted_by: [
+          { text: 'List users who retweeted tweet', field: 'tweetId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'users' },
+        ],
+        x_get_bookmarks: [
+          { text: 'List bookmarks of user', field: 'userId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        x_create_bookmark: [{ text: 'Bookmark tweet', field: 'tweetId', core: true }],
+        x_delete_bookmark: [
+          { text: 'Remove tweet', field: 'tweetId', after: 'from bookmarks', core: true },
+        ],
+        x_get_me: ['Fetch the authenticated profile'],
+        x_search_users: [
+          { text: 'Search users matching', field: 'query', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        x_get_followers: [
+          { text: 'List followers of user', field: 'userId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'users' },
+        ],
+        x_get_following: [
+          { text: 'List accounts followed by user', field: 'userId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'accounts' },
+        ],
+        x_manage_follow: [
+          { text: 'Set follow on user', field: 'targetUserId', core: true },
+          { text: 'to', field: 'followAction' },
+        ],
+        x_manage_block: [
+          { text: 'Set block on user', field: 'targetUserId', core: true },
+          { text: 'to', field: 'blockAction' },
+        ],
+        x_get_blocking: [
+          { text: 'List accounts blocked by user', field: 'userId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'accounts' },
+        ],
+        x_manage_mute: [
+          { text: 'Set mute on user', field: 'targetUserId', core: true },
+          { text: 'to', field: 'muteAction' },
+        ],
+        x_get_trends_by_woeid: [
+          { text: 'List trending topics for location', field: 'woeid', core: true },
+          { text: ', up to', field: 'maxTrends', after: 'trends' },
+        ],
+        x_get_personalized_trends: ['List personalized trending topics'],
+        x_get_usage: [
+          'Read project API usage',
+          { text: 'over the last', field: 'days', after: 'days' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

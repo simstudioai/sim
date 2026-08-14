@@ -534,14 +534,18 @@ describe('table row secret provenance', () => {
   it('binds derived rows only after their matching sidecars are written', async () => {
     queueTableRows(userTableRows, [{ id: 'legacy-row' }])
 
-    await updateTableRowsWithDerivedSecretProvenance(dbChainMock.db as unknown as DbTransaction, {
-      rowWhere: eq(userTableRows.id, 'legacy-row'),
-      transformation: {
-        mode: 'remove-columns',
-        columnIds: ['deleted-column', 'deleted-column'],
-      },
-    })
+    const updatedCount = await updateTableRowsWithDerivedSecretProvenance(
+      dbChainMock.db as unknown as DbTransaction,
+      {
+        rowWhere: eq(userTableRows.id, 'legacy-row'),
+        transformation: {
+          mode: 'remove-columns',
+          columnIds: ['deleted-column', 'deleted-column'],
+        },
+      }
+    )
 
+    expect(updatedCount).toBe(1)
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
     expect(boundArrayValues(dbChainMockFns.execute.mock.calls[0][0])).toEqual([])
     expect(sqlText(dbChainMockFns.execute.mock.calls[0][0])).not.toMatch(

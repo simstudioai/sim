@@ -15,7 +15,9 @@ export const HumanInTheLoopBlock: BlockConfig<ResponseBlockOutput> = {
   canvasPresentation: {
     typeLabel: 'Human',
     defaultTitle: 'Wait for Input',
-    defaultName: 'Human in the Loop',
+    sentences: {
+      default: ['Pause execution until a human responds'],
+    },
   },
   subBlocks: [
     // Operation dropdown hidden - block defaults to human approval mode

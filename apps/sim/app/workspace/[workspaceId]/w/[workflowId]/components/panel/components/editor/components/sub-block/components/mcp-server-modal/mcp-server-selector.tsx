@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ChipCombobox } from '@sim/emcn'
+import { Combobox } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -78,7 +78,7 @@ export function McpServerSelector({
   })
 
   return (
-    <ChipCombobox
+    <Combobox
       options={comboboxOptions}
       value={inputValue}
       selectedValue={selectedServerId}

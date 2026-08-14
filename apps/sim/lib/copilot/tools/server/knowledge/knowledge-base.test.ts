@@ -1,471 +1,826 @@
 /**
  * @vitest-environment node
  */
-import { knowledgeConnector } from '@sim/db/schema'
-import {
-  encryptionMockFns,
-  loggerMock,
-  queueTableRows,
-  resetDbChainMock,
-  resetUrlsMock,
-  urlsMockFns,
-} from '@sim/testing'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockAssertBillingAttributionSnapshot,
-  mockCheckKnowledgeBaseWriteAccess,
-  mockFetch,
-  mockGetBoundWorkspaceFileSecretProvenance,
-  mockGenerateInternalToken,
-  mockImportKnowledgeSearchResultSecretProvenance,
-  mockSerializeBillingAttributionHeader,
-} = vi.hoisted(() => ({
-  mockAssertBillingAttributionSnapshot: vi.fn(),
-  mockCheckKnowledgeBaseWriteAccess: vi.fn(),
-  mockFetch: vi.fn(),
-  mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
-  mockGenerateInternalToken: vi.fn(),
-  mockImportKnowledgeSearchResultSecretProvenance: vi.fn(),
-  mockSerializeBillingAttributionHeader: vi.fn(),
-}))
+  mockAddWorkspaceFiles,
+  mockBulkDeleteKnowledgeBases,
+  mockBulkDeleteKnowledgeDocuments,
+  mockCaptureServerEvent,
+  mockCreateKnowledgeBase,
+  mockDeleteKnowledgeConnector,
+  mockDeleteKnowledgeTag,
+  mockKnowledgeBaseCreated,
+  mockKnowledgeBaseDeleted,
+  mockKnowledgeBaseDocumentsUploaded,
+  mockReadKnowledgeBase,
+  mockReadKnowledgeTagUsage,
+  mockSearchKnowledge,
+  mockSyncKnowledgeConnector,
+  mockUpdateKnowledgeBase,
+  mockUpdateKnowledgeConnector,
+  mockUpdateKnowledgeDocument,
+  mockUpdateKnowledgeTag,
+  mockCreateKnowledgeConnector,
+  mockCreateKnowledgeTag,
+  mockListKnowledgeTags,
+  knowledgeOperations,
+} = vi.hoisted(() => {
+  const defineOperation = (id: string, minimumRole: 'read' | 'write') =>
+    Object.freeze({
+      id,
+      minimumRole,
+      workspaceApiKey: 'deny' as const,
+      principalKinds: ['session', 'personal_api_key', 'delegated'] as const,
+      delegatedServices: ['copilot'] as const,
+    })
 
-vi.mock('@/lib/auth/internal', () => ({
-  generateInternalToken: mockGenerateInternalToken,
-}))
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkActorUsageLimits: vi.fn(),
-}))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  BILLING_ATTRIBUTION_HEADER: 'x-sim-billing-attribution',
-  assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
-  checkAttributedUsageLimits: vi.fn(),
-  serializeBillingAttributionHeader: mockSerializeBillingAttributionHeader,
-}))
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: encryptionMockFns.mockDecryptSecret,
-}))
+  return {
+    mockAddWorkspaceFiles: vi.fn(),
+    mockBulkDeleteKnowledgeBases: vi.fn(),
+    mockBulkDeleteKnowledgeDocuments: vi.fn(),
+    mockCaptureServerEvent: vi.fn(),
+    mockCreateKnowledgeBase: vi.fn(),
+    mockDeleteKnowledgeConnector: vi.fn(),
+    mockDeleteKnowledgeTag: vi.fn(),
+    mockKnowledgeBaseCreated: vi.fn(),
+    mockKnowledgeBaseDeleted: vi.fn(),
+    mockKnowledgeBaseDocumentsUploaded: vi.fn(),
+    mockReadKnowledgeBase: vi.fn(),
+    mockReadKnowledgeTagUsage: vi.fn(),
+    mockSearchKnowledge: vi.fn(),
+    mockSyncKnowledgeConnector: vi.fn(),
+    mockUpdateKnowledgeBase: vi.fn(),
+    mockUpdateKnowledgeConnector: vi.fn(),
+    mockUpdateKnowledgeDocument: vi.fn(),
+    mockUpdateKnowledgeTag: vi.fn(),
+    mockCreateKnowledgeConnector: vi.fn(),
+    mockCreateKnowledgeTag: vi.fn(),
+    mockListKnowledgeTags: vi.fn(),
+    knowledgeOperations: {
+      addWorkspaceFiles: defineOperation('knowledge.documents.add_workspace_files', 'write'),
+      bulkDelete: defineOperation('knowledge.bulk_delete', 'write'),
+      bulkDeleteDocuments: defineOperation('knowledge.documents.bulk_delete', 'write'),
+      create: defineOperation('knowledge.create', 'write'),
+      createConnector: defineOperation('knowledge.connectors.create', 'write'),
+      createTag: defineOperation('knowledge.tags.create', 'write'),
+      deleteConnector: defineOperation('knowledge.connectors.delete', 'write'),
+      deleteTag: defineOperation('knowledge.tags.delete', 'write'),
+      listTags: defineOperation('knowledge.tags.list', 'read'),
+      read: defineOperation('knowledge.read', 'read'),
+      readTagUsage: defineOperation('knowledge.tags.read_usage', 'read'),
+      search: defineOperation('knowledge.search', 'read'),
+      syncConnector: defineOperation('knowledge.connectors.sync', 'write'),
+      update: defineOperation('knowledge.update', 'write'),
+      updateConnector: defineOperation('knowledge.connectors.update', 'write'),
+      updateDocument: defineOperation('knowledge.documents.update', 'write'),
+      updateTag: defineOperation('knowledge.tags.update', 'write'),
+    },
+  }
+})
+
 vi.mock('@/lib/copilot/generated/tool-catalog-v1', () => ({
   KnowledgeBase: { id: 'knowledge_base' },
 }))
-vi.mock('@/lib/copilot/tools/server/base-tool', () => ({
-  assertServerToolNotAborted: vi.fn(),
+vi.mock('@/lib/core/telemetry', () => ({
+  PlatformEvents: {
+    knowledgeBaseCreated: mockKnowledgeBaseCreated,
+    knowledgeBaseDeleted: mockKnowledgeBaseDeleted,
+    knowledgeBaseDocumentsUploaded: mockKnowledgeBaseDocumentsUploaded,
+  },
 }))
-beforeAll(() => {
-  urlsMockFns.mockGetInternalApiBaseUrl.mockReturnValue('http://internal.test')
-})
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
+vi.mock('@/lib/knowledge/application/operations', () => ({ knowledgeOperations }))
+vi.mock('@/lib/knowledge/application/add-workspace-files', () => ({
+  addWorkspaceFilesToKnowledgeBase: {
+    operation: knowledgeOperations.addWorkspaceFiles,
+    execute: mockAddWorkspaceFiles,
+  },
+}))
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
+  bulkDeleteKnowledgeBases: {
+    operation: knowledgeOperations.bulkDelete,
+    execute: mockBulkDeleteKnowledgeBases,
+  },
+  createKnowledgeBase: {
+    operation: knowledgeOperations.create,
+    execute: mockCreateKnowledgeBase,
+  },
+  readKnowledgeBase: { operation: knowledgeOperations.read, execute: mockReadKnowledgeBase },
+  updateKnowledgeBaseOperation: {
+    operation: knowledgeOperations.update,
+    execute: mockUpdateKnowledgeBase,
+  },
+}))
+vi.mock('@/lib/knowledge/application/documents', () => ({
+  bulkDeleteKnowledgeDocuments: {
+    operation: knowledgeOperations.bulkDeleteDocuments,
+    execute: mockBulkDeleteKnowledgeDocuments,
+  },
+  updateKnowledgeDocument: {
+    operation: knowledgeOperations.updateDocument,
+    execute: mockUpdateKnowledgeDocument,
+  },
+}))
+vi.mock('@/lib/knowledge/application/search', () => ({
+  searchKnowledge: { operation: knowledgeOperations.search, execute: mockSearchKnowledge },
+}))
+vi.mock('@/lib/knowledge/application/connectors', () => ({
+  createKnowledgeConnector: {
+    operation: knowledgeOperations.createConnector,
+    execute: mockCreateKnowledgeConnector,
+  },
+  updateKnowledgeConnector: {
+    operation: knowledgeOperations.updateConnector,
+    execute: mockUpdateKnowledgeConnector,
+  },
+  deleteKnowledgeConnector: {
+    operation: knowledgeOperations.deleteConnector,
+    execute: mockDeleteKnowledgeConnector,
+  },
+  syncKnowledgeConnector: {
+    operation: knowledgeOperations.syncConnector,
+    execute: mockSyncKnowledgeConnector,
+  },
+}))
+vi.mock('@/lib/knowledge/application/tags', () => ({
+  createKnowledgeTag: {
+    operation: knowledgeOperations.createTag,
+    execute: mockCreateKnowledgeTag,
+  },
+  deleteKnowledgeTag: {
+    operation: knowledgeOperations.deleteTag,
+    execute: mockDeleteKnowledgeTag,
+  },
+  listKnowledgeTags: {
+    operation: knowledgeOperations.listTags,
+    execute: mockListKnowledgeTags,
+  },
+  readKnowledgeTagUsage: {
+    operation: knowledgeOperations.readTagUsage,
+    execute: mockReadKnowledgeTagUsage,
+  },
+  updateKnowledgeTag: {
+    operation: knowledgeOperations.updateTag,
+    execute: mockUpdateKnowledgeTag,
+  },
+}))
 
-afterAll(resetUrlsMock)
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  createSingleDocument: vi.fn(),
-  deleteDocument: vi.fn(),
-  processDocumentAsync: vi.fn(),
-  updateDocument: vi.fn(),
-}))
-vi.mock('@/lib/knowledge/embeddings', () => ({
-  EMBEDDING_DIMENSIONS: 1536,
-  generateSearchEmbedding: vi.fn(),
-  getConfiguredEmbeddingModel: vi.fn(),
-  recordSearchEmbeddingUsage: vi.fn(),
-}))
-vi.mock('@/lib/knowledge/service', () => ({
-  createKnowledgeBase: vi.fn(),
-  deleteKnowledgeBase: vi.fn(),
-  getKnowledgeBaseById: vi.fn(),
-  updateKnowledgeBase: vi.fn(),
-}))
-vi.mock('@/lib/knowledge/secret-provenance', () => ({
-  importKnowledgeSearchResultSecretProvenance: mockImportKnowledgeSearchResultSecretProvenance,
-}))
-vi.mock('@/lib/knowledge/tags/service', () => ({
-  createTagDefinition: vi.fn(),
-  deleteTagDefinition: vi.fn(),
-  getDocumentTagDefinitions: vi.fn(),
-  getNextAvailableSlot: vi.fn(),
-  getTagDefinitionById: vi.fn(),
-  getTagUsageStats: vi.fn(),
-  updateTagDefinition: vi.fn(),
-}))
-vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  resolveWorkspaceFileReference: vi.fn(),
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenance: mockGetBoundWorkspaceFileSecretProvenance,
-}))
-vi.mock('@/app/api/knowledge/search/utils', () => ({
-  executeKnowledgeSearch: vi.fn(),
-}))
-vi.mock('@/app/api/knowledge/utils', () => ({
-  checkDocumentWriteAccess: vi.fn(),
-  checkKnowledgeBaseAccess: vi.fn(),
-  checkKnowledgeBaseWriteAccess: mockCheckKnowledgeBaseWriteAccess,
-}))
-
-import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
-import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import type { ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
-import { createSingleDocument } from '@/lib/knowledge/documents/service'
-import { generateSearchEmbedding, recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
-import { getKnowledgeBaseById } from '@/lib/knowledge/service'
-import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { executeKnowledgeSearch } from '@/app/api/knowledge/search/utils'
-import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const knowledgeLoggerIndex = loggerMock.createLogger.mock.calls.findIndex(
-  ([name]) => name === 'KnowledgeBaseServerTool'
-)
-const knowledgeLogger = loggerMock.createLogger.mock.results[knowledgeLoggerIndex]?.value
-
-const BILLING_ATTRIBUTION = {
-  actorUserId: 'external-admin',
+const KNOWLEDGE_BASE = {
+  id: 'knowledge-base-1',
+  name: 'Private KB',
+  description: 'Private documentation',
   workspaceId: 'workspace-paid',
-  organizationId: 'organization-paid',
-  billedAccountUserId: 'workspace-owner',
-  billingEntity: { type: 'organization' as const, id: 'organization-paid' },
-  billingPeriod: {
-    start: '2026-07-01T00:00:00.000Z',
-    end: '2026-08-01T00:00:00.000Z',
-  },
-  payerSubscription: null,
+  docCount: 2,
+  tokenCount: 42,
+  embeddingModel: 'text-embedding-3-small',
+  chunkingConfig: { maxSize: 1024, minSize: 100, overlap: 200 },
+  createdAt: new Date('2026-08-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-08-02T00:00:00.000Z'),
 }
 
-describe('knowledge base connector Copilot operations', () => {
-  afterAll(() => {
-    resetDbChainMock()
-  })
+const CONTEXT = {
+  userId: 'external-admin',
+  workspaceId: 'workspace-paid',
+  chatId: 'chat-1',
+  executionId: 'execution-1',
+  toolCallId: 'tool-call-1',
+  copilotToolExecution: true,
+} satisfies ServerToolContext
 
+const BILLED_CONTEXT = {
+  ...CONTEXT,
+  billingAttribution: {
+    actorUserId: 'external-admin',
+    workspaceId: 'workspace-paid',
+    billedAccountUserId: 'workspace-owner',
+    organizationId: null,
+    billingEntity: { type: 'user' as const, id: 'workspace-owner' },
+    billingPeriod: {
+      start: '2026-08-01T00:00:00.000Z',
+      end: '2026-09-01T00:00:00.000Z',
+    },
+    payerSubscription: null,
+  },
+} satisfies ServerToolContext
+
+function expectDelegatedPrincipal(call: unknown): void {
+  expect(call).toMatchObject({
+    principal: {
+      kind: 'delegated',
+      serviceId: 'copilot',
+      subjectUserId: 'external-admin',
+      workspaceId: 'workspace-paid',
+      delegationId: 'tool-call-1',
+      audience: 'sim:knowledge',
+      resourceScope: { chatId: 'chat-1', executionId: 'execution-1' },
+    },
+  })
+}
+
+describe('knowledge_base trusted application delegation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    encryptionMockFns.mockDecryptSecret.mockReset()
-    resetDbChainMock()
-    vi.stubGlobal('fetch', mockFetch)
-    queueTableRows(knowledgeConnector, [{ knowledgeBaseId: 'knowledge-base-1' }])
-    mockAssertBillingAttributionSnapshot.mockReturnValue(BILLING_ATTRIBUTION)
-    mockSerializeBillingAttributionHeader.mockReturnValue('serialized-attribution')
-    mockGenerateInternalToken.mockResolvedValue('internal-token')
-    mockCheckKnowledgeBaseWriteAccess.mockResolvedValue({
-      hasAccess: true,
-      knowledgeBase: {
-        id: 'knowledge-base-1',
-        workspaceId: 'workspace-paid',
-        name: 'Paid KB',
+    mockReadKnowledgeBase.mockResolvedValue({ knowledgeBase: KNOWLEDGE_BASE, folderPath: '/' })
+    mockCreateKnowledgeBase.mockResolvedValue({ knowledgeBase: KNOWLEDGE_BASE, folderPath: '/' })
+    mockUpdateKnowledgeBase.mockResolvedValue({ knowledgeBase: KNOWLEDGE_BASE, folderPath: '/' })
+    mockBulkDeleteKnowledgeBases.mockResolvedValue({
+      deleted: [{ id: KNOWLEDGE_BASE.id, name: KNOWLEDGE_BASE.name }],
+      notFound: [],
+      failed: [],
+    })
+    mockBulkDeleteKnowledgeDocuments.mockResolvedValue({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      deleted: ['document-1'],
+      failed: [],
+      deletedDocuments: [],
+    })
+    mockAddWorkspaceFiles.mockResolvedValue({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      knowledgeBaseName: KNOWLEDGE_BASE.name,
+      added: [
+        {
+          documentId: 'document-1',
+          filename: 'report.pdf',
+          fileSize: 100,
+          mimeType: 'application/pdf',
+        },
+      ],
+      failed: [],
+    })
+    mockSearchKnowledge.mockResolvedValue({
+      results: [],
+      query: 'query',
+      knowledgeBaseIds: [KNOWLEDGE_BASE.id],
+      knowledgeBases: [{ id: KNOWLEDGE_BASE.id, name: KNOWLEDGE_BASE.name }],
+      topK: 5,
+      totalResults: 0,
+    })
+    mockCreateKnowledgeConnector.mockResolvedValue({
+      connector: {
+        id: 'connector-1',
+        knowledgeBaseId: KNOWLEDGE_BASE.id,
+        connectorType: 'notion',
+        status: 'active',
+        syncIntervalMinutes: 1440,
+      },
+      workspaceId: 'workspace-paid',
+    })
+    mockDeleteKnowledgeConnector.mockResolvedValue({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      workspaceId: 'workspace-paid',
+      connectorId: 'connector-1',
+      connectorType: 'notion',
+      documentsDeleted: 0,
+      documentsKept: 2,
+    })
+    mockSyncKnowledgeConnector.mockResolvedValue({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      workspaceId: 'workspace-paid',
+      connectorId: 'connector-1',
+      connectorType: 'notion',
+    })
+  })
+
+  it.each([
+    [{ ...CONTEXT, copilotToolExecution: false }, 'trusted Copilot execution context'],
+    [{ ...CONTEXT, workspaceId: undefined }, 'workspace ID'],
+    [{ ...CONTEXT, toolCallId: undefined }, 'tool call ID'],
+    [{ ...CONTEXT, userId: '' }, 'authenticated user ID'],
+  ])('rejects incomplete server-authored context', async (context, message) => {
+    await expect(
+      knowledgeBaseServerTool.execute(
+        { operation: 'get', args: { knowledgeBaseId: KNOWLEDGE_BASE.id } },
+        context
+      )
+    ).rejects.toThrow(message)
+    expect(mockReadKnowledgeBase).not.toHaveBeenCalled()
+  })
+
+  it('creates in the trusted workspace and ignores a model workspace field', async () => {
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'create',
+        args: { name: 'Private KB', workspaceId: 'model-controlled-workspace' },
+      },
+      CONTEXT
+    )
+
+    expect(result.success).toBe(true)
+    const call = mockCreateKnowledgeBase.mock.calls[0][0]
+    expectDelegatedPrincipal(call)
+    expect(call.input).toMatchObject({
+      workspaceId: 'workspace-paid',
+      name: 'Private KB',
+      source: 'agent',
+    })
+    expect(mockKnowledgeBaseCreated).toHaveBeenCalledWith({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      name: KNOWLEDGE_BASE.name,
+      workspaceId: 'workspace-paid',
+    })
+    expect(mockCaptureServerEvent).toHaveBeenCalledWith(
+      'external-admin',
+      'knowledge_base_created',
+      expect.objectContaining({ workspace_id: 'workspace-paid' }),
+      expect.any(Object)
+    )
+  })
+
+  it('reads through the canonical application operation', async () => {
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'get', args: { knowledgeBaseId: KNOWLEDGE_BASE.id } },
+      CONTEXT
+    )
+
+    expect(result.success).toBe(true)
+    const call = mockReadKnowledgeBase.mock.calls[0][0]
+    expectDelegatedPrincipal(call)
+    expect(call.input).toEqual({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      assertedWorkspaceId: 'workspace-paid',
+    })
+  })
+
+  it('projects query secrets before delegating search and passes only the trusted registry', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'KB_QUERY',
+        plaintext: 'private query',
+        encryptedValue: 'encrypted-query',
+      },
+    ])
+    registry.recordResolved('KB_QUERY', 'private query')
+    mockSearchKnowledge.mockResolvedValueOnce({
+      results: [
+        {
+          embeddingId: 'embedding-1',
+          documentId: 'document-1',
+          documentName: 'doc.pdf',
+          sourceUrl: null,
+          content: 'result',
+          chunkIndex: 0,
+          metadata: {},
+          similarity: 0.9,
+        },
+      ],
+      query: '{{KB_QUERY}}',
+      knowledgeBaseIds: [KNOWLEDGE_BASE.id],
+      knowledgeBases: [{ id: KNOWLEDGE_BASE.id, name: KNOWLEDGE_BASE.name }],
+      topK: 5,
+      totalResults: 1,
+    })
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'query',
+        args: { knowledgeBaseId: KNOWLEDGE_BASE.id, query: 'private query' },
+      },
+      { ...CONTEXT, resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { query: 'private query', results: [{ similarity: 0.9 }] },
+    })
+    const call = mockSearchKnowledge.mock.calls[0][0]
+    expectDelegatedPrincipal(call)
+    expect(call.input).toEqual({
+      workspaceId: 'workspace-paid',
+      knowledgeBaseIds: [KNOWLEDGE_BASE.id],
+      query: '{{KB_QUERY}}',
+      topK: 5,
+      resultSecretRegistry: registry,
+    })
+    expect(mockReadKnowledgeBase).not.toHaveBeenCalled()
+  })
+
+  it('returns a safe model result for search infrastructure failures', async () => {
+    mockSearchKnowledge.mockRejectedValueOnce(new Error('database unavailable'))
+
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'query', args: { knowledgeBaseId: KNOWLEDGE_BASE.id, query: 'query' } },
+      { ...CONTEXT, resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry() }
+    )
+
+    expect(result).toEqual({ success: false, message: 'Failed to query knowledge base' })
+    expect(result.message).not.toContain('database unavailable')
+  })
+
+  it('updates through the semantic operation', async () => {
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'update', args: { knowledgeBaseId: KNOWLEDGE_BASE.id, name: 'Renamed' } },
+      CONTEXT
+    )
+
+    expect(result.success).toBe(true)
+    const call = mockUpdateKnowledgeBase.mock.calls[0][0]
+    expectDelegatedPrincipal(call)
+    expect(call.input).toMatchObject({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      assertedWorkspaceId: 'workspace-paid',
+      name: 'Renamed',
+      source: 'agent',
+    })
+  })
+
+  it('delegates the unexposed delete compatibility path once to the bulk command', async () => {
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'delete', args: { knowledgeBaseId: KNOWLEDGE_BASE.id } },
+      CONTEXT
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { deleted: [{ id: KNOWLEDGE_BASE.id, name: KNOWLEDGE_BASE.name }] },
+    })
+    const call = mockBulkDeleteKnowledgeBases.mock.calls[0][0]
+    expectDelegatedPrincipal(call)
+    expect(call.input).toMatchObject({
+      assertedWorkspaceId: 'workspace-paid',
+      knowledgeBaseIds: [KNOWLEDGE_BASE.id],
+      source: 'agent',
+    })
+  })
+
+  it('keeps classified delete failures in the batch result', async () => {
+    mockBulkDeleteKnowledgeBases.mockResolvedValueOnce({
+      deleted: [],
+      notFound: [],
+      failed: [
+        { id: KNOWLEDGE_BASE.id, name: KNOWLEDGE_BASE.name, reason: 'Knowledge base is locked' },
+      ],
+    })
+
+    const result = await knowledgeBaseServerTool.execute(
+      { operation: 'delete', args: { knowledgeBaseId: KNOWLEDGE_BASE.id } },
+      CONTEXT
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      data: {
+        notFound: [],
+        failed: [
+          { id: KNOWLEDGE_BASE.id, name: KNOWLEDGE_BASE.name, reason: 'Knowledge base is locked' },
+        ],
       },
     })
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({
-        success: true,
-        data: {
-          id: 'connector-1',
-          connectorType: 'notion',
-          status: 'active',
+  })
+
+  it('delegates document deletion and retains partial batch results', async () => {
+    mockBulkDeleteKnowledgeDocuments.mockResolvedValueOnce({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      deleted: ['document-1'],
+      failed: ['missing'],
+      deletedDocuments: [
+        {
+          id: 'document-1',
+          filename: 'guide.pdf',
+          fileSize: 42,
+          mimeType: 'application/pdf',
         },
-      }),
+      ],
+    })
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'delete_document',
+        args: { knowledgeBaseId: KNOWLEDGE_BASE.id, documentIds: ['missing', 'document-1'] },
+      },
+      CONTEXT
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { deleted: ['document-1'], failed: ['missing'] },
+    })
+    expectDelegatedPrincipal(mockBulkDeleteKnowledgeDocuments.mock.calls[0][0])
+    expect(mockBulkDeleteKnowledgeDocuments).toHaveBeenCalledOnce()
+    expect(mockCaptureServerEvent).toHaveBeenCalledWith(
+      'external-admin',
+      'knowledge_base_document_deleted',
+      expect.objectContaining({ knowledge_base_id: KNOWLEDGE_BASE.id }),
+      expect.any(Object)
+    )
+  })
+
+  it.each([
+    [
+      'add_connector',
+      {
+        knowledgeBaseId: KNOWLEDGE_BASE.id,
+        connectorType: 'notion',
+        credentialId: 'credential-1',
+      },
+      'knowledge_base_connector_added',
+    ],
+    ['delete_connector', { connectorId: 'connector-1' }, 'knowledge_base_connector_removed'],
+    ['sync_connector', { connectorId: 'connector-1' }, 'knowledge_base_connector_synced'],
+  ])(
+    'records %s product analytics only after application success',
+    async (operation, args, event) => {
+      const result = await knowledgeBaseServerTool.execute({ operation, args }, BILLED_CONTEXT)
+
+      expect(result.success).toBe(true)
+      expect(mockCaptureServerEvent).toHaveBeenCalledWith(
+        'external-admin',
+        event,
+        expect.objectContaining({ workspace_id: 'workspace-paid' }),
+        expect.any(Object)
+      )
+    }
+  )
+
+  it('delegates document updates with only the trusted workspace assertion', async () => {
+    mockUpdateKnowledgeDocument.mockResolvedValueOnce({ document: {}, updatedFields: ['filename'] })
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'update_document',
+        args: {
+          knowledgeBaseId: KNOWLEDGE_BASE.id,
+          documentId: 'document-1',
+          filename: 'renamed.pdf',
+        },
+      },
+      CONTEXT
+    )
+
+    expect(result).toMatchObject({ success: true, data: { documentId: 'document-1' } })
+    const call = mockUpdateKnowledgeDocument.mock.calls[0][0]
+    expectDelegatedPrincipal(call)
+    expect(call.input).toEqual({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      documentId: 'document-1',
+      assertedWorkspaceId: 'workspace-paid',
+      filename: 'renamed.pdf',
+      source: 'agent',
+    })
+  })
+
+  it('does not expose connector infrastructure errors to the model', async () => {
+    mockUpdateKnowledgeConnector.mockRejectedValueOnce(new Error('sql host=private-db'))
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'update_connector',
+        args: { connectorId: 'connector-1', connectorStatus: 'paused' },
+      },
+      CONTEXT
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message: 'Failed to update connector',
+    })
+    expect(result.message).not.toContain('private-db')
+  })
+
+  it.each([
+    [
+      'update_document',
+      {
+        knowledgeBaseId: KNOWLEDGE_BASE.id,
+        documentId: 'document-1',
+        filename: 'renamed.pdf',
+      },
+      mockUpdateKnowledgeDocument,
+    ],
+    [
+      'update_tag',
+      {
+        knowledgeBaseId: KNOWLEDGE_BASE.id,
+        tagDefinitionId: 'tag-1',
+        displayName: 'Renamed',
+      },
+      mockUpdateKnowledgeTag,
+    ],
+  ])('does not expose %s infrastructure details to the model', async (operation, args, useCase) => {
+    useCase.mockRejectedValueOnce(new Error('database password=private'))
+
+    const result = await knowledgeBaseServerTool.execute({ operation, args }, CONTEXT)
+
+    expect(result.success).toBe(false)
+    expect(result.message).not.toContain('database')
+    expect(result.message).not.toContain('private')
+  })
+
+  it('preserves caller-actionable connector failure messages', async () => {
+    mockUpdateKnowledgeConnector.mockRejectedValueOnce(
+      new OrchestrationError('validation', 'At least one connector update is required')
+    )
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'update_connector',
+        args: { connectorId: 'connector-1', connectorStatus: 'paused' },
+      },
+      CONTEXT
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message: 'At least one connector update is required',
+    })
+  })
+
+  it('preserves credential access guidance for connector creation', async () => {
+    mockCreateKnowledgeConnector.mockRejectedValueOnce(
+      new OrchestrationError(
+        'validation',
+        'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.'
+      )
+    )
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'add_connector',
+        args: {
+          knowledgeBaseId: KNOWLEDGE_BASE.id,
+          connectorType: 'notion',
+          credentialId: 'credential-1',
+        },
+      },
+      CONTEXT
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.',
+    })
+  })
+
+  it('preserves caller-actionable tag provenance conflicts', async () => {
+    mockDeleteKnowledgeTag.mockRejectedValueOnce(
+      new OrchestrationError(
+        'conflict',
+        'Tag definitions cannot be deleted while resolved-secret document provenance is present'
+      )
+    )
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'delete_tag',
+        args: { knowledgeBaseId: KNOWLEDGE_BASE.id, tagDefinitionId: 'tag-1' },
+      },
+      CONTEXT
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        'Failed to delete_tag knowledge base: Tag definitions cannot be deleted while resolved-secret document provenance is present',
     })
   })
 
   it.each([
     {
-      params: {
-        operation: 'add_connector',
-        args: {
-          knowledgeBaseId: 'knowledge-base-1',
-          connectorType: 'notion',
-          apiKey: 'api-key',
-        },
-      },
-      expectedPath: '/api/knowledge/knowledge-base-1/connectors',
+      operation: 'add_file',
+      args: { knowledgeBaseId: KNOWLEDGE_BASE.id, filePaths: Array(101).fill('files/doc.pdf') },
     },
     {
-      params: {
-        operation: 'sync_connector',
-        args: { connectorId: 'connector-1' },
+      operation: 'delete',
+      args: { knowledgeBaseIds: Array.from({ length: 101 }, (_, index) => `kb-${index}`) },
+    },
+    {
+      operation: 'delete_document',
+      args: {
+        knowledgeBaseId: KNOWLEDGE_BASE.id,
+        documentIds: Array.from({ length: 101 }, (_, index) => `document-${index}`),
       },
-      expectedPath: '/api/knowledge/knowledge-base-1/connectors/connector-1/sync',
     },
   ])(
-    'forwards immutable billing attribution for $params.operation',
-    async ({ params, expectedPath }) => {
-      const result = await knowledgeBaseServerTool.execute(params, {
-        userId: 'external-admin',
-        workspaceId: 'workspace-paid',
-        billingAttribution: BILLING_ATTRIBUTION,
-      })
+    'rejects oversized $operation batches before application work',
+    async ({ operation, args }) => {
+      const result = await knowledgeBaseServerTool.execute({ operation, args }, CONTEXT)
 
-      expect(result.success).toBe(true)
-      expect(mockFetch).toHaveBeenCalledWith(
-        `http://internal.test${expectedPath}`,
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: 'Bearer internal-token',
-            'x-sim-billing-attribution': 'serialized-attribution',
-          }),
-        })
-      )
-      expect(mockSerializeBillingAttributionHeader).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
+      expect(result.success).toBe(false)
+      expect(result.message).toContain('Maximum is 100')
+      expect(mockReadKnowledgeBase).not.toHaveBeenCalled()
+      expect(mockBulkDeleteKnowledgeBases).not.toHaveBeenCalled()
+      expect(mockBulkDeleteKnowledgeDocuments).not.toHaveBeenCalled()
+      expect(mockAddWorkspaceFiles).not.toHaveBeenCalled()
     }
   )
 })
 
-describe('knowledge base query model boundary', () => {
+describe('knowledge_base add_file delegation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    encryptionMockFns.mockDecryptSecret.mockReset()
-    resetDbChainMock()
-    vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({ hasAccess: true })
-    vi.mocked(getKnowledgeBaseById).mockResolvedValue({
-      id: 'knowledge-base-1',
-      name: 'Private KB',
-      workspaceId: 'workspace-paid',
-      embeddingModel: 'text-embedding-3-small',
-    } as Awaited<ReturnType<typeof getKnowledgeBaseById>>)
-    vi.mocked(checkAttributedUsageLimits).mockResolvedValue({ isExceeded: false })
-    vi.mocked(generateSearchEmbedding).mockResolvedValue({
-      embedding: [0.1, 0.2],
-      isBYOK: false,
-    })
-    vi.mocked(executeKnowledgeSearch).mockResolvedValue([])
-    vi.mocked(recordSearchEmbeddingUsage).mockResolvedValue(undefined)
-    mockImportKnowledgeSearchResultSecretProvenance.mockResolvedValue({
-      imported: true,
-      documentMetadata: {},
-    })
-  })
-
-  it('preserves a query that merely collides with ambient secret plaintext', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'KB_QUERY',
-        plaintext: 'private knowledge query',
-        encryptedValue: 'encrypted-query',
-      },
-    ])
-    registry.recordResolved('KB_QUERY', 'private knowledge query')
-
-    const result = await knowledgeBaseServerTool.execute(
-      {
-        operation: 'query',
-        args: {
-          knowledgeBaseId: 'knowledge-base-1',
-          query: 'private knowledge query',
+    mockAddWorkspaceFiles.mockResolvedValue({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      knowledgeBaseName: KNOWLEDGE_BASE.name,
+      added: [
+        {
+          documentId: 'document-1',
+          filename: 'report.pdf',
+          fileSize: 100,
+          mimeType: 'application/pdf',
         },
-      },
-      {
-        userId: 'external-admin',
-        workspaceId: 'workspace-paid',
-        billingAttribution: BILLING_ATTRIBUTION,
-        resolvedSecretTraceRegistry: registry,
-      }
-    )
-
-    expect(result.success).toBe(true)
-    expect(result.data?.query).toBe('private knowledge query')
-    expect(generateSearchEmbedding).toHaveBeenCalledWith(
-      'private knowledge query',
-      'text-embedding-3-small',
-      'workspace-paid'
-    )
-    expect(executeKnowledgeSearch).toHaveBeenCalledWith(
-      expect.objectContaining({ query: 'private knowledge query' })
-    )
-    expect(recordSearchEmbeddingUsage).toHaveBeenCalledWith(
-      expect.objectContaining({ query: 'private knowledge query' })
-    )
-    expect(mockImportKnowledgeSearchResultSecretProvenance).toHaveBeenCalledWith({
-      registry,
-      results: [],
+      ],
+      failed: [],
     })
-    expect(knowledgeLogger).toBeDefined()
-    expect(JSON.stringify(knowledgeLogger?.info.mock.calls)).not.toContain(
-      'private knowledge query'
-    )
   })
 
-  it('imports exact persisted result provenance before the Copilot result is projected', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'STORED_TOKEN',
-        plaintext: 'stored-secret-value',
-        encryptedValue: 'encrypted-stored-secret',
-      },
-    ])
-    const results = [
-      {
-        id: 'embedding-1',
-        documentId: 'document-1',
-        content: 'stored-secret-value',
-        chunkIndex: 0,
-        distance: 0.1,
-      },
-    ]
-    vi.mocked(executeKnowledgeSearch).mockResolvedValue(results)
-    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'stored-secret-value' })
-    mockImportKnowledgeSearchResultSecretProvenance.mockImplementationOnce(
-      async ({ registry: resultRegistry }) => {
-        expect(
-          await resultRegistry.importProvenance(
-            {
-              version: 1,
-              complete: true,
-              entries: [{ name: 'STORED_TOKEN', encryptedValue: 'encrypted-stored-secret' }],
-            },
-            { trusted: true }
-          )
-        ).toBe(true)
-        return { imported: true, documentMetadata: {} }
-      }
-    )
-
+  it('maps aliases and delegates the complete batch once to the application command', async () => {
     const result = await knowledgeBaseServerTool.execute(
-      {
-        operation: 'query',
-        args: {
-          knowledgeBaseId: 'knowledge-base-1',
-          query: 'public query',
-        },
-      },
-      {
-        userId: 'external-admin',
-        workspaceId: 'workspace-paid',
-        billingAttribution: BILLING_ATTRIBUTION,
-        resolvedSecretTraceRegistry: registry,
-      }
-    )
-
-    expect(result.success).toBe(true)
-    expect(result.data?.results[0].content).toBe('stored-secret-value')
-    expect(projectToolResultForCopilot({ success: true, output: result }, registry)).toMatchObject({
-      success: true,
-      output: {
-        data: { results: [{ content: '{{STORED_TOKEN}}' }] },
-      },
-    })
-  })
-
-  it('fails closed when persisted result provenance cannot be established', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-    vi.mocked(executeKnowledgeSearch).mockResolvedValue([
-      {
-        id: 'embedding-1',
-        documentId: 'document-1',
-        content: 'unclassified persisted content',
-        chunkIndex: 0,
-        distance: 0.1,
-      },
-    ])
-    mockImportKnowledgeSearchResultSecretProvenance.mockResolvedValueOnce({
-      imported: false,
-      documentMetadata: {},
-    })
-
-    const result = await knowledgeBaseServerTool.execute(
-      {
-        operation: 'query',
-        args: {
-          knowledgeBaseId: 'knowledge-base-1',
-          query: 'public query',
-        },
-      },
-      {
-        userId: 'external-admin',
-        workspaceId: 'workspace-paid',
-        billingAttribution: BILLING_ATTRIBUTION,
-        resolvedSecretTraceRegistry: registry,
-      }
-    )
-
-    expect(result).toEqual({
-      success: false,
-      message: 'Failed to query knowledge base: Knowledge result secret provenance is unavailable',
-    })
-    expect(registry.isPermanentlyIncomplete()).toBe(true)
-  })
-})
-
-describe('knowledge base add_file usage gate', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    mockCheckKnowledgeBaseWriteAccess.mockResolvedValue({
-      hasAccess: true,
-      knowledgeBase: { id: 'knowledge-base-1', workspaceId: 'workspace-paid', name: 'Paid KB' },
-    })
-    vi.mocked(getKnowledgeBaseById).mockResolvedValue({
-      id: 'knowledge-base-1',
-      workspaceId: 'workspace-paid',
-    } as Awaited<ReturnType<typeof getKnowledgeBaseById>>)
-    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({
-      status: 'exact',
-      entries: [],
-    })
-  })
-
-  function addFile() {
-    return knowledgeBaseServerTool.execute(
       {
         operation: 'add_file',
-        args: { knowledgeBaseId: 'knowledge-base-1', filePaths: ['files/report.pdf'] },
+        args: { knowledgeBaseId: KNOWLEDGE_BASE.id, filePaths: ['files/report.pdf'] },
       },
-      {
-        userId: 'external-admin',
-        workspaceId: 'workspace-paid',
-        billingAttribution: BILLING_ATTRIBUTION,
-      }
+      CONTEXT
     )
-  }
 
-  it('refuses to index when the payer is over its usage limit', async () => {
-    vi.mocked(checkAttributedUsageLimits).mockResolvedValue({
-      isExceeded: true,
-      message: 'Usage limit exceeded.',
-    } as Awaited<ReturnType<typeof checkAttributedUsageLimits>>)
-
-    const result = await addFile()
-
-    expect(result.success).toBe(false)
-    expect(result.message).toContain('Usage limit exceeded')
-    // The gate must precede any indexing work, matching the upload routes.
-    expect(resolveWorkspaceFileReference).not.toHaveBeenCalled()
-    expect(createSingleDocument).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      success: true,
+      data: { added: [{ documentId: 'document-1', filename: 'report.pdf' }] },
+    })
+    const call = mockAddWorkspaceFiles.mock.calls[0][0]
+    expectDelegatedPrincipal(call)
+    expect(call.input).toMatchObject({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      assertedWorkspaceId: 'workspace-paid',
+      fileReferences: ['files/report.pdf'],
+      source: 'agent',
+    })
+    expect(mockAddWorkspaceFiles).toHaveBeenCalledOnce()
+    expect(mockKnowledgeBaseDocumentsUploaded).toHaveBeenCalledWith(
+      expect.objectContaining({ knowledgeBaseId: KNOWLEDGE_BASE.id, documentsCount: 1 })
+    )
+    expect(mockCaptureServerEvent).toHaveBeenCalledWith(
+      'external-admin',
+      'knowledge_base_document_uploaded',
+      expect.objectContaining({ knowledge_base_id: KNOWLEDGE_BASE.id }),
+      expect.any(Object)
+    )
   })
 
-  it('gates on the knowledge base workspace payer, not the caller', async () => {
-    vi.mocked(checkAttributedUsageLimits).mockResolvedValue({
-      isExceeded: false,
-    } as Awaited<ReturnType<typeof checkAttributedUsageLimits>>)
-    vi.mocked(resolveWorkspaceFileReference).mockResolvedValue(null)
-
-    await addFile()
-
-    expect(checkAttributedUsageLimits).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
-  })
-
-  it('does not index a workspace file containing resolved-secret provenance', async () => {
-    vi.mocked(checkAttributedUsageLimits).mockResolvedValue({
-      isExceeded: false,
-    } as Awaited<ReturnType<typeof checkAttributedUsageLimits>>)
-    vi.mocked(resolveWorkspaceFileReference).mockResolvedValue({
-      id: 'file-1',
-      key: 'workspace/workspace-paid/report.pdf',
-      name: 'report.pdf',
-      size: 100,
-      type: 'application/pdf',
-    } as Awaited<ReturnType<typeof resolveWorkspaceFileReference>>)
-    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValueOnce({
-      status: 'exact',
-      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+  it('preserves explicit partial failures returned by the application command', async () => {
+    mockAddWorkspaceFiles.mockResolvedValueOnce({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      knowledgeBaseName: KNOWLEDGE_BASE.name,
+      added: [],
+      failed: ['files/report.pdf'],
     })
 
-    const result = await addFile()
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'add_file',
+        args: { knowledgeBaseId: KNOWLEDGE_BASE.id, filePaths: ['files/report.pdf'] },
+      },
+      CONTEXT
+    )
 
     expect(result.success).toBe(false)
-    expect(mockGetBoundWorkspaceFileSecretProvenance).toHaveBeenCalledWith('workspace-paid', {
-      fileId: 'file-1',
-      key: 'workspace/workspace-paid/report.pdf',
-      context: 'workspace',
+    expect(result).toMatchObject({ data: { added: [], failed: ['files/report.pdf'] } })
+  })
+
+  it('does not expose add-file infrastructure failures to the model', async () => {
+    mockAddWorkspaceFiles.mockRejectedValueOnce(new Error('storage host=private-bucket'))
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'add_file',
+        args: { knowledgeBaseId: KNOWLEDGE_BASE.id, filePaths: ['files/report.pdf'] },
+      },
+      CONTEXT
+    )
+
+    expect(result).toEqual({ success: false, message: 'Failed to add_file knowledge base' })
+    expect(result.message).not.toContain('private-bucket')
+  })
+
+  it('rechecks cancellation after application composition before presenting a partial result', async () => {
+    const controller = new AbortController()
+    mockAddWorkspaceFiles.mockImplementationOnce(async () => {
+      controller.abort('user stopped')
+      return {
+        knowledgeBaseId: KNOWLEDGE_BASE.id,
+        knowledgeBaseName: KNOWLEDGE_BASE.name,
+        added: [{ documentId: 'document-1', filename: 'report.pdf' }],
+        failed: [],
+        cancelled: true,
+      }
     })
-    expect(createSingleDocument).not.toHaveBeenCalled()
+
+    await expect(
+      knowledgeBaseServerTool.execute(
+        {
+          operation: 'add_file',
+          args: { knowledgeBaseId: KNOWLEDGE_BASE.id, filePaths: ['files/report.pdf'] },
+        },
+        { ...CONTEXT, userStopSignal: controller.signal }
+      )
+    ).rejects.toThrow('Request aborted before knowledge mutation could be applied')
+
+    expect(mockAddWorkspaceFiles).toHaveBeenCalledOnce()
   })
 })

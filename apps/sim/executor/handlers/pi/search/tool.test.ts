@@ -36,7 +36,7 @@ function executionContext(
 const ctx = executionContext()
 
 function buildTool(provider: 'exa' | 'serper' | 'parallel' | 'firecrawl' = 'exa', context = ctx) {
-  return buildPiSearchToolSpec(context, { provider, apiKey: 'key-123' }, 'local')
+  return buildPiSearchToolSpec(context, { provider, apiKey: 'key-1234567' }, 'local')
 }
 
 async function run(
@@ -69,7 +69,7 @@ describe('buildPiSearchToolSpec', () => {
 
     const [toolId, params, options] = mockExecuteTool.mock.calls[0]
     expect(toolId).toBe('exa_search')
-    expect(params.apiKey).toBe('key-123')
+    expect(params.apiKey).toBe('key-1234567')
     expect(params.timeout).toBe(10_000)
     expect(options.executionContext).toBe(ctx)
     expect(options.resolvedSecretTraceRegistry).toBeInstanceOf(ResolvedSecretTraceRegistry)
@@ -83,7 +83,7 @@ describe('buildPiSearchToolSpec', () => {
 
     const [toolId, params] = mockExecuteTool.mock.calls[0]
     expect(toolId).toBe('serper_search')
-    expect(params).toEqual({ query: 'pi', num: 2, apiKey: 'key-123', timeout: 10_000 })
+    expect(params).toEqual({ query: 'pi', num: 2, apiKey: 'key-1234567', timeout: 10_000 })
   })
 
   it('normalizes a successful provider response into the envelope', async () => {
@@ -193,17 +193,17 @@ describe('buildPiSearchToolSpec', () => {
 
   it('projects only the exact resolver-recorded search key and leaves the raw result unchanged', async () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SEARCH_KEY', plaintext: 'key-123', encryptedValue: 'search-ciphertext' },
+      { name: 'SEARCH_KEY', plaintext: 'key-1234567', encryptedValue: 'search-ciphertext' },
       { name: 'UNRELATED', plaintext: 'Test', encryptedValue: 'unrelated-ciphertext' },
     ])
-    registry.recordResolvedAtInputPath('SEARCH_KEY', 'key-123', ['searchApiKey'])
-    registry.recordResolvedInputProjection(['searchApiKey'], 'key-123', '{{SEARCH_KEY}}')
+    registry.recordResolvedAtInputPath('SEARCH_KEY', 'key-1234567', ['searchApiKey'])
+    registry.recordResolvedInputProjection(['searchApiKey'], 'key-1234567', '{{SEARCH_KEY}}')
     registry.recordResolvedAtInputPath('UNRELATED', 'Test', ['task'])
     registry.recordResolvedInputProjection(['task'], 'Test', '{{UNRELATED}}')
     const output = {
       results: [
         {
-          title: 'key-123',
+          title: 'key-1234567',
           url: 'https://example.com/docs',
           text: 'Test',
         },
@@ -213,7 +213,7 @@ describe('buildPiSearchToolSpec', () => {
 
     const result = await buildPiSearchToolSpec(
       executionContext(registry),
-      { provider: 'exa', apiKey: 'key-123' },
+      { provider: 'exa', apiKey: 'key-1234567' },
       'local',
       '{{SEARCH_KEY}}'
     ).execute({ query: 'pi' })
@@ -231,7 +231,7 @@ describe('buildPiSearchToolSpec', () => {
     expect(output).toEqual({
       results: [
         {
-          title: 'key-123',
+          title: 'key-1234567',
           url: 'https://example.com/docs',
           text: 'Test',
         },
@@ -288,7 +288,7 @@ describe('buildPiSearchToolSpec', () => {
 
   it('fails closed before search when provenance is incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     const result = await buildTool('exa', executionContext(registry)).execute({ query: 'pi' })
 
@@ -303,7 +303,7 @@ describe('buildPiSearchToolSpec', () => {
     const registry = new ResolvedSecretTraceRegistry()
     const mergeSpy = vi.spyOn(registry, 'mergeToolCallRegistry')
     mockExecuteTool.mockImplementation(async (_toolId, _params, options) => {
-      options.resolvedSecretTraceRegistry.markIncomplete()
+      options.resolvedSecretTraceRegistry.markIncomplete('unspecified')
       return {
         success: true,
         output: {

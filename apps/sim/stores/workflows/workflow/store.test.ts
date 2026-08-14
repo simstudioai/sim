@@ -1804,21 +1804,4 @@ describe('workflow store', () => {
       expect(state.blocks.block2.name).toBe('Unique Name')
     })
   })
-
-  describe('updateBlockDescription', () => {
-    it('stores and clears a block description without replacing other block data', () => {
-      addBlock('block1', 'agent', 'Agent', { x: 0, y: 0 }, { parentId: 'loop1' })
-
-      const { updateBlockDescription } = useWorkflowStore.getState()
-      updateBlockDescription('block1', 'Formats the incoming request.')
-
-      expect(useWorkflowStore.getState().blocks.block1.data).toEqual({
-        parentId: 'loop1',
-        description: 'Formats the incoming request.',
-      })
-
-      updateBlockDescription('block1', '')
-      expect(useWorkflowStore.getState().blocks.block1.data?.description).toBe('')
-    })
-  })
 })

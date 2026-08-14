@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { resolveAtlassianCloudId } from '@/lib/atlassian/discovery'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 
@@ -160,58 +161,16 @@ export function normalizeJiraWorklogTimestamp(value: string): string {
   return s
 }
 
-export function normalizeDomain(domain: string): string {
-  return `https://${domain
-    .trim()
-    .replace(/^https?:\/\//i, '')
-    .replace(/\/+$/, '')}`.toLowerCase()
-}
-
-export async function getJiraCloudId(
+/**
+ * Resolves the `cloudId` for a Jira site. Memoized per domain by the shared
+ * Atlassian resolver, which Confluence and JSM read through as well.
+ */
+export function getJiraCloudId(
   domain: string,
   accessToken: string,
   retryOptions?: RetryOptions
 ): Promise<string> {
-  const response = await fetchWithRetry(
-    'https://api.atlassian.com/oauth/token/accessible-resources',
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    },
-    retryOptions
-  )
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Failed to fetch Jira accessible resources: ${response.status} - ${errorText}`)
-  }
-
-  const resources = await response.json()
-
-  if (!Array.isArray(resources) || resources.length === 0) {
-    throw new Error('No Jira resources found')
-  }
-
-  const normalized = normalizeDomain(domain)
-  const match = resources.find(
-    (r: { url: string }) => r.url.toLowerCase().replace(/\/+$/, '') === normalized
-  )
-
-  if (match) {
-    return match.id
-  }
-
-  if (resources.length === 1) {
-    return resources[0].id
-  }
-
-  throw new Error(
-    `Could not match Jira domain "${domain}" to any accessible resource. ` +
-      `Available sites: ${resources.map((r: { url: string }) => r.url).join(', ')}`
-  )
+  return resolveAtlassianCloudId({ domain, accessToken, product: 'Jira', retryOptions })
 }
 
 /**

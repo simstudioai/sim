@@ -40,6 +40,20 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
   category: 'blocks',
   bgColor: '#3D642D',
   icon: ShieldCheckIcon,
+  canvasPresentation: {
+    defaultTitle: 'Guardrails',
+    sentences: {
+      default: [
+        {
+          text: 'Validate content using',
+          field: 'validationType',
+          core: true,
+        },
+        { text: ', matching', field: 'regex' },
+        { text: ', grounded in', field: 'knowledgeBaseId' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'input',

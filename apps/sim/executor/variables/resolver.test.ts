@@ -194,7 +194,7 @@ describe('VariableResolver function block inputs', () => {
   })
 
   it('binds propagated references to exact model-selected inputs without changing runtime values', async () => {
-    const secret = 'x'
+    const secret = 'xxxxxxxx'
     const provenance = {
       version: 1 as const,
       complete: true,

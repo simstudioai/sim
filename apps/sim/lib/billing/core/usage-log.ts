@@ -9,6 +9,9 @@ import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
+import { HttpError } from '@/lib/core/utils/http-error'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
@@ -21,22 +24,12 @@ export type UsageLogCategory = 'model' | 'fixed' | 'tool'
 /**
  * Usage log source types
  */
-export type UsageLogSource =
-  | 'workflow'
-  | 'wand'
-  | 'copilot'
-  | 'workspace-chat'
-  | 'mcp_copilot'
-  | 'mothership_block'
-  | 'knowledge-base'
-  | 'voice-input'
-  | 'enrichment'
-  | 'voice-output'
+export type UsageLogSource = InternalUsageLogSource
 
 /**
- * usage_log sources that make up the "copilot" cost breakdown shown in billing
- * summaries: the copilot agent, mothership/workspace chat, MCP copilot, and
- * mothership blocks. Mirrors the source set billed via /api/billing/update-cost.
+ * Internal usage_log sources that make up the Sim Chat-family cost breakdown
+ * used by legacy billing summaries. Mirrors the source set billed via
+ * /api/billing/update-cost.
  */
 export const COPILOT_USAGE_SOURCES: UsageLogSource[] = [
   'copilot',
@@ -616,15 +609,27 @@ export async function recordCumulativeUsage(
 }
 
 interface UsageLogFilter {
-  source?: UsageLogSource
+  source?: UsageLogSource | UsageLogSource[]
   workspaceId?: string
   startDate?: Date
   endDate?: Date
 }
 
-function buildUsageLogConditions(userId: string, filter: UsageLogFilter) {
-  const conditions = [eq(usageLog.userId, userId)]
-  if (filter.source) conditions.push(eq(usageLog.source, filter.source))
+type UsageLogScope = { kind: 'user'; userId: string } | { kind: 'workspace'; workspaceId: string }
+
+function buildUsageLogConditions(scope: UsageLogScope, filter: UsageLogFilter) {
+  const conditions = [
+    scope.kind === 'user'
+      ? eq(usageLog.userId, scope.userId)
+      : eq(usageLog.workspaceId, scope.workspaceId),
+  ]
+  if (filter.source) {
+    conditions.push(
+      Array.isArray(filter.source)
+        ? inArray(usageLog.source, filter.source)
+        : eq(usageLog.source, filter.source)
+    )
+  }
   if (filter.workspaceId) conditions.push(eq(usageLog.workspaceId, filter.workspaceId))
   if (filter.startDate) conditions.push(gte(usageLog.createdAt, filter.startDate))
   if (filter.endDate) conditions.push(lte(usageLog.createdAt, filter.endDate))
@@ -646,7 +651,7 @@ export async function getUsageCreditsByLogId(
   const rows = await dbReplica
     .select({ id: usageLog.id, cost: usageLog.cost })
     .from(usageLog)
-    .where(and(...buildUsageLogConditions(userId, filter)))
+    .where(and(...buildUsageLogConditions({ kind: 'user', userId }, filter)))
     .orderBy(desc(usageLog.createdAt), desc(usageLog.id))
 
   return apportionCredits(
@@ -655,11 +660,56 @@ export async function getUsageCreditsByLogId(
 }
 
 /**
+ * Caller-facing message for a `cursor` that names no usage event.
+ *
+ * This ledger's cursor is a raw `usage_log.id` resolved by lookup rather than an
+ * opaque keyset cursor, so a value that resolves to no row carries no position at
+ * all. Applying no cursor condition in that case — the previous behaviour — restarts
+ * the sequence at page 1 while still reporting `hasMore`, so a pager that persisted a
+ * cursor across a deploy, or across environments, walks the first page forever and
+ * counts the same credits on every lap. Rejecting it makes the failure visible on the
+ * request that caused it.
+ *
+ * The wording deliberately does not reuse `INVALID_CURSOR_MESSAGE`: that message names
+ * `sortBy`/`sortOrder`, and this collection accepts neither param, so it would send the
+ * caller to look for a knob that does not exist. The actionable half — restart without
+ * a cursor — is the same.
+ */
+export const UNKNOWN_CURSOR_MESSAGE =
+  'cursor does not identify a usage event. Restart pagination without a cursor; a cursor is only valid against the ledger it was issued from.'
+
+/**
+ * The rejection for an unresolvable `cursor`, classified for both kinds of caller
+ * this shared ledger has.
+ *
+ * The v2 route reads the classification off the `cause` chain
+ * (`asOrchestrationError` walks it) and renders the v2 `BAD_REQUEST` envelope. The
+ * session-only internal route (`GET /api/users/me/usage-logs`) is a raw
+ * `withRouteHandler` with no error policy, and its `readTypedError` matches
+ * `instanceof HttpError` only — so an `OrchestrationError` alone would have made a
+ * hand-typed `?cursor=` a 500 there. Being both at once is what keeps every surface
+ * on 400 without either one having to learn about the other.
+ *
+ * `message` is the caller-facing constant above, so forwarding it verbatim (which is
+ * what `withRouteHandler` does for an `HttpError`) exposes nothing internal.
+ */
+export class UnknownUsageCursorError extends HttpError {
+  readonly statusCode = 400
+
+  constructor() {
+    super(UNKNOWN_CURSOR_MESSAGE, {
+      cause: new OrchestrationError('validation', UNKNOWN_CURSOR_MESSAGE),
+    })
+    this.name = 'UnknownUsageCursorError'
+  }
+}
+
+/**
  * Options for querying usage logs
  */
 export interface GetUsageLogsOptions {
   /** Filter by source */
-  source?: UsageLogSource
+  source?: UsageLogSource | UsageLogSource[]
   /** Filter by workspace */
   workspaceId?: string
   /** Start date (inclusive) */
@@ -712,7 +762,7 @@ export interface UsageLogsResult {
   /** `{ totalCost: 0, bySource: {} }` when `includeSummary` is `false`. */
   summary: {
     totalCost: number
-    bySource: Record<string, number>
+    bySource: Partial<Record<UsageLogSource, number>>
   }
   pagination: {
     nextCursor?: string
@@ -721,10 +771,10 @@ export interface UsageLogsResult {
 }
 
 /**
- * Get usage logs for a user with optional filtering and pagination
+ * Gets one bounded usage-log page for an explicit actor or workspace scope.
  */
-export async function getUserUsageLogs(
-  userId: string,
+async function getUsageLogs(
+  scope: UsageLogScope,
   options: GetUsageLogsOptions = {}
 ): Promise<UsageLogsResult> {
   const {
@@ -739,15 +789,17 @@ export async function getUserUsageLogs(
   } = options
 
   try {
-    const conditions = buildUsageLogConditions(userId, { source, workspaceId, startDate, endDate })
+    const conditions = buildUsageLogConditions(scope, { source, workspaceId, startDate, endDate })
 
     if (cursor) {
       let resolvedCursorCreatedAt = cursorCreatedAt
 
       if (!resolvedCursorCreatedAt) {
-        // Cursor resolution stays on the primary: the page itself reads a
-        // load-balanced replica, and a laggier sibling replica missing the
-        // cursor row would silently restart pagination from page 1.
+        /**
+         * Cursor resolution stays on the primary: the page itself reads a
+         * load-balanced replica, and a laggier sibling replica missing the
+         * cursor row would reject a cursor that is in fact resumable.
+         */
         const cursorLog = await db
           .select({ createdAt: usageLog.createdAt })
           .from(usageLog)
@@ -756,13 +808,13 @@ export async function getUserUsageLogs(
         resolvedCursorCreatedAt = cursorLog[0]?.createdAt
       }
 
-      if (resolvedCursorCreatedAt) {
-        const cursorCondition = or(
-          lt(usageLog.createdAt, resolvedCursorCreatedAt),
-          and(eq(usageLog.createdAt, resolvedCursorCreatedAt), lt(usageLog.id, cursor))
-        )
-        if (cursorCondition) conditions.push(cursorCondition)
-      }
+      if (!resolvedCursorCreatedAt) throw new UnknownUsageCursorError()
+
+      const cursorCondition = or(
+        lt(usageLog.createdAt, resolvedCursorCreatedAt),
+        and(eq(usageLog.createdAt, resolvedCursorCreatedAt), lt(usageLog.id, cursor))
+      )
+      if (cursorCondition) conditions.push(cursorCondition)
     }
 
     const logs = await dbReplica
@@ -806,7 +858,7 @@ export async function getUserUsageLogs(
     let totalCost = 0
 
     if (includeSummary) {
-      const summaryConditions = buildUsageLogConditions(userId, {
+      const summaryConditions = buildUsageLogConditions(scope, {
         source,
         workspaceId,
         startDate,
@@ -842,11 +894,36 @@ export async function getUserUsageLogs(
       },
     }
   } catch (error) {
+    /**
+     * A classified failure is caller-fixable and already carries the message the
+     * surface will render, so it is reported as a warning rather than joining the
+     * genuine faults this logger's error volume is watched for.
+     */
+    if (asOrchestrationError(error)) {
+      logger.warn('Rejected a usage-log query', { error: toError(error).message, scope })
+      throw error
+    }
     logger.error('Failed to get usage logs', {
       error: toError(error).message,
-      userId,
+      scope,
       options,
     })
     throw error
   }
+}
+
+/** Gets usage logs whose actor is the selected user. */
+export function getUserUsageLogs(
+  userId: string,
+  options: GetUsageLogsOptions = {}
+): Promise<UsageLogsResult> {
+  return getUsageLogs({ kind: 'user', userId }, options)
+}
+
+/** Gets usage logs attributed to the selected workspace, regardless of actor. */
+export function getWorkspaceUsageLogs(
+  workspaceId: string,
+  options: Omit<GetUsageLogsOptions, 'workspaceId'> = {}
+): Promise<UsageLogsResult> {
+  return getUsageLogs({ kind: 'workspace', workspaceId }, options)
 }

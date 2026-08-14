@@ -6,6 +6,7 @@ import { validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
+  isMultipartFieldValidationError,
   isPayloadSizeLimitError,
   MAX_MULTIPART_OVERHEAD_BYTES,
   readFormDataWithLimit,
@@ -20,7 +21,7 @@ const logger = createLogger('HelpAPI')
 /**
  * The form can carry several image attachments with no server-side count
  * cap, so this reuses the repo's largest existing per-request form-data
- * bound (see files/upload route) rather than an arbitrary smaller limit
+ * multipart bound rather than an arbitrary smaller limit
  * that could reject a legitimate multi-image submission.
  */
 const MAX_HELP_FORM_BYTES = MAX_WORKSPACE_FORMDATA_FILE_SIZE + MAX_MULTIPART_OVERHEAD_BYTES
@@ -145,6 +146,9 @@ ${message}
       { status: 200 }
     )
   } catch (error) {
+    if (isMultipartFieldValidationError(error)) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     if (isPayloadSizeLimitError(error)) {
       logger.warn(`[${requestId}] Help request form data too large`, { message: error.message })
       return NextResponse.json(

@@ -3,6 +3,7 @@
 import {
   type Dispatch,
   lazy,
+  type PointerEvent,
   type SetStateAction,
   Suspense,
   useCallback,
@@ -10,7 +11,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
 } from 'react'
 import { Button, cn, toast } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
@@ -27,7 +27,6 @@ import {
   LandingWorkflowSeedStorage,
   MothershipHandoffStorage,
 } from '@/lib/core/utils/browser-storage'
-import { isDesktopApp } from '@/lib/desktop'
 import {
   addMothershipContexts,
   MOTHERSHIP_SEND_MESSAGE_EVENT,
@@ -65,8 +64,6 @@ import type {
 } from './types'
 
 const logger = createLogger('Home')
-const subscribeToDesktopApp = () => () => {}
-const getServerDesktopAppSnapshot = () => false
 
 /**
  * The resource preview panel pulls in the file-viewer stack (rich-markdown
@@ -89,11 +86,6 @@ interface HomeProps {
 
 export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps) {
   useOAuthReturnRouter()
-  const isDesktop = useSyncExternalStore(
-    subscribeToDesktopApp,
-    isDesktopApp,
-    getServerDesktopAppSnapshot
-  )
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -212,13 +204,31 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
   const [skipResourceTransition, setSkipResourceTransition] = useState(false)
+  const [resourceActivityIds, setResourceActivityIds] = useState<Set<string>>(new Set())
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
   isResourceCollapsedRef.current = isResourceCollapsed
+  const userOwnsResourceViewRef = useRef(false)
+  const activeResourceParamRef = useRef(activeResourceParam)
+  activeResourceParamRef.current = activeResourceParam
 
-  function handleResourceEvent() {
-    if (isResourceCollapsedRef.current) {
-      setIsResourceCollapsed(false)
+  function handleResourceEvent(resourceId: string) {
+    // Agent work should always make the resource surface available, but it
+    // must never replace an existing selection. Activity in another resource
+    // stays in the background and gets an attention marker instead.
+    if (isResourceCollapsedRef.current) setIsResourceCollapsed(false)
+
+    const activeResourceId = activeResourceParamRef.current
+    if (activeResourceId && activeResourceId !== resourceId) {
+      setResourceActivityIds((current) => new Set(current).add(resourceId))
+      return
     }
+    setResourceActivityIds((current) => {
+      if (!current.has(resourceId)) return current
+      const next = new Set(current)
+      next.delete(resourceId)
+      return next
+    })
+    if (activeResourceId !== resourceId) setActiveResourceUrl(resourceId)
   }
 
   const {
@@ -263,19 +273,79 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   )
 
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize(desktopScopeId)
+  const effectiveActiveResourceIdRef = useRef(activeResourceId)
+  effectiveActiveResourceIdRef.current = activeResourceId
+  const resourceAttentionChatIdRef = useRef(resolvedChatId)
 
   const collapseResource = useCallback(() => {
+    userOwnsResourceViewRef.current = true
     clearWidth()
     setIsResourceCollapsed(true)
   }, [clearWidth])
 
+  const clearResourceActivity = useCallback((resourceId: string) => {
+    setResourceActivityIds((current) => {
+      if (!current.has(resourceId)) return current
+      const next = new Set(current)
+      next.delete(resourceId)
+      return next
+    })
+  }, [])
+
+  const expandResource = () => {
+    userOwnsResourceViewRef.current = true
+    const activeResourceId = activeResourceParamRef.current
+    if (activeResourceId) clearResourceActivity(activeResourceId)
+    setIsResourceCollapsed(false)
+  }
+
+  const selectResourceFromUser = useCallback(
+    (resourceId: string) => {
+      userOwnsResourceViewRef.current = true
+      clearResourceActivity(resourceId)
+      if (effectiveActiveResourceIdRef.current === resourceId) return
+      effectiveActiveResourceIdRef.current = resourceId
+      activeResourceParamRef.current = resourceId
+      setActiveResourceId(resourceId)
+    },
+    [setActiveResourceId, clearResourceActivity]
+  )
+
+  const addResourceFromUser = useCallback(
+    (resource: MothershipResource) => {
+      userOwnsResourceViewRef.current = true
+      addResource(resource)
+      selectResourceFromUser(resource.id)
+      setIsResourceCollapsed(false)
+    },
+    [addResource, selectResourceFromUser]
+  )
+
+  const handleResourceResizePointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      userOwnsResourceViewRef.current = true
+      handleResizePointerDown(event)
+    },
+    [handleResizePointerDown]
+  )
+
+  const handleResourceInteraction = useCallback(() => {
+    userOwnsResourceViewRef.current = true
+  }, [])
+
   useEffect(() => {
+    const previousChatId = resourceAttentionChatIdRef.current
+    resourceAttentionChatIdRef.current = resolvedChatId
     wasSendingRef.current = false
     if (resolvedChatId) {
       markRead(resolvedChatId)
     } else {
       clearWidth()
       setIsResourceCollapsed(true)
+    }
+    if (!resolvedChatId || (previousChatId && previousChatId !== resolvedChatId)) {
+      userOwnsResourceViewRef.current = false
+      setResourceActivityIds(new Set())
     }
   }, [resolvedChatId, markRead, clearWidth])
 
@@ -287,7 +357,12 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   }, [isSending, resolvedChatId, markRead])
 
   useEffect(() => {
-    if (!(resources.length > 0 && isResourceCollapsedRef.current)) return
+    if (
+      !(resources.length > 0 && isResourceCollapsedRef.current) ||
+      userOwnsResourceViewRef.current
+    ) {
+      return
+    }
     setIsResourceCollapsed(false)
     setSkipResourceTransition(true)
     const id = requestAnimationFrame(() => setSkipResourceTransition(false))
@@ -296,9 +371,18 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
 
   useEffect(() => {
     if (resources.length === 0 && !isResourceCollapsedRef.current) {
-      collapseResource()
+      clearWidth()
+      setIsResourceCollapsed(true)
     }
-  }, [resources, collapseResource])
+  }, [resources, clearWidth])
+
+  useEffect(() => {
+    const resourceIds = new Set(resources.map((resource) => resource.id))
+    setResourceActivityIds((current) => {
+      const next = new Set([...current].filter((id) => resourceIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [resources])
 
   const handleStopGeneration = useCallback(() => {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
@@ -325,6 +409,8 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         setIsInputEntering(true)
       }
 
+      userOwnsResourceViewRef.current = false
+      setResourceActivityIds(new Set())
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
     [workspaceId, chatId, sendMessage]
@@ -341,7 +427,9 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
       if (!detail?.message) return
       e.preventDefault()
-      sendMessage(detail.message, undefined, detail.contexts)
+      sendMessage(detail.message, detail.fileAttachments, detail.contexts, {
+        ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
+      })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
@@ -370,7 +458,11 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     const handoff = MothershipHandoffStorage.consume(workspaceId)
     if (!handoff) return
     if (handoff.message) {
-      sendMessage(handoff.message, undefined, handoff.contexts)
+      sendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
+        ...(handoff.resumeUserMessageId
+          ? { resumeUserMessageId: handoff.resumeUserMessageId }
+          : {}),
+      })
       return
     }
     const contexts = handoff.contexts ?? []
@@ -419,8 +511,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   function handleContextAdd(context: ChatContext) {
     const resolved = resolveResourceFromContext(context)
     if (resolved) {
-      addResource({ ...resolved, title: resourceTitleForContext(context) })
-      handleResourceEvent()
+      addResourceFromUser({ ...resolved, title: resourceTitleForContext(context) })
     }
   }
 
@@ -440,11 +531,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   }
 
   function openWorkspaceResource(resource: MothershipResource) {
-    const wasAdded = addResource(resource)
-    if (!wasAdded) {
-      setActiveResourceId(resource.id)
-    }
-    handleResourceEvent()
+    addResourceFromUser(resource)
   }
 
   /**
@@ -505,11 +592,17 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         {showEmptyState && (
           <div
             className={cn(
-              'absolute z-10',
-              RESOURCE_HEADER_CLASSES.contentTop,
-              isDesktop || isResourceCollapsed
+              'z-10',
+              RESOURCE_HEADER_CLASSES.overlay,
+              // Collapsed, the expand toggle overlays this corner, so the chip
+              // yields the fixed reserve; open, the toggle lives in the panel's
+              // corner and the chip takes the standard end inset itself.
+              isResourceCollapsed
                 ? RESOURCE_HEADER_CLASSES.adjacentEndPosition
-                : RESOURCE_HEADER_CLASSES.endPosition
+                : RESOURCE_HEADER_CLASSES.endPosition,
+              skipResourceTransition
+                ? 'transition-none'
+                : 'transition-[right] duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]'
             )}
           >
             <CreditsChip />
@@ -583,14 +676,14 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
             role='separator'
             aria-orientation='vertical'
             aria-label='Resize resource panel'
-            onPointerDown={handleResizePointerDown}
+            onPointerDown={handleResourceResizePointerDown}
           />
         </div>
       )}
 
       <MothershipResourcesProvider
-        selectResource={setActiveResourceId}
-        addResource={addResource}
+        selectResource={selectResourceFromUser}
+        addResource={addResourceFromUser}
         removeResource={removeResource}
         reorderResources={reorderResources}
         collapseResource={collapseResource}
@@ -603,58 +696,37 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
             desktopScopeId={desktopScopeId}
             resources={resources}
             activeResourceId={activeResourceId}
+            activityResourceIds={resourceActivityIds}
             isCollapsed={isResourceCollapsed}
-            useFixedResourceToggle={isDesktop}
             previewSession={previewSession}
             isAgentResponding={isSending}
             genericResourceData={genericResourceData ?? undefined}
             tableViewsEnabled={tableViewsEnabled}
+            onUserInteraction={handleResourceInteraction}
             className={skipResourceTransition ? '!transition-none' : undefined}
           />
         </Suspense>
       </MothershipResourcesProvider>
 
-      {isDesktop ? (
-        <div
-          className={cn(
-            'absolute top-0 z-30 flex items-center',
-            RESOURCE_HEADER_CLASSES.controls,
-            RESOURCE_HEADER_CLASSES.endPosition
-          )}
+      <div
+        className={cn('z-30', RESOURCE_HEADER_CLASSES.overlay, RESOURCE_HEADER_CLASSES.endPosition)}
+      >
+        <Button
+          variant='ghost'
+          size={null}
+          type='button'
+          onClick={isResourceCollapsed ? expandResource : collapseResource}
+          className='size-[var(--resource-header-toggle-size)] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
+          aria-label={isResourceCollapsed ? 'Expand resource view' : 'Collapse resource view'}
         >
-          <Button
-            variant='ghost'
-            size={null}
-            type='button'
-            onClick={isResourceCollapsed ? () => setIsResourceCollapsed(false) : collapseResource}
-            className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
-            aria-label={isResourceCollapsed ? 'Expand resource view' : 'Collapse resource view'}
-          >
+          <span className='relative'>
             <PanelLeft className='-scale-x-100 size-[16px] text-[var(--text-icon)]' />
-          </Button>
-        </div>
-      ) : (
-        isResourceCollapsed && (
-          <div
-            className={cn(
-              'absolute',
-              RESOURCE_HEADER_CLASSES.contentTop,
-              RESOURCE_HEADER_CLASSES.endPosition
+            {isResourceCollapsed && resourceActivityIds.size > 0 && (
+              <span className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-primary)]' />
             )}
-          >
-            <Button
-              variant='ghost'
-              size={null}
-              type='button'
-              onClick={() => setIsResourceCollapsed(false)}
-              className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
-              aria-label='Expand resource view'
-            >
-              <PanelLeft className='size-[16px] text-[var(--text-icon)]' />
-            </Button>
-          </div>
-        )
-      )}
+          </span>
+        </Button>
+      </div>
     </div>
   )
 }

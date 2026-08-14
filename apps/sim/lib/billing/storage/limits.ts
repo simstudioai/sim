@@ -21,8 +21,23 @@ import type { StorageBillingContext } from '@/lib/billing/storage/context'
 import { getLegacyStorageBillingEntity } from '@/lib/billing/storage/entity'
 import { getEnv } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const logger = createLogger('StorageLimits')
+
+/**
+ * Thrown when accepting a write would push its payer past its storage quota.
+ *
+ * An {@link OrchestrationError} so every surface reaches 413 by class. The bare
+ * `Error` this replaced was classified by searching the message for "storage
+ * limit", which the UI, v1, and v2 knowledge routes each re-implemented.
+ */
+export class StorageLimitExceededError extends OrchestrationError {
+  constructor(message: string) {
+    super('payload_too_large', message)
+    this.name = 'StorageLimitExceededError'
+  }
+}
 
 type StorageLimits = ReturnType<typeof getStorageLimits>
 

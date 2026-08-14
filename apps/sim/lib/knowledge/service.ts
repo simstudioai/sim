@@ -11,6 +11,17 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import type { V2KnowledgeBaseSortBy } from '@/lib/api/contracts/v2/knowledge'
+import type { CursorKey, KeysetKey, ListSortOrder } from '@/lib/api/list-query'
+import {
+  keysetColumns,
+  keysetPage,
+  listOrderBy,
+  resumeKeyset,
+  searchFilter,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { ensureUserStatsExists } from '@/lib/billing/core/usage'
@@ -20,8 +31,13 @@ import {
   resolveStorageBillingContext,
   type StorageBillingContext,
 } from '@/lib/billing/storage'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
+import {
+  MAX_KNOWLEDGE_BASES_PER_WORKSPACE,
+  MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST,
+} from '@/lib/knowledge/constants'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -31,22 +47,39 @@ import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('KnowledgeBaseService')
 
-export class KnowledgeBaseConflictError extends Error {
-  readonly code = 'KNOWLEDGE_BASE_EXISTS' as const
+/**
+ * Every caller-fixable knowledge-base failure is an {@link OrchestrationError},
+ * so `lib/knowledge/orchestration` classifies it by class and each surface maps
+ * that one class to its own status. Message text is then free to change without
+ * silently moving a 409 to a 400.
+ */
+export class KnowledgeBaseConflictError extends OrchestrationError {
   constructor(name: string) {
-    super(`A knowledge base named "${name}" already exists in this workspace`)
+    super('conflict', `A knowledge base named "${name}" already exists in this workspace`)
+    this.name = 'KnowledgeBaseConflictError'
   }
 }
 
-export class KnowledgeBasePermissionError extends Error {
-  readonly code = 'KNOWLEDGE_BASE_FORBIDDEN' as const
+export class KnowledgeBasePermissionError extends OrchestrationError {
+  constructor(message: string) {
+    super('forbidden', message)
+    this.name = 'KnowledgeBasePermissionError'
+  }
 }
 
 /** Raised when a caller files a knowledge base under a folder it may not use. */
-export class KnowledgeBaseFolderError extends Error {
-  readonly code = 'KNOWLEDGE_BASE_FOLDER_INVALID' as const
+export class KnowledgeBaseFolderError extends OrchestrationError {
   constructor() {
-    super('Folder not found in this workspace')
+    super('validation', 'Folder not found in this workspace')
+    this.name = 'KnowledgeBaseFolderError'
+  }
+}
+
+/** Raised when a knowledge base the caller named does not exist (or is archived). */
+export class KnowledgeBaseNotFoundError extends OrchestrationError {
+  constructor(knowledgeBaseId: string) {
+    super('not_found', `Knowledge base ${knowledgeBaseId} not found`)
+    this.name = 'KnowledgeBaseNotFoundError'
   }
 }
 
@@ -89,14 +122,204 @@ type KnowledgeBaseStorageMove =
       ownerUserId: string
     }
 
+/** The columns a knowledge-base keyset orders and resumes on. */
+interface KnowledgeBaseSortRow {
+  id: string
+  name: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+const knowledgeBaseIdKey = textKey<KnowledgeBaseSortRow>(knowledgeBase.id, (row) => row.id)
+
 /**
- * Get knowledge bases that a user can access
+ * Keyset orderings for the public list's sortable fields, made total over the
+ * contract enum by `satisfies`.
+ *
+ * Each ends in `id` rather than `createdAt`. `createdAt` is not unique, so it
+ * could not separate two knowledge bases created in the same millisecond — which
+ * left ties in an order the planner chose, and would let a cursor repeat or skip
+ * a row at a page boundary now that the list pages.
+ */
+const KNOWLEDGE_BASE_SORTS = {
+  name: [textKey<KnowledgeBaseSortRow>(knowledgeBase.name, (row) => row.name), knowledgeBaseIdKey],
+  createdAt: [
+    timestampKey<KnowledgeBaseSortRow>(knowledgeBase.createdAt, (row) => row.createdAt),
+    knowledgeBaseIdKey,
+  ],
+  updatedAt: [
+    timestampKey<KnowledgeBaseSortRow>(knowledgeBase.updatedAt, (row) => row.updatedAt),
+    knowledgeBaseIdKey,
+  ],
+} satisfies Record<V2KnowledgeBaseSortBy, readonly KeysetKey<KnowledgeBaseSortRow>[]>
+
+export interface GetKnowledgeBasesOptions {
+  /** Restrict to one knowledge-base folder; `undefined` lists all and `null` lists the root. */
+  folderId?: string | null
+  /** Case-insensitive substring match on the knowledge base name. */
+  search?: string
+  sortBy?: V2KnowledgeBaseSortBy
+  sortOrder?: ListSortOrder
+  /**
+   * Page size. Omitted reads the whole workspace set as one page, capped by
+   * {@link MAX_KNOWLEDGE_BASES_PER_WORKSPACE} — what the internal callers that
+   * need every row still do.
+   */
+  limit?: number
+  /** Keyset to resume after, from the previous page's `nextCursorKeys`. */
+  cursorKeys?: CursorKey[]
+}
+
+async function attachConnectorTypes(
+  knowledgeBases: Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>>
+): Promise<KnowledgeBaseWithCounts[]> {
+  const kbIds = knowledgeBases.map((kb) => kb.id)
+  const connectorRows =
+    kbIds.length > 0
+      ? await db
+          .select({
+            knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
+            connectorType: knowledgeConnector.connectorType,
+          })
+          .from(knowledgeConnector)
+          .where(
+            and(
+              inArray(knowledgeConnector.knowledgeBaseId, kbIds),
+              isNull(knowledgeConnector.archivedAt),
+              isNull(knowledgeConnector.deletedAt)
+            )
+          )
+          .limit(MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST + 1)
+      : []
+  if (connectorRows.length > MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST) {
+    throw new Error(
+      `Knowledge connector projection exceeds the ${MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST} row limit`
+    )
+  }
+
+  const connectorTypesByKb = new Map<string, string[]>()
+  for (const row of connectorRows) {
+    const types = connectorTypesByKb.get(row.knowledgeBaseId) ?? []
+    if (!types.includes(row.connectorType)) types.push(row.connectorType)
+    connectorTypesByKb.set(row.knowledgeBaseId, types)
+  }
+
+  return knowledgeBases.map((kb) => ({
+    ...kb,
+    connectorTypes: connectorTypesByKb.get(kb.id) ?? [],
+  }))
+}
+
+/**
+ * Lists active knowledge bases in one canonical workspace after application
+ * authorization. Unlike the legacy user-oriented query, this never widens the
+ * scope to workspace-less rows and never depends on a human permission join.
+ */
+export async function getWorkspaceKnowledgeBases(
+  workspaceId: string,
+  scope: KnowledgeBaseScope = 'active',
+  options?: GetKnowledgeBasesOptions
+): Promise<{ data: KnowledgeBaseWithCounts[]; nextCursorKeys: CursorKey[] | null }> {
+  const {
+    folderId,
+    search,
+    sortBy = 'createdAt',
+    sortOrder = 'asc',
+    limit,
+    cursorKeys,
+  } = options ?? {}
+  const keys = KNOWLEDGE_BASE_SORTS[sortBy]
+  const resumeAfter = resumeKeyset(keys, cursorKeys, sortOrder)
+
+  /**
+   * An unpaged read still reads one row past the cap so an oversized workspace
+   * is a hard failure rather than a silently truncated list.
+   */
+  const readLimit = (limit ?? MAX_KNOWLEDGE_BASES_PER_WORKSPACE) + 1
+  const scopeCondition =
+    scope === 'all'
+      ? undefined
+      : scope === 'archived'
+        ? sql`${knowledgeBase.deletedAt} IS NOT NULL`
+        : isNull(knowledgeBase.deletedAt)
+
+  const rows = await db
+    .select({
+      id: knowledgeBase.id,
+      userId: knowledgeBase.userId,
+      name: knowledgeBase.name,
+      description: knowledgeBase.description,
+      tokenCount: sql<number>`COALESCE(SUM(${document.tokenCount}), 0)`.mapWith(Number),
+      embeddingModel: knowledgeBase.embeddingModel,
+      embeddingDimension: knowledgeBase.embeddingDimension,
+      chunkingConfig: knowledgeBase.chunkingConfig,
+      createdAt: knowledgeBase.createdAt,
+      updatedAt: knowledgeBase.updatedAt,
+      deletedAt: knowledgeBase.deletedAt,
+      workspaceId: knowledgeBase.workspaceId,
+      folderId: knowledgeBase.folderId,
+      docCount: count(document.id),
+    })
+    .from(knowledgeBase)
+    .leftJoin(
+      document,
+      and(
+        eq(document.knowledgeBaseId, knowledgeBase.id),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .where(
+      and(
+        eq(knowledgeBase.workspaceId, workspaceId),
+        scopeCondition,
+        folderId === undefined
+          ? undefined
+          : folderId === null
+            ? isNull(knowledgeBase.folderId)
+            : eq(knowledgeBase.folderId, folderId),
+        searchFilter(knowledgeBase.name, search),
+        resumeAfter
+      )
+    )
+    .groupBy(knowledgeBase.id)
+    .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
+    .limit(readLimit)
+
+  if (limit === undefined && rows.length > MAX_KNOWLEDGE_BASES_PER_WORKSPACE) {
+    throw new Error(
+      `Knowledge base list exceeds the ${MAX_KNOWLEDGE_BASES_PER_WORKSPACE} row limit`
+    )
+  }
+
+  const page = keysetPage(keys, rows, limit)
+
+  return {
+    data: await attachConnectorTypes(
+      page.data.map((kb) => ({
+        ...kb,
+        chunkingConfig: kb.chunkingConfig as ChunkingConfig,
+        docCount: Number(kb.docCount),
+      }))
+    ),
+    nextCursorKeys: page.nextCursorKeys,
+  }
+}
+
+/**
+ * Get knowledge bases that a user can access.
+ *
+ * Filter and sort are applied in the query, so a search costs one narrowed scan
+ * rather than materializing every knowledge base the caller can reach.
  */
 export async function getKnowledgeBases(
   userId: string,
   workspaceId?: string | null,
-  scope: KnowledgeBaseScope = 'active'
+  scope: KnowledgeBaseScope = 'active',
+  options?: GetKnowledgeBasesOptions
 ): Promise<KnowledgeBaseWithCounts[]> {
+  const { folderId, search, sortBy = 'createdAt', sortOrder = 'asc' } = options ?? {}
   const scopeCondition =
     scope === 'all'
       ? undefined
@@ -158,6 +381,12 @@ export async function getKnowledgeBases(
     .where(
       and(
         scopeCondition,
+        folderId === undefined
+          ? undefined
+          : folderId === null
+            ? isNull(knowledgeBase.folderId)
+            : eq(knowledgeBase.folderId, folderId),
+        searchFilter(knowledgeBase.name, search),
         or(
           and(
             workspaceId ? eq(knowledgeBase.workspaceId, workspaceId) : undefined,
@@ -168,7 +397,7 @@ export async function getKnowledgeBases(
       )
     )
     .groupBy(knowledgeBase.id)
-    .orderBy(knowledgeBase.createdAt)
+    .orderBy(...listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS[sortBy]), sortOrder))
 
   const kbIds = knowledgeBasesWithCounts.map((kb) => kb.id)
 
@@ -213,15 +442,26 @@ export async function createKnowledgeBase(
   data: CreateKnowledgeBaseData,
   requestId: string
 ): Promise<KnowledgeBaseWithCounts> {
-  const kbId = generateId()
-  const now = new Date()
-
   const hasPermission = await getUserEntityPermissions(data.userId, 'workspace', data.workspaceId)
   if (hasPermission !== 'admin' && hasPermission !== 'write') {
     throw new KnowledgeBasePermissionError(
       'User does not have permission to create knowledge bases in this workspace'
     )
   }
+
+  return createAuthorizedKnowledgeBase(data, requestId)
+}
+
+/**
+ * Persists a knowledge base for an already-authorized application use case.
+ * Callers outside the application layer must use {@link createKnowledgeBase}.
+ */
+export async function createAuthorizedKnowledgeBase(
+  data: CreateKnowledgeBaseData,
+  requestId: string
+): Promise<KnowledgeBaseWithCounts> {
+  const kbId = generateId()
+  const now = new Date()
 
   await assertKnowledgeBaseFolder(data.folderId, data.workspaceId)
 
@@ -306,7 +546,7 @@ export async function updateKnowledgeBase(
     }
   },
   requestId: string,
-  options?: { actorUserId?: string }
+  options?: { actorUserId?: string; assertedWorkspaceId?: string }
 ): Promise<KnowledgeBaseWithCounts> {
   const now = new Date()
   const updateData: Partial<typeof knowledgeBase.$inferInsert> = {
@@ -341,10 +581,18 @@ export async function updateKnowledgeBase(
       const [snapshot] = await db
         .select({ workspaceId: knowledgeBase.workspaceId })
         .from(knowledgeBase)
-        .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+        .where(
+          and(
+            eq(knowledgeBase.id, knowledgeBaseId),
+            isNull(knowledgeBase.deletedAt),
+            options?.assertedWorkspaceId
+              ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+              : undefined
+          )
+        )
         .limit(1)
       if (!snapshot) {
-        throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+        throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
       }
       effectiveWorkspaceId = snapshot.workspaceId
     }
@@ -365,10 +613,18 @@ export async function updateKnowledgeBase(
         folderId: knowledgeBase.folderId,
       })
       .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .where(
+        and(
+          eq(knowledgeBase.id, knowledgeBaseId),
+          isNull(knowledgeBase.deletedAt),
+          options?.assertedWorkspaceId
+            ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+            : undefined
+        )
+      )
       .limit(1)
     if (!kbSnapshot) {
-      throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+      throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
     }
     const sourceWorkspaceId = kbSnapshot.workspaceId ?? null
     const destinationWorkspaceId = updates.workspaceId ?? null
@@ -448,12 +704,20 @@ export async function updateKnowledgeBase(
       const [currentKb] = await tx
         .select({ workspaceId: knowledgeBase.workspaceId, userId: knowledgeBase.userId })
         .from(knowledgeBase)
-        .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+        .where(
+          and(
+            eq(knowledgeBase.id, knowledgeBaseId),
+            isNull(knowledgeBase.deletedAt),
+            options?.assertedWorkspaceId
+              ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+              : undefined
+          )
+        )
         .for('update')
         .limit(1)
 
       if (!currentKb) {
-        throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+        throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
       }
 
       if (storageMove && (currentKb.workspaceId ?? null) !== storageMove.sourceWorkspaceId) {
@@ -570,7 +834,15 @@ export async function updateKnowledgeBase(
       await tx
         .update(knowledgeBase)
         .set(updateData)
-        .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+        .where(
+          and(
+            eq(knowledgeBase.id, knowledgeBaseId),
+            isNull(knowledgeBase.deletedAt),
+            options?.assertedWorkspaceId
+              ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+              : undefined
+          )
+        )
 
       // When a KB changes workspace, re-point the ownership bindings for its
       // stored files so file authorization (which resolves the owning workspace
@@ -664,12 +936,20 @@ export async function updateKnowledgeBase(
         isNull(document.deletedAt)
       )
     )
-    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .where(
+      and(
+        eq(knowledgeBase.id, knowledgeBaseId),
+        isNull(knowledgeBase.deletedAt),
+        options?.assertedWorkspaceId
+          ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+          : undefined
+      )
+    )
     .groupBy(knowledgeBase.id)
     .limit(1)
 
   if (updatedKb.length === 0) {
-    throw new Error(`Knowledge base ${knowledgeBaseId} not found`)
+    throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
   }
 
   logger.info(`[${requestId}] Updated knowledge base: ${knowledgeBaseId}`)
@@ -742,12 +1022,26 @@ export async function getKnowledgeBaseById(
 export async function deleteKnowledgeBase(
   knowledgeBaseId: string,
   requestId: string,
-  options?: { archivedAt?: Date }
+  options?: { archivedAt?: Date; assertedWorkspaceId?: string }
 ): Promise<void> {
   const now = options?.archivedAt ?? new Date()
 
   await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+    const [locked] = await tx
+      .select({ id: knowledgeBase.id, workspaceId: knowledgeBase.workspaceId })
+      .from(knowledgeBase)
+      .where(
+        and(
+          eq(knowledgeBase.id, knowledgeBaseId),
+          isNull(knowledgeBase.deletedAt),
+          options?.assertedWorkspaceId
+            ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+            : undefined
+        )
+      )
+      .limit(1)
+      .for('update')
+    if (!locked) throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
 
     await tx
       .update(knowledgeBase)
@@ -755,7 +1049,15 @@ export async function deleteKnowledgeBase(
         deletedAt: now,
         updatedAt: now,
       })
-      .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+      .where(
+        and(
+          eq(knowledgeBase.id, knowledgeBaseId),
+          isNull(knowledgeBase.deletedAt),
+          options?.assertedWorkspaceId
+            ? eq(knowledgeBase.workspaceId, options.assertedWorkspaceId)
+            : undefined
+        )
+      )
 
     await tx
       .update(document)
@@ -812,18 +1114,21 @@ export async function restoreKnowledgeBase(
     .limit(1)
 
   if (!kb) {
-    throw new Error('Knowledge base not found')
+    throw new KnowledgeBaseNotFoundError(knowledgeBaseId)
   }
 
   if (!kb.deletedAt) {
-    throw new Error('Knowledge base is not archived')
+    throw new OrchestrationError('conflict', 'Knowledge base is not archived')
   }
 
   if (kb.workspaceId) {
     const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
     const ws = await getWorkspaceWithOwner(kb.workspaceId)
     if (!ws || ws.archivedAt) {
-      throw new Error('Cannot restore knowledge base into an archived workspace')
+      throw new OrchestrationError(
+        'conflict',
+        'Cannot restore knowledge base into an archived workspace'
+      )
     }
   }
 

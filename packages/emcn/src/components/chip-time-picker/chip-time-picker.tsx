@@ -54,8 +54,6 @@ export interface ChipTimePickerProps {
   fullWidth?: boolean
   /** Layout/sizing only — width overrides, margins. The chrome is owned by the chip field. */
   className?: string
-  /** Optional display overlay, used when a consumer needs decorated value text. */
-  overlayContent?: React.ReactNode
 }
 
 /**
@@ -70,12 +68,11 @@ export interface ChipTimePickerProps {
  */
 const ChipTimePicker = React.forwardRef<HTMLInputElement, ChipTimePickerProps>(
   function ChipTimePicker(
-    { value, onChange, placeholder = '10:00 AM', disabled, fullWidth, className, overlayContent },
+    { value, onChange, placeholder = '10:00 AM', disabled, fullWidth, className },
     ref
   ) {
     const [text, setText] = React.useState(() => formatTimeLabel(value))
     const [prevValue, setPrevValue] = React.useState(value)
-    const [isFocused, setIsFocused] = React.useState(false)
 
     if (value !== prevValue) {
       setPrevValue(value)
@@ -113,39 +110,20 @@ const ChipTimePicker = React.forwardRef<HTMLInputElement, ChipTimePickerProps>(
     )
 
     return (
-      <div className={cn('relative', fullWidth ? 'w-full' : 'w-[88px]', className)}>
-        <ChipInput
-          ref={ref}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onFocus={(event) => {
-            setIsFocused(true)
-            event.target.select()
-          }}
-          onBlur={() => {
-            setIsFocused(false)
-            commit()
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          disabled={disabled}
-          aria-label='Time'
-          autoComplete='off'
-          spellCheck={false}
-          className='w-full'
-          inputClassName={overlayContent && !isFocused ? 'text-transparent' : undefined}
-        />
-        {overlayContent && !isFocused ? (
-          <div
-            className={cn(
-              'pointer-events-none absolute inset-0 flex items-center overflow-hidden px-2 text-[var(--text-body)] text-sm',
-              disabled && 'opacity-50'
-            )}
-          >
-            {overlayContent}
-          </div>
-        ) : null}
-      </div>
+      <ChipInput
+        ref={ref}
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onFocus={(event) => event.target.select()}
+        onBlur={commit}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        disabled={disabled}
+        aria-label='Time'
+        autoComplete='off'
+        spellCheck={false}
+        className={cn(fullWidth ? 'w-full' : 'w-[88px]', className)}
+      />
     )
   }
 )

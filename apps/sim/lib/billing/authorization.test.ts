@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -96,6 +96,20 @@ describe('authorizeSubscriptionReference', () => {
     expect(mockIsOwnerOrAdmin).toHaveBeenCalledWith('owner-1', 'org-1')
   })
 
+  it('blocks an organization checkout while its bound Stripe subscription is incomplete', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'subscription-1', stripeSubscriptionId: 'sub_pending' },
+    ])
+
+    await expect(
+      authorizeSubscriptionReference('owner-1', 'org-1', 'upgrade-subscription', 'team_6000')
+    ).rejects.toThrow(/subscription payment is still processing/)
+
+    expect(mockHasPaidSubscription).not.toHaveBeenCalled()
+    expect(mockAssertNoUnresolved).not.toHaveBeenCalled()
+    expect(mockIsOwnerOrAdmin).not.toHaveBeenCalled()
+  })
+
   it('rejects an organization checkout for a pro plan — org references only hold Team/Enterprise', async () => {
     await expect(
       authorizeSubscriptionReference('owner-1', 'org-1', 'upgrade-subscription', 'pro_6000')
@@ -146,6 +160,46 @@ describe('assertPersonalCheckoutAllowed', () => {
 
   it('allows checkout when the user is not covered by any organization', async () => {
     await expect(assertPersonalCheckoutAllowed('user-1')).resolves.toBeUndefined()
+  })
+
+  it('keeps abandoned, unbound checkout placeholders retryable', async () => {
+    await assertPersonalCheckoutAllowed('user-1')
+
+    const predicate = dbChainMockFns.where.mock.calls[0]?.[0]
+    expect(
+      hasMockCondition(
+        predicate,
+        (node) => node.type === 'eq' && node.left === schemaMock.subscription.referenceId
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        predicate,
+        (node) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.subscription.status &&
+          node.right === 'incomplete'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        predicate,
+        (node) =>
+          node.type === 'isNotNull' && node.column === schemaMock.subscription.stripeSubscriptionId
+      )
+    ).toBe(true)
+  })
+
+  it('blocks a personal checkout while its bound Stripe subscription is incomplete', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'subscription-1', stripeSubscriptionId: 'sub_pending' },
+    ])
+
+    await expect(assertPersonalCheckoutAllowed('user-1')).rejects.toThrow(
+      /subscription payment is still processing/
+    )
+
+    expect(mockGetOrganizationCoverageForMember).not.toHaveBeenCalled()
   })
 
   it('rejects checkout when an organization subscription already covers the user', async () => {

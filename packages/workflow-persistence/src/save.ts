@@ -3,8 +3,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import {
-  normalizePositionedSourceHandleId,
-  normalizePositionedTargetHandleId,
+  normalizeWorkflowEdgeSourceHandle,
+  normalizeWorkflowEdgeTargetHandle,
   SUBFLOW_TYPES,
 } from '@sim/workflow-types/workflow'
 import type { InferInsertModel } from 'drizzle-orm'
@@ -47,10 +47,14 @@ export async function saveWorkflowToNormalizedTables(
         height: String(block.height || 0),
         subBlocks: block.subBlocks || {},
         outputs: block.outputs || {},
-        data: {
-          ...(block.data || {}),
-          errorEnabled: block.errorEnabled ?? false,
-        },
+        errorEnabled: block.errorEnabled ?? false,
+        /**
+         * Persisted verbatim, including a disabled policy, so the configured
+         * numbers survive switching retry off and back on. Whether it runs is
+         * decided by `resolveBlockRetryConfig` at execution time.
+         */
+        retry: block.retry ?? null,
+        data: block.data || {},
         parentId: block.data?.parentId || null,
         extent: block.data?.extent || null,
         locked: block.locked ?? false,
@@ -65,8 +69,8 @@ export async function saveWorkflowToNormalizedTables(
         workflowId,
         sourceBlockId: edge.source,
         targetBlockId: edge.target,
-        sourceHandle: normalizePositionedSourceHandleId(edge.sourceHandle || null),
-        targetHandle: normalizePositionedTargetHandleId(edge.targetHandle || null),
+        sourceHandle: normalizeWorkflowEdgeSourceHandle(edge.sourceHandle),
+        targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle),
       }))
 
       await tx.insert(workflowEdges).values(edgeInserts)

@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { resetDbChainMock } from '@sim/testing'
+import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -11,6 +12,8 @@ const {
   mockPerformDeleteWorkflowMcpTool,
   mockPerformFullDeploy,
   mockPerformFullUndeploy,
+  mockExecuteCopilotMcpServerUseCase,
+  mockExecuteCopilotWorkflowUseCase,
 } = vi.hoisted(() => ({
   mockCheckChatAccess: vi.fn(),
   mockEnsureWorkflowAccess: vi.fn(),
@@ -18,6 +21,18 @@ const {
   mockPerformDeleteWorkflowMcpTool: vi.fn(),
   mockPerformFullDeploy: vi.fn(),
   mockPerformFullUndeploy: vi.fn(),
+  mockExecuteCopilotMcpServerUseCase: vi.fn(),
+  mockExecuteCopilotWorkflowUseCase: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/application/execute-mcp-server-use-case', () => ({
+  executeCopilotMcpServerUseCase: mockExecuteCopilotMcpServerUseCase,
+}))
+
+vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
+  executeCopilotWorkflowUseCase: mockExecuteCopilotWorkflowUseCase,
+  messageForCopilotWorkflowError: (error: unknown, fallback: string) =>
+    getErrorMessage(error, fallback),
 }))
 
 vi.mock('@/lib/workflows/orchestration', () => ({
@@ -74,7 +89,7 @@ describe('deployment handlers', () => {
   })
 
   it('undeploys the API without approval context when permission gating is disabled', async () => {
-    mockPerformFullUndeploy.mockResolvedValue({ success: true })
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({ success: true })
 
     const result = await executeDeployApi(
       { workflowId: 'workflow-1', action: 'undeploy' },
@@ -86,14 +101,15 @@ describe('deployment handlers', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockPerformFullUndeploy).toHaveBeenCalledWith({
-      workflowId: 'workflow-1',
-      userId: 'user-1',
-    })
+    expect(mockExecuteCopilotWorkflowUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({ operation: expect.objectContaining({ id: 'workflows.undeploy' }) }),
+      expect.objectContaining({ workflowId: 'workflow-1' })
+    )
   })
 
   it('uses the execution and deployment intent for semantic retry idempotency', async () => {
-    mockPerformFullDeploy.mockResolvedValue({
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
       success: true,
       activeDeployment: null,
       latestDeploymentAttempt: { status: 'preparing' },
@@ -114,7 +130,9 @@ describe('deployment handlers', () => {
       }
     )
 
-    expect(mockPerformFullDeploy).toHaveBeenCalledWith(
+    expect(mockExecuteCopilotWorkflowUseCase).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ operation: expect.objectContaining({ id: 'workflows.deploy' }) }),
       expect.objectContaining({
         idempotencyKey: 'copilot:execution-1:operation:deploy_api',
       })
@@ -122,7 +140,7 @@ describe('deployment handlers', () => {
   })
 
   it('does not report an admitted deployment as successful before its version is active', async () => {
-    mockPerformFullDeploy.mockResolvedValue({
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
       success: true,
       version: 12,
       deploymentVersionId: 'version-12',
@@ -148,7 +166,9 @@ describe('deployment handlers', () => {
       success: false,
       error: expect.stringContaining('not active'),
     })
-    expect(mockPerformFullDeploy).toHaveBeenCalledWith(
+    expect(mockExecuteCopilotWorkflowUseCase).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ operation: expect.objectContaining({ id: 'workflows.deploy' }) }),
       expect.objectContaining({
         idempotencyKey: 'copilot:execution-1:operation:deploy_api',
       })
@@ -156,7 +176,7 @@ describe('deployment handlers', () => {
   })
 
   it('reports success only when the version admitted by this call is active', async () => {
-    mockPerformFullDeploy.mockResolvedValue({
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
       success: true,
       version: 12,
       deploymentVersionId: 'version-12',
@@ -191,7 +211,7 @@ describe('deployment handlers', () => {
   })
 
   it('rejects a replay whose active deployment attempt became historical', async () => {
-    mockPerformFullDeploy.mockResolvedValue({
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
       success: true,
       activeDeployment: null,
       latestDeploymentAttempt: { status: 'active', isCurrent: false },
@@ -219,7 +239,7 @@ describe('deployment handlers', () => {
   })
 
   it('does not report a historical active attempt as a successful redeploy', async () => {
-    mockPerformFullDeploy.mockResolvedValue({
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
       success: true,
       activeDeployment: null,
       latestDeploymentAttempt: { status: 'active', isCurrent: false },
@@ -246,8 +266,8 @@ describe('deployment handlers', () => {
   })
 
   it('undeploys chat without approval context when permission gating is disabled', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
+      deployment: {
         id: 'chat-1',
         identifier: 'production-helper',
         title: 'Production Helper',
@@ -259,9 +279,7 @@ describe('deployment handlers', () => {
         includeToolCalls: false,
         customizations: null,
       },
-    ])
-    mockCheckChatAccess.mockResolvedValue({ hasAccess: true, workspaceId: 'workspace-1' })
-    mockPerformChatUndeploy.mockResolvedValue({ success: true })
+    })
 
     const result = await executeDeployChat(
       { workflowId: 'workflow-1', action: 'undeploy' },
@@ -273,18 +291,21 @@ describe('deployment handlers', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockPerformChatUndeploy).toHaveBeenCalledWith({
-      chatId: 'chat-1',
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
+    expect(mockExecuteCopilotWorkflowUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'workflows.chat.undeploy' }),
+      }),
+      expect.objectContaining({ workflowId: 'workflow-1' })
+    )
   })
 
   it('undeploys MCP without approval context when permission gating is disabled', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ id: 'server-1', name: 'Production MCP' }])
-      .mockResolvedValueOnce([{ id: 'tool-1' }])
-    mockPerformDeleteWorkflowMcpTool.mockResolvedValue({ success: true })
+    mockExecuteCopilotMcpServerUseCase.mockResolvedValue({
+      server: { id: 'server-1', name: 'Production MCP' },
+      tool: { id: 'tool-1', toolName: 'run_workflow' },
+      workflow: { id: 'workflow-1' },
+    })
 
     const result = await executeDeployMcp(
       { workflowId: 'workflow-1', serverId: 'server-1', action: 'undeploy' },
@@ -296,11 +317,14 @@ describe('deployment handlers', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(mockPerformDeleteWorkflowMcpTool).toHaveBeenCalledWith({
-      serverId: 'server-1',
-      toolId: 'tool-1',
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-    })
+    expect(mockExecuteCopilotMcpServerUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({
+        operation: expect.objectContaining({
+          id: 'mcp_servers.workflow_deployments.undeploy_tool',
+        }),
+      }),
+      { serverId: 'server-1', workflowId: 'workflow-1' }
+    )
   })
 })

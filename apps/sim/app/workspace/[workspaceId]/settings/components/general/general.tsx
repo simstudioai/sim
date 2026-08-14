@@ -217,6 +217,12 @@ export function General() {
     }
   }
 
+  const handleAutoFocusOnClickChange = async (checked: boolean) => {
+    if (checked !== settings?.autoFocusOnClick && !updateSetting.isPending) {
+      await updateSetting.mutateAsync({ key: 'autoFocusOnClick', value: checked })
+    }
+  }
+
   const handleSnapToGridChange = async (value: string) => {
     const newValue = Number.parseInt(value, 10)
     if (newValue !== settings?.snapToGridSize && !updateSetting.isPending) {
@@ -454,6 +460,36 @@ export function General() {
                 id='auto-connect'
                 checked={settings?.autoConnect ?? true}
                 onCheckedChange={handleAutoConnectChange}
+              />
+            </div>
+
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-1.5'>
+                <Label htmlFor='auto-focus-on-click'>Auto-focus on click</Label>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <button
+                      type='button'
+                      aria-label='About auto-focus on click'
+                      className='inline-flex cursor-default text-[var(--text-muted)]'
+                    >
+                      <CircleInfo className='size-[14px]' />
+                    </button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom' align='start'>
+                    <p>Center the canvas on a block when you click it</p>
+                    <Tooltip.Preview
+                      src='/tooltips/auto-focus-on-click.mp4'
+                      alt='Auto-focus on click example'
+                      loop={true}
+                    />
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+              <Switch
+                id='auto-focus-on-click'
+                checked={settings?.autoFocusOnClick ?? true}
+                onCheckedChange={handleAutoFocusOnClickChange}
               />
             </div>
 

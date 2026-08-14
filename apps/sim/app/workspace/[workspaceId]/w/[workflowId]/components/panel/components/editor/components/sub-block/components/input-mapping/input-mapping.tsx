@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Badge, CollapsibleCard, Label } from '@sim/emcn'
+import { Badge, CollapsibleCard, cn, Input, Label } from '@sim/emcn'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import { ReferenceTextInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/reference-text-control'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
@@ -133,7 +132,7 @@ export function InputMapping({
     return (
       <div className='flex h-32 items-center justify-center rounded-sm border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'>
         <div className='text-center'>
-          <p className='font-medium text-[var(--text-secondary)] text-sm'>No workflow selected</p>
+          <p className='text-[var(--text-secondary)] text-sm'>No workflow selected</p>
           <p className='mt-1 text-[var(--text-muted)] text-xs'>
             Select a workflow above to configure inputs
           </p>
@@ -254,25 +253,10 @@ function InputMappingField({
       <div className='flex flex-col gap-1.5'>
         <Label>Value</Label>
         <div className='relative'>
-          <ReferenceTextInput
+          <Input
             ref={(el) => {
               if (el) inputRefs.current.set(fieldId, el)
             }}
-            overlayRef={(el) => {
-              if (el) overlayRefs.current.set(fieldId, el)
-            }}
-            overlayContent={
-              <div className='min-w-fit whitespace-pre'>
-                {formatDisplayText(
-                  value,
-                  accessiblePrefixes
-                    ? { accessiblePrefixes, workflowSearchHighlight }
-                    : { highlightAll: true, workflowSearchHighlight }
-                )}
-              </div>
-            }
-            interactiveOverlay={disabled}
-            inputClassName='allow-scroll'
             name='value'
             value={value}
             onChange={handlers.onChange}
@@ -290,9 +274,33 @@ function InputMappingField({
             placeholder='Enter value or reference'
             disabled={disabled}
             autoComplete='off'
-            className='w-full'
+            className={cn(
+              'allow-scroll w-full overflow-auto text-transparent caret-foreground [letter-spacing:inherit]'
+            )}
             style={{ overflowX: 'auto' }}
           />
+          <div
+            ref={(el) => {
+              if (el) overlayRefs.current.set(fieldId, el)
+            }}
+            className={cn(
+              'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
+              !disabled && 'pointer-events-none'
+            )}
+            style={{ overflowX: 'auto' }}
+          >
+            <div
+              className='w-full whitespace-pre'
+              style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+            >
+              {formatDisplayText(
+                value,
+                accessiblePrefixes
+                  ? { accessiblePrefixes, workflowSearchHighlight }
+                  : { highlightAll: true, workflowSearchHighlight }
+              )}
+            </div>
+          </div>
           {fieldState.showTags && (
             <TagDropdown
               visible={fieldState.showTags}

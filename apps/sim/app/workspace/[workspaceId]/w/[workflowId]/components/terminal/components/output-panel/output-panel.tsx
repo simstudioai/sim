@@ -10,7 +10,6 @@ import {
   PopoverItem,
   PopoverTrigger,
   Tooltip,
-  thinScrollbarClass,
 } from '@sim/emcn'
 import {
   ArrowDown,
@@ -347,7 +346,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     aria-label='Close search'
                     className='!p-1.5 -m-1.5'
                   >
-                    <X className='h-3.5 w-3.5' />
+                    <X className='size-[14px]' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -363,7 +362,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     aria-label='Search in output'
                     className='!p-1.5 -m-1.5'
                   >
-                    <Search className='h-3.5 w-3.5' />
+                    <Search className='size-[14px]' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -381,7 +380,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       aria-label='Component Playground'
                       className='!p-1.5 -m-1.5'
                     >
-                      <Palette className='h-3.5 w-3.5' />
+                      <Palette className='size-[14px]' />
                     </Button>
                   </Link>
                 </Tooltip.Trigger>
@@ -400,9 +399,9 @@ export const OutputPanel = React.memo(function OutputPanel({
                   className='!p-1.5 -m-1.5'
                 >
                   {showCopySuccess ? (
-                    <Check className='h-3.5 w-3.5' />
+                    <Check className='size-[14px]' />
                   ) : (
-                    <Clipboard className='h-3.5 w-3.5' />
+                    <Clipboard className='size-[14px]' />
                   )}
                 </Button>
               </Tooltip.Trigger>
@@ -420,7 +419,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       aria-label='Export console CSV'
                       className='!p-1.5 -m-1.5'
                     >
-                      <Download className='h-3.5 w-3.5' />
+                      <Download className='size-[14px]' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
@@ -435,7 +434,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       aria-label='Clear console'
                       className='!p-1.5 -m-1.5'
                     >
-                      <Trash className='h-3.5 w-3.5' />
+                      <Trash className='size-[14px]' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
@@ -452,7 +451,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                   aria-label='Terminal options'
                   className='!p-1.5 -m-1.5'
                 >
-                  <MoreHorizontal className='h-3.5 w-3.5' />
+                  <MoreHorizontal className='size-[14px]' />
                 </Button>
               </PopoverTrigger>
               <PopoverContent
@@ -518,7 +517,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               className='!p-1.5 -m-1.5'
               disabled={matchCount === 0}
             >
-              <ArrowUp className='h-3.5 w-3.5' />
+              <ArrowUp className='size-[14px]' />
             </Button>
             <Button
               variant='ghost'
@@ -527,7 +526,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               className='!p-1.5 -m-1.5'
               disabled={matchCount === 0}
             >
-              <ArrowDown className='h-3.5 w-3.5' />
+              <ArrowDown className='size-[14px]' />
             </Button>
             <Button
               variant='ghost'
@@ -535,18 +534,14 @@ export const OutputPanel = React.memo(function OutputPanel({
               aria-label='Close search'
               className='!p-1.5 -m-1.5'
             >
-              <X className='h-3.5 w-3.5' />
+              <X className='size-[14px]' />
             </Button>
           </div>
         )}
 
         {/* Content */}
         <div
-          className={clsx(
-            'flex-1 overflow-y-auto',
-            thinScrollbarClass,
-            !wrapText && 'overflow-x-auto'
-          )}
+          className={clsx('flex-1 overflow-y-auto', !wrapText && 'overflow-x-auto')}
           onContextMenu={handleOutputPanelContextMenu}
         >
           {!showInput &&

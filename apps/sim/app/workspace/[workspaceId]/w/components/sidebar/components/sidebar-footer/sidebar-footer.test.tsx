@@ -1,0 +1,162 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const desktopMocks = vi.hoisted(() => ({
+  getState: vi.fn(),
+  onState: vi.fn(),
+  check: vi.fn(),
+  install: vi.fn(),
+  listener: null as ((state: unknown) => void) | null,
+  unsubscribe: vi.fn(),
+}))
+
+vi.mock('@/lib/desktop', () => ({
+  getDesktopUpdates: () => ({
+    getState: desktopMocks.getState,
+    onState: desktopMocks.onState,
+    check: desktopMocks.check,
+    install: desktopMocks.install,
+  }),
+}))
+vi.mock('@/hooks/queries/user-profile', () => ({
+  useUserProfile: () => ({ data: { id: 'user-1', name: 'Ada', email: 'ada@sim.ai' } }),
+}))
+vi.mock('@/lib/auth/auth-client', () => ({
+  useSession: () => ({ data: { user: { id: 'user-1' } } }),
+}))
+vi.mock('@/lib/billing/workspace-permissions', () => ({
+  canViewWorkspaceBillingSettings: () => true,
+}))
+vi.mock('@/lib/core/config/env-flags', () => ({ isBillingEnabled: true }))
+vi.mock('@/lib/workspaces/colors', () => ({ getUserColor: () => '#000000' }))
+vi.mock('@/hooks/use-workspace-invite-policy', () => ({
+  useWorkspaceInvitePolicy: () => ({ isInvitationsDisabled: false }),
+}))
+vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
+  useWorkspaceHostContext: () => null,
+}))
+vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/sidebar', () => ({
+  SidebarTooltip: ({ children }: { children: React.ReactNode }) => children,
+}))
+vi.mock('@/components/icons', () => ({
+  SlackIcon: ({ className }: { className?: string }) => <svg className={className} />,
+}))
+
+import { SidebarFooter } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-footer/sidebar-footer'
+
+let container: HTMLDivElement
+let root: Root
+
+async function renderFooter(initialState: Record<string, unknown>) {
+  desktopMocks.getState.mockResolvedValue(initialState)
+  await act(async () => {
+    root.render(
+      <SidebarFooter
+        workspaceId='workspace-1'
+        isCollapsed={false}
+        showCollapsedTooltips={false}
+        onOpenSettings={() => {}}
+        onOpenDocs={() => {}}
+        onJoinSlack={() => {}}
+        onContactSupport={() => {}}
+      />
+    )
+  })
+}
+
+function helpTrigger(): HTMLButtonElement {
+  const trigger = container.querySelector<HTMLButtonElement>('[data-item-id="help"]')
+  if (!trigger) throw new Error('Help trigger was not rendered')
+  return trigger
+}
+
+function openHelpMenu() {
+  act(() => {
+    helpTrigger().dispatchEvent(
+      new MouseEvent('pointerdown', { bubbles: true, button: 0, ctrlKey: false })
+    )
+  })
+}
+
+function menuItem(label: string): HTMLElement {
+  const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    (candidate) => candidate.textContent === label
+  )
+  if (!item) throw new Error(`Menu item "${label}" was not rendered`)
+  return item
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  desktopMocks.listener = null
+  desktopMocks.onState.mockImplementation((listener) => {
+    desktopMocks.listener = listener
+    return desktopMocks.unsubscribe
+  })
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+})
+
+afterEach(() => {
+  act(() => root.unmount())
+  container.remove()
+})
+
+describe('SidebarFooter desktop update affordance', () => {
+  it('keeps the ordinary help treatment when no update is available', async () => {
+    await renderFooter({ status: 'idle' })
+
+    expect(helpTrigger()).toHaveAttribute('aria-label', 'Help')
+    expect(helpTrigger()).not.toHaveClass('bg-[var(--text-primary)]')
+    expect(helpTrigger()).toHaveClass('h-[30px]', 'px-2')
+    expect(helpTrigger().querySelector('circle')).toBeInTheDocument()
+    openHelpMenu()
+    expect(document.querySelector('[role="menu"]')).not.toHaveTextContent('Update')
+    expect(menuItem('Docs')).toBeVisible()
+  })
+
+  it('replaces Help with a same-size primary update icon and starts it from the same menu', async () => {
+    await renderFooter({ status: 'available', version: '1.4.0' })
+
+    expect(helpTrigger()).toHaveAttribute('aria-label', 'Help, update available')
+    expect(helpTrigger()).toHaveClass('h-[30px]', 'px-2')
+    expect(helpTrigger()).not.toHaveClass('bg-[var(--text-primary)]')
+    expect(helpTrigger().querySelector('circle')).not.toBeInTheDocument()
+    expect(helpTrigger().querySelector('span')).toHaveClass(
+      'size-[17px]',
+      'rounded-full',
+      'bg-[var(--text-primary)]'
+    )
+    expect(helpTrigger().querySelector('svg')).toHaveClass('size-[11px]')
+    expect(helpTrigger().querySelector('svg')).toHaveAttribute('viewBox', '-1.75 -1.75 24 24')
+    openHelpMenu()
+    expect(menuItem('Update').querySelector('img')).toHaveAttribute(
+      'src',
+      '/favicon/favicon-32x32.png'
+    )
+    act(() => menuItem('Update').click())
+
+    expect(desktopMocks.check).toHaveBeenCalledTimes(1)
+    expect(desktopMocks.install).not.toHaveBeenCalled()
+  })
+
+  it('turns the menu action into restart-and-install when the update is ready', async () => {
+    await renderFooter({ status: 'idle' })
+
+    act(() => {
+      desktopMocks.listener?.({ status: 'ready', version: '1.4.0' })
+    })
+    expect(helpTrigger().querySelector('span')).toHaveClass('bg-[var(--text-primary)]')
+    openHelpMenu()
+    act(() => menuItem('Update').click())
+
+    expect(desktopMocks.install).toHaveBeenCalledTimes(1)
+    expect(desktopMocks.check).not.toHaveBeenCalled()
+  })
+})

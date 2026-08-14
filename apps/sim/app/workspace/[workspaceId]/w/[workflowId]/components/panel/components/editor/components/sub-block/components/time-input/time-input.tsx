@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipTimePicker } from '@sim/emcn'
+import { TimePicker } from '@sim/emcn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -25,6 +25,10 @@ function formatTimeInputDisplayLabel(value: string): string {
   return `${displayHour}:${minutes} ${ampm}`
 }
 
+/**
+ * Time input wrapper for sub-block editor.
+ * Connects the EMCN TimePicker to the sub-block store.
+ */
 export function TimeInput({
   blockId,
   subBlockId,
@@ -53,13 +57,12 @@ export function TimeInput({
   }
 
   return (
-    <ChipTimePicker
+    <TimePicker
       value={value || undefined}
       onChange={handleChange}
       placeholder={placeholder || 'Select time'}
       disabled={isPreview || disabled}
       className={className}
-      fullWidth
       overlayContent={
         workflowSearchHighlight ? (
           <span className='truncate'>

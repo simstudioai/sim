@@ -1,4 +1,5 @@
 import { useId, useMemo } from 'react'
+import { usePrefersReducedMotion } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
 import type { EdgeDiffStatus, EdgeRunStatus } from '../types'
@@ -6,6 +7,17 @@ import type { EdgeDiffStatus, EdgeRunStatus } from '../types'
 const EXECUTION_PULSE_LENGTH = 0.32
 const EXECUTION_PULSE_CYCLE_LENGTH = 2.2
 const EXECUTION_PULSE_DURATION = '1100ms'
+
+/**
+ * How far the glow reaches past the path, in user space.
+ *
+ * The pulse strokes are `non-scaling-stroke`, so the widest one (6px) covers
+ * `3 / zoom` user units — 30 at the canvas minimum of 0.1 — while the blur adds
+ * roughly 3σ more. Under-sizing the filter region does not shrink the glow, it
+ * clips it to a hard rectangle, so this is rounded up rather than tuned: the
+ * region only bounds the output, it costs nothing to be larger than needed.
+ */
+const PULSE_GLOW_BLEED_PX = 40
 
 const EXECUTION_PULSE_LAYERS = [
   { id: 'tail', length: EXECUTION_PULSE_LENGTH, opacity: 0.22, strokeWidth: 6 },
@@ -79,6 +91,7 @@ export function WorkflowEdgeView({
   isTargetActive = false,
   isConnectedToSelection = false,
 }: WorkflowEdgeViewProps) {
+  const prefersReducedMotion = usePrefersReducedMotion()
   const pulseId = useId().replaceAll(':', '')
   const pulseGlowId = `workflow-edge-pulse-glow-${pulseId}`
   const isHorizontal = sourcePosition === 'right' || sourcePosition === 'left'
@@ -94,12 +107,36 @@ export function WorkflowEdgeView({
     offset: isHorizontal ? 30 : 20,
   })
 
+  /*
+   * Endpoint bounds grown by the routing offset the path may bend out to, plus
+   * the widest pulse stroke and the blur's reach. Computed in user space so a
+   * flat path still gets a real region — see the filter below.
+   */
+  const pulseGlowBounds = useMemo(() => {
+    const padding = (isHorizontal ? 30 : 20) + PULSE_GLOW_BLEED_PX
+    const x = Math.min(sourceX, targetX) - padding
+    const y = Math.min(sourceY, targetY) - padding
+    return {
+      x,
+      y,
+      width: Math.abs(targetX - sourceX) + padding * 2,
+      height: Math.abs(targetY - sourceY) + padding * 2,
+    }
+  }, [isHorizontal, sourceX, sourceY, targetX, targetY])
+
   const isSelected = data?.isSelected ?? false
 
   const dataSourceHandle = (data as { sourceHandle?: string } | undefined)?.sourceHandle
   const isErrorEdge = (sourceHandle ?? dataSourceHandle) === 'error'
   const hasRunStatus = runStatus === 'success' || runStatus === 'error'
   const isTraversing = isWorkflowRunning && hasRunStatus && isTargetActive && !diffStatus
+  /*
+   * Gated on the setting rather than `motion-reduce:hidden`: that compiles to
+   * `display: none`, which hides the pulse but leaves four SMIL timelines
+   * running per traversing edge. `isTraversing` itself stays semantic so
+   * `executionState` still reports the edge as traversing either way.
+   */
+  const showsPulse = isTraversing && !prefersReducedMotion
   const executionState = isWorkflowRunning
     ? isTraversing
       ? 'traversing'
@@ -165,10 +202,24 @@ export function WorkflowEdgeView({
     <>
       <g data-workflow-edge-state={executionState}>
         <BaseEdge path={edgePath} style={edgeStyle} interactionWidth={30} />
-        {isTraversing && (
+        {showsPulse && (
           <>
             <defs>
-              <filter id={pulseGlowId} x='-30%' y='-30%' width='160%' height='160%'>
+              {/*
+                `userSpaceOnUse` rather than the default `objectBoundingBox`: a
+                straight horizontal edge — what an auto-laid-out chain produces,
+                since handles sit at fixed Y offsets — has a zero-height
+                bounding box, which resolves the region to zero height and stops
+                the referencing element from rendering at all.
+              */}
+              <filter
+                id={pulseGlowId}
+                filterUnits='userSpaceOnUse'
+                x={pulseGlowBounds.x}
+                y={pulseGlowBounds.y}
+                width={pulseGlowBounds.width}
+                height={pulseGlowBounds.height}
+              >
                 <feGaussianBlur stdDeviation='2.4' />
               </filter>
             </defs>
@@ -191,7 +242,7 @@ export function WorkflowEdgeView({
                   vectorEffect='non-scaling-stroke'
                   filter={layer.id === 'tail' ? `url(#${pulseGlowId})` : undefined}
                   opacity={layer.opacity}
-                  className='pointer-events-none motion-reduce:hidden'
+                  className='pointer-events-none'
                 >
                   <animate
                     attributeName='stroke-dashoffset'

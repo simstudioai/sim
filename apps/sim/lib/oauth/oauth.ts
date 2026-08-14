@@ -40,6 +40,7 @@ import {
   MicrosoftSharepointIcon,
   MicrosoftTeamsIcon,
   MondayIcon,
+  NetSuiteIcon,
   NotionIcon,
   OutlookIcon,
   PipedriveIcon,
@@ -71,6 +72,11 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
+import {
+  SALESFORCE_ADDITIONAL_PROVIDER_IDS,
+  SALESFORCE_LOGIN_HOSTS,
+  SALESFORCE_PROVIDER_ID_LABELS,
+} from '@/lib/oauth/salesforce'
 import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')
@@ -856,6 +862,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'snowflake',
   },
+  netsuite: {
+    name: 'Oracle NetSuite',
+    icon: NetSuiteIcon,
+    services: {
+      netsuite: {
+        name: 'Oracle NetSuite',
+        description:
+          'Manage NetSuite records, queries, datasets, batches, metadata, and asynchronous jobs.',
+        providerId: 'netsuite',
+        serviceAccountProviderId: 'netsuite-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'netsuite',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,
@@ -1114,6 +1138,9 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Salesforce',
         description: 'Access and manage your Salesforce CRM data.',
         providerId: 'salesforce',
+        additionalProviderIds: SALESFORCE_ADDITIONAL_PROVIDER_IDS,
+        providerIdLabels: SALESFORCE_PROVIDER_ID_LABELS,
+        providerIdPickerHint: 'Sandbox orgs sign in at test.salesforce.com, not production.',
         serviceAccountProviderId: 'salesforce-service-account',
         icon: SalesforceIcon,
         baseProviderIcon: SalesforceIcon,
@@ -1637,14 +1664,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         refreshStrategy: 'instagram_long_lived',
       }
     }
-    case 'salesforce': {
+    case 'salesforce':
+    case 'salesforce-sandbox': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'salesforce',
         'SALESFORCE_CLIENT_ID',
         'SALESFORCE_CLIENT_SECRET'
       )
+      // A refresh token is only redeemable at the authorization server that
+      // issued it: a sandbox token posted to login.salesforce.com fails with
+      // `invalid_grant`. One Connected App's consumer key is valid at both
+      // hosts, so only the endpoint differs.
       return {
-        tokenEndpoint: 'https://login.salesforce.com/services/oauth2/token',
+        tokenEndpoint: `https://${SALESFORCE_LOGIN_HOSTS[provider]}/services/oauth2/token`,
         clientId,
         clientSecret,
         useBasicAuth: false,
@@ -1789,6 +1821,17 @@ function buildAuthRequest(
   return { headers, bodyParams, useJsonBody: config.useJsonBody }
 }
 
+/**
+ * Resolves the key {@link getProviderAuthConfig} is switched on for a stored
+ * credential's provider id.
+ *
+ * Normally that is the base provider, because every service in a family
+ * refreshes against the same endpoint with the same client. A provider id
+ * listed in a service's `additionalProviderIds` is the exception: it names a
+ * *different* authorization server for the same service, so it must reach
+ * `getProviderAuthConfig` intact — collapsing it to the base would silently
+ * refresh a sandbox token against the production endpoint.
+ */
 function getBaseProviderForService(providerId: string): string {
   if (providerId in OAUTH_PROVIDERS) {
     return providerId
@@ -1798,6 +1841,9 @@ function getBaseProviderForService(providerId: string): string {
     for (const service of Object.values(config.services)) {
       if (service.providerId === providerId) {
         return baseProvider
+      }
+      if (service.additionalProviderIds?.includes(providerId)) {
+        return providerId
       }
     }
   }

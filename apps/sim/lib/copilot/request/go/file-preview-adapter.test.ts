@@ -9,12 +9,18 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 
-const { peekFileIntentMock } = vi.hoisted(() => ({
+const { peekFileIntentMock, executeCopilotFileUseCaseMock } = vi.hoisted(() => ({
   peekFileIntentMock: vi.fn(),
+  executeCopilotFileUseCaseMock: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/tools/server/files/file-intent-store', () => ({
   peekFileIntent: peekFileIntentMock,
+}))
+
+vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
+  executeCopilotFileUseCase: executeCopilotFileUseCaseMock,
+  resolveCopilotWorkspaceFileReference: vi.fn(),
 }))
 
 import { createStreamingContext } from '@/lib/copilot/request/context/request-context'
@@ -31,8 +37,7 @@ const EDIT_TOOL_CALL_ID = 'edit-content-1'
 const WORKSPACE_FILE_TOOL_CALL_ID = 'workspace-file-1'
 const BASE_VERSION_MS = 900_000
 
-/** One args_delta chunk of the streamed `edit_content` JSON, as a driveable StreamEvent. */
-function editContentDelta(argumentsDelta: string): StreamEvent {
+function toolEvent(payload: Record<string, unknown>): StreamEvent {
   return eventToStreamEvent(
     createEvent({
       streamId: STREAM_ID,
@@ -41,15 +46,36 @@ function editContentDelta(argumentsDelta: string): StreamEvent {
       requestId: 'req-1',
       type: MothershipStreamV1EventType.tool,
       payload: {
-        toolCallId: EDIT_TOOL_CALL_ID,
-        toolName: 'edit_content',
         executor: MothershipStreamV1ToolExecutor.sim,
         mode: MothershipStreamV1ToolMode.async,
-        phase: MothershipStreamV1ToolPhase.args_delta,
-        argumentsDelta,
+        ...payload,
       },
     })
   )
+}
+
+/** One args_delta chunk of the streamed `edit_content` JSON, as a driveable StreamEvent. */
+function editContentDelta(argumentsDelta: string): StreamEvent {
+  return toolEvent({
+    toolCallId: EDIT_TOOL_CALL_ID,
+    toolName: 'edit_content',
+    phase: MothershipStreamV1ToolPhase.args_delta,
+    argumentsDelta,
+  })
+}
+
+/** The authoritative `workspace_file` call frame for a path-targeted update. */
+function workspaceFileCall(): StreamEvent {
+  return toolEvent({
+    toolCallId: WORKSPACE_FILE_TOOL_CALL_ID,
+    toolName: 'workspace_file',
+    phase: MothershipStreamV1ToolPhase.call,
+    arguments: {
+      operation: 'update',
+      title: 'Refresh the runbook',
+      target: { kind: 'path', path: 'files/notes.md' },
+    },
+  })
 }
 
 function makeIntent(overrides: {
@@ -138,5 +164,79 @@ describe('processFilePreviewStreamEvent — preview content emission', () => {
     expect(combined).toContain('Base.')
     expect(combined).toContain('Hello')
     expect(combined).toContain('world')
+  })
+})
+
+/**
+ * The adapter runs while the tool-call frame is still on the wire, so the
+ * execution context it receives is turn-scoped and carries no `toolCallId`.
+ * The file delegation requires one, so the adapter has to supply the frame's
+ * own id — otherwise resolving the preview target throws, the SSE handler
+ * abandons the rest of the event, and the tool call is later dispatched with
+ * no arguments at all.
+ */
+describe('processFilePreviewStreamEvent — preview target resolution', () => {
+  const TURN_EXEC_CONTEXT: ExecutionContext = {
+    userId: 'user-1',
+    workflowId: 'workflow-1',
+    workspaceId: 'workspace-1',
+    chatId: 'chat-1',
+    messageId: 'msg-1',
+    copilotToolExecution: true,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    executeCopilotFileUseCaseMock.mockResolvedValue({
+      files: [{ id: 'file-9', name: 'notes.md', folderPath: null }],
+    })
+  })
+
+  it('resolves the path target under the streaming tool call identity', async () => {
+    const context = createStreamingContext()
+
+    await processFilePreviewStreamEvent({
+      streamId: STREAM_ID,
+      streamEvent: workspaceFileCall(),
+      context,
+      execContext: TURN_EXEC_CONTEXT,
+      options: { onEvent: () => {} },
+      state: createFilePreviewAdapterState(),
+    })
+
+    expect(executeCopilotFileUseCaseMock).toHaveBeenCalled()
+    expect(executeCopilotFileUseCaseMock.mock.calls[0][0]).toMatchObject({
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      copilotToolExecution: true,
+      toolCallId: WORKSPACE_FILE_TOOL_CALL_ID,
+    })
+    expect(context.activeFileIntents.get('')?.target).toEqual({
+      kind: 'file_id',
+      fileId: 'file-9',
+      fileName: 'notes.md',
+      path: 'files/notes.md',
+    })
+  })
+
+  it('keeps the path target and does not throw when resolution fails', async () => {
+    executeCopilotFileUseCaseMock.mockRejectedValue(new Error('workspace file listing unavailable'))
+    const context = createStreamingContext()
+
+    await expect(
+      processFilePreviewStreamEvent({
+        streamId: STREAM_ID,
+        streamEvent: workspaceFileCall(),
+        context,
+        execContext: TURN_EXEC_CONTEXT,
+        options: { onEvent: () => {} },
+        state: createFilePreviewAdapterState(),
+      })
+    ).resolves.toBeUndefined()
+
+    expect(context.activeFileIntents.get('')?.target).toEqual({
+      kind: 'path',
+      path: 'files/notes.md',
+    })
   })
 })

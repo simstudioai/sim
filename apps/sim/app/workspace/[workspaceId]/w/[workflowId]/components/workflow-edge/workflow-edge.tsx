@@ -3,6 +3,10 @@ import { type EdgeDiffStatus, WorkflowEdgeView } from '@sim/workflow-renderer'
 import { type EdgeProps, useStore } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import {
+  isEdgeConnectedToEditor,
+  isEdgeHighlighted,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/edge-highlight'
+import {
   useIsBlockActive,
   useIsCurrentWorkflowExecuting,
   useLastRunEdges,
@@ -36,9 +40,7 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
   const isWorkflowRunning = useIsCurrentWorkflowExecuting()
   const isTargetActive = useIsBlockActive(target)
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
-  const { activeTab, isPanelOpen } = usePanelStore(
-    useShallow((state) => ({ activeTab: state.activeTab, isPanelOpen: state.isOpen }))
-  )
+  const activeTab = usePanelStore((state) => state.activeTab)
 
   /**
    * Match the block ring: darken edges when an endpoint is canvas-selected or
@@ -57,12 +59,15 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
     isEndpointSelected ||
       (data as { isConnectedToSelection?: boolean } | undefined)?.isConnectedToSelection
   )
-  const isConnectedToEditor =
-    isPanelOpen &&
-    activeTab === 'editor' &&
-    currentBlockId !== null &&
-    (currentBlockId === source || currentBlockId === target)
-  const shouldHighlightEdge = isConnectedToSelection || isConnectedToEditor
+  const isConnectedToEditor = isEdgeConnectedToEditor(
+    activeTab === 'editor' ? currentBlockId : null,
+    source,
+    target
+  )
+  const shouldHighlightEdge = isEdgeHighlighted({
+    isEndpointSelected: isConnectedToSelection,
+    isConnectedToEditor,
+  })
 
   const previewExecutionStatus = (
     data as { executionStatus?: 'success' | 'error' | 'not-executed' } | undefined

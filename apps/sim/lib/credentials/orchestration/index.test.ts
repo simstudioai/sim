@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  auditMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -10,18 +16,23 @@ const {
   mockDecryptSecret,
   mockVerifyAndBuildServiceAccountSecret,
   mockIsClientCredentialAccountProviderId,
+  mockGetClientCredentialAccountDescriptor,
 } = vi.hoisted(() => ({
   mockRecordAudit: vi.fn(),
   mockGetCredentialActorContext: vi.fn(),
   mockDecryptSecret: vi.fn(),
   mockVerifyAndBuildServiceAccountSecret: vi.fn(),
   mockIsClientCredentialAccountProviderId: vi.fn(() => false),
+  // Only a descriptor carrying `defaultAuthMethod` is multi-grant; single-grant
+  // providers must not trigger the stored-blob read for authMethod/username.
+  mockGetClientCredentialAccountDescriptor: vi.fn(() => undefined),
 }))
 
 vi.mock('@sim/audit', () => ({
   AuditAction: { CREDENTIAL_UPDATED: 'credential.updated' },
   AuditResourceType: { CREDENTIAL: 'credential' },
   recordAudit: mockRecordAudit,
+  auditUpdatedFields: auditMock.auditUpdatedFields,
 }))
 vi.mock('@/lib/credentials/access', () => ({
   getCredentialActorContext: mockGetCredentialActorContext,
@@ -32,7 +43,9 @@ vi.mock('@/lib/credentials/service-account-secret', () => ({
   ServiceAccountSecretError: class ServiceAccountSecretError extends Error {},
 }))
 vi.mock('@/lib/credentials/client-credential-accounts/descriptors', () => ({
+  CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS: {},
   isClientCredentialAccountProviderId: mockIsClientCredentialAccountProviderId,
+  getClientCredentialAccountDescriptor: mockGetClientCredentialAccountDescriptor,
 }))
 vi.mock('@/lib/credentials/deletion', () => ({ deleteCredential: vi.fn() }))
 vi.mock('@/lib/credentials/environment', () => ({
@@ -104,6 +117,7 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockIsClientCredentialAccountProviderId.mockReturnValue(false)
+    mockGetClientCredentialAccountDescriptor.mockReturnValue(undefined)
     mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
       providerId: 'google-service-account',
       encryptedServiceAccountKey: 'new-cipher',
@@ -274,6 +288,112 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
       'zoho-desk-service-account',
       expect.objectContaining({ dataCenter: 'eu' })
+    )
+  })
+
+  it('fails the reconnect when the stored secret cannot be decrypted', async () => {
+    mockCredential()
+    queueTableRows(schemaMock.credential, [{ key: 'stored-cipher' }])
+    mockDecryptSecret.mockRejectedValue(new Error('decrypt failed'))
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      serviceAccountJson: NEW_GOOGLE_KEY,
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'internal' })
+    expect(mockVerifyAndBuildServiceAccountSecret).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('carries the stored auth method and username forward on a key rotation', async () => {
+    // Rotating a Salesforce JWT key resubmits only the key. Losing the stored
+    // grant would silently mint the credential as client credentials instead.
+    mockCredential({ providerId: 'salesforce-service-account', displayName: 'SF integration' })
+    mockIsClientCredentialAccountProviderId.mockReturnValue(true)
+    mockGetClientCredentialAccountDescriptor.mockReturnValue({
+      defaultAuthMethod: 'client_credentials',
+    } as never)
+    mockStoredBlob({
+      type: 'client_credential_account',
+      authMethod: 'jwt_bearer',
+      username: 'integration.user@acme.com',
+    })
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'salesforce-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'SF integration',
+      auditMetadata: {},
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      clientId: 'cid',
+      orgId: 'acme.my.salesforce.com',
+      privateKey: '-----BEGIN PRIVATE KEY-----rotated',
+    })
+
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'salesforce-service-account',
+      expect.objectContaining({
+        authMethod: 'jwt_bearer',
+        username: 'integration.user@acme.com',
+        privateKey: '-----BEGIN PRIVATE KEY-----rotated',
+      })
+    )
+  })
+
+  it('does not read the stored blob for a single-grant client-credential reconnect', async () => {
+    // Zoom/Box/Zoho have no auth method to carry forward, so a reconnect that
+    // supplies its own dataCenter must not pay for a decrypt.
+    mockCredential({ providerId: 'zoom-service-account', displayName: 'Zoom S2S' })
+    mockIsClientCredentialAccountProviderId.mockReturnValue(true)
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'zoom-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'Zoom S2S',
+      auditMetadata: {},
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      clientId: 'cid',
+      clientSecret: 'csec',
+      orgId: 'acct-1',
+      dataCenter: 'us',
+    })
+
+    expect(mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('threads a NetSuite certificate ID through reconnect', async () => {
+    mockCredential({
+      providerId: 'netsuite-service-account',
+      displayName: 'Production NetSuite',
+    })
+    mockIsClientCredentialAccountProviderId.mockReturnValue(true)
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'netsuite-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'Production NetSuite',
+      auditMetadata: {},
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      orgId: 'https://1234567.suitetalk.api.netsuite.com',
+      clientId: 'client-id',
+      certificateId: 'certificate-id',
+      privateKey: '-----BEGIN PRIVATE KEY-----rotated',
+    })
+
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'netsuite-service-account',
+      expect.objectContaining({ certificateId: 'certificate-id' })
     )
   })
 

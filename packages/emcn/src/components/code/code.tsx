@@ -1,12 +1,10 @@
 'use client'
 
 import {
-  createContext,
   Fragment,
   memo,
   type ReactNode,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -15,13 +13,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronRight } from '../../icons'
 import { cn } from '../../lib/cn'
-import { chipFieldSurfaceClass } from '../chip/chip-chrome'
-import { thinScrollbarClass } from '../scrollbar/scrollbar'
 import './code.css'
-
-type CodeAppearance = 'code' | 'field'
-
-const CodeAppearanceContext = createContext<CodeAppearance>('code')
 
 /**
  * Shape of the lazily-loaded Prism module (`./prism`), narrowed to the two
@@ -32,7 +24,7 @@ type PrismModule = typeof import('./prism')
 /**
  * Module-level singleton promise for the lazily-loaded Prism module.
  *
- * Prism (core + the side-effectful JS/Python/JSON grammar registrations) is kept
+ * Prism (core + the side-effectful JS/Python/JSON/Bash grammar registrations) is kept
  * out of this module's static import graph so it never lands in bundles that only
  * pull `Code` through the shared `@sim/emcn` barrel. It is loaded once per
  * session on the first highlight and cached here for all subsequent viewers.
@@ -460,8 +452,6 @@ const CollapseLineButton = memo(function CollapseLineButton({
 interface CodeContainerProps {
   /** Editor content wrapped by this container */
   children: ReactNode
-  /** Visual treatment for code-centric surfaces or chip-aligned form fields. */
-  appearance?: CodeAppearance
   /** Additional CSS classes for the container */
   className?: string
   /** Inline styles for the container */
@@ -485,32 +475,24 @@ interface CodeContainerProps {
  * </Code.Container>
  * ```
  */
-function Container({
-  children,
-  appearance = 'code',
-  className,
-  style,
-  onDragOver,
-  onDrop,
-}: CodeContainerProps) {
+function Container({ children, className, style, onDragOver, onDrop }: CodeContainerProps) {
   return (
-    <CodeAppearanceContext.Provider value={appearance}>
-      <div
-        className={cn(
-          'group relative min-h-[100px] overflow-x-auto overflow-y-auto border font-mono font-normal text-sm transition-colors',
-          thinScrollbarClass,
-          appearance === 'field'
-            ? chipFieldSurfaceClass
-            : 'rounded-sm border-[var(--border-1)] bg-[var(--surface-1)] dark:bg-[var(--code-bg)]',
-          className
-        )}
-        style={style}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-      >
-        {children}
-      </div>
-    </CodeAppearanceContext.Provider>
+    <div
+      className={cn(
+        // Base container styling
+        'group relative min-h-[100px] rounded-sm border border-[var(--border-1)]',
+        'bg-[var(--surface-1)] font-mono text-sm transition-colors',
+        'dark:bg-[var(--code-bg)]',
+        // Overflow handling for long content
+        'overflow-x-auto overflow-y-auto',
+        className
+      )}
+      style={style}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      {children}
+    </div>
   )
 }
 
@@ -605,16 +587,12 @@ interface CodeGutterProps {
  * Provides consistent styling for the line number column.
  */
 function Gutter({ children, width, className, style }: CodeGutterProps) {
-  const appearance = useContext(CodeAppearanceContext)
-
   return (
     <div
       className={cn(
         'absolute top-0 bottom-0 left-0',
         'flex select-none flex-col items-end overflow-hidden',
-        appearance === 'field'
-          ? 'rounded-l-lg bg-transparent dark:bg-transparent'
-          : 'rounded-l-[4px] bg-[var(--surface-1)] dark:bg-[var(--code-bg)]',
+        'rounded-l-[4px] bg-[var(--surface-1)] dark:bg-[var(--code-bg)]',
         'pr-0.5',
         className
       )}
@@ -1104,7 +1082,6 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
         'bg-[var(--surface-1)] font-mono text-sm',
         wrapText ? 'overflow-x-hidden' : 'overflow-x-auto',
         'overflow-y-auto',
-        thinScrollbarClass,
         'dark:bg-[var(--code-bg)]',
         className
       )}

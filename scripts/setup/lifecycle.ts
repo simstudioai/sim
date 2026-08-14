@@ -20,6 +20,7 @@ export const LIFECYCLE_COMMANDS = [
   'start',
   'stop',
   'restart',
+  'update',
   'status',
   'logs',
   'down',
@@ -325,6 +326,50 @@ function restart(install: Install): void {
   p.note(k8sReachHints(install.context), 'Kubernetes is managed with kubectl')
 }
 
+export type ComposeUpdateMode = 'pull' | 'build'
+
+/** Resolves how a setup-managed Compose install obtains its next image. */
+export function getComposeUpdateMode(file: string): ComposeUpdateMode {
+  const name = path.basename(file)
+  if (name === 'docker-compose.prod.yml') return 'pull'
+  if (name === 'docker-compose.local.yml') return 'build'
+  throw new Error(`Unsupported Sim Compose file: ${file}`)
+}
+
+function update(install: Install): void {
+  if (install.kind === 'dev') {
+    throw new SetupError('sim update is only available for Docker Compose installs.', [
+      'update the source checkout with git, run bun install, then restart bun run dev:full',
+    ])
+  }
+  if (install.kind === 'k8s') {
+    throw new SetupError('sim update does not upgrade Kubernetes releases.', [
+      'upgrade the release with helm after reviewing the chart and release notes',
+    ])
+  }
+
+  const mode = getComposeUpdateMode(install.file)
+  const spin = p.spinner()
+  if (mode === 'pull') {
+    spin.start('Pulling configured Sim images…')
+    dockerRun(composeArgs(install, 'pull'), 'docker compose pull failed', install.dir)
+  } else {
+    spin.start('Rebuilding Sim images with current base images…')
+    dockerRun(composeArgs(install, 'build', '--pull'), 'docker compose build failed', install.dir)
+  }
+  spin.message('Applying updated images and running migrations…')
+  dockerRun(composeArgs(install, 'up', '-d'), 'docker compose up failed', install.dir)
+  spin.stop('Sim updated (data volumes kept)')
+  p.note(
+    [
+      `version: ${theme.command(`SIM_VERSION in ${path.join(install.dir, '.env')}`)} (latest when unset)`,
+      `check:   ${theme.command('bun run sim status')}`,
+      `logs:    ${theme.command('bun run sim logs')}`,
+    ].join('\n'),
+    'Update complete'
+  )
+}
+
 function showLogs(install: Install): void {
   if (install.kind === 'compose') {
     dockerInherit(composeArgs(install, 'logs', '-f', '--tail', '100'), install.dir)
@@ -488,6 +533,8 @@ export async function runLifecycle(command: LifecycleCommand): Promise<void> {
       return stop(install)
     case 'restart':
       return restart(install)
+    case 'update':
+      return update(install)
     case 'logs':
       return showLogs(install)
     case 'down':

@@ -646,20 +646,6 @@ export function groupEntriesByExecution(entries: ConsoleEntry[]): ExecutionGroup
 }
 
 /**
- * Flattens entry tree into display order for keyboard navigation
- */
-export function flattenEntryTree(nodes: EntryNode[]): ConsoleEntry[] {
-  const result: ConsoleEntry[] = []
-  for (const node of nodes) {
-    result.push(node.entry)
-    if (node.children.length > 0) {
-      result.push(...flattenEntryTree(node.children))
-    }
-  }
-  return result
-}
-
-/**
  * Block entry with parent tracking for navigation
  */
 export interface NavigableBlockEntry {

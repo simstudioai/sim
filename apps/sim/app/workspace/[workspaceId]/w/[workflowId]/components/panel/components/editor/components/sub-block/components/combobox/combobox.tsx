@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChipCombobox, type ComboboxOption, cn } from '@sim/emcn'
+import { Combobox, type ComboboxOption, cn } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { useReactFlow } from 'reactflow'
 import { SandboxCreateModal } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/components/sandbox-create-modal'
@@ -529,7 +529,7 @@ export const ComboBox = memo(function ComboBox({
           }
 
           return (
-            <ChipCombobox
+            <Combobox
               options={comboboxOptions}
               value={inputValue}
               selectedValue={value ?? ''}

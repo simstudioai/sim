@@ -20,8 +20,8 @@ const {
     createReadStream: vi.fn(),
     getMetadata: vi.fn(),
     delete: vi.fn(),
-    copy: vi.fn(),
     getSignedUrl: vi.fn(),
+    copy: vi.fn(),
   }
   const mockBucket = { file: vi.fn(() => mockFile) }
   const mockGetAccessToken = vi.fn()
@@ -72,6 +72,7 @@ import {
   abortGcsMultipartUpload,
   completeGcsMultipartUpload,
   deleteFromGcs,
+  deleteGcsObjectVersion,
   downloadFromGcs,
   getGcsClient,
   getGcsMultipartPartUrls,
@@ -79,6 +80,7 @@ import {
   getPresignedUrlWithConfig,
   headGcsObject,
   initiateGcsMultipartUpload,
+  listGcsMultipartParts,
   resetGcsClientForTesting,
   uploadGcsPart,
   uploadToGcs,
@@ -309,7 +311,8 @@ describe('GCS Client', () => {
         {
           size: '2048',
           contentType: 'text/csv',
-          metadata: { simuploadid: 'receipt-1' },
+          generation: '42',
+          metadata: { uploadid: 'upload-1', simuploadid: 'receipt-1' },
         },
       ])
 
@@ -318,7 +321,9 @@ describe('GCS Client', () => {
       expect(result).toEqual({
         size: 2048,
         contentType: 'text/csv',
-        metadata: { simuploadid: 'receipt-1' },
+        uploadId: 'upload-1',
+        version: '42',
+        metadata: { uploadid: 'upload-1', simuploadid: 'receipt-1' },
       })
     })
 
@@ -341,6 +346,23 @@ describe('GCS Client', () => {
     })
   })
 
+  describe('direct upload object lifecycle', () => {
+    it('deletes the upload object only at the inspected generation', async () => {
+      mockFile.delete.mockResolvedValueOnce(undefined)
+
+      await deleteGcsObjectVersion({
+        key: 'workspace/workspace-1/file.bin',
+        generation: '42',
+        customConfig: { bucket: 'test-bucket' },
+      })
+
+      expect(mockBucket.file).toHaveBeenCalledWith('workspace/workspace-1/file.bin', {
+        generation: '42',
+      })
+      expect(mockFile.delete).toHaveBeenCalledWith({ ifGenerationMatch: '42' })
+    })
+  })
+
   describe('deleteFromGcs', () => {
     it('should delete a file, ignoring missing objects', async () => {
       mockFile.delete.mockResolvedValueOnce(undefined)
@@ -359,6 +381,32 @@ describe('GCS Client', () => {
   })
 
   describe('multipart uploads (XML API)', () => {
+    it('lists provider-authoritative parts across pagination', async () => {
+      mockFetch
+        .mockResolvedValueOnce(
+          new Response(
+            '<ListPartsResult><Part><PartNumber>1</PartNumber><ETag>&quot;etag-1&quot;</ETag><Size>8</Size></Part><IsTruncated>true</IsTruncated><NextPartNumberMarker>1</NextPartNumberMarker></ListPartsResult>',
+            { status: 200 }
+          )
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            '<ListPartsResult><Part><PartNumber>2</PartNumber><ETag>&quot;etag-2&quot;</ETag><Size>3</Size></Part><IsTruncated>false</IsTruncated></ListPartsResult>',
+            { status: 200 }
+          )
+        )
+
+      await expect(
+        listGcsMultipartParts('workspace/ws-1/file.bin', 'provider-upload-1')
+      ).resolves.toEqual([
+        { partNumber: 1, etag: '"etag-1"', size: 8 },
+        { partNumber: 2, etag: '"etag-2"', size: 3 },
+      ])
+      expect(mockFetch.mock.calls[1][0]).toContain(
+        'uploadId=provider-upload-1&part-number-marker=1'
+      )
+    })
+
     it('should initiate a multipart upload and parse the UploadId', async () => {
       mockFetch.mockResolvedValueOnce(
         new Response(
@@ -443,16 +491,25 @@ describe('GCS Client', () => {
         .mockResolvedValueOnce(['https://example.com/part-1'])
         .mockResolvedValueOnce(['https://example.com/part-2'])
 
-      const urls = await getGcsMultipartPartUrls('key.csv', 'upload-123', [1, 2])
+      const expires = new Date('2026-01-01T00:02:00.000Z')
+      const urls = await getGcsMultipartPartUrls(
+        'key.csv',
+        'upload-123',
+        [1, 2],
+        undefined,
+        expires
+      )
 
       expect(urls).toEqual([
         { partNumber: 1, url: 'https://example.com/part-1' },
         { partNumber: 2, url: 'https://example.com/part-2' },
       ])
+      // The caller owns the lifetime and advertises the matching `expiresAt`; signing to a
+      // window this function picked itself is how the two drift apart.
       expect(mockFile.getSignedUrl).toHaveBeenCalledWith({
         version: 'v4',
         action: 'write',
-        expires: expect.any(Number),
+        expires,
         queryParams: { partNumber: '1', uploadId: 'upload-123' },
       })
     })
@@ -620,10 +677,10 @@ describe('GCS Client', () => {
       expect(init.method).toBe('DELETE')
     })
 
-    it('should swallow abort errors', async () => {
+    it('should surface abort errors', async () => {
       mockFetch.mockResolvedValueOnce(new Response('boom', { status: 500, statusText: 'ISE' }))
 
-      await expect(abortGcsMultipartUpload('key.csv', 'upload-123')).resolves.toBeUndefined()
+      await expect(abortGcsMultipartUpload('key.csv', 'upload-123')).rejects.toThrow('500 ISE')
     })
 
     it('should fail multipart calls when no access token is available', async () => {

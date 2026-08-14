@@ -77,6 +77,7 @@ function createBaseSpan(log: ValidBlockLog): TraceSpan {
     output,
     ...(childIds ?? {}),
     ...(log.errorHandled && { errorHandled: true }),
+    ...(log.tries !== undefined && { tries: log.tries }),
     ...(log.loopId && { loopId: log.loopId }),
     ...(log.parallelId && { parallelId: log.parallelId }),
     ...(log.iterationIndex !== undefined && { iterationIndex: log.iterationIndex }),

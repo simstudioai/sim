@@ -1,118 +1,59 @@
 'use client'
 
 import type * as React from 'react'
-import { Children } from 'react'
 import { cn } from '../../lib/cn'
-import { chipContentLabelClass, chipFieldSurfaceClass } from '../chip/chip-chrome'
+import { handleKeyboardActivation } from '../../lib/keyboard'
 
-interface FieldCardSharedProps
-  extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children' | 'title'> {
+export interface CollapsibleCardProps {
   /** Header label (rendered in the standard truncated field-title style). */
   title: React.ReactNode
   /** Optional trailing header content, e.g. a type `Badge`. */
   badge?: React.ReactNode
-  /** Optional interactive actions rendered outside the header toggle. */
-  actions?: React.ReactNode
-  /** Removes the default body padding for edge-to-edge editors. */
-  flush?: boolean
-  /** Body content rendered below the header. */
-  children?: React.ReactNode
-}
-
-export type FieldCardProps = FieldCardSharedProps
-
-export interface CollapsibleCardProps extends FieldCardSharedProps {
   collapsed: boolean
   onToggleCollapse: () => void
+  /** Body content, shown when expanded. */
+  children: React.ReactNode
+  className?: string
 }
 
 /**
- * Shared chip-aligned frame used by static and collapsible field cards.
- */
-function FieldCardFrame({
-  header,
-  actions,
-  children,
-  flush = false,
-  className,
-  ...props
-}: Omit<FieldCardSharedProps, 'title' | 'badge'> & { header: React.ReactNode }) {
-  const hasBody = Children.toArray(children).length > 0
-
-  return (
-    <div className={cn(chipFieldSurfaceClass, 'overflow-hidden', className)} {...props}>
-      <div
-        className={cn(
-          'flex min-h-[30px] items-center justify-between px-2',
-          hasBody && 'border-[var(--border-1)] border-b'
-        )}
-      >
-        {header}
-        {actions ? <div className='flex items-center gap-1 pl-2'>{actions}</div> : null}
-      </div>
-      {hasBody ? (
-        <div
-          className={cn(
-            'bg-[var(--surface-2)]',
-            !flush && 'flex flex-col gap-2 px-2.5 pt-1.5 pb-2.5'
-          )}
-        >
-          {children}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-/**
- * A chip-aligned field card with a static header and optional edge-to-edge body.
- */
-export function FieldCard({ title, badge, actions, children, ...props }: FieldCardProps) {
-  return (
-    <FieldCardFrame
-      header={
-        <div className='flex min-w-0 flex-1 items-center gap-2'>
-          <span className={chipContentLabelClass}>{title}</span>
-          {badge}
-        </div>
-      }
-      actions={actions}
-      {...props}
-    >
-      {children}
-    </FieldCardFrame>
-  )
-}
-
-/**
- * A chip-aligned field card whose header toggles the body.
+ * A collapsible field card: a `--surface-4` header (click / keyboard to toggle)
+ * with a truncated title + optional badge, over a `--surface-2` body. Shared by
+ * the workflow input-mapping rows and the enrichment output-column config.
  */
 export function CollapsibleCard({
   title,
   badge,
-  actions,
   collapsed,
   onToggleCollapse,
   children,
-  ...props
+  className,
 }: CollapsibleCardProps) {
   return (
-    <FieldCardFrame
-      header={
-        <button
-          type='button'
-          className='flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left'
-          aria-expanded={!collapsed}
-          onClick={onToggleCollapse}
-        >
-          <span className={chipContentLabelClass}>{title}</span>
-          {badge}
-        </button>
-      }
-      actions={actions}
-      {...props}
+    <div
+      className={cn(
+        'rounded-sm border border-[var(--border-1)]',
+        collapsed ? 'overflow-hidden' : 'overflow-visible',
+        className
+      )}
     >
-      {collapsed ? null : children}
-    </FieldCardFrame>
+      <div
+        role='button'
+        tabIndex={0}
+        className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
+        onClick={onToggleCollapse}
+        onKeyDown={(event) => handleKeyboardActivation(event, onToggleCollapse)}
+      >
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
+          <span className='block truncate text-[var(--text-tertiary)] text-sm'>{title}</span>
+          {badge}
+        </div>
+      </div>
+      {!collapsed && (
+        <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+          {children}
+        </div>
+      )}
+    </div>
   )
 }

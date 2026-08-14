@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { readClientId } from '@/lib/api/client-id'
 import {
   deleteTableRowContract,
   getTableQuerySchema,
@@ -14,8 +14,9 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
-import { deleteRow, updateRow } from '@/lib/table'
-import { signalTableRowsChanged } from '@/lib/table/events'
+import { updateRow } from '@/lib/table'
+import { signalTableRowsChangedByActor } from '@/lib/table/events'
+import { performDeleteTableRow } from '@/lib/table/orchestration'
 import {
   createTableRowsResponse,
   createTableWriteProvenanceTargets,
@@ -25,8 +26,8 @@ import { rowWireTranslators } from '@/app/api/table/row-wire'
 import {
   accessError,
   checkAccess,
-  rootErrorMessage,
-  rowWriteErrorResponse,
+  orchestrationErrorResponse,
+  orchestrationOutcomeErrorResponse,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
 
@@ -170,12 +171,12 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       table,
       requestId
     )
+
+    // Live-collab: tell open viewers the change landed so they refetch.
+    signalTableRowsChangedByActor(tableId, readClientId(request))
     // Only `null` when a `cancellationGuard` is supplied and the SQL guard
     // rejects the write — this route doesn't pass one, so reaching null is a bug.
     if (!updatedRow) throw new Error('updateRow returned null without a cancellationGuard')
-    // An edit that also triggers a dispatch already emits dispatch/cell events; the
-    // debounced rows refetch on the peer coalesces the two.
-    signalTableRowsChanged(tableId)
     // Auto-dispatch for user edits is handled inside `updateRow` (mode: 'new').
     // Firing a second mode: 'incomplete' dispatch here would race with the
     // `mode: 'new'` one AND bulk-clear sibling-group outputs (the incomplete
@@ -210,11 +211,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       rows: [updatedRow],
     })
   } catch (error) {
-    if (rootErrorMessage(error) === 'Row not found') {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
-
-    const response = rowWriteErrorResponse(error)
+    const response = orchestrationErrorResponse(error)
     if (response) return response
 
     logger.error(`[${requestId}] Error updating row:`, error)
@@ -249,8 +246,13 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    await deleteRow(table, rowId, requestId)
-    signalTableRowsChanged(tableId)
+    const outcome = await performDeleteTableRow({ table, rowId, requestId })
+    if (!outcome.success) {
+      return orchestrationOutcomeErrorResponse(outcome, 'Failed to delete row')
+    }
+
+    // Live-collab: tell open viewers the change landed so they refetch.
+    signalTableRowsChangedByActor(tableId, readClientId(request))
 
     return NextResponse.json({
       success: true,
@@ -263,11 +265,8 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
     const lockError = tableLockErrorResponse(error)
     if (lockError) return lockError
 
-    const errorMessage = toError(error).message
-
-    if (errorMessage === 'Row not found') {
-      return NextResponse.json({ error: errorMessage }, { status: 404 })
-    }
+    const classified = orchestrationErrorResponse(error)
+    if (classified) return classified
 
     logger.error(`[${requestId}] Error deleting row:`, error)
     return NextResponse.json({ error: 'Failed to delete row' }, { status: 500 })

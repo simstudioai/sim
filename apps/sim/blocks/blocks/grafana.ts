@@ -15,6 +15,90 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
   integrationType: IntegrationType.Observability,
   bgColor: '#FFFFFF',
   icon: GrafanaIcon,
+  canvasPresentation: {
+    defaultTitle: 'Grafana',
+    sentences: {
+      byOperation: {
+        grafana_list_dashboards: [
+          'List dashboards',
+          { text: ', matching', field: 'query' },
+          { text: ', tagged', field: 'tag' },
+          { text: ', in folders', field: 'folderUIDs' },
+        ],
+        grafana_get_dashboard: [{ text: 'Fetch dashboard', field: 'dashboardUid', core: true }],
+        grafana_create_dashboard: [
+          { text: 'Create dashboard', field: 'title', core: true },
+          { text: ', in folder', field: 'folderUid' },
+          { text: ', tagged', field: 'tags' },
+        ],
+        grafana_update_dashboard: [
+          { text: 'Update dashboard', field: 'dashboardUid', core: true },
+          { text: ', setting panels to', field: 'panels' },
+          { text: ', moving it to folder', field: 'folderUid' },
+        ],
+        grafana_delete_dashboard: [{ text: 'Delete dashboard', field: 'dashboardUid', core: true }],
+        grafana_list_alert_rules: ['List all alert rules'],
+        grafana_get_alert_rule: [{ text: 'Fetch alert rule', field: 'alertRuleUid', core: true }],
+        grafana_create_alert_rule: [
+          { text: 'Create alert rule', field: 'alertTitle', core: true },
+          { text: ', in group', field: 'ruleGroup' },
+          { text: ', firing after', field: 'forDuration' },
+        ],
+        grafana_update_alert_rule: [
+          { text: 'Update alert rule', field: 'alertRuleUid', core: true },
+          { text: ', renaming it to', field: 'alertTitle' },
+          { text: ', firing after', field: 'forDuration' },
+        ],
+        grafana_delete_alert_rule: [
+          { text: 'Delete alert rule', field: 'alertRuleUid', core: true },
+        ],
+        grafana_list_contact_points: [
+          'List contact points',
+          { text: ', named', field: 'contactPointName' },
+        ],
+        grafana_create_contact_point: [
+          { text: 'Create contact point', field: 'contactPointNameNew', core: true },
+          { text: ', of type', field: 'contactPointType' },
+        ],
+        grafana_create_annotation: [
+          { text: 'Create annotation', field: 'text', core: true },
+          { text: ', on dashboard', field: 'annotationDashboardUid' },
+          { text: ', tagged', field: 'annotationTags' },
+        ],
+        grafana_list_annotations: [
+          'List annotations',
+          { text: ', on dashboard', field: 'annotationDashboardUid' },
+          { text: ', tagged', field: 'annotationTags' },
+          { text: ', since', field: 'from' },
+        ],
+        grafana_update_annotation: [
+          { text: 'Update annotation', field: 'annotationId', core: true },
+          { text: ', setting text to', field: 'text' },
+          { text: ', tagged', field: 'annotationTags' },
+        ],
+        grafana_delete_annotation: [
+          { text: 'Delete annotation', field: 'annotationId', core: true },
+        ],
+        grafana_list_data_sources: ['List all data sources'],
+        grafana_get_data_source: [{ text: 'Fetch data source', field: 'dataSourceId', core: true }],
+        grafana_check_data_source_health: [
+          { text: 'Test connectivity to data source', field: 'dataSourceUid', core: true },
+        ],
+        grafana_list_folders: ['List folders', { text: ', under parent', field: 'parentUidList' }],
+        grafana_create_folder: [
+          { text: 'Create folder', field: 'folderTitle', core: true },
+          { text: ', under parent', field: 'parentUidNew' },
+        ],
+        grafana_get_folder: [{ text: 'Fetch folder', field: 'manageFolderUid', core: true }],
+        grafana_update_folder: [
+          { text: 'Rename folder', field: 'manageFolderUid', core: true },
+          { text: 'to', field: 'updateFolderTitle' },
+        ],
+        grafana_delete_folder: [{ text: 'Delete folder', field: 'manageFolderUid', core: true }],
+        grafana_get_health: ['Report instance health and version'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

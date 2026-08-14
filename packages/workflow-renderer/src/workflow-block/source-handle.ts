@@ -1,7 +1,7 @@
 import {
-  getPositionedSourceHandleId,
-  type PositionedSourceHandleSide,
+  WORKFLOW_SOURCE_HANDLE_ID,
   type WorkflowCardSide,
+  type WorkflowConnectionSide,
 } from '@sim/workflow-types/workflow'
 import { Position } from 'reactflow'
 
@@ -9,7 +9,7 @@ export const CURSOR_SOURCE_HANDLE_ID = 'source-cursor'
 const CURSOR_BRANCH_SOURCE_HANDLE_PREFIX = `${CURSOR_SOURCE_HANDLE_ID}-branch-`
 
 /** Returns the temporary React Flow handle ID under the cursor swell. */
-export function getCursorSourceHandleId(side: PositionedSourceHandleSide): string {
+export function getCursorSourceHandleId(side: WorkflowConnectionSide): string {
   return `${CURSOR_SOURCE_HANDLE_ID}-${side}`
 }
 
@@ -27,13 +27,15 @@ export function getCursorSourceHandlePosition(side: WorkflowCardSide): Position 
 }
 
 /**
- * Converts a temporary cursor handle into its persistent anchor.
+ * Converts a temporary cursor handle into its persistent handle id.
  *
- * Outputs always leave from the right. The swell lets a drag START on any
- * edge — including the left, which is the input side — but the connection it
- * creates is an output, so it anchors right regardless of where the gesture
- * began. Loop and parallel containers retain their semantic end handles;
- * regular cards use the canonical positioned right anchor.
+ * The swell lets a drag START anywhere on the card's perimeter, but the
+ * connection it creates is the block's one output, so it always resolves to
+ * that block's canonical source id. Which perimeter edge the gesture began on
+ * is presentation only and is deliberately not encoded in the persisted id —
+ * a second id for the same port would defeat edge de-duplication and would not
+ * be understood by the executor, the copilot edit pipeline, or the diff engine.
+ * Loop and parallel containers keep their semantic end handles.
  */
 export function normalizeCursorSourceHandleId(
   handleId: string | null | undefined,
@@ -49,5 +51,5 @@ export function normalizeCursorSourceHandleId(
   if (blockType === 'loop') return 'loop-end-source'
   if (blockType === 'parallel') return 'parallel-end-source'
 
-  return getPositionedSourceHandleId('right')
+  return WORKFLOW_SOURCE_HANDLE_ID
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Button, ChipCombobox, type ComboboxOptionGroup } from '@sim/emcn'
+import { Button, Combobox, type ComboboxOptionGroup } from '@sim/emcn'
 import { Key, SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
@@ -431,7 +431,7 @@ export function CredentialSelector({
 
   return (
     <div>
-      <ChipCombobox
+      <Combobox
         options={comboboxOptions}
         groups={comboboxGroups}
         value={displayValue}
@@ -508,6 +508,10 @@ export function CredentialSelector({
           requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}
           newScopes={missingRequiredScopes}
           serviceId={serviceId}
+          // A reauthorize must return to the authorization server that issued
+          // the credential — deriving it from the service id would send a
+          // sandbox user to production, where they cannot sign in at all.
+          providerId={selectedCredential?.provider ?? effectiveProviderId}
         />
       )}
 

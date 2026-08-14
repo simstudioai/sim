@@ -2,11 +2,8 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import type { SubBlockConfig } from '@/blocks/types'
 import {
-  buildCanonicalIndex,
   evaluateSubBlockCondition,
-  isSubBlockVisibleInEditor,
   reindexToolCanonicalModes,
   scopeCanonicalModesForTool,
 } from './visibility'
@@ -183,52 +180,6 @@ describe('evaluateSubBlockCondition', () => {
       const values = { count: 5 }
       expect(evaluateSubBlockCondition(condition, values)).toBe(true)
     })
-  })
-})
-
-describe('isSubBlockVisibleInEditor', () => {
-  it.concurrent('shows standalone basic and advanced fields together', () => {
-    const subBlocks = [
-      { id: 'name', title: 'Name', type: 'short-input', mode: 'basic' },
-      { id: 'runMetadata', title: 'Run metadata', type: 'switch', mode: 'advanced' },
-    ] satisfies SubBlockConfig[]
-    const canonicalIndex = buildCanonicalIndex(subBlocks)
-
-    expect(isSubBlockVisibleInEditor(subBlocks[0], canonicalIndex, {})).toBe(true)
-    expect(isSubBlockVisibleInEditor(subBlocks[1], canonicalIndex, {})).toBe(true)
-  })
-
-  it.concurrent('keeps canonical basic and advanced controls mutually exclusive', () => {
-    const subBlocks = [
-      {
-        id: 'resourceSelector',
-        title: 'Resource',
-        type: 'dropdown',
-        mode: 'basic',
-        canonicalParamId: 'resource',
-      },
-      {
-        id: 'resourceId',
-        title: 'Resource ID',
-        type: 'short-input',
-        mode: 'advanced',
-        canonicalParamId: 'resource',
-      },
-    ] satisfies SubBlockConfig[]
-    const canonicalIndex = buildCanonicalIndex(subBlocks)
-
-    expect(isSubBlockVisibleInEditor(subBlocks[0], canonicalIndex, {}, { resource: 'basic' })).toBe(
-      true
-    )
-    expect(isSubBlockVisibleInEditor(subBlocks[1], canonicalIndex, {}, { resource: 'basic' })).toBe(
-      false
-    )
-    expect(
-      isSubBlockVisibleInEditor(subBlocks[0], canonicalIndex, {}, { resource: 'advanced' })
-    ).toBe(false)
-    expect(
-      isSubBlockVisibleInEditor(subBlocks[1], canonicalIndex, {}, { resource: 'advanced' })
-    ).toBe(true)
   })
 })
 

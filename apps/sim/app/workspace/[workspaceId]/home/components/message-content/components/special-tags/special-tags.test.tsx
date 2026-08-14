@@ -9,7 +9,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockRefetchPersonalEnvironment,
   mockRefetchWorkspaceCredentials,
+  mockIsBrowserAgentAvailable,
   mockSavePersonalEnvironment,
+  mockSendBrowserPanelAction,
   mockUpsertWorkspaceEnvironment,
   mockUseUserPermissionsContext,
   mockUseWorkspaceCredential,
@@ -17,7 +19,9 @@ const {
 } = vi.hoisted(() => ({
   mockRefetchPersonalEnvironment: vi.fn(async () => ({ data: {} })),
   mockRefetchWorkspaceCredentials: vi.fn(async () => ({ data: [] })),
+  mockIsBrowserAgentAvailable: vi.fn(() => false),
   mockSavePersonalEnvironment: vi.fn(async () => undefined),
+  mockSendBrowserPanelAction: vi.fn(),
   mockUpsertWorkspaceEnvironment: vi.fn(async () => undefined),
   mockUseUserPermissionsContext: vi.fn(),
   mockUseWorkspaceCredential: vi.fn(),
@@ -50,6 +54,11 @@ vi.mock('@/hooks/queries/environment', () => ({
     isPending: false,
     mutateAsync: mockUpsertWorkspaceEnvironment,
   }),
+}))
+
+vi.mock('@/lib/browser-agent/transport', () => ({
+  isBrowserAgentAvailable: mockIsBrowserAgentAvailable,
+  sendBrowserPanelAction: mockSendBrowserPanelAction,
 }))
 
 import { toast } from '@sim/emcn'
@@ -95,6 +104,57 @@ describe('CredentialDisplay link tag', () => {
       isFetched: true,
       refetch: mockRefetchWorkspaceCredentials,
     })
+    mockIsBrowserAgentAvailable.mockReturnValue(false)
+  })
+
+  it('renders browser takeover through the shared question UI', () => {
+    mockIsBrowserAgentAvailable.mockReturnValue(true)
+    const { container, root } = renderCredentialLink({
+      type: 'browser_takeover',
+      name: 'Please pick a match in the draw and click into it.',
+    })
+
+    expect(container.textContent).toContain('Please pick a match in the draw and click into it.')
+    expect(container.textContent).toContain('Continue')
+    expect(container.querySelector('input')?.placeholder).toBe('Something else')
+    expect(container.querySelector('[aria-label="Dismiss"]')).toBeNull()
+
+    const continueButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Continue'
+    )
+    act(() => continueButton?.click())
+
+    expect(mockSendBrowserPanelAction).toHaveBeenCalledWith(
+      'takeover-done',
+      {},
+      'pending:workspace-1'
+    )
+    act(() => root.unmount())
+  })
+
+  it('returns a custom takeover instruction to the browser agent', () => {
+    mockIsBrowserAgentAvailable.mockReturnValue(true)
+    const { container, root } = renderCredentialLink({
+      type: 'browser_takeover',
+      name: 'Please pick a match in the draw.',
+    })
+    const input = container.querySelector('input')
+    const submit = container.querySelector<HTMLButtonElement>('button[aria-label="Submit answer"]')
+
+    act(() => {
+      if (!input) return
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      valueSetter?.call(input, 'Open the second match')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    act(() => submit?.click())
+
+    expect(mockSendBrowserPanelAction).toHaveBeenCalledWith(
+      'takeover-done',
+      { takeoverResponse: 'Open the second match' },
+      'pending:workspace-1'
+    )
+    act(() => root.unmount())
   })
 
   it('does not render an anchor for a javascript: scheme value', () => {
@@ -1113,6 +1173,69 @@ describe('CredentialDisplay link tag', () => {
     expect(container.textContent).toContain('GmailConnected')
     expect(container.textContent).toContain('OPENAI_API_KEYSkipped')
     expect(container.querySelector('input')).toBeNull()
+    act(() => root.unmount())
+  })
+
+  it('recaps an abandoned card as skipped instead of leaving a live form', () => {
+    const container = document.createElement('div')
+    const root: Root = createRoot(container)
+    const data: CredentialItemData[] = [
+      { type: 'secret_input', name: 'ABC_API_KEY' },
+      { type: 'secret_input', name: 'BED_API_KEY' },
+    ]
+
+    act(() => {
+      root.render(<SpecialTags segment={{ type: 'credential', data }} credentialAbandoned />)
+    })
+
+    expect(container.textContent).not.toContain('Add secrets')
+    expect(container.textContent).toContain('ABC_API_KEYSkipped')
+    expect(container.textContent).toContain('BED_API_KEYSkipped')
+    expect(container.querySelector('input')).toBeNull()
+    act(() => root.unmount())
+  })
+
+  it('restores a finished connect into an abandoned recap on a fresh mount', () => {
+    const attempt = createOAuthChatAttempt({
+      workspaceId: 'workspace-1',
+      providerId: 'google-email',
+      baseProviderId: 'google',
+      displayName: 'Gmail',
+      controlId: 'credential-card:0',
+      baselineCredentialIds: [],
+    })
+    setOAuthChatAttemptStatus(attempt.id, 'connected')
+    const container = document.createElement('div')
+    const root: Root = createRoot(container)
+    const data: CredentialItemData[] = [
+      {
+        type: 'link',
+        provider: 'google-email',
+        value: 'https://sim.test/api/auth/oauth2/authorize?providerId=google-email',
+      },
+      { type: 'secret_input', name: 'ABC_API_KEY' },
+    ]
+
+    act(() => {
+      root.render(<SpecialTags segment={{ type: 'credential', data }} credentialAbandoned />)
+    })
+
+    expect(container.textContent).toContain('GmailConnected')
+    expect(container.textContent).toContain('ABC_API_KEYSkipped')
+    act(() => root.unmount())
+  })
+
+  it('leaves a sim_key-only card alone when the turn moves on', () => {
+    const container = document.createElement('div')
+    const root: Root = createRoot(container)
+    const data: CredentialItemData[] = [{ type: 'sim_key', name: 'Sim API key', value: 'sim-key' }]
+
+    act(() => {
+      root.render(<SpecialTags segment={{ type: 'credential', data }} credentialAbandoned />)
+    })
+
+    expect(container.textContent).toContain('API key')
+    expect(container.textContent).not.toContain('Skipped')
     act(() => root.unmount())
   })
 

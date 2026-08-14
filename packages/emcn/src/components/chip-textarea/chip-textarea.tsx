@@ -22,7 +22,6 @@
 import * as React from 'react'
 import { cn } from '../../lib/cn'
 import { chipFieldSurfaceClass, chipFieldTextClass } from '../chip/chip-chrome'
-import { thinScrollbarClass } from '../scrollbar/scrollbar'
 
 export interface ChipTextareaProps
   extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'size'> {
@@ -50,7 +49,6 @@ export const ChipTextarea = React.forwardRef<HTMLTextAreaElement, ChipTextareaPr
         'w-full px-2 py-1.5 disabled:cursor-not-allowed disabled:opacity-50',
         chipFieldSurfaceClass,
         chipFieldTextClass,
-        thinScrollbarClass,
         error ? 'border-[var(--text-error)]' : undefined,
         resizable ? 'resize-y' : 'resize-none',
         viewOnly && 'cursor-default',

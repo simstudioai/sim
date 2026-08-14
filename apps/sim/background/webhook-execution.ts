@@ -31,6 +31,7 @@ import {
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import {
   type WebhookAttachment,
   WebhookAttachmentProcessor,
@@ -49,7 +50,6 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
 } from '@/lib/workflows/persistence/utils'
-import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { WEBHOOK_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { getBlock } from '@/blocks'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'

@@ -12,6 +12,7 @@ import {
   MothershipStreamV1ToolOutcome,
   type MothershipStreamV1ToolResultPayload,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { BrowserRequestTakeover } from '@/lib/copilot/generated/tool-catalog-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
@@ -235,7 +236,7 @@ export async function prePersistClientExecutableToolCall(
         toolInput: data.arguments,
       })
     } catch (error) {
-      execContext.resolvedSecretTraceRegistry.markIncomplete()
+      execContext.resolvedSecretTraceRegistry.markIncomplete('client-tool-seal-failed')
       logger.warn('Failed to seal client tool provenance', {
         toolCallId: data.toolCallId,
         error: getErrorMessage(error),
@@ -742,12 +743,14 @@ async function dispatchToolExecution(
    */
   function waitForClientExecution(): Promise<AsyncCompletionSignal> {
     toolCall.status = 'executing'
+    const waitsForHuman = toolName === BrowserRequestTakeover.id
+    const timeoutMs = waitsForHuman ? null : options.timeout || STREAM_TIMEOUT_MS
     return withCopilotSpan(
       TraceSpan.CopilotToolWaitForClientResult,
       {
         [TraceAttr.ToolName]: toolName,
         [TraceAttr.ToolCallId]: toolCallId,
-        [TraceAttr.ToolTimeoutMs]: options.timeout || STREAM_TIMEOUT_MS,
+        ...(timeoutMs !== null ? { [TraceAttr.ToolTimeoutMs]: timeoutMs } : {}),
         ...(context.runId ? { [TraceAttr.RunId]: context.runId } : {}),
       },
       async (span) => {
@@ -755,7 +758,7 @@ async function dispatchToolExecution(
           ? await waitForWorkflowToolCompletion({
               toolCallId,
               workflowId: resolveWorkflowToolTargetId(args, execContext.workflowId),
-              timeoutMs: options.timeout || STREAM_TIMEOUT_MS,
+              timeoutMs: timeoutMs ?? STREAM_TIMEOUT_MS,
               abortSignal: options.abortSignal,
               registry: execContext.resolvedSecretTraceRegistry,
             })
@@ -763,7 +766,7 @@ async function dispatchToolExecution(
               toolCallId,
               runId: context.runId,
               userId: execContext.userId,
-              timeoutMs: options.timeout || STREAM_TIMEOUT_MS,
+              timeoutMs,
               abortSignal: options.abortSignal,
               registry: execContext.resolvedSecretTraceRegistry,
             })

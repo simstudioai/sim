@@ -1,24 +1,21 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
-import type { JSONContent } from '@tiptap/core'
-import Placeholder from '@tiptap/extension-placeholder'
-import { EditorContent, useEditor } from '@tiptap/react'
-import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
-import { postProcessSerializedMarkdown } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
-import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+import type { NoteContentEditorProps } from '@sim/workflow-renderer'
+import { RichMarkdownField } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field'
+import { useNoteImageUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/use-note-image-upload'
 
-interface NoteMarkdownEditorProps {
-  value: string
-  selectionClassName: string
-  onChange: (content: string) => void
-  onBlur: () => void
-  onCancel: () => void
-}
-
-const NOTE_EDITOR_PROSE_CLASS_NAME = [
+export const NOTE_EDITOR_PROSE_CLASS_NAME = [
   'min-h-full w-full text-current',
+  /* The height the shared node chrome centres a checklist's checkbox against —
+     the note's own line box, not the file editor's taller default. */
+  '[--rich-markdown-line-height:1.25rem]',
+  /* Mirrors NOTE_MARKDOWN_FLOW, the rhythm Streamdown paints in the read view.
+     Tailwind's JIT only sees literal class strings, so this cannot be composed
+     from that constant — the note view exports it, and the parity test pins the
+     two together. Without it the editor falls back to the per-element margins
+     and every block after the first sits ~12px higher than when viewing. */
+  '[&_.ProseMirror]:space-y-4 [&_.ProseMirror>*:first-child]:mt-0 [&_.ProseMirror>*:last-child]:mb-0',
   '[&_.ProseMirror]:min-h-full [&_.ProseMirror]:break-words [&_.ProseMirror]:pt-0.5 [&_.ProseMirror]:pb-2 [&_.ProseMirror]:outline-none',
   '[&_.ProseMirror_p]:mb-1 [&_.ProseMirror_p]:text-sm [&_.ProseMirror_p]:leading-[1.25rem] [&_.ProseMirror_p:last-child]:mb-0',
   '[&_.ProseMirror_h1]:mt-3 [&_.ProseMirror_h1]:mb-3 [&_.ProseMirror_h1]:font-semibold [&_.ProseMirror_h1]:text-lg [&_.ProseMirror_h1:first-child]:mt-0',
@@ -32,6 +29,12 @@ const NOTE_EDITOR_PROSE_CLASS_NAME = [
   '[&_.ProseMirror_pre]:my-2 [&_.ProseMirror_pre]:whitespace-pre-wrap [&_.ProseMirror_pre]:break-words [&_.ProseMirror_pre]:rounded [&_.ProseMirror_pre]:bg-black/15 [&_.ProseMirror_pre]:p-2 [&_.ProseMirror_pre]:text-xs',
   '[&_.ProseMirror_pre_code]:block [&_.ProseMirror_pre_code]:bg-transparent [&_.ProseMirror_pre_code]:p-0',
   '[&_.ProseMirror_a]:break-all [&_.ProseMirror_a]:font-medium [&_.ProseMirror_a]:underline [&_.ProseMirror_a]:underline-offset-2',
+  /* The shared node chrome frames an image for a document surface — an 8px radius and a
+     `--border` hairline. A note paints a coloured card and draws every other edge from
+     `currentColor`, and its read view frames images this way, so matching here is what keeps the
+     image from changing shape as editing opens. Sizing (`max-width`/`height: auto`) still comes
+     from the shared chrome; only the frame is the note's. */
+  '[&_.ProseMirror_img]:rounded-md [&_.ProseMirror_img]:border-0',
   '[&_.ProseMirror_strong]:font-semibold',
   '[&_.ProseMirror_em]:opacity-80',
   '[&_.ProseMirror_blockquote]:my-4 [&_.ProseMirror_blockquote]:border-current/25 [&_.ProseMirror_blockquote]:border-l-2 [&_.ProseMirror_blockquote]:pl-4 [&_.ProseMirror_blockquote]:italic',
@@ -41,65 +44,40 @@ const NOTE_EDITOR_PROSE_CLASS_NAME = [
   '[&_.ProseMirror_.is-editor-empty:first-child]:before:pointer-events-none [&_.ProseMirror_.is-editor-empty:first-child]:before:float-left [&_.ProseMirror_.is-editor-empty:first-child]:before:h-0 [&_.ProseMirror_.is-editor-empty:first-child]:before:text-current/55 [&_.ProseMirror_.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]',
 ].join(' ')
 
-/** WYSIWYG markdown editing surface styled to match the rendered Note exactly. */
+/**
+ * The Note card's skin over the platform markdown field.
+ *
+ * Everything behind the surface — the TipTap extension set, frontmatter held
+ * out-of-band, the round-trip safety gate and its raw-source fallback, the
+ * formatting bar, `/` commands, markdown paste — is {@link RichMarkdownField}'s.
+ * This module supplies the Note's own chrome: the type scale and per-colour
+ * selection/caret tints, which have to match the Streamdown render underneath so
+ * the card does not jump when editing opens, and the workspace it uploads into.
+ *
+ * Every field of {@link NoteContentEditorProps} is forwarded. A prop the view
+ * passes and this skin quietly drops type-checks clean and fails silently on the
+ * canvas, so `note-markdown-editor.test.tsx` pins the forwarding.
+ */
 export function NoteMarkdownEditor({
   value,
   selectionClassName,
+  caretClassName,
+  openedAt,
   onChange,
-  onBlur,
-  onCancel,
-}: NoteMarkdownEditorProps) {
-  const onChangeRef = useRef(onChange)
-  const onBlurRef = useRef(onBlur)
-  const onCancelRef = useRef(onCancel)
-  const lastEmittedValueRef = useRef(value)
-  onChangeRef.current = onChange
-  onBlurRef.current = onBlur
-  onCancelRef.current = onCancel
-  const [extensions] = useState(() => [
-    ...createMarkdownContentExtensions(),
-    Placeholder.configure({ placeholder: 'Add note…' }),
-  ])
-  const [initialContent] = useState<JSONContent>(() => parseMarkdownToDoc(value))
-
-  const editor = useEditor({
-    extensions,
-    content: initialContent,
-    autofocus: 'end',
-    immediatelyRender: false,
-    shouldRerenderOnTransaction: false,
-    editorProps: {
-      attributes: {
-        class: 'min-h-full outline-none',
-      },
-      handleKeyDown: (_view, event) => {
-        if (event.key !== 'Escape' && !(event.key === 'Enter' && event.metaKey)) return false
-        event.preventDefault()
-        onCancelRef.current()
-        return true
-      },
-    },
-    onUpdate: ({ editor: currentEditor }) => {
-      const nextValue = postProcessSerializedMarkdown(currentEditor.getMarkdown())
-      lastEmittedValueRef.current = nextValue
-      onChangeRef.current(nextValue)
-    },
-    onBlur: () => onBlurRef.current(),
-  })
-
-  useEffect(() => {
-    if (!editor || value === lastEmittedValueRef.current) return
-    lastEmittedValueRef.current = value
-    editor.commands.setContent(parseMarkdownToDoc(value), {
-      contentType: 'json',
-      emitUpdate: false,
-    })
-  }, [editor, value])
+}: NoteContentEditorProps) {
+  const uploadImage = useNoteImageUpload()
 
   return (
-    <EditorContent
-      editor={editor}
-      className={cn('min-h-full w-full', NOTE_EDITOR_PROSE_CLASS_NAME, selectionClassName)}
+    <RichMarkdownField
+      value={value}
+      onChange={onChange}
+      surface='bare'
+      autoFocus
+      autoFocusAt={openedAt}
+      placeholder="Add note, or press '/' for commands…"
+      proseClassName={cn(NOTE_EDITOR_PROSE_CLASS_NAME, selectionClassName)}
+      editorClassName={caretClassName}
+      uploadImage={uploadImage}
     />
   )
 }

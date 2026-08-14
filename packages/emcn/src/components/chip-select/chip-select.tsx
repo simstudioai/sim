@@ -1,9 +1,10 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronDown, Loader } from '../../icons'
+import { ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
+import { chipIconSlotClass } from '../chip/chip-chrome'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -24,8 +25,6 @@ export interface ChipSelectOption {
   icon?: React.ComponentType<{ className?: string }>
   /** Whether this option is non-selectable. */
   disabled?: boolean
-  /** Keep the option available for selected-label resolution without showing it in the menu. */
-  hidden?: boolean
 }
 
 /** A labeled group of options. When `groups` is set, `options` is ignored. */
@@ -75,16 +74,12 @@ export interface ChipSelectProps {
   dropdownWidth?: 'trigger' | number
   /** Max height of the menu in px (defaults to the menu's 240px). */
   maxHeight?: number
-  /** Keep the menu below its trigger and constrain it to the available viewport height. */
+  /**
+   * Keep the menu below its trigger and shrink it to the remaining viewport
+   * height instead of allowing collision handling to flip it above. Use this
+   * for long form-field menus that would otherwise obscure preceding fields.
+   */
   stayBelow?: boolean
-  /** Loading state rendered inside the menu. */
-  isLoading?: boolean
-  /** Error message rendered inside the menu. */
-  error?: string | null
-  /** Empty-state message rendered when no options are available. */
-  emptyMessage?: string
-  /** Called whenever the menu opens or closes. */
-  onOpenChange?: (open: boolean) => void
   /** Forwarded to the trigger button. */
   className?: string
   /** Forwarded to the menu content. */
@@ -150,10 +145,6 @@ export function ChipSelect({
   dropdownWidth,
   maxHeight,
   stayBelow = false,
-  isLoading = false,
-  error = null,
-  emptyMessage = 'No results',
-  onOpenChange,
   className,
   contentClassName,
   'aria-label': ariaLabel,
@@ -171,14 +162,6 @@ export function ChipSelect({
 
   const allOptions = React.useMemo(() => sections.flatMap((g) => g.items), [sections])
 
-  const visibleSections = React.useMemo(
-    () =>
-      sections
-        .map((group) => ({ ...group, items: group.items.filter((option) => !option.hidden) }))
-        .filter((group) => group.items.length > 0),
-    [sections]
-  )
-
   const triggerLabel = React.useMemo(() => {
     if (multiSelect) {
       if (selectedValues.length === 0) return showAllOption ? allOptionLabel : placeholder
@@ -192,14 +175,11 @@ export function ChipSelect({
   }, [multiSelect, selectedValues, showAllOption, allOptionLabel, placeholder, value, allOptions])
 
   const filteredSections = React.useMemo(() => {
-    if (!searchable || !query.trim()) return visibleSections
-    return visibleSections
-      .map((group) => ({
-        ...group,
-        items: group.items.filter((option) => chipSelectOptionMatchesSearch(option, query)),
-      }))
+    if (!searchable || !query.trim()) return sections
+    return sections
+      .map((g) => ({ ...g, items: g.items.filter((o) => chipSelectOptionMatchesSearch(o, query)) }))
       .filter((g) => g.items.length > 0)
-  }, [searchable, query, visibleSections])
+  }, [searchable, query, sections])
 
   const hasResults = filteredSections.some((g) => g.items.length > 0)
 
@@ -262,7 +242,6 @@ export function ChipSelect({
       modal={modal}
       onOpenChange={(open) => {
         if (!open) setQuery('')
-        onOpenChange?.(open)
       }}
     >
       <DropdownMenuTrigger asChild>
@@ -280,11 +259,8 @@ export function ChipSelect({
           <span className='min-w-0 truncate text-[var(--text-body)]'>
             {displayLabel ?? triggerLabel}
           </span>
-          <span
-            aria-hidden
-            className='inline-flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'
-          >
-            <ChevronDown className='h-[6px] w-[10px]' />
+          <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
+            <ChevronDown className='size-[14px]' />
           </span>
         </button>
       </DropdownMenuTrigger>
@@ -316,14 +292,7 @@ export function ChipSelect({
           </DropdownMenuCheckboxItem>
         ) : null}
 
-        {isLoading ? (
-          <div className='flex items-center justify-center py-3.5'>
-            <Loader className='size-[16px] text-[var(--text-muted)]' animate />
-            <span className='ml-2 text-[var(--text-muted)] text-caption'>Loading options...</span>
-          </div>
-        ) : error ? (
-          <div className='px-2 py-3.5 text-center text-caption text-red-500'>{error}</div>
-        ) : hasResults ? (
+        {hasResults ? (
           filteredSections.map((group, index) => (
             <React.Fragment key={group.section ?? `group-${index}`}>
               {group.section ? <DropdownMenuLabel>{group.section}</DropdownMenuLabel> : null}
@@ -332,7 +301,7 @@ export function ChipSelect({
           ))
         ) : (
           <div className='px-2 py-4 text-center text-[var(--text-muted)] text-small'>
-            {emptyMessage}
+            No results
           </div>
         )}
       </DropdownMenuContent>

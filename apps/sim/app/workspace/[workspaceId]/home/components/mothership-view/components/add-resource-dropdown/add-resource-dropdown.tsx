@@ -686,10 +686,13 @@ export function AddResourceDropdown({
             filtered.length > 0 ? (
               filtered.map(({ type, item }, index) => {
                 const config = getResourceConfig(type)
+                /* The search box keeps focus, so rows never take DOM focus and the menu's
+                   own `focus:` highlight never fires — `activeIndex` is this list's
+                   cursor, so it paints the hover surface rather than the selected one. */
                 return (
                   <DropdownMenuItem
                     key={`${type}:${item.id}`}
-                    className={cn(index === activeIndex && 'bg-[var(--surface-active)]')}
+                    className={cn(index === activeIndex && 'bg-[var(--surface-hover)]')}
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => select({ type, id: item.id, title: item.name })}
                   >

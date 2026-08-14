@@ -149,10 +149,12 @@ export class McpClient {
   async connect(options: McpClientConnectOptions = {}): Promise<void> {
     const startedAt = Date.now()
     const configuredTimeout = this.config.timeout
-    const timeoutMs =
+    const timeoutMs = Math.min(
       configuredTimeout !== undefined && Number.isFinite(configuredTimeout) && configuredTimeout > 0
-        ? Math.min(Math.floor(configuredTimeout), getMaxExecutionTimeout())
-        : MCP_CLIENT_CONSTANTS.CLIENT_TIMEOUT
+        ? Math.floor(configuredTimeout)
+        : MCP_CLIENT_CONSTANTS.CLIENT_TIMEOUT,
+      MCP_CLIENT_CONSTANTS.CONNECT_MAX_TIMEOUT_MS
+    )
     const headerNames = Object.keys(this.config.headers ?? {}).sort()
     const hasUnresolvedEnvRefs = [
       this.config.url ?? '',

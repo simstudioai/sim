@@ -88,10 +88,12 @@ interface QuestionDisplayProps {
    * — it IS the user turn; the paired message bubble is hidden by the chat.
    */
   answers?: string[]
-  /** Sends the combined answer as a user message; undefined renders the div inert. */
+  /** Reports the combined answer; undefined renders the card inert. */
   onSelect?: (message: string) => void
   /** Reports that the active card was dismissed so its message actions can return. */
   onDismiss?: () => void
+  /** Whether the active card can be dismissed without answering. */
+  dismissible?: boolean
 }
 
 /**
@@ -110,6 +112,7 @@ export function QuestionDisplay({
   answers: transcriptAnswers,
   onSelect,
   onDismiss,
+  dismissible = true,
 }: QuestionDisplayProps) {
   const freeTextInputRef = useRef<HTMLInputElement>(null)
   const freeTextCheckboxRef = useRef<HTMLButtonElement>(null)
@@ -157,7 +160,6 @@ export function QuestionDisplay({
   const options = question.options
   const selected = selectedByStep[step] ?? []
   const isMulti = question.type === 'multi_select'
-  const usesStepAction = isMulti || data.length > 1
 
   const commitCustom = (): string[] => {
     const next = [...customByStep]
@@ -197,7 +199,7 @@ export function QuestionDisplay({
     customs[step] = ''
     setCustomByStep(customs)
     setFreeText('')
-    if (!usesStepAction) finishStep(selections, customs)
+    finishStep(selections, customs)
   }
 
   const handleMultiToggle = (label: string) => {
@@ -209,17 +211,13 @@ export function QuestionDisplay({
     setSelectedByStep(selections)
   }
 
-  /** Confirms the current page, then advances or submits the whole batch. */
-  const submitCurrentStep = () => {
-    const customs = commitCustom()
-    if (isMulti) {
-      finishStep(selectedByStep, customs)
-      return
-    }
-    const selections = [...selectedByStep]
-    if ((customs[step] ?? '').trim()) selections[step] = []
-    setSelectedByStep(selections)
-    finishStep(selections, customs)
+  /**
+   * multi_select only: confirms the current page's checked rows, then advances
+   * or submits the whole batch. single_select needs no confirm step — a row
+   * click or the free-text arrow is itself the answer.
+   */
+  const submitMultiStep = () => {
+    finishStep(selectedByStep, commitCustom())
   }
 
   /** Sets whether the typed "Something else" text counts — never touches the text. */
@@ -252,6 +250,10 @@ export function QuestionDisplay({
   }
 
   const canSubmitStep = !disabled && stepAnswered(step)
+  // The single_select arrow submits the typed text specifically, so it tracks
+  // the text rather than the step: a row selected on an earlier visit must not
+  // arm an arrow that would replace it with an empty answer.
+  const canSubmitFreeText = !disabled && freeText.trim().length > 0
 
   return (
     <InteractionCard
@@ -293,7 +295,7 @@ export function QuestionDisplay({
               </Button>
             </div>
           )}
-          {!disabled && (
+          {!disabled && dismissible && (
             <Button
               type='button'
               variant='ghost'
@@ -368,18 +370,18 @@ export function QuestionDisplay({
             ) : undefined
           }
           trailing={
-            !usesStepAction ? (
+            !isMulti ? (
               <button
                 type='button'
                 aria-label='Submit answer'
-                disabled={!canSubmitStep}
+                disabled={!canSubmitFreeText}
                 onClick={submitSingleFreeText}
                 className='disabled:cursor-default'
               >
                 <ArrowRight
                   className={cn(
                     'size-[16px] shrink-0 transition-colors',
-                    canSubmitStep ? 'text-[var(--text-body)]' : 'text-[var(--text-icon)]'
+                    canSubmitFreeText ? 'text-[var(--text-body)]' : 'text-[var(--text-icon)]'
                   )}
                 />
               </button>
@@ -407,19 +409,24 @@ export function QuestionDisplay({
               event.currentTarget.blur()
               return
             }
-            if (event.key === 'Enter' && canSubmitStep) {
+            if (event.key !== 'Enter') return
+            if (isMulti) {
+              if (!canSubmitStep) return
               event.preventDefault()
-              if (usesStepAction) submitCurrentStep()
-              else submitSingleFreeText()
+              submitMultiStep()
+              return
             }
+            if (!canSubmitFreeText) return
+            event.preventDefault()
+            submitSingleFreeText()
           }}
           aria-label={question.prompt}
         />
-        {usesStepAction && (
+        {isMulti && (
           <InteractionCardActionRow
             label={isLast ? 'Submit' : 'Continue'}
             disabled={!canSubmitStep}
-            onClick={submitCurrentStep}
+            onClick={submitMultiStep}
             leading={<div className='flex size-[16px] flex-shrink-0 items-center justify-center' />}
           />
         )}

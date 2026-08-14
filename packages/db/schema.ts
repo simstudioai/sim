@@ -239,6 +239,27 @@ export const workflow = pgTable(
   'workflow',
   {
     id: text('id').primaryKey(),
+    /**
+     * Creator and owner. Legitimate as ownership: it anchors personal
+     * (workspace-less) workflows, cascades the workflow away with the account,
+     * and names the owner for webhook config and deploy-as-block resolution.
+     *
+     * @deprecated As an execution identity. Do not use it to decide who a run
+     * acts as, what it may read, or what it may authorize. The acting principal
+     * is `ExecutionMetadata.userId`, which the principal layer
+     * (`resolvePrincipalAttribution`) resolves to the caller for a session,
+     * personal API key, or delegated run, and to the workspace billing account
+     * for a workspace API key, schedule, or webhook.
+     *
+     * Exactly one execution use survives, carried as
+     * `ExecutionMetadata.workflowUserId`: the personal-environment fallback in
+     * `executeWorkflowCore`, for runs with no identifiable caller — workspace
+     * API keys, schedules, webhooks, and unauthenticated public-API calls. Those
+     * have nobody to resolve personal variables as, and a deployed workflow is
+     * routinely authored against its owner's personal keys, so dropping the
+     * fallback would break them. Workspace variables never fall back here; they
+     * always authorize against the actor.
+     */
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -294,6 +315,9 @@ export const workflowBlocks = pgTable(
     isWide: boolean('is_wide').notNull().default(false),
     advancedMode: boolean('advanced_mode').notNull().default(false),
     triggerMode: boolean('trigger_mode').notNull().default(false),
+    errorEnabled: boolean('error_enabled').notNull().default(false),
+    /** Opt-in {@link BlockRetryConfig}; NULL means the block never retries. */
+    retry: jsonb('retry'),
     locked: boolean('locked').notNull().default(false),
     height: decimal('height').notNull().default('0'),
 
@@ -408,13 +432,21 @@ export const workflowExecutionLogs = pgTable(
     ),
 
     level: text('level').notNull(), // 'info' | 'error'
-    status: text('status').notNull().default('running'), // 'running' | 'pending' | 'completed' | 'failed' | 'cancelled'
+    /** See `PERSISTED_WORKFLOW_EXECUTION_STATUSES` in `apps/sim/lib/logs/types.ts`. */
+    status: text('status').notNull().default('running'),
     trigger: text('trigger').notNull(), // 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 
     startedAt: timestamp('started_at').notNull(),
     /** Absolute deadline for the current active attempt; cleared while paused or terminal. */
     executionDeadlineAt: timestamp('execution_deadline_at'),
     endedAt: timestamp('ended_at'),
+    /**
+     * Wall clock from `started_at` for a terminal row; for a `pending` (paused)
+     * row, the active duration recorded at the checkpoint, which excludes the
+     * time the run sits waiting. Resuming leaves that checkpoint value in place
+     * while the row accrues time again, so a `running` row's value is stale
+     * until the next terminal write recomputes it.
+     */
     totalDurationMs: integer('total_duration_ms'),
 
     /**
@@ -709,6 +741,7 @@ export const settings = pgTable('settings', {
   // Canvas preferences
   snapToGridSize: integer('snap_to_grid_size').notNull().default(0), // 0 = off, 10-50 = grid size
   showActionBar: boolean('show_action_bar').notNull().default(true),
+  autoFocusOnClick: boolean('auto_focus_on_click').notNull().default(true),
 
   timezone: text('timezone'),
 
@@ -1918,7 +1951,10 @@ export const workspaceFiles = pgTable(
      */
     displayName: text('display_name'),
     contentType: text('content_type').notNull(),
+    // contract-pending(after #6188 is fully deployed and sizeBytes is backfilled): drop size — new code dual-writes and reads sizeBytes first
     size: integer('size').notNull(),
+    /** Exact byte size for files above PostgreSQL's int4 ceiling; legacy rows fall back to `size`. */
+    sizeBytes: bigint('size_bytes', { mode: 'number' }),
     /**
      * Intrinsic pixel dimensions of an image file, captured lazily on first view (and stored so later
      * views reserve layout space before the image loads, via aspect-ratio). NULL for non-images and for
@@ -1980,6 +2016,80 @@ export const workspaceFiles = pgTable(
     workspaceDeletedAtPartialIdx: index('workspace_files_workspace_deleted_partial_idx')
       .on(table.workspaceId, table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+  })
+)
+
+export const uploadSessionStatusEnum = pgEnum('upload_session_status', [
+  'uploading',
+  'completing',
+  'finalizing',
+  'completed',
+  'aborting',
+  'aborted',
+  'failed',
+  'expired',
+])
+
+export const uploadSessionMethodEnum = pgEnum('upload_session_method', ['put', 'multipart'])
+
+export const uploadSessionProviderEnum = pgEnum('upload_session_provider', [
+  'local',
+  's3',
+  'blob',
+  'gcs',
+])
+
+export const uploadSessionPurposeEnum = pgEnum('upload_session_purpose', [
+  'workspace_file',
+  'table_import',
+  'knowledge_document',
+  'profile_picture',
+  'workspace_logo',
+  'mothership_attachment',
+  'execution_attachment',
+])
+
+/** Durable control-plane state for direct-to-provider PUT and multipart uploads. */
+export const uploadSession = pgTable(
+  'upload_session',
+  {
+    id: text('id').primaryKey(),
+    tokenHash: text('token_hash').notNull(),
+    userId: text('user_id').notNull(),
+    workspaceId: text('workspace_id'),
+    knowledgeBaseId: text('knowledge_base_id'),
+    workflowId: text('workflow_id'),
+    executionId: text('execution_id'),
+    purpose: uploadSessionPurposeEnum('purpose').notNull(),
+    method: uploadSessionMethodEnum('method').notNull(),
+    storageContext: text('storage_context').notNull(),
+    finalKey: text('final_key').notNull(),
+    storageProvider: uploadSessionProviderEnum('storage_provider').notNull(),
+    providerUploadId: text('provider_upload_id'),
+    providerObjectVersion: text('provider_object_version'),
+    fileName: text('file_name').notNull(),
+    contentType: text('content_type').notNull(),
+    fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+    partSize: integer('part_size'),
+    partCount: integer('part_count'),
+    status: uploadSessionStatusEnum('status').notNull().default('uploading'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    processingLeaseId: text('processing_lease_id'),
+    processingLeaseExpiresAt: timestamp('processing_lease_expires_at'),
+    completedFileId: text('completed_file_id'),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at').notNull(),
+    completedAt: timestamp('completed_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    tokenHashUnique: uniqueIndex('upload_session_token_hash_unique').on(table.tokenHash),
+    finalKeyUnique: uniqueIndex('upload_session_final_key_unique').on(table.finalKey),
+    statusExpiresAtIdx: index('upload_session_status_expires_at_idx').on(
+      table.status,
+      table.expiresAt
+    ),
   })
 )
 

@@ -52,6 +52,7 @@ import {
 } from '@/providers/models'
 import {
   getProviderToolInputProvenance,
+  getProviderToolModelInputRegistry,
   registerPreparedProviderToolInputProvenance,
 } from '@/providers/tool-input-provenance'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
@@ -81,12 +82,21 @@ function isDefaultWorkflowDescription(
  * Fetches workflow metadata (name and description) from the API
  */
 async function fetchWorkflowMetadata(
-  workflowId: string
+  workflowId: string,
+  executionContext: WorkflowToolExecutionContext | undefined
 ): Promise<{ name: string; description: string | null } | null> {
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+    if (!executionContext?.userId) {
+      throw new Error('Workflow metadata enrichment requires a trusted execution subject')
+    }
+    const { buildAPIUrl, buildExecutorDelegationHeaders } = await import('@/executor/utils/http')
+    const { executionScopeForTarget } = await import('@/executor/utils/delegation')
 
-    const headers = await buildAuthHeaders()
+    const headers = await buildExecutorDelegationHeaders({
+      subjectUserId: executionContext.userId,
+      workflowId,
+      ...executionScopeForTarget(executionContext, workflowId),
+    })
     const url = buildAPIUrl(`/api/workflows/${workflowId}`)
 
     const response = await fetch(url.toString(), { headers })
@@ -790,7 +800,10 @@ export async function transformBlockTool(
   if (toolId === 'workflow_executor' && resolvedResourceParams.workflowId) {
     uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.workflowId}`
 
-    const workflowMetadata = await fetchWorkflowMetadata(resolvedResourceParams.workflowId)
+    const workflowMetadata = await fetchWorkflowMetadata(
+      resolvedResourceParams.workflowId,
+      enrichmentContext
+    )
     if (workflowMetadata) {
       toolName = workflowMetadata.name || toolConfig.name
       if (
@@ -1550,11 +1563,27 @@ export function prepareToolExecution(
   // scoped to "Selected secrets" with an empty list is an explicit deny, and a
   // model emitting `mountedSecrets: ['STRIPE_KEY']` would otherwise mount it.
   const modelParams = stripModelBlockedParams(tool.modelBlockedParams, llmArgs)
-  let toolParams = mergeToolParameters(tool.params || {}, modelParams) as Record<string, any>
+  const modelInputRegistry = getProviderToolModelInputRegistry(tool)
+  const modelReferenceResolution = modelInputRegistry?.resolveModelExposedEnvReferences(modelParams)
+  if (modelReferenceResolution && !modelReferenceResolution.complete) {
+    throw new Error('Agent tool input environment references could not be safely resolved')
+  }
+  const resolvedModelParams = modelReferenceResolution?.value ?? modelParams
+  let toolParams = mergeToolParameters(tool.params || {}, resolvedModelParams)
   const inputProvenance = getProviderToolInputProvenance(tool)
-  const inputRegistry = inputProvenance?.registry.forkForInputPaths([inputProvenance.sourcePath])
-  let projectedToolParams = inputProvenance
-    ? (mergeToolParameters(inputProvenance.projectedParams, modelParams) as Record<string, any>)
+  let inputRegistry = inputProvenance?.registry.forkForInputPaths([inputProvenance.sourcePath])
+  if (modelReferenceResolution?.matched) {
+    if (inputRegistry) {
+      inputRegistry.mergeToolCallRegistry(modelReferenceResolution.registry)
+    } else {
+      inputRegistry = modelReferenceResolution.registry
+    }
+  }
+  if (inputRegistry && !inputRegistry.isComplete()) {
+    throw new Error('Agent tool input environment references could not be safely resolved')
+  }
+  let projectedToolParams = inputRegistry
+    ? mergeToolParameters(inputProvenance?.projectedParams ?? tool.params ?? {}, modelParams)
     : undefined
 
   if (tool.paramsTransform) {
@@ -1570,7 +1599,7 @@ export function prepareToolExecution(
       try {
         projectedToolParams = tool.paramsTransform(projectedToolParams)
       } catch {
-        inputRegistry.markIncomplete()
+        inputRegistry.markIncomplete('tool-params-transform-failed')
         projectedToolParams = undefined
       }
     }
@@ -1609,7 +1638,7 @@ export function prepareToolExecution(
     ...(tool.parameters ? { _toolSchema: tool.parameters } : {}),
   }
 
-  if (inputProvenance && inputRegistry) {
+  if (inputRegistry) {
     const inputPaths = [['params']] as const
     if (projectedToolParams) {
       inputRegistry.recordTransformedInputProjection(

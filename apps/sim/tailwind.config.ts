@@ -193,6 +193,21 @@ export default {
             transform: 'translateX(0)',
           },
         },
+        /* One period of the running block's hatch (26px horizontal). Shifting by
+           exactly one period is what makes the loop seamless.
+
+           A transform, not `background-position`: shifting the position makes the
+           browser re-rasterize the gradient every frame at a new subpixel offset,
+           so each hard edge antialiases differently frame to frame and the gaps
+           visibly shimmer. A transform rasterizes once and slides the layer. */
+        'running-hatch-scroll': {
+          from: {
+            transform: 'translateX(-26px)',
+          },
+          to: {
+            transform: 'translateX(0)',
+          },
+        },
         'dash-animation': {
           from: {
             strokeDashoffset: '0',
@@ -274,6 +289,7 @@ export default {
         'caret-blink': 'caret-blink 1.25s ease-out infinite',
         'slide-left': 'slide-left 80s linear infinite',
         'slide-right': 'slide-right 80s linear infinite',
+        'running-hatch-scroll': 'running-hatch-scroll 900ms linear infinite',
         'dash-animation': 'dash-animation 1.5s linear infinite',
         'placeholder-pulse': 'placeholder-pulse 1.5s ease-in-out infinite',
         'ring-pulse': 'ring-pulse 1.5s ease-in-out infinite',

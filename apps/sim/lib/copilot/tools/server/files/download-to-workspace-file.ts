@@ -1,20 +1,24 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
+import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
 import { DownloadToWorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
-import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import {
   getExtensionFromMimeType,
   getFileExtension,
   getMimeTypeFromExtension,
 } from '@/lib/uploads/utils/file-utils'
+import {
+  createWorkspaceFileByPath,
+  updateWorkspaceFileContentByPath,
+} from '@/lib/workspace-files/application/write-workspace-file-by-path'
 
 const logger = createLogger('DownloadToWorkspaceFileTool')
 
@@ -152,10 +156,6 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
-    // Intentionally not reused for the write below: the download in between can be long, so the
-    // writer re-resolves access at write time and a revocation mid-download blocks the write.
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
-
     try {
       assertServerToolNotAborted(context)
 
@@ -191,17 +191,19 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
       }
 
       assertServerToolNotAborted(context)
-      const written = await writeWorkspaceFileByPath({
+      const mode = outputFile?.mode ?? 'create'
+      const writeInput = {
         workspaceId,
-        userId: context.userId,
-        target: {
-          path: outputPath,
-          mode: outputFile?.mode ?? 'create',
-          mimeType: outputFile?.mimeType,
-        },
-        buffer: fileBuffer,
-        inferredMimeType: outputFile?.mimeType ?? mimeType,
-      })
+        path: outputPath,
+        mode,
+        content: fileBuffer.toString('base64'),
+        encoding: 'base64' as const,
+        contentType: outputFile?.mimeType ?? mimeType,
+      }
+      const written =
+        mode === 'overwrite'
+          ? await executeCopilotFileUseCase(context, updateWorkspaceFileContentByPath, writeInput)
+          : await executeCopilotFileUseCase(context, createWorkspaceFileByPath, writeInput)
 
       logger.info('Downloaded remote file to workspace', {
         sourceUrl: params.url,
@@ -226,7 +228,10 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
         url: params.url,
         error: msg,
       })
-      return { success: false, message: `Failed to download file: ${msg}` }
+      return {
+        success: false,
+        message: `Failed to download file: ${messageForCopilotFileError(error, 'Unable to write downloaded file')}`,
+      }
     }
   },
 }

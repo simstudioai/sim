@@ -28,6 +28,12 @@ export const auditMockFns = {
 export const auditMock = {
   recordAudit: auditMockFns.mockRecordAudit,
   recordAuditBatch: auditMockFns.mockRecordAuditBatch,
+  /**
+   * Real implementation, not a stub: callers under test derive their audit
+   * metadata through it, so stubbing it would erase what the test asserts.
+   */
+  auditUpdatedFields: (updateValues: object): string[] =>
+    Object.keys(updateValues).filter((key) => key !== 'updatedAt'),
   AuditAction: {
     API_KEY_CREATED: 'api_key.created',
     API_KEY_UPDATED: 'api_key.updated',
@@ -145,6 +151,7 @@ export const auditMock = {
     WEBHOOK_CREATED: 'webhook.created',
     WEBHOOK_DELETED: 'webhook.deleted',
     WORKFLOW_CREATED: 'workflow.created',
+    WORKFLOW_UPDATED: 'workflow.updated',
     WORKFLOW_DELETED: 'workflow.deleted',
     WORKFLOW_RESTORED: 'workflow.restored',
     WORKFLOW_DEPLOYED: 'workflow.deployed',

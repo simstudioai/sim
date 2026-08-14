@@ -43,7 +43,6 @@ import { Paperclip, Plus, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { handleKeyboardActivation } from '../../lib/keyboard'
 import { ChipTag, chipTagVariants } from '../chip-tag/chip-tag'
-import { thinScrollbarClass } from '../scrollbar/scrollbar'
 import { Tooltip } from '../tooltip/tooltip'
 
 /**
@@ -62,7 +61,7 @@ import { Tooltip } from '../tooltip/tooltip'
  *   `max-h` scrolls vertically.
  */
 const tagInputVariants = cva(
-  `flex w-full cursor-text flex-wrap gap-2 overflow-y-auto border border-[var(--border-1)] bg-[var(--surface-5)] px-2 transition-colors ${thinScrollbarClass}`,
+  'flex w-full cursor-text flex-wrap gap-2 overflow-y-auto border border-[var(--border-1)] bg-[var(--surface-5)] px-2 transition-colors',
   {
     variants: {
       variant: {

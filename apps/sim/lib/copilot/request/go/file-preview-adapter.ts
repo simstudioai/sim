@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   createFilePreviewSession,
@@ -25,7 +26,8 @@ import {
   loadWorkspaceFileTextForPreview,
   type WorkspaceFilePreviewBase,
 } from '@/lib/copilot/tools/server/files/file-preview'
-import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { findWorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 
 const logger = createLogger('CopilotFilePreviewAdapter')
 
@@ -64,7 +66,26 @@ function toPreviewTargetKind(kind: string | undefined): FilePreviewTargetKind | 
   return kind === 'new_file' || kind === 'file_id' ? kind : undefined
 }
 
+/**
+ * Binds the turn-scoped execution context to the tool call whose preview is
+ * being rendered. This adapter runs while the tool-call frame is still on the
+ * wire, before per-call dispatch builds a call-scoped context, so the turn
+ * context carries no `toolCallId` of its own — the frame is the only place that
+ * identity exists, and the file delegation requires one.
+ */
+function bindPreviewToolCall(context: ExecutionContext, toolCallId: string): ExecutionContext {
+  return { ...context, toolCallId }
+}
+
+/**
+ * Upgrades a model-supplied path target to the backing file id so the preview
+ * can seed itself from the existing content. Resolution is best effort, exactly
+ * like the preview base load: leaving the target as a path only costs an
+ * un-seeded preview until the tool result arrives with the real file id, so a
+ * failure here must never escape into the stream loop.
+ */
 async function resolvePreviewTarget(args: {
+  context: ExecutionContext
   workspaceId?: string
   target: FileIntent['target']
 }): Promise<FileIntent['target']> {
@@ -72,16 +93,28 @@ async function resolvePreviewTarget(args: {
     return args.target
   }
 
-  const file = await resolveWorkspaceFileReference(args.workspaceId, args.target.path)
-  if (!file) {
-    return args.target
-  }
+  try {
+    const { files } = await executeCopilotFileUseCase(args.context, listAllWorkspaceFiles, {
+      workspaceId: args.workspaceId,
+      scope: 'active',
+    })
+    const file = findWorkspaceFileRecord(files, args.target.path)
+    if (!file) {
+      return args.target
+    }
 
-  return {
-    kind: 'file_id',
-    fileId: file.id,
-    fileName: args.target.fileName ?? file.name,
-    path: args.target.path,
+    return {
+      kind: 'file_id',
+      fileId: file.id,
+      fileName: args.target.fileName ?? file.name,
+      path: args.target.path,
+    }
+  } catch (error) {
+    logger.warn('Failed to resolve workspace file preview target', {
+      toolCallId: args.context.toolCallId,
+      error: toError(error).message,
+    })
+    return args.target
   }
 }
 
@@ -365,7 +398,9 @@ export async function processFilePreviewStreamEvent(input: {
     const parsedArgs = parseWorkspaceFileArgs(streamEvent.payload.arguments)
     if (toolCallId && parsedArgs) {
       const { operation, title, contentType, edit } = parsedArgs
+      const previewContext = bindPreviewToolCall(execContext, toolCallId)
       const target = await resolvePreviewTarget({
+        context: previewContext,
         workspaceId: execContext.workspaceId,
         target: parsedArgs.target,
       })
@@ -393,7 +428,11 @@ export async function processFilePreviewStreamEvent(input: {
           fileId &&
           (operation === 'append' || operation === 'patch')
         ) {
-          previewBase = await loadWorkspaceFileTextForPreview(execContext.workspaceId, fileId)
+          previewBase = await loadWorkspaceFileTextForPreview(
+            previewContext,
+            execContext.workspaceId,
+            fileId
+          )
         }
 
         let session = buildPreviewSessionFromIntent(streamId, intent)
@@ -464,7 +503,11 @@ export async function processFilePreviewStreamEvent(input: {
         execContext.workspaceId &&
         (intent.operation === 'append' || intent.operation === 'patch')
       ) {
-        previewBase = await loadWorkspaceFileTextForPreview(execContext.workspaceId, result.fileId)
+        previewBase = await loadWorkspaceFileTextForPreview(
+          bindPreviewToolCall(execContext, intent.toolCallId),
+          execContext.workspaceId,
+          result.fileId
+        )
       }
 
       let session = buildPreviewSessionFromIntent(streamId, intent)

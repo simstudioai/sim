@@ -12,7 +12,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
-import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
+import { safeAccountInsert } from '@/lib/oauth/credential-service'
 import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
 
 const logger = createLogger('ShopifyStore')

@@ -532,7 +532,7 @@ describe('EdgeManager', () => {
       expect(readyNodes).not.toContain(errorTargetId)
     })
 
-    it('treats positioned source handles as success edges', () => {
+    it('heals a side-anchored source handle from an older snapshot into a success edge', () => {
       const sourceId = 'source-1'
       const successTargetId = 'success-target'
       const errorTargetId = 'error-target'

@@ -14,7 +14,19 @@ import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
-import { and, asc, desc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  inArray,
+  isNotNull,
+  isNull,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
+import { searchFilter } from '@/lib/api/list-query'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   assertBillingAttributionSnapshot,
@@ -34,6 +46,7 @@ import {
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
   type StorageBillingContext,
+  StorageLimitExceededError,
 } from '@/lib/billing/storage'
 import {
   checkAndBillOverageThreshold,
@@ -43,6 +56,7 @@ import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import { env, envNumber } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   type DurableSecretProvenance,
@@ -51,6 +65,8 @@ import {
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import { failStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
+import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
   createDocumentProcessingPayload,
@@ -83,6 +99,7 @@ import {
   parseBooleanValue,
   parseDateValue,
   parseNumberValue,
+  uncompilableTagFilterError,
   validateTagValue,
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
@@ -107,10 +124,17 @@ const logger = createLogger('DocumentService')
  * Thrown when a knowledge-base document's `fileUrl` references an internal
  * knowledge-base storage object not owned by the target knowledge base's workspace.
  * Routes map this to a 403.
+ *
+ * Deliberately carries no `details.code`. It belongs to the cross-tenant class
+ * the closed set in `lib/core/application/forbidden.ts` excludes: it fires
+ * identically for a key bound to another tenant and for a key bound to nothing
+ * at all, so the single fixed message is the whole of what a caller may learn,
+ * and a machine-readable name would only invite a client to read resource
+ * existence into it.
  */
-export class KnowledgeBaseFileOwnershipError extends Error {
+export class KnowledgeBaseFileOwnershipError extends OrchestrationError {
   constructor(public readonly storageKey: string) {
-    super('Document file is not owned by this knowledge base')
+    super('forbidden', 'Document file is not owned by this knowledge base')
     this.name = 'KnowledgeBaseFileOwnershipError'
   }
 }
@@ -764,6 +788,7 @@ export async function processDocumentAsync(
   providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext
 ): Promise<void> {
   const startTime = Date.now()
+  const processingStartedAt = new Date()
   try {
     logger.info(`[${documentId}] Starting document processing`, {
       knowledgeBaseId,
@@ -846,7 +871,7 @@ export async function processDocumentAsync(
       .update(document)
       .set({
         processingStatus: 'processing',
-        processingStartedAt: new Date(),
+        processingStartedAt,
         processingCompletedAt: null,
         processingError: null,
       })
@@ -921,7 +946,13 @@ export async function processDocumentAsync(
             usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.',
           processingCompletedAt: new Date(),
         })
-        .where(eq(document.id, documentId))
+        .where(
+          and(
+            eq(document.id, documentId),
+            eq(document.processingStatus, 'processing'),
+            eq(document.processingStartedAt, processingStartedAt)
+          )
+        )
       return
     }
     let billableEmbeddingTokens = 0
@@ -940,6 +971,7 @@ export async function processDocumentAsync(
       currentSourceFileProvenance
     )
 
+    let processingCommitted = false
     await withTimeout(
       runWithKnowledgeModelInputProvenance(
         documentSecretContext.registry,
@@ -1055,7 +1087,7 @@ export async function processDocumentAsync(
             updatedAt: now,
           }))
 
-          await db.transaction(async (tx) => {
+          processingCommitted = await db.transaction(async (tx) => {
             const activeDocument = await tx
               .select({ id: document.id })
               .from(document)
@@ -1063,15 +1095,18 @@ export async function processDocumentAsync(
               .where(
                 and(
                   eq(document.id, documentId),
+                  eq(document.processingStatus, 'processing'),
+                  eq(document.processingStartedAt, processingStartedAt),
                   isNull(document.archivedAt),
                   isNull(document.deletedAt),
                   isNull(knowledgeBase.deletedAt)
                 )
               )
+              .for('update', { of: document })
               .limit(1)
 
             if (activeDocument.length === 0) {
-              return
+              return false
             }
 
             if (embeddingRecords.length > 0) {
@@ -1117,7 +1152,14 @@ export async function processDocumentAsync(
                 processingCompletedAt: now,
                 processingError: null,
               })
-              .where(eq(document.id, documentId))
+              .where(
+                and(
+                  eq(document.id, documentId),
+                  eq(document.processingStatus, 'processing'),
+                  eq(document.processingStartedAt, processingStartedAt)
+                )
+              )
+            return true
           })
         },
         {
@@ -1129,6 +1171,11 @@ export async function processDocumentAsync(
       TIMEOUTS.OVERALL_PROCESSING,
       'Document processing'
     )
+
+    if (!processingCommitted) {
+      logger.info(`[${documentId}] Discarded output from an obsolete processing attempt`)
+      return
+    }
 
     const processingTime = Date.now() - startTime
     logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
@@ -1191,7 +1238,13 @@ export async function processDocumentAsync(
         processingError: errorMessage,
         processingCompletedAt: new Date(),
       })
-      .where(eq(document.id, documentId))
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(document.processingStatus, 'processing'),
+          eq(document.processingStartedAt, processingStartedAt)
+        )
+      )
 
     throw error
   }
@@ -1271,7 +1324,7 @@ async function resolveDocumentStorageAdmission(
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .limit(1)
   if (!kb) {
-    throw new Error('Knowledge base not found')
+    throw new OrchestrationError('not_found', 'Knowledge base not found')
   }
 
   if (bytes <= 0) {
@@ -1283,7 +1336,7 @@ async function resolveDocumentStorageAdmission(
     const context = await resolveStorageBillingContext(kb.workspaceId)
     const quotaCheck = await checkStorageQuotaForBillingContext(context, bytes)
     if (!quotaCheck.allowed) {
-      throw new Error(quotaCheck.error || 'Storage limit exceeded')
+      throw new StorageLimitExceededError(quotaCheck.error || 'Storage limit exceeded')
     }
     return {
       workspaceId: kb.workspaceId,
@@ -1297,7 +1350,7 @@ async function resolveDocumentStorageAdmission(
     getHighestPrioritySubscription(billedUserId),
   ])
   if (!quotaCheck.allowed) {
-    throw new Error(quotaCheck.error || 'Storage limit exceeded')
+    throw new StorageLimitExceededError(quotaCheck.error || 'Storage limit exceeded')
   }
   return {
     workspaceId: null,
@@ -1348,7 +1401,7 @@ export async function createDocumentRecords(
       .limit(1)
 
     if (kb.length === 0) {
-      throw new Error('Knowledge base not found')
+      throw new OrchestrationError('not_found', 'Knowledge base not found')
     }
 
     if (
@@ -1410,7 +1463,7 @@ export async function createDocumentRecords(
           preparedBilling.bytes
         )
         if (!quotaCheck.allowed) {
-          throw new Error(quotaCheck.error || 'Storage limit exceeded')
+          throw new StorageLimitExceededError(quotaCheck.error || 'Storage limit exceeded')
         }
       }
     }
@@ -1632,15 +1685,14 @@ export async function getDocuments(
   }
 
   if (search) {
-    whereConditions.push(sql`LOWER(${document.filename}) LIKE LOWER(${`%${search}%`})`)
+    whereConditions.push(searchFilter(document.filename, search))
   }
 
   if (tagFilters && tagFilters.length > 0) {
     for (const filter of tagFilters) {
       const condition = buildTagFilterCondition(filter)
-      if (condition) {
-        whereConditions.push(condition)
-      }
+      if (!condition) throw uncompilableTagFilterError(filter)
+      whereConditions.push(condition)
     }
   }
 
@@ -1773,6 +1825,60 @@ export async function getDocuments(
   }
 }
 
+export type ActiveKnowledgeDocument = typeof document.$inferSelect & {
+  connectorType: string | null
+}
+
+/** Loads one visible document and its connector metadata for every API adapter. */
+export async function getKnowledgeDocument(
+  knowledgeBaseId: string,
+  documentId: string
+): Promise<ActiveKnowledgeDocument | null> {
+  const [row] = await db
+    .select({
+      ...getTableColumns(document),
+      connectorType: knowledgeConnector.connectorType,
+    })
+    .from(document)
+    .leftJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .limit(1)
+
+  return row ? { ...row, connectorType: row.connectorType ?? null } : null
+}
+
+/** Loads one visible document by its canonical ID before any asserted parent is trusted. */
+export async function getKnowledgeDocumentById(
+  documentId: string
+): Promise<ActiveKnowledgeDocument | null> {
+  const [row] = await db
+    .select({
+      ...getTableColumns(document),
+      connectorType: knowledgeConnector.connectorType,
+    })
+    .from(document)
+    .leftJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .limit(1)
+
+  return row ? { ...row, connectorType: row.connectorType ?? null } : null
+}
+
 export async function createSingleDocument(
   documentData: {
     filename: string
@@ -1791,7 +1897,15 @@ export async function createSingleDocument(
   knowledgeBaseId: string,
   requestId: string,
   uploadedBy: string | null = null,
-  secretProvenance?: KnowledgeDocumentWriteSecretProvenance
+  documentId = generateId(),
+  secretProvenance?: KnowledgeDocumentWriteSecretProvenance,
+  options?: {
+    expectedWorkspaceId?: string
+    processing?: {
+      processingOptions: ProcessingOptions
+      billingAttribution: BillingAttributionSnapshot
+    }
+  }
 ): Promise<{
   id: string
   knowledgeBaseId: string
@@ -1802,6 +1916,7 @@ export async function createSingleDocument(
   chunkCount: number
   tokenCount: number
   characterCount: number
+  processingStatus: 'pending'
   enabled: boolean
   uploadedAt: Date
   tag1: string | null
@@ -1812,7 +1927,6 @@ export async function createSingleDocument(
   tag6: string | null
   tag7: string | null
 }> {
-  const documentId = generateId()
   const now = new Date()
   const [resolvedDocumentData] = await resolveServerKnownDocumentSizes([documentData])
   const admission = await resolveDocumentStorageAdmission(
@@ -1868,6 +1982,7 @@ export async function createSingleDocument(
     chunkCount: 0,
     tokenCount: 0,
     characterCount: 0,
+    processingStatus: 'pending' as const,
     enabled: true,
     uploadedAt: now,
     uploadedBy,
@@ -1890,7 +2005,14 @@ export async function createSingleDocument(
       .limit(1)
 
     if (kb.length === 0) {
-      throw new Error('Knowledge base not found')
+      throw new OrchestrationError('not_found', 'Knowledge base not found')
+    }
+
+    if (
+      options?.expectedWorkspaceId !== undefined &&
+      kb[0].workspaceId !== options.expectedWorkspaceId
+    ) {
+      throw new OrchestrationError('not_found', 'Knowledge base not found')
     }
 
     if (
@@ -1953,7 +2075,7 @@ export async function createSingleDocument(
           preparedBilling.bytes
         )
         if (!quotaCheck.allowed) {
-          throw new Error(quotaCheck.error || 'Storage limit exceeded')
+          throw new StorageLimitExceededError(quotaCheck.error || 'Storage limit exceeded')
         }
       }
     }
@@ -1983,6 +2105,15 @@ export async function createSingleDocument(
       .set({ updatedAt: now })
       .where(eq(knowledgeBase.id, knowledgeBaseId))
 
+    if (options?.processing) {
+      await enqueueKnowledgeDocumentProcessing(tx, {
+        knowledgeBaseId,
+        documentId,
+        processingOptions: options.processing.processingOptions,
+        billingAttribution: options.processing.billingAttribution,
+      })
+    }
+
     return storageNotification
   })
 
@@ -2005,6 +2136,7 @@ export async function createSingleDocument(
     chunkCount: number
     tokenCount: number
     characterCount: number
+    processingStatus: 'pending'
     enabled: boolean
     uploadedAt: Date
     tag1: string | null
@@ -2015,6 +2147,60 @@ export async function createSingleDocument(
     tag6: string | null
     tag7: string | null
   }
+}
+
+/** Returns one active document by its deterministic upload id. */
+export async function getDocumentByUploadId(
+  documentId: string,
+  knowledgeBaseId: string
+): Promise<
+  | (Omit<Awaited<ReturnType<typeof createSingleDocument>>, 'processingStatus'> & {
+      processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+    })
+  | null
+> {
+  const [existing] = await db
+    .select({
+      id: document.id,
+      knowledgeBaseId: document.knowledgeBaseId,
+      filename: document.filename,
+      fileUrl: document.fileUrl,
+      fileSize: document.fileSize,
+      mimeType: document.mimeType,
+      chunkCount: document.chunkCount,
+      tokenCount: document.tokenCount,
+      characterCount: document.characterCount,
+      enabled: document.enabled,
+      uploadedAt: document.uploadedAt,
+      tag1: document.tag1,
+      tag2: document.tag2,
+      tag3: document.tag3,
+      tag4: document.tag4,
+      tag5: document.tag5,
+      tag6: document.tag6,
+      tag7: document.tag7,
+      processingStatus: document.processingStatus,
+    })
+    .from(document)
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        isNull(document.deletedAt)
+      )
+    )
+    .limit(1)
+  if (!existing) return null
+  const processingStatus = existing.processingStatus
+  if (
+    processingStatus !== 'pending' &&
+    processingStatus !== 'processing' &&
+    processingStatus !== 'completed' &&
+    processingStatus !== 'failed'
+  ) {
+    throw new Error(`Document ${existing.id} has invalid processing status`)
+  }
+  return { ...existing, processingStatus }
 }
 
 export async function bulkDocumentOperation(
@@ -2053,7 +2239,7 @@ export async function bulkDocumentOperation(
     )
 
   if (documentsToUpdate.length === 0) {
-    throw new Error('No valid documents found to update')
+    throw new OrchestrationError('not_found', 'No valid documents found to update')
   }
 
   if (documentsToUpdate.length !== documentIds.length) {
@@ -2182,31 +2368,17 @@ export async function markDocumentAsFailedTimeout(
   processingStartedAt: Date,
   requestId: string
 ): Promise<{ success: boolean; processingDuration: number }> {
-  const now = new Date()
-  const processingDuration = now.getTime() - processingStartedAt.getTime()
-  const DEAD_PROCESS_THRESHOLD_MS = 600 * 1000 // 10 minutes
+  const result = await failStaleDocumentProcessingClaim({ documentId, processingStartedAt })
 
-  if (processingDuration <= DEAD_PROCESS_THRESHOLD_MS) {
-    throw new Error('Document has not been processing long enough to be considered dead')
+  if (result.success) {
+    logger.info(
+      `[${requestId}] Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(result.processingDuration / 1000)}s)`
+    )
+  } else {
+    logger.info(`[${requestId}] Did not time out document ${documentId} because its claim changed`)
   }
 
-  await db
-    .update(document)
-    .set({
-      processingStatus: 'failed',
-      processingError: 'Processing timed out. Please retry or re-sync the connector.',
-      processingCompletedAt: now,
-    })
-    .where(eq(document.id, documentId))
-
-  logger.info(
-    `[${requestId}] Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(processingDuration / 1000)}s)`
-  )
-
-  return {
-    success: true,
-    processingDuration,
-  }
+  return result
 }
 
 export async function retryDocumentProcessing(
@@ -2646,7 +2818,8 @@ async function excludeConnectorDocuments(
 
 async function deleteDocumentsByLifecyclePolicy(
   documentIds: string[],
-  requestId: string
+  requestId: string,
+  expectedKnowledgeBaseId?: string
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -2659,14 +2832,26 @@ async function deleteDocumentsByLifecyclePolicy(
       connectorId: document.connectorId,
     })
     .from(document)
-    .where(inArray(document.id, ids))
+    .where(
+      expectedKnowledgeBaseId
+        ? and(
+            inArray(document.id, ids),
+            eq(document.knowledgeBaseId, expectedKnowledgeBaseId),
+            eq(document.userExcluded, false),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        : inArray(document.id, ids)
+    )
 
   const connectorBackedIds = docs.filter((doc) => doc.connectorId !== null).map((doc) => doc.id)
   const hardDeleteIds = docs.filter((doc) => doc.connectorId === null).map((doc) => doc.id)
 
   const [excludedCount, hardDeletedCount] = await Promise.all([
-    excludeConnectorDocuments(connectorBackedIds, requestId),
-    hardDeleteDocuments(hardDeleteIds, requestId),
+    expectedKnowledgeBaseId
+      ? excludeConnectorKnowledgeDocuments(expectedKnowledgeBaseId, connectorBackedIds, requestId)
+      : excludeConnectorDocuments(connectorBackedIds, requestId),
+    hardDeleteDocuments(hardDeleteIds, requestId, undefined, expectedKnowledgeBaseId),
   ])
 
   return excludedCount + hardDeletedCount
@@ -2684,7 +2869,8 @@ export async function hardDeleteDocuments(
    * connector, keep documents") would otherwise still have them purged here
    * despite no longer belonging to the connector the caller reasoned about.
    */
-  expectedConnectorId?: string
+  expectedConnectorId?: string,
+  expectedKnowledgeBaseId?: string
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -2696,7 +2882,8 @@ export async function hardDeleteDocuments(
     deletedCount += await hardDeleteDocumentBatch(
       ids.slice(offset, offset + HARD_DELETE_DOCUMENT_BATCH_SIZE),
       requestId,
-      expectedConnectorId
+      expectedConnectorId,
+      expectedKnowledgeBaseId
     )
   }
   return deletedCount
@@ -2709,7 +2896,8 @@ export async function hardDeleteDocuments(
 async function hardDeleteDocumentBatch(
   documentIds: string[],
   requestId: string,
-  expectedConnectorId?: string
+  expectedConnectorId?: string,
+  expectedKnowledgeBaseId?: string
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   const documentsToDelete = await db
@@ -2726,9 +2914,14 @@ async function hardDeleteDocumentBatch(
     .from(document)
     .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
     .where(
-      expectedConnectorId
-        ? and(inArray(document.id, ids), eq(document.connectorId, expectedConnectorId))
-        : inArray(document.id, ids)
+      and(
+        inArray(document.id, ids),
+        expectedConnectorId ? eq(document.connectorId, expectedConnectorId) : undefined,
+        expectedKnowledgeBaseId ? eq(document.knowledgeBaseId, expectedKnowledgeBaseId) : undefined,
+        expectedKnowledgeBaseId ? eq(document.userExcluded, false) : undefined,
+        expectedKnowledgeBaseId ? isNull(document.archivedAt) : undefined,
+        expectedKnowledgeBaseId ? isNull(document.deletedAt) : undefined
+      )
     )
 
   if (documentsToDelete.length === 0) {
@@ -2810,16 +3003,26 @@ async function hardDeleteDocumentBatch(
      * embedding delete and the document delete are scoped to this re-verified
      * ID set rather than the stale `existingIds`.
      */
-    const stillTargetedIds = expectedConnectorId
-      ? (
-          await tx
-            .select({ id: document.id })
-            .from(document)
-            .where(
-              and(inArray(document.id, existingIds), eq(document.connectorId, expectedConnectorId))
-            )
-        ).map((d) => d.id)
-      : existingIds
+    const stillTargetedIds =
+      expectedConnectorId || expectedKnowledgeBaseId
+        ? (
+            await tx
+              .select({ id: document.id })
+              .from(document)
+              .where(
+                and(
+                  inArray(document.id, existingIds),
+                  expectedConnectorId ? eq(document.connectorId, expectedConnectorId) : undefined,
+                  expectedKnowledgeBaseId
+                    ? eq(document.knowledgeBaseId, expectedKnowledgeBaseId)
+                    : undefined,
+                  expectedKnowledgeBaseId ? eq(document.userExcluded, false) : undefined,
+                  expectedKnowledgeBaseId ? isNull(document.archivedAt) : undefined,
+                  expectedKnowledgeBaseId ? isNull(document.deletedAt) : undefined
+                )
+              )
+          ).map((d) => d.id)
+        : existingIds
 
     await tx.delete(embedding).where(inArray(embedding.documentId, stillTargetedIds))
     const deletedRows = await tx
@@ -2884,4 +3087,45 @@ export async function deleteDocument(
     success: true,
     message: 'Document deleted successfully',
   }
+}
+
+/** Deletes one currently visible document within its canonical knowledge base. */
+export async function deleteKnowledgeDocumentInKnowledgeBase(
+  knowledgeBaseId: string,
+  documentId: string,
+  requestId: string
+): Promise<void> {
+  const current = await getKnowledgeDocument(knowledgeBaseId, documentId)
+  if (!current) throw new OrchestrationError('not_found', 'Document not found')
+  const affected = await deleteDocumentsByLifecyclePolicy([documentId], requestId, knowledgeBaseId)
+  if (affected !== 1) throw new OrchestrationError('not_found', 'Document not found')
+}
+
+async function excludeConnectorKnowledgeDocuments(
+  knowledgeBaseId: string,
+  documentIds: string[],
+  requestId: string
+): Promise<number> {
+  if (documentIds.length === 0) return 0
+  const updated = await db
+    .update(document)
+    .set({ userExcluded: true, enabled: false })
+    .where(
+      and(
+        inArray(document.id, documentIds),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        isNotNull(document.connectorId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .returning({ id: document.id })
+  if (updated.length > 0) {
+    logger.info(`[${requestId}] Excluded ${updated.length} connector-backed document(s)`, {
+      documentIds: updated.map((row) => row.id),
+      knowledgeBaseId,
+    })
+  }
+  return updated.length
 }

@@ -7,23 +7,12 @@ import {
   useRef,
   useState,
 } from 'react'
-import {
-  Button,
-  Chip,
-  ChipSelect,
-  cn,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@sim/emcn'
-import { ChevronDown, ChevronUp, Duplicate, MoreHorizontal, Plus, Trash } from '@sim/emcn/icons'
+import { Button, cn, Popover, PopoverContent, PopoverItem, PopoverTrigger } from '@sim/emcn'
+import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { isEqual } from 'es-toolkit'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import { ReferenceTextarea } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/reference-text-control'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
@@ -34,13 +23,8 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
 
-const MIN_TEXTAREA_HEIGHT_PX = 64
-const MAX_TEXTAREA_HEIGHT_PX = 192
-const MESSAGE_ROLE_OPTIONS = [
-  { value: 'system', label: 'System' },
-  { value: 'user', label: 'User' },
-  { value: 'assistant', label: 'Assistant' },
-] as const
+const MIN_TEXTAREA_HEIGHT_PX = 80
+const MAX_TEXTAREA_HEIGHT_PX = 320
 
 /** Pattern to match complete message objects in JSON */
 const COMPLETE_MESSAGE_PATTERN =
@@ -108,6 +92,7 @@ export function MessagesInput({
   const [localMessages, setLocalMessages] = useState<Message[]>([{ role: 'user', content: '' }])
   const messageIdsRef = useRef<string[]>([generateShortId()])
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+  const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null)
   const subBlockInput = useSubBlockInput({
     blockId,
     subBlockId,
@@ -203,6 +188,9 @@ export function MessagesInput({
     [parseMessages]
   )
 
+  /**
+   * Wand hook for AI-assisted content generation
+   */
   const wandHook = useWand({
     wandConfig: config.wandConfig,
     currentValue: getMessagesJson(),
@@ -241,6 +229,9 @@ export function MessagesInput({
     },
   })
 
+  /**
+   * Expose wand control handlers to parent via ref
+   */
   useImperativeHandle(
     wandControlRef,
     () => ({
@@ -282,6 +273,13 @@ export function MessagesInput({
 
   const overlayRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
+  const userResizedRef = useRef<Record<string, boolean>>({})
+  const isResizingRef = useRef(false)
+  const resizeStateRef = useRef<{
+    fieldId: string
+    startY: number
+    startHeight: number
+  } | null>(null)
 
   /**
    * Updates a specific message's content
@@ -319,42 +317,37 @@ export function MessagesInput({
     [localMessages, setMessages, isPreview, disabled]
   )
 
-  /** Adds a new user message to the conversation. */
-  const addMessage = () => {
-    if (isPreview || disabled) return
+  /**
+   * Adds a message after the specified index
+   */
+  const addMessageAfter = useCallback(
+    (index: number) => {
+      if (isPreview || disabled) return
 
-    const newMessages = [...localMessages, { role: 'user' as const, content: '' }]
-    messageIdsRef.current.push(generateShortId())
-    setLocalMessages(newMessages)
-    setMessages(newMessages)
-  }
+      const newMessages = [...localMessages]
+      newMessages.splice(index + 1, 0, { role: 'user' as const, content: '' })
+      messageIdsRef.current.splice(index + 1, 0, generateShortId())
+      setLocalMessages(newMessages)
+      setMessages(newMessages)
+    },
+    [localMessages, setMessages, isPreview, disabled]
+  )
 
   /**
    * Deletes a message at the specified index
    */
-  const deleteMessage = (index: number) => {
-    if (isPreview || disabled || localMessages.length <= 1) return
+  const deleteMessage = useCallback(
+    (index: number) => {
+      if (isPreview || disabled) return
 
-    const newMessages = [...localMessages]
-    newMessages.splice(index, 1)
-    messageIdsRef.current.splice(index, 1)
-    setLocalMessages(newMessages)
-    setMessages(newMessages)
-  }
-
-  /** Duplicates a message immediately below the source message. */
-  const duplicateMessage = (index: number) => {
-    if (isPreview || disabled) return
-
-    const sourceMessage = localMessages[index]
-    if (!sourceMessage) return
-
-    const newMessages = [...localMessages]
-    newMessages.splice(index + 1, 0, { ...sourceMessage })
-    messageIdsRef.current.splice(index + 1, 0, generateShortId())
-    setLocalMessages(newMessages)
-    setMessages(newMessages)
-  }
+      const newMessages = [...localMessages]
+      newMessages.splice(index, 1)
+      messageIdsRef.current.splice(index, 1)
+      setLocalMessages(newMessages)
+      setMessages(newMessages)
+    },
+    [localMessages, setMessages, isPreview, disabled]
+  )
 
   /**
    * Moves a message up in the list
@@ -397,6 +390,13 @@ export function MessagesInput({
   )
 
   /**
+   * Capitalizes the first letter of the role
+   */
+  const formatRole = (role: string): string => {
+    return role.charAt(0).toUpperCase() + role.slice(1)
+  }
+
+  /**
    * Handles header click to focus the textarea
    */
   const handleHeaderClick = useCallback((index: number, e: React.MouseEvent) => {
@@ -426,6 +426,18 @@ export function MessagesInput({
       const overlay = overlayRefs.current[fieldId]
       if (!textarea) return
 
+      if (!textarea.value.trim()) {
+        userResizedRef.current[fieldId] = false
+      }
+
+      if (userResizedRef.current[fieldId]) {
+        if (overlay) {
+          overlay.style.height = `${textarea.offsetHeight}px`
+        }
+        syncOverlay(fieldId)
+        return
+      }
+
       textarea.style.height = 'auto'
       const scrollHeight = textarea.scrollHeight
       const height = Math.min(
@@ -439,6 +451,65 @@ export function MessagesInput({
       }
 
       syncOverlay(fieldId)
+    },
+    [syncOverlay]
+  )
+
+  const handleResizeStart = useCallback(
+    (fieldId: string, e: React.MouseEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      const textarea = textareaRefs.current[fieldId]
+      if (!textarea) return
+
+      const startHeight = textarea.offsetHeight || textarea.scrollHeight || MIN_TEXTAREA_HEIGHT_PX
+
+      isResizingRef.current = true
+      resizeStateRef.current = {
+        fieldId,
+        startY: e.clientY,
+        startHeight,
+      }
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        if (!isResizingRef.current || !resizeStateRef.current) return
+
+        const { fieldId: activeFieldId, startY, startHeight } = resizeStateRef.current
+        const deltaY = moveEvent.clientY - startY
+        const nextHeight = Math.max(MIN_TEXTAREA_HEIGHT_PX, startHeight + deltaY)
+
+        const activeTextarea = textareaRefs.current[activeFieldId]
+        const overlay = overlayRefs.current[activeFieldId]
+
+        if (activeTextarea) {
+          activeTextarea.style.height = `${nextHeight}px`
+        }
+
+        if (overlay) {
+          overlay.style.height = `${nextHeight}px`
+          if (activeTextarea) {
+            overlay.scrollTop = activeTextarea.scrollTop
+            overlay.scrollLeft = activeTextarea.scrollLeft
+          }
+        }
+      }
+
+      const handleMouseUp = () => {
+        if (resizeStateRef.current) {
+          const { fieldId: activeFieldId } = resizeStateRef.current
+          userResizedRef.current[activeFieldId] = true
+          syncOverlay(activeFieldId)
+        }
+
+        isResizingRef.current = false
+        resizeStateRef.current = null
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
     },
     [syncOverlay]
   )
@@ -473,147 +544,177 @@ export function MessagesInput({
 
   return (
     <div className='flex w-full flex-col gap-2.5'>
-      <div
-        className={cn(
-          'w-full overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)]',
-          disabled && 'opacity-50'
-        )}
-      >
-        {currentMessages.map((message, index) => (
-          <div
-            key={messageIdsRef.current[index] ?? `fallback-${index}`}
-            className={cn(
-              'relative flex w-full flex-col gap-2 p-2.5',
-              index > 0 && 'border-[var(--border)] border-t'
-            )}
-          >
-            {(() => {
-              const fieldId = `message-${index}`
-              const fieldState = subBlockInput.fieldHelpers.getFieldState(fieldId)
-              const fieldHandlers = subBlockInput.fieldHelpers.createFieldHandlers(
-                fieldId,
-                message.content,
-                (newValue: string) => {
-                  updateMessageContent(index, newValue)
-                }
-              )
+      {currentMessages.map((message, index) => (
+        <div
+          key={messageIdsRef.current[index] ?? `fallback-${index}`}
+          className={cn(
+            'relative flex w-full flex-col rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] transition-colors dark:bg-[var(--surface-5)]',
+            disabled && 'opacity-50'
+          )}
+        >
+          {(() => {
+            const fieldId = `message-${index}`
+            const fieldState = subBlockInput.fieldHelpers.getFieldState(fieldId)
+            const fieldHandlers = subBlockInput.fieldHelpers.createFieldHandlers(
+              fieldId,
+              message.content,
+              (newValue: string) => {
+                updateMessageContent(index, newValue)
+              }
+            )
 
-              const handleEnvSelect = subBlockInput.fieldHelpers.createEnvVarSelectHandler(
-                fieldId,
-                message.content,
-                (newValue: string) => {
-                  updateMessageContent(index, newValue)
-                }
-              )
+            const handleEnvSelect = subBlockInput.fieldHelpers.createEnvVarSelectHandler(
+              fieldId,
+              message.content,
+              (newValue: string) => {
+                updateMessageContent(index, newValue)
+              }
+            )
 
-              const handleTagSelect = subBlockInput.fieldHelpers.createTagSelectHandler(
-                fieldId,
-                message.content,
-                (newValue: string) => {
-                  updateMessageContent(index, newValue)
-                }
-              )
+            const handleTagSelect = subBlockInput.fieldHelpers.createTagSelectHandler(
+              fieldId,
+              message.content,
+              (newValue: string) => {
+                updateMessageContent(index, newValue)
+              }
+            )
 
-              const textareaRefObject = {
-                current: textareaRefs.current[fieldId] ?? null,
-              } as React.RefObject<HTMLTextAreaElement>
-              const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
-                activeSearchTarget,
-                subBlockId,
-                valuePath: [index, 'content'],
-              })
+            const textareaRefObject = {
+              current: textareaRefs.current[fieldId] ?? null,
+            } as React.RefObject<HTMLTextAreaElement>
+            const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
+              activeSearchTarget,
+              subBlockId,
+              valuePath: [index, 'content'],
+            })
 
-              return (
-                <>
-                  <div
-                    role='group'
-                    aria-label={`Message ${index + 1}`}
-                    className='flex cursor-pointer items-center justify-between'
-                    onClick={(e) => handleHeaderClick(index, e)}
-                    onKeyDown={(event) => {
-                      if (event.target !== event.currentTarget) return
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        textareaRefs.current[fieldId]?.focus()
-                      }
-                    }}
-                  >
-                    <ChipSelect
-                      options={[...MESSAGE_ROLE_OPTIONS]}
-                      value={message.role}
-                      onChange={(role) =>
-                        updateMessageRole(index, role as 'system' | 'user' | 'assistant')
-                      }
-                      disabled={isPreview || disabled}
-                      align='start'
-                      aria-label={`Message ${index + 1} role`}
-                    />
-
-                    {!isPreview && !disabled && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant='quiet'
-                            size='icon'
-                            onClick={(event: React.MouseEvent) => event.stopPropagation()}
-                            aria-label={`Message ${index + 1} actions`}
-                          >
-                            <MoreHorizontal className='size-[14px]' />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align='end' side='bottom'>
-                          <DropdownMenuItem
-                            disabled={index === 0}
-                            onSelect={() => moveMessageUp(index)}
-                          >
-                            <ChevronUp />
-                            Move up
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            disabled={index === currentMessages.length - 1}
-                            onSelect={() => moveMessageDown(index)}
-                          >
-                            <ChevronDown />
-                            Move down
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => duplicateMessage(index)}>
-                            <Duplicate />
-                            Duplicate
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            disabled={currentMessages.length <= 1}
-                            onSelect={() => deleteMessage(index)}
-                            className='[&_svg]:!text-[var(--text-error)] text-[var(--text-error)] focus:text-[var(--text-error)]'
-                          >
-                            <Trash />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
-
-                  <ReferenceTextarea
-                    ref={(element) => {
-                      textareaRefs.current[fieldId] = element
-                    }}
-                    overlayRef={(element) => {
-                      overlayRefs.current[fieldId] = element
-                    }}
-                    className='h-auto max-h-[192px] min-h-16 overflow-y-auto overflow-x-hidden'
-                    overlayClassName='text-[var(--text-primary)] leading-[1.5]'
-                    overlayContent={
-                      <>
-                        {formatDisplayText(message.content, {
-                          accessiblePrefixes,
-                          highlightAll: !accessiblePrefixes,
-                          workflowSearchHighlight,
-                        })}
-                        {message.content.endsWith('\n') ? '\u200B' : null}
-                      </>
+            return (
+              <>
+                {/* Header with role label and add button */}
+                <div
+                  role='group'
+                  aria-label={`Message ${index + 1}`}
+                  className='flex cursor-pointer items-center justify-between px-2 pt-1.5'
+                  onClick={(e) => handleHeaderClick(index, e)}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      textareaRefs.current[fieldId]?.focus()
                     }
-                    interactiveOverlay={isPreview || disabled}
+                  }}
+                >
+                  <Popover
+                    open={openPopoverIndex === index}
+                    onOpenChange={(open) => setOpenPopoverIndex(open ? index : null)}
+                    colorScheme='inverted'
+                  >
+                    <PopoverTrigger asChild>
+                      <button
+                        type='button'
+                        disabled={isPreview || disabled}
+                        className={cn(
+                          'group -ml-1.5 -my-1 flex items-center gap-1 rounded px-1.5 py-1 text-[var(--text-primary)] text-small leading-none transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]',
+                          (isPreview || disabled) &&
+                            'cursor-default hover-hover:bg-transparent hover-hover:text-[var(--text-primary)]'
+                        )}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label='Select message role'
+                      >
+                        {formatRole(message.role)}
+                        {!isPreview && !disabled && (
+                          <ChevronDown
+                            className={cn(
+                              'size-3 flex-shrink-0 transition-transform duration-100',
+                              openPopoverIndex === index && 'rotate-180'
+                            )}
+                          />
+                        )}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent minWidth={140} align='start'>
+                      <div className='flex flex-col gap-0.5'>
+                        {(['system', 'user', 'assistant'] as const).map((role) => (
+                          <PopoverItem
+                            key={role}
+                            active={message.role === role}
+                            onClick={() => {
+                              updateMessageRole(index, role)
+                              setOpenPopoverIndex(null)
+                            }}
+                          >
+                            <span>{formatRole(role)}</span>
+                          </PopoverItem>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+
+                  {!isPreview && !disabled && (
+                    <div className='flex items-center'>
+                      {currentMessages.length > 1 && (
+                        <>
+                          <Button
+                            variant='ghost'
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              deleteMessage(index)
+                            }}
+                            disabled={disabled}
+                            className='-my-1 -mr-1 size-6 p-0'
+                            aria-label='Delete message'
+                          >
+                            <Trash className='size-3' />
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              moveMessageUp(index)
+                            }}
+                            disabled={disabled || index === 0}
+                            className='-my-1 -mr-1 size-6 p-0'
+                            aria-label='Move message up'
+                          >
+                            <ChevronUp className='size-3' />
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              moveMessageDown(index)
+                            }}
+                            disabled={disabled || index === currentMessages.length - 1}
+                            className='-my-1 -mr-1 size-6 p-0'
+                            aria-label='Move message down'
+                          >
+                            <ChevronDown className='size-3' />
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        variant='ghost'
+                        onClick={(e: React.MouseEvent) => {
+                          e.stopPropagation()
+                          addMessageAfter(index)
+                        }}
+                        disabled={disabled}
+                        className='-mr-1.5 -my-1 size-6 p-0'
+                        aria-label='Add message below'
+                      >
+                        <Plus className='size-3.5' />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Content Input with overlay for variable highlighting */}
+                <div className='relative w-full overflow-hidden'>
+                  <textarea
+                    ref={(el) => {
+                      textareaRefs.current[fieldId] = el
+                    }}
+                    className='relative z-[2] m-0 box-border h-auto min-h-[80px] w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-sans text-sm text-transparent leading-[1.5] caret-[var(--text-primary)] outline-none [-ms-overflow-style:none] [letter-spacing:inherit] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed [&::-webkit-scrollbar]:hidden'
                     placeholder='Enter message content...'
                     value={message.content}
                     onChange={fieldHandlers.onChange}
@@ -640,44 +741,76 @@ export function MessagesInput({
                     onDrop={fieldHandlers.onDrop}
                     onDragOver={fieldHandlers.onDragOver}
                     onFocus={fieldHandlers.onFocus}
+                    onScroll={(e) => {
+                      const overlay = overlayRefs.current[fieldId]
+                      if (overlay) {
+                        overlay.scrollTop = e.currentTarget.scrollTop
+                        overlay.scrollLeft = e.currentTarget.scrollLeft
+                      }
+                    }}
                     disabled={isPreview || disabled}
-                    adornment={
-                      <>
-                        <EnvVarDropdown
-                          visible={fieldState.showEnvVars && !isPreview && !disabled}
-                          onSelect={handleEnvSelect}
-                          searchTerm={fieldState.searchTerm}
-                          inputValue={message.content}
-                          cursorPosition={fieldState.cursorPosition}
-                          onClose={() => subBlockInput.fieldHelpers.hideFieldDropdowns(fieldId)}
-                          workspaceId={subBlockInput.workspaceId}
-                          maxHeight='192px'
-                          inputRef={textareaRefObject}
-                        />
-                        <TagDropdown
-                          visible={fieldState.showTags && !isPreview && !disabled}
-                          onSelect={handleTagSelect}
-                          blockId={blockId}
-                          activeSourceBlockId={fieldState.activeSourceBlockId}
-                          inputValue={message.content}
-                          cursorPosition={fieldState.cursorPosition}
-                          onClose={() => subBlockInput.fieldHelpers.hideFieldDropdowns(fieldId)}
-                          inputRef={textareaRefObject}
-                        />
-                      </>
-                    }
                   />
-                </>
-              )
-            })()}
-          </div>
-        ))}
-      </div>
-      {!isPreview && !disabled && (
-        <Chip variant='border' leftIcon={Plus} onClick={addMessage}>
-          Add message
-        </Chip>
-      )}
+                  <div
+                    ref={(el) => {
+                      overlayRefs.current[fieldId] = el
+                    }}
+                    className={cn(
+                      'absolute top-0 left-0 z-[1] m-0 box-border w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words border-none bg-transparent p-2 font-sans text-[var(--text-primary)] text-sm leading-[1.5] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+                      !(isPreview || disabled) && 'pointer-events-none'
+                    )}
+                  >
+                    {formatDisplayText(message.content, {
+                      accessiblePrefixes,
+                      highlightAll: !accessiblePrefixes,
+                      workflowSearchHighlight,
+                    })}
+                    {message.content.endsWith('\n') && '\u200B'}
+                  </div>
+
+                  {/* Env var dropdown for this message */}
+                  <EnvVarDropdown
+                    visible={fieldState.showEnvVars && !isPreview && !disabled}
+                    onSelect={handleEnvSelect}
+                    searchTerm={fieldState.searchTerm}
+                    inputValue={message.content}
+                    cursorPosition={fieldState.cursorPosition}
+                    onClose={() => subBlockInput.fieldHelpers.hideFieldDropdowns(fieldId)}
+                    workspaceId={subBlockInput.workspaceId}
+                    maxHeight='192px'
+                    inputRef={textareaRefObject}
+                  />
+
+                  {/* Tag dropdown for this message */}
+                  <TagDropdown
+                    visible={fieldState.showTags && !isPreview && !disabled}
+                    onSelect={handleTagSelect}
+                    blockId={blockId}
+                    activeSourceBlockId={fieldState.activeSourceBlockId}
+                    inputValue={message.content}
+                    cursorPosition={fieldState.cursorPosition}
+                    onClose={() => subBlockInput.fieldHelpers.hideFieldDropdowns(fieldId)}
+                    inputRef={textareaRefObject}
+                  />
+
+                  {!isPreview && !disabled && (
+                    <div
+                      role='separator'
+                      aria-orientation='horizontal'
+                      className='absolute right-1 bottom-1 z-[3] flex size-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                      onMouseDown={(e) => handleResizeStart(fieldId, e)}
+                      onDragStart={(e) => {
+                        e.preventDefault()
+                      }}
+                    >
+                      <ChevronsUpDown className='size-3 text-[var(--text-muted)]' />
+                    </div>
+                  )}
+                </div>
+              </>
+            )
+          })()}
+        </div>
+      ))}
     </div>
   )
 }

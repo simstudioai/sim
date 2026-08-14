@@ -38,6 +38,7 @@ import {
 } from '@/lib/auth/constants'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
+import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
@@ -45,6 +46,12 @@ import {
   authorizeSubscriptionReference,
   isPersonalCheckoutRequest,
 } from '@/lib/billing/authorization'
+import {
+  type CheckoutAdmissionClaim,
+  claimCheckoutAdmission,
+  releaseCheckoutAdmission,
+  resolveCheckoutReferenceId,
+} from '@/lib/billing/checkout-admission'
 import {
   getOrganizationIdForSubscriptionReference,
   syncSubscriptionPlan,
@@ -96,7 +103,17 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
-import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
+import {
+  getMicrosoftRefreshTokenExpiry,
+  isMicrosoftProvider,
+  mapMicrosoftProfileToUser,
+} from '@/lib/oauth/microsoft'
+import {
+  isSalesforceLoginOrigin,
+  isSalesforceOAuthProviderId,
+  SALESFORCE_LOGIN_HOSTS,
+  withSalesforceInstanceScope,
+} from '@/lib/oauth/salesforce'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
@@ -154,6 +171,41 @@ const trustedProxies = (env.AUTH_TRUSTED_PROXIES ?? '')
   .split(',')
   .map((entry) => entry.trim())
   .filter(Boolean)
+
+/**
+ * Resolves the org's API instance URL for a freshly linked Salesforce account.
+ *
+ * The token response never carries `instance_url`, but `/services/oauth2/userinfo`
+ * returns a `profile` URL rooted at the org's own host. A response still rooted
+ * at the login host means userinfo answered for the authorization server rather
+ * than an org, which is not an instance URL — hence the guard.
+ *
+ * @returns The instance URL origin, or undefined when it cannot be determined
+ * (the caller then leaves `scope` untouched rather than storing a wrong host).
+ */
+async function fetchSalesforceInstanceUrl(
+  providerId: string,
+  accessToken: string
+): Promise<string | undefined> {
+  const loginHost = SALESFORCE_LOGIN_HOSTS[providerId]
+  if (!loginHost) return undefined
+  try {
+    const response = await fetch(`https://${loginHost}/services/oauth2/userinfo`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!response.ok) return undefined
+    const data = await response.json()
+    if (typeof data.profile !== 'string') return undefined
+    const url = new URL(data.profile)
+    // The origin becomes a tool base URL that carries the bearer token, so the
+    // scheme is pinned rather than inherited from whatever userinfo returned.
+    if (url.protocol !== 'https:' || isSalesforceLoginOrigin(url.origin)) return undefined
+    return url.origin
+  } catch (error) {
+    logger.error('Failed to fetch Salesforce instance URL', { error, providerId })
+    return undefined
+  }
+}
 
 export const auth = betterAuth({
   baseURL: getBaseUrl(),
@@ -352,30 +404,13 @@ export const auth = betterAuth({
         before: async (account) => {
           const modifiedAccount = { ...account }
 
-          if (account.providerId === 'salesforce' && account.accessToken) {
-            try {
-              const response = await fetch(
-                'https://login.salesforce.com/services/oauth2/userinfo',
-                {
-                  headers: {
-                    Authorization: `Bearer ${account.accessToken}`,
-                  },
-                }
-              )
-
-              if (response.ok) {
-                const data = await response.json()
-
-                if (data.profile) {
-                  const match = data.profile.match(/^(https:\/\/[^/]+)/)
-                  if (match && match[1] !== 'https://login.salesforce.com') {
-                    const instanceUrl = match[1]
-                    modifiedAccount.scope = `__sf_instance__:${instanceUrl} ${account.scope}`
-                  }
-                }
-              }
-            } catch (error) {
-              logger.error('Failed to fetch Salesforce instance URL', { error })
+          if (account.accessToken && isSalesforceOAuthProviderId(account.providerId)) {
+            const instanceUrl = await fetchSalesforceInstanceUrl(
+              account.providerId,
+              account.accessToken
+            )
+            if (instanceUrl) {
+              modifiedAccount.scope = withSalesforceInstanceScope(instanceUrl, account.scope)
             }
           }
 
@@ -548,7 +583,7 @@ export const auth = betterAuth({
             )
           }
 
-          if (account.providerId === 'salesforce') {
+          if (isSalesforceOAuthProviderId(account.providerId)) {
             const updates: {
               accessTokenExpiresAt?: Date
               scope?: string
@@ -559,29 +594,12 @@ export const auth = betterAuth({
             }
 
             if (account.accessToken) {
-              try {
-                const response = await fetch(
-                  'https://login.salesforce.com/services/oauth2/userinfo',
-                  {
-                    headers: {
-                      Authorization: `Bearer ${account.accessToken}`,
-                    },
-                  }
-                )
-
-                if (response.ok) {
-                  const data = await response.json()
-
-                  if (data.profile) {
-                    const match = data.profile.match(/^(https:\/\/[^/]+)/)
-                    if (match && match[1] !== 'https://login.salesforce.com') {
-                      const instanceUrl = match[1]
-                      updates.scope = `__sf_instance__:${instanceUrl} ${account.scope}`
-                    }
-                  }
-                }
-              } catch (error) {
-                logger.error('Failed to fetch Salesforce instance URL', { error })
+              const instanceUrl = await fetchSalesforceInstanceUrl(
+                account.providerId,
+                account.accessToken
+              )
+              if (instanceUrl) {
+                updates.scope = withSalesforceInstanceScope(instanceUrl, account.scope)
               }
             }
 
@@ -749,6 +767,13 @@ export const auth = betterAuth({
             clientId: env.MICROSOFT_CLIENT_ID,
             clientSecret: env.MICROSOFT_CLIENT_SECRET,
             scope: ['openid', 'profile', 'email'],
+            /**
+             * `/common/` otherwise silently reuses whichever Microsoft session
+             * the browser holds, stranding the user on an orphan Sim account
+             * under their personal address.
+             */
+            prompt: 'select_account' as const,
+            mapProfileToUser: mapMicrosoftProfileToUser,
           },
         }),
     },
@@ -983,19 +1008,45 @@ export const auth = betterAuth({
       /**
        * Personal checkout guard. The Stripe plugin's `authorizeReference`
        * only runs for organization references (it skips references equal to
-       * the session user), so duplicate-coverage enforcement for personal
-       * checkouts lives here: a member of an org with an entitled paid
-       * subscription must not buy a personal plan on top of it.
+       * the session user), so personal checkout admission lives here. It
+       * prevents both a duplicate checkout while Stripe payment is pending
+       * and a personal plan for someone already covered by an organization.
        */
       if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
         const session = await getSessionFromCtx(ctx)
         const sessionUserId = session?.user?.id
-        if (sessionUserId && isPersonalCheckoutRequest(ctx.body ?? {}, sessionUserId)) {
-          await assertPersonalCheckoutAllowed(sessionUserId)
+        if (sessionUserId) {
+          const requestBody = ctx.body ?? {}
+          const referenceId = resolveCheckoutReferenceId(
+            requestBody,
+            sessionUserId,
+            getActiveOrganizationId(session)
+          )
+          if (referenceId) {
+            const checkoutAdmissionClaim = await claimCheckoutAdmission(referenceId)
+            try {
+              if (isPersonalCheckoutRequest(requestBody, sessionUserId)) {
+                await assertPersonalCheckoutAllowed(sessionUserId)
+              }
+            } catch (error) {
+              await releaseCheckoutAdmission(checkoutAdmissionClaim)
+              throw error
+            }
+            return { context: { billingCheckoutAdmissionClaim: checkoutAdmissionClaim } }
+          }
         }
       }
 
       return
+    }),
+    after: createAuthMiddleware(async (ctx) => {
+      if (!isBillingEnabled || ctx.path !== '/subscription/upgrade') return
+      const checkoutContext = ctx as typeof ctx & {
+        billingCheckoutAdmissionClaim?: CheckoutAdmissionClaim
+      }
+      if (checkoutContext.billingCheckoutAdmissionClaim) {
+        await releaseCheckoutAdmission(checkoutContext.billingCheckoutAdmissionClaim)
+      }
     }),
   },
   plugins: [

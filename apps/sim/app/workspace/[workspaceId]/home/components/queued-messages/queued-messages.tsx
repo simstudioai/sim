@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { cn, Tooltip } from '@sim/emcn'
+import { chipActiveSurfaceClass, chipHoverSurfaceClass, cn, Tooltip } from '@sim/emcn'
 import { ArrowUp, ChevronDown, ChevronRight, Paperclip, Pencil, Trash, X } from '@sim/emcn/icons'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
@@ -54,7 +54,10 @@ export function QueuedMessages({
       <button
         type='button'
         onClick={() => setIsExpanded(!isExpanded)}
-        className='flex w-full items-center gap-1.5 px-3.5 py-2 transition-colors hover-hover:bg-[var(--surface-active)]'
+        className={cn(
+          'flex w-full items-center gap-1.5 px-3.5 py-2 transition-colors',
+          chipHoverSurfaceClass
+        )}
       >
         {isExpanded ? (
           <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
@@ -75,8 +78,8 @@ export function QueuedMessages({
               <div
                 key={msg.id}
                 className={cn(
-                  'flex items-center gap-2 py-1.5 pr-2 pl-3.5 transition-colors hover-hover:bg-[var(--surface-active)]',
-                  isEditing && 'bg-[var(--surface-active)]'
+                  'flex items-center gap-2 py-1.5 pr-2 pl-3.5 transition-colors',
+                  isEditing ? chipActiveSurfaceClass : chipHoverSurfaceClass
                 )}
               >
                 <div className='flex size-[16px] shrink-0 items-center justify-center'>

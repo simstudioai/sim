@@ -3,35 +3,49 @@ import { useExecutionStore } from '@/stores/execution'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
+type HandoffEdges = ReadonlyArray<Pick<Edge, 'id' | 'source' | 'target'>>
+
+/**
+ * Only edge *membership* matters here — an edge id being present means it was
+ * taken. The status value is deliberately `unknown` so this stays a pure
+ * function over the minimum it reads, testable without the execution store.
+ */
+type TakenEdgeIds = ReadonlyMap<string, unknown>
+
 interface ActiveExecutionHandoffOptions {
   blockId: string
   isExecuting: boolean
   activeBlockIds: ReadonlySet<string>
-  lastRunEdges: ReadonlyMap<string, unknown>
-  edges: ReadonlyArray<Pick<Edge, 'id' | 'source' | 'target'>>
+  lastRunEdges: TakenEdgeIds
+  edges: HandoffEdges
 }
 
 interface ActiveExecutionHandoffCache {
-  activeBlockIds: ReadonlySet<string>
-  lastRunEdges: ReadonlyMap<string, unknown>
-  edges: ReadonlyArray<Pick<Edge, 'id' | 'source' | 'target'>>
+  lastRunEdges: TakenEdgeIds
+  edges: HandoffEdges
   highlightedBlockIds: ReadonlySet<string>
 }
 
-let activeExecutionHandoffCache: ActiveExecutionHandoffCache | null = null
+/**
+ * Memoised per execution snapshot.
+ *
+ * Every card on the canvas asks this same question on every execution update,
+ * so the walk runs once per snapshot rather than once per card. Keyed *weakly*
+ * on `activeBlockIds` so an entry dies with the snapshot that produced it —
+ * a module-level slot would pin the last workflow's edges, active-block set and
+ * run-status map for the lifetime of the tab.
+ */
+const activeExecutionHandoffCache = new WeakMap<ReadonlySet<string>, ActiveExecutionHandoffCache>()
 
 /** Resolves the active handoff once for every immutable execution snapshot. */
 function getActiveExecutionHandoffBlockIds(
   activeBlockIds: ReadonlySet<string>,
-  lastRunEdges: ReadonlyMap<string, unknown>,
-  edges: ReadonlyArray<Pick<Edge, 'id' | 'source' | 'target'>>
+  lastRunEdges: TakenEdgeIds,
+  edges: HandoffEdges
 ): ReadonlySet<string> {
-  if (
-    activeExecutionHandoffCache?.activeBlockIds === activeBlockIds &&
-    activeExecutionHandoffCache.lastRunEdges === lastRunEdges &&
-    activeExecutionHandoffCache.edges === edges
-  ) {
-    return activeExecutionHandoffCache.highlightedBlockIds
+  const cached = activeExecutionHandoffCache.get(activeBlockIds)
+  if (cached && cached.lastRunEdges === lastRunEdges && cached.edges === edges) {
+    return cached.highlightedBlockIds
   }
 
   const highlightedBlockIds = new Set(activeBlockIds)
@@ -41,12 +55,11 @@ function getActiveExecutionHandoffBlockIds(
     }
   }
 
-  activeExecutionHandoffCache = {
-    activeBlockIds,
+  activeExecutionHandoffCache.set(activeBlockIds, {
     lastRunEdges,
     edges,
     highlightedBlockIds,
-  }
+  })
 
   return highlightedBlockIds
 }
@@ -76,19 +89,28 @@ export function isBlockInActiveExecutionHandoff({
  */
 export function useIsBlockInActiveExecutionHandoff(blockId: string): boolean {
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const edges = useWorkflowStore((state) => state.edges)
 
   return useExecutionStore((state) => {
     if (!activeWorkflowId) return false
     const execution = state.workflowExecutions.get(activeWorkflowId)
     if (!execution) return false
 
+    /*
+     * Edges are read, not subscribed to. `state.edges` is a fresh array after
+     * ~25 store actions that change no edge at all — block-dimension
+     * measurement among them — so subscribing here would re-render every card
+     * on the canvas each time one block is measured. The topology is static for
+     * the duration of a run, and this selector re-runs on every execution
+     * update, so an edge added mid-run is picked up on the next active-block
+     * change. Sibling subscriptions in `workflow-block.tsx` derive a primitive
+     * for the same reason.
+     */
     return isBlockInActiveExecutionHandoff({
       blockId,
       isExecuting: execution.isExecuting,
       activeBlockIds: execution.activeBlockIds,
       lastRunEdges: execution.lastRunEdges,
-      edges,
+      edges: useWorkflowStore.getState().edges,
     })
   })
 }

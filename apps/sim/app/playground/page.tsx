@@ -13,15 +13,7 @@ import {
   ButtonGroupItem,
   Checkbox,
   ChevronDown,
-  ChipCombobox,
-  ChipCopyInput,
   ChipDatePicker,
-  ChipInput,
-  ChipSelect,
-  ChipSwitch,
-  ChipTag,
-  ChipTextarea,
-  ChipTimePicker,
   Code,
   Combobox,
   Connections,
@@ -91,7 +83,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from '@sim/emcn'
-import { ArrowLeft, Folder, Moon, Search, Sun } from '@sim/emcn/icons'
+import { ArrowLeft, Folder, Moon, Sun } from '@sim/emcn/icons'
 import { notFound, useRouter } from 'next/navigation'
 import { env, isTruthy } from '@/lib/core/config/env'
 
@@ -115,31 +107,6 @@ function VariantRow({ label, children }: { label: string; children: React.ReactN
   )
 }
 
-interface WorkflowFieldPreviewProps {
-  title: string
-  hint?: string
-  required?: boolean
-  children: React.ReactNode
-}
-
-function WorkflowFieldPreview({
-  title,
-  hint,
-  required = false,
-  children,
-}: WorkflowFieldPreviewProps) {
-  return (
-    <div className='flex flex-col gap-[9px] rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4'>
-      <Label className='text-[var(--text-muted)] text-small'>
-        {title}
-        {required ? <span className='text-[var(--text-error)]'> *</span> : null}
-      </Label>
-      {children}
-      {hint ? <p className='text-[var(--text-muted)] text-caption'>{hint}</p> : null}
-    </div>
-  )
-}
-
 const SAMPLE_CODE = `function greet(name) {
   console.log("Hello, " + name);
   return { success: true };
@@ -155,11 +122,6 @@ const COMBOBOX_OPTIONS = [
   { label: 'Option 3', value: 'opt3' },
 ]
 
-const WORKFLOW_BOOLEAN_OPTIONS = [
-  { value: 'off', label: 'Off' },
-  { value: 'on', label: 'On' },
-] as const
-
 const DARK_MODE_EVENT = 'playground:dark-mode-change'
 
 const subscribeToDarkMode = (onStoreChange: () => void) => {
@@ -173,15 +135,6 @@ const getServerDarkModeSnapshot = () => false
 export default function PlaygroundPage() {
   const router = useRouter()
   const [comboboxValue, setComboboxValue] = useState('')
-  const [workflowTextValue, setWorkflowTextValue] = useState('claude-sonnet-5')
-  const [workflowDescription, setWorkflowDescription] = useState(
-    'Classify each support request and return the urgency, owner, and next action.'
-  )
-  const [workflowChoice, setWorkflowChoice] = useState('opt1')
-  const [workflowSearchChoice, setWorkflowSearchChoice] = useState('opt2')
-  const [workflowMultiChoices, setWorkflowMultiChoices] = useState<string[]>(['opt1', 'opt3'])
-  const [workflowToggle, setWorkflowToggle] = useState<'off' | 'on'>('off')
-  const [workflowTime, setWorkflowTime] = useState('09:30')
   const [switchValue, setSwitchValue] = useState(false)
   const [checkboxValue, setCheckboxValue] = useState(false)
   const [sliderValue, setSliderValue] = useState([50])
@@ -240,148 +193,6 @@ export default function PlaygroundPage() {
                 All emcn UI components and their variants
               </p>
             </div>
-
-            <Section title='Workflow editor field lab'>
-              <p className='max-w-2xl text-[var(--text-secondary)] text-sm'>
-                The canonical workflow field language. These examples exercise shared EMCN chrome
-                before workflow-specific adapters add variables, references, and generated content.
-              </p>
-              <div className='grid gap-4 md:grid-cols-2'>
-                <WorkflowFieldPreview title='Single-line input' required>
-                  <ChipInput
-                    value={workflowTextValue}
-                    onChange={(event) => setWorkflowTextValue(event.target.value)}
-                    placeholder='Enter a value'
-                  />
-                </WorkflowFieldPreview>
-                <WorkflowFieldPreview
-                  title='Validation state'
-                  hint='Required values use the component error state instead of custom borders.'
-                  required
-                >
-                  <ChipInput error placeholder='Enter your API key' />
-                </WorkflowFieldPreview>
-                <WorkflowFieldPreview
-                  title='Adorned input'
-                  hint='Leading and trailing content is supplied through component props.'
-                >
-                  <ChipInput
-                    icon={Search}
-                    placeholder='Search available data'
-                    endAdornment={<ChipTag variant='field'>⌘K</ChipTag>}
-                  />
-                </WorkflowFieldPreview>
-                <WorkflowFieldPreview title='Multi-line input'>
-                  <ChipTextarea
-                    rows={4}
-                    value={workflowDescription}
-                    onChange={(event) => setWorkflowDescription(event.target.value)}
-                    placeholder='Describe what this block should do'
-                  />
-                </WorkflowFieldPreview>
-                <WorkflowFieldPreview title='Disabled input' hint='Preview and unavailable states.'>
-                  <ChipInput value='Inherited from deployment settings' disabled />
-                </WorkflowFieldPreview>
-                <WorkflowFieldPreview
-                  title='View-only values'
-                  hint='Read-only records stay legible instead of looking unavailable.'
-                >
-                  <div className='flex flex-col gap-2'>
-                    <ChipCopyInput value='https://api.sim.ai/webhooks/example' />
-                    <ChipTextarea
-                      value='This content is generated by the selected deployment.'
-                      rows={2}
-                      viewOnly
-                    />
-                  </div>
-                </WorkflowFieldPreview>
-                <WorkflowFieldPreview title='Select'>
-                  <ChipSelect
-                    options={COMBOBOX_OPTIONS}
-                    value={workflowChoice}
-                    onChange={setWorkflowChoice}
-                    placeholder='Select an option'
-                    align='start'
-                    fullWidth
-                    dropdownWidth='trigger'
-                  />
-                </WorkflowFieldPreview>
-                <WorkflowFieldPreview
-                  title='Multi-select'
-                  hint='Selected values collapse into a stable trigger summary.'
-                >
-                  <ChipSelect
-                    options={COMBOBOX_OPTIONS}
-                    multiSelect
-                    multiSelectValues={workflowMultiChoices}
-                    onMultiSelectChange={setWorkflowMultiChoices}
-                    placeholder='Select options'
-                    searchable
-                    align='start'
-                    fullWidth
-                    dropdownWidth='trigger'
-                  />
-                </WorkflowFieldPreview>
-                <WorkflowFieldPreview title='Searchable select'>
-                  <ChipCombobox
-                    options={COMBOBOX_OPTIONS}
-                    value={workflowSearchChoice}
-                    onChange={setWorkflowSearchChoice}
-                    placeholder='Search options'
-                    searchable
-                  />
-                </WorkflowFieldPreview>
-                <WorkflowFieldPreview
-                  title='Loading select'
-                  hint='Async state is rendered by the picker rather than its consumer.'
-                >
-                  <ChipSelect
-                    options={[]}
-                    isLoading
-                    placeholder='Load options'
-                    align='start'
-                    fullWidth
-                    dropdownWidth='trigger'
-                  />
-                </WorkflowFieldPreview>
-                <WorkflowFieldPreview title='Empty select'>
-                  <ChipSelect
-                    options={[]}
-                    emptyMessage='No matching options'
-                    placeholder='Choose a resource'
-                    align='start'
-                    fullWidth
-                    dropdownWidth='trigger'
-                  />
-                </WorkflowFieldPreview>
-                <WorkflowFieldPreview title='Truncated value'>
-                  <ChipSelect
-                    options={[
-                      {
-                        value: 'long',
-                        label:
-                          'A deliberately long resource name that demonstrates trigger truncation',
-                      },
-                    ]}
-                    value='long'
-                    align='start'
-                    fullWidth
-                    dropdownWidth='trigger'
-                  />
-                </WorkflowFieldPreview>
-                <WorkflowFieldPreview title='Boolean setting'>
-                  <ChipSwitch
-                    options={WORKFLOW_BOOLEAN_OPTIONS}
-                    value={workflowToggle}
-                    onChange={setWorkflowToggle}
-                    aria-label='Boolean setting'
-                  />
-                </WorkflowFieldPreview>
-                <WorkflowFieldPreview title='Time input'>
-                  <ChipTimePicker value={workflowTime} onChange={setWorkflowTime} fullWidth />
-                </WorkflowFieldPreview>
-              </div>
-            </Section>
 
             {/* Toast */}
             <Section title='Toast'>
@@ -1057,10 +868,10 @@ export default function PlaygroundPage() {
                   </PopoverContent>
                 </Popover>
               </VariantRow>
-              <VariantRow label='secondary variant'>
-                <Popover variant='secondary'>
+              <VariantRow label='inverted color scheme'>
+                <Popover colorScheme='inverted'>
                   <PopoverTrigger asChild>
-                    <Button variant='secondary'>Secondary Popover</Button>
+                    <Button variant='secondary'>Inverted Popover</Button>
                   </PopoverTrigger>
                   <PopoverContent>
                     <PopoverItem>Item 1</PopoverItem>

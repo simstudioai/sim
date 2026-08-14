@@ -1,14 +1,18 @@
 'use client'
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn, X } from '@sim/emcn'
+import { Button, cn } from '@sim/emcn'
+import { X } from '@sim/emcn/icons'
 import { WorkflowBlockBorder, type WorkflowBorderPort } from '@sim/workflow-renderer'
 import { Command } from 'cmdk'
-import { Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { captureEvent } from '@/lib/posthog/client'
+import {
+  CommandFadedList,
+  CommandSearch,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/command-chrome'
 import { MemoizedCommandItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/command-items'
 import {
   BlocksGroup,
@@ -403,10 +407,11 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
         className='relative z-20 flex h-full flex-col overflow-hidden rounded-2xl [clip-path:inset(0_round_16px)]'
       >
         <div className='relative min-h-0 flex-1'>
-          <Command.List
+          <CommandFadedList
             ref={listRef}
+            fade='canvas'
             className={cn(
-              "nodrag nopan nowheel allow-scroll scrollbar-none [&_[cmdk-item][aria-selected='true']]:!border-transparent [&_[cmdk-item][aria-selected='true']]:!bg-[var(--surface-hover)] [&_[cmdk-item]_svg]:!scale-100 [&_[cmdk-item]_svg]:!transition-none h-full overflow-y-auto overflow-x-hidden px-1.5 pt-12 pb-1.5 [-webkit-mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_18%,black_94%,transparent_100%)] [clip-path:inset(3px_round_13px)] [mask-image:linear-gradient(to_bottom,transparent_0%,transparent_8%,black_18%,black_94%,transparent_100%)] [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col",
+              "nodrag nopan nowheel allow-scroll scrollbar-none [&_[cmdk-item][aria-selected='true']]:!border-transparent [&_[cmdk-item][aria-selected='true']]:!bg-[var(--surface-hover)] [&_[cmdk-item]_svg]:!scale-100 [&_[cmdk-item]_svg]:!transition-none h-full [clip-path:inset(3px_round_13px)]",
               CMDK_ITEM_GAP_CLASS,
               CMDK_SECTION_GAP_CLASS
             )}
@@ -428,8 +433,9 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
                       }}
                       icon={result.item.icon}
                       bgColor={result.item.bgColor}
-                      showColoredIcon
-                      workflowType={result.kind === 'block' ? result.item.type : undefined}
+                      blockType={
+                        result.kind === 'tool_operation' ? result.item.blockType : result.item.type
+                      }
                       label={result.item.name}
                     />
                   ))}
@@ -448,7 +454,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
                             onSelect={() => handleToolOperationSelect(result.item)}
                             icon={result.item.icon}
                             bgColor={result.item.bgColor}
-                            showColoredIcon
+                            blockType={result.item.blockType}
                             label={result.item.name}
                           />
                         )
@@ -465,8 +471,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
                           }
                           icon={result.item.icon}
                           bgColor={result.item.bgColor}
-                          showColoredIcon
-                          workflowType={result.kind === 'block' ? result.item.type : undefined}
+                          blockType={result.item.type}
                           label={result.item.name}
                         />
                       )
@@ -482,22 +487,16 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
                 <ToolsGroup items={browseTools} onSelect={handleToolSelect} />
               </>
             )}
-          </Command.List>
-          <div
-            data-connection-selector-search-frost=''
-            className='nodrag nopan absolute inset-x-[3px] top-[3px] z-20 flex h-12 cursor-text items-center gap-2 rounded-t-[13px] bg-[linear-gradient(to_bottom,var(--surface-2)_0%,color-mix(in_srgb,var(--surface-2)_88%,transparent)_68%,transparent_100%)] px-2.5 pb-2'
-          >
-            <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
-            <Command.Input
-              ref={inputRef}
-              autoFocus
-              aria-label='Search blocks'
-              value={search}
-              onValueChange={handleSearchChange}
-              placeholder='Search blocks...'
-              className='h-8 min-w-0 flex-1 cursor-text bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
-            />
-          </div>
+          </CommandFadedList>
+          <CommandSearch
+            ref={inputRef}
+            surface='canvas'
+            autoFocus
+            aria-label='Search blocks'
+            value={search}
+            onValueChange={handleSearchChange}
+            placeholder='Search blocks...'
+          />
         </div>
       </Command>
     </div>

@@ -1479,6 +1479,7 @@ List allocations on an expense (GET /expensereports/v4/users/\{userId\}/context/
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Allocations list payload |
+|   ↳ `items` | array | Array of allocation objects \(allocationId, accountCode, percentage, allocationAmount, approvedAmount, claimedAmount, customData, expenseId, isSystemAllocation, isPercentEdited, overLimitAccountCode\) |
 
 ### SAP Concur List Attendee Associations
 
@@ -1547,6 +1548,12 @@ List budget categories (GET /budget/v4/budgetCategory).
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Budget categories collection payload |
+|   ↳ `items` | array | Array of budget category objects |
+|     ↳ `id` | string | Category ID |
+|     ↳ `name` | string | Admin-facing category name |
+|     ↳ `description` | string | Friendly name |
+|     ↳ `statusType` | string | Status: OPEN or REMOVED |
+|     ↳ `expenseTypes` | array | Expense types in this category \(id, featureTypeCode, expenseTypeCode, name\) |
 
 ### SAP Concur List Budgets
 
@@ -1573,6 +1580,7 @@ List budget item headers (GET /budget/v4/budgetItemHeader).
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Budget headers collection payload |
+|   ↳ `items` | array | Array of budget item header summaries \(id, name, description, budgetItemStatusType, budgetType, currencyCode, fiscalYear, budgetAmounts, owner, ...\) |
 |   ↳ `offset` | number | Page offset |
 |   ↳ `limit` | number | Page size |
 |   ↳ `totalCount` | number | Total result count |

@@ -7,8 +7,6 @@ import { glob } from 'glob'
 import type { BlockCategory } from '../apps/sim/blocks/types'
 import { IntegrationType } from '../apps/sim/blocks/types'
 
-console.log('Starting documentation generator...')
-
 /**
  * Cache for resolved const definitions from types files.
  * Key: "toolPrefix:constName" (e.g., "calcom:SCHEDULE_DATA_OUTPUT_PROPERTIES")
@@ -21,7 +19,19 @@ const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, '..')
 
 const BLOCKS_PATH = path.join(rootDir, 'apps/sim/blocks/blocks')
-const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/integrations')
+export const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/en/integrations')
+
+export const DOCS_ORIGIN = 'https://docs.sim.ai/'
+
+/**
+ * The docs URL a block gets when it declares no `docsLink` — one generated page
+ * per service, named for the block's base type. Exported so the catalog checker
+ * validates the same contract this generator emits rather than a second copy of
+ * it that can silently drift.
+ */
+export function defaultIntegrationDocsUrl(blockType: string): string {
+  return `${DOCS_ORIGIN}integrations/${stripVersionSuffix(blockType)}`
+}
 const ICONS_PATH = path.join(rootDir, 'apps/sim/components/icons.tsx')
 const DOCS_ICONS_PATH = path.join(rootDir, 'apps/docs/components/icons.tsx')
 const INTEGRATIONS_DATA_PATH = path.join(rootDir, 'apps/sim/lib/integrations')
@@ -55,6 +65,7 @@ const HANDWRITTEN_INTEGRATION_DOCS = new Set([
   'hubspot-setup',
   'linear-service-account',
   'monday-service-account',
+  'netsuite-service-account',
   'notion-service-account',
   'pipedrive-service-account',
   'salesforce-service-account',
@@ -1043,7 +1054,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
         const triggers: TriggerInfo[] = triggerIds
           .map((id) => triggerRegistry.get(id))
           .filter((t): t is TriggerInfo => t !== undefined)
-        const docsUrl = (config as any).docsLink || `https://docs.sim.ai/integrations/${baseType}`
+        const docsUrl = (config as any).docsLink || defaultIntegrationDocsUrl(baseType)
 
         const slug = config.name
           .toLowerCase()
@@ -1261,7 +1272,7 @@ function extractBlockConfigFromContent(
     const docsLink =
       extractStringPropertyFromContent(blockContent, 'docsLink', true) ||
       baseConfig?.docsLink ||
-      `https://docs.sim.ai/integrations/${stripVersionSuffix(blockType)}`
+      defaultIntegrationDocsUrl(blockType)
 
     const integrationType =
       extractEnumPropertyFromContent(blockContent, 'integrationType') ||
@@ -1671,7 +1682,7 @@ function resolveConstReference(
 /**
  * Parse properties from a const definition, resolving nested const references.
  */
-function parseConstProperties(
+export function parseConstProperties(
   content: string,
   toolPrefix: string,
   typesContent: string,
@@ -1705,10 +1716,6 @@ function parseConstProperties(
     const propName = match[1]
     const constRef = match[2]
 
-    if (propName === 'items') {
-      continue
-    }
-
     const beforeMatch = content.substring(0, match.index)
     const openBraces = (beforeMatch.match(/\{/g) || []).length
     const closeBraces = (beforeMatch.match(/\}/g) || []).length
@@ -1725,7 +1732,13 @@ function parseConstProperties(
         const propContent = content.substring(startPos + 1, endPos - 1).trim()
         // If it starts with 'type:', it's an output field definition - process it
         if (propContent.match(/^\s*type\s*:/)) {
-          const parsedProp = parseConstFieldContent(propContent, toolPrefix, typesContent, depth)
+          const parsedProp = parseConstFieldContent(
+            propContent,
+            toolPrefix,
+            typesContent,
+            depth,
+            propName
+          )
           if (parsedProp) {
             properties[propName] = parsedProp
           }
@@ -1747,7 +1760,13 @@ function parseConstProperties(
 
       if (endPos !== -1) {
         const propContent = content.substring(startPos + 1, endPos - 1).trim()
-        const parsedProp = parseConstFieldContent(propContent, toolPrefix, typesContent, depth)
+        const parsedProp = parseConstFieldContent(
+          propContent,
+          toolPrefix,
+          typesContent,
+          depth,
+          propName
+        )
         if (parsedProp) {
           properties[propName] = parsedProp
         }
@@ -1830,7 +1849,8 @@ function parseConstFieldContent(
   fieldContent: string,
   toolPrefix: string,
   typesContent: string,
-  depth: number
+  depth: number,
+  propertyName?: string
 ): any {
   const typeMatch = fieldContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
   const description = extractDescription(fieldContent)
@@ -1845,7 +1865,7 @@ function parseConstFieldContent(
   }
 
   if (fieldType === 'object' || fieldType === 'json') {
-    const propsConstMatch = fieldContent.match(/properties\s*:\s*([A-Z][A-Z_0-9]+)/)
+    const propsConstMatch = matchSchemaKeyword(fieldContent, propertyName, PROPERTIES_CONST_PATTERN)
     if (propsConstMatch) {
       const resolvedProps = resolveConstFromTypesContent(
         propsConstMatch[1],
@@ -1857,7 +1877,11 @@ function parseConstFieldContent(
         result.properties = resolvedProps
       }
     } else {
-      const propertiesStart = fieldContent.search(/properties\s*:\s*\{/)
+      const propertiesStart = findSchemaKeyword(
+        fieldContent,
+        propertyName,
+        PROPERTIES_INLINE_PATTERN
+      )
       if (propertiesStart !== -1) {
         const braceStart = fieldContent.indexOf('{', propertiesStart)
         const braceEnd = findMatchingClose(fieldContent, braceStart)
@@ -1875,7 +1899,7 @@ function parseConstFieldContent(
     }
   }
 
-  const itemsConstMatch = fieldContent.match(/items\s*:\s*([A-Z][A-Z_0-9]+)/)
+  const itemsConstMatch = matchSchemaKeyword(fieldContent, propertyName, ITEMS_CONST_PATTERN)
   if (itemsConstMatch) {
     const resolvedItems = resolveConstFromTypesContent(
       itemsConstMatch[1],
@@ -1887,7 +1911,7 @@ function parseConstFieldContent(
       result.items = resolvedItems
     }
   } else {
-    const itemsStart = fieldContent.search(/items\s*:\s*\{/)
+    const itemsStart = findSchemaKeyword(fieldContent, propertyName, ITEMS_INLINE_PATTERN)
     if (itemsStart !== -1) {
       const braceStart = fieldContent.indexOf('{', itemsStart)
       const braceEnd = findMatchingClose(fieldContent, braceStart)
@@ -2438,7 +2462,44 @@ function isAtDepthZero(content: string, matchIndex: number): boolean {
   return depth === 0
 }
 
-function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
+function findTopLevelMatch(content: string, pattern: RegExp): RegExpExecArray | null {
+  const flags = pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`
+  const regex = new RegExp(pattern.source, flags)
+  let match: RegExpExecArray | null
+
+  while ((match = regex.exec(content)) !== null) {
+    if (isAtDepthZero(content, match.index)) {
+      return match
+    }
+  }
+
+  return null
+}
+
+const PROPERTIES_CONST_PATTERN = /properties\s*:\s*([A-Z][A-Z_0-9]+)/
+const PROPERTIES_INLINE_PATTERN = /properties\s*:\s*{/
+const ITEMS_CONST_PATTERN = /items\s*:\s*([A-Z][A-Z_0-9]+)/
+const ITEMS_INLINE_PATTERN = /items\s*:\s*{/
+
+function matchSchemaKeyword(
+  content: string,
+  propertyName: string | undefined,
+  pattern: RegExp
+): RegExpExecArray | null {
+  return propertyName === 'items' ? findTopLevelMatch(content, pattern) : content.match(pattern)
+}
+
+function findSchemaKeyword(
+  content: string,
+  propertyName: string | undefined,
+  pattern: RegExp
+): number {
+  return propertyName === 'items'
+    ? (findTopLevelMatch(content, pattern)?.index ?? -1)
+    : content.search(pattern)
+}
+
+function parseFieldContent(fieldContent: string, toolPrefix?: string, propertyName?: string): any {
   // Only match `type:` that is at the top level of fieldContent (depth 0).
   // Child objects like `title: { type: 'string', ... }` also contain `type:` but at depth 1.
   const typeRegex = /type\s*:\s*['"]([^'"]+)['"]/g
@@ -2492,15 +2553,18 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
 
   if (fieldType === 'object' || fieldType === 'json') {
     // Check for const reference first (e.g., properties: SCHEDULE_DATA_OUTPUT_PROPERTIES)
-    const propsConstMatch = fieldContent.match(/properties\s*:\s*([A-Z][A-Z_0-9]+)/)
+    const propsConstMatch = matchSchemaKeyword(fieldContent, propertyName, PROPERTIES_CONST_PATTERN)
     if (propsConstMatch && toolPrefix) {
       const resolvedProps = resolveConstReference(propsConstMatch[1], toolPrefix)
       if (resolvedProps) {
         result.properties = resolvedProps
       }
     } else {
-      const propertiesRegex = /properties\s*:\s*{/
-      const propertiesStart = fieldContent.search(propertiesRegex)
+      const propertiesStart = findSchemaKeyword(
+        fieldContent,
+        propertyName,
+        PROPERTIES_INLINE_PATTERN
+      )
 
       if (propertiesStart !== -1) {
         const braceStart = fieldContent.indexOf('{', propertiesStart)
@@ -2515,15 +2579,14 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
   }
 
   // Check for items const reference (e.g., items: ATTENDEES_OUTPUT)
-  const itemsConstMatch = fieldContent.match(/items\s*:\s*([A-Z][A-Z_0-9]+)/)
+  const itemsConstMatch = matchSchemaKeyword(fieldContent, propertyName, ITEMS_CONST_PATTERN)
   if (itemsConstMatch && toolPrefix) {
     const resolvedItems = resolveConstReference(itemsConstMatch[1], toolPrefix)
     if (resolvedItems) {
       result.items = resolvedItems
     }
   } else {
-    const itemsRegex = /items\s*:\s*{/
-    const itemsStart = fieldContent.search(itemsRegex)
+    const itemsStart = findSchemaKeyword(fieldContent, propertyName, ITEMS_INLINE_PATTERN)
 
     if (itemsStart !== -1) {
       const braceStart = fieldContent.indexOf('{', itemsStart)
@@ -2586,7 +2649,7 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
   return result
 }
 
-function parsePropertiesContent(
+export function parsePropertiesContent(
   propertiesContent: string,
   toolPrefix?: string
 ): Record<string, any> {
@@ -2602,7 +2665,7 @@ function parsePropertiesContent(
       const propName = constMatch[1]
       const constName = constMatch[2]
 
-      if (propName === 'items' || propName === 'properties' || propName === 'type') {
+      if (propName === 'properties' || propName === 'type') {
         continue
       }
 
@@ -2627,7 +2690,7 @@ function parsePropertiesContent(
       const constName = propAccessMatch[2]
       const accessedProp = propAccessMatch[3]
 
-      if (propName === 'items' || propName === 'properties' || propName === 'type') {
+      if (propName === 'properties' || propName === 'type') {
         continue
       }
 
@@ -2675,7 +2738,7 @@ function parsePropertiesContent(
   while ((match = propStartRegex.exec(propertiesContent)) !== null) {
     const propName = match[1]
 
-    if (propName === 'items' || propName === 'properties') {
+    if (propName === 'properties') {
       continue
     }
 
@@ -2719,7 +2782,7 @@ function parsePropertiesContent(
   }
 
   propPositions.forEach((prop) => {
-    const parsedProp = parseFieldContent(prop.content, toolPrefix)
+    const parsedProp = parseFieldContent(prop.content, toolPrefix, prop.name)
     if (parsedProp) {
       properties[prop.name] = parsedProp
     }
@@ -3855,17 +3918,20 @@ function updateMetaJson() {
   console.log(`Updated meta.json with ${items.length} entries`)
 }
 
-generateAllBlockDocs()
-  .then((success) => {
-    if (success) {
-      console.log('Documentation generation completed successfully')
-      process.exit(0)
-    } else {
-      console.error('Documentation generation failed')
+if (import.meta.main) {
+  console.log('Starting documentation generator...')
+  generateAllBlockDocs()
+    .then((success) => {
+      if (success) {
+        console.log('Documentation generation completed successfully')
+        process.exit(0)
+      } else {
+        console.error('Documentation generation failed')
+        process.exit(1)
+      }
+    })
+    .catch((error) => {
+      console.error('Fatal error:', error)
       process.exit(1)
-    }
-  })
-  .catch((error) => {
-    console.error('Fatal error:', error)
-    process.exit(1)
-  })
+    })
+}

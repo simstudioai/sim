@@ -8,6 +8,7 @@ import {
   workflowEdges,
   workflowSubflows,
 } from '@sim/db'
+import { withUtcTimestamps } from '@sim/db/timestamps'
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
 import {
@@ -222,16 +223,20 @@ const connectionString =
 // Realtime process footprint = this socketDb pool + the shared @sim/db pool.
 const socketDb = drizzle(
   instrumentPoolClient(
-    postgres(connectionString, {
-      prepare: false,
-      // See `packages/db/db.ts` — skips the per-connection pg_type roundtrip.
-      fetch_types: false,
-      idle_timeout: 10,
-      connect_timeout: 20,
-      max: 10,
-      onnotice: () => {},
-      connection: { application_name: process.env.DB_APP_NAME ?? 'sim-realtime' },
-    }),
+    postgres(
+      connectionString,
+      // `withUtcTimestamps` — see `packages/db/timestamps.ts`.
+      withUtcTimestamps({
+        prepare: false,
+        // See `packages/db/db.ts` — skips the per-connection pg_type roundtrip.
+        fetch_types: false,
+        idle_timeout: 10,
+        connect_timeout: 20,
+        max: 10,
+        onnotice: () => {},
+        connection: { application_name: process.env.DB_APP_NAME ?? 'sim-realtime' },
+      })
+    ),
     'socketDb'
   ),
   { schema }
@@ -628,33 +633,6 @@ async function handleBlockOperationTx(
       break
     }
 
-    case BLOCK_OPERATIONS.UPDATE_DESCRIPTION: {
-      if (!payload.id || payload.description === undefined) {
-        throw new Error('Missing required fields for update description operation')
-      }
-
-      const updateResult = await tx
-        .update(workflowBlocks)
-        .set({
-          data: sql`jsonb_set(
-            coalesce(${workflowBlocks.data}, '{}'::jsonb),
-            '{description}',
-            ${JSON.stringify(payload.description)}::jsonb,
-            true
-          )`,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
-        .returning({ id: workflowBlocks.id })
-
-      if (updateResult.length === 0) {
-        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
-      }
-
-      logger.debug(`Updated block description: ${payload.id}`)
-      break
-    }
-
     case BLOCK_OPERATIONS.TOGGLE_ENABLED: {
       if (!payload.id) {
         throw new Error('Missing block ID for toggle enabled operation')
@@ -781,12 +759,7 @@ async function handleBlockOperationTx(
       const updateResult = await tx
         .update(workflowBlocks)
         .set({
-          data: sql`jsonb_set(
-            coalesce(${workflowBlocks.data}, '{}'::jsonb),
-            '{errorEnabled}',
-            ${JSON.stringify(payload.errorEnabled)}::jsonb,
-            true
-          )`,
+          errorEnabled: payload.errorEnabled,
           updatedAt: new Date(),
         })
         .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
@@ -797,6 +770,35 @@ async function handleBlockOperationTx(
       }
 
       logger.debug(`Updated block error output: ${payload.id} -> ${payload.errorEnabled}`)
+      break
+    }
+
+    case BLOCK_OPERATIONS.UPDATE_RETRY: {
+      if (!payload.id || payload.retry === undefined) {
+        throw new Error('Missing required fields for update retry operation')
+      }
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          /**
+           * Persisted verbatim, including a disabled policy, so the numbers a
+           * builder configured survive switching retry off and back on. NULL stays
+           * reserved for a block that never had a policy at all; whether a stored
+           * policy actually runs is decided by `resolveBlockRetryConfig` at
+           * execution time, never by the column being present.
+           */
+          retry: payload.retry,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      logger.debug(`Updated block retry: ${payload.id} -> ${payload.retry.enabled}`)
       break
     }
 
@@ -986,13 +988,15 @@ async function handleBlocksOperationTx(
             name: block.name as string,
             positionX: (block.position as { x: number; y: number }).x,
             positionY: (block.position as { x: number; y: number }).y,
-            data: (block.data as Record<string, unknown>) || {},
+            data: (block.data as Record<string, unknown> | undefined) || {},
             subBlocks: mergedSubBlocks,
             outputs: (block.outputs as Record<string, unknown>) || {},
             enabled: (block.enabled as boolean) ?? true,
             horizontalHandles: (block.horizontalHandles as boolean) ?? true,
             advancedMode: (block.advancedMode as boolean) ?? false,
             triggerMode: (block.triggerMode as boolean) ?? false,
+            errorEnabled: (block.errorEnabled as boolean) ?? false,
+            retry: (block.retry as Record<string, unknown> | undefined) ?? null,
             height: (block.height as number) || 0,
             locked: (block.locked as boolean) ?? false,
           }
@@ -1012,6 +1016,8 @@ async function handleBlocksOperationTx(
               horizontalHandles: sql`excluded.horizontal_handles`,
               advancedMode: sql`excluded.advanced_mode`,
               triggerMode: sql`excluded.trigger_mode`,
+              errorEnabled: sql`excluded.error_enabled`,
+              retry: sql`excluded.retry`,
               locked: sql`excluded.locked`,
               height: sql`excluded.height`,
               subBlocks: sql`excluded.sub_blocks`,
@@ -2202,6 +2208,8 @@ async function handleWorkflowOperationTx(
           name: block.name,
           positionX: block.position.x,
           positionY: block.position.y,
+          errorEnabled: block.errorEnabled ?? false,
+          retry: block.retry ?? null,
           data: block.data || {},
           subBlocks: block.subBlocks || {},
           outputs: block.outputs || {},

@@ -100,6 +100,16 @@ improvement(scope): description for enhancements
 chore(scope): description for maintenance
 ```
 
+## What to Omit
+
+The repo is public. Keep the title and description to the code change and its reasoning — never:
+
+- Customer, company, or user names; workspace/user/org IDs; email addresses
+- Prod or staging operational data: log lines, DB rows, metrics, timestamps, incident details, canary/alert output
+- Infrastructure specifics: hostnames, ARNs, internal URLs, env var values, secret names
+
+Describe the bug by its mechanism, not by how you found it. "Expired OAuth credentials fail to refresh in the worker" — not "the Sheets canary failed at 16:31Z for workspace abc-123".
+
 ## PR Description Format
 
 Use this exact template in the user's voice (concise, bullet points):

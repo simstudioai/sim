@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import { ChipSelect, type ChipSelectOption, ChipTag } from '@sim/emcn'
+import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -210,7 +210,7 @@ export const Dropdown = memo(function Dropdown({
     return denied
   }, [subBlockId, blockConfig, allOptions, isToolAllowed])
 
-  const selectOptions = useMemo((): ChipSelectOption[] => {
+  const comboboxOptions = useMemo((): ComboboxOption[] => {
     const toLabel = (raw: string) => (preserveLabelCase ? raw : raw.toLowerCase())
     return allOptions.map((opt) => {
       if (typeof opt === 'string') {
@@ -226,13 +226,13 @@ export const Dropdown = memo(function Dropdown({
   }, [allOptions, deniedOperationIds, preserveLabelCase])
 
   const optionMap = useMemo(() => {
-    return new Map(selectOptions.map((opt) => [opt.value, opt.label]))
-  }, [selectOptions])
+    return new Map(comboboxOptions.map((opt) => [opt.value, opt.label]))
+  }, [comboboxOptions])
 
   const defaultOptionValue = useMemo(() => {
     if (multiSelect) return undefined
 
-    const firstSelectable = selectOptions.find((opt) => !opt.hidden)
+    const firstSelectable = comboboxOptions.find((opt) => !opt.hidden)
     if (defaultValue !== undefined) {
       // Don't seed a denied operation as the default; use the first allowed option.
       if (deniedOperationIds.has(defaultValue)) {
@@ -242,7 +242,7 @@ export const Dropdown = memo(function Dropdown({
     }
 
     return firstSelectable?.value
-  }, [defaultValue, selectOptions, deniedOperationIds, multiSelect])
+  }, [defaultValue, comboboxOptions, deniedOperationIds, multiSelect])
 
   useEffect(() => {
     if (multiSelect || defaultOptionValue === undefined) {
@@ -427,27 +427,25 @@ export const Dropdown = memo(function Dropdown({
     )
   }, [activeSearchTarget, blockId, multiSelect, optionMap, singleValue, subBlockId])
 
-  const isSearchable = searchable || (subBlockId === 'operation' && selectOptions.length > 5)
+  const isSearchable = searchable || (subBlockId === 'operation' && comboboxOptions.length > 5)
 
   return (
-    <ChipSelect
-      options={selectOptions}
+    <Combobox
+      options={comboboxOptions}
       value={multiSelect ? undefined : (singleValue ?? undefined)}
       multiSelectValues={multiSelect ? (multiValues ?? undefined) : undefined}
       onChange={handleChange}
       onMultiSelectChange={handleMultiSelectChange}
       placeholder={placeholder}
       disabled={disabled}
+      editable={false}
       onOpenChange={handleOpenChange}
-      displayLabel={multiSelectOverlay ?? singleSelectOverlay}
+      overlayContent={multiSelectOverlay ?? singleSelectOverlay}
       multiSelect={multiSelect}
       isLoading={isLoadingOptions}
       error={fetchError}
       searchable={isSearchable}
       searchPlaceholder='Search...'
-      align='start'
-      fullWidth
-      dropdownWidth='trigger'
     />
   )
 })

@@ -2,9 +2,7 @@ import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
-  Button,
-  ChipCombobox,
-  ChipSelect,
+  Combobox,
   type ComboboxOption,
   type ComboboxOptionGroup,
   cn,
@@ -13,6 +11,7 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverTrigger,
+  Switch,
   Tooltip,
 } from '@sim/emcn'
 import { ArrowLeft, ChevronRight, Server, Wrench, X } from '@sim/emcn/icons'
@@ -33,7 +32,6 @@ import { buildToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblo
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { McpServerFormModal } from '@/app/workspace/[workspaceId]/settings/components/mcp/components/mcp-server-form-modal/mcp-server-form-modal'
 import {
-  BooleanControl,
   LongInput,
   ShortInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
@@ -48,6 +46,7 @@ import { ToolSubBlockRenderer } from '@/app/workspace/[workspaceId]/w/[workflowI
 import { clearDependentToolParams } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
 import type { StoredTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/types'
 import {
+  isAgentToolBlock,
   isCustomToolAlreadySelected,
   isMcpToolAlreadySelected,
   isWorkflowAlreadySelected,
@@ -116,11 +115,6 @@ import {
 } from '@/tools/params-resolver'
 
 const logger = createLogger('ToolInput')
-const TOOL_USAGE_OPTIONS = [
-  { value: 'auto', label: 'Auto' },
-  { value: 'force', label: 'Force' },
-  { value: 'none', label: 'None' },
-] as const
 
 /**
  * Renders the input for workflow_executor's inputMapping parameter.
@@ -486,6 +480,7 @@ export const ToolInput = memo(function ToolInput({
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [usageControlPopoverIndex, setUsageControlPopoverIndex] = useState<number | null>(null)
   const [mcpRemovePopoverIndex, setMcpRemovePopoverIndex] = useState<number | null>(null)
   const [mcpServerDrilldown, setMcpServerDrilldown] = useState<string | null>(null)
 
@@ -671,21 +666,7 @@ export const ToolInput = memo(function ToolInput({
 
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const toolBlocks = useMemo(() => {
-    const allToolBlocks = getAllBlocks().filter(
-      (block) =>
-        !block.hideFromToolbar &&
-        (block.category === 'tools' ||
-          block.type === 'api' ||
-          block.type === 'webhook_request' ||
-          block.type === 'workflow' ||
-          block.type === 'workflow_input' ||
-          block.type === 'knowledge' ||
-          block.type === 'function' ||
-          block.type === 'table') &&
-        block.type !== 'evaluator' &&
-        block.type !== 'mcp' &&
-        block.type !== 'file'
-    )
+    const allToolBlocks = getAllBlocks().filter(isAgentToolBlock)
     return filterBlocks(allToolBlocks)
   }, [filterBlocks, customBlockOverlayVersion])
 
@@ -1253,7 +1234,7 @@ export const ToolInput = memo(function ToolInput({
             label: selectedLabel,
           })
           return (
-            <ChipCombobox
+            <Combobox
               options={options}
               value={value}
               onChange={onChange}
@@ -1272,11 +1253,9 @@ export const ToolInput = memo(function ToolInput({
 
         case 'switch':
           return (
-            <BooleanControl
-              value={value === 'true' || value === 'True'}
-              onChange={(checked) => onChange(checked ? 'true' : 'false')}
-              disabled={disabled}
-              aria-label={formatParameterLabel(param.id)}
+            <Switch
+              checked={value === 'true' || value === 'True'}
+              onCheckedChange={(checked) => onChange(checked ? 'true' : 'false')}
             />
           )
 
@@ -1687,7 +1666,7 @@ export const ToolInput = memo(function ToolInput({
 
   return (
     <div className='w-full space-y-2'>
-      <ChipCombobox
+      <Combobox
         options={[]}
         groups={toolGroups}
         placeholder='Add tool...'
@@ -1840,7 +1819,7 @@ export const ToolInput = memo(function ToolInput({
             <div
               key={`${tool.customToolId || tool.toolId || toolIndex}-${toolIndex}`}
               className={cn(
-                'group relative flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-[transform,opacity,border-color] duration-200 ease-in-out',
+                'group relative flex flex-col overflow-hidden rounded-sm border border-[var(--border-1)] transition-all duration-200 ease-in-out',
                 draggedIndex === toolIndex ? 'scale-95 opacity-40' : '',
                 dragOverIndex === toolIndex && draggedIndex !== toolIndex && draggedIndex !== null
                   ? 'translate-y-1 transform border-t-2 border-t-muted-foreground/40'
@@ -1855,7 +1834,7 @@ export const ToolInput = memo(function ToolInput({
             >
               <div
                 className={cn(
-                  'flex items-center justify-between gap-2 rounded-t-xl px-2 py-1.5',
+                  'flex items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-[6.5px]',
                   (isCustomTool || hasToolBody) && 'cursor-pointer'
                 )}
                 role={isCustomTool || hasToolBody ? 'button' : undefined}
@@ -1912,7 +1891,7 @@ export const ToolInput = memo(function ToolInput({
                       />
                     )}
                   </div>
-                  <span className='truncate font-medium text-[var(--text-primary)] text-small'>
+                  <span className='truncate text-[var(--text-primary)] text-small'>
                     {formatDisplayText(toolDisplayName ?? '', {
                       workflowSearchHighlight: getToolTitleSearchHighlight(toolIndex),
                     })}
@@ -1953,14 +1932,60 @@ export const ToolInput = memo(function ToolInput({
                 </div>
                 <div className='flex flex-shrink-0 items-center gap-2'>
                   {supportsToolControl && !(isMcpTool && isMcpToolUnavailable(tool)) && (
-                    <ChipSelect
-                      options={[...TOOL_USAGE_OPTIONS]}
-                      value={tool.usageControl || 'auto'}
-                      onChange={(value) => handleUsageControlChange(toolIndex, value)}
-                      disabled={isPreview || disabled}
-                      align='end'
-                      aria-label='Tool usage control'
-                    />
+                    <Popover
+                      open={usageControlPopoverIndex === toolIndex}
+                      onOpenChange={(open) => setUsageControlPopoverIndex(open ? toolIndex : null)}
+                      colorScheme='inverted'
+                    >
+                      <PopoverTrigger asChild>
+                        <button
+                          className='flex items-center justify-center text-[var(--text-tertiary)] text-caption transition-colors hover-hover:text-[var(--text-primary)]'
+                          onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                          aria-label='Tool usage control'
+                        >
+                          {tool.usageControl === 'auto' && 'Auto'}
+                          {tool.usageControl === 'force' && 'Force'}
+                          {tool.usageControl === 'none' && 'None'}
+                          {!tool.usageControl && 'Auto'}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        side='bottom'
+                        align='end'
+                        sideOffset={8}
+                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                        className='gap-0.5'
+                        border
+                      >
+                        <PopoverItem
+                          active={(tool.usageControl || 'auto') === 'auto'}
+                          onClick={() => {
+                            handleUsageControlChange(toolIndex, 'auto')
+                            setUsageControlPopoverIndex(null)
+                          }}
+                        >
+                          Auto <span className='text-[var(--text-tertiary)]'>(model decides)</span>
+                        </PopoverItem>
+                        <PopoverItem
+                          active={tool.usageControl === 'force'}
+                          onClick={() => {
+                            handleUsageControlChange(toolIndex, 'force')
+                            setUsageControlPopoverIndex(null)
+                          }}
+                        >
+                          Force <span className='text-[var(--text-tertiary)]'>(always use)</span>
+                        </PopoverItem>
+                        <PopoverItem
+                          active={tool.usageControl === 'none'}
+                          onClick={() => {
+                            handleUsageControlChange(toolIndex, 'none')
+                            setUsageControlPopoverIndex(null)
+                          }}
+                        >
+                          None
+                        </PopoverItem>
+                      </PopoverContent>
+                    </Popover>
                   )}
                   {isMcpTool &&
                   selectedTools.filter(
@@ -1973,10 +1998,7 @@ export const ToolInput = memo(function ToolInput({
                       }}
                     >
                       <PopoverTrigger asChild>
-                        <Button
-                          type='button'
-                          variant='quiet'
-                          size='icon'
+                        <button
                           onClick={(e) => {
                             e.stopPropagation()
                             handleRemoveTool(toolIndex)
@@ -1986,10 +2008,11 @@ export const ToolInput = memo(function ToolInput({
                             e.stopPropagation()
                             setMcpRemovePopoverIndex(toolIndex)
                           }}
+                          className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                           aria-label='Remove tool'
                         >
-                          <X className='size-[14px]' />
-                        </Button>
+                          <X className='size-[13px]' />
+                        </button>
                       </PopoverTrigger>
                       <PopoverContent
                         side='bottom'
@@ -2018,24 +2041,22 @@ export const ToolInput = memo(function ToolInput({
                       </PopoverContent>
                     </Popover>
                   ) : (
-                    <Button
-                      type='button'
-                      variant='quiet'
-                      size='icon'
+                    <button
                       onClick={(e) => {
                         e.stopPropagation()
                         handleRemoveTool(toolIndex)
                       }}
+                      className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                       aria-label='Remove tool'
                     >
-                      <X className='size-[14px]' />
-                    </Button>
+                      <X className='size-[13px]' />
+                    </button>
                   )}
                 </div>
               </div>
 
               {!isCustomTool && isExpandedForDisplay && (
-                <div className='flex flex-col gap-2.5 overflow-visible border-[var(--border)] border-t p-2'>
+                <div className='flex flex-col gap-2.5 overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] p-2'>
                   {/* Operation dropdown for tools with multiple operations */}
                   {(() => {
                     const hasOperations = hasMultipleOperations(tool.type)
@@ -2043,10 +2064,8 @@ export const ToolInput = memo(function ToolInput({
 
                     return hasOperations && operationOptions.length > 0 ? (
                       <div className='relative space-y-1.5'>
-                        <div className='font-medium text-[var(--text-primary)] text-small'>
-                          Operation
-                        </div>
-                        <ChipCombobox
+                        <div className='text-[var(--text-primary)] text-small'>Operation</div>
+                        <Combobox
                           options={operationOptions
                             .filter((option) => option.id !== '')
                             .map((option) => ({

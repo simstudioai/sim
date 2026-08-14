@@ -520,8 +520,6 @@ export const ISSUE_LIST_OUTPUT_PROPERTIES = {
   labels: LABELS_OUTPUT,
 } as const satisfies Record<string, OutputProperty>
 
-// ===== Core Types =====
-
 interface LinearIssue {
   id: string
   title: string
@@ -653,8 +651,6 @@ interface LinearCycle {
     name: string
   }
 }
-
-// ===== Request Params =====
 
 export interface LinearReadIssuesParams {
   teamId?: string
@@ -996,8 +992,6 @@ export interface LinearUpdateNotificationParams {
   readAt?: string
   accessToken?: string
 }
-
-// ===== Response Types =====
 
 export interface LinearReadIssuesResponse extends ToolResponse {
   output: {
@@ -1394,8 +1388,6 @@ export interface LinearUpdateNotificationResponse extends ToolResponse {
   }
 }
 
-// ===== Customer Types =====
-
 interface LinearCustomer {
   id: string
   name: string
@@ -1446,8 +1438,6 @@ export interface LinearListCustomersResponse extends ToolResponse {
     }
   }
 }
-
-// ===== Customer Need (Request) Types =====
 
 interface LinearCustomerNeed {
   id: string
@@ -1577,8 +1567,6 @@ export interface LinearMergeCustomersResponse extends ToolResponse {
   }
 }
 
-// ===== Customer Status Types =====
-
 interface LinearCustomerStatus {
   id: string
   name: string
@@ -1649,8 +1637,6 @@ export interface LinearListCustomerStatusesResponse extends ToolResponse {
   }
 }
 
-// ===== Customer Tier Types =====
-
 interface LinearCustomerTier {
   id: string
   name: string
@@ -1719,8 +1705,6 @@ export interface LinearListCustomerTiersResponse extends ToolResponse {
     }
   }
 }
-
-// ===== Project Label Types =====
 
 interface LinearProjectLabel {
   id: string
@@ -1816,8 +1800,6 @@ export interface LinearRemoveLabelFromProjectResponse extends ToolResponse {
   }
 }
 
-// ===== Project Milestone Types =====
-
 interface LinearProjectMilestone {
   id: string
   name: string
@@ -1886,8 +1868,6 @@ export interface LinearListProjectMilestonesResponse extends ToolResponse {
     }
   }
 }
-
-// ===== Project Status Types =====
 
 interface LinearProjectStatus {
   id: string
@@ -1960,8 +1940,6 @@ export interface LinearListProjectStatusesResponse extends ToolResponse {
     }
   }
 }
-
-// ===== Project Delete Types =====
 
 export interface LinearDeleteProjectParams {
   projectId: string

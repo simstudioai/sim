@@ -8,10 +8,11 @@ import {
   useStoreApi as useReactFlowStoreApi,
   useUpdateNodeInternals,
 } from 'reactflow'
-import { BLOCK_DIMENSIONS } from '../dimensions'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, HANDLE_POSITIONS } from '../dimensions'
 import { OverflowSpan } from '../lib/overflow-span'
 import type { DiffStatus } from '../types'
 import {
+  getCursorBranchSourceHandleId,
   getCursorSourceHandleId,
   getCursorSourceHandlePosition,
 } from '../workflow-block/source-handle'
@@ -78,16 +79,17 @@ export interface SubflowNodeViewProps {
 }
 
 const SUBFLOW_CORNER_RADIUS_PX = 16
-const START_WIDTH_PX = 58
-const START_HEIGHT_PX = 34
-const START_TOP_OFFSET_PX = 12
+/* Compile-time pin: the Start card's `top-3 h-[34px] w-[58px]` classes below
+   are what HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y is derived from, and Tailwind
+   only scans literal class strings — so these annotations fail the build if the
+   constants and the CSS ever drift apart. */
+const START_WIDTH_PX: 58 = BLOCK_DIMENSIONS.SUBFLOW_START_WIDTH
+const START_HEIGHT_PX: 34 = BLOCK_DIMENSIONS.SUBFLOW_START_HEIGHT
 const START_CORNER_RADIUS_PX = 8
 const START_CURSOR_SIDES = ['right'] as const
 /** Aligns the outer input/output ports with the centre of the inset Start card. */
-const SUBFLOW_CONNECTION_Y_PX =
-  BLOCK_DIMENSIONS.HEADER_HEIGHT + START_TOP_OFFSET_PX + START_HEIGHT_PX / 2
 const HANDLE_STYLE = {
-  top: `${SUBFLOW_CONNECTION_Y_PX}px`,
+  top: `${HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y}px`,
   transform: 'translateY(-50%)',
 } as const
 const ACTION_MENU_RIGHT_INSET_PX = 24
@@ -157,6 +159,83 @@ export function SubflowStartView({
   isHighlighted = false,
 }: SubflowStartViewProps) {
   const startHandleId = kind === 'loop' ? 'loop-start-source' : 'parallel-start-source'
+  /*
+   * The swell's temporary handle carries the branch-cursor form of the start
+   * id. The plain cursor id normalizes by block type — for a container that is
+   * `loop-end-source`/`parallel-end-source`, the container's exit — so a drag
+   * begun on the Start pill would persist as an edge leaving the container.
+   * The branch form passes the start id through normalization verbatim.
+   */
+  const cursorHandleId = getCursorBranchSourceHandleId(startHandleId)
+  const reactFlowStore = useReactFlowStoreApi()
+  const updateNodeInternals = useUpdateNodeInternals()
+  const cursorSourceHandleRef = useRef<HTMLDivElement>(null)
+  const cursorSourceHandleKeyRef = useRef<string | null>(null)
+  const [cursorSourceHandle, setCursorSourceHandle] = useState<WorkflowBorderCursorHandle | null>(
+    null
+  )
+
+  const getConnectionNodeId = useCallback(
+    () => reactFlowStore.getState().connectionNodeId,
+    [reactFlowStore]
+  )
+
+  const onCursorHandleChange = useCallback((nextHandle: WorkflowBorderCursorHandle | null) => {
+    if (!nextHandle) {
+      if (cursorSourceHandleKeyRef.current === null) return
+      cursorSourceHandleKeyRef.current = null
+      setCursorSourceHandle(null)
+      return
+    }
+
+    const handleElement = cursorSourceHandleRef.current
+    if (handleElement) {
+      handleElement.style.left = `${nextHandle.x}px`
+      handleElement.style.top = `${nextHandle.y}px`
+    }
+
+    if (cursorSourceHandleKeyRef.current !== nextHandle.edgeSide) {
+      cursorSourceHandleKeyRef.current = nextHandle.edgeSide
+      setCursorSourceHandle(nextHandle)
+    }
+  }, [])
+
+  /** Aligns React Flow's cached handle origin before a cursor-swell drag begins. */
+  const syncCursorSourceHandleBounds = useCallback(() => {
+    const handleElement = cursorSourceHandleRef.current
+    const nodeElement = handleElement?.closest<HTMLDivElement>('.react-flow__node') ?? null
+    if (!handleElement || !nodeElement) return
+
+    const state = reactFlowStore.getState()
+    const sourceBounds = state.nodeInternals.get(parentId)?.[internalsSymbol]?.handleBounds?.source
+    const handleId = handleElement.dataset.handleid
+    const handlePosition = handleElement.dataset.handlepos as Position | undefined
+    const zoom = state.transform[2]
+    if (!sourceBounds || !handleId || !handlePosition || zoom <= 0) return
+
+    const nodeBounds = nodeElement.getBoundingClientRect()
+    const handleBounds = handleElement.getBoundingClientRect()
+    const [originX, originY] = state.nodeOrigin
+    const nextBounds = {
+      id: handleId,
+      position: handlePosition,
+      x: (handleBounds.left - nodeBounds.left - nodeBounds.width * originX) / zoom,
+      y: (handleBounds.top - nodeBounds.top - nodeBounds.height * originY) / zoom,
+      width: handleElement.offsetWidth,
+      height: handleElement.offsetHeight,
+    }
+    const currentBounds = sourceBounds.find((bounds) => bounds.id === handleId)
+    if (currentBounds) {
+      Object.assign(currentBounds, nextBounds)
+      return
+    }
+    sourceBounds.push(nextBounds)
+  }, [parentId, reactFlowStore])
+
+  useLayoutEffect(() => {
+    updateNodeInternals(parentId)
+  }, [cursorSourceHandle?.edgeSide, parentId, updateNodeInternals])
+
   const ports = useMemo<WorkflowBorderPort[]>(
     () => [
       {
@@ -181,16 +260,18 @@ export function SubflowStartView({
     >
       <WorkflowBlockBorder
         nodeId={parentId}
+        getConnectionNodeId={getConnectionNodeId}
         ports={ports}
         cursorSwellEnabled={!isPreview}
         cursorSwellSides={START_CURSOR_SIDES}
+        onCursorHandleChange={!isPreview ? onCursorHandleChange : undefined}
         radius={START_CORNER_RADIUS_PX}
         hasRing={false}
         ringStyles=''
         width={START_WIDTH_PX}
         height={START_HEIGHT_PX}
       />
-      <span className='relative z-10 font-medium text-[var(--text-primary)] text-sm'>Start</span>
+      <span className='relative z-10 text-[var(--text-primary)] text-sm'>Start</span>
       <Handle
         type='source'
         position={Position.Right}
@@ -203,6 +284,29 @@ export function SubflowStartView({
         }}
         data-parent-id={parentId}
       />
+      {cursorSourceHandle && !isPreview && (
+        <Handle
+          ref={cursorSourceHandleRef}
+          type='source'
+          position={getCursorSourceHandlePosition(cursorSourceHandle.edgeSide)}
+          id={cursorHandleId}
+          className='!z-50 !cursor-crosshair !rounded-none !border-none !bg-transparent !opacity-0'
+          style={{
+            right: 'auto',
+            bottom: 'auto',
+            left: cursorSourceHandle.x,
+            top: cursorSourceHandle.y,
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'auto',
+            ...getCursorHandleSize(cursorSourceHandle.edgeSide),
+          }}
+          data-nodeid={parentId}
+          data-handleid={cursorHandleId}
+          isConnectableStart={true}
+          isConnectableEnd={false}
+          onPointerDownCapture={syncCursorSourceHandleBounds}
+        />
+      )}
     </div>
   )
 }
@@ -343,8 +447,22 @@ export function SubflowNodeView({
     onBlurCapture: handleActionMenuBlur,
   } = useActionMenuSwell({
     enabled: showActionMenu,
-    forceOpen: isExecutionHighlighted || isRunning || isWorkflowRunning,
-    suspendInteraction: isRunning || isWorkflowRunning,
+    /*
+     * A run pins the executing card's bar open — not every card's. Pinning them
+     * all turned the canvas into a wall of open swells, and suspending their
+     * hover on top of it made the "hover a non-running card" treatment below
+     * unreachable, so those cards could neither retract nor respond. The block
+     * that is actually running keeps both.
+     */
+    /*
+     * A container in the handoff into the running block takes the selected
+     * TREATMENT — graphite silhouette, so the eye can follow the baton — but
+     * that is not a reason to pin its toolbar open, which left it down for the
+     * whole run. Selection is deliberately not here either: a selected container
+     * opens on hover like any other, which is what its own tests pin.
+     */
+    forceOpen: isRunning,
+    suspendInteraction: isRunning,
     suppressNestedNodeHover: true,
   })
 
@@ -353,13 +471,13 @@ export function SubflowNodeView({
       {
         id: 'target',
         side: 'left',
-        position: SUBFLOW_CONNECTION_Y_PX,
+        position: HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y,
         plateau: CURSOR_SWELL_LENGTH_PX,
       },
       {
         id: endHandleId,
         side: 'right',
-        position: SUBFLOW_CONNECTION_Y_PX,
+        position: HANDLE_POSITIONS.SUBFLOW_CONNECTION_Y,
         plateau: CURSOR_SWELL_LENGTH_PX,
       },
     ]
@@ -415,7 +533,6 @@ export function SubflowNodeView({
         data-node-id={id}
         data-type='subflowNode'
         data-nesting-level={nestingLevel}
-        data-subflow-selected={isNodeSelected}
       >
         <div
           aria-hidden='true'
@@ -459,8 +576,6 @@ export function SubflowNodeView({
             }}
             data-nodeid={id}
             data-handleid={cursorSourceHandle.handleId}
-            data-workflow-cursor-edge={cursorSourceHandle.edgeSide}
-            data-workflow-cursor-source-side={cursorSourceHandle.side}
             isConnectableStart={true}
             isConnectableEnd={false}
             onPointerDownCapture={syncCursorSourceHandleBounds}
@@ -473,8 +588,8 @@ export function SubflowNodeView({
           aria-label={`Select ${blockName}`}
           onClick={onSelect}
           onKeyDown={(event) => handleKeyboardActivation(event, onSelect)}
-          className='workflow-drag-handle relative z-20 flex h-[40px] cursor-grab items-center justify-between px-2 [&:active]:cursor-grabbing'
-          style={{ pointerEvents: 'auto' }}
+          className='workflow-drag-handle relative z-20 flex cursor-grab items-center justify-between px-2 [&:active]:cursor-grabbing'
+          style={{ pointerEvents: 'auto', height: CONTAINER_DIMENSIONS.HEADER_HEIGHT }}
           data-subflow-header=''
         >
           <div
@@ -485,7 +600,7 @@ export function SubflowNodeView({
           >
             <OverflowSpan
               value={blockName}
-              className={cn('truncate text-md', !isEnabled && 'text-[var(--text-muted)]')}
+              className={cn('truncate text-[17px]', !isEnabled && 'text-[var(--text-muted)]')}
             />
           </div>
           <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
@@ -532,15 +647,22 @@ export function SubflowNodeView({
         )}
 
         <div
-          className='relative z-20 h-[calc(100%-40px)] pt-4 pr-[80px] pb-4 pl-4'
+          className='relative z-20'
           data-dragarea='true'
-          style={{ pointerEvents: 'none' }}
+          style={{
+            pointerEvents: 'none',
+            height: `calc(100% - ${CONTAINER_DIMENSIONS.HEADER_HEIGHT}px)`,
+            paddingTop: CONTAINER_DIMENSIONS.TOP_PADDING,
+            paddingRight: CONTAINER_DIMENSIONS.RIGHT_PADDING,
+            paddingBottom: CONTAINER_DIMENSIONS.BOTTOM_PADDING,
+            paddingLeft: CONTAINER_DIMENSIONS.LEFT_PADDING,
+          }}
         >
           <SubflowStartView
             parentId={id}
             kind={data.kind}
             isPreview={isPreview}
-            isHighlighted={isNodeSelected}
+            isHighlighted={usesSelectedVisuals}
           />
         </div>
 

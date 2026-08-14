@@ -12,7 +12,8 @@ import {
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
 import { generateId } from '@sim/utils/id'
-import { getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
+import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
+import { filterAcyclicEdges, getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
 import { useQueryClient } from '@tanstack/react-query'
 import { isEqual } from 'es-toolkit'
 import type { Edge } from 'reactflow'
@@ -54,11 +55,7 @@ import type {
   Position,
   WorkflowState,
 } from '@/stores/workflows/workflow/types'
-import {
-  filterAcyclicEdges,
-  findAllDescendantNodes,
-  isBlockProtected,
-} from '@/stores/workflows/workflow/utils'
+import { findAllDescendantNodes, isBlockProtected } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('CollaborativeWorkflow')
 
@@ -230,14 +227,14 @@ export function useCollaborativeWorkflow() {
             case BLOCK_OPERATIONS.UPDATE_NAME:
               useWorkflowStore.getState().updateBlockName(payload.id, payload.name)
               break
-            case BLOCK_OPERATIONS.UPDATE_DESCRIPTION:
-              useWorkflowStore.getState().updateBlockDescription(payload.id, payload.description)
-              break
             case BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE:
               useWorkflowStore.getState().setBlockAdvancedMode(payload.id, payload.advancedMode)
               break
             case BLOCK_OPERATIONS.UPDATE_ERROR_ENABLED:
               useWorkflowStore.getState().setBlockErrorEnabled(payload.id, payload.errorEnabled)
+              break
+            case BLOCK_OPERATIONS.UPDATE_RETRY:
+              useWorkflowStore.getState().setBlockRetry(payload.id, payload.retry)
               break
             case BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE:
               useWorkflowStore
@@ -1153,26 +1150,6 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation, addToQueue, activeWorkflowId, session?.user?.id]
   )
 
-  const collaborativeUpdateBlockDescription = useCallback(
-    (id: string, description: string) => {
-      const blocks = useWorkflowStore.getState().blocks
-      if (isBlockProtected(id, blocks)) {
-        logger.error('Cannot update description for locked block')
-        toast({ message: 'Cannot edit locked blocks' })
-        return false
-      }
-
-      executeQueuedOperation(
-        BLOCK_OPERATIONS.UPDATE_DESCRIPTION,
-        OPERATION_TARGETS.BLOCK,
-        { id, description },
-        () => useWorkflowStore.getState().updateBlockDescription(id, description)
-      )
-      return true
-    },
-    [executeQueuedOperation]
-  )
-
   const collaborativeBatchToggleBlockEnabled = useCallback(
     (ids: string[]) => {
       if (isBaselineDiffView) {
@@ -1335,6 +1312,18 @@ export function useCollaborativeWorkflow() {
         OPERATION_TARGETS.BLOCK,
         { id, errorEnabled },
         () => useWorkflowStore.getState().setBlockErrorEnabled(id, errorEnabled)
+      )
+    },
+    [executeQueuedOperation]
+  )
+
+  const collaborativeSetBlockRetry = useCallback(
+    (id: string, retry: BlockRetryConfig) => {
+      executeQueuedOperation(
+        BLOCK_OPERATIONS.UPDATE_RETRY,
+        OPERATION_TARGETS.BLOCK,
+        { id, retry },
+        () => useWorkflowStore.getState().setBlockRetry(id, retry)
       )
     },
     [executeQueuedOperation]
@@ -2291,11 +2280,11 @@ export function useCollaborativeWorkflow() {
     // Collaborative operations
     collaborativeBatchUpdatePositions,
     collaborativeUpdateBlockName,
-    collaborativeUpdateBlockDescription,
     collaborativeBatchToggleBlockEnabled,
     collaborativeBatchUpdateParent,
     collaborativeToggleBlockAdvancedMode,
     collaborativeSetBlockErrorEnabled,
+    collaborativeSetBlockRetry,
     collaborativeSetBlockCanonicalMode,
     collaborativeSetBlockCanonicalModes,
     collaborativeBatchToggleBlockHandles,

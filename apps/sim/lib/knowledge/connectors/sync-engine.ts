@@ -20,11 +20,12 @@ import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { hardDeleteDocuments, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
+import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { StorageService } from '@/lib/uploads'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorAuthConfig,
@@ -1472,7 +1473,7 @@ async function addDocument(
   const documentId = generateId()
   const contentBuffer = Buffer.from(extDoc.content, 'utf-8')
   const safeTitle = sanitizeStorageTitle(extDoc.title)
-  const customKey = `kb/${Date.now()}-${documentId}-${safeTitle}.txt`
+  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${documentId}-`, `${safeTitle}.txt`)}`
 
   const fileInfo = await StorageService.uploadFile({
     file: contentBuffer,
@@ -1561,7 +1562,7 @@ async function updateDocument(
 
   const contentBuffer = Buffer.from(extDoc.content, 'utf-8')
   const safeTitle = sanitizeStorageTitle(extDoc.title)
-  const customKey = `kb/${Date.now()}-${existingDocId}-${safeTitle}.txt`
+  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${existingDocId}-`, `${safeTitle}.txt`)}`
 
   const fileInfo = await StorageService.uploadFile({
     file: contentBuffer,

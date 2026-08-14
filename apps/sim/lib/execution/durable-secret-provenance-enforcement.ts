@@ -72,10 +72,21 @@ export function isDurableSecretProvenanceEnforced(
   return enforcedSurfaces.has(surface)
 }
 
+/**
+ * What a surface could not vouch for.
+ *
+ * A closed union rather than a free-form string, for the reason the resolved-secret registry's
+ * reason set is one: a surface stays open on the strength of these lines trending to zero, and a
+ * cause that a call site can spell freely cannot be aggregated or alerted on.
+ */
+export type UnrecordedDurableProvenanceCause =
+  | 'durable-provenance-unknown'
+  | 'row-sidecar-not-exact'
+  | 'stored-memory-provenance-unknown'
+
 export interface UnrecordedDurableProvenanceReport {
   surface: DurableSecretProvenanceSurface
-  /** What the surface could not vouch for, e.g. `sidecar-status-unknown`. Always a static literal. */
-  cause: string
+  cause: UnrecordedDurableProvenanceCause
   /** How many records in this one read were unrecorded, when the caller reads a page at a time. */
   affectedCount?: number
   workspaceId?: string

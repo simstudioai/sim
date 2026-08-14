@@ -12,13 +12,12 @@ import {
   useState,
 } from 'react'
 import { Badge, ChipTag, cn, handleKeyboardActivation, Switch, Tooltip } from '@sim/emcn'
+import { Ban, Lock } from '@sim/emcn/icons'
 import {
-  getPositionedSourceHandleId,
-  getPositionedTargetHandleId,
-  POSITIONED_SOURCE_HANDLE_SIDES,
-  type PositionedSourceHandleSide,
+  WORKFLOW_SOURCE_HANDLE_ID,
+  WORKFLOW_TARGET_HANDLE_ID,
+  type WorkflowConnectionSide,
 } from '@sim/workflow-types/workflow'
-import { CircleOff, Lock } from 'lucide-react'
 import {
   Handle,
   internalsSymbol,
@@ -65,6 +64,8 @@ const TAB_LENGTH_HEADER_ONLY_PX = 10
 /** The error knob is deliberately the shortest of the connection knobs — it is
  *  a secondary output, and a full-length tab crowds the card's bottom corner. */
 const TAB_HEIGHT_RATIO = 0.5
+const DEFAULT_TARGET_SIDE: WorkflowConnectionSide = 'left'
+const DEFAULT_SOURCE_SIDE: WorkflowConnectionSide = 'right'
 const CARD_CORNER_RADIUS_PX = 16
 const CORNER_SLACK_PX = 4
 const ACTION_MENU_RIGHT_INSET_PX = 24
@@ -184,10 +185,18 @@ export const getWorkflowTypeAccent = (type: string) =>
 export interface WorkflowTypeIconProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
   type: string
   Icon: ComponentType<{ className?: string }>
+  /** Overrides the glyph size when the chip is rendered at a non-default slot. */
+  iconClassName?: string
 }
 
 /** Shared compact core-block icon used by workflow discovery surfaces. */
-export function WorkflowTypeIcon({ type, Icon, className, ...props }: WorkflowTypeIconProps) {
+export function WorkflowTypeIcon({
+  type,
+  Icon,
+  className,
+  iconClassName,
+  ...props
+}: WorkflowTypeIconProps) {
   const typeAccent = getWorkflowTypeAccent(type)
 
   return (
@@ -198,7 +207,12 @@ export function WorkflowTypeIcon({ type, Icon, className, ...props }: WorkflowTy
       data-workflow-type-icon={type}
       {...props}
     >
-      <Icon className='size-[10px] transition-transform duration-100 group-hover:scale-110' />
+      <Icon
+        className={cn(
+          'size-[10px] transition-transform duration-100 group-hover:scale-110',
+          iconClassName
+        )}
+      />
     </ChipTag>
   )
 }
@@ -206,7 +220,6 @@ export function WorkflowTypeIcon({ type, Icon, className, ...props }: WorkflowTy
 export interface WorkflowTypeTagProps {
   type: string
   typeLabel?: string
-  blockName: string
   Icon: ComponentType<{ className?: string }>
   iconBgColor: string
   isIntegration?: boolean
@@ -217,19 +230,24 @@ export interface WorkflowTypeTagProps {
 export function WorkflowTypeTag({
   type,
   typeLabel,
-  blockName,
   Icon,
   iconBgColor,
   isIntegration = false,
   isEnabled = true,
 }: WorkflowTypeTagProps) {
   const typeAccent = getWorkflowTypeAccent(type)
-  const label = typeLabel && typeLabel !== blockName ? typeLabel : null
   const sharedClassName = cn(
     'flex-shrink-0 justify-center transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
-    !label && 'size-5 p-0',
     !isEnabled && 'opacity-50'
   )
+  /*
+   * The tag names the block's kind, and it says so whether or not the title
+   * happens to repeat it. Dropping the label when the two matched meant a card
+   * changed shape the moment it was renamed — a freshly dropped Wait showed a
+   * bare icon, its second copy showed "Wait" — so the tag read as a badge that
+   * came and went rather than as one fixed part of the header.
+   */
+  const label = typeLabel || null
 
   if (isIntegration) {
     return (
@@ -326,23 +344,6 @@ const invisibleHandleSize = (
     : { width: HANDLE_HIT_CROSS_PX, height: span }
 }
 
-const getReactFlowPosition = (side: PositionedSourceHandleSide) => {
-  return side === 'left' ? Position.Left : Position.Right
-}
-
-const getCenteredSideHandleStyle = (side: PositionedSourceHandleSide): CSSProperties => {
-  const style: CSSProperties = {
-    right: 'auto',
-    bottom: 'auto',
-    width: 1,
-    height: 1,
-  }
-  if (side === 'right') {
-    return { ...style, top: '50%', left: '100%', transform: 'translate(-50%, -50%)' }
-  }
-  return { ...style, top: '50%', left: 0, transform: 'translate(-50%, -50%)' }
-}
-
 /** Error is the only persisted source that leaves from a vertical card edge. */
 export const ERROR_SOURCE_HANDLE_POSITION = Position.Bottom
 
@@ -404,9 +405,14 @@ export interface WorkflowBlockViewProps {
   horizontalHandles: boolean
   shouldShowDefaultHandles: boolean
   /**
-   * Deterministic card height in px, used to scale the side connection tabs
-   * so a short card never wears a tab nearly as tall as itself. Omit to keep
-   * the full-size tabs (read-only contexts without computed dimensions).
+   * Predicted card height in px, from the deterministic-dimensions pass.
+   *
+   * Scales the side connection tabs so a short card never wears a tab nearly
+   * as tall as itself, and seeds the border's first paint so a card does not
+   * flash a default-sized outline. It does NOT size the card — the card sizes
+   * itself from its content and the border measures it — so a prediction that
+   * runs long or short changes nothing but auto-layout's spacing. Omit it in
+   * read-only contexts with no computed dimensions.
    */
   blockHeight?: number
   hasContentBelowHeader: boolean
@@ -475,6 +481,9 @@ export interface WorkflowBlockViewProps {
    * Natural-language summary of what the block does, with inline value
    * chips. When present it replaces the statement line and field rows;
    * the error footer stays.
+   *
+   * Pass a {@link CanvasSentenceView}, which owns the paragraph and the
+   * segment spacing so every surface renders the sentence identically.
    */
   sentence?: ReactNode
   /**
@@ -492,10 +501,6 @@ export interface WorkflowBlockViewProps {
    * line and its port read as one piece.
    */
   highlightedHandles?: ReadonlySet<string>
-  /** Side-specific source handles currently used by persisted edges. */
-  connectedSourceHandles?: ReadonlySet<string>
-  /** Side-specific target handles currently used by persisted edges. */
-  connectedTargetHandles?: ReadonlySet<string>
 }
 
 /**
@@ -559,8 +564,6 @@ export function WorkflowBlockView({
   errorOutputEnabled = false,
   onToggleErrorOutput,
   highlightedHandles,
-  connectedSourceHandles,
-  connectedTargetHandles,
 }: WorkflowBlockViewProps) {
   const updateNodeInternals = useUpdateNodeInternals()
   const reactFlowStore = useReactFlowStoreApi()
@@ -568,8 +571,6 @@ export function WorkflowBlockView({
     () => reactFlowStore.getState().connectionNodeId,
     [reactFlowStore]
   )
-  const supportsPositionedHandles =
-    type !== 'condition' && type !== 'router_v2' && type !== 'response'
   const supportsCursorHandle = type !== 'response'
   const cursorSourceHandleRef = useRef<HTMLDivElement>(null)
   const cursorSourceHandleKeyRef = useRef<string | null>(null)
@@ -652,6 +653,9 @@ export function WorkflowBlockView({
     sourceBounds.push(nextBounds)
   }, [id, reactFlowStore])
   const isNodeSelected = hasRing && ringStyles.includes('--text-secondary')
+  /* Treatment only — the silhouette and `data-node-selected`. Whether the
+     action menu is pinned open is a separate question, answered by
+     `isNodeSelected` alone below. */
   const usesSelectedVisuals = isNodeSelected || isExecutionHighlighted
   const showActionMenu = Boolean(actionBar)
   const {
@@ -665,9 +669,23 @@ export function WorkflowBlockView({
     onBlurCapture: handleActionMenuBlur,
   } = useActionMenuSwell({
     enabled: showActionMenu,
-    forceOpen: Boolean(usesSelectedVisuals || isRunning || isWorkflowRunning),
+    /*
+     * A run pins the executing card's bar open — not every card's. Pinning them
+     * all turned the canvas into a wall of open swells, and suspending their
+     * hover on top of it made the "hover a non-running card" treatment below
+     * unreachable, so those cards could neither retract nor respond. The block
+     * that is actually running keeps both.
+     */
+    /*
+     * `isNodeSelected`, not `usesSelectedVisuals`: a block in the handoff into
+     * the running one takes the selected TREATMENT — graphite silhouette, so the
+     * eye can follow the baton — but that is not a reason to pin its toolbar
+     * open. Including it left the upstream card's bar down permanently through a
+     * run, which is the wall-of-open-swells this was supposed to end.
+     */
+    forceOpen: Boolean(isNodeSelected || isRunning),
     maxWidth: ACTION_MENU_MAX_WIDTH_PX,
-    suspendInteraction: isRunning || isWorkflowRunning,
+    suspendInteraction: isRunning,
   })
   /* Blocks that can emit an error always carry the row; `response` terminates
      the flow and has no error branch. */
@@ -725,20 +743,15 @@ export function WorkflowBlockView({
   const rowTabLength = clampTabLength(
     branchRowCount <= 2 ? TAB_LENGTH_SMALL_PX : TAB_LENGTH_SMALL_PX - (branchRowCount - 2) * 2
   )
-  const defaultTargetSide: PositionedSourceHandleSide = 'left'
-  const defaultSourceSide: PositionedSourceHandleSide = 'right'
   const borderPorts = useMemo<WorkflowBorderPort[]>(() => {
     const ports: WorkflowBorderPort[] = []
     if (shouldShowDefaultHandles) {
       ports.push({
-        id: 'target',
-        side: defaultTargetSide,
+        id: WORKFLOW_TARGET_HANDLE_ID,
+        side: DEFAULT_TARGET_SIDE,
         position: 'center',
-        plateau: mainTabLength(defaultTargetSide),
-        color:
-          tabFill('target') ??
-          tabFill(getPositionedSourceHandleId(defaultTargetSide)) ??
-          tabFill(getPositionedTargetHandleId(defaultTargetSide)),
+        plateau: mainTabLength(DEFAULT_TARGET_SIDE),
+        color: tabFill(WORKFLOW_TARGET_HANDLE_ID),
       })
     }
     if (type === 'condition') {
@@ -766,44 +779,11 @@ export function WorkflowBlockView({
       })
     } else if (type !== 'response') {
       ports.push({
-        id: 'source',
-        side: defaultSourceSide,
+        id: WORKFLOW_SOURCE_HANDLE_ID,
+        side: DEFAULT_SOURCE_SIDE,
         position: 'center',
-        plateau: mainTabLength(defaultSourceSide),
-        color:
-          tabFill('source') ??
-          tabFill(getPositionedSourceHandleId(defaultSourceSide)) ??
-          tabFill(getPositionedTargetHandleId(defaultSourceSide)),
-      })
-    }
-    if (supportsPositionedHandles) {
-      for (const side of POSITIONED_SOURCE_HANDLE_SIDES) {
-        const handleId = getPositionedSourceHandleId(side)
-        const sharesDefaultPort =
-          side === defaultSourceSide || (shouldShowDefaultHandles && side === defaultTargetSide)
-        if (!connectedSourceHandles?.has(handleId) || sharesDefaultPort) continue
-        ports.push({
-          id: handleId,
-          side,
-          position: 'center',
-          plateau: mainTabLength(side),
-          color: tabFill(handleId) ?? tabFill(getPositionedTargetHandleId(side)),
-        })
-      }
-    }
-    for (const side of POSITIONED_SOURCE_HANDLE_SIDES) {
-      const handleId = getPositionedTargetHandleId(side)
-      const sharesDefaultPort =
-        (shouldShowDefaultHandles && side === defaultTargetSide) ||
-        side === defaultSourceSide ||
-        connectedSourceHandles?.has(getPositionedSourceHandleId(side))
-      if (!connectedTargetHandles?.has(handleId) || sharesDefaultPort) continue
-      ports.push({
-        id: handleId,
-        side,
-        position: 'center',
-        plateau: mainTabLength(side),
-        color: tabFill(handleId),
+        plateau: mainTabLength(DEFAULT_SOURCE_SIDE),
+        color: tabFill(WORKFLOW_SOURCE_HANDLE_ID),
       })
     }
     if (showErrorRow && errorOutputEnabled) {
@@ -823,12 +803,8 @@ export function WorkflowBlockView({
     return ports
   }, [
     conditionRows,
-    connectedSourceHandles,
-    connectedTargetHandles,
     actionMenuSwellOpen,
     actionMenuWidth,
-    defaultSourceSide,
-    defaultTargetSide,
     highlightedHandles,
     routerRows,
     rowTabLength,
@@ -837,7 +813,6 @@ export function WorkflowBlockView({
     showErrorRow,
     errorOutputEnabled,
     sideTabLength,
-    supportsPositionedHandles,
     type,
   ])
 
@@ -877,15 +852,15 @@ export function WorkflowBlockView({
         className={cn(
           'workflow-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-2xl [&:active]:cursor-grabbing'
         )}
-        /* Never let the host fall below the shortest silhouette the border can
-           paint. `blockHeight` arrives from the deterministic-dimensions pass
-           and is already floored at MIN_PAINTED_HEIGHT, but it is absent on the
-           first frames — and with no floor the host collapses to its natural
-           content height (~25px for a header-only trigger). The border builds
-           its perimeter from `host.offsetHeight`, so that window paints a
-           sub-floor card: the action-menu tab is squashed and its icon row
-           spills onto the card. */
-        style={{ minHeight: Math.max(blockHeight ?? 0, BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT) }}
+        /* The card is sized by its own content, floored at the shortest
+           silhouette the border can paint — below that the perimeter has no
+           straight run left, the action-menu tab squashes into the corner arcs
+           and its icons spill onto the card.
+           Deliberately NOT floored at `blockHeight`: that is a prediction of
+           this height for auto-layout, and padding the card up to it left a
+           band of dead space under the last row whenever the prediction ran
+           long, which it does for any card the estimate cannot model exactly. */
+        style={{ minHeight: BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT }}
       >
         <WorkflowBlockBorder
           nodeId={id}
@@ -897,6 +872,8 @@ export function WorkflowBlockView({
           }
           isSelected={usesSelectedVisuals}
           height={blockHeight}
+          canStartConnection={supportsCursorHandle}
+          canReceiveConnection={shouldShowDefaultHandles}
           onCursorHandleChange={supportsCursorHandle ? onCursorHandleChange : undefined}
           onActionMenuReadyChange={setActionMenuSwellReady}
         />
@@ -917,8 +894,6 @@ export function WorkflowBlockView({
             }}
             data-nodeid={id}
             data-handleid={cursorSourceHandle.handleId}
-            data-workflow-cursor-edge={cursorSourceHandle.edgeSide}
-            data-workflow-cursor-source-side={cursorSourceHandle.side}
             isConnectableStart={true}
             isConnectableEnd={false}
             onPointerDownCapture={syncCursorSourceHandleBounds}
@@ -938,14 +913,14 @@ export function WorkflowBlockView({
           <Handle
             type='target'
             position={Position.Left}
-            id='target'
+            id={WORKFLOW_TARGET_HANDLE_ID}
             className={getInvisibleHandleClasses('left')}
             style={{
               ...getHandleStyle('horizontal'),
               ...invisibleHandleSize('left', mainTabLength('left'), MAIN_HANDLE_HIT_LENGTH_PX),
             }}
             data-nodeid={id}
-            data-handleid='target'
+            data-handleid={WORKFLOW_TARGET_HANDLE_ID}
             isConnectableStart={false}
             isConnectableEnd={true}
             isValidConnection={(connection) => {
@@ -960,15 +935,11 @@ export function WorkflowBlockView({
             'flex items-center justify-between px-2',
             hasContentBelowHeader && 'h-[40px]'
           )}
-          /* Header-only cards stretch the header to the full card so its
-             `items-center` centres the title and type tag. Floored for the
-             same reason the host is: without it the row collapses to its
-             natural height on the frames before `blockHeight` arrives and the
-             content pins to the top of the card. */
+          /* A header-only card is nothing but this row, so it carries the
+             card's floor itself and `items-center` centres the title and type
+             tag against the painted silhouette. */
           style={
-            !hasContentBelowHeader
-              ? { height: Math.max(blockHeight ?? 0, BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT) }
-              : undefined
+            !hasContentBelowHeader ? { height: BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT } : undefined
           }
         >
           <div
@@ -980,18 +951,17 @@ export function WorkflowBlockView({
             <OverflowSpan
               value={humanizeBlockName(name)}
               className={cn(
-                'truncate text-md',
+                'truncate text-[17px]',
                 !isEnabled && runPathStatus !== 'success' && 'text-[var(--text-muted)]'
               )}
             />
           </div>
           <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>
-            {!isEnabled && <BlockStateIndicator label='Disabled' Icon={CircleOff} />}
+            {!isEnabled && <BlockStateIndicator label='Disabled' Icon={Ban} />}
             {isLocked && <BlockStateIndicator label='Locked' Icon={Lock} />}
             <WorkflowTypeTag
               type={type}
               typeLabel={typeLabel}
-              blockName={name}
               Icon={Icon}
               iconBgColor={iconBgColor}
               isIntegration={isIntegration}
@@ -1155,9 +1125,7 @@ export function WorkflowBlockView({
                 ))}
               </>
             ) : sentence ? (
-              <p className='min-w-0 break-words text-[var(--text-muted)] text-sm leading-6'>
-                {sentence}
-              </p>
+              sentence
             ) : (
               <>
                 {chips && (
@@ -1261,64 +1229,25 @@ export function WorkflowBlockView({
         )}
 
         {type !== 'condition' && type !== 'router_v2' && type !== 'response' && (
-          <>
-            <Handle
-              type='source'
-              position={Position.Right}
-              id='source'
-              className={getInvisibleHandleClasses('right')}
-              style={{
-                ...getHandleStyle('horizontal'),
-                ...invisibleHandleSize('right', mainTabLength('right'), MAIN_HANDLE_HIT_LENGTH_PX),
-              }}
-              data-nodeid={id}
-              data-handleid='source'
-              isConnectableStart={true}
-              isConnectableEnd={false}
-              isValidConnection={(connection) => {
-                if (connection.target === id) return false
-                return !wouldCreateConnectionCycle(connection.source!, connection.target!)
-              }}
-            />
-            {/*
-              Anchor for outgoing edges created by the cursor swell. Only the
-              right side exists: an output always leaves from the right, so
-              `normalizeCursorSourceHandleId` resolves every drag here no
-              matter which edge it started on. Mounting a left twin would
-              advertise an output on the input port.
-            */}
-            <Handle
-              type='source'
-              position={getReactFlowPosition('right')}
-              id={getPositionedSourceHandleId('right')}
-              className='!pointer-events-none !z-0 !rounded-none !border-none !bg-transparent !opacity-0'
-              style={getCenteredSideHandleStyle('right')}
-              data-nodeid={id}
-              data-handleid={getPositionedSourceHandleId('right')}
-              isConnectable={false}
-              aria-hidden='true'
-            />
-          </>
+          <Handle
+            type='source'
+            position={Position.Right}
+            id={WORKFLOW_SOURCE_HANDLE_ID}
+            className={getInvisibleHandleClasses('right')}
+            style={{
+              ...getHandleStyle('horizontal'),
+              ...invisibleHandleSize('right', mainTabLength('right'), MAIN_HANDLE_HIT_LENGTH_PX),
+            }}
+            data-nodeid={id}
+            data-handleid={WORKFLOW_SOURCE_HANDLE_ID}
+            isConnectableStart={true}
+            isConnectableEnd={false}
+            isValidConnection={(connection) => {
+              if (connection.target === id) return false
+              return !wouldCreateConnectionCycle(connection.source!, connection.target!)
+            }}
+          />
         )}
-
-        {shouldShowDefaultHandles &&
-          POSITIONED_SOURCE_HANDLE_SIDES.map((side) => {
-            const handleId = getPositionedTargetHandleId(side)
-            return (
-              <Handle
-                key={handleId}
-                type='target'
-                position={getReactFlowPosition(side)}
-                id={handleId}
-                className='!pointer-events-none !z-0 !rounded-none !border-none !bg-transparent !opacity-0'
-                style={getCenteredSideHandleStyle(side)}
-                data-nodeid={id}
-                data-handleid={handleId}
-                isConnectable={false}
-                aria-hidden='true'
-              />
-            )
-          })}
 
         {rendersErrorHandle && (
           <Handle

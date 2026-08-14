@@ -1,12 +1,10 @@
 import { trace } from '@opentelemetry/api'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   chat as chatTable,
   customTools as customToolsTable,
-  document,
   folder as folderTable,
-  knowledgeBaseTagDefinitions,
-  knowledgeConnector,
   mcpServers as mcpServersTable,
   skill as skillTable,
   workflowDeploymentVersion,
@@ -51,6 +49,8 @@ import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import {
   type FileReadResult,
   isReadableFileType,
+  MAX_IMAGE_SOURCE_BYTES,
+  MAX_TEXT_READ_BYTES,
   readFileRecord,
 } from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
@@ -63,11 +63,7 @@ import {
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
 import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
-import type {
-  DeploymentData,
-  KbTagDefinitionSummary,
-  VfsServiceAccountAuth,
-} from '@/lib/copilot/vfs/serializers'
+import type { DeploymentData, VfsServiceAccountAuth } from '@/lib/copilot/vfs/serializers'
 import {
   describeServiceAccountForOAuthProvider,
   serializeApiKeyIntegrations,
@@ -118,36 +114,40 @@ import {
   isOAuthServiceDeploymentAvailable,
 } from '@/lib/integrations/availability.server'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
-import { getKnowledgeBases } from '@/lib/knowledge/service'
+import { listKnowledgeConnectors } from '@/lib/knowledge/application/connectors'
+import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
+import {
+  listArchivedKnowledgeBases,
+  listKnowledgeBaseCatalog,
+} from '@/lib/knowledge/application/knowledge-bases'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
-import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import { listTables } from '@/lib/table/service'
-import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import {
-  fetchWorkspaceFileBuffer,
-  findWorkspaceFileRecord,
-  listWorkspaceFiles,
-  type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { findWorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type {
   WorkspaceFileSecretProvenanceEnvelope,
   WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { isImageFileType, resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
+import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
+import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
   getWorkspaceWithOwner,
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
-import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'
@@ -163,6 +163,8 @@ const logger = createLogger('WorkspaceVFS')
 // double-cast-allowed: a no-op stands in for the unused SVG-typed BlockIcon slot
 const PLACEHOLDER_BLOCK_ICON = (() => null) as unknown as BlockIcon
 const MAX_COMPILED_ATTACHMENT_BYTES = 5 * 1024 * 1024
+const KNOWLEDGE_DOCUMENT_PAGE_SIZE = 100
+const MAX_VFS_KNOWLEDGE_DOCUMENTS = 10_000
 
 function bindWorkspaceFileResult<T>(
   record: WorkspaceFileRecord,
@@ -179,6 +181,14 @@ function bindWorkspaceFileResult<T>(
       context: record.storageContext ?? 'workspace',
     },
     ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
+  }
+}
+
+function renderErrorResult(error: string): FileReadResult {
+  return {
+    content: JSON.stringify({ ok: false, error }),
+    totalLines: 1,
+    error,
   }
 }
 
@@ -582,6 +592,8 @@ function getStaticComponentFiles(): Map<string, string> {
  *   components/triggers/{provider}/{id}.json           (external triggers: github, slack, etc.)
  */
 export class WorkspaceVFS {
+  private readonly filePrincipal?: Principal
+  private readonly knowledgePrincipal?: Principal
   // Eagerly-materialized, cheap content (structure + metadata): folder markers,
   // per-resource meta.json, WORKSPACE.md/WORKSPACE_CONTEXT.md, static components.
   private files: Map<string, string> = new Map()
@@ -613,6 +625,11 @@ export class WorkspaceVFS {
    * means the org genuinely has no custom blocks, so any placed one IS deleted.
    */
   private _customBlockTypes: Set<string> | null = null
+
+  constructor(filePrincipal?: Principal, knowledgePrincipal?: Principal) {
+    this.filePrincipal = filePrincipal
+    this.knowledgePrincipal = knowledgePrincipal
+  }
 
   get workspaceId(): string {
     return this._workspaceId
@@ -811,7 +828,7 @@ export class WorkspaceVFS {
               sandboxEntitled,
             ] = await Promise.all([
               timed('workflows', this.materializeWorkflows(workspaceId)),
-              timed('knowledge_bases', this.materializeKnowledgeBases(workspaceId, userId)),
+              timed('knowledge_bases', this.materializeKnowledgeBases(workspaceId)),
               timed('tables', this.materializeTables(workspaceId)),
               timed('files', this.materializeFiles(workspaceId)),
               timed(
@@ -858,7 +875,7 @@ export class WorkspaceVFS {
             this.files.set('WORKSPACE.md', buildWorkspaceMd(workspaceMdData))
             this.files.set('WORKSPACE_CONTEXT.md', buildWorkspaceContextMd(workspaceMdData))
 
-            await timed('recently_deleted', this.materializeRecentlyDeleted(workspaceId, userId))
+            await timed('recently_deleted', this.materializeRecentlyDeleted(workspaceId))
 
             // Per-viewer gating happens HERE, not in the shared builder: files
             // owned by blocks hidden for this viewer are skipped at stamp time.
@@ -1054,8 +1071,28 @@ export class WorkspaceVFS {
     const canonicalMatch = path.match(new RegExp(`^files/(.+)/${suffix}$`))
     if (!canonicalMatch?.[1]) return null
 
-    const files = await listWorkspaceFiles(this._workspaceId)
+    if (!this.filePrincipal) {
+      throw new Error('Workspace file reads require a trusted Copilot principal')
+    }
+    const { files } = await listAllWorkspaceFiles.execute({
+      principal: this.filePrincipal,
+      input: { workspaceId: this._workspaceId, scope: 'active' },
+    })
     return findWorkspaceFileRecord(files, `files/${canonicalMatch[1]}`)
+  }
+
+  private requireFilePrincipal(): Principal {
+    if (!this.filePrincipal) {
+      throw new Error('Workspace file reads require a trusted Copilot principal')
+    }
+    return this.filePrincipal
+  }
+
+  private requireKnowledgePrincipal(): Principal {
+    if (!this.knowledgePrincipal) {
+      throw new Error('Workspace Knowledge reads require a trusted Copilot principal')
+    }
+    return this.knowledgePrincipal
   }
 
   /**
@@ -1074,17 +1111,18 @@ export class WorkspaceVFS {
     contributingFiles: Map<string, WorkspaceFileSecretProvenanceIdentity>
   ): Promise<FileReadResult> {
     if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
-      return {
-        content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
-        totalLines: 1,
-      }
+      return renderErrorResult('File is too large to render')
     }
-    const buffer = await fetchWorkspaceFileBuffer(record)
+    const { content: buffer } = await readWorkspaceFileContent.execute({
+      principal: this.requireFilePrincipal(),
+      input: {
+        fileId: record.id,
+        assertedWorkspaceId: this._workspaceId,
+        maxBytes: MAX_DOC_READ_INPUT_BYTES,
+      },
+    })
     if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
-      return {
-        content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
-        totalLines: 1,
-      }
+      return renderErrorResult('File is too large to render')
     }
     // Already-binary uploads render directly; source files are compiled first
     // (E2B regime -> doc sandbox: Node pptx/docx, Python pdf; otherwise
@@ -1095,28 +1133,21 @@ export class WorkspaceVFS {
     } else {
       const code = buffer.toString('utf-8')
       if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
-        return {
-          content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
-          totalLines: 1,
-        }
+        return renderErrorResult('File source exceeds maximum size')
       }
-      if (await getE2BDocFormat(record.name)) {
-        const compiled = await compileDoc({
-          source: code,
-          fileName: record.name,
-          workspaceId: this._workspaceId,
-        })
-        for (const identity of compiled.contributingFiles ?? []) {
-          recordContributingFile(contributingFiles, identity)
-        }
-        bin = compiled.buffer
+      if (isDocSandboxEnabled && (await getE2BDocFormat(record.name))) {
+        bin = (
+          await compileDoc({
+            source: code,
+            fileName: record.name,
+            workspaceId: this._workspaceId,
+            filePrincipal: this.requireFilePrincipal(),
+          })
+        ).buffer
       } else {
         const taskId = BINARY_DOC_TASKS[ext]
         if (!taskId) {
-          return {
-            content: JSON.stringify({ ok: false, error: 'Cannot render this file' }),
-            totalLines: 1,
-          }
+          return renderErrorResult('Cannot render this file')
         }
         bin = await runSandboxTask(
           taskId,
@@ -1207,7 +1238,14 @@ export class WorkspaceVFS {
           })
         }
 
-        const buffer = await fetchWorkspaceFileBuffer(record)
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal: this.requireFilePrincipal(),
+          input: {
+            fileId: record.id,
+            assertedWorkspaceId: this._workspaceId,
+            maxBytes: MAX_DOC_READ_INPUT_BYTES,
+          },
+        })
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
           return bindWorkspaceFileResult(record, {
@@ -1216,11 +1254,12 @@ export class WorkspaceVFS {
           })
         }
         let compiled: Buffer
-        if (docFmt) {
+        if (isDocSandboxEnabled && docFmt) {
           const compiledResult = await compileDoc({
             source: code,
             fileName: record.name,
             workspaceId: this._workspaceId,
+            filePrincipal: this.requireFilePrincipal(),
           })
           for (const identity of compiledResult.contributingFiles ?? []) {
             recordContributingFile(contributingFiles, identity)
@@ -1294,13 +1333,10 @@ export class WorkspaceVFS {
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
         if (!isRenderableDocExt(ext)) {
-          return bindWorkspaceFileResult(record, {
-            content: JSON.stringify({
-              ok: false,
-              error: 'Render supports .pptx, .docx, and .pdf only',
-            }),
-            totalLines: 1,
-          })
+          return bindWorkspaceFileResult(
+            record,
+            renderErrorResult('Render supports .pptx, .docx, and .pdf only')
+          )
         }
         const renderName = record.name
         const rendered = await this.renderDocRecordResult(
@@ -1312,19 +1348,17 @@ export class WorkspaceVFS {
         )
         return bindWorkspaceFileResult(record, rendered, 'derived', [...contributingFiles.values()])
       } catch (err) {
+        const error = toError(err).message
         logger.warn('Render read failed via VFS', {
           workspaceId: this._workspaceId,
           path,
           fileId: record?.id,
-          error: toError(err).message,
+          error,
         })
         // Return an explicit error (not null) once the file resolved — a null read
         // looks like a missing path and sends the agent hunting for the "correct"
         // render path instead of surfacing the real compile/render failure.
-        const errorResult = {
-          content: JSON.stringify({ ok: false, error: toError(err).message }),
-          totalLines: 1,
-        }
+        const errorResult = renderErrorResult(error)
         return record ? bindWorkspaceFileResult(record, errorResult) : { value: errorResult }
       }
     }
@@ -1352,7 +1386,14 @@ export class WorkspaceVFS {
             totalLines: 1,
           })
         }
-        const buffer = await fetchWorkspaceFileBuffer(record)
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal: this.requireFilePrincipal(),
+          input: {
+            fileId: record.id,
+            assertedWorkspaceId: this._workspaceId,
+            maxBytes: MAX_DOC_READ_INPUT_BYTES,
+          },
+        })
         if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
           return bindWorkspaceFileResult(record, {
             content: JSON.stringify({ ok: false, error: 'File is too large to extract' }),
@@ -1404,7 +1445,14 @@ export class WorkspaceVFS {
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
         if (!e2bFmt && !taskId && !isMermaidFile) return null
-        const buffer = await fetchWorkspaceFileBuffer(record)
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal: this.requireFilePrincipal(),
+          input: {
+            fileId: record.id,
+            assertedWorkspaceId: this._workspaceId,
+            maxBytes: MAX_DOC_READ_INPUT_BYTES,
+          },
+        })
         const code = buffer.toString('utf-8')
         if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
           return bindWorkspaceFileResult(record, {
@@ -1427,6 +1475,7 @@ export class WorkspaceVFS {
             fileName: record.name,
             workspaceId: this._workspaceId,
             ext,
+            principal: this.requireFilePrincipal(),
           })
         } else {
           try {
@@ -1463,7 +1512,20 @@ export class WorkspaceVFS {
         const rawExt = record.name.split('.').pop()?.toLowerCase()
         if (rawExt !== 'docx' && rawExt !== 'pptx' && rawExt !== 'pdf') return null
         const ext: 'docx' | 'pptx' | 'pdf' = rawExt
-        const buffer = await fetchWorkspaceFileBuffer(record)
+        if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
+          return bindWorkspaceFileResult(record, {
+            content: JSON.stringify({ ok: false, error: 'File is too large to extract style' }),
+            totalLines: 1,
+          })
+        }
+        const { content: buffer } = await readWorkspaceFileContent.execute({
+          principal: this.requireFilePrincipal(),
+          input: {
+            fileId: record.id,
+            assertedWorkspaceId: this._workspaceId,
+            maxBytes: MAX_DOC_READ_INPUT_BYTES,
+          },
+        })
         const summary = await extractDocumentStyle(buffer, ext)
         if (!summary) return null
         const json = JSON.stringify(summary, null, 2)
@@ -1496,15 +1558,29 @@ export class WorkspaceVFS {
     const scope = deletedMatch ? 'archived' : 'active'
 
     try {
-      const files = await listWorkspaceFiles(this._workspaceId, { scope })
+      const { files } = await listAllWorkspaceFiles.execute({
+        principal: this.requireFilePrincipal(),
+        input: { workspaceId: this._workspaceId, scope },
+      })
       const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
-      const result = await readFileRecord(record)
+      const { file, content } = await readWorkspaceFileContent.execute({
+        principal: this.requireFilePrincipal(),
+        input: {
+          fileId: record.id,
+          assertedWorkspaceId: this._workspaceId,
+          includeDeleted: scope === 'archived',
+          maxBytes: isImageFileType(resolveEffectiveMimeType(record.type, record.name))
+            ? MAX_IMAGE_SOURCE_BYTES
+            : MAX_TEXT_READ_BYTES,
+        },
+      })
+      const result = await readFileRecord(file, content)
       return result
         ? bindWorkspaceFileResult(
-            record,
+            file,
             result,
-            isReadableFileType(record.type) ? 'complete' : 'derived'
+            isReadableFileType(file.type) ? 'complete' : 'derived'
           )
         : null
     } catch (err) {
@@ -1720,99 +1796,98 @@ export class WorkspaceVFS {
     }))
   }
 
-  /**
-   * Materialize knowledge bases using the shared getKnowledgeBases function.
-   * Returns a summary for WORKSPACE.md generation.
-   */
+  /** Materializes authorized knowledge summaries for WORKSPACE.md generation. */
   private async materializeKnowledgeBases(
-    workspaceId: string,
-    userId: string
+    workspaceId: string
   ): Promise<WorkspaceMdData['knowledgeBases']> {
-    const kbs = await getKnowledgeBases(userId, workspaceId)
+    const { knowledgeBases } = await listKnowledgeBaseCatalog.execute({
+      principal: this.requireKnowledgePrincipal(),
+      input: { workspaceId },
+    })
+    const kbs = knowledgeBases.map(({ knowledgeBase }) => knowledgeBase)
 
-    const tagDefinitionsByKb = await this.loadKbTagDefinitions(kbs.map((kb) => kb.id))
+    for (const { knowledgeBase: kb, tagDefinitions } of knowledgeBases) {
+      const safeName = sanitizeName(kb.name)
+      const prefix = `knowledgebases/${safeName}/`
 
-    await Promise.all(
-      kbs.map(async (kb) => {
-        const safeName = sanitizeName(kb.name)
-        const prefix = `knowledgebases/${safeName}/`
+      this.files.set(
+        `${prefix}meta.json`,
+        serializeKBMeta({
+          id: kb.id,
+          name: kb.name,
+          description: kb.description,
+          embeddingModel: kb.embeddingModel,
+          embeddingDimension: kb.embeddingDimension,
+          tokenCount: kb.tokenCount,
+          createdAt: kb.createdAt,
+          updatedAt: kb.updatedAt,
+          documentCount: kb.docCount,
+          connectorTypes: kb.connectorTypes,
+          tagDefinitions: tagDefinitions.map((definition) => ({
+            tagName: definition.displayName,
+            tagSlot: definition.tagSlot,
+            fieldType: definition.fieldType,
+          })),
+        })
+      )
 
-        this.files.set(
-          `${prefix}meta.json`,
-          serializeKBMeta({
-            id: kb.id,
-            name: kb.name,
-            description: kb.description,
-            embeddingModel: kb.embeddingModel,
-            embeddingDimension: kb.embeddingDimension,
-            tokenCount: kb.tokenCount,
-            createdAt: kb.createdAt,
-            updatedAt: kb.updatedAt,
-            documentCount: kb.docCount,
-            connectorTypes: kb.connectorTypes,
-            tagDefinitions: tagDefinitionsByKb.get(kb.id),
-          })
-        )
-
-        // documents.json / connectors.json are lazy, advertised only when the KB
-        // summary says they exist (docCount / connectorTypes) — no per-KB query on
-        // a read/glob, only when the artifact is read or grepped.
-        if (kb.docCount > 0) {
-          this.registerLazy(`${prefix}documents.json`, async () => {
-            const docRows = await db
-              .select({
-                id: document.id,
-                filename: document.filename,
-                fileSize: document.fileSize,
-                mimeType: document.mimeType,
-                chunkCount: document.chunkCount,
-                tokenCount: document.tokenCount,
-                processingStatus: document.processingStatus,
-                enabled: document.enabled,
-                uploadedAt: document.uploadedAt,
-              })
-              .from(document)
-              .where(
-                and(
-                  eq(document.knowledgeBaseId, kb.id),
-                  eq(document.userExcluded, false),
-                  isNull(document.archivedAt),
-                  isNull(document.deletedAt)
-                )
+      // documents.json / connectors.json are lazy, advertised only when the KB
+      // summary says they exist (docCount / connectorTypes) — no per-KB query on
+      // a read/glob, only when the artifact is read or grepped.
+      if (kb.docCount > 0) {
+        this.registerLazy(`${prefix}documents.json`, async () => {
+          if (kb.docCount > MAX_VFS_KNOWLEDGE_DOCUMENTS) {
+            throw new Error(
+              `Knowledge base ${kb.id} has more than ${MAX_VFS_KNOWLEDGE_DOCUMENTS} documents; documents.json cannot be materialized`
+            )
+          }
+          const documents: Awaited<ReturnType<typeof listKnowledgeDocuments.execute>>['documents'] =
+            []
+          let offset = 0
+          while (true) {
+            const page = await listKnowledgeDocuments.execute({
+              principal: this.requireKnowledgePrincipal(),
+              input: {
+                knowledgeBaseId: kb.id,
+                assertedWorkspaceId: workspaceId,
+                limit: KNOWLEDGE_DOCUMENT_PAGE_SIZE,
+                offset,
+              },
+            })
+            documents.push(...page.documents)
+            if (documents.length > MAX_VFS_KNOWLEDGE_DOCUMENTS) {
+              throw new Error(
+                `Knowledge base ${kb.id} exceeded the ${MAX_VFS_KNOWLEDGE_DOCUMENTS} document limit while materializing documents.json`
               )
-            return docRows.length > 0 ? serializeDocuments(docRows) : null
-          })
-        }
+            }
+            if (!page.pagination.hasMore) break
+            offset += page.pagination.limit
+          }
+          const docRows = documents.map((document) => ({
+            id: document.id,
+            filename: document.filename,
+            fileSize: document.fileSize,
+            mimeType: document.mimeType,
+            chunkCount: document.chunkCount,
+            tokenCount: document.tokenCount,
+            processingStatus: document.processingStatus,
+            enabled: document.enabled,
+            uploadedAt: document.uploadedAt,
+          }))
+          return docRows.length > 0 ? serializeDocuments(docRows) : null
+        })
+      }
 
-        if (kb.connectorTypes.length > 0) {
-          this.registerLazy(`${prefix}connectors.json`, async () => {
-            const connectorRows = await db
-              .select({
-                id: knowledgeConnector.id,
-                connectorType: knowledgeConnector.connectorType,
-                status: knowledgeConnector.status,
-                syncMode: knowledgeConnector.syncMode,
-                syncIntervalMinutes: knowledgeConnector.syncIntervalMinutes,
-                lastSyncAt: knowledgeConnector.lastSyncAt,
-                lastSyncError: knowledgeConnector.lastSyncError,
-                lastSyncDocCount: knowledgeConnector.lastSyncDocCount,
-                nextSyncAt: knowledgeConnector.nextSyncAt,
-                consecutiveFailures: knowledgeConnector.consecutiveFailures,
-                createdAt: knowledgeConnector.createdAt,
-              })
-              .from(knowledgeConnector)
-              .where(
-                and(
-                  eq(knowledgeConnector.knowledgeBaseId, kb.id),
-                  isNull(knowledgeConnector.archivedAt),
-                  isNull(knowledgeConnector.deletedAt)
-                )
-              )
-            return connectorRows.length > 0 ? serializeConnectors(connectorRows) : null
+      if (kb.connectorTypes.length > 0) {
+        this.registerLazy(`${prefix}connectors.json`, async () => {
+          const { connectors: connectorRows } = await listKnowledgeConnectors.execute({
+            principal: this.requireKnowledgePrincipal(),
+            input: { knowledgeBaseId: kb.id, assertedWorkspaceId: workspaceId },
           })
-        }
-      })
-    )
+          return connectorRows.length > 0 ? serializeConnectors(connectorRows) : null
+        })
+      }
+    }
 
     return kbs.map((kb) => ({
       id: kb.id,
@@ -1820,61 +1895,6 @@ export class WorkspaceVFS {
       description: kb.description,
       connectorTypes: kb.connectorTypes.length > 0 ? kb.connectorTypes : undefined,
     }))
-  }
-
-  /**
-   * Load tag definitions for the given knowledge bases in a single query, grouped by
-   * KB id and ordered by tag slot. Surfaced inline in each KB's meta.json so the agent
-   * knows which tags exist (and their slot binding) when editing a knowledge-tag filter.
-   *
-   * @remarks
-   * Tag definitions are an optional enrichment, so a query failure degrades to a meta.json
-   * without them rather than rejecting. This materializer runs inside the top-level
-   * `Promise.all`, whose rejection would fail the entire workspace VFS build and leave the
-   * agent unable to read any file.
-   */
-  private async loadKbTagDefinitions(
-    kbIds: string[]
-  ): Promise<Map<string, KbTagDefinitionSummary[]>> {
-    const byKb = new Map<string, KbTagDefinitionSummary[]>()
-    if (kbIds.length === 0) return byKb
-
-    let rows: Array<{
-      knowledgeBaseId: string
-      tagSlot: string
-      displayName: string
-      fieldType: string
-    }>
-    try {
-      rows = await db
-        .select({
-          knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
-          tagSlot: knowledgeBaseTagDefinitions.tagSlot,
-          displayName: knowledgeBaseTagDefinitions.displayName,
-          fieldType: knowledgeBaseTagDefinitions.fieldType,
-        })
-        .from(knowledgeBaseTagDefinitions)
-        .where(inArray(knowledgeBaseTagDefinitions.knowledgeBaseId, kbIds))
-        .orderBy(knowledgeBaseTagDefinitions.tagSlot)
-    } catch (err) {
-      logger.warn('Failed to load knowledge base tag definitions', {
-        error: toError(err).message,
-      })
-      return byKb
-    }
-
-    for (const row of rows) {
-      const entry = {
-        tagName: row.displayName,
-        tagSlot: row.tagSlot,
-        fieldType: row.fieldType,
-      }
-      const existing = byKb.get(row.knowledgeBaseId)
-      if (existing) existing.push(entry)
-      else byKb.set(row.knowledgeBaseId, [entry])
-    }
-
-    return byKb
   }
 
   /**
@@ -1923,24 +1943,19 @@ export class WorkspaceVFS {
    */
   private async materializeFiles(workspaceId: string): Promise<WorkspaceMdData['files']> {
     try {
-      const folders = await listWorkspaceFileFolders(workspaceId)
-      const files = await listWorkspaceFiles(workspaceId, { folders, throwOnError: true })
-      // Batch-load public share state so each file's metadata carries an ambient
-      // `shared` flag (mirrors how the files-list UI enriches rows) — no N+1.
-      // Fail soft: share state is only metadata enrichment, so a lookup failure
-      // must not drop the whole file tree (the outer catch returns []) — fall back
-      // to no shares, and files still materialize with `shared: false`.
-      let shareByFileId: Awaited<ReturnType<typeof getWorkspaceShares>> = new Map()
-      try {
-        shareByFileId = await getWorkspaceShares('file', workspaceId)
-      } catch (error) {
-        logger.warn('Failed to load file share state; file metadata will show shared: false', {
-          workspaceId,
-          error: toError(error).message,
-        })
-      }
+      const principal = this.requireFilePrincipal()
+      const [{ folders }, { files }] = await Promise.all([
+        listWorkspaceFileFoldersOperation.execute({
+          principal,
+          input: { workspaceId, scope: 'active' },
+        }),
+        listAllWorkspaceFiles.execute({ principal, input: { workspaceId, scope: 'active' } }),
+      ])
       for (const folder of folders) {
-        this.files.set(`files/${encodeVfsPathSegments(folder.path.split('/'))}/.folder`, '')
+        this.files.set(
+          `files/${encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(folder.path))}/.folder`,
+          ''
+        )
       }
 
       for (const file of files) {
@@ -1948,7 +1963,7 @@ export class WorkspaceVFS {
           folderPath: file.folderPath,
           name: file.name,
         })
-        const share = shareByFileId.get(file.id)
+        const share = file.share
         const shared = share?.isActive ?? false
         this.files.set(
           filePath,
@@ -2295,7 +2310,7 @@ export class WorkspaceVFS {
       return []
     }
   }
-  private async materializeRecentlyDeleted(workspaceId: string, userId: string): Promise<void> {
+  private async materializeRecentlyDeleted(workspaceId: string): Promise<void> {
     try {
       const [
         archivedWorkflows,
@@ -2321,9 +2336,24 @@ export class WorkspaceVFS {
             )
           ),
         listTables(workspaceId, { scope: 'archived' }),
-        listWorkspaceFiles(workspaceId, { scope: 'archived' }),
-        listWorkspaceFileFolders(workspaceId, { scope: 'archived' }),
-        getKnowledgeBases(userId, workspaceId, 'archived'),
+        listAllWorkspaceFiles
+          .execute({
+            principal: this.requireFilePrincipal(),
+            input: { workspaceId, scope: 'archived' },
+          })
+          .then(({ files }) => files),
+        listWorkspaceFileFoldersOperation
+          .execute({
+            principal: this.requireFilePrincipal(),
+            input: { workspaceId, scope: 'archived' },
+          })
+          .then(({ folders }) => folders),
+        listArchivedKnowledgeBases
+          .execute({
+            principal: this.requireKnowledgePrincipal(),
+            input: { workspaceId },
+          })
+          .then(({ knowledgeBases }) => knowledgeBases),
       ])
 
       for (const wf of archivedWorkflows) {
@@ -2364,8 +2394,7 @@ export class WorkspaceVFS {
       }
 
       for (const folder of archivedFileFolders) {
-        const safePath = folder.path
-          .split('/')
+        const safePath = parseWorkspaceFileFolderDisplayPath(folder.path)
           .map((segment) => sanitizeName(segment))
           .join('/')
         this.files.set(
@@ -2550,10 +2579,14 @@ export class WorkspaceVFS {
 export async function getOrMaterializeVFS(
   workspaceId: string,
   userId: string,
-  options?: { secretMountPolicy?: SecretMountPolicy }
+  options?: {
+    secretMountPolicy?: SecretMountPolicy
+    filePrincipal?: Principal
+    knowledgePrincipal?: Principal
+  }
 ): Promise<WorkspaceVFS> {
   await assertActiveWorkspaceAccess(workspaceId, userId)
-  const vfs = new WorkspaceVFS()
+  const vfs = new WorkspaceVFS(options?.filePrincipal, options?.knowledgePrincipal)
   await vfs.materialize(workspaceId, userId, options)
   return vfs
 }

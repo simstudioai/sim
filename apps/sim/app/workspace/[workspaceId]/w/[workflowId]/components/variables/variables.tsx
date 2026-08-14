@@ -14,7 +14,6 @@ import {
   Input,
   Label,
   languages,
-  thinScrollbarClass,
 } from '@sim/emcn'
 import { Plus, Trash, X } from '@sim/emcn/icons'
 import Editor from 'react-simple-code-editor'
@@ -487,7 +486,7 @@ export function Variables({ readOnly = false }: VariablesProps) {
             {STRINGS.emptyState}
           </div>
         ) : (
-          <div className={cn('h-full overflow-y-auto overflow-x-hidden', thinScrollbarClass)}>
+          <div className='h-full overflow-y-auto overflow-x-hidden'>
             <div className='w-full max-w-full space-y-2 overflow-hidden'>
               {workflowVariables.map((variable, index) => (
                 <div

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
+import { Combobox, type ComboboxOption } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -93,7 +93,7 @@ export function TableSelector({
   })
 
   return (
-    <ChipCombobox
+    <Combobox
       options={options}
       value={tableId ?? undefined}
       onChange={handleChange}

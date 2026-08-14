@@ -14,6 +14,16 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   integrationType: IntegrationType.Search,
   bgColor: '#FFFFFF',
   icon: GoogleIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Search',
+    sentences: {
+      default: [
+        { text: 'Search the web for', field: 'query', core: true },
+        { text: ', returning', field: 'searchType', after: 'results' },
+        { text: ', limited to', field: 'fileType', after: 'files' },
+      ],
+    },
+  },
 
   subBlocks: [
     {

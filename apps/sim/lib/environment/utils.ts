@@ -282,6 +282,98 @@ export async function getPersonalAndWorkspaceEnv(
   }
 }
 
+/**
+ * Resolves one execution's environment from two independent identities.
+ *
+ * Workspace variables authorize against the execution actor, so the
+ * credential-membership filter in {@link getPersonalAndWorkspaceEnv} is applied
+ * to whoever caused the run rather than to whoever happens to own the workflow.
+ * Personal variables keep the identity that owns them — the session user on an
+ * interactive run, the workflow owner on a background one — because a deployed
+ * workflow is routinely authored against its owner's personal keys and would
+ * otherwise lose them the moment anyone else triggered it.
+ *
+ * An undefined `personalUserId` means no personal namespace belongs in this run at
+ * all, which is how an anonymous public-API call resolves: workspace variables only.
+ *
+ * A run whose two identities coincide, which is every interactive run, resolves
+ * exactly as before through a single query.
+ *
+ * When the actor has no access to the workspace at all, the personal identity is
+ * reused for both slices and the fault is reported rather than raised.
+ * `workspace.billedAccountUserId` is a stored column rather than a derivation,
+ * so an organization ownership transfer can leave it pointing at a user with no
+ * remaining access; failing here would take down every background execution in
+ * that workspace for a misconfiguration the run itself did not cause. The error
+ * line is what makes that state visible while it is repaired.
+ *
+ * That fallback is gated on the access decision alone, never on a failed query.
+ * Widening to a `catch` would let a transient database fault silently promote the
+ * run to the owner's broader secret selection, which is the opposite of what an
+ * infrastructure error should do — those propagate and fail the run.
+ */
+export async function getExecutionEnvironment(
+  personalUserId: string | undefined,
+  workspaceUserId: string,
+  workspaceId?: string
+): Promise<EnvironmentResolutionSnapshot> {
+  if (personalUserId === undefined) {
+    const workspaceOnly = await getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId)
+    return {
+      ...workspaceOnly,
+      personalEncrypted: {},
+      personalDecrypted: {},
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: workspaceOnly.decryptionFailures.filter(
+        (key) => key in workspaceOnly.workspaceEncrypted
+      ),
+    }
+  }
+
+  if (!workspaceId || workspaceUserId === personalUserId) {
+    return getPersonalAndWorkspaceEnv(personalUserId, workspaceId)
+  }
+
+  const actorAccess = await checkWorkspaceAccess(workspaceId, workspaceUserId)
+  if (!actorAccess.hasAccess) {
+    logger.error('Execution actor cannot reach the workspace; falling back to the owner', {
+      personalUserId,
+      workspaceUserId,
+      workspaceId,
+    })
+    return getPersonalAndWorkspaceEnv(personalUserId, workspaceId)
+  }
+
+  const [personal, actor] = await Promise.all([
+    getPersonalAndWorkspaceEnv(personalUserId, workspaceId),
+    getPersonalAndWorkspaceEnv(workspaceUserId, workspaceId, { workspaceAccess: actorAccess }),
+  ])
+
+  /**
+   * Each snapshot reports decryption failures across both of its own slices, so
+   * a name is only carried over when it belongs to the slice being kept.
+   */
+  const decryptionFailures = [
+    ...new Set([
+      ...personal.decryptionFailures.filter((key) => key in personal.personalEncrypted),
+      ...actor.decryptionFailures.filter((key) => key in actor.workspaceEncrypted),
+    ]),
+  ]
+
+  return {
+    personalEncrypted: personal.personalEncrypted,
+    workspaceEncrypted: actor.workspaceEncrypted,
+    personalDecrypted: personal.personalDecrypted,
+    workspaceDecrypted: actor.workspaceDecrypted,
+    personalOwners: personal.personalOwners,
+    conflicts: Object.keys(personal.personalEncrypted).filter(
+      (key) => key in actor.workspaceEncrypted
+    ),
+    decryptionFailures,
+  }
+}
+
 export interface EnvUpsertResult {
   added: string[]
   updated: string[]

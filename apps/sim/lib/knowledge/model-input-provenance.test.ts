@@ -3,6 +3,7 @@
  */
 import { encryptionMockFns, environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { internalKnowledgeSearchBodySchema } from '@/lib/api/contracts/knowledge/search'
 import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
 import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
@@ -84,6 +85,25 @@ describe('Knowledge model input provenance', () => {
     expect(result.success).toBe(true)
     expect(result.success && result.registry?.isComplete()).toBe(true)
     expect(environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
+  })
+
+  it('accepts a verified envelope after the internal route contract parses it', async () => {
+    const body = internalKnowledgeSearchBodySchema.parse({
+      knowledgeBaseIds: ['knowledge-base-1'],
+      ...verifiedPayload(),
+    })
+
+    const result = await prepareKnowledgeModelInputProvenance({
+      headers: verifiedHeaders(),
+      payload: body,
+      isInternalRequest: true,
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      modelInput: body.query,
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.success && result.registry?.isComplete()).toBe(true)
   })
 
   it('does not activate an authenticated entry absent from the exact model input', async () => {
@@ -216,7 +236,7 @@ describe('Knowledge model input provenance', () => {
 
   it('fails before model egress when an active request registry is incomplete', () => {
     const registry = new ResolvedSecretTraceRegistry([])
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     expect(() =>
       runWithKnowledgeModelInputProvenance(registry, () =>

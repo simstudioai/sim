@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
@@ -209,6 +208,7 @@
         "@react-email/components": "1.0.12",
         "@react-email/render": "2.1.0",
         "@sim/audit": "workspace:*",
+        "@sim/auth": "workspace:*",
         "@sim/browser-protocol": "workspace:*",
         "@sim/desktop-bridge": "workspace:*",
         "@sim/emcn": "workspace:*",
@@ -611,7 +611,7 @@
     },
     "packages/ts-sdk": {
       "name": "simstudio-ts-sdk",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",
         "@types/node": "24.2.1",
@@ -659,12 +659,16 @@
         "@sim/tsconfig": "workspace:*",
         "@sim/utils": "workspace:*",
         "@sim/workflow-types": "workspace:*",
+        "@testing-library/jest-dom": "^6.6.3",
         "@types/react": "^19",
+        "jsdom": "^26.0.0",
         "react": "19.2.4",
         "reactflow": "^11.11.4",
         "remark-breaks": "^4.0.0",
+        "remark-gfm": "^4.0.1",
         "streamdown": "2.5.0",
         "typescript": "^7.0.2",
+        "vitest": "^4.1.0",
       },
       "peerDependencies": {
         "@sim/emcn": "workspace:*",
@@ -673,6 +677,7 @@
         "react": "^19",
         "reactflow": "^11.11.4",
         "remark-breaks": "^4.0.0",
+        "remark-gfm": "^4.0.1",
         "streamdown": ">=2.5.0",
       },
     },

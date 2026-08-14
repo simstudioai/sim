@@ -327,7 +327,7 @@ export class IdempotencyService {
     const expiredBefore = new Date(now.getTime() - this.config.ttlSeconds * 1000)
     const inProgressClaimExpired = sql`COALESCE(
       CASE
-        WHEN jsonb_typeof(${idempotencyKey.result} -> 'inProgressExpiresAt') = 'number'
+        WHEN json_typeof(${idempotencyKey.result} -> 'inProgressExpiresAt') = 'number'
           THEN (${idempotencyKey.result} ->> 'inProgressExpiresAt')::double precision
       END,
       EXTRACT(EPOCH FROM ${idempotencyKey.createdAt}) * 1000 + ${this.config.inProgressTtlSeconds * 1000}
@@ -548,7 +548,7 @@ export class IdempotencyService {
       : fence?.observedResult
         ? and(
             eq(idempotencyKey.key, normalizedKey),
-            sql`${idempotencyKey.result} = ${JSON.stringify(fence.observedResult)}::jsonb`
+            sql`${idempotencyKey.result}::jsonb = ${JSON.stringify(fence.observedResult)}::jsonb`
           )
         : eq(idempotencyKey.key, normalizedKey)
     const deleted = await db
@@ -731,5 +731,30 @@ export const pollingIdempotency = new IdempotencyService({
 export const billingIdempotency = new IdempotencyService({
   namespace: 'billing',
   ttlSeconds: 60 * 60, // 1 hour
+  forceStorage: 'database',
+})
+
+/**
+ * Dedupes a chat send by its client-generated `userMessageId`, so re-sending
+ * one is safe.
+ *
+ * The client cannot tell whether a request it aborted reached the server: the
+ * chat route never reads `request.signal`, so an accepted request creates the
+ * chat, persists the user message, and runs the (billed) turn even after the
+ * browser drops the socket. Without this, a client that recovers an aborted
+ * send has to choose between losing the message and duplicating the run.
+ *
+ * Storage is forced to Postgres for the same reason Stripe webhook claims are
+ * (see `stripeWebhookIdempotency`): a missed deduplication is a second LLM turn
+ * billed to the workspace, so the key must not be evictable under Redis memory
+ * pressure. The added 1-5ms is invisible next to the LLM call that follows.
+ *
+ * `inProgressTtlSeconds` is short so a crashed pod cannot block a genuine retry
+ * for the full hour, while completed sends stay deduplicated for it.
+ */
+export const chatSendIdempotency = new IdempotencyService({
+  namespace: 'chat-send',
+  ttlSeconds: 60 * 60, // 1 hour
+  inProgressTtlSeconds: 60,
   forceStorage: 'database',
 })

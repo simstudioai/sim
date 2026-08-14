@@ -3,13 +3,17 @@
 import { memo, useCallback, useRef, useState } from 'react'
 import {
   Button,
-  ChipSwitch,
+  ChevronDown,
   Cursor,
+  chipHoverSurfaceClass,
+  cn,
+  disclosureChevronClass,
   Hand,
   Popover,
   PopoverAnchor,
   PopoverContent,
   PopoverItem,
+  PopoverTrigger,
   Redo,
   Tooltip,
   Undo,
@@ -30,77 +34,8 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkflowControls')
 
-const CANVAS_MODE_OPTIONS = [
-  {
-    value: 'cursor',
-    label: <span className='sr-only'>Pointer</span>,
-    icon: Cursor,
-  },
-  {
-    value: 'hand',
-    label: <span className='sr-only'>Hand</span>,
-    icon: Hand,
-  },
-] as const
-
 /**
- * Header controls for navigating workflow history.
- */
-export const WorkflowHistoryControls = memo(function WorkflowHistoryControls() {
-  const { undo, redo } = useCollaborativeWorkflow()
-  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const { data: session } = useSession()
-  const userId = session?.user?.id
-  const historyKey = activeWorkflowId && userId ? `${activeWorkflowId}:${userId}` : ''
-  const stack = useUndoRedoStore((state) => (historyKey ? state.stacks[historyKey] : undefined))
-  const canUndo = (stack?.undo.length ?? 0) > 0
-  const canRedo = (stack?.redo.length ?? 0) > 0
-
-  return (
-    <div
-      className='flex flex-shrink-0 items-center gap-0.5'
-      role='group'
-      aria-label='Workflow history'
-    >
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='ghost'
-            className='size-[30px] rounded-lg p-0 hover-hover:bg-[var(--surface-5)]'
-            onClick={undo}
-            disabled={!canUndo}
-            aria-label='Undo'
-          >
-            <Undo className='size-[16px]' />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <Tooltip.Shortcut keys='⌘Z'>Undo</Tooltip.Shortcut>
-        </Tooltip.Content>
-      </Tooltip.Root>
-
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='ghost'
-            className='size-[30px] rounded-lg p-0 hover-hover:bg-[var(--surface-5)]'
-            onClick={redo}
-            disabled={!canRedo}
-            aria-label='Redo'
-          >
-            <Redo className='size-[16px]' />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <Tooltip.Shortcut keys='⌘⇧Z'>Redo</Tooltip.Shortcut>
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </div>
-  )
-})
-
-/**
- * Header controls for canvas mode and fit-to-view.
+ * Floating controls for canvas mode, undo/redo, and fit-to-view.
  */
 export const WorkflowControls = memo(function WorkflowControls() {
   const reactFlowInstance = useReactFlow()
@@ -108,8 +43,17 @@ export const WorkflowControls = memo(function WorkflowControls() {
   const { mode, setMode } = useCanvasModeStore(
     useShallow((s) => ({ mode: s.mode, setMode: s.setMode }))
   )
+  const { undo, redo } = useCollaborativeWorkflow()
   const showWorkflowControls = useShowActionBar()
   const updateSetting = useUpdateGeneralSetting()
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const { data: session } = useSession()
+  const userId = session?.user?.id || 'unknown'
+  const stacks = useUndoRedoStore((s) => s.stacks)
+  const key = activeWorkflowId && userId ? `${activeWorkflowId}:${userId}` : ''
+  const stack = (key && stacks[key]) || { undo: [], redo: [] }
+  const canUndo = stack.undo.length > 0
+  const canRedo = stack.redo.length > 0
 
   const handleFitToView = useCallback(() => {
     fitViewToBounds({ padding: 0.1, duration: 300 })
@@ -123,6 +67,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
   ])
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [isCanvasModeOpen, setIsCanvasModeOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -146,23 +91,110 @@ export const WorkflowControls = memo(function WorkflowControls() {
 
   return (
     <>
-      <div className='flex flex-shrink-0 items-center gap-0.5' onContextMenu={handleContextMenu}>
-        <ChipSwitch
-          options={CANVAS_MODE_OPTIONS}
-          value={mode}
-          onChange={setMode}
-          size='compact'
-          aria-label='Canvas interaction mode'
-        />
+      <div
+        /*
+         * 12px off both edges, the same clearance the toast stack keeps from the
+         * terminal and the panel, so the two floating surfaces read as one row.
+         * The toast reaches it as `--terminal-height + 20px` because it anchors
+         * from the viewport and the terminal is itself inset by
+         * CONTENT_WINDOW_GAP; these controls measure from the canvas floor and
+         * wall, so they take the 12 directly.
+         */
+        className='absolute bottom-3 left-3 z-10 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1'
+        onContextMenu={handleContextMenu}
+      >
+        {/* Canvas Mode Selector */}
+        <Popover open={isCanvasModeOpen} onOpenChange={setIsCanvasModeOpen} size='sm'>
+          <Tooltip.Root>
+            <PopoverTrigger asChild>
+              <div className='flex cursor-pointer items-center gap-1'>
+                <Tooltip.Trigger asChild>
+                  <Button className='size-[28px] rounded-sm p-0' variant='active'>
+                    {mode === 'hand' ? (
+                      <Hand className='size-[14px]' />
+                    ) : (
+                      <Cursor className='size-[14px]' />
+                    )}
+                  </Button>
+                </Tooltip.Trigger>
+                <Button
+                  variant='ghost'
+                  className={cn('size-[20px] rounded-sm p-0', chipHoverSurfaceClass)}
+                >
+                  <ChevronDown
+                    className={cn(disclosureChevronClass, isCanvasModeOpen && 'rotate-180')}
+                  />
+                </Button>
+              </div>
+            </PopoverTrigger>
+            <Tooltip.Content side='top'>{mode === 'hand' ? 'Mover' : 'Pointer'}</Tooltip.Content>
+          </Tooltip.Root>
+          <PopoverContent side='top' sideOffset={8} maxWidth={100} minWidth={100}>
+            <PopoverItem
+              onClick={() => {
+                setMode('hand')
+                setIsCanvasModeOpen(false)
+              }}
+            >
+              <Hand className='size-[14px]' />
+              <span>Mover</span>
+            </PopoverItem>
+            <PopoverItem
+              onClick={() => {
+                setMode('cursor')
+                setIsCanvasModeOpen(false)
+              }}
+            >
+              <Cursor className='size-[14px]' />
+              <span>Pointer</span>
+            </PopoverItem>
+          </PopoverContent>
+        </Popover>
+
+        <div className='mx-1 h-[20px] w-px bg-[var(--border)]' />
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              className='size-[30px] rounded-lg p-0 hover-hover:bg-[var(--surface-5)]'
+              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
+              onClick={undo}
+              disabled={!canUndo}
+            >
+              <Undo className='size-[14px]' />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>
+            <Tooltip.Shortcut keys='⌘Z'>Undo</Tooltip.Shortcut>
+          </Tooltip.Content>
+        </Tooltip.Root>
+
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='ghost'
+              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
+              onClick={redo}
+              disabled={!canRedo}
+            >
+              <Redo className='size-[14px]' />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>
+            <Tooltip.Shortcut keys='⌘⇧Z'>Redo</Tooltip.Shortcut>
+          </Tooltip.Content>
+        </Tooltip.Root>
+
+        <div className='mx-1 h-[20px] w-px bg-[var(--border)]' />
+
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button
+              variant='ghost'
+              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
               onClick={handleFitToView}
             >
-              <SelectAll className='size-[16px]' />
+              <SelectAll className='size-[14px]' />
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
@@ -174,9 +206,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
       <Popover
         open={contextMenu !== null}
         onOpenChange={(open) => !open && setContextMenu(null)}
-        variant='secondary'
         size='sm'
-        colorScheme='inverted'
       >
         <PopoverAnchor
           style={{

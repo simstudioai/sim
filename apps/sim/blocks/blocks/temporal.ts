@@ -74,6 +74,103 @@ export const TemporalBlock: BlockConfig<TemporalResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#141414',
   icon: TemporalIcon,
+  canvasPresentation: {
+    defaultTitle: 'Temporal',
+    sentences: {
+      byOperation: {
+        start_workflow: [
+          { text: 'Start workflow', field: 'workflowType', core: true },
+          { text: 'as', field: 'workflowId' },
+          { text: ', on task queue', field: 'taskQueue' },
+        ],
+        signal_workflow: [
+          { text: 'Send signal', field: 'signalName', core: true },
+          { text: 'to workflow', field: 'workflowId', core: true },
+        ],
+        signal_with_start: [
+          { text: 'Send signal', field: 'signalName', core: true },
+          { text: 'to workflow', field: 'workflowId', core: true },
+          {
+            text: ', starting',
+            field: 'workflowType',
+            after: 'first if it is not running',
+            core: true,
+          },
+        ],
+        query_workflow: [
+          { text: 'Query workflow', field: 'workflowId', core: true },
+          { text: 'for', field: 'queryType' },
+        ],
+        update_workflow: [
+          { text: 'Run update', field: 'updateName', core: true },
+          { text: 'on workflow', field: 'workflowId', core: true },
+        ],
+        describe_workflow: [
+          { text: 'Read the current state of workflow', field: 'workflowId', core: true },
+        ],
+        list_workflows: [
+          'List workflow executions',
+          { text: ', matching', field: 'listQuery' },
+          { text: ', up to', field: 'pageSize', after: 'per page' },
+        ],
+        count_workflows: ['Count workflow executions', { text: ', matching', field: 'listQuery' }],
+        get_workflow_history: [
+          { text: 'Fetch the event history of workflow', field: 'workflowId', core: true },
+          { text: ', run', field: 'runId' },
+        ],
+        cancel_workflow: [
+          { text: 'Request cancellation of workflow', field: 'workflowId', core: true },
+          { text: ', citing', field: 'reason' },
+        ],
+        terminate_workflow: [
+          {
+            text: 'Terminate workflow',
+            field: 'workflowId',
+            after: 'immediately',
+            core: true,
+          },
+          { text: ', citing', field: 'reason' },
+        ],
+        reset_workflow: [
+          { text: 'Reset workflow', field: 'workflowId', core: true },
+          { text: 'to event', field: 'workflowTaskFinishEventId' },
+          { text: ', citing', field: 'reason' },
+        ],
+        describe_task_queue: [
+          { text: 'List workers polling task queue', field: 'taskQueue', core: true },
+        ],
+        create_schedule: [
+          { text: 'Create schedule', field: 'scheduleId', core: true },
+          { text: ', running', field: 'workflowType' },
+          { text: ', on cron', field: 'scheduleCronExpressions' },
+        ],
+        list_schedules: [
+          'List schedules',
+          { text: ', matching', field: 'scheduleQuery' },
+          { text: ', up to', field: 'schedulePageSize', after: 'per page' },
+        ],
+        describe_schedule: [
+          {
+            text: 'Read the spec and upcoming runs of schedule',
+            field: 'scheduleId',
+            core: true,
+          },
+        ],
+        pause_schedule: [
+          { text: 'Pause schedule', field: 'scheduleId', core: true },
+          { text: ', citing', field: 'reason' },
+        ],
+        unpause_schedule: [
+          { text: 'Resume schedule', field: 'scheduleId', core: true },
+          { text: ', citing', field: 'reason' },
+        ],
+        trigger_schedule: [
+          { text: 'Trigger an immediate run of schedule', field: 'scheduleId', core: true },
+        ],
+        delete_schedule: [{ text: 'Delete schedule', field: 'scheduleId', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     // ── Operation selector ─────────────────────────────────────────────────────

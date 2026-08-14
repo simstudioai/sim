@@ -27,14 +27,15 @@ export interface ParsedShortcut {
 
 export interface GlobalCommand {
   id?: string
-  shortcut: string
+  /** Keyboard binding. Omit for palette-only commands invoked by id. */
+  shortcut?: string
   allowInEditable?: boolean
   handler: (event: KeyboardEvent) => void
 }
 
 interface RegistryCommand extends GlobalCommand {
   id: string
-  parsed: ParsedShortcut
+  parsed: ParsedShortcut | null
 }
 
 interface GlobalCommandsContextValue {
@@ -130,7 +131,7 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
     const createdIds: string[] = []
     for (const cmd of commands) {
       const id = cmd.id ?? generateId()
-      const parsed = parseShortcut(cmd.shortcut)
+      const parsed = cmd.shortcut ? parseShortcut(cmd.shortcut) : null
       registryRef.current.set(id, {
         ...cmd,
         id,
@@ -152,6 +153,7 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
       if (e.isComposing) return
 
       for (const [, cmd] of registryRef.current) {
+        if (!cmd.parsed) continue
         if (!cmd.allowInEditable && isEditableElement(document.activeElement)) continue
 
         if (matchesShortcut(e, cmd.parsed)) {

@@ -434,9 +434,7 @@ export async function runCopilotLifecycle(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Per-subagent checkpoint resume (concurrent fan-out)
-// ---------------------------------------------------------------------------
 //
 // Under the per-subagent checkpoint model each paused subagent is its OWN
 // checkpoint chain (frame.checkpointId) joined at the orchestrator. Instead of
@@ -754,9 +752,7 @@ async function driveSubagentChains(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Checkpoint loop – the core state machine
-// ---------------------------------------------------------------------------
 
 async function runCheckpointLoop(
   initialPayload: Record<string, unknown>,
@@ -950,36 +946,52 @@ async function runCheckpointLoop(
     }
 
     if (context.pendingToolPromises.size > 0) {
-      // Bounded by the slowest pending tool's watchdog plus grace. The
-      // per-tool watchdog already guarantees each promise settles; this gate
-      // is the structural backstop so that no tool failure mode — known or
-      // unknown — can park the checkpoint loop (and the chat's pending-stream
-      // lock) forever.
-      const waitBudgetMs =
-        Array.from(context.pendingToolPromises.keys()).reduce(
-          (max, toolCallId) =>
-            Math.max(max, pendingToolWaitBudgetMs(context.toolCalls.get(toolCallId))),
-          0
-        ) + TOOL_WATCHDOG_RESUME_GRACE_MS
+      // Snapshot the gate by tool. Human waits remain durable, but they must
+      // not disable the structural watchdog for an unrelated parallel tool.
+      const pendingTools = Array.from(context.pendingToolPromises.entries()).map(
+        ([toolCallId, promise]) => ({
+          toolCallId,
+          promise,
+          waitBudgetMs: pendingToolWaitBudgetMs(context.toolCalls.get(toolCallId)),
+        })
+      )
+      const durableTools = pendingTools.filter((tool) => tool.waitBudgetMs === null)
+      const boundedTools = pendingTools.flatMap((tool) =>
+        tool.waitBudgetMs === null ? [] : [{ ...tool, waitBudgetMs: tool.waitBudgetMs }]
+      )
+      const boundedWaitBudgetMs =
+        boundedTools.length > 0
+          ? Math.max(...boundedTools.map((tool) => tool.waitBudgetMs)) +
+            TOOL_WATCHDOG_RESUME_GRACE_MS
+          : null
       const waitSpan = context.trace.startSpan('Wait for Tools', 'lifecycle.wait_tools', {
         checkpointId: continuation.checkpointId,
         pendingCount: context.pendingToolPromises.size,
-        waitBudgetMs,
+        durableCount: durableTools.length,
+        ...(boundedWaitBudgetMs !== null ? { waitBudgetMs: boundedWaitBudgetMs } : {}),
       })
       logger.info('Waiting for in-flight tool executions before resume', {
         checkpointId: continuation.checkpointId,
         pendingCount: context.pendingToolPromises.size,
-        waitBudgetMs,
+        durableCount: durableTools.length,
+        waitBudgetMs: boundedWaitBudgetMs,
       })
-      const settledInTime = await Promise.race([
-        Promise.allSettled(context.pendingToolPromises.values()).then(() => true),
-        sleep(waitBudgetMs).then(() => false),
-      ])
-      if (!settledInTime) {
-        const hungToolCallIds = Array.from(context.pendingToolPromises.keys())
+      const boundedSettledInTime =
+        boundedWaitBudgetMs === null
+          ? true
+          : await Promise.race([
+              Promise.allSettled(boundedTools.map((tool) => tool.promise)).then(() => true),
+              sleep(boundedWaitBudgetMs).then(() => false),
+            ])
+      if (!boundedSettledInTime) {
+        const hungToolCallIds = boundedTools
+          .filter(
+            ({ toolCallId, promise }) => context.pendingToolPromises.get(toolCallId) === promise
+          )
+          .map(({ toolCallId }) => toolCallId)
         logger.error('Pending tool executions exceeded the resume wait budget; force-failing', {
           checkpointId: continuation.checkpointId,
-          waitBudgetMs,
+          waitBudgetMs: boundedWaitBudgetMs,
           hungToolCallIds,
         })
         for (const toolCallId of hungToolCallIds) {
@@ -991,7 +1003,8 @@ async function runCheckpointLoop(
           context.pendingToolPromises.delete(toolCallId)
         }
       }
-      waitSpan.attributes = { ...waitSpan.attributes, settledInTime }
+      await Promise.allSettled(durableTools.map((tool) => tool.promise))
+      waitSpan.attributes = { ...waitSpan.attributes, settledInTime: boundedSettledInTime }
       context.trace.endSpan(waitSpan)
     }
 
@@ -1102,9 +1115,7 @@ async function runCheckpointLoop(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Execution context builder
-// ---------------------------------------------------------------------------
 
 async function buildExecutionContext(
   requestPayload: Record<string, unknown>,
@@ -1228,9 +1239,7 @@ async function ensureHeadlessRunIdentity(input: {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Adds `enterpriseByokEligible: true` to the initial mothership payload when the

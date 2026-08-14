@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { Session, WebPreferences } from 'electron'
-import { app, BrowserWindow, dialog, nativeTheme } from 'electron'
+import { app, BrowserWindow, dialog, nativeTheme, systemPreferences } from 'electron'
 import { type ConfigStore, isSafeInternalPath, type WindowBounds } from '@/main/config'
 import { isAppOrigin, isAuthSurfacePath } from '@/main/navigation'
 import type { EventRecorder } from '@/main/observability'
@@ -51,25 +52,71 @@ export function createSecureWebPreferences(
 }
 
 /**
- * The permission matrix: clipboard access for the trusted app origin,
- * default-deny for everything else including unknown future permissions
- * (media/camera/microphone stay denied).
+ * The permission matrix: clipboard and microphone access for the trusted app
+ * origin, default-deny for everything else including unknown future
+ * permissions (camera and screen capture stay denied).
  *
  * Clipboard reads are what the terminal's Paste action runs on — xterm has no
  * native paste target to fall back to, so a denied read is a Paste that fails.
- * The grant is scoped to the app's own origin, which already reaches far more
- * sensitive surfaces through the preload bridge, so it widens nothing that a
- * compromise of that origin would not already own.
+ * `media` is what the composer's voice input runs on, and is narrowed to
+ * audio-only requests so a `getUserMedia({ video: true })` still gets nothing.
+ * Both grants are scoped to the app's own origin, which already reaches far
+ * more sensitive surfaces through the preload bridge, so they widen nothing
+ * that a compromise of that origin would not already own.
+ *
+ * `mediaTypes` is the capture kind Chromium asked for. It is absent on
+ * non-media permissions and, on the check path, may arrive as `unknown` — an
+ * un-narrowable request is treated as a camera request and denied.
  */
 export function resolvePermission(
   permission: string,
   requestingOrigin: string,
-  appOrigin: string
+  appOrigin: string,
+  mediaTypes?: readonly string[]
 ): boolean {
   if (!requestingOrigin || requestingOrigin !== appOrigin) {
     return false
   }
+  if (permission === 'media') {
+    return (
+      mediaTypes !== undefined &&
+      mediaTypes.length > 0 &&
+      mediaTypes.every((type) => type === 'audio')
+    )
+  }
   return permission === 'clipboard-sanitized-write' || permission === 'clipboard-read'
+}
+
+/**
+ * macOS gates microphone capture behind TCC on top of Chromium's own
+ * permission, and Chromium does not raise that system prompt for an Electron
+ * app — an un-granted app just gets a hard `NotAllowedError`. So the shell
+ * asks for OS access itself and only then answers the page's request.
+ *
+ * A `denied`/`restricted` status is not re-askable: macOS shows no second
+ * prompt, so this resolves false and the renderer surfaces the "blocked"
+ * message rather than the click doing nothing at all.
+ */
+export async function ensureMicrophoneAccess(): Promise<boolean> {
+  if (process.platform !== 'darwin') {
+    return true
+  }
+  const status = systemPreferences.getMediaAccessStatus('microphone')
+  if (status === 'granted') {
+    return true
+  }
+  if (status === 'denied' || status === 'restricted') {
+    logger.warn('Microphone access is blocked by macOS privacy settings', { status })
+    return false
+  }
+  try {
+    const granted = await systemPreferences.askForMediaAccess('microphone')
+    logger.info('Requested macOS microphone access', { granted })
+    return granted
+  } catch (error) {
+    logger.error('Could not request macOS microphone access', { error: getErrorMessage(error) })
+    return false
+  }
 }
 
 function originOf(raw: string): string {
@@ -87,11 +134,21 @@ function originOf(raw: string): string {
 export function setupPermissionHandlers(session: Session, getAppOrigin: () => string): void {
   session.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const requestingUrl = details.requestingUrl || webContents?.getURL() || ''
-    callback(resolvePermission(permission, originOf(requestingUrl), getAppOrigin()))
+    const mediaTypes = 'mediaTypes' in details ? details.mediaTypes : undefined
+    if (!resolvePermission(permission, originOf(requestingUrl), getAppOrigin(), mediaTypes)) {
+      callback(false)
+      return
+    }
+    if (permission === 'media') {
+      void ensureMicrophoneAccess().then(callback)
+      return
+    }
+    callback(true)
   })
 
-  session.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
-    return resolvePermission(permission, originOf(requestingOrigin), getAppOrigin())
+  session.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details) => {
+    const mediaTypes = details.mediaType ? [details.mediaType] : undefined
+    return resolvePermission(permission, originOf(requestingOrigin), getAppOrigin(), mediaTypes)
   })
 }
 

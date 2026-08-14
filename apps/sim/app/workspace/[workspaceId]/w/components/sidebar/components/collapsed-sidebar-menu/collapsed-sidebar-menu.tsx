@@ -16,6 +16,7 @@ import { File, Folder, MoreHorizontal, Pencil, Plus, SquareArrowUpRight } from '
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
+import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { interleaveSiblings } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import type { WorkspaceFileFolderApi } from '@/hooks/queries/workspace-file-folders'
@@ -81,11 +82,8 @@ export function CollapsedFileFolderItems({
       {fileFlyoutEntries(nodes, rootFiles ?? []).map((entry) => {
         if (entry.kind === 'file') {
           return (
-            <DropdownMenuItem key={entry.id} asChild>
-              <Link
-                href={`/workspace/${workspaceId}/files/${entry.file.id}`}
-                className={cn(currentFileId === entry.file.id && 'bg-[var(--surface-active)]')}
-              >
+            <DropdownMenuItem key={entry.id} asChild active={currentFileId === entry.file.id}>
+              <Link href={`/workspace/${workspaceId}/files/${entry.file.id}`}>
                 {FILE_FLYOUT_ICON}
                 <span className='truncate'>{entry.name}</span>
               </Link>
@@ -107,7 +105,7 @@ export function CollapsedFileFolderItems({
 
         return (
           <DropdownMenuSub key={folder.id}>
-            <DropdownMenuSubTrigger className='focus:bg-[var(--surface-hover)] data-[state=open]:bg-[var(--surface-hover)]'>
+            <DropdownMenuSubTrigger>
               <Folder className='size-[14px]' />
               <span className='truncate'>{folder.name}</span>
             </DropdownMenuSubTrigger>
@@ -169,6 +167,22 @@ interface CollapsedWorkflowFlyoutItemProps {
   canRename?: boolean
 }
 
+/**
+ * Suppresses the Radix menu row's own pointer handlers, which focus the row on
+ * `pointermove` and hand focus back to the flyout content on `pointerleave`.
+ * A submenu closes on any focus that is not its trigger, so while this row's
+ * actions submenu is open those two handlers would close it the instant the
+ * cursor moved — the path a right-click takes, since it opens the submenu with
+ * the cursor still over the row rather than over the trigger. Radix composes
+ * consumer handlers ahead of its own and skips its own once the event is
+ * defaulted, so preventing default here holds focus still until the cursor
+ * reaches the submenu. Only applied to the row whose submenu is open: moving on
+ * to any other row still steals focus and closes it, as it should.
+ */
+const holdRowFocus = (e: React.PointerEvent) => {
+  if (e.pointerType === 'mouse') e.preventDefault()
+}
+
 const EDIT_ROW_CLASS = cn(
   chipVariants({ active: true, fullWidth: true }),
   'min-w-0 cursor-default select-none text-small'
@@ -196,7 +210,7 @@ export function CollapsedSidebarMenu({
             <button
               type='button'
               aria-label={ariaLabel}
-              className={chipVariants({ fullWidth: true })}
+              className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
             >
               {icon}
             </button>
@@ -265,7 +279,7 @@ export function CollapsedChatFlyoutItem({
   return (
     <DropdownMenuItem
       asChild
-      className={cn((isCurrentRoute || isMenuOpen) && 'bg-[var(--surface-active)]')}
+      active={isCurrentRoute || isMenuOpen}
       action={
         showActions ? (
           <DropdownMenuItemAction
@@ -342,7 +356,9 @@ export function CollapsedWorkflowFlyoutItem({
   return (
     <DropdownMenuItem
       asChild
-      className={cn((isCurrentRoute || actionsOpen) && 'bg-[var(--surface-active)]')}
+      active={isCurrentRoute || actionsOpen}
+      onPointerMove={actionsOpen ? holdRowFocus : undefined}
+      onPointerLeave={actionsOpen ? holdRowFocus : undefined}
       action={
         hasActions ? (
           <DropdownMenuSub
@@ -460,7 +476,7 @@ export function CollapsedFolderItems(props: CollapsedFolderItemsProps) {
 
         return (
           <DropdownMenuSub key={folder.id}>
-            <DropdownMenuSubTrigger className='focus:bg-[var(--surface-active)] data-[state=open]:bg-[var(--surface-active)]'>
+            <DropdownMenuSubTrigger>
               <Folder className='size-[14px]' />
               <span className='truncate'>{folder.name}</span>
             </DropdownMenuSubTrigger>

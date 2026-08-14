@@ -20,6 +20,7 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
+  BrowserRequestTakeover,
   CrawlWebsite,
   CreateFile,
   CreateWorkflow,
@@ -246,7 +247,8 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
 }
 
 /**
- * How long the resume gate may wait on one pending tool call.
+ * How long the resume gate may wait on one pending tool call. Null means the
+ * tool is durably waiting on a person and has no deadline.
  *
  * A call sitting on a permission prompt is waiting on a person, not on the
  * executor, so the tool's own watchdog is the wrong bound — the 60s default
@@ -255,7 +257,10 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
  */
 export function pendingToolWaitBudgetMs(
   toolCall: Pick<ToolCallState, 'name' | 'status'> | undefined
-): number {
+): number | null {
+  if (toolCall?.name === BrowserRequestTakeover.id && toolCall.status === 'executing') {
+    return null
+  }
   if (toolCall?.status === 'awaiting_approval') return TOOL_WATCHDOG_LONG_RUNNING_MS
   return toolWatchdogTimeoutMs(toolCall?.name)
 }

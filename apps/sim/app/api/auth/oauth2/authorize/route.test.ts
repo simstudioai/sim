@@ -37,6 +37,19 @@ vi.mock('@/lib/credentials/access', () => ({
 
 vi.mock('@/lib/oauth/utils', () => ({
   getAllOAuthServices: vi.fn(() => [{ providerId: 'google-email', name: 'Gmail' }]),
+  // Real implementation: a credential id matches its service's OAuth id, an
+  // alternate authorization server, or the family's service-account id.
+  credentialProviderMatchesService: (
+    credentialProviderId: string,
+    service: {
+      providerId: string
+      serviceAccountProviderId?: string
+      additionalProviderIds?: readonly string[]
+    }
+  ) =>
+    service.providerId === credentialProviderId ||
+    service.serviceAccountProviderId === credentialProviderId ||
+    (service.additionalProviderIds?.includes(credentialProviderId) ?? false),
 }))
 
 import { GET } from '@/app/api/auth/oauth2/authorize/route'

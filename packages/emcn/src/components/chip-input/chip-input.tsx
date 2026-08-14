@@ -7,9 +7,9 @@
  * secret/credential value fields, and any standalone labeled input that would
  * otherwise hand-roll the chip chrome with custom classNames.
  *
- * The chrome lives on the wrapper so a leading `icon` or `startAdornment` and a
- * trailing `endAdornment` (reveal / copy buttons) sit flush next to a transparent
- * inner `<input>`. The leading icon uses the same 1.5 gap as `Chip`. It shares the
+ * The chrome lives on the wrapper so a leading `icon` and a trailing
+ * `endAdornment` (reveal / copy buttons) sit flush next to a transparent inner
+ * `<input>`. The leading icon uses the same 1.5 gap as `Chip`. It shares the
  * chip-field chrome with {@link ChipTextarea}, shows no focus ring — keep the
  * surface calm and rely on the caret for focus. Pass `error` to swap the border
  * to the error token.
@@ -27,27 +27,17 @@
  */
 import * as React from 'react'
 import { cn } from '../../lib/cn'
-import { chipVariants } from '../chip/chip'
 import { chipFieldSurfaceClass, chipFieldTextClass } from '../chip/chip-chrome'
 
 type ChipInputIcon = React.ComponentType<{ className?: string }>
-type ChipInputSurface = 'field' | 'button'
 
 export interface ChipInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   /** Leading icon component (e.g. `Search` from `@sim/emcn/icons`). Rendered at 14px in `--text-icon`, with the chip's 1.5 gap. */
   icon?: ChipInputIcon
-  /** Custom content rendered before the input (e.g. a fixed URL prefix). */
-  startAdornment?: React.ReactNode
   /** Trailing content rendered after the input (e.g. reveal / copy buttons). */
   endAdornment?: React.ReactNode
   /** Marks the field invalid; swaps the border to the error token. */
   error?: boolean
-  /**
-   * Controls the outer surface while preserving the same input geometry.
-   * `button` uses the canonical bare Chip treatment for controls that
-   * progressively reveal an input without swapping DOM surfaces.
-   */
-  surface?: ChipInputSurface
   /** Class applied to the outer container (the chrome), not the inner input. */
   className?: string
   /** Class applied to the inner `<input>` (e.g. `font-mono`). */
@@ -64,10 +54,8 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
       className,
       inputClassName,
       icon: Icon,
-      startAdornment,
       endAdornment,
       error,
-      surface = 'field',
       disabled,
       type = 'text',
       ...props
@@ -76,17 +64,14 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
   ) => (
     <div
       className={cn(
-        'w-full',
-        surface === 'field'
-          ? cn('flex h-[30px] items-center gap-1.5 px-2', chipFieldSurfaceClass)
-          : chipVariants({ fullWidth: true }),
+        'flex h-[30px] w-full items-center gap-1.5 px-2',
+        chipFieldSurfaceClass,
         error && 'border-[var(--text-error)]',
         disabled && 'opacity-50',
         className
       )}
     >
       {Icon ? <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' /> : null}
-      {startAdornment}
       <input
         ref={ref}
         type={type}

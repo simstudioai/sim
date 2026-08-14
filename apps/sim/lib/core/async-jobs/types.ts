@@ -2,10 +2,10 @@
  * Types and constants for the async job queue system
  */
 
-/** Retention period for completed/failed jobs (in hours) */
+/** Retention period for terminal jobs (in hours) */
 export const JOB_RETENTION_HOURS = 24
 
-/** Retention period for completed/failed jobs (in seconds, for Redis TTL) */
+/** Retention period for terminal jobs (in seconds, for Redis TTL) */
 export const JOB_RETENTION_SECONDS = JOB_RETENTION_HOURS * 60 * 60
 
 /** Max lifetime for jobs in Redis (in seconds) - cleanup for stuck pending/processing jobs */
@@ -28,6 +28,13 @@ export const JOB_STATUS = {
 } as const
 
 export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS]
+
+/** The statuses a job cannot leave; every one of them requires a `completedAt`. */
+export const TERMINAL_JOB_STATUSES: readonly JobStatus[] = [
+  JOB_STATUS.COMPLETED,
+  JOB_STATUS.FAILED,
+  JOB_STATUS.CANCELLED,
+]
 
 export type JobType =
   | 'workflow-execution'
@@ -84,6 +91,14 @@ export interface Job<TPayload = unknown, TOutput = unknown> {
   status: JobStatus
   createdAt: Date
   startedAt?: Date
+  /**
+   * When the job reached its current status, required whenever that status is
+   * one of `TERMINAL_JOB_STATUSES`. Consumers derive both an end timestamp and
+   * an elapsed duration from it, so a terminal job that omits it reports null
+   * for each. A backend reading an eventually-consistent source must supply its
+   * best-known transition instant rather than leaving this unset — never the
+   * time of the read, which grows on every poll.
+   */
   completedAt?: Date
   attempts: number
   maxAttempts: number

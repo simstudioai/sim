@@ -4,7 +4,6 @@ import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState }
 import {
   Badge,
   Button,
-  Chip,
   cn,
   Input,
   Popover,
@@ -14,7 +13,6 @@ import {
   PopoverTrigger,
   Tooltip,
   Trash,
-  thinScrollbarClass,
 } from '@sim/emcn'
 import { ArrowUp, CircleAlert, Download, MoreVertical, Paperclip, Square, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -895,7 +893,7 @@ export function Chat() {
     <div
       ref={preventZoomRef}
       role='dialog'
-      aria-label='Test chat'
+      aria-label='Chat'
       className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2'
       style={{
         left: `${actualPosition.x}px`,
@@ -914,31 +912,42 @@ export function Chat() {
         className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
-        <span className='flex-shrink-0 pr-0.5 font-medium text-[var(--text-primary)] text-sm'>
-          Test chat
-        </span>
+        <span className='flex-shrink-0 pr-0.5 text-[var(--text-primary)] text-sm'>Chat</span>
 
-        {/* Output selector - with max-width to prevent overflow */}
+        {/* Start inputs button and output selector - with max-width to prevent overflow */}
         <div
           className='ml-auto flex min-w-0 flex-shrink items-center gap-1.5'
           onMouseDown={(e) => e.stopPropagation()}
         >
+          {shouldShowConfigureStartInputsButton && (
+            <button
+              type='button'
+              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)]'
+              title='Add chat inputs to Start block'
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleConfigureStartInputs()
+              }}
+            >
+              <span className='whitespace-nowrap'>Add inputs</span>
+            </button>
+          )}
+
           <OutputSelect
             workflowId={activeWorkflowId}
             selectedOutputs={selectedOutputs}
             onOutputSelect={handleOutputSelection}
             disabled={!activeWorkflowId}
-            placeholder='Reply with'
+            placeholder='Outputs'
             align='end'
             maxHeight={180}
-            size='md'
-            className='min-w-[112px]'
           />
         </div>
 
         <div className='flex flex-shrink-0 items-center gap-2'>
           {/* More menu with actions */}
-          <Popover variant='default' size='sm' open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
+          <Popover size='sm' open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant='ghost'
@@ -989,38 +998,14 @@ export function Chat() {
 
       {/* Chat content */}
       <div className='flex flex-1 flex-col overflow-hidden'>
-        {shouldShowConfigureStartInputsButton && (
-          <div className='mb-1 flex flex-none items-start gap-2 rounded-lg bg-[var(--surface-2)] p-2'>
-            <div className='min-w-0 flex-1'>
-              <div className='font-medium text-[var(--text-body)] text-small'>
-                Set up test inputs
-              </div>
-              <div className='mt-0.5 text-[var(--text-secondary)] text-xs leading-relaxed'>
-                Add message, conversation, and file fields to the Start block.
-              </div>
-            </div>
-            <Chip className='flex-none' variant='border' onClick={handleConfigureStartInputs}>
-              Configure
-            </Chip>
-          </div>
-        )}
-
         {/* Messages */}
         <div className='flex-1 overflow-hidden'>
           {workflowMessages.length === 0 ? (
-            <div className='flex h-full flex-col items-center justify-center gap-1 px-4 text-center'>
-              <div className='font-medium text-[var(--text-body)] text-small'>
-                Test this workflow
-              </div>
-              <div className='max-w-[240px] text-[var(--text-secondary)] text-xs leading-relaxed'>
-                Messages run the current draft and may trigger connected actions.
-              </div>
+            <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
+              No messages yet
             </div>
           ) : (
-            <div
-              ref={scrollAreaRef}
-              className={cn('h-full overflow-y-auto overflow-x-hidden', thinScrollbarClass)}
-            >
+            <div ref={scrollAreaRef} className='h-full overflow-y-auto overflow-x-hidden'>
               <div className='w-full max-w-full space-y-2 overflow-hidden py-2'>
                 {workflowMessages.map((message) => (
                   <ChatMessage key={message.id} message={message} />
@@ -1045,7 +1030,7 @@ export function Chat() {
                 <div className='flex items-start gap-2'>
                   <CircleAlert className='mt-0.5 size-3 shrink-0 text-[var(--text-error)]' />
                   <div className='flex-1'>
-                    <div className='mb-1 font-medium text-[var(--text-error)] text-caption'>
+                    <div className='mb-1 text-[var(--text-error)] text-caption'>
                       File upload error
                     </div>
                     <div className='space-y-1'>
@@ -1086,7 +1071,7 @@ export function Chat() {
                   setHistoryIndex(-1)
                 }}
                 onKeyDown={handleKeyPress}
-                placeholder={isDragOver ? 'Drop files here...' : 'Send a test message...'}
+                placeholder={isDragOver ? 'Drop files here...' : 'Type a message...'}
                 className='w-full border-0 bg-transparent pr-[56px] pl-1 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0'
                 disabled={!activeWorkflowId}
               />

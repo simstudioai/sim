@@ -189,7 +189,7 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
   const overrideDisplayTitle = getOverrideDisplayTitle(tc)
   const resolvedTitle =
     overrideDisplayTitle || tc.displayTitle || getToolDisplayTitle(tc.name, tc.params)
-  const displayTitle = getToolStatusDisplayTitle(resolvedTitle, tc.status)
+  const displayTitle = getToolStatusDisplayTitle(resolvedTitle, tc.status, tc.name)
 
   return {
     id: tc.id,
@@ -802,6 +802,8 @@ interface MessageContentProps {
   questionAnswers?: string[]
   /** Transcript-derived status payload for this message's credential card. */
   credentialSubmission?: CredentialSubmissionPayload
+  /** The user moved on without submitting this message's credential card. */
+  credentialAbandoned?: boolean
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
   onPhaseChange?: (phase: MessagePhase) => void
@@ -823,6 +825,7 @@ function MessageContentInner({
   isLast = false,
   questionAnswers,
   credentialSubmission,
+  credentialAbandoned,
   onOptionSelect,
   onQuestionDismiss,
   onPhaseChange,
@@ -926,6 +929,7 @@ function MessageContentInner({
                   })}
                   questionAnswers={questionAnswers}
                   credentialSubmission={credentialSubmission}
+                  credentialAbandoned={credentialAbandoned}
                   onOptionSelect={onOptionSelect}
                   onQuestionDismiss={onQuestionDismiss}
                   onWorkspaceResourceSelect={onWorkspaceResourceSelect}

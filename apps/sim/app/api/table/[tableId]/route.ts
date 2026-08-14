@@ -8,24 +8,22 @@ import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
-import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  deleteTable,
-  getTableById,
-  moveTableToFolder,
-  renameTable,
-  TableConflictError,
-  type TableSchema,
-  updateTableLocks,
-} from '@/lib/table'
+import { getTableById, TableConflictError, type TableSchema } from '@/lib/table'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
 import { signalTableSchemaChanged } from '@/lib/table/events'
+import {
+  performDeleteTable,
+  performMoveTableToFolder,
+  performRenameTable,
+  performUpdateTableLocks,
+} from '@/lib/table/orchestration'
 import { TABLE_LOCK_FLAGS, TABLE_LOCK_KINDS } from '@/lib/table/types'
+import { normalizeColumn } from '@/lib/table/wire'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import {
   accessError,
   checkAccess,
-  normalizeColumn,
+  orchestrationOutcomeErrorResponse,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
 
@@ -181,13 +179,29 @@ export const PATCH = withRouteHandler(
             { status: 403 }
           )
         }
-        await updateTableLocks(tableId, validated.locks, authResult.userId, requestId, request)
+        const lockOutcome = await performUpdateTableLocks({
+          tableId,
+          partial: validated.locks,
+          userId: authResult.userId,
+          requestId,
+          request,
+        })
+        if (!lockOutcome.success) {
+          return orchestrationOutcomeErrorResponse(lockOutcome, 'Failed to update table locks')
+        }
       }
 
       if (validated.name !== undefined) {
-        await renameTable(tableId, validated.name, requestId, authResult.userId)
-        // Live-collab: tell open viewers the definition changed so they refetch.
-        signalTableSchemaChanged(tableId)
+        const renameOutcome = await performRenameTable({
+          table,
+          newName: validated.name,
+          userId: authResult.userId,
+          requestId,
+          request,
+        })
+        if (!renameOutcome.success) {
+          return orchestrationOutcomeErrorResponse(renameOutcome, 'Failed to rename table')
+        }
       }
 
       if (validated.folderId !== undefined) {
@@ -199,23 +213,27 @@ export const PATCH = withRouteHandler(
         ) {
           return NextResponse.json({ error: 'Folder not found in this workspace' }, { status: 404 })
         }
-        try {
-          await moveTableToFolder(
-            tableId,
-            table.workspaceId,
-            validated.folderId,
-            requestId,
-            authResult.userId
+        // The move re-asserts workspace and active state, so a miss means the table was
+        // archived between `checkAccess` and the write. That is a 404, not a server fault.
+        const moveOutcome = await performMoveTableToFolder({
+          table,
+          folderId: validated.folderId,
+          userId: authResult.userId,
+          requestId,
+          request,
+        })
+        if (!moveOutcome.success) {
+          return orchestrationOutcomeErrorResponse(
+            moveOutcome.errorCode === 'not_found'
+              ? { ...moveOutcome, error: 'Table not found' }
+              : moveOutcome,
+            'Failed to move table'
           )
-        } catch (moveError) {
-          // The move re-asserts workspace and active state, so a miss means the table was
-          // archived between `checkAccess` and the write. That is a 404, not a server fault.
-          if (moveError instanceof Error && moveError.message.endsWith('not found')) {
-            return NextResponse.json({ error: 'Table not found' }, { status: 404 })
-          }
-          throw moveError
         }
       }
+
+      // Live-collab: tell open viewers the definition changed so they refetch.
+      signalTableSchemaChanged(tableId)
 
       // Re-read so the response reflects both a rename and a lock change.
       const updated = await getTableById(tableId)
@@ -271,14 +289,15 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
-      await deleteTable(tableId, requestId, authResult.userId)
-
-      captureServerEvent(
-        authResult.userId,
-        'table_deleted',
-        { table_id: tableId, workspace_id: table.workspaceId },
-        { groups: { workspace: table.workspaceId } }
-      )
+      const outcome = await performDeleteTable({
+        table,
+        userId: authResult.userId,
+        requestId,
+        request,
+      })
+      if (!outcome.success) {
+        return orchestrationOutcomeErrorResponse(outcome, 'Failed to delete table')
+      }
 
       return NextResponse.json({
         success: true,

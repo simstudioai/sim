@@ -25,7 +25,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { resolveWorkspaceGroup } from '@/ee/access-control/utils/permission-check'
 import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
-import { prefetchGeneralSettings, prefetchUserProfile } from './prefetch'
+import { prefetchGeneralSettings } from './prefetch'
 import { SettingsPage } from './settings'
 
 interface WorkspaceSettingsSectionPageProps {
@@ -170,8 +170,13 @@ export default async function WorkspaceSettingsSectionPage({
   }
 
   const queryClient = getQueryClient()
-  void prefetchGeneralSettings(queryClient)
-  void prefetchUserProfile(queryClient)
+  /**
+   * Awaited, not fired and forgotten: only a settled query is dehydrated, so an unawaited
+   * prefetch is dropped from the payload and the panel waterfalls anyway. The viewer's
+   * profile is already seeded by the workspace layout under the same key, so it is not
+   * repeated here.
+   */
+  await prefetchGeneralSettings(queryClient)
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

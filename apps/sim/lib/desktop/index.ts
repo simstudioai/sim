@@ -56,6 +56,16 @@ export function hasDesktopSettings(): boolean {
 }
 
 /**
+ * True when an internal link must navigate the current view rather than open a
+ * second one. The shell has no tab strip, so its window-open policy routes a
+ * same-origin `window.open` to a full new Sim window — where a browser would
+ * have added a background tab, the desktop app throws up another window.
+ */
+export function prefersInPlaceNavigation(): boolean {
+  return isDesktopApp()
+}
+
+/**
  * The device switches for the browser and terminal, cached because the chat UI
  * reads availability synchronously while the shell only answers over async
  * IPC. An unread value uses the shell default (enabled).

@@ -74,6 +74,7 @@ export function buildAshbySubBlocks(options: {
     blocks.push({
       id: 'selectedTriggerId',
       title: 'Trigger Type',
+      canvasNoun: 'an event',
       type: 'dropdown',
       mode: 'trigger',
       options: ashbyTriggerOptions,

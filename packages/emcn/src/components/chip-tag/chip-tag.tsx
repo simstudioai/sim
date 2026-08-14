@@ -25,8 +25,6 @@ import { cn } from '../../lib/cn'
  *   when it sits *on* a `--surface-5` input, combobox trigger, or tag container.
  * - `gray` — a light surface over a slightly darker inset ring with muted
  *   `--text-secondary` text for low-emphasis status labels.
- * - `green`, `red`, and `amber` — semantic status tags using the shared badge
- *   token families.
  * - `solid` — a filled inverse tag: a dark neutral surface (`--text-secondary`)
  *   with inverse text (`--text-inverse`), mirroring {@link Chip}'s `primary`
  *   inverse-surface convention one step softer than near-black. For eyebrow
@@ -70,9 +68,6 @@ const chipTagVariants = cva(
         field:
           'h-5 gap-[3px] px-1 bg-[var(--surface-6)] text-[var(--text-primary)] dark:bg-[var(--surface-3)]',
         gray: 'h-5 gap-[3px] px-1 border border-[var(--border-1)] bg-[var(--surface-5)] text-[var(--text-secondary)]',
-        green: 'h-5 gap-[3px] px-1 bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]',
-        red: 'h-5 gap-[3px] px-1 bg-[var(--badge-error-bg)] text-[var(--badge-error-text)]',
-        amber: 'h-5 gap-[3px] px-1 bg-[var(--badge-amber-bg)] text-[var(--badge-amber-text)]',
         solid: 'h-5 gap-[3px] px-1 bg-[var(--text-secondary)] text-[var(--text-inverse)]',
         workflow: 'h-5 gap-[3px] px-1',
         brand: 'h-5 gap-[3px] px-1',
@@ -196,13 +191,7 @@ export function ChipTag({
      all but disappear on a tone's deep fill. */
   const iconClass = cn(
     'size-[14px] flex-shrink-0',
-    !invalid &&
-      variant !== 'workflow' &&
-      variant !== 'brand' &&
-      variant !== 'green' &&
-      variant !== 'red' &&
-      variant !== 'amber' &&
-      'text-[var(--text-icon)]'
+    !invalid && variant !== 'workflow' && variant !== 'brand' && 'text-[var(--text-icon)]'
   )
   const interactive = RightIcon != null && onRightIconClick != null
   const resolvedStyle = variant === 'brand' ? { ...style, background: brandColor } : style

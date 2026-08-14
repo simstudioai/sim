@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
-import { isPositionedSourceHandle } from '@sim/workflow-types/workflow'
+import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
 import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
 import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import type { TraceSpan } from '@/lib/logs/types'
@@ -66,9 +66,10 @@ export function updateActiveBlockRefCount(
  * Exclude sentinel handles here
  */
 function shouldActivateEdgeClient(
-  handle: string | null | undefined,
+  rawHandle: string | null | undefined,
   output: Record<string, any> | undefined
 ): boolean {
+  const handle = normalizeWorkflowEdgeSourceHandle(rawHandle)
   if (!handle) return true
 
   if (handle.startsWith('condition-')) {
@@ -77,10 +78,6 @@ function shouldActivateEdgeClient(
 
   if (handle.startsWith('router-')) {
     return output?.selectedRoute === handle.substring('router-'.length)
-  }
-
-  if (isPositionedSourceHandle(handle)) {
-    return !output?.error
   }
 
   switch (handle) {

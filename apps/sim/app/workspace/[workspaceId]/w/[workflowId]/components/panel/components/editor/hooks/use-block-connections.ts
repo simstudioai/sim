@@ -19,7 +19,6 @@ export interface ConnectedBlock {
   outputType: string | string[]
   name: string
   outputs?: Record<string, any>
-  distance: number
 }
 
 export function useBlockConnections(blockId: string) {
@@ -120,7 +119,8 @@ export function useBlockConnections(blockId: string) {
       }
     })
     .filter((conn): conn is NonNullable<typeof conn> => conn !== null)
-    .sort((a, b) => a.distance - b.distance)
+    .sort((a, b) => a.distance - b.distance) // Sort by distance, closest first
+    .map(({ distance: _distance, ...conn }) => conn) as ConnectedBlock[] // Remove distance from final result
 
   return {
     incomingConnections,
