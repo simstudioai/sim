@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
-import { sleep } from '../helpers.js'
-import { SimApiError } from '../http/client.js'
+import { sleep } from '../helpers'
+import { SimApiError } from '../http/client'
 
 /**
  * The terminal half of the CLI key handoff.

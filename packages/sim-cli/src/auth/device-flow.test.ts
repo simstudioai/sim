@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildApprovalUrl, createAuthRequest, pollForKey } from './device-flow.js'
+import { buildApprovalUrl, createAuthRequest, pollForKey } from './device-flow'
 
 const ENDPOINT = 'https://sim.test'
 

@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildGeneratedCommands } from './build.js'
+import { buildGeneratedCommands } from './build'
 
 /**
  * Drives commands through commander's own parsing rather than calling
@@ -19,7 +19,7 @@ const { mockRequest, output, profileState } = vi.hoisted(() => ({
   profileState: { workspaceId: 'ws_local' as string | null },
 }))
 
-vi.mock('../context.js', () => ({
+vi.mock('../context', () => ({
   clientFrom: () => ({
     client: {
       request: mockRequest,

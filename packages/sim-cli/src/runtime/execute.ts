@@ -1,18 +1,18 @@
 import type { Command } from 'commander'
-import { clientFrom } from '../context.js'
-import type { CommandSpec } from '../contract/types.js'
-import type { V2OperationName } from '../generated/v2-api.js'
-import { SimApiError, type V2Page } from '../http/client.js'
-import { camel } from './derive.js'
-import { DEFAULT_LIMIT } from './options.js'
+import { clientFrom } from '../context'
+import type { CommandSpec } from '../contract/types'
+import type { V2OperationName } from '../generated/v2-api'
+import { SimApiError, type V2Page } from '../http/client'
+import { camel } from './derive'
+import { DEFAULT_LIMIT } from './options'
 import {
   buildRequest,
   flagNameFor,
   isProfileWorkspacePath,
   PROFILE_INJECTED_FIELD,
-} from './request.js'
-import { renderPage, renderResult } from './result.js'
-import type { OperationSpec } from './types.js'
+} from './request'
+import { renderPage, renderResult } from './result'
+import type { OperationSpec } from './types'
 
 function cursorSlot(operationSpec: OperationSpec): 'query' | 'body' | null {
   if (operationSpec.query && 'cursor' in operationSpec.query) return 'query'

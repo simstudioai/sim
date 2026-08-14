@@ -1,6 +1,6 @@
 import chalk from 'chalk'
-import type { OutputFormat } from '../config/index.js'
-import { duration, sanitize } from './render.js'
+import type { OutputFormat } from '../config/index'
+import { duration, sanitize } from './render'
 
 type TraceSpan = Record<string, unknown>
 

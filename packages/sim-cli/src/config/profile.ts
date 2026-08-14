@@ -8,8 +8,8 @@ import {
   removeSection,
   serializeIni,
   setSectionValues,
-} from './ini.js'
-import { configPath, credentialsPath } from './paths.js'
+} from './ini'
+import { configPath, credentialsPath } from './paths'
 
 export const DEFAULT_PROFILE = 'default'
 export const DEFAULT_ENDPOINT = 'https://sim.ai'

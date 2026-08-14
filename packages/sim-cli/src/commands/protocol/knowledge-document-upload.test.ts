@@ -3,14 +3,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildGeneratedCommands } from '../../runtime/build.js'
-import { attachProtocolCommands } from './index.js'
+import { buildGeneratedCommands } from '../../runtime/build'
+import { attachProtocolCommands } from './index'
 
 const { mockRequest } = vi.hoisted(() => ({
   mockRequest: vi.fn(),
 }))
 
-vi.mock('../../context.js', () => ({
+vi.mock('../../context', () => ({
   clientFrom: () => ({
     client: { request: mockRequest, requireWorkspace: () => 'ws_local' },
     profile: {

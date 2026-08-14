@@ -1,5 +1,5 @@
 import { openAsBlob } from 'node:fs'
-import { SimApiError, type SimClient } from '../http/client.js'
+import { SimApiError, type SimClient } from '../http/client'
 
 interface UploadPartUrl {
   partNumber: number

@@ -1,6 +1,6 @@
-import type { OutputFormat } from '../config/index.js'
-import type { ColumnSpec, CommandSpec } from '../contract/types.js'
-import type { V2OperationName } from '../generated/v2-api.js'
+import type { OutputFormat } from '../config/index'
+import type { ColumnSpec, CommandSpec } from '../contract/types'
+import type { V2OperationName } from '../generated/v2-api'
 import {
   bool,
   bytes,
@@ -12,8 +12,8 @@ import {
   sanitize,
   text,
   timestamp,
-} from '../output/render.js'
-import { printTraceSpans } from '../output/trace.js'
+} from '../output/render'
+import { printTraceSpans } from '../output/trace'
 
 interface RenderResultOptions {
   expandedTrace?: boolean

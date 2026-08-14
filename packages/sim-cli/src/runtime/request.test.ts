@@ -2,9 +2,9 @@ import { rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { SimApiError } from '../http/client.js'
-import { deriveCommandPath } from './derive.js'
-import { buildRequest, coerce, type FieldSpec } from './request.js'
+import { SimApiError } from '../http/client'
+import { deriveCommandPath } from './derive'
+import { buildRequest, coerce, type FieldSpec } from './request'
 
 const WORKSPACE = 'ws_local'
 

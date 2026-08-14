@@ -1,5 +1,5 @@
 import { type Command, Option } from 'commander'
-import { clientFrom } from '../../context.js'
+import { clientFrom } from '../../context'
 import {
   type ListFileFoldersResponse,
   type ListFilesResponse,
@@ -11,11 +11,11 @@ import {
   type ListWorkflowsResponse,
   V2_OPERATIONS,
   type V2OperationName,
-} from '../../generated/v2-api.js'
-import { requestAllPages, SimApiError, type SimClient, type V2Page } from '../../http/client.js'
-import { type Column, printList, text, timestamp } from '../../output/render.js'
-import { DEFAULT_LIMIT } from '../../runtime/options.js'
-import { renderResult } from '../../runtime/result.js'
+} from '../../generated/v2-api'
+import { requestAllPages, SimApiError, type SimClient, type V2Page } from '../../http/client'
+import { type Column, printList, text, timestamp } from '../../output/render'
+import { DEFAULT_LIMIT } from '../../runtime/options'
+import { renderResult } from '../../runtime/result'
 
 type FolderListOperation =
   | 'listFileFolders'

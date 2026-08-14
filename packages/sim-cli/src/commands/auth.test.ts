@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { profilesCommand } from './auth.js'
+import { profilesCommand } from './auth'
 
 describe('profiles command', () => {
   it('accepts the singular profile alias', () => {

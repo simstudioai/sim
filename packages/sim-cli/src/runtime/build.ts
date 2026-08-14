@@ -1,12 +1,12 @@
 import { Command } from 'commander'
-import { CLI_CONTRACT } from '../contract/commands.js'
-import type { CommandSpec, CommandVariantSpec } from '../contract/types.js'
-import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
-import { deriveCommandPath } from './derive.js'
-import { executeOperation } from './execute.js'
-import { addOperationOptions } from './options.js'
-import { flagNameFor, isProfileWorkspacePath, PROFILE_INJECTED_FIELD } from './request.js'
-import type { OperationSpec } from './types.js'
+import { CLI_CONTRACT } from '../contract/commands'
+import type { CommandSpec, CommandVariantSpec } from '../contract/types'
+import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
+import { deriveCommandPath } from './derive'
+import { executeOperation } from './execute'
+import { addOperationOptions } from './options'
+import { flagNameFor, isProfileWorkspacePath, PROFILE_INJECTED_FIELD } from './request'
+import type { OperationSpec } from './types'
 
 const GROUP_ALIASES: Readonly<Record<string, string>> = {
   'audit-logs': 'audit-log',

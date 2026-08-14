@@ -4,8 +4,8 @@ import {
   type ProfileOverrides,
   type ResolvedProfile,
   resolveProfile,
-} from './config/index.js'
-import { SimClient } from './http/client.js'
+} from './config/index'
+import { SimClient } from './http/client'
 
 /** Global flags, shared by every subcommand. */
 export interface GlobalOptions {

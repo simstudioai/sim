@@ -3,7 +3,7 @@
 Talk to the [Sim](https://sim.ai) API from your terminal.
 
 ```bash
-npm install --global @simai/cli
+npm install --global @sim/cli
 sim login
 sim workflows list
 ```
@@ -11,8 +11,8 @@ sim workflows list
 Prerelease channels track the corresponding Sim environments:
 
 ```bash
-npm install --global @simai/cli@preview # staging
-npm install --global @simai/cli@dev     # dev
+npm install --global @sim/cli@preview # staging
+npm install --global @sim/cli@dev     # dev
 ```
 
 ## Profiles

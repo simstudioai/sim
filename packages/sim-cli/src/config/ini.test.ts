@@ -6,7 +6,7 @@ import {
   removeSection,
   serializeIni,
   setSectionValues,
-} from './ini.js'
+} from './ini'
 
 const SAMPLE = `# top-level note
 [default]

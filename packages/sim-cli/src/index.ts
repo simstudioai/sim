@@ -3,13 +3,13 @@
 import { readFileSync } from 'node:fs'
 import chalk from 'chalk'
 import { Command, Option } from 'commander'
-import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './commands/auth.js'
-import { configureCommand } from './commands/configure.js'
-import { attachProtocolCommands } from './commands/protocol/index.js'
-import { OUTPUT_FORMATS, ProfileConfigError } from './config/index.js'
-import { formatApiErrorDetails, SimApiError } from './http/client.js'
-import { sanitize } from './output/render.js'
-import { buildGeneratedCommands } from './runtime/build.js'
+import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './commands/auth'
+import { configureCommand } from './commands/configure'
+import { attachProtocolCommands } from './commands/protocol/index'
+import { OUTPUT_FORMATS, ProfileConfigError } from './config/index'
+import { formatApiErrorDetails, SimApiError } from './http/client'
+import { sanitize } from './output/render'
+import { buildGeneratedCommands } from './runtime/build'
 
 const program = new Command()
 

@@ -1,10 +1,10 @@
 import { once } from 'node:events'
 import { createWriteStream, type WriteStream } from 'node:fs'
 import type { Command } from 'commander'
-import { clientFrom } from '../../context.js'
-import { V2_OPERATIONS } from '../../generated/v2-api.js'
-import { resolvePath, SimApiError } from '../../http/client.js'
-import { printProtocolResult } from './result.js'
+import { clientFrom } from '../../context'
+import { V2_OPERATIONS } from '../../generated/v2-api'
+import { resolvePath, SimApiError } from '../../http/client'
+import { printProtocolResult } from './result'
 
 /** Streams a fetch body to disk while honoring write-stream backpressure. */
 export async function streamToFile(

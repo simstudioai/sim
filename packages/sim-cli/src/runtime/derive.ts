@@ -1,4 +1,4 @@
-import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
+import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 
 /**
  * Trailing path segments that read as verbs rather than sub-resources, so

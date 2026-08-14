@@ -1,13 +1,10 @@
 import type { Command } from 'commander'
-import { clientFrom } from '../../context.js'
-import type {
-  CompleteFileUploadResponse,
-  CreateFileUploadResponse,
-} from '../../generated/v2-api.js'
-import { V2_OPERATIONS } from '../../generated/v2-api.js'
-import { contentTypeFor, localFile } from '../../transfer/local-file.js'
-import { finishUploadSession } from '../../transfer/upload-session.js'
-import { printProtocolResult } from './result.js'
+import { clientFrom } from '../../context'
+import type { CompleteFileUploadResponse, CreateFileUploadResponse } from '../../generated/v2-api'
+import { V2_OPERATIONS } from '../../generated/v2-api'
+import { contentTypeFor, localFile } from '../../transfer/local-file'
+import { finishUploadSession } from '../../transfer/upload-session'
+import { printProtocolResult } from './result'
 
 export function attachFileUpload(files: Command): void {
   files

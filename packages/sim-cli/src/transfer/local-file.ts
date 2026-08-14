@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises'
 import { basename } from 'node:path'
-import { SimApiError } from '../http/client.js'
+import { SimApiError } from '../http/client'
 
 const CONTENT_TYPES: Record<string, string> = {
   css: 'text/css',

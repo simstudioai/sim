@@ -1,5 +1,5 @@
-import type { RequestOptions } from '../http/client.js'
-import type { FieldSpec } from './request.js'
+import type { RequestOptions } from '../http/client'
+import type { FieldSpec } from './request'
 
 export interface OperationSpec {
   method: NonNullable<RequestOptions['method']>

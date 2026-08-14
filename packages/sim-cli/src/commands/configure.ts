@@ -1,13 +1,8 @@
 import chalk from 'chalk'
 import { Command } from 'commander'
-import {
-  configPath,
-  OUTPUT_FORMATS,
-  readConfigProfile,
-  writeConfigProfile,
-} from '../config/index.js'
-import { profileFrom } from '../context.js'
-import { SimApiError } from '../http/client.js'
+import { configPath, OUTPUT_FORMATS, readConfigProfile, writeConfigProfile } from '../config/index'
+import { profileFrom } from '../context'
+import { SimApiError } from '../http/client'
 
 /**
  * Non-secret profile settings. Credentials are deliberately not settable here —

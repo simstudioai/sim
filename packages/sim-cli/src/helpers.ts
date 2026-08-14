@@ -1,7 +1,7 @@
 /**
  * Local copies of the shared helpers.
  *
- * `@sim/utils` is a private workspace package, so a published `@simai/cli`
+ * `@sim/utils` is a private workspace package, so a published `@sim/cli`
  * cannot depend on it — importing it would resolve in the monorepo and fail for
  * anyone installing from npm.
  */

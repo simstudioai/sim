@@ -1,12 +1,5 @@
 {
-  "extends": "@sim/tsconfig/library-build.json",
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "outDir": "./dist",
-    "rootDir": "./src"
-  },
+  "extends": "@sim/tsconfig/base.json",
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

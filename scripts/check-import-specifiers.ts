@@ -128,13 +128,6 @@ interface PathRule {
 interface Workspace {
   dir: string
   paths: PathRule[]
-  /**
-   * Node's ESM resolver takes the specifier literally, so a NodeNext package
-   * must write `./foo.js` for a file that is `./foo.ts` on disk. Dropping the
-   * extension there — what this audit advises everywhere else — breaks the
-   * package at runtime, so the `.js` is mapped back to its source instead.
-   */
-  nodeNext: boolean
 }
 
 const workspaces: Workspace[] = []
@@ -151,11 +144,7 @@ for (const group of ['apps', 'packages']) {
     if (!isFile(tsconfig)) continue
     try {
       const raw = readFileSync(tsconfig, 'utf8').replace(/^\s*\/\/.*$/gm, '')
-      const compilerOptions = JSON.parse(raw)?.compilerOptions ?? {}
-      const paths = compilerOptions.paths ?? {}
-      const nodeNext = /^node(next|16)$/i.test(
-        compilerOptions.moduleResolution ?? compilerOptions.module ?? ''
-      )
+      const paths = JSON.parse(raw)?.compilerOptions?.paths ?? {}
       const entries: PathRule[] = Object.entries<string[]>(paths).map(([pattern, targets]) => {
         const [prefix, suffix = ''] = pattern.split('*')
         return {
@@ -167,7 +156,7 @@ for (const group of ['apps', 'packages']) {
       })
       // Longest prefix wins, matching TypeScript's own precedence.
       entries.sort((a, b) => b.prefix.length - a.prefix.length)
-      workspaces.push({ dir, paths: entries, nodeNext })
+      workspaces.push({ dir, paths: entries })
     } catch {
       /* unparseable tsconfig — skip rather than fail the whole run */
     }
@@ -241,15 +230,7 @@ function resolveSpecifier(spec: string, importer: string): Outcome | null {
   if (spec.startsWith('.')) {
     const base = resolve(dirname(importer), spec)
     if (isGeneratedPath(base)) return null
-    if (probe(base)) return { ok: true }
-    // A NodeNext package points at the emitted `.js`; check its source instead
-    // of demanding the extension be dropped.
-    if (workspaceFor(importer)?.nodeNext && /\.(js|mjs|cjs)$/.test(spec)) {
-      const source = base.replace(/\.(js|mjs|cjs)$/, '')
-      if (isGeneratedPath(source)) return null
-      if (probe(source)) return { ok: true }
-    }
-    return { ok: false, reason: 'no file at that path' }
+    return probe(base) ? { ok: true } : { ok: false, reason: 'no file at that path' }
   }
 
   // tsconfig `paths` first — it legitimately overrides a package's exports map.

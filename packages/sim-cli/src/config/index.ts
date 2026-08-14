@@ -1,4 +1,4 @@
-export { configDir, configPath, credentialsPath } from './paths.js'
+export { configDir, configPath, credentialsPath } from './paths'
 export {
   DEFAULT_ENDPOINT,
   DEFAULT_PROFILE,
@@ -15,4 +15,4 @@ export {
   type SettingSource,
   writeConfigProfile,
   writeCredentialsProfile,
-} from './profile.js'
+} from './profile'

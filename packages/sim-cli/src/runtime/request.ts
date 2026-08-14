@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, readSync } from 'node:fs'
-import { CLI_CONTRACT } from '../contract/commands.js'
-import type { CommandSpec, FlagSpec } from '../contract/types.js'
-import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
-import { type QueryValue, SimApiError } from '../http/client.js'
-import { camel, kebab } from './derive.js'
+import { CLI_CONTRACT } from '../contract/commands'
+import type { CommandSpec, FlagSpec } from '../contract/types'
+import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
+import { type QueryValue, SimApiError } from '../http/client'
+import { camel, kebab } from './derive'
 
 /** One request field, as the generator describes it. */
 export interface FieldSpec {

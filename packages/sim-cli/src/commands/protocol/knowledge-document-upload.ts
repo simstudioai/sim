@@ -1,13 +1,13 @@
 import type { Command } from 'commander'
-import { clientFrom } from '../../context.js'
+import { clientFrom } from '../../context'
 import type {
   CompleteKnowledgeDocumentUploadResponse,
   CreateKnowledgeDocumentUploadResponse,
-} from '../../generated/v2-api.js'
-import { SimApiError } from '../../http/client.js'
-import { contentTypeFor, localFile } from '../../transfer/local-file.js'
-import { finishUploadSession } from '../../transfer/upload-session.js'
-import { printProtocolResult } from './result.js'
+} from '../../generated/v2-api'
+import { SimApiError } from '../../http/client'
+import { contentTypeFor, localFile } from '../../transfer/local-file'
+import { finishUploadSession } from '../../transfer/upload-session'
+import { printProtocolResult } from './result'
 
 interface KnowledgeDocumentUploadOptions {
   name?: string

@@ -1,4 +1,4 @@
-import type { ResolvedProfile } from '../config/index.js'
+import type { ResolvedProfile } from '../config/index'
 
 /**
  * A failure the CLI can explain. Anything thrown as a `SimApiError` is printed

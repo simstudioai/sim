@@ -3,16 +3,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildGeneratedCommands } from '../../runtime/build.js'
-import { isTerminalSafeContentType, streamToFile } from './files-get.js'
-import { attachProtocolCommands } from './index.js'
+import { buildGeneratedCommands } from '../../runtime/build'
+import { isTerminalSafeContentType, streamToFile } from './files-get'
+import { attachProtocolCommands } from './index'
 
 const { output, requestRaw } = vi.hoisted(() => ({
   output: { format: 'json' },
   requestRaw: vi.fn(),
 }))
 
-vi.mock('../../context.js', () => ({
+vi.mock('../../context', () => ({
   clientFrom: () => ({
     client: { requestRaw, requireWorkspace: () => 'ws_local' },
     profile: {

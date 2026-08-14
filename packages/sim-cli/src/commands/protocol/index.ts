@@ -1,9 +1,9 @@
 import { Command } from 'commander'
-import { attachFileGet } from './files-get.js'
-import { attachFileUpload } from './files-upload.js'
-import { attachKnowledgeDocumentUpload } from './knowledge-document-upload.js'
-import { attachResourceDirectoryCommands } from './resource-directory.js'
-import { attachTableImport } from './tables-import.js'
+import { attachFileGet } from './files-get'
+import { attachFileUpload } from './files-upload'
+import { attachKnowledgeDocumentUpload } from './knowledge-document-upload'
+import { attachResourceDirectoryCommands } from './resource-directory'
+import { attachTableImport } from './tables-import'
 
 function group(program: Command, name: string): Command {
   const existing = program.commands.find((command) => command.name() === name)

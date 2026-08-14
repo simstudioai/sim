@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { configPath, credentialsPath } from './paths.js'
+import { configPath, credentialsPath } from './paths'
 import {
   deleteProfile,
   listProfiles,
@@ -10,7 +10,7 @@ import {
   resolveProfile,
   writeConfigProfile,
   writeCredentialsProfile,
-} from './profile.js'
+} from './profile'
 
 let dir: string
 const ENV_KEYS = ['SIM_PROFILE', 'SIM_ENDPOINT', 'SIM_API_KEY', 'SIM_WORKSPACE', 'SIM_OUTPUT']

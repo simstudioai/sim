@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CLI_CONTRACT } from '../contract/commands.js'
-import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
+import { CLI_CONTRACT } from '../contract/commands'
+import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import {
   formatApiErrorDetails,
   requestAllPages,
   resolvePath,
   SimApiError,
   SimClient,
-} from './client.js'
+} from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()

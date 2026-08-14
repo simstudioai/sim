@@ -1,4 +1,4 @@
-import type { V2OperationName } from '../generated/v2-api.js'
+import type { V2OperationName } from '../generated/v2-api'
 
 /**
  * The CLI contract: how the terminal surface maps onto the v2 API.

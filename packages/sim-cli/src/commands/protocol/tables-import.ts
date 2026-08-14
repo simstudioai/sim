@@ -1,18 +1,18 @@
 import { setTimeout as sleep } from 'node:timers/promises'
 import chalk from 'chalk'
 import { type Command, Option } from 'commander'
-import { clientFrom } from '../../context.js'
+import { clientFrom } from '../../context'
 import type {
   CompleteTableImportResponse,
   CreateTableImportResponse,
   GetTableImportResponse,
-} from '../../generated/v2-api.js'
-import { V2_OPERATIONS } from '../../generated/v2-api.js'
-import { SimApiError, type SimClient } from '../../http/client.js'
-import { coerce, type FieldSpec } from '../../runtime/request.js'
-import { contentTypeFor, localFile } from '../../transfer/local-file.js'
-import { finishUploadSession } from '../../transfer/upload-session.js'
-import { printProtocolResult } from './result.js'
+} from '../../generated/v2-api'
+import { V2_OPERATIONS } from '../../generated/v2-api'
+import { SimApiError, type SimClient } from '../../http/client'
+import { coerce, type FieldSpec } from '../../runtime/request'
+import { contentTypeFor, localFile } from '../../transfer/local-file'
+import { finishUploadSession } from '../../transfer/upload-session'
+import { printProtocolResult } from './result'
 
 type TableImport = GetTableImportResponse['data']
 

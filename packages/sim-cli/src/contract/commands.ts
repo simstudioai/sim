@@ -1,4 +1,4 @@
-import type { CliContract, ColumnSpec, CommandVariantSpec } from './types.js'
+import type { CliContract, ColumnSpec, CommandVariantSpec } from './types'
 
 const TABLE_NAME_HELP = 'Identifier: letters, numbers, and underscores; cannot start with a number'
 const TABLE_FILTER_HELP =

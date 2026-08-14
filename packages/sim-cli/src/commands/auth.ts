@@ -6,7 +6,7 @@ import {
   type CliAuthScope,
   createAuthRequest,
   pollForKey,
-} from '../auth/device-flow.js'
+} from '../auth/device-flow'
 import {
   credentialsPath,
   deleteProfile,
@@ -14,10 +14,10 @@ import {
   readCredentialsProfile,
   writeConfigProfile,
   writeCredentialsProfile,
-} from '../config/index.js'
-import { profileFrom } from '../context.js'
-import { SimApiError } from '../http/client.js'
-import { printRecord } from '../output/render.js'
+} from '../config/index'
+import { profileFrom } from '../context'
+import { SimApiError } from '../http/client'
+import { printRecord } from '../output/render'
 
 /**
  * Best-effort browser launch. Failure is not an error: the URL is always printed

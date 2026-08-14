@@ -1,7 +1,7 @@
 import chalk from 'chalk'
 import { dump } from 'js-yaml'
-import type { OutputFormat } from '../config/index.js'
-import { displayWidth } from './terminal-text.js'
+import type { OutputFormat } from '../config/index'
+import { displayWidth } from './terminal-text'
 
 export interface Column<T> {
   header: string

@@ -11,7 +11,7 @@ import {
   text,
   timestamp,
   visibleWidth,
-} from './render.js'
+} from './render'
 
 const ESC = String.fromCharCode(27)
 const BEL = String.fromCharCode(7)

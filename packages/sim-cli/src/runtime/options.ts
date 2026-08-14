@@ -1,6 +1,6 @@
 import { type Command, Option } from 'commander'
-import type { CommandSpec } from '../contract/types.js'
-import type { V2OperationName } from '../generated/v2-api.js'
+import type { CommandSpec } from '../contract/types'
+import type { V2OperationName } from '../generated/v2-api'
 import {
   type FieldSpec,
   flagNameFor,
@@ -8,8 +8,8 @@ import {
   PROFILE_INJECTED_FIELD,
   pathFlagNameFor,
   takesJson,
-} from './request.js'
-import type { OperationSpec } from './types.js'
+} from './request'
+import type { OperationSpec } from './types'
 
 export const DEFAULT_LIMIT = 100
 
