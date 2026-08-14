@@ -150,6 +150,8 @@ export interface StreamingContext {
    * block. Per-lane keying keeps each subagent's reasoning intact.
    */
   subagentThinkingBlocks: Map<string, ContentBlock>
+  /** Per-lane carry for an <intent> tag split across streamed chunks. */
+  subagentIntentCarry?: Record<string, string>
   isInThinkingBlock: boolean
   subAgentContent: Record<string, string>
   subAgentToolCalls: Record<string, ToolCallState[]>
