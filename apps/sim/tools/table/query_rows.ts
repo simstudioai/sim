@@ -103,7 +103,12 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
     success: { type: 'boolean', description: 'Whether query succeeded' },
     rows: { type: 'array', description: 'Query result rows' },
     rowCount: { type: 'number', description: 'Number of rows returned' },
-    totalCount: { type: 'number', description: 'Total rows matching filter' },
+    totalCount: {
+      type: 'number',
+      nullable: true,
+      description:
+        'Total rows matching the filter. Null when Limit is omitted or exceeds 1,000 to avoid a separate count query.',
+    },
     limit: { type: 'number', description: 'Limit used in query' },
     offset: { type: 'number', description: 'Offset used in query' },
     nextCursor: {
