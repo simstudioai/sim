@@ -114,6 +114,8 @@ export interface ContentBlock {
   type: ContentBlockType
   content?: string
   subagent?: string
+  /** Orchestrator-chosen display name for a `subagent` start block (shown instead of the generic agent label). */
+  subagentName?: string
   toolCall?: ToolCallInfo
   options?: OptionItem[]
   timestamp?: number

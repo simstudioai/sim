@@ -380,6 +380,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[block.content]
       if (dispatchToolName) absorbDispatchTool(dispatchToolName, block.parentSpanId)
       const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId)
+      if (block.subagentName) g.agentLabel = block.subagentName
       if (block.endedAt !== undefined) {
         // Persisted backend path: the lane was stamped closed (endedAt) without
         // a separate subagent_end block (the Sim backend stamps endedAt only;
@@ -623,6 +624,7 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       }
       groupsByKey.delete(groupKey('mothership', undefined))
       const { group: g } = ensureGroup(key, block.parentToolCallId)
+      if (block.subagentName) g.agentLabel = block.subagentName
       if (inheritedDelegation) g.isDelegating = true
       g.isOpen = true
       activeGroupKey = resolveGroupKey(key, block.parentToolCallId)

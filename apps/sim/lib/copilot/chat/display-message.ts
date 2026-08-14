@@ -92,7 +92,11 @@ function toDisplayBlockBody(block: PersistedContentBlock): ContentBlock | undefi
       if (block.lifecycle === MothershipStreamV1SpanLifecycleEvent.end) {
         return { type: ContentBlockType.subagent_end }
       }
-      return { type: ContentBlockType.subagent, content: block.content }
+      return {
+        type: ContentBlockType.subagent,
+        content: block.content,
+        ...(block.name ? { subagentName: block.name } : {}),
+      }
     case MothershipStreamV1EventType.complete:
       if (block.status === MothershipStreamV1CompletionStatus.cancelled) {
         return { type: ContentBlockType.stopped }

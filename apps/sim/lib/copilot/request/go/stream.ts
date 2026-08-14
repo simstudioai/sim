@@ -436,9 +436,17 @@ export async function runStreamLoop(
               const openParents = (context.openSubagentParents ??= new Set<string>())
               if (!openParents.has(toolCallId)) {
                 openParents.add(toolCallId)
+                const payloadData = streamEvent.payload.data
+                const displayName =
+                  payloadData && typeof payloadData === 'object' && !Array.isArray(payloadData)
+                    ? (payloadData as Record<string, unknown>).name
+                    : undefined
                 context.contentBlocks.push({
                   type: 'subagent',
                   content: subagentName,
+                  ...(typeof displayName === 'string' && displayName
+                    ? { subagentName: displayName }
+                    : {}),
                   parentToolCallId: toolCallId,
                   ...(spanId ? { spanId } : {}),
                   ...(parentSpanId ? { parentSpanId } : {}),

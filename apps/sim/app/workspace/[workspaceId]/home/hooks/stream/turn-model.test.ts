@@ -237,6 +237,29 @@ describe('reduceEvent — subagent lifecycle', () => {
     expect(agent(m, 'S1').parentSpanId).toBe(MAIN_SPAN)
   })
 
+  it('captures the orchestrator-chosen display name from span start data', () => {
+    const m = apply([
+      envelope(
+        1,
+        'span',
+        {
+          kind: 'subagent',
+          event: 'start',
+          agent: 'research',
+          data: { tool_call_id: 'tc-r', name: 'Pricing research' },
+        },
+        {
+          lane: 'subagent',
+          spanId: 'S1',
+          parentSpanId: MAIN_SPAN,
+          parentToolCallId: 'tc-r',
+          agentId: 'research',
+        }
+      ),
+    ])
+    expect(agent(m, 'S1').displayName).toBe('Pricing research')
+  })
+
   it('settles an agent error when span end carries an error', () => {
     const m = apply([
       spanStart(1, 'S1', 'file', 'tc-file'),

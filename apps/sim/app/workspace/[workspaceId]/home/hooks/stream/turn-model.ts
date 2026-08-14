@@ -85,6 +85,8 @@ export interface AgentNode extends NodeBase {
   agentId: string
   /** The outer delegation tool_use that triggered this run; links the trigger tool node. */
   triggerToolCallId?: string
+  /** Orchestrator-chosen display name for this delegation (falls back to the agent label). */
+  displayName?: string
   status: NodeStatus
   /** Wire seq at which the run terminated (span end), for ordering the close marker. */
   endSeq?: number
@@ -563,6 +565,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
       const triggerToolCallId =
         scope?.parentToolCallId ?? asString(data?.tool_call_id) ?? asString(data?.toolCallId)
       const agentId = asString(payload.agent) ?? scope?.agentId ?? ''
+      const displayName = asString(data?.name)
       const resolvedSpanId =
         scope?.spanId ?? (triggerToolCallId ? `span:${triggerToolCallId}` : `span:${seq}`)
       const parentSpanId = scope?.parentSpanId ?? MAIN_SPAN
@@ -581,6 +584,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           // scope.agentId can name the forwarding caller (e.g. superagent),
           // while this start's payload.agent is the authoritative lane owner.
           if (agentId && existing.agentId !== agentId) existing.agentId = agentId
+          if (displayName && !existing.displayName) existing.displayName = displayName
           if (!existing.triggerToolCallId && triggerToolCallId) {
             existing.triggerToolCallId = triggerToolCallId
           }
@@ -602,6 +606,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           seq: seq,
           ...(tsMs !== undefined ? { startedAtMs: tsMs } : {}),
           ...(triggerToolCallId ? { triggerToolCallId } : {}),
+          ...(displayName ? { displayName } : {}),
         }
         model.nodes.set(node.id, node)
         model.order.push(node.id)
