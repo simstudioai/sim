@@ -226,6 +226,7 @@ Query rows from a table with filtering, sorting, and pagination
 | `totalCount` | number | Total rows matching filter |
 | `limit` | number | Limit used in query |
 | `offset` | number | Offset used in query |
+| `nextCursor` | string | Non-null when more rows match past this page. A page can end early at the byte budget, so this — not a short rowCount — is what says whether more remain. To page, advance offset by rowCount and stop when this is null. |
 
 ### Get Row
 

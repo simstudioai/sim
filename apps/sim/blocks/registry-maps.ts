@@ -18,6 +18,10 @@ import { AsanaBlock, AsanaBlockMeta } from '@/blocks/blocks/asana'
 import { AshbyBlock, AshbyBlockMeta } from '@/blocks/blocks/ashby'
 import { AthenaBlock, AthenaBlockMeta } from '@/blocks/blocks/athena'
 import { AttioBlock, AttioBlockMeta } from '@/blocks/blocks/attio'
+import {
+  AzureDataExplorerBlock,
+  AzureDataExplorerBlockMeta,
+} from '@/blocks/blocks/azure_data_explorer'
 import { AzureDevOpsBlock, AzureDevOpsBlockMeta } from '@/blocks/blocks/azure_devops'
 import { BoxBlock, BoxBlockMeta } from '@/blocks/blocks/box'
 import { BrandfetchBlock, BrandfetchBlockMeta } from '@/blocks/blocks/brandfetch'
@@ -251,6 +255,7 @@ import { PulseBlock, PulseBlockMeta, PulseV2Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock, QdrantBlockMeta } from '@/blocks/blocks/qdrant'
 import { QuartrBlock, QuartrBlockMeta } from '@/blocks/blocks/quartr'
 import { QuiverBlock, QuiverBlockMeta } from '@/blocks/blocks/quiver'
+import { RabbitmqBlock, RabbitmqBlockMeta } from '@/blocks/blocks/rabbitmq'
 import { RailwayBlock, RailwayBlockMeta } from '@/blocks/blocks/railway'
 import { RB2BBlock, RB2BBlockMeta } from '@/blocks/blocks/rb2b'
 import { RDSBlock, RDSBlockMeta } from '@/blocks/blocks/rds'
@@ -373,6 +378,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   ashby: AshbyBlock,
   athena: AthenaBlock,
   attio: AttioBlock,
+  azure_data_explorer: AzureDataExplorerBlock,
   azure_devops: AzureDevOpsBlock,
   box: BoxBlock,
   brandfetch: BrandfetchBlock,
@@ -575,6 +581,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   qdrant: QdrantBlock,
   quartr: QuartrBlock,
   quiver: QuiverBlock,
+  rabbitmq: RabbitmqBlock,
   railway: RailwayBlock,
   rb2b: RB2BBlock,
   rds: RDSBlock,
@@ -709,6 +716,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   ashby: AshbyBlockMeta,
   athena: AthenaBlockMeta,
   attio: AttioBlockMeta,
+  azure_data_explorer: AzureDataExplorerBlockMeta,
   azure_devops: AzureDevOpsBlockMeta,
   box: BoxBlockMeta,
   brandfetch: BrandfetchBlockMeta,
@@ -877,6 +885,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   qdrant: QdrantBlockMeta,
   quartr: QuartrBlockMeta,
   quiver: QuiverBlockMeta,
+  rabbitmq: RabbitmqBlockMeta,
   railway: RailwayBlockMeta,
   rb2b: RB2BBlockMeta,
   rds: RDSBlockMeta,
