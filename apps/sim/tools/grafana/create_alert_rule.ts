@@ -74,14 +74,16 @@ export const createAlertRuleTool: ToolConfig<
     noDataState: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'State when no data is returned (NoData, Alerting, OK)',
+      visibility: 'user-or-llm',
+      description:
+        'State when no data is returned: NoData (default), Alerting, OK, or KeepLast. Ignored for recording rules',
     },
     execErrState: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
-      description: 'State on execution error (Error, Alerting, OK)',
+      visibility: 'user-or-llm',
+      description:
+        'State on execution error: Error (default), Alerting, OK, or KeepLast. Ignored for recording rules',
     },
     annotations: {
       type: 'string',
@@ -174,8 +176,16 @@ export const createAlertRuleTool: ToolConfig<
       if (params.condition) body.condition = params.condition
       if (params.uid) body.uid = params.uid.trim()
       if (params.forDuration) body.for = params.forDuration
-      if (params.noDataState) body.noDataState = params.noDataState
-      if (params.execErrState) body.execErrState = params.execErrState
+      /**
+       * Grafana validates an alerting rule with `NoDataStateFromString` and
+       * `ErrStateFromString`, both of which reject the empty string — so an
+       * omitted value is a 400, not a default. Recording rules skip that
+       * validator entirely and must not carry either field.
+       */
+      if (!params.record) {
+        body.noDataState = params.noDataState ?? 'NoData'
+        body.execErrState = params.execErrState ?? 'Error'
+      }
       if (params.isPaused !== undefined) body.isPaused = params.isPaused
       if (params.keepFiringFor) body.keep_firing_for = params.keepFiringFor
       if (params.missingSeriesEvalsToResolve !== undefined) {

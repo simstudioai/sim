@@ -29,7 +29,11 @@ export const ALERT_RULE_OUTPUT_FIELDS: Record<string, OutputProperty> = {
   folderUID: { type: 'string', description: 'Parent folder UID' },
   ruleGroup: { type: 'string', description: 'Rule group name' },
   orgID: { type: 'number', description: 'Organization ID' },
-  provenance: { type: 'string', description: 'Provisioning source (empty if API-managed)' },
+  provenance: {
+    type: 'string',
+    description:
+      'Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI',
+  },
   notification_settings: {
     type: 'json',
     description: 'Per-rule notification settings (overrides)',
@@ -371,8 +375,9 @@ export interface GrafanaUpdateAnnotationParams extends GrafanaBaseParams {
 
 export interface GrafanaUpdateAnnotationResponse extends ToolResponse {
   output: {
-    id: number
-    message: string
+    /** Echoed from the request — Grafana's patch response carries no id. */
+    annotationId: number | null
+    message: string | null
   }
 }
 
@@ -493,8 +498,11 @@ export interface GrafanaDeleteFolderParams extends GrafanaBaseParams {
 
 export interface GrafanaDeleteFolderResponse extends ToolResponse {
   output: {
-    uid: string
-    message: string
+    /** Numeric id Grafana returns for the deleted folder. */
+    id: number | null
+    /** Echoed from the request. */
+    uid: string | null
+    message: string | null
   }
 }
 

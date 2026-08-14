@@ -98,7 +98,8 @@ export const listContactPointsTool: ToolConfig<
           },
           provenance: {
             type: 'string',
-            description: 'Provisioning source (empty if API-managed)',
+            description:
+              'Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI',
           },
         },
       },

@@ -207,7 +207,7 @@ List all alert rules in the Grafana instance
 |   ↳ `folderUID` | string | Parent folder UID |
 |   ↳ `ruleGroup` | string | Rule group name |
 |   ↳ `orgID` | number | Organization ID |
-|   ↳ `provenance` | string | Provisioning source \(empty if API-managed\) |
+|   ↳ `provenance` | string | Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI |
 |   ↳ `notification_settings` | json | Per-rule notification settings \(overrides\) |
 |   ↳ `record` | json | Recording rule configuration \(recording rules only\) |
 
@@ -245,7 +245,7 @@ Get a specific alert rule by its UID
 | `folderUID` | string | Parent folder UID |
 | `ruleGroup` | string | Rule group name |
 | `orgID` | number | Organization ID |
-| `provenance` | string | Provisioning source \(empty if API-managed\) |
+| `provenance` | string | Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI |
 | `notification_settings` | json | Per-rule notification settings \(overrides\) |
 | `record` | json | Recording rule configuration \(recording rules only\) |
 
@@ -266,8 +266,8 @@ Create a new alert rule
 | `condition` | string | No | The refId of the query or expression to use as the alert condition \(required for alerting rules; omit for recording rules\) |
 | `data` | string | Yes | JSON array of query/expression data objects |
 | `forDuration` | string | No | Duration to wait before firing \(e.g., 5m, 1h\) |
-| `noDataState` | string | No | State when no data is returned \(NoData, Alerting, OK\) |
-| `execErrState` | string | No | State on execution error \(Error, Alerting, OK\) |
+| `noDataState` | string | No | State when no data is returned: NoData \(default\), Alerting, OK, or KeepLast. Ignored for recording rules |
+| `execErrState` | string | No | State on execution error: Error \(default\), Alerting, OK, or KeepLast. Ignored for recording rules |
 | `annotations` | string | No | JSON object of annotations |
 | `labels` | string | No | JSON object of labels |
 | `uid` | string | No | Optional custom UID for the alert rule |
@@ -299,7 +299,7 @@ Create a new alert rule
 | `folderUID` | string | Parent folder UID |
 | `ruleGroup` | string | Rule group name |
 | `orgID` | number | Organization ID |
-| `provenance` | string | Provisioning source \(empty if API-managed\) |
+| `provenance` | string | Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI |
 | `notification_settings` | json | Per-rule notification settings \(overrides\) |
 | `record` | json | Recording rule configuration \(recording rules only\) |
 
@@ -353,7 +353,7 @@ Update an existing alert rule. Fetches the current rule and merges your changes.
 | `folderUID` | string | Parent folder UID |
 | `ruleGroup` | string | Rule group name |
 | `orgID` | number | Organization ID |
-| `provenance` | string | Provisioning source \(empty if API-managed\) |
+| `provenance` | string | Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI |
 | `notification_settings` | json | Per-rule notification settings \(overrides\) |
 | `record` | json | Recording rule configuration \(recording rules only\) |
 
@@ -399,7 +399,7 @@ List all alert notification contact points
 |   ↳ `type` | string | Notification type \(email, slack, etc.\) |
 |   ↳ `settings` | object | Type-specific settings |
 |   ↳ `disableResolveMessage` | boolean | Whether resolve messages are disabled |
-|   ↳ `provenance` | string | Provisioning source \(empty if API-managed\) |
+|   ↳ `provenance` | string | Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI |
 
 ### Grafana Create Contact Point
 
@@ -427,7 +427,7 @@ Create a notification contact point (e.g., Slack, email, PagerDuty)
 | `type` | string | Receiver type |
 | `settings` | json | Type-specific settings |
 | `disableResolveMessage` | boolean | Whether resolve notifications are suppressed |
-| `provenance` | string | Provisioning source \(empty if API-managed\) |
+| `provenance` | string | Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI |
 
 ### Grafana Create Annotation
 
@@ -474,7 +474,7 @@ Query annotations by time range, dashboard, or tags
 | `userId` | number | No | Filter by ID of the user who created the annotation |
 | `tags` | string | No | Comma-separated list of tags to filter by |
 | `type` | string | No | Filter by type \(alert or annotation\) |
-| `limit` | number | No | Maximum number of annotations to return |
+| `limit` | number | No | Maximum number of annotations to return \(Grafana defaults to 100\) |
 
 #### Output
 
@@ -518,8 +518,8 @@ Update an existing annotation
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `id` | number | The ID of the updated annotation |
-| `message` | string | Confirmation message |
+| `annotationId` | number | The annotation that was updated, echoed from the request — Grafana answers a patch with only a message and returns no id |
+| `message` | string | Confirmation message from Grafana, e.g. "Annotation patched" |
 
 ### Grafana Delete Annotation
 
@@ -587,7 +587,7 @@ Get a data source by its ID or UID
 | `apiKey` | string | Yes | Grafana Service Account Token |
 | `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
 | `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
-| `dataSourceId` | string | Yes | The ID or UID of the data source to retrieve \(e.g., prometheus, P1234AB5678\) |
+| `dataSourceId` | string | Yes | The UID of the data source to retrieve \(e.g., P1234AB5678\). Numeric ids are not supported — Grafana serves those only behind a disabled-by-default feature toggle |
 
 #### Output
 
@@ -788,8 +788,9 @@ Delete a folder by its UID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `uid` | string | The UID of the deleted folder |
-| `message` | string | Confirmation message |
+| `id` | number | Numeric id of the deleted folder, as returned by Grafana |
+| `uid` | string | The UID that was deleted, echoed from the request |
+| `message` | string | Grafana's confirmation message |
 
 ### Grafana Get Health
 
