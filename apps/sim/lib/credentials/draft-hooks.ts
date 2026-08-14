@@ -121,10 +121,7 @@ export async function handleReconnectCredential(params: {
     .limit(1)
 
   if (!existingCredential) {
-    logger.warn('Credential not found for reconnect, skipping', {
-      credentialId: draft.credentialId,
-    })
-    return
+    throw new Error(`Cannot reconnect missing credential ${draft.credentialId}`)
   }
 
   const oldAccountId = existingCredential.accountId
@@ -144,12 +141,9 @@ export async function handleReconnectCredential(params: {
       .limit(1)
 
     if (conflicting) {
-      logger.warn('New account already used by another credential, skipping reconnect', {
-        credentialId: draft.credentialId,
-        newAccountId,
-        conflictingCredentialId: conflicting.id,
-      })
-      return
+      throw new Error(
+        `Cannot reconnect credential ${draft.credentialId}: account ${newAccountId} is already used by credential ${conflicting.id}`
+      )
     }
   }
 

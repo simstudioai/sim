@@ -83,4 +83,23 @@ describe('processCredentialDraft', () => {
     expect(mockHandleCreateCredentialFromDraft).not.toHaveBeenCalled()
     expect(mockHandleReconnectCredential).not.toHaveBeenCalled()
   })
+
+  it('fails when an exact draft is missing or expired', async () => {
+    queueTableRows(schemaMock.pendingCredentialDraft, [])
+
+    await expect(
+      processCredentialDraft({
+        draftId: 'draft-missing',
+        userId: 'user-1',
+        providerId: 'google-email',
+        accountId: 'account-1',
+      })
+    ).rejects.toThrow(
+      'Cannot process missing or expired OAuth credential draft draft-missing for user user-1'
+    )
+
+    expect(mockHandleCreateCredentialFromDraft).not.toHaveBeenCalled()
+    expect(mockHandleReconnectCredential).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
 })

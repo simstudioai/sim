@@ -50,7 +50,14 @@ export async function processCredentialDraft(params: ProcessCredentialDraftParam
 
   const [draft] = drafts
 
-  if (!draft) return
+  if (!draft) {
+    if (draftId) {
+      throw new Error(
+        `Cannot process missing or expired OAuth credential draft ${draftId} for user ${userId}`
+      )
+    }
+    return
+  }
 
   const now = new Date()
 

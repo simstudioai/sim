@@ -138,18 +138,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         ),
       }))
 
-    if (persisted) {
-      try {
-        await processCredentialDraft({
-          draftId,
-          userId: session.user.id,
-          providerId: 'trello',
-          accountId: persisted.id,
-        })
-      } catch (error) {
-        logger.error('Failed to process credential draft for Trello', { error })
-      }
+    if (!persisted) {
+      throw new Error(`Trello OAuth account ${trelloUser.id} was not persisted`)
     }
+    await processCredentialDraft({
+      draftId,
+      userId: session.user.id,
+      providerId: 'trello',
+      accountId: persisted.id,
+    })
 
     return clearStateCookie(NextResponse.json({ success: true }))
   } catch (error) {

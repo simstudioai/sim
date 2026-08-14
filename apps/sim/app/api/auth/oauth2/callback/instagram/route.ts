@@ -299,18 +299,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         ),
       }))
 
-    if (persisted) {
-      try {
-        await processCredentialDraft({
-          draftId,
-          userId: session.user.id,
-          providerId: 'instagram',
-          accountId: persisted.id,
-        })
-      } catch (draftError) {
-        logger.error('Failed to process credential draft for Instagram', { error: draftError })
-      }
+    if (!persisted) {
+      throw new Error(`Instagram OAuth account ${igUserId} was not persisted`)
     }
+    await processCredentialDraft({
+      draftId,
+      userId: session.user.id,
+      providerId: 'instagram',
+      accountId: persisted.id,
+    })
 
     const returnUrlCookie = request.cookies.get(INSTAGRAM_RETURN_URL_COOKIE)?.value
     const redirectUrl =

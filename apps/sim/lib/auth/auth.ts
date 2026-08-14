@@ -524,18 +524,19 @@ export const auth = betterAuth({
             }
           }
 
+          let credentialDraftId: string | undefined
           try {
             const oauthState = await getOAuthState()
             const rawCallbackUrl = oauthState?.callbackURL
             if (rawCallbackUrl !== undefined && typeof rawCallbackUrl !== 'string') {
               throw new Error('OAuth state callback URL must be a string')
             }
-            const draftId = rawCallbackUrl
+            credentialDraftId = rawCallbackUrl
               ? (new URL(rawCallbackUrl).searchParams.get(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM) ??
                 undefined)
               : undefined
             await processCredentialDraft({
-              draftId,
+              draftId: credentialDraftId,
               userId: account.userId,
               providerId: account.providerId,
               accountId: account.id,
@@ -546,6 +547,7 @@ export const auth = betterAuth({
               providerId: account.providerId,
               error,
             })
+            if (credentialDraftId) throw error
           }
 
           try {

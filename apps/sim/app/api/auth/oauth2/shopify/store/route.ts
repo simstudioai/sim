@@ -119,18 +119,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         ),
       }))
 
-    if (persisted) {
-      try {
-        await processCredentialDraft({
-          draftId,
-          userId: session.user.id,
-          providerId: 'shopify',
-          accountId: persisted.id,
-        })
-      } catch (error) {
-        logger.error('Failed to process credential draft for Shopify', { error })
-      }
+    if (!persisted) {
+      throw new Error(`Shopify OAuth account ${stableAccountId} was not persisted`)
     }
+    await processCredentialDraft({
+      draftId,
+      userId: session.user.id,
+      providerId: 'shopify',
+      accountId: persisted.id,
+    })
 
     const redirectUrl = returnUrl && isSameOrigin(returnUrl) ? returnUrl : `${baseUrl}/workspace`
     const finalUrl = new URL(redirectUrl)
