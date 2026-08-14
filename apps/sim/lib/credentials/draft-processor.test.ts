@@ -21,6 +21,7 @@ vi.mock('@/lib/credentials/draft-hooks', () => ({
 }))
 
 import {
+  loadOAuthCredentialDraftBinding,
   parseCredentialDraftIdFromCallbackUrl,
   processCredentialDraft,
 } from '@/lib/credentials/draft-processor'
@@ -121,5 +122,31 @@ describe('parseCredentialDraftIdFromCallbackUrl', () => {
       'OAuth state callback URL must be a string'
     )
     expect(() => parseCredentialDraftIdFromCallbackUrl('not a URL')).toThrow()
+  })
+})
+
+describe('loadOAuthCredentialDraftBinding', () => {
+  it('returns the exact draft id when OAuth state is readable', async () => {
+    await expect(
+      loadOAuthCredentialDraftBinding(async () => ({
+        callbackURL: 'https://sim.test/oauth/credential-connected?credentialDraftId=draft-exact',
+      }))
+    ).resolves.toEqual({ status: 'available', draftId: 'draft-exact' })
+  })
+
+  it('marks unreadable OAuth state unavailable instead of permitting legacy draft fallback', async () => {
+    const stateError = new Error('OAuth state is unavailable')
+
+    await expect(
+      loadOAuthCredentialDraftBinding(async () => {
+        throw stateError
+      })
+    ).resolves.toEqual({ status: 'unavailable', error: stateError })
+  })
+
+  it('marks malformed callback state unavailable without throwing from the account hook', async () => {
+    const binding = await loadOAuthCredentialDraftBinding(async () => ({ callbackURL: null }))
+
+    expect(binding.status).toBe('unavailable')
   })
 })

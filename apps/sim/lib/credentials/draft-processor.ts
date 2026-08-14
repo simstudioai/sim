@@ -11,6 +11,14 @@ const logger = createLogger('CredentialDraftProcessor')
 
 export const OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM = 'credentialDraftId'
 
+interface OAuthStateWithCallbackUrl {
+  callbackURL?: unknown
+}
+
+type OAuthCredentialDraftBinding =
+  | { status: 'available'; draftId?: string }
+  | { status: 'unavailable'; error: unknown }
+
 /** Extracts a draft binding from Better Auth state and rejects malformed callback state. */
 export function parseCredentialDraftIdFromCallbackUrl(callbackUrl: unknown): string | undefined {
   if (callbackUrl === undefined) return undefined
@@ -18,6 +26,21 @@ export function parseCredentialDraftIdFromCallbackUrl(callbackUrl: unknown): str
     throw new Error('OAuth state callback URL must be a string')
   }
   return new URL(callbackUrl).searchParams.get(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM) ?? undefined
+}
+
+/** Reads an exact draft binding without falling back when OAuth state is unavailable. */
+export async function loadOAuthCredentialDraftBinding(
+  loadOAuthState: () => Promise<OAuthStateWithCallbackUrl | null | undefined>
+): Promise<OAuthCredentialDraftBinding> {
+  try {
+    const oauthState = await loadOAuthState()
+    return {
+      status: 'available',
+      draftId: parseCredentialDraftIdFromCallbackUrl(oauthState?.callbackURL),
+    }
+  } catch (error) {
+    return { status: 'unavailable', error }
+  }
 }
 
 interface ProcessCredentialDraftParams {

@@ -9,6 +9,7 @@ import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { CREDENTIAL_DRAFT_TTL_SECONDS } from '@/lib/credentials/draft-constants'
 import { createShopifyOAuthState } from '@/lib/oauth/shopify-state'
 import { getScopesForService } from '@/lib/oauth/utils'
 
@@ -209,7 +210,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: 60 * 10,
+        maxAge: CREDENTIAL_DRAFT_TTL_SECONDS,
         path: '/',
       })
     } else {

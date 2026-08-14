@@ -97,7 +97,7 @@ import {
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
 import {
-  parseCredentialDraftIdFromCallbackUrl,
+  loadOAuthCredentialDraftBinding,
   processCredentialDraft,
 } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -526,33 +526,33 @@ export const auth = betterAuth({
             }
           }
 
-          let credentialDraftId: string | undefined
-          try {
-            const oauthState = await getOAuthState()
-            credentialDraftId = parseCredentialDraftIdFromCallbackUrl(oauthState?.callbackURL)
-          } catch (error) {
+          const credentialDraftBinding = await loadOAuthCredentialDraftBinding(() =>
+            getOAuthState()
+          )
+          if (credentialDraftBinding.status === 'unavailable') {
             logger.error('[account.create.after] Failed to read OAuth credential draft state', {
               userId: account.userId,
               providerId: account.providerId,
-              error,
+              error: credentialDraftBinding.error,
             })
-            throw error
           }
 
-          try {
-            await processCredentialDraft({
-              draftId: credentialDraftId,
-              userId: account.userId,
-              providerId: account.providerId,
-              accountId: account.id,
-            })
-          } catch (error) {
-            logger.error('[account.create.after] Failed to process credential draft', {
-              userId: account.userId,
-              providerId: account.providerId,
-              error,
-            })
-            if (credentialDraftId) throw error
+          if (credentialDraftBinding.status === 'available') {
+            try {
+              await processCredentialDraft({
+                draftId: credentialDraftBinding.draftId,
+                userId: account.userId,
+                providerId: account.providerId,
+                accountId: account.id,
+              })
+            } catch (error) {
+              logger.error('[account.create.after] Failed to process credential draft', {
+                userId: account.userId,
+                providerId: account.providerId,
+                error,
+              })
+              if (credentialDraftBinding.draftId) throw error
+            }
           }
 
           try {
