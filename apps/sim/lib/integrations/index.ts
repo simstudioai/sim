@@ -66,7 +66,6 @@ export {
 export { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
 export {
   type OAuthServiceMatch,
-  resolveIntegrationBlockTypeForOAuth,
   resolveOAuthServiceForIntegration,
   resolveOAuthServiceForSlug,
 } from '@/lib/integrations/oauth-service'

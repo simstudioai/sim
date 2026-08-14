@@ -14,6 +14,7 @@ import {
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import {
+  blockTypeToIconMap,
   formatIntegrationType,
   INTEGRATIONS,
   type Integration,
@@ -33,7 +34,6 @@ import {
 } from '@/app/workspace/[workspaceId]/integrations/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { getBlockTileIcon } from '@/blocks/accent'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -68,6 +68,7 @@ interface IntegrationItemProps {
   workspaceId: string
   name: string
   description?: string | null
+  icon: ComponentType<{ className?: string }>
   unavailable?: boolean
 }
 
@@ -77,12 +78,13 @@ function IntegrationItem({
   workspaceId,
   name,
   description,
+  icon: Icon,
   unavailable = false,
 }: IntegrationItemProps) {
   return (
     <SettingsResourceRow
       iconVariant='custom'
-      icon={<IntegrationTile blockType={blockType} />}
+      icon={<IntegrationTile blockType={blockType} icon={Icon} />}
       title={name}
       description={
         unavailable
@@ -346,7 +348,8 @@ export function Integrations() {
             {filteredCategorySections.map((section) => (
               <IntegrationSection key={section.label} label={formatIntegrationType(section.label)}>
                 {section.integrations.map((integration) => {
-                  if (!getBlockTileIcon(integration.type)) return null
+                  const Icon = blockTypeToIconMap[integration.type]
+                  if (!Icon) return null
                   const availability = integrationAvailability.get(integration.type.toLowerCase())
                   const deploymentUnavailable =
                     availability?.state === 'unavailable' || availability?.state === 'misconfigured'
@@ -358,6 +361,7 @@ export function Integrations() {
                       workspaceId={workspaceId}
                       name={integration.name}
                       description={integration.description}
+                      icon={Icon}
                       unavailable={integration.authType === 'oauth' && deploymentUnavailable}
                     />
                   )

@@ -1,7 +1,6 @@
 import type React from 'react'
 import { Ban, CircleX, Repeat, Split, TriangleAlert, Workflow } from '@sim/emcn/icons'
 import { getBlock } from '@/blocks'
-import { DEFAULT_BLOCK_TILE_COLOR } from '@/blocks/accent'
 import { isWorkflowBlockType } from '@/executor/constants'
 import { TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'
 import type { ConsoleEntry } from '@/stores/terminal'
@@ -21,7 +20,7 @@ const SUBFLOW_COLORS = {
 const SPECIAL_BLOCK_COLORS = {
   error: '#ef4444',
   validation: '#f59e0b',
-  cancelled: DEFAULT_BLOCK_TILE_COLOR,
+  cancelled: '#6b7280',
 } as const
 
 /**
@@ -91,7 +90,7 @@ export function getBlockColor(blockType: string): string {
   if (blockType === 'cancelled') {
     return SPECIAL_BLOCK_COLORS.cancelled
   }
-  return DEFAULT_BLOCK_TILE_COLOR
+  return '#6b7280'
 }
 
 /**

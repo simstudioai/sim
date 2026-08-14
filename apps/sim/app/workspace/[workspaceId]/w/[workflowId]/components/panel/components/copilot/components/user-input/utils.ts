@@ -1,3 +1,9 @@
+import type { ReactNode } from 'react'
+import {
+  FOLDER_CONFIGS,
+  type MentionFolderId,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
+import type { MentionDataReturn } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-data'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -115,6 +121,79 @@ export function computeMentionHighlightRanges(
   }
 
   return ranges
+}
+
+/**
+ * Builds React nodes with highlighted mention tokens
+ * @param text - Text to render
+ * @param contexts - Chat contexts to highlight
+ * @param createHighlightSpan - Function to create highlighted span element
+ * @returns Array of React nodes with highlighted mentions
+ */
+export function buildMentionHighlightNodes(
+  text: string,
+  contexts: ChatContext[],
+  createHighlightSpan: (token: string, key: string) => ReactNode
+): ReactNode[] {
+  const tokens = extractContextTokens(contexts)
+  if (!tokens.length) return [text]
+
+  const ranges = computeMentionHighlightRanges(text, tokens)
+  if (!ranges.length) return [text]
+
+  const nodes: ReactNode[] = []
+  let lastIndex = 0
+
+  for (const range of ranges) {
+    if (range.start > lastIndex) {
+      nodes.push(text.slice(lastIndex, range.start))
+    }
+    nodes.push(createHighlightSpan(range.token, `mention-${range.start}-${range.end}`))
+    lastIndex = range.end
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex))
+  }
+
+  return nodes
+}
+
+/**
+ * Gets the data array for a folder ID from mentionData.
+ * Uses FOLDER_CONFIGS as the source of truth for key mapping.
+ * Returns any[] since item types vary by folder and are used with dynamic config.filterFn
+ */
+export function getFolderData(mentionData: MentionDataReturn, folderId: MentionFolderId): any[] {
+  const config = FOLDER_CONFIGS[folderId]
+  return (mentionData[config.dataKey as keyof MentionDataReturn] as any[]) || []
+}
+
+/**
+ * Gets the loading state for a folder ID from mentionData.
+ * Uses FOLDER_CONFIGS as the source of truth for key mapping.
+ */
+export function getFolderLoading(
+  mentionData: MentionDataReturn,
+  folderId: MentionFolderId
+): boolean {
+  const config = FOLDER_CONFIGS[folderId]
+  return mentionData[config.loadingKey as keyof MentionDataReturn] as boolean
+}
+
+/**
+ * Gets the ensure loaded function for a folder ID from mentionData.
+ * Uses FOLDER_CONFIGS as the source of truth for key mapping.
+ */
+export function getFolderEnsureLoaded(
+  mentionData: MentionDataReturn,
+  folderId: MentionFolderId
+): (() => Promise<void>) | undefined {
+  const config = FOLDER_CONFIGS[folderId]
+  if (!config.ensureLoadedKey) return undefined
+  return mentionData[config.ensureLoadedKey as keyof MentionDataReturn] as
+    | (() => Promise<void>)
+    | undefined
 }
 
 /**

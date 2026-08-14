@@ -16,6 +16,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
+  cn,
   handleKeyboardActivation,
   Search,
 } from '@sim/emcn'
@@ -30,11 +31,12 @@ import {
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
-import { ConnectorTile } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-tile'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { getBlock } from '@/blocks'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
@@ -477,6 +479,9 @@ interface ConnectorTypeCardProps {
 }
 
 function ConnectorTypeCard({ type, config, onClick }: ConnectorTypeCardProps) {
+  const Icon = config.icon
+  const brandBg = getBlock(type)?.bgColor ?? null
+
   return (
     <button
       type='button'
@@ -484,7 +489,22 @@ function ConnectorTypeCard({ type, config, onClick }: ConnectorTypeCardProps) {
       onClick={onClick}
     >
       <div className='size-9 flex-shrink-0'>
-        <ConnectorTile connectorType={type} icon={config.icon} />
+        <div
+          className={cn(
+            'flex size-full items-center justify-center rounded-xl border',
+            brandBg
+              ? 'border-[var(--border-1)]'
+              : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
+          )}
+          style={brandBg ? { background: brandBg } : undefined}
+        >
+          <Icon
+            className={cn(
+              'size-5',
+              brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
+            )}
+          />
+        </div>
       </div>
       <div className='flex min-w-0 flex-1 flex-col'>
         <span className='truncate text-[var(--text-body)] text-sm'>{config.name}</span>

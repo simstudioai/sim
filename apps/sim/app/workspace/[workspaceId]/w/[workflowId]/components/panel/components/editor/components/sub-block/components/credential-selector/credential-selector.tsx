@@ -14,7 +14,6 @@ import {
 } from '@/lib/oauth'
 import { getMissingRequiredScopes, getServiceConfigByServiceId } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
-import { ProviderIcon } from '@/app/workspace/[workspaceId]/components/provider-icon'
 import {
   ConnectServiceAccountModal,
   type ServiceAccountProviderId,
@@ -25,6 +24,7 @@ import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
+import { getBareIconStyle, type StyleableIcon } from '@/blocks/brand-icon-style'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkspaceCredential, useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
@@ -226,10 +226,16 @@ export function CredentialSelector({
     setShowConnectModal(true)
   }, [credentialKind])
 
-  const getProviderIcon = useCallback(
-    (providerName: OAuthProvider) => <ProviderIcon provider={providerName} className='size-3' />,
-    []
-  )
+  const getProviderIcon = useCallback((providerName: OAuthProvider) => {
+    const { baseProvider } = parseProvider(providerName)
+    const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
+
+    if (!baseProviderConfig) {
+      return <SquareArrowUpRight className='size-3' />
+    }
+    const Icon: StyleableIcon = baseProviderConfig.icon
+    return <Icon className='size-3 text-[var(--text-icon)]' style={getBareIconStyle(Icon)} />
+  }, [])
 
   const getProviderName = useCallback((providerName: OAuthProvider) => {
     const { baseProvider } = parseProvider(providerName)

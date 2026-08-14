@@ -165,14 +165,8 @@ function ChipModal({
 ChipModal.displayName = 'ChipModal'
 
 export interface ChipModalHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
-  /**
-   * Optional leading icon. Pass `null`/omit for a title-only header.
-   *
-   * A component is drawn in the header's own icon colour; pass a rendered
-   * element instead when the mark carries its own chrome — a brand tile owns
-   * its fill and contrast, and tinting it grey would be wrong.
-   */
-  icon?: React.ComponentType<{ className?: string }> | React.ReactElement | null
+  /** Optional leading icon. Pass `null`/omit for a title-only header. */
+  icon?: React.ComponentType<{ className?: string }> | null
   /** Invoked when the trailing close button is activated. Always rendered. */
   onClose: () => void
   /**
@@ -207,11 +201,7 @@ const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
       <div ref={ref} className={cn('flex flex-col', className)} {...props}>
         <div className='flex min-w-0 items-center justify-between gap-2 px-4 pt-3'>
           <div className='flex min-w-0 items-center gap-2'>
-            {React.isValidElement(Icon) ? (
-              Icon
-            ) : Icon ? (
-              <Icon className={chipContentIconClass} />
-            ) : null}
+            {Icon ? <Icon className={chipContentIconClass} /> : null}
             <span className={chipContentLabelClass}>{children}</span>
           </div>
           <Button

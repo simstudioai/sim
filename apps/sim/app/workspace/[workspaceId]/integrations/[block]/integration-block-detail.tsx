@@ -8,12 +8,14 @@ import { useQueryState } from 'nuqs'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import {
+  blockTypeToIconMap,
   type Integration,
   resolveCredentialDisplay,
   resolveOAuthServiceForIntegration,
 } from '@/lib/integrations'
 import { credentialProviderMatchesService } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { RESOURCE_TILE_BASE } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
 import {
@@ -32,7 +34,7 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { getBlockTileIcon } from '@/blocks/accent'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import {
   getSuggestedSkillsForBlock,
@@ -62,6 +64,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   useOAuthReturnRouter()
   const router = useRouter()
   const [connectMode, setConnectMode] = useQueryState(connectParam.key, connectParam.parser)
+  const Icon = blockTypeToIconMap[integration.type]
   const matchingTemplates = getTemplatesForBlock(integration.type)
   const suggestedSkills = getSuggestedSkillsForBlock(integration.type)
   const oauthService = resolveOAuthServiceForIntegration(integration)
@@ -230,10 +233,16 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
       >
         <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
           <div className='flex flex-col gap-3'>
-            <IntegrationTile
-              blockType={integration.type}
-              fallbackLabel={integration.name.charAt(0)}
-            />
+            {Icon ? (
+              <IntegrationTile blockType={integration.type} icon={Icon} />
+            ) : (
+              <div
+                className={cn(RESOURCE_TILE_BASE, getTileIconColorClass(integration.bgColor))}
+                style={{ background: integration.bgColor }}
+              >
+                {integration.name.charAt(0)}
+              </div>
+            )}
             <div className='flex flex-col gap-1'>
               <h1 className='text-[var(--text-body)] text-lg'>{integration.name}</h1>
               <p className='text-[var(--text-muted)] text-md'>{integration.description}</p>
@@ -246,7 +255,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
                 <SettingsResourceRow
                   key={credential.id}
                   iconVariant='custom'
-                  icon={<IntegrationTile blockType={integration.type} />}
+                  icon={Icon && <IntegrationTile blockType={integration.type} icon={Icon} />}
                   title={credential.displayName}
                   description={
                     credential.description || resolveCredentialDisplay(credential).subtitle
@@ -365,7 +374,8 @@ function TemplateIcons({ blockTypes }: TemplateIconsProps) {
   return (
     <span aria-hidden className='flex items-center'>
       {blockTypes.map((bt, idx) => {
-        if (!getBlockTileIcon(bt)) return null
+        const ToolIcon = blockTypeToIconMap[bt]
+        if (!ToolIcon) return null
         const z = TEMPLATE_TILE_Z[idx]
         if (!z) return null
         const isTrailing = idx > 0
@@ -379,7 +389,7 @@ function TemplateIcons({ blockTypes }: TemplateIconsProps) {
                 'outline outline-2 outline-[var(--bg)] transition-[outline-color] duration-150 group-hover:outline-[var(--surface-active)]'
             )}
           >
-            <IntegrationTile blockType={bt} />
+            <IntegrationTile blockType={bt} icon={ToolIcon} />
           </span>
         )
       })}
