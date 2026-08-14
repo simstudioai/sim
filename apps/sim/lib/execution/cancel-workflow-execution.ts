@@ -18,6 +18,7 @@ import {
   cancelWorkflowGroupExecution,
   type PublishableWorkflowGroupCancellation,
   publishWorkflowGroupCancellationEvent,
+  type WorkflowGroupExecutionCancellationResult,
 } from '@/lib/table/workflow-group-cancellation'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
 import { resolveWorkflowExecutionOwnership } from '@/lib/workflows/executor/execution-queries'
@@ -79,24 +80,53 @@ function toTerminalExecutionStatus(
 }
 
 /**
- * What the direct terminal log claim did: moved the run to `cancelled` here and
- * now, matched no row, or never ran — the workflow-group and paused paths write
- * their terminal row elsewhere, and a failed statement knows nothing either way.
+ * What this request's own terminal claim did: moved the run to `cancelled` here
+ * and now, provably matched no row, or ran on a path that cannot tell. Every
+ * path that can terminalize the run — the direct log claim and the
+ * workflow-group transition — answers in this one vocabulary, so the report can
+ * ask a single question: did this request durably write?
  */
-type DirectTerminalWriteOutcome = 'applied' | 'no_row' | 'unknown'
+type TerminalWriteOutcome = 'applied' | 'no_row' | 'unknown'
+
+/**
+ * What a returned workflow-group transition durably wrote. `cancelled` claims
+ * the cell sidecar and `cancelled_without_sidecar` terminalizes the workflow log
+ * itself, so both are writes this request performed — including the reconciling
+ * cancel of a sidecar left in `error` behind an already-`cancelled` log.
+ * `already_cancelled_without_sidecar` found the log already `cancelled` and
+ * touched nothing. `already_cancelled` left the sidecar alone but may still have
+ * terminalized an active workflow log, which the result does not distinguish, so
+ * it cannot claim either way. `conflict` and `not_workflow_group` never reach
+ * the report — both throw above — and are mapped only to keep this map total.
+ */
+const WORKFLOW_GROUP_TERMINAL_WRITES = {
+  cancelled: 'applied',
+  cancelled_without_sidecar: 'applied',
+  already_cancelled: 'unknown',
+  already_cancelled_without_sidecar: 'no_row',
+  conflict: 'unknown',
+  not_workflow_group: 'unknown',
+} as const satisfies Record<WorkflowGroupExecutionCancellationResult['kind'], TerminalWriteOutcome>
 
 /**
  * Names the terminal state the cancel could not move, or `null` when it did
  * real work or when this path cannot tell — in which case the caller keeps the
  * undifferentiated report rather than guessing.
  *
- * The status read at entry is not enough on its own: a run that finishes
- * between that read and the claim leaves a stale non-terminal snapshot behind a
- * cancel that wrote nothing. The claim's own row count settles that, and a
- * plain post-read cannot: after a successful cancel the row reads `cancelled`
- * too, so the state has to be attributed to whoever wrote it. A claim that
- * moved no row against a non-terminal snapshot re-reads the row it lost the
- * race to, through the same ownership query the entry read came from.
+ * A request that durably wrote is never a no-op, whatever the entry snapshot
+ * said. A run can be terminal at entry and still owe this request a real write:
+ * a workflow-group run whose log is already `cancelled` can carry a sidecar left
+ * in `error`, and reconciling it is a durable cancellation that the entry
+ * snapshot cannot see.
+ *
+ * The status read at entry is not enough on its own in the other direction
+ * either: a run that finishes between that read and the claim leaves a stale
+ * non-terminal snapshot behind a cancel that wrote nothing. The claim's own row
+ * count settles that, and a plain post-read cannot: after a successful cancel
+ * the row reads `cancelled` too, so the state has to be attributed to whoever
+ * wrote it. A claim that moved no row against a non-terminal snapshot re-reads
+ * the row it lost the race to, through the same ownership query the entry read
+ * came from.
  *
  * Purely observational — it gates no effect, and a read failure falls back to
  * the undifferentiated report rather than failing the cancel.
@@ -105,10 +135,11 @@ async function resolveTerminalNoOpReason(
   executionId: string,
   workflowId: string,
   priorTerminalStatus: TerminalExecutionStatus | null,
-  directTerminalWrite: DirectTerminalWriteOutcome
+  terminalWrite: TerminalWriteOutcome
 ): Promise<CancelWorkflowExecutionReason | null> {
+  if (terminalWrite === 'applied') return null
   if (priorTerminalStatus !== null) return TERMINAL_NO_OP_REASONS[priorTerminalStatus]
-  if (directTerminalWrite !== 'no_row') return null
+  if (terminalWrite !== 'no_row') return null
   try {
     const { priorStatus } = await resolveWorkflowExecutionOwnership(executionId, workflowId)
     const terminalStatus = toTerminalExecutionStatus(priorStatus)
@@ -441,9 +472,10 @@ export async function cancelWorkflowExecution(
    * The claim's row count is read back only to report it — `returning` changes
    * what the statement returns, never the row it writes or the rows it matches.
    */
-  let directTerminalWrite: DirectTerminalWriteOutcome = 'unknown'
-  if (
-    groupCancellation === null &&
+  let terminalWrite: TerminalWriteOutcome = 'unknown'
+  if (groupCancellation !== null) {
+    terminalWrite = WORKFLOW_GROUP_TERMINAL_WRITES[groupCancellation.kind]
+  } else if (
     (cancellation.durablyRecorded || queuedJobCancelled || locallyAborted) &&
     !pausedCancelled
   ) {
@@ -459,7 +491,7 @@ export async function cancelWorkflowExecution(
           )
         )
         .returning({ id: workflowExecutionLogs.id })
-      directTerminalWrite = claimedRows.length > 0 ? 'applied' : 'no_row'
+      terminalWrite = claimedRows.length > 0 ? 'applied' : 'no_row'
     } catch (dbError) {
       logger.warn('Failed to update execution log status directly', {
         executionId,
@@ -510,16 +542,12 @@ export async function cancelWorkflowExecution(
    * run — cancelled, or force-failed with paused state left behind — can still
    * carry real paused-HITL reconciliation work, and a genuine failure there owes
    * the caller the step that failed, not a no-op. So only an otherwise-clean
-   * `recorded` is a candidate, whatever the prior status was.
+   * `recorded` is a candidate, whatever the prior status was — and only when
+   * this request wrote nothing durable on any path.
    */
   const terminalNoOpReason =
     reason === 'recorded' && !pausedCancelled
-      ? await resolveTerminalNoOpReason(
-          executionId,
-          workflowId,
-          priorTerminalStatus,
-          directTerminalWrite
-        )
+      ? await resolveTerminalNoOpReason(executionId, workflowId, priorTerminalStatus, terminalWrite)
       : null
 
   return {

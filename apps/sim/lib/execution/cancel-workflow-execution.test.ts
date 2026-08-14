@@ -319,6 +319,109 @@ describe('cancelWorkflowExecution', () => {
     expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
   })
 
+  /**
+   * A workflow-group log that is already `cancelled` can still own a cell
+   * sidecar left in `error`, and reconciling it to `cancelled` is a durable
+   * write this request performed. The terminal entry snapshot cannot see that
+   * work, so it must not reinterpret the outcome as a no-op — the API would
+   * otherwise tell the caller nothing changed and drop the cancellation event.
+   */
+  it('reports a durable write when a cancelled group run still had its sidecar reconciled', async () => {
+    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
+      belongsToWorkflow: true,
+      workflowGroupWorkspaceId: 'workspace-1',
+      priorStatus: 'cancelled',
+    })
+    const cancelled = {
+      kind: 'cancelled' as const,
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    }
+    mockCancelWorkflowGroupExecution.mockResolvedValue(cancelled)
+
+    const result = await cancelWorkflowExecution(INPUT)
+
+    expect(result).toMatchObject({ success: true, durablyRecorded: true, reason: 'recorded' })
+    expect(mockPublishWorkflowGroupCancellationEvent).toHaveBeenCalledWith(cancelled, 'execution-1')
+  })
+
+  /**
+   * The group path terminalizes the workflow log itself when the cell sidecar
+   * is already gone, so that outcome is a durable write too.
+   */
+  it('reports a durable write when the group path cancels a run whose sidecar is gone', async () => {
+    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
+      belongsToWorkflow: true,
+      workflowGroupWorkspaceId: 'workspace-1',
+      priorStatus: 'running',
+    })
+    mockCancelWorkflowGroupExecution.mockResolvedValue({ kind: 'cancelled_without_sidecar' })
+
+    const result = await cancelWorkflowExecution(INPUT)
+
+    expect(result).toMatchObject({ success: true, durablyRecorded: true, reason: 'recorded' })
+    expect(mockUpdateSet).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The mirror case: a group run that was already terminal and whose sidecar was
+   * already `cancelled` leaves both records untouched, so it still reports the
+   * state it observed rather than a durable write.
+   */
+  it('reports a group run that changed nothing as a no-op', async () => {
+    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
+      belongsToWorkflow: true,
+      workflowGroupWorkspaceId: 'workspace-1',
+      priorStatus: 'cancelled',
+    })
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'already_cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+
+    const result = await cancelWorkflowExecution(INPUT)
+
+    expect(result).toMatchObject({
+      success: true,
+      durablyRecorded: false,
+      reason: 'already_cancelled',
+    })
+  })
+
+  /**
+   * The lost-race re-read applies to the group path as well: an entry snapshot
+   * can still read `running` when the sidecar-less transition finds the log
+   * already `cancelled` and writes nothing.
+   */
+  it('reports a group run that lost the race to another cancel as a no-op', async () => {
+    mockResolveWorkflowExecutionOwnership
+      .mockResolvedValueOnce({
+        belongsToWorkflow: true,
+        workflowGroupWorkspaceId: 'workspace-1',
+        priorStatus: 'running',
+      })
+      .mockResolvedValueOnce({
+        belongsToWorkflow: true,
+        workflowGroupWorkspaceId: 'workspace-1',
+        priorStatus: 'cancelled',
+      })
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'already_cancelled_without_sidecar',
+    })
+
+    const result = await cancelWorkflowExecution(INPUT)
+
+    expect(result).toMatchObject({
+      success: true,
+      durablyRecorded: false,
+      reason: 'already_cancelled',
+    })
+    expect(mockResolveWorkflowExecutionOwnership).toHaveBeenCalledTimes(2)
+  })
+
   it.each([
     [{ kind: 'conflict' as const, status: 'completed' }, 'cannot be cancelled while completed'],
     [{ kind: 'not_workflow_group' as const }, 'no longer the active table execution'],
