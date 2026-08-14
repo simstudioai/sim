@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { createGoogleManagedOAuthConnector } from '@/lib/auth/connectors/managed-oauth'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
   getCredentialGroupProviderFromProviderId,
@@ -31,23 +32,23 @@ describe('Credential Group provider registry', () => {
   })
 
   it('uses provider-owned scope implication rules', () => {
-    const adapter = getCredentialGroupProviderAdapter('gmail')
+    const managedOAuth = createGoogleManagedOAuthConnector('google-email')
     const canonicalScopes = getCredentialGroupProviderService('gmail').scopes
     const grantedScopes = canonicalScopes.filter(
       (scope) => scope !== GMAIL_SEND_SCOPE && scope !== GMAIL_LABELS_SCOPE
     )
 
     expect(grantedScopes).toContain(GMAIL_MODIFY_SCOPE)
-    expect(adapter.hasRequiredScopes(grantedScopes, canonicalScopes)).toBe(true)
-    expect(adapter.hasRequiredScopes([], canonicalScopes)).toBe(false)
+    expect(managedOAuth.hasRequiredScopes(grantedScopes, canonicalScopes)).toBe(true)
+    expect(managedOAuth.hasRequiredScopes([], canonicalScopes)).toBe(false)
   })
 
   it('requires the complete Google Calendar scope policy', () => {
-    const adapter = getCredentialGroupProviderAdapter('google-calendar')
+    const managedOAuth = createGoogleManagedOAuthConnector('google-calendar')
     const requiredScopes = getCredentialGroupProviderService('google-calendar').scopes
 
-    expect(adapter.hasRequiredScopes(requiredScopes, requiredScopes)).toBe(true)
-    expect(adapter.hasRequiredScopes(requiredScopes.slice(1), requiredScopes)).toBe(false)
+    expect(managedOAuth.hasRequiredScopes(requiredScopes, requiredScopes)).toBe(true)
+    expect(managedOAuth.hasRequiredScopes(requiredScopes.slice(1), requiredScopes)).toBe(false)
   })
 
   it('maps the legacy Slack tool scope bundle to the managed-user policy', () => {

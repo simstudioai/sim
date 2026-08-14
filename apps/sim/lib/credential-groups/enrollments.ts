@@ -13,6 +13,7 @@ import { generateId } from '@sim/utils/id'
 import { normalizeEmail, truncate } from '@sim/utils/string'
 import { and, count, desc, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import { renderCredentialGroupInvitationEmail } from '@/components/emails/render'
+import { getCredentialGroupInvitationSubject } from '@/components/emails/subjects'
 import type {
   CredentialGroupEnrollment,
   CredentialGroupEnrollmentConnection,
@@ -32,7 +33,6 @@ import {
 import type { DbOrTx } from '@/lib/db/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
-import { getBrandConfig } from '@/ee/whitelabeling'
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const DELIVERY_CONCURRENCY = 5
@@ -272,13 +272,15 @@ async function sendInvitation(
       throw new CredentialGroupEnrollmentError('Revoked enrollment cannot be resent', 409)
     }
 
+    const preservesProgress = current?.status === 'in_progress' || current?.status === 'completed'
+    const nextStatus = preservesProgress ? current.status : ('invited' as const)
     const mutableValues = {
-      status: 'invited' as const,
+      status: nextStatus,
       invitationTokenHash: tokenHash,
       invitationExpiresAt: expiresAt,
       invitedAt: now,
       sentAt: null,
-      completedAt: null,
+      completedAt: preservesProgress ? current.completedAt : null,
       revokedAt: null,
       lastDeliveryError: null,
       createdBy: userId,
@@ -314,7 +316,7 @@ async function sendInvitation(
   })
   const result = await sendEmail({
     to: email,
-    subject: `${inviterName} invited you to connect accounts for ${context.workspaceName} on ${getBrandConfig().name}`,
+    subject: getCredentialGroupInvitationSubject(inviterName, context.workspaceName),
     html,
     from: getFromEmailAddress(),
     emailType: 'transactional',
@@ -324,7 +326,7 @@ async function sendInvitation(
     const [failed] = await db
       .update(credentialGroupEnrollment)
       .set({
-        status: 'delivery_failed',
+        status: issued.status === 'invited' ? 'delivery_failed' : issued.status,
         lastDeliveryError: truncate(result.message, 500),
         updatedAt: new Date(),
       })
@@ -332,7 +334,7 @@ async function sendInvitation(
         and(
           eq(credentialGroupEnrollment.id, issued.id),
           eq(credentialGroupEnrollment.invitationTokenHash, tokenHash),
-          eq(credentialGroupEnrollment.status, 'invited')
+          eq(credentialGroupEnrollment.status, issued.status)
         )
       )
       .returning({ id: credentialGroupEnrollment.id })
@@ -352,7 +354,7 @@ async function sendInvitation(
       and(
         eq(credentialGroupEnrollment.id, issued.id),
         eq(credentialGroupEnrollment.invitationTokenHash, tokenHash),
-        eq(credentialGroupEnrollment.status, 'invited')
+        eq(credentialGroupEnrollment.status, issued.status)
       )
     )
     .returning()
@@ -729,18 +731,41 @@ export async function completeCredentialGroupEnrollment(token: string): Promise<
   if (!allConnected) return false
 
   const now = new Date()
-  const [completed] = await db
-    .update(credentialGroupEnrollment)
-    .set({ status: 'completed', completedAt: now, updatedAt: now })
-    .where(
-      and(
-        eq(credentialGroupEnrollment.id, row.enrollment.id),
-        inArray(credentialGroupEnrollment.status, ['invited', 'in_progress', 'completed'])
+  const invitationTokenHash = hashInvitationToken(token)
+  return db.transaction(async (tx) => {
+    await lockCredentialGroupEnrollmentLifecycle(tx, row.enrollment.id)
+    const [current] = await tx
+      .select({
+        status: credentialGroupEnrollment.status,
+        invitationTokenHash: credentialGroupEnrollment.invitationTokenHash,
+        invitationExpiresAt: credentialGroupEnrollment.invitationExpiresAt,
+      })
+      .from(credentialGroupEnrollment)
+      .where(eq(credentialGroupEnrollment.id, row.enrollment.id))
+      .limit(1)
+    if (
+      !current ||
+      current.status === 'revoked' ||
+      current.status === 'delivery_failed' ||
+      current.invitationTokenHash !== invitationTokenHash ||
+      current.invitationExpiresAt.getTime() <= now.getTime()
+    ) {
+      return null
+    }
+
+    const [completed] = await tx
+      .update(credentialGroupEnrollment)
+      .set({ status: 'completed', completedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(credentialGroupEnrollment.id, row.enrollment.id),
+          inArray(credentialGroupEnrollment.status, ['invited', 'in_progress', 'completed'])
+        )
       )
-    )
-    .returning({ id: credentialGroupEnrollment.id })
-  if (!completed) throw new Error('Credential group enrollment completion returned no row')
-  return true
+      .returning({ id: credentialGroupEnrollment.id })
+    if (!completed) throw new Error('Credential group enrollment completion returned no row')
+    return true
+  })
 }
 
 /** Resolves the private, server-only context bound to a public enrollment link and option. */

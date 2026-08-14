@@ -1,8 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { adapter } = vi.hoisted(() => ({
+  adapter: {
+    getPolicy: vi.fn(),
+    hasRequiredScopes: vi.fn(),
+  },
+}))
 
 vi.mock('@/components/emails/render', () => ({
   renderCredentialGroupInvitationEmail: vi.fn(),
@@ -10,7 +17,20 @@ vi.mock('@/components/emails/render', () => ({
 
 vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: vi.fn() }))
 
+vi.mock('@/lib/billing/core/workspace-access', () => ({
+  getWorkspaceOwnerSubscriptionAccess: vi.fn().mockResolvedValue({}),
+}))
+
+vi.mock('@/lib/credential-groups/availability', () => ({
+  isCredentialGroupsAvailable: vi.fn().mockResolvedValue(true),
+}))
+
+vi.mock('@/lib/credential-groups/provider-registry', () => ({
+  getCredentialGroupProviderAdapter: () => adapter,
+}))
+
 import {
+  completeCredentialGroupEnrollment,
   listCredentialGroupEnrollments,
   resendCredentialGroupEnrollment,
 } from '@/lib/credential-groups/enrollments'
@@ -144,5 +164,103 @@ describe('resendCredentialGroupEnrollment', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it('rotates the invitation without hiding credentials from a completed enrollment', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          workspaceId: 'workspace-1',
+          workspaceName: 'Workspace',
+          groupId: 'group-1',
+          groupName: 'Group',
+          groupStatus: 'active',
+          options: [{ id: 'option-1', status: 'active' }],
+        },
+      ])
+      .mockResolvedValueOnce([{ enrollment: ENROLLMENT }])
+      .mockResolvedValueOnce([ENROLLMENT])
+      .mockResolvedValueOnce([ENROLLMENT])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([ENROLLMENT])
+      .mockResolvedValueOnce([{ ...ENROLLMENT, sentAt: new Date() }])
+    vi.mocked(sendEmail).mockResolvedValueOnce({ success: true, message: 'sent' })
+
+    const result = await resendCredentialGroupEnrollment(
+      'workspace-1',
+      'group-1',
+      ENROLLMENT.id,
+      'user-1',
+      'Inviter'
+    )
+
+    expect(result.status).toBe('completed')
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ status: 'completed', completedAt: ENROLLMENT.completedAt })
+    )
+  })
+})
+
+describe('completeCredentialGroupEnrollment', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    adapter.getPolicy.mockResolvedValue({
+      provider: 'gmail',
+      providerId: 'google-email',
+      authorizationAppId: 'google:client',
+      requiredScopes: ['scope'],
+      scopeVersion: 1,
+    })
+    adapter.hasRequiredScopes.mockReturnValue(true)
+  })
+
+  it('returns unavailable when revocation wins before completion acquires the lifecycle lock', async () => {
+    queueTableRows(schemaMock.credentialGroupEnrollment, [
+      {
+        enrollment: { ...ENROLLMENT, status: 'in_progress' },
+        groupId: 'group-1',
+        groupName: 'Group',
+        groupStatus: 'active',
+        options: [
+          {
+            id: 'option-1',
+            provider: 'gmail',
+            label: 'Gmail',
+            required: true,
+            status: 'active',
+          },
+        ],
+        workspaceId: 'workspace-1',
+        workspaceName: 'Workspace',
+        workspaceOwnerId: 'owner-1',
+        inviterName: 'Inviter',
+      },
+    ])
+    queueTableRows(schemaMock.credential, [
+      {
+        optionId: 'option-1',
+        status: 'active',
+        scopeVersion: 1,
+        authorizationAppId: 'google:client',
+        grantedScopes: ['scope'],
+        displayName: 'alex@example.com',
+        metadata: { email: 'alex@example.com' },
+        grantedAt: new Date('2026-08-11T12:05:00.000Z'),
+      },
+    ])
+    queueTableRows(schemaMock.credentialGroupEnrollment, [
+      {
+        status: 'revoked',
+        invitationTokenHash: ENROLLMENT.invitationTokenHash,
+        invitationExpiresAt: ENROLLMENT.invitationExpiresAt,
+      },
+    ])
+
+    await expect(completeCredentialGroupEnrollment('invitation-token')).resolves.toBeNull()
+
+    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })
