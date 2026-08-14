@@ -1,4 +1,5 @@
-import { AgentIcon, ConditionalIcon, MailIcon, StartIcon, TableIcon } from '@/components/icons'
+import { Table as TableIcon } from '@sim/emcn/icons'
+import { AgentIcon, ConditionalIcon, MailIcon, StartIcon } from '@/components/icons'
 import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
 /**
