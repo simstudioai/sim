@@ -9,10 +9,7 @@ import {
 } from '@/lib/copilot/application/execute-workflow-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { formatNormalizedWorkflowForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
-import {
-  listAvailableCustomToolsUseCase,
-  listWorkspaceCustomToolsUseCase,
-} from '@/lib/custom-tools/application/use-cases'
+import { listAvailableCustomToolsUseCase } from '@/lib/custom-tools/application/use-cases'
 import { discoverMcpToolsUseCase } from '@/lib/mcp/application/use-cases'
 import {
   readCopilotWorkflowBlockOutputs,
@@ -156,14 +153,13 @@ export async function executeGetWorkflowData(
       if (!workspaceId) {
         return { success: false, error: 'workspaceId is required' }
       }
-      const { tools: toolsRows } =
-        context.secretActorUserId === null
-          ? await executeCopilotCustomToolUseCase(context, listWorkspaceCustomToolsUseCase, {
-              workspaceId,
-            })
-          : await executeCopilotCustomToolUseCase(context, listAvailableCustomToolsUseCase, {
-              workspaceId,
-            })
+      const { tools: toolsRows } = await executeCopilotCustomToolUseCase(
+        context,
+        listAvailableCustomToolsUseCase,
+        {
+          workspaceId,
+        }
+      )
 
       const customToolsData = toolsRows.map((tool) => {
         const schema = tool.schema as Record<string, unknown> | null
@@ -183,12 +179,6 @@ export async function executeGetWorkflowData(
     if (dataType === 'mcp_tools') {
       if (!workspaceId) {
         return { success: false, error: 'workspaceId is required' }
-      }
-      if (context.secretActorUserId === null) {
-        return {
-          success: false,
-          error: 'MCP tools are not available without credential access.',
-        }
       }
       const { tools } = await executeCopilotMcpServerUseCase(context, discoverMcpToolsUseCase, {
         workspaceId,

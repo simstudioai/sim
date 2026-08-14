@@ -3,12 +3,7 @@ import {
   v2GetMcpServerContract,
   v2UpdateMcpServerContract,
 } from '@/lib/api/contracts/v2/mcp-servers'
-import {
-  defineV2JsonRoute,
-  v2ApiKeyAuth,
-  v2OrchestrationErrorPolicy,
-  v2RateLimits,
-} from '@/lib/api/server/routes'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
   deleteMcpServerUseCase,
@@ -16,7 +11,7 @@ import {
   updateMcpServerUseCase,
 } from '@/lib/mcp/application/use-cases'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { toV2McpServer } from '@/app/api/v2/mcp-servers/utils'
+import { mcpServerResourceErrorPolicy, toV2McpServer } from '@/app/api/v2/mcp-servers/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -27,10 +22,10 @@ export const GET = defineV2JsonRoute({
   operation: mcpServerOperations.read,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: mcpServerResourceErrorPolicy,
   mapInput: ({ params, query }) => ({ workspaceId: query.workspaceId, serverId: params.id }),
   useCase: getMcpServerUseCase,
-  present: ({ server }) => ({ data: { mcpServer: toV2McpServer(server) } }),
+  present: ({ server }) => ({ data: toV2McpServer(server) }),
 })
 
 /** PATCH /api/v2/mcp-servers/[id] — Update an MCP server's configuration. */
@@ -39,10 +34,10 @@ export const PATCH = defineV2JsonRoute({
   operation: mcpServerOperations.update,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: mcpServerResourceErrorPolicy,
   mapInput: ({ params, body }) => ({ ...body, serverId: params.id, source: 'api' as const }),
   useCase: updateMcpServerUseCase,
-  present: ({ server }) => ({ data: { mcpServer: toV2McpServer(server) } }),
+  present: ({ server }) => ({ data: toV2McpServer(server) }),
 })
 
 /** DELETE /api/v2/mcp-servers/[id] — Remove an MCP server from the workspace. */
@@ -51,7 +46,7 @@ export const DELETE = defineV2JsonRoute({
   operation: mcpServerOperations.delete,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: mcpServerResourceErrorPolicy,
   mapInput: ({ params, query }) => ({
     workspaceId: query.workspaceId,
     serverId: params.id,

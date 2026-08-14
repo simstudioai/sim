@@ -26,7 +26,7 @@ export const readWorkflow = defineAuthorizedWorkflowUseCase({
       assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
     }),
   async execute({ principal, context }) {
-    const snapshot = await loadWorkflowReadSnapshot(context.workflowId)
+    const snapshot = await loadWorkflowReadSnapshot(context.workflowId, context.workspaceId)
     const workflow = snapshot.workflowRecord
     if (!workflow || workflow.archivedAt || workflow.workspaceId !== context.workspaceId) {
       throw new OrchestrationError('not_found', 'Workflow not found')

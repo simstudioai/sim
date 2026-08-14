@@ -3,7 +3,6 @@ import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/wo
 import { toError } from '@sim/utils/errors'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
-import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { executeTool as executeAppTool } from '@/tools'
 import { getToolEntry, isClientExecuted, isKnownTool, isSimExecuted } from './router'
 import type {
@@ -17,24 +16,6 @@ const logger = createLogger('ToolExecutor')
 const FUNCTION_EXECUTE_TOOL_ID = 'function_execute'
 const DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS = 10
 const MILLISECONDS_PER_SECOND = 1000
-const QUERY_ONLY_TOOL_IDS = new Set([
-  'grep',
-  'glob',
-  'read',
-  'get_block_outputs',
-  'get_block_upstream_references',
-  'get_deployed_workflow_state',
-  'search_knowledge_base',
-  'query_user_table',
-  'get_platform_actions',
-])
-const CREDENTIALLESS_DENIED_TOOL_IDS = new Set([
-  'generate_api_key',
-  'list_user_workspaces',
-  'manage_credential',
-  'oauth_get_auth_link',
-  'oauth_request_access',
-])
 
 const handlerRegistry = new Map<string, ToolHandler>()
 
@@ -65,48 +46,6 @@ export async function executeTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  if (
-    context.workspaceId &&
-    isKnownTool(toolId) &&
-    hasWorkspaceScopeMismatch(params, context.workspaceId)
-  ) {
-    return {
-      success: false,
-      error: 'Tool denied: requested workspace does not match the current workspace.',
-    }
-  }
-
-  if (context.queryOnly && !QUERY_ONLY_TOOL_IDS.has(toolId)) {
-    return {
-      success: false,
-      error: `Tool denied: ${toolId} is not available in query-only mode.`,
-    }
-  }
-
-  if (
-    context.secretActorUserId === null &&
-    (CREDENTIALLESS_DENIED_TOOL_IDS.has(toolId) ||
-      isMcpTool(toolId) ||
-      (!isKnownTool(toolId) && !isCustomTool(toolId)))
-  ) {
-    return {
-      success: false,
-      error: `Tool denied: ${toolId} is not available without credential access.`,
-    }
-  }
-
-  if (
-    context.secretActorUserId === null &&
-    toolId === 'set_environment_variables' &&
-    params.scope === 'personal'
-  ) {
-    return {
-      success: false,
-      error:
-        'Tool denied: personal environment variables are not available without credential access.',
-    }
-  }
-
   const requiredPermission = getToolEntry(toolId)?.requiredPermission
   if (
     requiredPermission &&
@@ -132,9 +71,7 @@ export async function executeTool(
     (isSimExecuted(toolId) || (isClientExecuted(toolId) && hasHandler(toolId)))
   if (!canUseRegisteredHandler) {
     const appParams = buildAppToolParams(normalizedParams, context)
-    const signal = context.abortSignal ?? context.userStopSignal
     const options = {
-      ...(signal ? { signal } : {}),
       ...(context.resolvedSecretTraceRegistry
         ? { resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry }
         : {}),
@@ -178,27 +115,6 @@ export async function executeTool(
     })
     return { success: false, error: message }
   }
-}
-
-function hasWorkspaceScopeMismatch(params: Record<string, unknown>, workspaceId: string): boolean {
-  const payload =
-    typeof params.payload === 'object' && params.payload !== null
-      ? (params.payload as Record<string, unknown>)
-      : undefined
-  const suppliedContext =
-    typeof params._context === 'object' && params._context !== null
-      ? (params._context as Record<string, unknown>)
-      : undefined
-  const candidates = [
-    params.workspaceId,
-    params.workspace_id,
-    payload?.workspaceId,
-    payload?.workspace_id,
-    suppliedContext?.workspaceId,
-    suppliedContext?.workspace_id,
-  ]
-
-  return candidates.some((candidate) => typeof candidate === 'string' && candidate !== workspaceId)
 }
 
 function normalizeToolParams(

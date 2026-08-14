@@ -35,7 +35,7 @@ Provision and revoke temporary access to AWS accounts via IAM Identity Center (S
 
 ## Actions
 
-### `identity_center_list_instances`
+### Identity Center List Instances
 
 List all AWS IAM Identity Center instances in your account
 
@@ -57,7 +57,7 @@ List all AWS IAM Identity Center instances in your account
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of instances returned |
 
-### `identity_center_list_accounts`
+### Identity Center List Accounts
 
 List all AWS accounts in your organization
 
@@ -79,7 +79,7 @@ List all AWS accounts in your organization
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of accounts returned |
 
-### `identity_center_describe_account`
+### Identity Center Describe Account
 
 Retrieve details about a specific AWS account by its ID
 
@@ -103,7 +103,7 @@ Retrieve details about a specific AWS account by its ID
 | `status` | string | Account status \(ACTIVE, SUSPENDED, etc.\) |
 | `joinedTimestamp` | string | Date the account joined the organization |
 
-### `identity_center_list_permission_sets`
+### Identity Center List Permission Sets
 
 List all permission sets defined in an IAM Identity Center instance
 
@@ -126,7 +126,7 @@ List all permission sets defined in an IAM Identity Center instance
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of permission sets returned |
 
-### `identity_center_get_user`
+### Identity Center Get User
 
 Look up a user in the Identity Store by email address
 
@@ -149,7 +149,7 @@ Look up a user in the Identity Store by email address
 | `displayName` | string | Display name of the user |
 | `email` | string | Email address of the user |
 
-### `identity_center_get_group`
+### Identity Center Get Group
 
 Look up a group in the Identity Store by display name
 
@@ -171,7 +171,7 @@ Look up a group in the Identity Store by display name
 | `displayName` | string | Display name of the group |
 | `description` | string | Group description |
 
-### `identity_center_list_groups`
+### Identity Center List Groups
 
 List all groups in the Identity Store
 
@@ -194,7 +194,7 @@ List all groups in the Identity Store
 | `nextToken` | string | Pagination token for the next page of results |
 | `count` | number | Number of groups returned |
 
-### `identity_center_create_account_assignment`
+### Identity Center Create Account Assignment
 
 Grant a user or group access to an AWS account via a permission set (temporary elevated access)
 
@@ -225,7 +225,7 @@ Grant a user or group access to an AWS account via a permission set (temporary e
 | `failureReason` | string | Reason for failure if status is FAILED |
 | `createdDate` | string | Date the request was created |
 
-### `identity_center_delete_account_assignment`
+### Identity Center Delete Account Assignment
 
 Revoke a user or group access to an AWS account by removing a permission set assignment
 
@@ -256,7 +256,7 @@ Revoke a user or group access to an AWS account by removing a permission set ass
 | `failureReason` | string | Reason for failure if status is FAILED |
 | `createdDate` | string | Date the request was created |
 
-### `identity_center_check_assignment_status`
+### Identity Center Check Assignment Status
 
 Check the provisioning status of an account assignment creation request
 
@@ -284,7 +284,7 @@ Check the provisioning status of an account assignment creation request
 | `failureReason` | string | Reason for failure if status is FAILED |
 | `createdDate` | string | Date the request was created |
 
-### `identity_center_check_assignment_deletion_status`
+### Identity Center Check Assignment Deletion Status
 
 Check the deprovisioning status of an account assignment deletion request
 
@@ -312,7 +312,7 @@ Check the deprovisioning status of an account assignment deletion request
 | `failureReason` | string | Reason for failure if status is FAILED |
 | `createdDate` | string | Date the request was created |
 
-### `identity_center_list_account_assignments`
+### Identity Center List Account Assignments
 
 List all account assignments for a specific user or group across all accounts
 

@@ -37,13 +37,6 @@ export function knowledgeDocumentContentSelectionKey(documentIndex: number): str
   return `document-content:${documentIndex}`
 }
 
-export function knowledgeDocumentTagNameSelectionKey(
-  documentIndex: number,
-  tagIndex: number
-): string {
-  return `document-tag-name:${documentIndex}:${tagIndex}`
-}
-
 export function knowledgeDocumentTagValueSelectionKey(
   documentIndex: number,
   tagIndex: number

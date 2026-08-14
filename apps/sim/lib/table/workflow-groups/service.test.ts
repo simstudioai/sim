@@ -1,192 +1,110 @@
 /**
  * @vitest-environment node
  */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TableDefinition } from '@/lib/table/types'
+import type { TableDefinition, WorkflowGroup } from '@/lib/table/types'
 
-const { mockRunWorkflowColumn, mockWithLockedTable } = vi.hoisted(() => ({
-  mockRunWorkflowColumn: vi.fn(),
+const { mockWithLockedTable, mockGetTableById } = vi.hoisted(() => ({
   mockWithLockedTable: vi.fn(),
+  mockGetTableById: vi.fn(),
 }))
 
 vi.mock('@/lib/table/service', () => ({
-  getTableById: vi.fn(),
+  getTableById: mockGetTableById,
   withLockedTable: mockWithLockedTable,
 }))
-
+vi.mock('@/lib/table/mutation-locks', () => ({
+  assertColumnDestructive: vi.fn(),
+  assertSchemaMutable: vi.fn(),
+}))
+vi.mock('@/lib/table/rows/secret-provenance', () => ({
+  updateTableRowsWithDerivedSecretProvenance: vi.fn(),
+}))
 vi.mock('@/lib/table/workflow-columns', () => ({
+  runWorkflowColumn: vi.fn().mockResolvedValue(undefined),
+  stripGroupDeps: (schema: unknown) => schema,
+}))
+/**
+ * These ceiling fixtures declare groups whose output columns are not in the
+ * schema, so the invariant check has to stay stubbed for them to exercise the
+ * count limit. It moved to its own leaf module, so the stub follows it.
+ */
+vi.mock('@/lib/table/schema-invariants', () => ({
   assertValidSchema: vi.fn(),
-  runWorkflowColumn: mockRunWorkflowColumn,
-  stripGroupDeps: vi.fn((group: unknown) => group),
 }))
 
-vi.mock('@/lib/table/backfill-runner', () => ({
-  maybeBackfillGroupOutputs: vi.fn(),
-}))
+import { TABLE_LIMITS } from '@/lib/table/constants'
+import { addWorkflowGroup } from '@/lib/table/workflow-groups/service'
 
-import { addWorkflowGroup, updateWorkflowGroup } from '@/lib/table/workflow-groups/service'
+function groupAt(index: number): WorkflowGroup {
+  return {
+    id: `group-${index}`,
+    workflowId: 'workflow-1',
+    outputs: [{ blockId: 'block-1', path: 'out', columnName: `out_${index}` }],
+  } as WorkflowGroup
+}
 
-function table(autoRun?: boolean): TableDefinition {
+function tableWithGroups(count: number): TableDefinition {
   return {
     id: 'table-1',
     name: 'People',
     description: null,
     schema: {
-      columns: [],
-      ...(autoRun === undefined
-        ? {}
-        : {
-            workflowGroups: [
-              {
-                id: 'group-1',
-                workflowId: 'workflow-1',
-                outputs: [],
-                autoRun,
-              },
-            ],
-          }),
+      columns: [{ id: 'col_a', name: 'name', type: 'string' }],
+      workflowGroups: Array.from({ length: count }, (_unused, index) => groupAt(index)),
     },
     metadata: null,
     rowCount: 0,
-    maxRows: 100,
+    maxRows: 10_000,
     workspaceId: 'workspace-1',
-    createdBy: 'workspace-key-owner',
+    createdBy: 'user-1',
     archivedAt: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
-  }
+  } as TableDefinition
 }
 
-describe('workflow-group auto-run billing actor', () => {
+/**
+ * `GET /tables/{id}/groups` is published as a full-set list — one page, always
+ * `nextCursor: null`. Nothing made that claim true: the group count had no cap
+ * of its own, and the indirect bound (a create must add at least one column, and
+ * columns are capped) does not survive an update path that adds none.
+ */
+describe('addWorkflowGroup group ceiling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockRunWorkflowColumn.mockResolvedValue({ dispatchId: 'dispatch-1' })
-    mockWithLockedTable.mockImplementation(
-      async (
-        _tableId: string,
-        callback: (
-          value: TableDefinition,
-          transaction: {
-            update: () => {
-              set: () => { where: () => Promise<void> }
-            }
-            execute: () => Promise<void>
-          }
-        ) => Promise<TableDefinition>
-      ) =>
-        callback(table(), {
-          update: () => ({
-            set: () => ({ where: async () => undefined }),
-          }),
-          execute: async () => undefined,
-        })
-    )
   })
 
-  it('uses the frozen billing actor without replacing mutation ownership', async () => {
-    await addWorkflowGroup(
+  function add(existingGroups: number) {
+    const table = tableWithGroups(existingGroups)
+    mockWithLockedTable.mockImplementation(
+      async (_tableId: string, mutate: (t: TableDefinition, trx: unknown) => Promise<unknown>) =>
+        mutate(table, {
+          update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
+          execute: () => Promise.resolve(),
+        })
+    )
+    mockGetTableById.mockResolvedValue(table)
+    return addWorkflowGroup(
       {
         tableId: 'table-1',
-        group: {
-          id: 'group-1',
-          workflowId: 'workflow-1',
-          outputs: [{ blockId: 'block-1', path: 'content', columnName: 'result' }],
-        },
-        outputColumns: [
-          {
-            name: 'result',
-            type: 'string',
-            required: false,
-            unique: false,
-            workflowGroupId: 'group-1',
-          },
-        ],
-        autoRun: true,
-        actorUserId: 'workspace-key-owner',
-        billingActorUserId: 'workspace-system-actor',
-      },
+        workspaceId: 'workspace-1',
+        group: groupAt(9999),
+        outputColumns: [{ name: 'out_9999', type: 'string', workflowGroupId: 'group-9999' }],
+        autoRun: false,
+        actorUserId: 'user-1',
+      } as Parameters<typeof addWorkflowGroup>[0],
       'request-1'
     )
+  }
 
-    expect(mockRunWorkflowColumn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tableId: 'table-1',
-        workspaceId: 'workspace-1',
-        triggeredByUserId: 'workspace-system-actor',
-      })
+  it('refuses a create that would cross MAX_WORKFLOW_GROUPS_PER_TABLE', async () => {
+    await expect(add(TABLE_LIMITS.MAX_WORKFLOW_GROUPS_PER_TABLE)).rejects.toThrow(
+      /maximum of \d+ workflow groups/
     )
   })
 
-  it('preserves the existing member-attribution fallback for ordinary callers', async () => {
-    await addWorkflowGroup(
-      {
-        tableId: 'table-1',
-        group: {
-          id: 'group-1',
-          workflowId: 'workflow-1',
-          outputs: [{ blockId: 'block-1', path: 'content', columnName: 'result' }],
-        },
-        outputColumns: [
-          {
-            name: 'result',
-            type: 'string',
-            required: false,
-            unique: false,
-            workflowGroupId: 'group-1',
-          },
-        ],
-        autoRun: true,
-        actorUserId: 'interactive-member',
-      },
-      'request-2'
-    )
-
-    expect(mockRunWorkflowColumn).toHaveBeenCalledWith(
-      expect.objectContaining({ triggeredByUserId: 'interactive-member' })
-    )
-  })
-
-  it('uses the frozen billing actor when enabling auto-run on an existing group', async () => {
-    mockWithLockedTable.mockImplementationOnce(
-      async (
-        _tableId: string,
-        callback: (
-          value: TableDefinition,
-          transaction: {
-            update: () => {
-              set: () => { where: () => Promise<void> }
-            }
-            execute: () => Promise<void>
-          }
-        ) => Promise<unknown>
-      ) =>
-        callback(table(false), {
-          update: () => ({
-            set: () => ({ where: async () => undefined }),
-          }),
-          execute: async () => undefined,
-        })
-    )
-
-    await updateWorkflowGroup(
-      {
-        tableId: 'table-1',
-        groupId: 'group-1',
-        autoRun: true,
-        actorUserId: 'workspace-key-owner',
-        billingActorUserId: 'workspace-system-actor',
-      },
-      'request-3'
-    )
-
-    expect(mockRunWorkflowColumn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tableId: 'table-1',
-        workspaceId: 'workspace-1',
-        groupIds: ['group-1'],
-        triggeredByUserId: 'workspace-system-actor',
-      })
-    )
+  it('allows the create that lands exactly on the ceiling', async () => {
+    await expect(add(TABLE_LIMITS.MAX_WORKFLOW_GROUPS_PER_TABLE - 1)).resolves.toBeDefined()
   })
 })

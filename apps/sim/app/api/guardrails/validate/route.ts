@@ -257,25 +257,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if (provenanceInspection.status === 'invalid') {
         return NextResponse.json({ error: 'Invalid model input provenance' }, { status: 400 })
       }
-      if (
-        provenanceInspection.status === 'unsupported' &&
-        auth.authType === AuthType.INTERNAL_JWT
-      ) {
-        return NextResponse.json(
-          { error: 'Model input provenance is unavailable' },
-          { status: 400 }
-        )
-      }
       if (provenanceInspection.status === 'verified' && auth.authType !== AuthType.INTERNAL_JWT) {
         return NextResponse.json({ error: 'Invalid model input provenance' }, { status: 400 })
       }
       const provenanceReady =
         provenanceInspection.status === 'verified'
-          ? await resolvedSecretTraceRegistry.importProvenanceForValue(
-              provenanceInspection.value,
-              inputStr,
-              { trusted: true }
-            )
+          ? (
+              await resolvedSecretTraceRegistry.importProvenanceForValueAtInputPath(
+                provenanceInspection.value,
+                inputStr,
+                ['input'],
+                { trusted: true, origin: 'guardrailsRoute.inputProvenance' }
+              )
+            ).success
           : true
       if (!provenanceReady || !resolvedSecretTraceRegistry.isComplete()) {
         return NextResponse.json(

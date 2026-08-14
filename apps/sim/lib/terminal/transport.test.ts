@@ -11,6 +11,7 @@ const {
   markScopeSuspended,
   migrateStoreScope,
   nativeMigrateScope,
+  nativeReorderTerminal,
   onCommand,
   onData,
   onDefaultZoomChanged,
@@ -38,6 +39,7 @@ const {
   markScopeSuspended: vi.fn(),
   migrateStoreScope: vi.fn(),
   nativeMigrateScope: vi.fn(),
+  nativeReorderTerminal: vi.fn(),
   onCommand: vi.fn(),
   onData: vi.fn(() => vi.fn()),
   onDefaultZoomChanged: vi.fn(() => vi.fn()),
@@ -68,6 +70,7 @@ vi.mock('@/lib/desktop', () => ({
       onTabs,
       onScopeSuspended,
       openTerminal: vi.fn(),
+      reorderTerminal: nativeReorderTerminal,
       resize: vi.fn(),
       start: vi.fn(),
       switchTerminal: vi.fn(),
@@ -99,6 +102,7 @@ import {
   onTerminalData,
   onTerminalDefaultZoomChanged,
   onTerminalShortcutCommand,
+  reorderTerminal,
   suspendTerminalScope,
   writeToTerminal,
 } from '@/lib/terminal/transport'
@@ -119,6 +123,7 @@ describe('terminal transport chat scopes', () => {
     markScopeSuspended.mockClear()
     migrateStoreScope.mockClear()
     nativeMigrateScope.mockReset()
+    nativeReorderTerminal.mockReset()
     write.mockClear()
   })
 
@@ -177,6 +182,12 @@ describe('terminal transport chat scopes', () => {
     writeToTerminal('same-id', 'ls\r', 'chat-b')
 
     expect(write).toHaveBeenCalledWith('same-id', 'ls\r', 'chat-b')
+  })
+
+  it('forwards terminal tab reordering with the explicit chat scope', async () => {
+    await reorderTerminal('terminal-b', 2, 'chat-b')
+
+    expect(nativeReorderTerminal).toHaveBeenCalledWith('terminal-b', 2, 'chat-b')
   })
 
   it('clears retained terminal output in the explicit chat scope', async () => {

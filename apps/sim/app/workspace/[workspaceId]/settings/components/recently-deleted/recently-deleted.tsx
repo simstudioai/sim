@@ -11,6 +11,7 @@ import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigat
 import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { type ColumnOption, SortDropdown } from '@/app/workspace/[workspaceId]/components'
+import { folderedResourceListHref } from '@/app/workspace/[workspaceId]/components/folders'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -71,11 +72,11 @@ function getResourceHref(
     case 'folder':
       return `${base}/w`
     case 'workspace_folder':
-      return `${base}/files?folderId=${id}`
+      return folderedResourceListHref('file', workspaceId, id)
     case 'knowledge_folder':
-      return `${base}/knowledge?folderId=${id}`
+      return folderedResourceListHref('knowledge_base', workspaceId, id)
     case 'table_folder':
-      return `${base}/tables?folderId=${id}`
+      return folderedResourceListHref('table', workspaceId, id)
     case 'chat':
       return `${base}/chat/${id}`
   }
@@ -114,14 +115,15 @@ interface RestoredResourceEntry {
   displayIndex: number
 }
 
+/** Labels for {@link RECENTLY_DELETED_TABS}, which owns the order. */
 const TABS: { id: ResourceType; label: string }[] = [
   { id: 'all', label: 'All' },
+  { id: 'chat', label: 'Chats' },
+  { id: 'table', label: 'Tables' },
+  { id: 'file', label: 'Files' },
+  { id: 'knowledge', label: 'Knowledge Bases' },
   { id: 'workflow', label: 'Workflows' },
   { id: 'folder', label: 'Folders' },
-  { id: 'table', label: 'Tables' },
-  { id: 'knowledge', label: 'Knowledge Bases' },
-  { id: 'file', label: 'Files' },
-  { id: 'chat', label: 'Chats' },
 ]
 
 const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {

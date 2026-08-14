@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
@@ -40,7 +41,9 @@ export const createWorkflow = defineAuthorizedWorkflowUseCase({
         ? await resolveWorkflowFolderPath(context.workspaceId, input.folderPath ?? '/')
         : {
             folderId: input.folderId,
-            index: await loadActiveFolderPathIndex(context.workspaceId, 'workflow'),
+            index: await loadActiveFolderPathIndex(context.workspaceId, 'workflow', undefined, {
+              maxRows: MAX_FOLDERS_PER_WORKSPACE,
+            }),
           }
     if (resolution.folderId && !resolution.index.pathById.has(resolution.folderId)) {
       throw new OrchestrationError('not_found', 'Folder not found')

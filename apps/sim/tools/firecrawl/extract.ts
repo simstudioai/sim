@@ -104,10 +104,6 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
         ),
       }),
     },
-    opaqueModelInput: {
-      mode: 'reject-resolved-secrets',
-      select: (params) => params.urls,
-    },
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/extract',
     headers: (params) => ({

@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { executeCopilotCustomToolUseCase } from '@/lib/copilot/application/execute-custom-tool-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { copilotToolCanWrite, copilotWriteDeniedMessage } from '@/lib/copilot/tools/permissions'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   deleteAvailableCustomToolUseCase,
@@ -52,14 +51,6 @@ export async function executeManageCustomTool(
 
   if (!operation) {
     return { success: false, error: "Missing required 'operation' argument" }
-  }
-
-  const writeOps: ManageCustomToolOperation[] = ['add', 'edit', 'delete']
-  if (writeOps.includes(operation) && !copilotToolCanWrite(context.userPermission)) {
-    return {
-      success: false,
-      error: copilotWriteDeniedMessage('manage_custom_tool', operation, context.userPermission),
-    }
   }
 
   try {

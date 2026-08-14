@@ -9,14 +9,30 @@ interface UseDragResizeOptions {
    */
   cssVar: string
   /**
-   * Returns the element that consumes {@link cssVar} (or an ancestor of every
-   * consumer). During the drag the variable is written here — a style recalc
-   * scoped to that subtree — instead of on `:root`, where on a large document
-   * every custom-property write recalculates the whole tree (~150x slower).
-   * Captured once on drag start; a `null` return falls back to
-   * `document.documentElement`.
+   * Returns the element the drag resizes, which is also the subtree
+   * {@link cssVar} is written to during it — a style recalc scoped to that
+   * subtree, instead of `:root`, where on a large document every
+   * custom-property write recalculates the whole tree (~150x slower). Captured
+   * once on drag start; a `null` return falls back to
+   * `document.documentElement`. This element is also the drag's liveness
+   * reference: once it detaches, the release stops recomputing from layout.
    */
   getTarget: () => HTMLElement | null
+  /**
+   * Other subtrees that read {@link cssVar} but are not what the drag resizes —
+   * the toast stack insets by `--panel-width`/`--terminal-height` yet is
+   * portalled to `<body>`, so it shares no ancestor with either. Each is
+   * written alongside the primary, which keeps the recalc scoped AND keeps
+   * these consumers tracking the drag; one left off here reads the stale
+   * `:root` value and only catches up when the drag commits.
+   *
+   * Deliberately separate from {@link getTarget} rather than one list: these
+   * come and go independently of the drag (a toast auto-dismisses mid-drag),
+   * so they must never become the liveness reference. Absent (`null`) or
+   * duplicate elements are ignored, and writing to one that detaches mid-drag
+   * is harmless.
+   */
+  getExtraTargets?: () => (HTMLElement | null)[]
   /**
    * Maps a pointer position to the clamped target dimension, or `null` to
    * ignore the move. Runs at most once per animation frame (before the write,
@@ -91,6 +107,8 @@ export function useDragResize(options: UseDragResizeOptions) {
     const pointerId = e.pointerId
     const { cssVar } = optionsRef.current
     const target = optionsRef.current.getTarget() ?? document.documentElement
+    const extras = optionsRef.current.getExtraTargets?.() ?? []
+    const targets = [...new Set([target, ...extras.filter((el) => el !== null)])]
     document.body.style.cursor = optionsRef.current.cursor
     document.body.style.userSelect = 'none'
     handle.setPointerCapture?.(pointerId)
@@ -100,7 +118,7 @@ export function useDragResize(options: UseDragResizeOptions) {
     let lastApplied: number | null = null
 
     const applyValue = (value: number) => {
-      target.style.setProperty(cssVar, `${value}px`)
+      for (const el of targets) el.style.setProperty(cssVar, `${value}px`)
       lastApplied = value
       optionsRef.current.onApply?.(value)
     }
@@ -144,7 +162,9 @@ export function useDragResize(options: UseDragResizeOptions) {
       }
       if (lastApplied !== null) {
         optionsRef.current.commit(lastApplied)
-        if (target !== document.documentElement) target.style.removeProperty(cssVar)
+        for (const el of targets) {
+          if (el !== document.documentElement) el.style.removeProperty(cssVar)
+        }
       }
       optionsRef.current.onEnd?.()
     }

@@ -1,18 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
-import {
-  collectModelVisibleSchemaContent,
-  restoreModelVisibleSchemaValues as restoreSchemaDisplayValues,
-} from '@/lib/copilot/model-visible-schema'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { StreamingExecution } from '@/executor/types'
-import {
-  isResolvedSecretModelContentUnchanged,
-  projectResolvedSecretModelContent,
-  projectResolvedSecretModelJsonStrings,
-} from '@/executor/utils/resolved-secret-content-projection'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   applyModelCostPolicy,
   applySegmentCostPolicy,
@@ -26,20 +16,13 @@ import {
   attachLargeFileRemoteUrls,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
-import { collectProviderModelInputProvenanceValues } from '@/providers/model-input-provenance'
 import { isKnownModelId } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
 import {
   type ProviderRuntimeContext,
   runWithProviderRuntimeContext,
 } from '@/providers/runtime-context'
-import type {
-  Message,
-  ProviderId,
-  ProviderRequest,
-  ProviderResponse,
-  ProviderToolConfig,
-} from '@/providers/types'
+import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
   generateStructuredOutputInstructions,
   sumToolCosts,
@@ -51,240 +34,6 @@ import {
 } from '@/providers/utils'
 
 const logger = createLogger('Providers')
-
-class ModelContentProjectionError extends Error {
-  constructor() {
-    super('Model input could not be safely projected')
-    this.name = 'ModelContentProjectionError'
-  }
-}
-
-function restoreProjectedOptionalString(
-  original: string | undefined,
-  candidate: unknown
-): string | undefined {
-  if (original === undefined && candidate === undefined) return undefined
-  if (original === undefined || typeof candidate !== 'string') {
-    throw new ModelContentProjectionError()
-  }
-  return candidate
-}
-
-function modelVisibleMessageText(message: Message): unknown {
-  return message.content
-}
-
-function projectMessageJsonArguments(
-  messages: Message[] | undefined,
-  registry: ResolvedSecretTraceRegistry | undefined
-): Message[] | undefined {
-  if (!messages) return undefined
-
-  const argumentsToProject = messages.flatMap((message) => [
-    message.function_call?.arguments,
-    ...(message.tool_calls?.map((toolCall) => toolCall.function.arguments) ?? []),
-  ])
-  const projection = projectResolvedSecretModelJsonStrings(argumentsToProject, registry)
-  if (!projection.safe || !Array.isArray(projection.value)) {
-    throw new ModelContentProjectionError()
-  }
-  const projectedArguments = projection.value
-
-  let cursor = 0
-  return messages.map((message) => {
-    const functionArguments = projectedArguments[cursor]
-    cursor += 1
-    const toolCalls = message.tool_calls?.map((toolCall) => {
-      const toolArguments = projectedArguments[cursor]
-      cursor += 1
-      if (typeof toolArguments !== 'string') throw new ModelContentProjectionError()
-      return {
-        ...toolCall,
-        function: { ...toolCall.function, arguments: toolArguments },
-      }
-    })
-    if (message.function_call && typeof functionArguments !== 'string') {
-      throw new ModelContentProjectionError()
-    }
-    return {
-      ...message,
-      ...(message.function_call
-        ? {
-            function_call: {
-              ...message.function_call,
-              arguments: functionArguments as string,
-            },
-          }
-        : {}),
-      ...(toolCalls ? { tool_calls: toolCalls } : {}),
-    }
-  })
-}
-
-function modelMessageProtocolHandles(messages: Message[] | undefined): unknown[] {
-  return (messages ?? []).flatMap((message) => [
-    message.name,
-    message.function_call?.name,
-    ...(message.tool_calls?.map((toolCall) => toolCall.function.name) ?? []),
-  ])
-}
-
-function hasModelSafeSchema(
-  schema: unknown,
-  registry: ResolvedSecretTraceRegistry | undefined
-): boolean {
-  try {
-    return isResolvedSecretModelContentUnchanged(
-      collectModelVisibleSchemaContent(schema).guardedValues,
-      registry
-    )
-  } catch {
-    return false
-  }
-}
-
-function modelSafeResponseFormatName(
-  name: string,
-  registry: ResolvedSecretTraceRegistry | undefined
-): string | undefined {
-  if (isResolvedSecretModelContentUnchanged(name, registry)) return name
-
-  const prefixes = ['response', 'structured_output', 'model_output'] as const
-  for (const prefix of prefixes) {
-    for (let suffix = 0; suffix < 100; suffix += 1) {
-      const candidate = `${prefix}_${suffix}`
-      if (isResolvedSecretModelContentUnchanged(candidate, registry)) return candidate
-    }
-  }
-  return undefined
-}
-
-function restoreProjectedMessages(
-  original: Message[] | undefined,
-  projected: unknown
-): Message[] | undefined {
-  if (original === undefined && projected === undefined) return undefined
-  if (!original || !Array.isArray(projected) || original.length !== projected.length) {
-    throw new ModelContentProjectionError()
-  }
-
-  return projected.map((candidate, index) => {
-    const originalMessage = original[index]
-    if (
-      (originalMessage.content === null && candidate !== null) ||
-      (typeof originalMessage.content === 'string' && typeof candidate !== 'string')
-    ) {
-      throw new ModelContentProjectionError()
-    }
-
-    return {
-      ...originalMessage,
-      content: candidate as Message['content'],
-    }
-  })
-}
-
-function modelVisibleToolContent(tool: ProviderToolConfig): unknown[] {
-  return [tool.description, collectModelVisibleSchemaContent(tool.parameters).projectedValues]
-}
-
-function restoreProjectedTools(
-  original: ProviderToolConfig[] | undefined,
-  projected: unknown
-): ProviderToolConfig[] | undefined {
-  if (original === undefined && projected === undefined) return undefined
-  if (!original || !Array.isArray(projected) || original.length !== projected.length) {
-    throw new ModelContentProjectionError()
-  }
-
-  return projected.map((candidate, index) => {
-    if (!Array.isArray(candidate) || candidate.length !== 2 || typeof candidate[0] !== 'string') {
-      throw new ModelContentProjectionError()
-    }
-    return {
-      ...original[index],
-      description: candidate[0],
-      parameters: restoreSchemaDisplayValues(
-        original[index].parameters,
-        candidate[1]
-      ) as ProviderToolConfig['parameters'],
-    }
-  })
-}
-
-function projectProviderModelContent(
-  request: ProviderRequest,
-  runtimeContext: ProviderRuntimeContext
-): ProviderRequest {
-  const registry = runtimeContext.resolvedSecretTraceRegistry
-  if (
-    !isResolvedSecretModelContentUnchanged(modelMessageProtocolHandles(request.messages), registry)
-  ) {
-    throw new ModelContentProjectionError()
-  }
-
-  const sourceMessages = projectMessageJsonArguments(request.messages, registry)
-  const sourceTools = request.tools?.filter(
-    (tool) =>
-      isResolvedSecretModelContentUnchanged(tool.id, registry) &&
-      isResolvedSecretModelContentUnchanged(tool.name, registry) &&
-      hasModelSafeSchema(tool.parameters, registry)
-  )
-  let sourceResponseFormat = request.responseFormat
-  if (request.responseFormat) {
-    if (!hasModelSafeSchema(request.responseFormat.schema, registry)) {
-      logger.warn('Omitting a response format with unsafe model-input provenance')
-      sourceResponseFormat = undefined
-    } else {
-      const name = modelSafeResponseFormatName(request.responseFormat.name, registry)
-      if (!name) {
-        logger.warn('Omitting a response format whose name could not be safely projected')
-        sourceResponseFormat = undefined
-      } else {
-        sourceResponseFormat = { ...request.responseFormat, name }
-      }
-    }
-  }
-
-  const projection = projectResolvedSecretModelContent(
-    [
-      request.systemPrompt,
-      request.context,
-      sourceMessages?.map(modelVisibleMessageText),
-      sourceTools?.map(modelVisibleToolContent),
-      sourceResponseFormat
-        ? collectModelVisibleSchemaContent(sourceResponseFormat.schema).projectedValues
-        : undefined,
-    ],
-    registry
-  )
-  if (!projection.safe || !Array.isArray(projection.value) || projection.value.length !== 5) {
-    throw new ModelContentProjectionError()
-  }
-
-  const [systemPrompt, context, projectedMessages, projectedTools, responseSchemaDisplay] =
-    projection.value
-  const projectedSystemPrompt = restoreProjectedOptionalString(request.systemPrompt, systemPrompt)
-  const projectedContext = restoreProjectedOptionalString(request.context, context)
-  let responseFormat = sourceResponseFormat
-  if (sourceResponseFormat) {
-    responseFormat = {
-      ...sourceResponseFormat,
-      schema: restoreSchemaDisplayValues(sourceResponseFormat.schema, responseSchemaDisplay),
-    }
-  } else if (responseSchemaDisplay !== undefined) {
-    throw new ModelContentProjectionError()
-  }
-
-  return {
-    ...request,
-    systemPrompt: projectedSystemPrompt,
-    context: projectedContext,
-    messages: restoreProjectedMessages(sourceMessages, projectedMessages),
-    tools: restoreProjectedTools(sourceTools, projectedTools),
-    responseFormat,
-  }
-}
 
 async function omitUnsafeProviderFileAttachments(
   request: ProviderRequest
@@ -417,15 +166,6 @@ export async function executeProviderRequest(
   request: ProviderRequest,
   runtimeContext?: ProviderRuntimeContext
 ): Promise<ProviderResponse | ReadableStream | StreamingExecution> {
-  const projectionRuntimeContext = runtimeContext
-    ? {
-        ...runtimeContext,
-        resolvedSecretTraceRegistry:
-          runtimeContext.resolvedSecretTraceRegistry?.forkForToolInputValues(
-            collectProviderModelInputProvenanceValues(request, providerId)
-          ),
-      }
-    : undefined
   const provider = await getProviderExecutor(providerId as ProviderId)
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)
@@ -476,9 +216,7 @@ export async function executeProviderRequest(
   }
 
   const provenanceSafeRequest = await omitUnsafeProviderFileAttachments(sanitizedRequest)
-  const modelSafeRequest = projectionRuntimeContext
-    ? projectProviderModelContent(provenanceSafeRequest, projectionRuntimeContext)
-    : provenanceSafeRequest
+  const modelSafeRequest = provenanceSafeRequest
 
   if (modelSafeRequest.responseFormat) {
     const structuredOutputInstructions = generateStructuredOutputInstructions(
@@ -491,7 +229,7 @@ export async function executeProviderRequest(
     }
   }
 
-  const response = await runWithProviderRuntimeContext(projectionRuntimeContext, async () => {
+  const response = await runWithProviderRuntimeContext(runtimeContext, async () => {
     await attachLargeFileRemoteUrls(modelSafeRequest, providerId)
     await uploadLargeFilesToProvider(modelSafeRequest, providerId)
     return provider.executeRequest(modelSafeRequest)

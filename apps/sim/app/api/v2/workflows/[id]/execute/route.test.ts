@@ -408,7 +408,28 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
-  it('masks a workspace-key/workflow mismatch as 404', async () => {
+  it.each(['includeThinking', 'includeToolCalls'])(
+    'rejects %s unless stream is true before checking the protocol header',
+    async (option) => {
+      const withProtocol = await callExecute(
+        { [option]: true },
+        { 'X-Sim-Stream-Protocol': 'agent-events-v1' }
+      )
+      const withoutProtocol = await callExecute({ [option]: true })
+
+      expect(withProtocol.status).toBe(400)
+      expect((await withProtocol.json()).error.message).toBe(
+        'includeThinking and includeToolCalls require stream: true'
+      )
+      expect(withoutProtocol.status).toBe(400)
+      expect((await withoutProtocol.json()).error.message).toBe(
+        'includeThinking and includeToolCalls require stream: true'
+      )
+      expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    }
+  )
+
+  it('conceals a workspace-key/workflow mismatch as not found', async () => {
     mockAuthenticateV2ApiKey.mockResolvedValue({
       principal: {
         kind: 'workspace_api_key',
@@ -515,6 +536,39 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     expect((await res.json()).error.code).toBe('RATE_LIMITED')
   })
 
+  it('tells a client how long to wait when a dependency is briefly unavailable', async () => {
+    mockPreprocessExecution.mockResolvedValue({
+      success: false,
+      error: {
+        message: 'Workflow execution identity is temporarily unavailable',
+        statusCode: 503,
+      },
+    })
+
+    const res = await callExecute({ input: {} })
+
+    expect(res.status).toBe(503)
+    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0)
+  })
+
+  it('never advises a retry when an enqueue may already have started a run', async () => {
+    mockPreprocessExecution.mockResolvedValue({
+      success: false,
+      error: {
+        message: 'Async execution queue acceptance could not be confirmed',
+        statusCode: 503,
+        code: 'ASYNC_ENQUEUE_AMBIGUOUS',
+      },
+    })
+
+    const res = await callExecute({ input: {} })
+
+    expect(res.status).toBe(503)
+    // Retrying without X-Run-Id would start, and bill, a second run of the same workflow.
+    expect(res.headers.get('Retry-After')).toBeNull()
+    expect((await res.json()).error.details.code).toBe('ASYNC_ENQUEUE_AMBIGUOUS')
+  })
+
   it('runs the anonymous public path sync but refuses async', async () => {
     dbChainMockFns.limit.mockReset()
     dbChainMockFns.limit.mockResolvedValueOnce([
@@ -537,6 +591,28 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     ])
     const asyncRes = await callPublicExecute({ input: {}, async: true })
     expect(asyncRes.status).toBe(400)
+  })
+
+  it('returns not found when a public workflow disappears before authorization', async () => {
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
+    ])
+    mockAuthorize.mockResolvedValueOnce({
+      allowed: false,
+      status: 404,
+      message: 'Workflow not found',
+      workflow: null,
+      workspacePermission: null,
+    })
+
+    const response = await callPublicExecute({ input: {} })
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({
+      error: { code: 'NOT_FOUND', message: 'Workflow not found' },
+    })
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
   it('rejects anonymous abuse before looking up the workflow', async () => {
@@ -579,6 +655,49 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
 
     expect(res.status).toBe(404)
     expect(mockReleaseExecutionIdClaim).toHaveBeenCalled()
+  })
+
+  it('rejects a call chain at the depth limit on the keyed and anonymous paths', async () => {
+    const maxChain = Array.from({ length: 25 }, (_, i) => `wf-${i}`).join(',')
+
+    const keyed = await callExecute({ input: {} }, { 'X-Sim-Via': maxChain })
+    expect(keyed.status).toBe(409)
+    const keyedBody = await keyed.json()
+    expect(keyedBody.error.code).toBe('CONFLICT')
+    expect(keyedBody.error.message).toContain('Maximum workflow call chain depth (25) exceeded')
+
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
+    ])
+    const anonymous = await callPublicExecute({ input: {} }, { 'X-Sim-Via': maxChain })
+    expect(anonymous.status).toBe(409)
+    expect((await anonymous.json()).error.code).toBe('CONFLICT')
+
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
+  it('propagates an incoming call chain into the execution instead of resetting it', async () => {
+    const keyed = await callExecute({ input: {} }, { 'X-Sim-Via': 'wf-a, wf-b' })
+    expect(keyed.status).toBe(200)
+    expect(mockExecuteWorkflowCore.mock.calls[0][0].snapshot.metadata.callChain).toEqual([
+      'wf-a',
+      'wf-b',
+      'workflow-1',
+    ])
+
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
+    ])
+    const anonymous = await callPublicExecute({ input: {} }, { 'X-Sim-Via': 'wf-a, wf-b' })
+    expect(anonymous.status).toBe(200)
+    expect(mockExecuteWorkflowCore.mock.calls[1][0].snapshot.metadata.callChain).toEqual([
+      'wf-a',
+      'wf-b',
+      'workflow-1',
+    ])
   })
 
   it('returns a safe error when canonical workflow lookup fails', async () => {

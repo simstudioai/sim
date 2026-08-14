@@ -2,6 +2,10 @@ import type { SVGProps } from 'react'
 
 /**
  * FolderOpen icon component - folder with its front panel tilted open
+ *
+ * The body outline is {@link Folder}'s path verbatim up to the flap join, so
+ * the pair toggles in place without shifting. Keep the two in lockstep.
+ *
  * @param props - SVG properties including className, fill, etc.
  */
 export function FolderOpen(props: SVGProps<SVGSVGElement>) {
@@ -19,8 +23,8 @@ export function FolderOpen(props: SVGProps<SVGSVGElement>) {
       aria-hidden='true'
       {...props}
     >
-      <path d='M3.75 17.25A2 2 0 0 1 1.75 15.25V4.25A2 2 0 0 1 3.75 2.25H7L9.5 5.25H14.5A2 2 0 0 1 16.5 7.25V9.25' />
-      <path d='M6.25 9.25H18.75L16.25 17.25H3.75Z' />
+      <path d='M3 18.25A2.25 2.25 0 0 1 0.75 16V3.5A2.25 2.25 0 0 1 3 1.25H6.5L9.5 4.75H15A2.25 2.25 0 0 1 17.25 7V9.25' />
+      <path d='M5.75 9.25H19.75L17 18.25H3Z' />
     </svg>
   )
 }

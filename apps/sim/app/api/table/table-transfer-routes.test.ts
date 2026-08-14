@@ -10,6 +10,7 @@ interface CapturedDefinition {
     response: { status?: number }
   }
   auth: unknown
+  errorPolicy: unknown
   operation: { id: string }
   useCase: unknown
 }
@@ -17,6 +18,11 @@ interface CapturedDefinition {
 const mocks = vi.hoisted(() => ({
   auth: { kind: 'session-or-executor' },
   definitions: [] as CapturedDefinition[],
+  errorPolicies: {
+    concealTableAuthorization: { kind: 'conceal-table' },
+    concealImportAuthorization: { kind: 'conceal-import' },
+    concealExportAuthorization: { kind: 'conceal-export' },
+  },
   useCases: {
     cancelExport: { operation: { id: 'tables.exports.cancel' } },
     cancelImport: { operation: { id: 'tables.imports.cancel' } },
@@ -35,13 +41,16 @@ vi.mock('@/lib/api/server/routes', () => ({
     mocks.definitions.push(definition)
     return vi.fn()
   },
-  internalPlainOrchestrationErrorPolicy: { kind: 'plain' },
+  internalOrchestrationErrorPolicy: { kind: 'plain' },
   internalRateLimits: {
     none: ({ reason }: { reason: string }) => ({ kind: 'none', reason }),
   },
 }))
 
-vi.mock('@/lib/table/api', () => ({ internalTableSessionOrExecutorAuth: mocks.auth }))
+vi.mock('@/lib/table/api', () => ({
+  internalTableErrorPolicies: mocks.errorPolicies,
+  internalTableSessionOrExecutorAuth: mocks.auth,
+}))
 
 vi.mock('@/lib/table/application/imports', () => ({
   cancelTableImportUseCase: mocks.useCases.cancelImport,
@@ -103,6 +112,36 @@ describe('internal table transfer routes', () => {
       expect(route.auth).toBe(mocks.auth)
       expect(route.useCase).toBe(useCase)
       expect(route.operation.id).toBe(useCase.operation.id)
+    }
+  })
+
+  it('conceals cross-tenant authorization on every table transfer control leg', () => {
+    const expected = [
+      ['POST', '/api/table/imports', mocks.errorPolicies.concealTableAuthorization],
+      ['GET', '/api/table/imports/[importId]', mocks.errorPolicies.concealImportAuthorization],
+      ['DELETE', '/api/table/imports/[importId]', mocks.errorPolicies.concealImportAuthorization],
+      [
+        'POST',
+        '/api/table/imports/[importId]/parts',
+        mocks.errorPolicies.concealImportAuthorization,
+      ],
+      [
+        'POST',
+        '/api/table/imports/[importId]/complete',
+        mocks.errorPolicies.concealImportAuthorization,
+      ],
+      ['POST', '/api/table/[tableId]/exports', mocks.errorPolicies.concealTableAuthorization],
+      ['GET', '/api/table/exports/[exportId]', mocks.errorPolicies.concealExportAuthorization],
+      ['DELETE', '/api/table/exports/[exportId]', mocks.errorPolicies.concealExportAuthorization],
+      [
+        'GET',
+        '/api/table/exports/[exportId]/download',
+        mocks.errorPolicies.concealExportAuthorization,
+      ],
+    ] as const
+
+    for (const [method, path, errorPolicy] of expected) {
+      expect(definition(method, path).errorPolicy).toBe(errorPolicy)
     }
   })
 

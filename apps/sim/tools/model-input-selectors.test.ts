@@ -35,6 +35,7 @@ import { googleTranslateTool } from '@/tools/google_translate/text'
 import { queryTool as greptileQueryTool } from '@/tools/greptile/query'
 import { discoverTool as hunterDiscoverTool } from '@/tools/hunter/discover'
 import { searchTool as linkupSearchTool } from '@/tools/linkup/search'
+import { requestHighlightsTool as logrocketRequestHighlightsTool } from '@/tools/logrocket/request_highlights'
 import { mem0SearchMemoriesTool } from '@/tools/mem0/search_memories'
 import { deepResearchTool as parallelDeepResearchTool } from '@/tools/parallel/deep_research'
 import { searchTextTool as pineconeSearchTextTool } from '@/tools/pinecone/search_text'
@@ -343,6 +344,22 @@ describe('model-facing integration selectors', () => {
         { Text: '{{VENDOR_QUERY}}', Alias: 'vendor' },
       ],
     })
+  })
+
+  it('projects only the LogRocket Galileo question, never the session lookup or control fields', () => {
+    expect(
+      selectModelInput(logrocketRequestHighlightsTool, {
+        question: 'why did checkout fail',
+        userEmail: 'user@example.com',
+        userID: 'user-1',
+        startMs: '1700000000000',
+        endMs: '1700003600000',
+        webhookURL: 'https://example.com/hook',
+      })
+    ).toStrictEqual({ question: 'why did checkout fail' })
+    expect(
+      selectModelInput(logrocketRequestHighlightsTool, { userEmail: 'user@example.com' })
+    ).toStrictEqual({})
   })
 
   it('projects Tavily and Context.dev natural-language crawl or fanout instructions', () => {

@@ -52,6 +52,92 @@ export const AshbyBlock: BlockConfig = {
   iconColor: '#5D4ED6',
   icon: AshbyIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Ashby',
+    sentences: {
+      byOperation: {
+        list_candidates: ['List candidates', { text: ', created after', field: 'createdAfter' }],
+        get_candidate: [{ text: 'Read candidate', field: 'candidateId', core: true }],
+        create_candidate: [
+          { text: 'Create candidate', field: 'name', core: true },
+          { text: 'with email', field: 'email' },
+          { text: ', reachable at', field: 'phoneNumber' },
+        ],
+        update_candidate: [
+          { text: 'Update candidate', field: 'candidateId', core: true },
+          { text: ', renaming to', field: 'updateName' },
+          { text: ', with email', field: 'email' },
+        ],
+        search_candidates: [
+          'Search candidates',
+          { text: ', by name', field: 'searchName' },
+          { text: ', by email', field: 'searchEmail' },
+        ],
+        list_jobs: [
+          'List jobs',
+          { text: ', with status', field: 'jobStatus' },
+          { text: ', opened after', field: 'openedAfter' },
+          { text: ', opened before', field: 'openedBefore' },
+        ],
+        get_job: [{ text: 'Read job', field: 'jobId', core: true }],
+        create_note: [
+          { text: 'Add note', field: 'note', core: true },
+          { text: 'to candidate', field: 'candidateId', core: true },
+        ],
+        list_notes: [{ text: 'List notes on candidate', field: 'candidateId', core: true }],
+        list_applications: [
+          'List applications',
+          { text: ', with status', field: 'filterStatus' },
+          { text: ', for job', field: 'filterJobId' },
+          { text: ', created after', field: 'createdAfter' },
+        ],
+        get_application: [{ text: 'Read application', field: 'applicationId', core: true }],
+        create_application: [
+          { text: 'Create an application for candidate', field: 'appCandidateId', core: true },
+          { text: 'on job', field: 'jobId' },
+        ],
+        list_offers: [
+          'List offers',
+          { text: ', for application', field: 'offerApplicationId' },
+          { text: ', created after', field: 'createdAfter' },
+        ],
+        change_application_stage: [
+          { text: 'Move application', field: 'applicationId', core: true },
+          { text: 'to stage', field: 'interviewStageId' },
+          { text: ', with archive reason', field: 'archiveReasonId' },
+        ],
+        add_candidate_tag: [
+          { text: 'Add tag', field: 'tagId', core: true },
+          { text: 'to candidate', field: 'candidateId', core: true },
+        ],
+        remove_candidate_tag: [
+          { text: 'Remove tag', field: 'tagId', core: true },
+          { text: 'from candidate', field: 'candidateId', core: true },
+        ],
+        get_offer: [{ text: 'Read offer', field: 'offerId', core: true }],
+        list_sources: ['List candidate sources'],
+        list_candidate_tags: ['List candidate tags'],
+        list_archive_reasons: ['List archive reasons'],
+        list_custom_fields: ['List custom field definitions'],
+        list_departments: ['List departments'],
+        list_locations: ['List locations'],
+        list_job_postings: [
+          'List job postings',
+          { text: ', in', field: 'postingLocation' },
+          { text: ', for department', field: 'postingDepartment' },
+          { text: ', on board', field: 'jobBoardId' },
+        ],
+        get_job_posting: [{ text: 'Read job posting', field: 'jobPostingId', core: true }],
+        list_openings: ['List openings', { text: ', created after', field: 'createdAfter' }],
+        list_users: ['List users'],
+        list_interviews: [
+          'List interview schedules',
+          { text: ', for application', field: 'applicationId' },
+          { text: ', at stage', field: 'interviewStageId' },
+        ],
+      },
+    },
+  },
 
   triggers: {
     enabled: true,

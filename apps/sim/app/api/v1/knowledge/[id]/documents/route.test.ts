@@ -228,10 +228,17 @@ describe('v1 knowledge document upload route', () => {
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(SYSTEM_BILLING_ATTRIBUTION)
     expect(mockCreateSingleDocument).toHaveBeenCalledWith(
-      expect.any(Object),
+      {
+        filename: 'file.txt',
+        fileUrl: 'https://example.com/file.txt',
+        fileSize: 11,
+        mimeType: 'text/plain',
+      },
       'kb-1',
       'req-1',
-      'owner-after-transfer'
+      'owner-after-transfer',
+      undefined,
+      undefined
     )
     expect(mockProcessDocumentsWithQueue).toHaveBeenCalledWith(
       expect.any(Array),

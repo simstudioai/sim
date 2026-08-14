@@ -41,7 +41,7 @@ describe('private-provenance tool registry invariant', () => {
           body: () => ({ probe: true }),
           modelInput: {
             mode: 'private-provenance',
-            select: () => undefined,
+            inputPaths: () => [],
           },
         },
       }

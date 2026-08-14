@@ -15,6 +15,10 @@ import {
 } from '@/lib/copilot/chat/selection-context'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
+  BROWSER_SESSION_RESOURCE_ID,
+  TERMINAL_SESSION_RESOURCE_ID,
+} from '@/lib/copilot/resources/types'
+import {
   buildVfsFolderPathMap,
   canonicalBlockVfsPath,
   canonicalKnowledgeBaseVfsDir,
@@ -42,6 +46,7 @@ import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/wor
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders } from '@/lib/workflows/utils'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { escapeRegExp } from '@/executor/constants'
 import type { BrowserTextSelection, ChatContext, TerminalTextSelection } from '@/stores/panel'
@@ -196,6 +201,14 @@ export async function processContextsServer(
       // additionally carries the quoted snapshot they chose, while the pointer
       // lets the agent inspect or act on the current page/shell when needed.
       if (ctx.kind === 'browser_tab' && ctx.tabId) {
+        if (ctx.tabId === BROWSER_SESSION_RESOURCE_ID) {
+          return {
+            type: 'browser_tab',
+            tag: ctx.label ? `@${ctx.label}` : '@Browser',
+            content:
+              'The user tagged the Browser resource as a whole, not a specific tab. Inspect the live tabs with browser_list_tabs and choose the relevant one from their request. If no browser tab is open yet, open or navigate one as needed.',
+          }
+        }
         const pointer = `The user pointed at an open browser tab: "${ctx.label}" (tabId ${ctx.tabId}). Act on THIS tab — switch to it with browser_switch_tab and read it with browser_snapshot rather than assuming which tab they meant.`
         return {
           type: 'browser_tab',
@@ -206,6 +219,14 @@ export async function processContextsServer(
         }
       }
       if (ctx.kind === 'terminal_tab' && ctx.terminalId) {
+        if (ctx.terminalId === TERMINAL_SESSION_RESOURCE_ID) {
+          return {
+            type: 'terminal_tab',
+            tag: ctx.label ? `@${ctx.label}` : '@Terminal',
+            content:
+              'The user tagged the Terminal resource as a whole, not a specific shell. Inspect the live terminals with the terminal list operation and choose the relevant one from their request. If no terminal is open yet, create one as needed.',
+          }
+        }
         const pointer = `The user pointed at an open terminal: "${ctx.label}" (terminalId ${ctx.terminalId}). Act on THIS terminal — pass that terminalId to the terminal tool, and read its screen before assuming what is in it.`
         return {
           type: 'terminal_tab',
@@ -387,8 +408,11 @@ async function processSkillFromDb(
     // model re-read the canonical VFS file if it needs to.
     const path = `agent/skills/${encodeVfsSegment(s.name)}.json`
     return { type: 'skill', tag, content: s.content, path }
-  } catch (error) {
-    logger.error('Error processing skill context (db)', { skillId, error })
+  } catch {
+    logger.error('Error processing skill context (db)', {
+      workspaceId,
+      hasSkillId: skillId.length > 0,
+    })
     return null
   }
 }
@@ -787,9 +811,7 @@ async function processExecutionLogFromDb(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Active resource context resolution (direct DB lookups, workspace-scoped)
-// ---------------------------------------------------------------------------
 
 /**
  * Resolves the content of the currently active resource tab via direct DB
@@ -1048,7 +1070,7 @@ async function resolveFileFolderResource(
   try {
     const rawPath = await getWorkspaceFileFolderPath(workspaceId, folderId)
     if (!rawPath) return null
-    const encoded = encodeVfsPathSegments(rawPath.split('/').filter(Boolean))
+    const encoded = encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(rawPath))
     return {
       type: 'active_resource',
       tag: '@active_resource',

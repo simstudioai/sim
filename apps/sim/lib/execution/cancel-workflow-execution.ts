@@ -3,16 +3,24 @@ import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { and, eq } from 'drizzle-orm'
+import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { getJobQueue } from '@/lib/core/async-jobs'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ExecutionCancellationRecordResult,
   markExecutionCancelled,
 } from '@/lib/execution/cancellation'
 import { createExecutionEventWriter, readExecutionMetaState } from '@/lib/execution/event-buffer'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
+import { cancelledExecutionLogFields } from '@/lib/logs/execution/cancellation'
 import { captureServerEvent } from '@/lib/posthog/server'
+import {
+  cancelWorkflowGroupExecution,
+  type PublishableWorkflowGroupCancellation,
+  publishWorkflowGroupCancellationEvent,
+} from '@/lib/table/workflow-group-cancellation'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
-import { workflowExecutionBelongsToWorkflow } from '@/lib/workflows/executor/execution-queries'
+import { resolveWorkflowExecutionOwnership } from '@/lib/workflows/executor/execution-queries'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 
 const logger = createLogger('CancelWorkflowExecution')
@@ -34,9 +42,12 @@ async function cancelActiveWorkflowJob(executionId: string): Promise<boolean> {
 }
 
 /**
- * Cancellation outcome vocabulary. `recorded`/`redis_unavailable`/
+ * Cancellation outcome vocabulary produced by this service, and so the whole
+ * vocabulary the public v2 endpoint can return. `recorded`/`redis_unavailable`/
  * `redis_write_failed` come from the Redis record step; the two `paused_*`
- * values from the paused-HITL path.
+ * values from the paused-HITL path. The internal cancel route resolves further
+ * outcomes on top of these — see `internalCancelWorkflowExecutionReasonSchema`
+ * in `lib/api/contracts/workflows`.
  */
 export type CancelWorkflowExecutionReason =
   | 'recorded'
@@ -148,16 +159,24 @@ export class WorkflowExecutionNotFoundError extends Error {
 
 /**
  * Cancels a workflow execution across the Redis abort record, the in-process
- * aborter, and the paused-HITL machinery. The interleaving is order-sensitive
- * and shared verbatim by the v1 and v2 cancel routes. Auth is the caller's
- * responsibility; this throws on unexpected infrastructure errors.
+ * aborter, the paused-HITL machinery, the workflow-group table cell sidecar, and
+ * the plan concurrency reservation. The interleaving is order-sensitive. Auth is
+ * the caller's responsibility; this throws on unexpected infrastructure errors.
+ *
+ * A workflow-group run whose cell sidecar refuses the claim throws
+ * `OrchestrationError('conflict')` rather than returning a success-shaped result:
+ * the cancel did not fully happen, and the internal route already answers 409 for
+ * exactly these two outcomes.
  */
 export async function cancelWorkflowExecution(
   input: CancelWorkflowExecutionInput
 ): Promise<CancelWorkflowExecutionResult> {
   const { executionId, workflowId, userId, workspaceId } = input
 
-  const belongsToWorkflow = await workflowExecutionBelongsToWorkflow(executionId, workflowId)
+  const { belongsToWorkflow, workflowGroupWorkspaceId } = await resolveWorkflowExecutionOwnership(
+    executionId,
+    workflowId
+  )
   if (!belongsToWorkflow) throw new WorkflowExecutionNotFoundError()
 
   let pausedCancellationStarted = false
@@ -272,11 +291,97 @@ export async function cancelWorkflowExecution(
     )
   }
 
-  if ((cancellation.durablyRecorded || queuedJobCancelled || locallyAborted) && !pausedCancelled) {
+  const success =
+    (isPausedCancellationPath
+      ? pausedCancelled && pausedCancellationPublished
+      : cancellation.durablyRecorded || queuedJobCancelled) || locallyAborted
+
+  /**
+   * Frees the plan concurrency reservation once the stop-the-work effects above
+   * have actually taken. The paused path keeps its reservation because a paused
+   * run never held an in-flight slot to give back, and an unsuccessful ordinary
+   * cancel keeps it because the run may still be executing.
+   */
+  const releaseSlotForStoppedExecution = async (): Promise<void> => {
+    if (!success || isPausedCancellationPath) return
+    await releaseExecutionSlot(executionId).catch((error) => {
+      logger.warn('Failed to release reservation after execution cancellation', {
+        executionId,
+        error,
+      })
+    })
+  }
+
+  /**
+   * The sidecar transition can fail outright — a lost claim, a serialization
+   * conflict, a connection blip. The stop-the-work effects above have already
+   * fired, so the run is going down regardless and the reservation must not be
+   * stranded; but the cell is left in an unknown state, so the failure is
+   * re-thrown rather than swallowed into a success-shaped result.
+   */
+  let groupCancellation: Awaited<ReturnType<typeof cancelWorkflowGroupExecution>> | null = null
+  if (workflowGroupWorkspaceId) {
     try {
+      groupCancellation = await cancelWorkflowGroupExecution({
+        workspaceId: workflowGroupWorkspaceId,
+        workflowId,
+        executionId,
+      })
+    } catch (error) {
+      logger.error('Workflow group execution cancellation failed unexpectedly', {
+        executionId,
+        error,
+      })
+      await releaseSlotForStoppedExecution()
+      throw error
+    }
+  }
+
+  /**
+   * Both refusals mean the cell claim was lost, never that the run is still
+   * going: the sidecar conflicts only on a terminal workflow log or a terminal
+   * cell, and `not_workflow_group` means the log is not a group run at all.
+   * Every refusal is a terminal-or-absent state that carries no evidence of
+   * liveness, so nothing is left running to hold the reservation and it is
+   * released before the 409 rather than left to expire. (The Redis abort record
+   * is reversible — see `clearExecutionCancellation` — but a refusal gives no
+   * reason to reverse it.)
+   */
+  if (groupCancellation?.kind === 'conflict') {
+    logger.warn('Workflow group execution could not be cancelled', {
+      executionId,
+      status: groupCancellation.status,
+    })
+    await releaseSlotForStoppedExecution()
+    throw new OrchestrationError(
+      'conflict',
+      `Workflow group execution cannot be cancelled while ${groupCancellation.status}`
+    )
+  }
+  if (groupCancellation?.kind === 'not_workflow_group') {
+    logger.warn('Workflow group execution is no longer the active table execution', { executionId })
+    await releaseSlotForStoppedExecution()
+    throw new OrchestrationError(
+      'conflict',
+      'Workflow group execution is no longer the active table execution'
+    )
+  }
+
+  const groupCancellationToPublish: PublishableWorkflowGroupCancellation | null =
+    groupCancellation?.kind === 'cancelled' || groupCancellation?.kind === 'already_cancelled'
+      ? groupCancellation
+      : null
+
+  if (
+    groupCancellation === null &&
+    (cancellation.durablyRecorded || queuedJobCancelled || locallyAborted) &&
+    !pausedCancelled
+  ) {
+    try {
+      const cancelledAt = new Date()
       await db
         .update(workflowExecutionLogs)
-        .set({ status: 'cancelled', endedAt: new Date() })
+        .set(cancelledExecutionLogFields(cancelledAt))
         .where(
           and(
             eq(workflowExecutionLogs.executionId, executionId),
@@ -291,10 +396,11 @@ export async function cancelWorkflowExecution(
     }
   }
 
-  const success =
-    (isPausedCancellationPath
-      ? pausedCancelled && pausedCancellationPublished
-      : cancellation.durablyRecorded || queuedJobCancelled) || locallyAborted
+  if (groupCancellationToPublish && success) {
+    await publishWorkflowGroupCancellationEvent(groupCancellationToPublish, executionId)
+  }
+
+  await releaseSlotForStoppedExecution()
 
   if (success && input.captureAnalytics !== false) {
     captureServerEvent(

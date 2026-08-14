@@ -1,7 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChipConfirmModal, chipVariants, cn } from '@sim/emcn'
+import {
+  ChipConfirmModal,
+  chipContentIconClass,
+  chipIconSlotClass,
+  chipVariants,
+  cn,
+} from '@sim/emcn'
+import { ChevronLeft } from '@sim/emcn/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import type { DesktopSettingsSurface } from '@/components/settings/navigation'
@@ -24,6 +31,7 @@ import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
   SIDEBAR_ITEM_GAP_CLASS,
+  SIDEBAR_RAIL_CHIP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
@@ -298,10 +306,15 @@ export function SettingsSidebar({
         )}
       >
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
-          <button type='button' onClick={handleBack} className={chipVariants({ fullWidth: true })}>
-            <div className='flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'>
-              <ChevronDown className='size-[10px] rotate-90' />
-            </div>
+          <button
+            type='button'
+            onClick={handleBack}
+            className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
+          >
+            {/* The 16px slot every settings row gives its icon, so Back's label starts on their baseline. */}
+            <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
+              <ChevronLeft className='size-[14px]' />
+            </span>
             <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>Back</span>
           </button>
         </SidebarTooltip>
@@ -344,15 +357,18 @@ export function SettingsSidebar({
                       (item.id === 'inbox'
                         ? !inboxEntitled
                         : !subscriptionAccess.hasUsableMaxAccess)
-                    const itemClassName = chipVariants({ active, fullWidth: true })
+                    const itemClassName = cn(
+                      chipVariants({ active, fullWidth: true }),
+                      SIDEBAR_RAIL_CHIP_CLASS
+                    )
                     const content = (
                       <>
-                        <Icon className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                        <Icon className={chipContentIconClass} />
                         <span className='sidebar-collapse-hide min-w-0 truncate text-[var(--text-body)]'>
                           {item.label}
                         </span>
                         {isLocked && (
-                          <span className='sidebar-collapse-hide ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
+                          <span className='sidebar-collapse-hide ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
                             Max
                           </span>
                         )}

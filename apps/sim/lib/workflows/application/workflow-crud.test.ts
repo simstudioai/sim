@@ -72,7 +72,6 @@ vi.mock('@/lib/folders/queries', () => ({
 }))
 
 vi.mock('@/lib/workflows/queries', () => ({
-  InvalidWorkflowListCursorError: class InvalidWorkflowListCursorError extends Error {},
   listWorkspaceWorkflows: mocks.listRows,
   loadWorkflowReadSnapshot: mocks.loadSnapshot,
 }))
@@ -95,6 +94,7 @@ vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: { workflowCreated: mocks.workflowCreated },
 }))
 
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { listWorkflowVersions } from '@/lib/workflows/application/list-workflow-versions'
@@ -276,18 +276,16 @@ describe('authorized workflow CRUD and version reads', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
-  it('binds workspace keys to canonical workflow scope before protected reads', async () => {
-    mocks.resolveWorkflowContext.mockRejectedValue(new Error('canonical mismatch'))
-
+  it('returns forbidden when a workspace key does not match canonical workflow scope', async () => {
     await expect(
       readWorkflow.execute({
         principal: { ...workspacePrincipal, workspaceId: 'workspace-other' },
         input: { workflowId: WORKFLOW_ID },
       })
-    ).rejects.toThrow('canonical mismatch')
+    ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
       workflowId: WORKFLOW_ID,
-      assertedWorkspaceId: 'workspace-other',
+      assertedWorkspaceId: undefined,
     })
     expect(mocks.loadSnapshot).not.toHaveBeenCalled()
   })
@@ -327,12 +325,12 @@ describe('authorized workflow CRUD and version reads', () => {
 
     expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
       workflowId: WORKFLOW_ID,
-      assertedWorkspaceId: WORKSPACE_ID,
+      assertedWorkspaceId: undefined,
     })
     expect(mocks.resolvePermission).toHaveBeenCalledWith('user-1', WORKSPACE_ID, null, undefined, {
       forUpdate: undefined,
     })
-    expect(mocks.loadSnapshot).toHaveBeenCalledWith(WORKFLOW_ID)
+    expect(mocks.loadSnapshot).toHaveBeenCalledWith(WORKFLOW_ID, WORKSPACE_ID)
   })
 
   it('rejects executor reads whose canonical target is outside the signed origin workspace', async () => {
@@ -365,6 +363,45 @@ describe('authorized workflow CRUD and version reads', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.updateRecord).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * Both use cases resolve a folder two ways in one function. The folderPath
+   * branch goes through `resolveWorkflowFolderPath`, which bounds its path
+   * index at `MAX_FOLDERS_PER_WORKSPACE`; the folderId branch loads the index
+   * directly and must pass the same cap rather than issuing an unbounded
+   * `SELECT` over every folder row in the workspace.
+   */
+  it.each([
+    [
+      'createWorkflow',
+      () =>
+        createWorkflow.execute({
+          principal: personalPrincipal,
+          input: { workspaceId: WORKSPACE_ID, name: workflowRecord.name, folderId: 'folder-1' },
+        }),
+    ],
+    [
+      'updateWorkflow',
+      () =>
+        updateWorkflow.execute({
+          principal: personalPrincipal,
+          input: { workflowId: WORKFLOW_ID, folderId: 'folder-1' },
+        }),
+    ],
+  ])('bounds the %s folderId-branch path index at the workspace cap', async (_name, run) => {
+    mocks.loadFolderIndex.mockResolvedValue({
+      rowById: new Map(),
+      pathById: new Map([['folder-1', '/Reports']]),
+      idByPath: new Map([['/Reports', 'folder-1']]),
+    })
+
+    await run()
+
+    expect(mocks.loadFolderIndex).toHaveBeenCalledTimes(1)
+    expect(mocks.loadFolderIndex).toHaveBeenCalledWith(WORKSPACE_ID, 'workflow', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
   })
 
   it('does not audit an authoritative delete no-op', async () => {

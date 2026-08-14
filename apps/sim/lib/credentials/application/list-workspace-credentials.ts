@@ -1,4 +1,6 @@
+import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { NoWorkspaceAccessError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import {
@@ -15,11 +17,14 @@ export interface ListWorkspaceCredentialsInput {
   providerId?: string
   search?: string
   sortBy: 'displayName' | 'createdAt' | 'updatedAt'
-  sortOrder: 'asc' | 'desc'
+  sortOrder: ListSortOrder
+  limit: number
+  cursorKeys?: CursorKey[]
 }
 
 export interface ListWorkspaceCredentialsResult {
   credentials: VisibleWorkspaceCredential[]
+  nextCursorKeys: CursorKey[] | null
 }
 
 export const listWorkspaceCredentials = defineAuthorizedWorkspaceUseCase({
@@ -34,34 +39,43 @@ export const listWorkspaceCredentials = defineAuthorizedWorkspaceUseCase({
     const types: Array<'oauth' | 'service_account'> = input.type
       ? [input.type]
       : ['oauth', 'service_account']
+    const sort = { sortBy: input.sortBy, sortOrder: input.sortOrder }
+
     if (principal.kind === 'workspace_api_key') {
-      return {
-        credentials: await listWorkspacePrincipalCredentials({
-          workspaceId: context.workspaceId,
-          types,
-          providerId: input.providerId,
-          search: input.search,
-          sortBy: input.sortBy,
-          sortOrder: input.sortOrder,
-        }),
-      }
+      const page = await listWorkspacePrincipalCredentials({
+        workspaceId: context.workspaceId,
+        types,
+        providerId: input.providerId,
+        search: input.search,
+        ...sort,
+        limit: input.limit,
+        cursorKeys: input.cursorKeys,
+      })
+      return { credentials: page.data, nextCursorKeys: page.nextCursorKeys }
     }
 
     const workspaceAccess = await checkWorkspaceAccess(context.workspaceId, principal.userId)
     if (!workspaceAccess.hasAccess) {
-      throw new OrchestrationError('forbidden', 'Access denied')
+      /**
+       * `hasAccess` is `permission !== null` — the same condition
+       * `requirePermission` classifies as no reach into the workspace at all —
+       * so it raises the canonical error rather than a bare `forbidden`. It
+       * stays codeless deliberately: this is the concealed cross-tenant class,
+       * not one a caller can act on.
+       */
+      throw new NoWorkspaceAccessError()
     }
-    return {
-      credentials: await listVisibleWorkspaceCredentials({
-        workspaceId: context.workspaceId,
-        userId: principal.userId,
-        workspaceAccess,
-        types,
-        providerId: input.providerId,
-        search: input.search,
-        sortBy: input.sortBy,
-        sortOrder: input.sortOrder,
-      }),
-    }
+    const page = await listVisibleWorkspaceCredentials({
+      workspaceId: context.workspaceId,
+      userId: principal.userId,
+      workspaceAccess,
+      types,
+      providerId: input.providerId,
+      search: input.search,
+      ...sort,
+      limit: input.limit,
+      cursorKeys: input.cursorKeys,
+    })
+    return { credentials: page.data, nextCursorKeys: page.nextCursorKeys }
   },
 })

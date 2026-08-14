@@ -6,7 +6,7 @@ You are a professional software engineer. All code must follow best practices: a
 
 - **Linting / Audit**: `bun run check:api-validation` must pass on PRs. Do not introduce route-local boundary Zod schemas, direct route Zod imports, or ad-hoc client wire types — see "API Contracts" and "API Route Pattern" below
 - **Logging**: Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`. Inside API routes wrapped with `withRouteHandler`, loggers automatically include the request ID — no manual `withMetadata({ requestId })` needed
-- **API Route Handlers**: All API route handlers (`GET`, `POST`, `PUT`, `DELETE`, `PATCH`) must be wrapped with `withRouteHandler` from `@/lib/core/utils/with-route-handler`. This provides request ID tracking, automatic error logging for 4xx/5xx responses, and unhandled error catching. See "API Route Pattern" section below
+- **API Route Handlers**: All API route handlers (`GET`, `POST`, `PUT`, `DELETE`, `PATCH`) must run inside `withRouteHandler`. Ordinary internal and v2 handlers use the shared JSON/binary route builders, which already apply it; never double-wrap a builder. Use raw `withRouteHandler` only for documented protocol or lifecycle exceptions. See "API Route Pattern" below
 - **Comments**: Use TSDoc for documentation. No `====` separators. No non-TSDoc comments
 - **Styling**: Never update global styles. Keep all styling local to components
 - **ID Generation**: Never use `crypto.randomUUID()`, `nanoid`, or `uuid` package. Use `generateId()` (UUID v4) or `generateShortId()` (compact) from `@sim/utils/id`
@@ -19,6 +19,7 @@ You are a professional software engineer. All code must follow best practices: a
   - `truncate(str, maxLength, suffix?)` from `@sim/utils/string` — never inline slice + ellipsis
   - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — shared retry pacing; never reimplement exponential backoff inline
 - **Package Manager**: Use `bun` and `bunx`, not `npm` and `npx`
+- **Type-checking**: Run `bun run type-check` (per workspace) or `bunx turbo run type-check` (all of them). Do not remove the `@typescript/native` alias from the root `devDependencies` — nothing imports it, but it is what makes a bare `tsc` resolve to the native TypeScript 7 compiler instead of the ~10x slower JavaScript TypeScript 6 one that `@typescript/typescript6` pulls in transitively. `bun run check:native-typecheck` enforces this
 
 ## Architecture
 
@@ -28,6 +29,17 @@ You are a professional software engineer. All code must follow best practices: a
 2. Composition Over Complexity: Break down complex logic into smaller pieces
 3. Type Safety First: TypeScript interfaces for all props, state, return types
 4. Predictable State: Zustand for global state, useState for UI-only concerns
+
+### Application Operation Boundary
+
+- Every protected read, write, canonical resource lookup, or authorization-sensitive reference resolution enters through an authorized application use case.
+- Define one stable semantic operation with its minimum role, workspace-key policy, allowed principal kinds, and delegated services. Internal APIs, v2 APIs, Copilot, and trusted tools call the same use case when the domain behavior is the same.
+- Surface adapters authenticate and construct a `Principal`, apply request-rate policy, parse contracts, map input, and present results. They never query protected data, decide resource authorization, implement business transactions, or record semantic audit.
+- Application use cases load canonical context, compare asserted scope, authorize current access, execute managers/repositories, project semantic audit, and trigger shared domain effects. Managers accept canonical IDs and scope, never credentials or principals.
+- Copilot is a surface adapter. Use `createCopilotApplicationAdapter` and the domain's registered operation object; do not create Copilot-only authorization or business implementations.
+- Protected compound mutations belong in one top-level semantic application operation. Do not sequence independently committing mutations in a route or tool adapter.
+- Never substitute a billing owner, uploader, creator, or API-key owner for the acting principal. Fail fast when the identity model or operation policy cannot express the caller.
+- Use the `migrate-application-operation` skill whenever creating or migrating a protected endpoint, tool command, or resource method.
 
 ### Root Structure
 
@@ -168,56 +180,49 @@ const provider = config as unknown as LegacyProvider
 
 ## API Route Pattern
 
-Every API route handler must be wrapped with `withRouteHandler`. This sets up `AsyncLocalStorage`-based request context so all loggers in the request lifecycle automatically include the request ID.
+Every route method must run inside `withRouteHandler`. Ordinary internal and v2 JSON/binary routes use `defineInternalJsonRoute`, `defineV2JsonRoute`, or the matching binary/stream builder. These builders already apply `withRouteHandler`; never wrap them again. Use raw `withRouteHandler` only for explicit protocol or lifecycle exceptions such as streaming, multipart control, large-body admission, OAuth, or public execution.
 
-Routes never `import { z } from 'zod'` and never define route-local boundary schemas. They consume the contract from `@/lib/api/contracts/**` and validate with canonical helpers from `@/lib/api/server`:
+Routes never `import { z } from 'zod'` and never define route-local boundary schemas. Declarative builders consume contracts and own authentication, admission, parsing, use-case execution, response validation, and error projection. A raw special route consumes the same contracts and validates with canonical helpers from `@/lib/api/server`, after authentication and cheap admission:
 
 - `parseRequest(contract, request, context, options?)` — fully contract-bound routes; parses params, query, body, and headers in one call. Pass `{}` for `context` on routes without route params, or the route's `context` argument when route params exist. Returns a discriminated union; check `parsed.success` and return `parsed.response` on failure
 - `validationErrorResponse(error)` and `getValidationErrorMessage(error, fallback)` — produce 400 responses from a `ZodError`
 - `validationErrorResponseFromError(error)` — when handling unknown caught errors that may or may not be a `ZodError`
 - `isZodError(error)` — type guard. Routes never use `instanceof z.ZodError`
 
-### Fully contract-bound route (`parseRequest`)
+### Ordinary authorized JSON route
 
 ```typescript
-import { createLogger } from '@sim/logger'
-import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
-import { createFolderContract } from '@/lib/api/contracts/folders'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-
-const logger = createLogger('FoldersAPI')
-
-export const POST = withRouteHandler(async (request: NextRequest) => {
- const parsed = await parseRequest(createFolderContract, request, {})
- if (!parsed.success) return parsed.response
- const { body } = parsed.data
- logger.info('Creating folder', { workspaceId: body.workspaceId })
- return NextResponse.json({ ok: true })
+export const PATCH = defineInternalJsonRoute({
+  contract: renameWidgetContract,
+  auth: internalSessionAuth,
+  operation: widgetOperations.rename,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal behavior' }),
+  errorPolicy: internalWidgetErrorPolicy,
+  mapInput: ({ params, body }) => ({
+    widgetId: params.widgetId,
+    assertedWorkspaceId: params.workspaceId,
+    name: body.name,
+  }),
+  useCase: renameWidget,
+  present: ({ widget }) => ({ success: true, widget }),
 })
 ```
 
-### Composing with other middleware
-
-```typescript
-export const POST = withRouteHandler(withAdminAuth(async (request) => {
-  return NextResponse.json({ ok: true })
-}))
-```
+The contract, operation, and use case must agree at definition time. Authentication and request-rate admission happen before parsing; canonical loading and authorization happen in the application use case. The presenter returns only the surface success body.
 
 Routes under `apps/sim/app/api/v1/**` use the shared middleware in `apps/sim/app/api/v1/middleware.ts` for auth, rate-limit, and workspace access. Compose contract validation inside that middleware — never reimplement auth/rate-limit per-route.
 
-Never export a bare `async function GET/POST/...` — always use `export const METHOD = withRouteHandler(...)`.
+Never export a bare `async function GET/POST/...`. Export the result of a shared builder or, for a documented special route, `withRouteHandler(...)`.
 
 ### Adding a new boundary feature end-to-end
 
 When adding a new route + client surface, follow this order. Each step has one place it lives.
 
 1. **Author the contract first** in `apps/sim/lib/api/contracts/<domain>.ts` (or a subdirectory for large domains: `knowledge/`, `selectors/`, `tools/`). Define one schema per request slice (`params`, `query`, `body`, `headers`) and one for the response, then wrap with `defineRouteContract`. Export named type aliases (`z.input` for inputs, `z.output` for outputs).
-2. **Implement the route** in `apps/sim/app/api/<path>/route.ts`. Auth always runs **before** `parseRequest` — never validate untrusted input before authenticating the caller. The route returns exactly the shape declared in `contract.response.schema`.
-3. **Add the React Query hook** in `apps/sim/hooks/queries/<domain>.ts`. Use `requestJson(contract, input)` for the call. Build a hierarchical query-key factory (`all` → `lists()` → `list(workspaceId)` → `details()` → `detail(id)`) so invalidations can target prefixes.
-4. **Use the hook in the component**. The mutation's `data` and `error` are fully typed from the contract; surface `error.message` (already extracted from the response body's `error` or `message` field by `requestJson`).
+2. **Define the semantic operation and application use case** under `apps/sim/lib/<domain>/application/`. The use case owns canonical loading, asserted-scope checks, current authorization, business behavior, semantic audit, and shared domain effects.
+3. **Implement the route adapter** in `apps/sim/app/api/<path>/route.ts` with the appropriate shared builder. Declare auth, operation, rate policy, error policy, input mapping, use case, and presenter. Auth always runs **before** parsing. Use raw `withRouteHandler` only for an explicit special route, and keep protected work in application use cases.
+4. **Add the React Query hook** in `apps/sim/hooks/queries/<domain>.ts`. Use `requestJson(contract, input)` for the call. Build a hierarchical query-key factory (`all` → `lists()` → `list(workspaceId)` → `details()` → `detail(id)`) so invalidations can target prefixes.
+5. **Use the hook in the component**. The mutation's `data` and `error` are fully typed from the contract; surface `error.message` (already extracted from the response body's `error` or `message` field by `requestJson`).
 
 ### Schema review checklist (read the contract diff like a DB migration)
 
@@ -377,6 +382,12 @@ Shareable *client* view-state (active tab/panel, filters, search query, paginati
 
 Co-locate a `search-params.ts` per feature exporting the parser map (single source of truth, shared by client `useQueryStates`/`useQueryState` and server `createSearchParamsCache`). Never `import { z }` in client code for params — use nuqs parsers. Full decision framework, conventions, the debounced-input pattern, and the workflow-editor carve-out are in `.claude/rules/sim-url-state.md`.
 
+## List & Menu Ordering
+
+A list orders itself the way the user already reads the same things somewhere else. Resource menus (`+` attach, `@` mention, resource-tab `+`) mirror the **sidebar** top-down; a row or root **context menu** mirrors that surface's **toolbar**, left-to-right becoming top-to-bottom; tab strips mirror their nav. Platform-only entries (desktop Browser, Terminal) trail the shared set.
+
+Encode the order in ONE exported constant and sort by it — never a hand-maintained literal per menu (`RESOURCE_MENU_ORDER` / `byResourceMenuOrder` in `home/components/mothership-view/components/resource-registry`). Render mixed item kinds in a single ordered pass; emitting all submenu-backed families and then all flat ones silently pins every submenu to the top no matter what the constant says. Divergence is allowed only for search ranking, user-controlled ordering, and recency. Full rule in `.claude/rules/sim-list-ordering.md`.
+
 ## Styling
 
 Use Tailwind only, no inline styles. Use `cn()` from `@sim/emcn` for conditional classes.
@@ -483,4 +494,3 @@ For the full authoring instructions — SubBlock property tables, `condition`/`d
 Table column types are registry entries in `apps/sim/lib/table/column-types/` — one file per type owning its label, icon, storage cast, coercion, validation, conversion compatibility, formatting, and editor. `Record<ColumnType, …>` on `registry.ts` and `registry.server.ts` is a compile-time completeness gate: adding a type to the union errors until both entries exist.
 
 Never add a `case 'sometype':` outside `column-types/` — a missing arm fails silently (a wrong `jsonbCast` breaks every filter on the column). If a consumer needs per-type knowledge, add a registry field. Use `/add-column-type` for the full procedure.
-

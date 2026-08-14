@@ -17,6 +17,8 @@ describe('knowledge operation registry', () => {
       'knowledge.update',
       'knowledge.delete',
       'knowledge.bulk_delete',
+      'knowledge.vfs.rename',
+      'knowledge.vfs.delete',
       'knowledge.search',
       'knowledge.folders.list',
       'knowledge.folders.create',
@@ -72,12 +74,28 @@ describe('knowledge operation registry', () => {
     }
   })
 
+  /**
+   * Reading the tag vocabulary is the one tag operation a workspace key may
+   * perform. It is required input for the tag-name filters on document listing
+   * and on search, both of which a workspace key can already run, so it carries
+   * the policy of those sibling reads. Every tag *write* stays human-delegated.
+   */
+  it('lets a workspace key read the tag vocabulary, exactly like its sibling knowledge reads', () => {
+    expect(knowledgeOperations.listTags.workspaceApiKey).toBe('allow')
+    expect(knowledgeOperations.listTags.principalKinds).toContain('workspace_api_key')
+    expect(knowledgeOperations.listTags.minimumRole).toBe(
+      knowledgeOperations.listDocuments.minimumRole
+    )
+    expect(knowledgeOperations.listTags.workspaceApiKey).toBe(
+      knowledgeOperations.listDocuments.workspaceApiKey
+    )
+  })
+
   it('keeps human-delegated tag, connector, and composed document operations off workspace keys', () => {
     const operations = [
       knowledgeOperations.updateDocument,
       knowledgeOperations.addWorkspaceFiles,
       knowledgeOperations.bulkDeleteDocuments,
-      knowledgeOperations.listTags,
       knowledgeOperations.createTag,
       knowledgeOperations.updateTag,
       knowledgeOperations.deleteTag,

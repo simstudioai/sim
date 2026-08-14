@@ -161,6 +161,7 @@ export function ConnectServiceAccountModal({
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
         initialDescription={credentialDescription}
+        onCreated={onCreated}
       />
     )
   }
@@ -205,6 +206,7 @@ export function ConnectServiceAccountModal({
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
         initialDescription={credentialDescription}
+        onCreated={onCreated}
       />
     )
   }
@@ -218,6 +220,7 @@ export function ConnectServiceAccountModal({
       credentialId={credentialId}
       initialDisplayName={credentialDisplayName}
       initialDescription={credentialDescription}
+      onCreated={onCreated}
     />
   )
 }
@@ -233,6 +236,8 @@ interface ProviderModalProps {
   /** Existing name/description, seeded into the fields on reconnect. */
   initialDisplayName?: string
   initialDescription?: string
+  /** Called with the credential id after a successful create or reconnect. */
+  onCreated?: (credentialId: string) => void
 }
 
 /**
@@ -249,6 +254,7 @@ function GoogleServiceAccountModal({
   credentialId,
   initialDisplayName,
   initialDescription,
+  onCreated,
 }: ProviderModalProps) {
   const [jsonInput, setJsonInput] = useState('')
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
@@ -318,6 +324,7 @@ function GoogleServiceAccountModal({
       return
     }
     try {
+      let connectedCredentialId = credentialId
       if (credentialId) {
         await updateCredential.mutateAsync({
           credentialId,
@@ -326,14 +333,16 @@ function GoogleServiceAccountModal({
           description: description.trim() || undefined,
         })
       } else {
-        await createCredential.mutateAsync({
+        const created = await createCredential.mutateAsync({
           workspaceId,
           type: 'service_account',
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
           serviceAccountJson: trimmed,
         })
+        connectedCredentialId = created.credential.id
       }
+      if (connectedCredentialId) onCreated?.(connectedCredentialId)
       onOpenChange(false)
     } catch (err: unknown) {
       const message = getErrorMessage(err, 'Failed to add service account')
@@ -436,6 +445,7 @@ function AtlassianServiceAccountModal({
   credentialId,
   initialDisplayName,
   initialDescription,
+  onCreated,
 }: ProviderModalProps) {
   const [apiToken, setApiToken] = useState('')
   const [domain, setDomain] = useState('')
@@ -467,6 +477,7 @@ function AtlassianServiceAccountModal({
     setError(null)
     if (isDisabled) return
     try {
+      let connectedCredentialId = credentialId
       if (credentialId) {
         await updateCredential.mutateAsync({
           credentialId,
@@ -476,7 +487,7 @@ function AtlassianServiceAccountModal({
           description: description.trim() || undefined,
         })
       } else {
-        await createCredential.mutateAsync({
+        const created = await createCredential.mutateAsync({
           workspaceId,
           type: 'service_account',
           providerId: ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -485,7 +496,9 @@ function AtlassianServiceAccountModal({
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
         })
+        connectedCredentialId = created.credential.id
       }
+      if (connectedCredentialId) onCreated?.(connectedCredentialId)
       onOpenChange(false)
     } catch (err: unknown) {
       setError(messageForAtlassianError(err))

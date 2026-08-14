@@ -11,9 +11,7 @@ export function WorkspaceAccessDenied() {
           <CircleAlert className='size-[18px] text-[var(--text-icon)]' aria-hidden />
         </div>
         <div className='space-y-1'>
-          <h1 className='font-medium text-[var(--text-primary)] text-lg'>
-            Workspace access denied
-          </h1>
+          <h1 className='text-[var(--text-primary)] text-lg'>Workspace access denied</h1>
           <p className='text-[var(--text-muted)] text-sm'>
             You do not have access to this workspace. Ask a workspace administrator for access or
             choose another workspace.

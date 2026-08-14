@@ -332,11 +332,14 @@ export class BlockResolver implements Resolver {
     ) {
       return value
     }
-    await context.executionContext.resolvedSecretTraceRegistry.importProvenanceForValue(
-      state.resolvedSecretTraceProvenance,
-      value,
-      { trusted: true }
-    )
+    const imported =
+      await context.executionContext.resolvedSecretTraceRegistry.importProvenanceForValueAtInputPath(
+        state.resolvedSecretTraceProvenance,
+        value,
+        context.inputPath,
+        { trusted: true, origin: 'blockResolver.outputCrossing' }
+      )
+    if (imported.matched) context.onResolvedSecretReference?.()
     return value
   }
 

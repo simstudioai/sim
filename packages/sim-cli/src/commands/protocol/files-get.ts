@@ -106,7 +106,7 @@ export function attachFileGet(files: Command): void {
 
         const { client, profile } = clientFrom(command)
         const workspaceId = client.requireWorkspace()
-        const operation = V2_OPERATIONS.getFileContent
+        const operation = V2_OPERATIONS.downloadFile
         const response = await client.requestRaw(resolvePath(operation.path, { fileId }), {
           method: operation.method,
           query: { workspaceId },

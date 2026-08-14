@@ -63,6 +63,18 @@ describe('file operation registry', () => {
     expect(fileOperations.updateShare.delegatedServices).toEqual(['copilot', 'executor'])
   })
 
+  it('keeps resumable workspace-file uploads on credential-bound principals', () => {
+    for (const operation of [
+      fileOperations.uploadCreate,
+      fileOperations.uploadParts,
+      fileOperations.uploadComplete,
+      fileOperations.uploadCancel,
+    ]) {
+      expect(operation.principalKinds).toEqual(['session', 'personal_api_key', 'workspace_api_key'])
+      expect(operation.delegatedServices).toBeUndefined()
+    }
+  })
+
   it('restricts compiled checks to authenticated sessions', () => {
     expect(fileOperations.compiledCheck).toMatchObject({
       id: 'files.compiled_check',

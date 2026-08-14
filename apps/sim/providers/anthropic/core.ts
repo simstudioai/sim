@@ -662,7 +662,6 @@ export async function executeAnthropicProviderRequest(
               executionParams,
               {
                 signal: request.abortSignal,
-                toolInput: toolParams,
               }
             )
             const toolCallEndTime = Date.now()

@@ -33,6 +33,7 @@ import type {
 import {
   buildDescendantIndex,
   buildMoveOptions,
+  FOLDERED_RESOURCE_HEADERS,
   FolderContextMenu,
   folderBreadcrumbItems,
   folderRow,
@@ -58,6 +59,7 @@ import {
   knowledgeUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/search-params'
 import { filterKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/utils/filter'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
@@ -110,8 +112,8 @@ const CONTENT_FILTER_OPTIONS: ChipDropdownOption[] = [
 
 const FILTER_SECTION_LABEL_CLASS = 'text-[var(--text-muted)] text-small'
 
-const ROOT_BREADCRUMB_LABEL = 'Knowledge Base'
 const FOLDER_RESOURCE_TYPE = 'knowledge_base' as const
+const ROOT_BREADCRUMB_LABEL = FOLDERED_RESOURCE_HEADERS[FOLDER_RESOURCE_TYPE].rootLabel
 
 function connectorCell(connectorTypes?: string[]): ResourceCell {
   if (!connectorTypes || connectorTypes.length === 0) {
@@ -202,11 +204,17 @@ export function Knowledge() {
   const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
   const { mutateAsync: deleteKnowledgeBaseMutation } = useDeleteKnowledgeBase(workspaceId)
 
-  const { currentFolderId, setCurrentFolderId, breadcrumbs, folders, folderById, foldersResolved } =
-    useFolderNavigation({
-      resourceType: FOLDER_RESOURCE_TYPE,
-      workspaceId,
-    })
+  const {
+    currentFolderId,
+    setCurrentFolderId,
+    ancestors: breadcrumbs,
+    folders,
+    folderById,
+    foldersResolved,
+  } = useFolderNavigation({
+    resourceType: FOLDER_RESOURCE_TYPE,
+    workspaceId,
+  })
 
   const createFolder = useCreateFolder()
   const updateFolder = useUpdateFolder()
@@ -719,6 +727,11 @@ export function Knowledge() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId])
 
+  useRegisterGlobalCommands(() => [
+    { id: 'knowledge-new-base', handler: () => handleOpenCreateModal() },
+    { id: 'knowledge-new-folder', handler: () => void handleCreateFolder() },
+  ])
+
   const handleRenameFolder = useCallback(() => {
     const folder = activeFolderRef.current
     if (!folder) return
@@ -906,7 +919,7 @@ export function Knowledge() {
     () =>
       folderBreadcrumbItems({
         rootLabel: ROOT_BREADCRUMB_LABEL,
-        rootIcon: Database,
+        rootIcon: FOLDERED_RESOURCE_HEADERS[FOLDER_RESOURCE_TYPE].rootIcon,
         breadcrumbs,
         onNavigate: setCurrentFolderId,
         currentFolderEditing:
@@ -1106,7 +1119,7 @@ export function Knowledge() {
     <>
       <Resource onContextMenu={handleContentContextMenu}>
         <Resource.Header
-          icon={Database}
+          icon={FOLDERED_RESOURCE_HEADERS[FOLDER_RESOURCE_TYPE].rootIcon}
           title={ROOT_BREADCRUMB_LABEL}
           breadcrumbs={listBreadcrumbs}
           actions={headerActions}

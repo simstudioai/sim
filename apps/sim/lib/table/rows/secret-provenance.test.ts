@@ -5,6 +5,18 @@ import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockIsEnforced, mockReport } = vi.hoisted(() => ({
+  mockIsEnforced: vi.fn(() => false),
+  mockReport: vi.fn(),
+}))
+
+vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
+  DURABLE_SECRET_PROVENANCE_SURFACES: ['memory', 'table-row', 'knowledge'],
+  isDurableSecretProvenanceEnforced: mockIsEnforced,
+  reportUnrecordedDurableProvenance: mockReport,
+}))
+
 import type { DbTransaction } from '@/lib/table/planner'
 import {
   classifyTableRowSecretProvenanceForCopy,
@@ -46,6 +58,7 @@ describe('table row secret provenance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockIsEnforced.mockReturnValue(false)
   })
 
   it('checks a version-pinned table with one bounded unsafe-row query', async () => {
@@ -204,7 +217,8 @@ describe('table row secret provenance', () => {
     })
   })
 
-  it('fails closed for stale tracked rows instead of returning partial provenance', async () => {
+  it('fails closed for stale tracked rows once the table-row surface is enforced', async () => {
+    mockIsEnforced.mockReturnValue(true)
     queueTableRows(userTableRows, [
       {
         id: 'tracked-row',
@@ -227,6 +241,62 @@ describe('table row secret provenance', () => {
       complete: false,
       entries: [],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+  })
+
+  /**
+   * The shape that broke production: one unrecorded row in a page voided the whole read, and a
+   * page is what a `query_rows` block hands downstream, so every later model boundary refused.
+   */
+  it('keeps a page readable when one row is unrecorded, without dropping its siblings', async () => {
+    queueTableRows(userTableRows, [
+      {
+        id: 'unknown-row',
+        updatedAt: ROW_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        sidecarRowId: 'unknown-row',
+        sidecarStatus: 'unknown',
+        sidecarEntries: [],
+        sidecarIsCurrent: true,
+      },
+      {
+        id: 'tracked-row',
+        updatedAt: ROW_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        sidecarRowId: 'tracked-row',
+        sidecarStatus: 'exact',
+        sidecarEntries: [
+          {
+            columnId: 'secret-column',
+            encryptedValue: 'encrypted-local',
+            name: 'LOCAL_SECRET',
+            sourceUserId: 'user-1',
+            sourceWorkspaceId: 'workspace-1',
+          },
+        ],
+        sidecarIsCurrent: true,
+      },
+    ])
+
+    await expect(
+      loadTableRowSecretProvenance(
+        [
+          { id: 'unknown-row', updatedAt: ROW_UPDATED_AT },
+          { id: 'tracked-row', updatedAt: ROW_UPDATED_AT },
+        ],
+        { userId: 'user-1', workspaceId: 'workspace-1' }
+      )
+    ).resolves.toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ encryptedValue: 'encrypted-local', name: 'LOCAL_SECRET' }],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+    expect(mockReport).toHaveBeenCalledWith({
+      surface: 'table-row',
+      cause: 'row-sidecar-not-exact',
+      affectedCount: 1,
+      workspaceId: 'workspace-1',
     })
   })
 

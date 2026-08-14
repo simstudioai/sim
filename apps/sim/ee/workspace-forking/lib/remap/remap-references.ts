@@ -868,6 +868,16 @@ export function remapForkSubBlocks(
       !dormant &&
       (gates.isActiveManualMember(subBlockKey) || gates.isManualParentDependent(subBlockKey))
     const detectionSkipped = dormant || verbatimManual || gates.isConditionHidden(subBlockKey)
+    // `{{ENV}}` detection is gated on EXECUTION, not on ownership. A dormant member and a
+    // condition-hidden field never execute, so their refs must not become sync blockers - but an
+    // ACTIVE MANUAL member is exactly the value that DOES execute, and its `{{KEY}}` is a live
+    // secret reference like any other. Sharing `detectionSkipped` here made the two halves
+    // disagree: `remapEnvInValue` below rewrites a manual member's ref unconditionally, while
+    // detection suppressed it - so the key could never originate a mapping entry, and a target
+    // missing that secret silently passed the required-env gate instead of blocking the sync.
+    // Resource-id detection keeps `verbatimManual` (a hand-typed id stays a user-owned escape
+    // hatch); only env refs, which are never workspace-scoped ids, are detected here.
+    const envDetectionSkipped = dormant || gates.isConditionHidden(subBlockKey)
     if (dormant && isNonEmptyValue(value)) {
       value = ''
     }
@@ -970,11 +980,12 @@ export function remapForkSubBlocks(
     if (value !== valueBeforeResource) remappedKeys.add(subBlockKey)
 
     // Promote rewrites `{{ENV}}` refs via the resolver; fork preserves them by name. A hidden
-    // field's ref is rewritten (kept verbatim when unmapped) but not recorded - it never
-    // executes, so it must not become a required sync blocker.
+    // (or dormant) field's ref is rewritten (kept verbatim when unmapped) but not recorded - it
+    // never executes, so it must not become a required sync blocker. An ACTIVE MANUAL member's
+    // ref IS recorded (see {@link envDetectionSkipped}) - it executes, so it must gate the sync.
     if (mode === 'promote') {
       value = remapEnvInValue(value, resolve, (sourceId, mapped) => {
-        if (detectionSkipped) return
+        if (envDetectionSkipped) return
         recordReference(
           `env-var:${sourceId}`,
           {

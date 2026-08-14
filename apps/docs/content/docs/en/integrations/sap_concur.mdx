@@ -40,7 +40,7 @@ Connect SAP Concur via OAuth 2.0. Manage expense reports and line items, allocat
 
 ## Actions
 
-### `sap_concur_approve_expense_report`
+### SAP Concur Approve Expense Report
 
 Approve an expense report as a manager (PATCH /expensereports/v4/reports/\{reportId\}/approve). Required body field: comment.
 
@@ -65,7 +65,7 @@ Approve an expense report as a manager (PATCH /expensereports/v4/reports/\{repor
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Empty \(204 No Content\) |
 
-### `sap_concur_associate_attendees`
+### SAP Concur Associate Attendees
 
 Associate attendees with an expense (POST /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/attendees).
 
@@ -94,7 +94,7 @@ Associate attendees with an expense (POST /expensereports/v4/users/\{userId\}/co
 | `data` | json | Concur association response \(201 Created with URI\) |
 |   ↳ `uri` | string | Resource URI of the attendee associations collection |
 
-### `sap_concur_create_cash_advance`
+### SAP Concur Create Cash Advance
 
 Create a cash advance (POST /cashadvance/v4.1/cashadvances).
 
@@ -119,7 +119,7 @@ Create a cash advance (POST /cashadvance/v4.1/cashadvances).
 | `data` | json | Created cash advance payload |
 |   ↳ `cashAdvanceId` | string | Unique identifier of the created cash advance |
 
-### `sap_concur_create_expected_expense`
+### SAP Concur Create Expected Expense
 
 Create an expected expense on a travel request (POST /travelrequest/v4/requests/\{requestUuid\}/expenses).
 
@@ -160,7 +160,7 @@ Create an expected expense on a travel request (POST /travelrequest/v4/requests/
 |   ↳ `parentRequest` | json | Parent travel request resource link \{href, id\} |
 |   ↳ `comments` | json | Comments sub-resource link \{href, id\} |
 
-### `sap_concur_create_expense_report`
+### SAP Concur Create Expense Report
 
 Create an expense report (POST /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports — supported contexts: TRAVELER, PROXY). Required body fields: name, policyId.
 
@@ -187,7 +187,7 @@ Create an expense report (POST /expensereports/v4/users/\{userId\}/context/\{con
 | `data` | json | Created expense report \(Concur returns 201 with a URI to the new report\) |
 |   ↳ `uri` | string | URI of the newly created expense report |
 
-### `sap_concur_create_list_item`
+### SAP Concur Create List Item
 
 Create a list item (POST /list/v4/items).
 
@@ -221,7 +221,7 @@ Create a list item (POST /list/v4/items).
 |     ↳ `id` | string | List UUID |
 |     ↳ `hasChildren` | boolean | Whether this item has children in the list |
 
-### `sap_concur_create_purchase_request`
+### SAP Concur Create Purchase Request
 
 Create a purchase request (POST /purchaserequest/v4/purchaserequests).
 
@@ -251,7 +251,7 @@ Create a purchase request (POST /purchaserequest/v4/purchaserequests).
 |     ↳ `errorMessage` | string | Error message |
 |     ↳ `dataPath` | string | Path to the request data which has the error |
 
-### `sap_concur_create_quick_expense`
+### SAP Concur Create Quick Expense
 
 Create a quick expense (POST /quickexpense/v4/users/\{userId\}/context/TRAVELER/quickexpenses).
 
@@ -278,7 +278,7 @@ Create a quick expense (POST /quickexpense/v4/users/\{userId\}/context/TRAVELER/
 | `data` | json | Created quick expense response \(HTTP 201 Created\) |
 |   ↳ `quickExpenseIdUri` | string | URI of the created quick expense resource |
 
-### `sap_concur_create_quick_expense_with_image`
+### SAP Concur Create Quick Expense With Image
 
 Create a quick expense with an attached image (POST /quickexpense/v4/users/\{userId\}/context/\{contextType\}/quickexpenses/image).
 
@@ -306,7 +306,7 @@ Create a quick expense with an attached image (POST /quickexpense/v4/users/\{use
 | `data` | json | Created quick expense response \(HTTP 201 with attached receipt image\) |
 |   ↳ `quickExpenseIdUri` | string | URI of the created quick expense resource |
 
-### `sap_concur_create_report_comment`
+### SAP Concur Create Report Comment
 
 Create a comment on a report (POST /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/comments).
 
@@ -334,7 +334,7 @@ Create a comment on a report (POST /expensereports/v4/users/\{userId\}/context/\
 | `data` | json | Created comment response \(Concur returns 201 Created with URI\) |
 |   ↳ `uri` | string | Resource URI of the created comment |
 
-### `sap_concur_create_travel_request`
+### SAP Concur Create Travel Request
 
 Create a travel request (POST /travelrequest/v4/requests).
 
@@ -421,7 +421,7 @@ Create a travel request (POST /travelrequest/v4/requests).
 |   ↳ `custom3` | json | Custom field 3 |
 |   ↳ `custom4` | json | Custom field 4 |
 
-### `sap_concur_create_user`
+### SAP Concur Create User
 
 Create a new user identity (POST /profile/identity/v4.1/Users).
 
@@ -445,7 +445,7 @@ Create a new user identity (POST /profile/identity/v4.1/Users).
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Created SCIM User payload |
 
-### `sap_concur_delete_expected_expense`
+### SAP Concur Delete Expected Expense
 
 Delete an expected expense (DELETE /travelrequest/v4/expenses/\{expenseUuid\}).
 
@@ -470,7 +470,7 @@ Delete an expected expense (DELETE /travelrequest/v4/expenses/\{expenseUuid\}).
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Returns boolean true on 200 OK when the expected expense is deleted. |
 
-### `sap_concur_delete_expense`
+### SAP Concur Delete Expense
 
 Delete an expense (DELETE /expensereports/v4/reports/\{reportId\}/expenses/\{expenseId\}).
 
@@ -495,7 +495,7 @@ Delete an expense (DELETE /expensereports/v4/reports/\{reportId\}/expenses/\{exp
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Empty body on success \(HTTP 204 No Content\). Error details when status is non-2xx |
 
-### `sap_concur_delete_expense_report`
+### SAP Concur Delete Expense Report
 
 Delete an expense report (DELETE /expensereports/v4/reports/\{reportId\}).
 
@@ -519,7 +519,7 @@ Delete an expense report (DELETE /expensereports/v4/reports/\{reportId\}).
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Empty \(204 No Content\) |
 
-### `sap_concur_delete_list_item`
+### SAP Concur Delete List Item
 
 Delete a list item (DELETE /list/v4/items/\{itemId\}).
 
@@ -543,7 +543,7 @@ Delete a list item (DELETE /list/v4/items/\{itemId\}).
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Empty body on success \(HTTP 204 No Content\). Error details when status is non-2xx |
 
-### `sap_concur_delete_travel_request`
+### SAP Concur Delete Travel Request
 
 Delete a travel request (DELETE /travelrequest/v4/requests/\{requestUuid\}).
 
@@ -568,7 +568,7 @@ Delete a travel request (DELETE /travelrequest/v4/requests/\{requestUuid\}).
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Concur delete response payload \(boolean true on 200 OK\) |
 
-### `sap_concur_delete_user`
+### SAP Concur Delete User
 
 Delete a user identity (DELETE /profile/identity/v4.1/Users/\{id\}).
 
@@ -592,7 +592,7 @@ Delete a user identity (DELETE /profile/identity/v4.1/Users/\{id\}).
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Deletion response — empty body on HTTP 204 No Content |
 
-### `sap_concur_get_allocation`
+### SAP Concur Get Allocation
 
 Get a single allocation (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/allocations/\{allocationId\}).
 
@@ -636,7 +636,7 @@ Get a single allocation (GET /expensereports/v4/users/\{userId\}/context/\{conte
 |   ↳ `isSystemAllocation` | boolean | True when system-managed |
 |   ↳ `isPercentEdited` | boolean | True when the percentage was manually edited |
 
-### `sap_concur_get_budget`
+### SAP Concur Get Budget
 
 Get a budget item header by ID (GET /budget/v4/budgetItemHeader/\{id\}).
 
@@ -684,7 +684,7 @@ Get a budget item header by ID (GET /budget/v4/budgetItemHeader/\{id\}).
 |   ↳ `budgetItemDetails` | array | Per-period detail entries \(id, currencyCode, amount, budgetItemDetailStatusType, fiscalPeriod, budgetAmounts\) |
 |   ↳ `dateRange` | json | Date range for DATE_RANGE budgets \(startDate, endDate\) |
 
-### `sap_concur_get_cash_advance`
+### SAP Concur Get Cash Advance
 
 Get a cash advance (GET /cashadvance/v4.1/cashadvances/\{cashAdvanceId\}).
 
@@ -733,7 +733,7 @@ Get a cash advance (GET /cashadvance/v4.1/cashadvances/\{cashAdvanceId\}).
 |     ↳ `paymentCode` | string | Payment type code |
 |     ↳ `description` | string | Payment method description |
 
-### `sap_concur_upload_exchange_rates`
+### SAP Concur Upload Exchange Rates
 
 Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body contains a currency_sets array, each with from_crn_code, to_crn_code, start_date (YYYY-MM-DD), and rate.
 
@@ -760,7 +760,7 @@ Bulk upload up to 100 custom exchange rates (POST /exchangerate/v4/rates). Body 
 |   ↳ `message` | string | Top-level result message |
 |   ↳ `currencySets` | json | Per-row results: array of \{ from_crn_code, to_crn_code, start_date, rate, statusCode, statusMessage \} |
 
-### `sap_concur_get_expected_expense`
+### SAP Concur Get Expected Expense
 
 Get an expected expense (GET /travelrequest/v4/expenses/\{expenseUuid\}).
 
@@ -800,7 +800,7 @@ Get an expected expense (GET /travelrequest/v4/expenses/\{expenseUuid\}).
 |   ↳ `parentRequest` | json | Parent travel request resource link \{href, id\} |
 |   ↳ `comments` | json | Comments sub-resource link \{href, id\} |
 
-### `sap_concur_get_expense`
+### SAP Concur Get Expense
 
 Get a single expense (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}).
 
@@ -878,7 +878,7 @@ Get a single expense (GET /expensereports/v4/users/\{userId\}/context/\{contextT
 |   ↳ `expenseSourceIdentifiers` | json | Source reference identifiers |
 |   ↳ `links` | json | HATEOAS links for the expense |
 
-### `sap_concur_get_expense_report`
+### SAP Concur Get Expense Report
 
 Retrieve a single expense report header by id via Expense Report v4 (/expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}).
 
@@ -972,7 +972,7 @@ Retrieve a single expense report header by id via Expense Report v4 (/expenserep
 |   ↳ `employee` | json | Employee object \{ employeeId, employeeUuid \} |
 |   ↳ `links` | array | HATEOAS links |
 
-### `sap_concur_get_itemizations`
+### SAP Concur Get Expense Itemizations
 
 Get expense itemizations (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/itemizations).
 
@@ -1020,7 +1020,7 @@ Get expense itemizations (GET /expensereports/v4/users/\{userId\}/context/\{cont
 |   ↳ `isPersonalExpense` | boolean | Personal expense |
 |   ↳ `links` | array | HATEOAS links |
 
-### `sap_concur_get_itinerary`
+### SAP Concur Get Trip
 
 Get a single trip/itinerary (GET /api/travel/trip/v1.1/\{tripID\}).
 
@@ -1070,7 +1070,7 @@ Get a single trip/itinerary (GET /api/travel/trip/v1.1/\{tripID\}).
 |   ↳ `RuleViolations` | array | Travel rule violations attached to the trip |
 |   ↳ `Bookings` | array | Bookings \(air/hotel/car/rail\) attached to the trip |
 
-### `sap_concur_get_list`
+### SAP Concur Get List
 
 Get a single custom list (GET /list/v4/lists/\{listId\}).
 
@@ -1106,7 +1106,7 @@ Get a single custom list (GET /list/v4/lists/\{listId\}).
 |   ↳ `managedBy` | string | Identifier of the managing application or service |
 |   ↳ `externalThreshold` | number | Threshold from where the level starts being external |
 
-### `sap_concur_get_list_item`
+### SAP Concur Get List Item
 
 Get a single list item (GET /list/v4/items/\{itemId\}).
 
@@ -1140,7 +1140,7 @@ Get a single list item (GET /list/v4/items/\{itemId\}).
 |     ↳ `id` | string | List UUID |
 |     ↳ `hasChildren` | boolean | Whether this item has children in the list |
 
-### `sap_concur_get_purchase_request`
+### SAP Concur Get Purchase Request
 
 Get a purchase request by ID (GET /purchaserequest/v4/purchaserequests/\{id\}).
 
@@ -1176,7 +1176,7 @@ Get a purchase request by ID (GET /purchaserequest/v4/purchaserequests/\{id\}).
 |     ↳ `prExceptionId` | string | Identifier of the exception record |
 |     ↳ `message` | string | Exception message |
 
-### `sap_concur_get_receipt`
+### SAP Concur Get Receipt
 
 Get a single receipt by ID (GET /receipts/v4/\{receiptId\}).
 
@@ -1208,7 +1208,7 @@ Get a single receipt by ID (GET /receipts/v4/\{receiptId\}).
 |   ↳ `self` | string | URL to this receipt resource |
 |   ↳ `template` | string | URL template for receipts |
 
-### `sap_concur_get_receipt_status`
+### SAP Concur Get Receipt Status
 
 Get receipt processing status (GET /receipts/v4/status/\{receiptId\}).
 
@@ -1237,7 +1237,7 @@ Get receipt processing status (GET /receipts/v4/status/\{receiptId\}).
 |     ↳ `message` | string | Log message |
 |     ↳ `timestamp` | string | Log timestamp |
 
-### `sap_concur_get_travel_profile`
+### SAP Concur Get Travel Profile
 
 Get a travel profile (GET /api/travelprofile/v2.0/profile). Returns the calling user by default; pass userid_type and userid_value to impersonate.
 
@@ -1288,7 +1288,7 @@ Get a travel profile (GET /api/travelprofile/v2.0/profile). Returns the calling 
 |   ↳ `LoginId` | string | Concur login id |
 |   ↳ `ProfileLastModifiedUTC` | string | UTC timestamp the profile was last modified |
 
-### `sap_concur_get_travel_request`
+### SAP Concur Get Travel Request
 
 Get a single travel request (GET /travelrequest/v4/requests/\{requestUuid\}).
 
@@ -1398,7 +1398,7 @@ Get a single travel request (GET /travelrequest/v4/requests/\{requestUuid\}).
 |   ↳ `custom3` | json | Custom field 3 |
 |   ↳ `custom4` | json | Custom field 4 |
 
-### `sap_concur_get_user`
+### SAP Concur Get User
 
 Get a single user by UUID (GET /profile/identity/v4.1/Users/\{id\}).
 
@@ -1424,7 +1424,7 @@ Get a single user by UUID (GET /profile/identity/v4.1/Users/\{id\}).
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | SCIM User identity payload |
 
-### `sap_concur_issue_cash_advance`
+### SAP Concur Issue Cash Advance
 
 Issue a cash advance (POST /cashadvance/v4.1/cashadvances/\{cashAdvanceId\}/issue).
 
@@ -1453,7 +1453,7 @@ Issue a cash advance (POST /cashadvance/v4.1/cashadvances/\{cashAdvanceId\}/issu
 |     ↳ `code` | string | Status code |
 |     ↳ `name` | string | Status display name |
 
-### `sap_concur_list_allocations`
+### SAP Concur List Allocations
 
 List allocations on an expense (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/allocations).
 
@@ -1479,8 +1479,9 @@ List allocations on an expense (GET /expensereports/v4/users/\{userId\}/context/
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Allocations list payload |
+|   ↳ `items` | array | Array of allocation objects \(allocationId, accountCode, percentage, allocationAmount, approvedAmount, claimedAmount, customData, expenseId, isSystemAllocation, isPercentEdited, overLimitAccountCode\) |
 
-### `sap_concur_list_attendee_associations`
+### SAP Concur List Attendee Associations
 
 List attendees associated with an expense (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/attendees).
 
@@ -1525,7 +1526,7 @@ List attendees associated with an expense (GET /expensereports/v4/users/\{userId
 |       ↳ `isValid` | boolean | Whether the value passes validation |
 |       ↳ `listItemUrl` | string | HATEOAS link for list items |
 
-### `sap_concur_list_budget_categories`
+### SAP Concur List Budget Categories
 
 List budget categories (GET /budget/v4/budgetCategory).
 
@@ -1547,8 +1548,14 @@ List budget categories (GET /budget/v4/budgetCategory).
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Budget categories collection payload |
+|   ↳ `items` | array | Array of budget category objects |
+|     ↳ `id` | string | Category ID |
+|     ↳ `name` | string | Admin-facing category name |
+|     ↳ `description` | string | Friendly name |
+|     ↳ `statusType` | string | Status: OPEN or REMOVED |
+|     ↳ `expenseTypes` | array | Expense types in this category \(id, featureTypeCode, expenseTypeCode, name\) |
 
-### `sap_concur_list_budgets`
+### SAP Concur List Budgets
 
 List budget item headers (GET /budget/v4/budgetItemHeader).
 
@@ -1573,11 +1580,12 @@ List budget item headers (GET /budget/v4/budgetItemHeader).
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Budget headers collection payload |
+|   ↳ `items` | array | Array of budget item header summaries \(id, name, description, budgetItemStatusType, budgetType, currencyCode, fiscalYear, budgetAmounts, owner, ...\) |
 |   ↳ `offset` | number | Page offset |
 |   ↳ `limit` | number | Page size |
 |   ↳ `totalCount` | number | Total result count |
 
-### `sap_concur_list_exceptions`
+### SAP Concur List Report Exceptions
 
 List exceptions on a report (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/exceptions).
 
@@ -1610,7 +1618,7 @@ List exceptions on a report (GET /expensereports/v4/users/\{userId\}/context/\{c
 |   ↳ `allocationId` | string | Related allocation ID, if any |
 |   ↳ `parentExpenseId` | string | Parent expense ID for itemized entries |
 
-### `sap_concur_list_expected_expenses`
+### SAP Concur List Expected Expenses
 
 List expected expenses on a travel request (GET /travelrequest/v4/requests/\{requestUuid\}/expenses).
 
@@ -1635,7 +1643,7 @@ List expected expenses on a travel request (GET /travelrequest/v4/requests/\{req
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Array of expected expense objects. Each entry includes id, href, expenseType \{id,name\}, transactionDate, transactionAmount, postedAmount, approvedAmount, remainingAmount, businessPurpose, location, exchangeRate, allocations, tripData, parentRequest \{href, id\}, comments \{href, id\}. |
 
-### `sap_concur_list_expenses`
+### SAP Concur List Expenses
 
 List expenses on a report (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses).
 
@@ -1691,7 +1699,7 @@ List expenses on a report (GET /expensereports/v4/users/\{userId\}/context/\{con
 |   ↳ `expenseSourceIdentifiers` | json | Expense source identifiers |
 |   ↳ `links` | array | HATEOAS links |
 
-### `sap_concur_list_expense_reports`
+### SAP Concur List Expense Reports
 
 List expense reports (GET /api/v3.0/expense/reports). Returns a v3 envelope with Items and NextPage.
 
@@ -1753,7 +1761,7 @@ List expense reports (GET /api/v3.0/expense/reports). Returns a v3 envelope with
 |     ↳ `URI` | string | Self URI |
 |   ↳ `NextPage` | string | URI of the next page \(use as offset cursor\) |
 
-### `sap_concur_list_itineraries`
+### SAP Concur List Trips
 
 List travel trips/itineraries (GET /api/travel/trip/v1.1).
 
@@ -1815,7 +1823,7 @@ List travel trips/itineraries (GET /api/travel/trip/v1.1).
 |     ↳ `BookedByLastName` | string | Booker last name |
 |     ↳ `IsPersonal` | boolean | Personal trip flag |
 
-### `sap_concur_list_lists`
+### SAP Concur List Lists
 
 List custom lists (GET /list/v4/lists).
 
@@ -1866,7 +1874,7 @@ List custom lists (GET /list/v4/lists).
 |     ↳ `rel` | string | Link relation |
 |     ↳ `href` | string | Link URL |
 
-### `sap_concur_list_list_items`
+### SAP Concur List List Items
 
 List the top-level items (children) for a custom list (GET /list/v4/lists/\{listId\}/children).
 
@@ -1917,7 +1925,7 @@ List the top-level items (children) for a custom list (GET /list/v4/lists/\{list
 |     ↳ `rel` | string | Link relation |
 |     ↳ `href` | string | Link URL |
 
-### `sap_concur_list_receipts`
+### SAP Concur List Receipts
 
 List receipts for a user (GET /receipts/v4/users/\{userId\}).
 
@@ -1949,7 +1957,7 @@ List receipts for a user (GET /receipts/v4/users/\{userId\}).
 |   ↳ `self` | string | Self URL |
 |   ↳ `template` | string | Template URL |
 
-### `sap_concur_list_report_comments`
+### SAP Concur List Report Comments
 
 List comments on a report (GET /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/comments).
 
@@ -1989,7 +1997,7 @@ List comments on a report (GET /expensereports/v4/users/\{userId\}/context/\{con
 |     ↳ `employeeUuid` | string | Employee UUID |
 |   ↳ `stepInstanceId` | string | Workflow step instance identifier |
 
-### `sap_concur_list_reports_to_approve`
+### SAP Concur List Reports To Approve
 
 List expense reports awaiting approval (GET /expensereports/v4/users/\{userId\}/context/MANAGER/reportsToApprove).
 
@@ -2030,7 +2038,7 @@ List expense reports awaiting approval (GET /expensereports/v4/users/\{userId\}/
 |   ↳ `reportType` | string | Report creation method identifier |
 |   ↳ `links` | array | HATEOAS links |
 
-### `sap_concur_get_request_cash_advance`
+### SAP Concur Get Request Cash Advance
 
 Get a single cash advance assigned to a travel request (GET /travelrequest/v4/cashadvances/\{cashAdvanceUuid\}).
 
@@ -2066,7 +2074,7 @@ Get a single cash advance assigned to a travel request (GET /travelrequest/v4/ca
 |     ↳ `value` | number | Rate value |
 |     ↳ `operation` | string | Multiply or divide |
 
-### `sap_concur_list_travel_profiles_summary`
+### SAP Concur List Travel Profiles Summary
 
 List travel profile summaries (GET /api/travelprofile/v2.0/summary). LastModifiedDate is required by Concur.
 
@@ -2111,7 +2119,7 @@ List travel profile summaries (GET /api/travelprofile/v2.0/summary). LastModifie
 |     ↳ `EmployeeID` | string | Employee ID |
 |     ↳ `CompanyID` | string | Company ID |
 
-### `sap_concur_list_travel_request_comments`
+### SAP Concur List Travel Request Comments
 
 List comments on a travel request (GET /travelrequest/v4/requests/\{requestUuid\}/comments).
 
@@ -2141,7 +2149,7 @@ List comments on a travel request (GET /travelrequest/v4/requests/\{requestUuid\
 |   ↳ `isLatest` | boolean | Whether this is the latest comment |
 |   ↳ `value` | string | Comment text |
 
-### `sap_concur_list_travel_requests`
+### SAP Concur List Travel Requests
 
 List travel requests (GET /travelrequest/v4/requests).
 
@@ -2220,7 +2228,7 @@ List travel requests (GET /travelrequest/v4/requests).
 |     ↳ `method` | string | HTTP method |
 |     ↳ `name` | string | Link name |
 
-### `sap_concur_list_users`
+### SAP Concur List Users
 
 List Concur user identities (GET /profile/identity/v4.1/Users).
 
@@ -2247,7 +2255,7 @@ List Concur user identities (GET /profile/identity/v4.1/Users).
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | SCIM ListResponse with Resources array |
 
-### `sap_concur_move_travel_request`
+### SAP Concur Move Travel Request
 
 Move a travel request through workflow (POST /travelrequest/v4/requests/\{requestUuid\}/\{action\}). Valid actions: submit, recall, cancel, approve, sendback, close, reopen.
 
@@ -2288,7 +2296,7 @@ Move a travel request through workflow (POST /travelrequest/v4/requests/\{reques
 |     ↳ `method` | string | HTTP method |
 |     ↳ `name` | string | Link name |
 
-### `sap_concur_recall_expense_report`
+### SAP Concur Recall Expense Report
 
 Recall a submitted expense report (PATCH /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/recall — supported contexts: TRAVELER, PROXY). No request body is required.
 
@@ -2315,7 +2323,7 @@ Recall a submitted expense report (PATCH /expensereports/v4/users/\{userId\}/con
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Empty \(204 No Content\) |
 
-### `sap_concur_remove_all_attendees`
+### SAP Concur Remove All Attendees
 
 Remove all attendees from an expense (DELETE /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/expenses/\{expenseId\}/attendees).
 
@@ -2342,7 +2350,7 @@ Remove all attendees from an expense (DELETE /expensereports/v4/users/\{userId\}
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Empty response body \(Concur returns 204 No Content\) |
 
-### `sap_concur_search_locations`
+### SAP Concur Search Locations
 
 Search Concur location reference data (GET /localities/v5/locations).
 
@@ -2398,7 +2406,7 @@ Search Concur location reference data (GET /localities/v5/locations).
 |       ↳ `name` | string | Subdivision name |
 |     ↳ `links` | array | HATEOAS links |
 
-### `sap_concur_search_users`
+### SAP Concur Search Users
 
 Search users via SCIM .search endpoint (POST /profile/identity/v4.1/Users/.search).
 
@@ -2422,7 +2430,7 @@ Search users via SCIM .search endpoint (POST /profile/identity/v4.1/Users/.searc
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | SCIM search ListResponse |
 
-### `sap_concur_send_back_expense_report`
+### SAP Concur Send Back Expense Report
 
 Send back an expense report to the employee (PATCH /expensereports/v4/reports/\{reportId\}/sendBack). Required body field: comment.
 
@@ -2447,7 +2455,7 @@ Send back an expense report to the employee (PATCH /expensereports/v4/reports/\{
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Empty \(204 No Content\) |
 
-### `sap_concur_submit_expense_report`
+### SAP Concur Submit Expense Report
 
 Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/\{userId\}/reports/\{reportId\}/submit).
 
@@ -2473,7 +2481,7 @@ Submit an expense report into the workflow via Expense Report v4 (PATCH /expense
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Empty \(204 No Content\) |
 
-### `sap_concur_update_allocation`
+### SAP Concur Update Allocation
 
 Update an allocation (PATCH /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\}/allocations/\{allocationId\}).
 
@@ -2501,7 +2509,7 @@ Update an allocation (PATCH /expensereports/v4/users/\{userId\}/context/\{contex
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Empty body on success \(Concur returns 204 No Content\) |
 
-### `sap_concur_update_expected_expense`
+### SAP Concur Update Expected Expense
 
 Update an expected expense (PUT /travelrequest/v4/expenses/\{expenseUuid\}).
 
@@ -2542,7 +2550,7 @@ Update an expected expense (PUT /travelrequest/v4/expenses/\{expenseUuid\}).
 |   ↳ `parentRequest` | json | Parent travel request resource link \{href, id\} |
 |   ↳ `comments` | json | Comments sub-resource link \{href, id\} |
 
-### `sap_concur_update_expense`
+### SAP Concur Update Expense
 
 Update an expense (PATCH /expensereports/v4/reports/\{reportId\}/expenses/\{expenseId\}).
 
@@ -2568,7 +2576,7 @@ Update an expense (PATCH /expensereports/v4/reports/\{reportId\}/expenses/\{expe
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Empty body on success \(HTTP 204 No Content\). Error details when status is non-2xx |
 
-### `sap_concur_update_expense_report`
+### SAP Concur Update Expense Report
 
 Update an unsubmitted expense report (PATCH /expensereports/v4/users/\{userId\}/context/\{contextType\}/reports/\{reportId\} — supported contexts: TRAVELER, PROXY). Body fields: businessPurpose, comment, customData, name, etc.
 
@@ -2595,7 +2603,7 @@ Update an unsubmitted expense report (PATCH /expensereports/v4/users/\{userId\}/
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Empty \(204 No Content\) |
 
-### `sap_concur_update_list_item`
+### SAP Concur Update List Item
 
 Update a list item (PUT /list/v4/items/\{itemId\}).
 
@@ -2630,7 +2638,7 @@ Update a list item (PUT /list/v4/items/\{itemId\}).
 |     ↳ `id` | string | List UUID |
 |     ↳ `hasChildren` | boolean | Whether this item has children in the list |
 
-### `sap_concur_update_travel_request`
+### SAP Concur Update Travel Request
 
 Update a travel request (PUT /travelrequest/v4/requests/\{requestUuid\}).
 
@@ -2705,7 +2713,7 @@ Update a travel request (PUT /travelrequest/v4/requests/\{requestUuid\}).
 |     ↳ `currency` | string | Currency code |
 |   ↳ `operations` | array | Available workflow actions |
 
-### `sap_concur_update_user`
+### SAP Concur Update User
 
 Patch a user identity (PATCH /profile/identity/v4.1/Users/\{id\}).
 
@@ -2730,7 +2738,7 @@ Patch a user identity (PATCH /profile/identity/v4.1/Users/\{id\}).
 | `status` | number | HTTP status code returned by Concur |
 | `data` | json | Updated SCIM User payload |
 
-### `sap_concur_upload_receipt_image`
+### SAP Concur Upload Receipt Image
 
 Upload an image-only receipt (POST /receipts/v4/users/\{userId\}/image-only-receipts).
 

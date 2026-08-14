@@ -2,7 +2,11 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { buildAuthCrossLink, resolvePostSignupDestination } from '@/app/(auth)/auth-redirect'
+import {
+  buildAuthCrossLink,
+  resolveAuthRedirect,
+  resolvePostSignupDestination,
+} from '@/app/(auth)/auth-redirect'
 
 describe('resolvePostSignupDestination', () => {
   it('routes to the verify hop when verification is enforceable', () => {
@@ -55,5 +59,51 @@ describe('buildAuthCrossLink', () => {
     expect(buildAuthCrossLink('/signup', { callbackUrl: null, isInviteFlow: false })).toBe(
       '/signup'
     )
+  })
+
+  it('marks a new user so the invite page leads with account creation', () => {
+    expect(
+      buildAuthCrossLink('/signup', {
+        callbackUrl: '/invite/abc',
+        isInviteFlow: true,
+        isNewUser: true,
+      })
+    ).toBe('/signup?invite_flow=true&callbackUrl=%2Finvite%2Fabc&new=true')
+  })
+
+  it('omits the new-user marker by default', () => {
+    expect(buildAuthCrossLink('/signup', { callbackUrl: null, isInviteFlow: true })).not.toContain(
+      'new=true'
+    )
+  })
+})
+
+describe('resolveAuthRedirect', () => {
+  const NONE = { redirect: null, callbackUrl: null, inviteFlow: null }
+
+  it('prefers redirect over callbackUrl', () => {
+    expect(resolveAuthRedirect({ ...NONE, redirect: '/a', callbackUrl: '/b' }).rawCallbackUrl).toBe(
+      '/a'
+    )
+  })
+
+  it('falls through an empty redirect to callbackUrl', () => {
+    expect(
+      resolveAuthRedirect({ ...NONE, redirect: '', callbackUrl: '/invite/abc' }).rawCallbackUrl
+    ).toBe('/invite/abc')
+  })
+
+  it('reports no destination when nothing was carried', () => {
+    expect(resolveAuthRedirect(NONE)).toEqual({ rawCallbackUrl: '', isInviteFlow: false })
+  })
+
+  it('treats an invitation destination as an invite flow without the flag', () => {
+    expect(resolveAuthRedirect({ ...NONE, callbackUrl: '/invite/abc' }).isInviteFlow).toBe(true)
+  })
+
+  it('honors the explicit flag when the destination is unrelated', () => {
+    expect(
+      resolveAuthRedirect({ ...NONE, callbackUrl: '/workspace', inviteFlow: 'true' }).isInviteFlow
+    ).toBe(true)
   })
 })

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getOrgWorkspaceIds: vi.fn(),
   buildOrgScopeCondition: vi.fn(),
   buildFilterConditions: vi.fn(),
+  decodeAuditLogCursor: vi.fn(),
   queryAuditLogs: vi.fn(),
   recordAudit: vi.fn(),
 }))
@@ -22,6 +23,7 @@ vi.mock('@/lib/audit-logs/query', () => ({
   getOrgWorkspaceIds: mocks.getOrgWorkspaceIds,
   buildOrgScopeCondition: mocks.buildOrgScopeCondition,
   buildFilterConditions: mocks.buildFilterConditions,
+  decodeAuditLogCursor: mocks.decodeAuditLogCursor,
   queryAuditLogs: mocks.queryAuditLogs,
 }))
 
@@ -58,6 +60,10 @@ describe('audit-log application use cases', () => {
     mocks.getOrgWorkspaceIds.mockResolvedValue(['workspace-1'])
     mocks.buildOrgScopeCondition.mockReturnValue({ type: 'scope' })
     mocks.buildFilterConditions.mockReturnValue([])
+    mocks.decodeAuditLogCursor.mockReturnValue({
+      createdAt: '2026-01-01T00:00:00.000Z',
+      id: 'audit-1',
+    })
     mocks.queryAuditLogs.mockResolvedValue({ data: [], nextCursor: undefined })
   })
 
@@ -96,6 +102,20 @@ describe('audit-log application use cases', () => {
     expect(mocks.queryAuditLogs).not.toHaveBeenCalled()
   })
 
+  it('rejects a malformed cursor instead of restarting at page one', async () => {
+    mocks.decodeAuditLogCursor.mockReturnValueOnce(null)
+
+    await expect(
+      listAuditLogs.execute({
+        principal: sessionPrincipal,
+        input: { ...listInput, cursor: 'not-a-cursor' },
+      })
+    ).rejects.toMatchObject({ code: 'validation', message: 'Invalid audit-log cursor' })
+
+    expect(mocks.getOrgWorkspaceIds).not.toHaveBeenCalled()
+    expect(mocks.queryAuditLogs).not.toHaveBeenCalled()
+  })
+
   it('returns a typed not-found only after applying organization scope', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
 
@@ -107,6 +127,30 @@ describe('audit-log application use cases', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
 
     expect(mocks.buildOrgScopeCondition).toHaveBeenCalled()
+  })
+
+  /**
+   * The resolver distinguishes four refusals with four different remedies. They
+   * share a status and are indistinguishable to a client that cannot branch on
+   * prose, so each has to arrive with its own `detailCode`.
+   */
+  it.each([
+    ['ORGANIZATION_MEMBERSHIP_REQUIRED', 'Not a member of the requested organization'],
+    ['ORGANIZATION_ADMIN_REQUIRED', 'Organization admin or owner role required'],
+    ['ENTERPRISE_PLAN_REQUIRED', 'Active enterprise subscription required'],
+    ['AUDIT_LOGS_DISABLED', 'Audit logs are disabled.'],
+  ] as const)('carries the %s refusal cause through the use case', async (code, message) => {
+    mocks.resolveAccess.mockResolvedValueOnce({ success: false, status: 403, code, message })
+
+    await expect(
+      listAuditLogs.execute({ principal: sessionPrincipal, input: listInput })
+    ).rejects.toMatchObject({ code: 'forbidden', detailCode: code, message })
+  })
+
+  it('names the principal-kind refusal too', async () => {
+    await expect(
+      listAuditLogs.execute({ principal: workspacePrincipal, input: listInput })
+    ).rejects.toMatchObject({ code: 'forbidden', detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED' })
   })
 
   it('propagates organization-store failures', async () => {

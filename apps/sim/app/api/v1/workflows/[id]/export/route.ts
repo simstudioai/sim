@@ -24,8 +24,10 @@ export const revalidate = 0
  * GET /api/v1/workflows/[id]/export
  *
  * Exports a workflow as a portable JSON envelope that
- * `POST /api/v1/workflows/import` accepts verbatim. Payload assembly and the
- * sanitization guarantees are documented on the shared
+ * `POST /api/v1/workflows/import` accepts without further editing. It is not a
+ * byte-for-byte clone: the envelope is secret-sanitized, so several classes of
+ * sub-block value import as empty and must be re-entered. Payload assembly and
+ * the authoritative list of what is withheld are documented on the shared
  * {@link buildWorkflowExportPayload}; this route authenticates and renders the
  * v1 envelope.
  */

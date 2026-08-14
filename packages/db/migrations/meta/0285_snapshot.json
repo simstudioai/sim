@@ -1,5 +1,5 @@
 {
-  "id": "f4bfe091-7b24-488c-96be-378037e5d0b4",
+  "id": "632d8df2-05eb-4bd5-91ed-b725d9e4e095",
   "prevId": "9943bd0b-ca7d-4903-ac02-8ef292d2a00d",
   "version": "7",
   "dialect": "postgresql",
@@ -12303,253 +12303,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.upload_session": {
-      "name": "upload_session",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "knowledge_base_id": {
-          "name": "knowledge_base_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "workflow_id": {
-          "name": "workflow_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "execution_id": {
-          "name": "execution_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "purpose": {
-          "name": "purpose",
-          "type": "upload_session_purpose",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "method": {
-          "name": "method",
-          "type": "upload_session_method",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "storage_context": {
-          "name": "storage_context",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "final_key": {
-          "name": "final_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "storage_provider": {
-          "name": "storage_provider",
-          "type": "upload_session_provider",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider_upload_id": {
-          "name": "provider_upload_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "provider_object_version": {
-          "name": "provider_object_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "file_name": {
-          "name": "file_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "content_type": {
-          "name": "content_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "file_size": {
-          "name": "file_size",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "part_size": {
-          "name": "part_size",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "part_count": {
-          "name": "part_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "upload_session_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'uploading'"
-        },
-        "metadata": {
-          "name": "metadata",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "processing_lease_id": {
-          "name": "processing_lease_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "processing_lease_expires_at": {
-          "name": "processing_lease_expires_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "completed_file_id": {
-          "name": "completed_file_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "upload_session_token_hash_unique": {
-          "name": "upload_session_token_hash_unique",
-          "columns": [
-            {
-              "expression": "token_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "upload_session_final_key_unique": {
-          "name": "upload_session_final_key_unique",
-          "columns": [
-            {
-              "expression": "final_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "upload_session_status_expires_at_idx": {
-          "name": "upload_session_status_expires_at_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.usage_log": {
       "name": "usage_log",
       "schema": "",
@@ -17282,6 +17035,22 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "workspace_inbox_provider_id_idx": {
+          "name": "workspace_inbox_provider_id_idx",
+          "columns": [
+            {
+              "expression": "inbox_provider_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"workspace\".\"inbox_provider_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -17853,12 +17622,6 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
-        },
-        "size_bytes": {
-          "name": "size_bytes",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
         },
         "width": {
           "name": "width",
@@ -18979,43 +18742,6 @@
       "name": "sandbox_language",
       "schema": "public",
       "values": ["javascript", "python"]
-    },
-    "public.upload_session_method": {
-      "name": "upload_session_method",
-      "schema": "public",
-      "values": ["put", "multipart"]
-    },
-    "public.upload_session_provider": {
-      "name": "upload_session_provider",
-      "schema": "public",
-      "values": ["local", "s3", "blob", "gcs"]
-    },
-    "public.upload_session_purpose": {
-      "name": "upload_session_purpose",
-      "schema": "public",
-      "values": [
-        "workspace_file",
-        "table_import",
-        "knowledge_document",
-        "profile_picture",
-        "workspace_logo",
-        "mothership_attachment",
-        "execution_attachment"
-      ]
-    },
-    "public.upload_session_status": {
-      "name": "upload_session_status",
-      "schema": "public",
-      "values": [
-        "uploading",
-        "completing",
-        "finalizing",
-        "completed",
-        "aborting",
-        "aborted",
-        "failed",
-        "expired"
-      ]
     },
     "public.usage_log_category": {
       "name": "usage_log_category",

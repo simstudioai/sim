@@ -3,29 +3,16 @@ import {
   deleteWorkflowGroupContract,
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
-import {
-  defineInternalJsonRoute,
-  extendInternalErrorPolicy,
-  internalErrorResponse,
-  internalPlainOrchestrationErrorPolicy,
-  internalRateLimits,
-} from '@/lib/api/server/routes'
-import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import { internalTableErrorPolicies, internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import {
   createTableGroupUseCase,
   deleteTableGroupUseCase,
   updateTableGroupUseCase,
 } from '@/lib/table/application/groups'
 import { tableOperations } from '@/lib/table/application/operations'
-import { TableLockedError } from '@/lib/table/mutation-locks'
 import type { TableDefinition } from '@/lib/table/types'
-import { normalizeColumn } from '@/app/api/table/utils'
-
-const errorPolicy = extendInternalErrorPolicy(internalPlainOrchestrationErrorPolicy, (error) =>
-  error instanceof TableLockedError
-    ? internalErrorResponse(423, { error: error.message, lock: error.lock })
-    : null
-)
+import { normalizeColumn } from '@/lib/table/wire'
 
 const rateLimit = internalRateLimits.none({
   reason: 'Existing authenticated table group mutations have no request-rate policy',
@@ -47,8 +34,12 @@ export const POST = defineInternalJsonRoute({
   useCase: createTableGroupUseCase,
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
-  errorPolicy,
-  mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
+  errorPolicy: internalTableErrorPolicies.concealTableGroupAuthorization,
+  mapInput: ({ params, body }) => ({
+    tableId: params.tableId,
+    ...body,
+    autoRun: body.autoRun ?? true,
+  }),
   present: ({ table }) => presentTable(table),
 })
 
@@ -58,7 +49,7 @@ export const PATCH = defineInternalJsonRoute({
   useCase: updateTableGroupUseCase,
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
-  errorPolicy,
+  errorPolicy: internalTableErrorPolicies.concealTableGroupAuthorization,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
   present: ({ table }) => presentTable(table),
 })
@@ -69,7 +60,7 @@ export const DELETE = defineInternalJsonRoute({
   useCase: deleteTableGroupUseCase,
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
-  errorPolicy,
+  errorPolicy: internalTableErrorPolicies.concealTableGroupAuthorization,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
   present: ({ table }) => presentTable(table),
 })

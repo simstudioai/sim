@@ -220,7 +220,7 @@ export const pinnedItem = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
-    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table' | 'folder'
+    resourceType: text('resource_type').notNull(), // 'workflow' | 'file' | 'knowledge_base' | 'table' | 'folder' | 'workspace'
     resourceId: text('resource_id').notNull(),
     pinnedAt: timestamp('pinned_at').notNull().defaultNow(),
   },
@@ -239,6 +239,27 @@ export const workflow = pgTable(
   'workflow',
   {
     id: text('id').primaryKey(),
+    /**
+     * Creator and owner. Legitimate as ownership: it anchors personal
+     * (workspace-less) workflows, cascades the workflow away with the account,
+     * and names the owner for webhook config and deploy-as-block resolution.
+     *
+     * @deprecated As an execution identity. Do not use it to decide who a run
+     * acts as, what it may read, or what it may authorize. The acting principal
+     * is `ExecutionMetadata.userId`, which the principal layer
+     * (`resolvePrincipalAttribution`) resolves to the caller for a session,
+     * personal API key, or delegated run, and to the workspace billing account
+     * for a workspace API key, schedule, or webhook.
+     *
+     * Exactly one execution use survives, carried as
+     * `ExecutionMetadata.workflowUserId`: the personal-environment fallback in
+     * `executeWorkflowCore`, for runs with no identifiable caller — workspace
+     * API keys, schedules, webhooks, and unauthenticated public-API calls. Those
+     * have nobody to resolve personal variables as, and a deployed workflow is
+     * routinely authored against its owner's personal keys, so dropping the
+     * fallback would break them. Workspace variables never fall back here; they
+     * always authorize against the actor.
+     */
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -294,6 +315,9 @@ export const workflowBlocks = pgTable(
     isWide: boolean('is_wide').notNull().default(false),
     advancedMode: boolean('advanced_mode').notNull().default(false),
     triggerMode: boolean('trigger_mode').notNull().default(false),
+    errorEnabled: boolean('error_enabled').notNull().default(false),
+    /** Opt-in {@link BlockRetryConfig}; NULL means the block never retries. */
+    retry: jsonb('retry'),
     locked: boolean('locked').notNull().default(false),
     height: decimal('height').notNull().default('0'),
 
@@ -408,13 +432,21 @@ export const workflowExecutionLogs = pgTable(
     ),
 
     level: text('level').notNull(), // 'info' | 'error'
-    status: text('status').notNull().default('running'), // 'running' | 'pending' | 'completed' | 'failed' | 'cancelled'
+    /** See `PERSISTED_WORKFLOW_EXECUTION_STATUSES` in `apps/sim/lib/logs/types.ts`. */
+    status: text('status').notNull().default('running'),
     trigger: text('trigger').notNull(), // 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 
     startedAt: timestamp('started_at').notNull(),
     /** Absolute deadline for the current active attempt; cleared while paused or terminal. */
     executionDeadlineAt: timestamp('execution_deadline_at'),
     endedAt: timestamp('ended_at'),
+    /**
+     * Wall clock from `started_at` for a terminal row; for a `pending` (paused)
+     * row, the active duration recorded at the checkpoint, which excludes the
+     * time the run sits waiting. Resuming leaves that checkpoint value in place
+     * while the row accrues time again, so a `running` row's value is stale
+     * until the next terminal write recomputes it.
+     */
     totalDurationMs: integer('total_duration_ms'),
 
     /**
@@ -709,6 +741,7 @@ export const settings = pgTable('settings', {
   // Canvas preferences
   snapToGridSize: integer('snap_to_grid_size').notNull().default(0), // 0 = off, 10-50 = grid size
   showActionBar: boolean('show_action_bar').notNull().default(true),
+  autoFocusOnClick: boolean('auto_focus_on_click').notNull().default(true),
 
   timezone: text('timezone'),
 
@@ -838,11 +871,6 @@ export const jobExecutionLogs = pgTable(
   })
 )
 
-/** Extracts the canonical credential ID persisted in webhook provider configuration. */
-export function webhookCredentialIdExpression(column: AnyPgColumn): SQL<string> {
-  return sql<string>`((${column})::jsonb ->> 'credentialId')`
-}
-
 export const webhook = pgTable(
   'webhook',
   {
@@ -861,15 +889,15 @@ export const webhook = pgTable(
     blockId: text('block_id'),
     /**
      * URL-addressable webhook path. NULL for shared-app providers (e.g. the
-     * native Slack OAuth trigger) whose events arrive on a single shared
+     * native Slack and TikTok triggers) whose events arrive on a single shared
      * endpoint and route by `routingKey` instead of a per-workflow path.
      */
     path: text('path'),
     /**
-     * Tenant routing key for shared-app providers. For `provider='slack_app'`
-     * this is the Slack `team_id`, derived server-side from the connected
-     * credential at deploy time — never user input. Inbound events match on
-     * this after HMAC verification.
+     * Tenant routing key for shared-app providers, such as Slack `team_id` or
+     * TikTok `open_id`, derived server-side from the connected credential at
+     * deploy time — never user input. Inbound events match on this after HMAC
+     * verification.
      */
     routingKey: text('routing_key'),
     provider: text('provider'), // e.g., "whatsapp", "github", etc.
@@ -901,11 +929,6 @@ export const webhook = pgTable(
       providerActiveWorkflowDeploymentIdx: index(
         'idx_webhook_on_provider_is_active_workflow_id_deploym_bdeed5468'
       ).on(table.provider, table.isActive, table.workflowId, table.deploymentVersionId),
-      tiktokCredentialIdIdx: index('webhook_tiktok_credential_id_idx')
-        .on(webhookCredentialIdExpression(table.providerConfig))
-        .where(
-          sql`${table.provider} = 'tiktok' AND ${table.isActive} = true AND ${table.archivedAt} IS NULL`
-        ),
       workflowBlockUpdatedDescIdx: index('idx_webhook_on_workflow_id_block_id_updated_at_desc').on(
         table.workflowId,
         table.blockId,
@@ -1624,6 +1647,15 @@ export const workspace = pgTable(
     forkedFromWorkspaceIdx: index('workspace_forked_from_workspace_id_idx').on(
       table.forkedFromWorkspaceId
     ),
+    /**
+     * Routes an unauthenticated AgentMail delivery to exactly one tenant's
+     * webhook secret. Unique so "one signature check per request" is a storage
+     * invariant rather than something the receiver has to defend against, and
+     * partial because only a small fraction of workspaces enable an inbox.
+     */
+    inboxProviderIdIdx: uniqueIndex('workspace_inbox_provider_id_idx')
+      .on(table.inboxProviderId)
+      .where(sql`${table.inboxProviderId} IS NOT NULL`),
   })
 )
 
@@ -2062,8 +2094,13 @@ export const uploadSession = pgTable(
 )
 
 export interface WorkspaceFileSecretProvenanceEntry extends DurableSecretProvenanceEntry {
-  name: string
   sourceUserId: string
+}
+
+export interface StoredWorkspaceFileSecretProvenanceEntry
+  extends WorkspaceFileSecretProvenanceEntry {
+  name: string
+  anonymous?: true
 }
 
 /**
@@ -2082,7 +2119,10 @@ export const workspaceFileSecretProvenance = pgTable(
       .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
     contentUpdatedAt: timestamp('content_updated_at').notNull(),
     status: text('status').notNull(),
-    entries: jsonb('entries').$type<WorkspaceFileSecretProvenanceEntry[]>().notNull().default([]),
+    entries: jsonb('entries')
+      .$type<StoredWorkspaceFileSecretProvenanceEntry[]>()
+      .notNull()
+      .default([]),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({

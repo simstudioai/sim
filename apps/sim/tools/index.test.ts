@@ -25,6 +25,7 @@ import {
   setEnvFlags,
 } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
@@ -37,6 +38,7 @@ import {
 import { fileGetContentTool } from '@/tools/file/get'
 import { memoryAddTool } from '@/tools/memory/add'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
+import { customBlockExecutorTool } from '@/tools/workflow/custom-block-executor'
 import { workflowExecutorTool } from '@/tools/workflow/executor'
 
 // Hoisted mock state - these are available to vi.mock factories
@@ -47,10 +49,13 @@ const {
   mockGetCustomToolById,
   mockListCustomTools,
   mockMarkWorkspaceFileSecretProvenanceUnknown,
+  mockRunCustomBlockTool,
+  mockRunWorkflowTool,
   mockGetCustomToolByIdOrTitle,
   mockGenerateInternalDelegationToken,
   mockGenerateInternalToken,
   mockResolveWorkspaceFileReference,
+  mockAssertPermissionsAllowed,
 } = vi.hoisted(() => ({
   mockGetBYOKKey: vi.fn(),
   mockGetToolAsync: vi.fn(),
@@ -62,10 +67,13 @@ const {
   mockGetCustomToolById: vi.fn(),
   mockListCustomTools: vi.fn(),
   mockMarkWorkspaceFileSecretProvenanceUnknown: vi.fn(),
+  mockRunCustomBlockTool: vi.fn(),
+  mockRunWorkflowTool: vi.fn(),
   mockGetCustomToolByIdOrTitle: vi.fn(),
   mockGenerateInternalDelegationToken: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
+  mockAssertPermissionsAllowed: vi.fn(),
 }))
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
@@ -89,7 +97,7 @@ vi.mock('@/lib/core/security/encryption', () => ({
 }))
 
 vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: vi.fn().mockResolvedValue(undefined),
+  assertPermissionsAllowed: mockAssertPermissionsAllowed,
   validateBlockType: vi.fn().mockResolvedValue(undefined),
   validateMcpToolsAllowed: vi.fn().mockResolvedValue(undefined),
   validateCustomToolsAllowed: vi.fn().mockResolvedValue(undefined),
@@ -124,9 +132,18 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () 
     mockMarkWorkspaceFileSecretProvenanceUnknown(...args),
 }))
 
+vi.mock('@/executor/handlers/workflow/workflow-tool-runner', () => ({
+  runWorkflowTool: (...args: unknown[]) => mockRunWorkflowTool(...args),
+}))
+
+vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
+  runCustomBlockTool: (...args: unknown[]) => mockRunCustomBlockTool(...args),
+}))
+
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  deployed_block_executor: customBlockExecutorTool,
   workflow_executor: workflowExecutorTool,
   file_get_content: fileGetContentTool,
   memory_add: memoryAddTool,
@@ -446,7 +463,9 @@ vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQu
 
 beforeEach(() => {
   vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
+  mockAssertPermissionsAllowed.mockResolvedValue(undefined)
   mockGenerateInternalDelegationToken.mockResolvedValue('executor-token')
+  mockRunWorkflowTool.mockResolvedValue({ success: true, output: {} })
   // Suites below call vi.resetAllMocks(), which wipes the shared env/urls mock
   // implementations — restore their defaults and re-pin the base URL each test.
   resetEnvMock()
@@ -677,6 +696,138 @@ describe('executeTool Function', () => {
     tools.function_execute = originalFunctionTool
   })
 
+  it('retries transient database failures during permission preflight', async () => {
+    const driverError = Object.assign(new Error('read ECONNRESET'), {
+      code: 'ECONNRESET',
+      errno: 'ECONNRESET',
+      syscall: 'read',
+    })
+    const databaseError = new DrizzleQueryError(
+      'select "id" from "workspace" where "workspace"."id" = $1 limit $2',
+      ['workspace-secret-id', 1],
+      driverError
+    )
+    mockAssertPermissionsAllowed.mockRejectedValueOnce(databaseError)
+    mockToolsLogger.warn.mockClear()
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'return 1' },
+      { executionContext: createToolExecutionContext({ userId: 'user-123' }) }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(2)
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(mockToolsLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Retrying tool permission preflight after database error'),
+      expect.objectContaining({
+        attempt: 1,
+        maxAttempts: 3,
+        cause: expect.objectContaining({ code: 'ECONNRESET' }),
+      })
+    )
+  })
+
+  it('logs exhausted database retries without exposing query details to the caller', async () => {
+    const driverError = Object.assign(new Error('read ECONNRESET'), {
+      code: 'ECONNRESET',
+      errno: 'ECONNRESET',
+      syscall: 'read',
+    })
+    const databaseError = new DrizzleQueryError(
+      'select "id" from "workspace" where "workspace"."id" = $1 limit $2',
+      ['workspace-secret-id', 1],
+      driverError
+    )
+    mockAssertPermissionsAllowed.mockRejectedValue(databaseError)
+    mockToolsLogger.error.mockClear()
+
+    const result = await executeTool(
+      'http_request',
+      { url: 'https://example.com' },
+      { executionContext: createToolExecutionContext({ userId: 'user-123' }) }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe(
+      'An internal error occurred while executing the tool. Please try again.'
+    )
+    expect(JSON.stringify(result)).not.toContain('Failed query')
+    expect(JSON.stringify(result)).not.toContain('workspace-secret-id')
+    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(3)
+    expect(global.fetch).not.toHaveBeenCalled()
+
+    const loggedError = mockToolsLogger.error.mock.calls.at(-1)?.[1]
+    expect(loggedError).toEqual(
+      expect.objectContaining({
+        cause: expect.objectContaining({
+          name: 'Error',
+          message: 'read ECONNRESET',
+          code: 'ECONNRESET',
+          errno: 'ECONNRESET',
+          syscall: 'read',
+          causeChain: expect.arrayContaining([
+            expect.stringContaining('params: [redacted]'),
+            'Error: read ECONNRESET',
+          ]),
+        }),
+      })
+    )
+    expect(loggedError).not.toHaveProperty('stack')
+    expect(JSON.stringify(loggedError)).not.toContain('workspace-secret-id')
+  })
+
+  it('does not retry non-transient database failures during permission preflight', async () => {
+    const databaseError = new DrizzleQueryError(
+      'select "missing_column" from "workspace"',
+      [],
+      Object.assign(new Error('column does not exist'), { code: '42703' })
+    )
+    mockAssertPermissionsAllowed.mockRejectedValue(databaseError)
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'return 1' },
+      { executionContext: createToolExecutionContext({ userId: 'user-123' }) }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe(
+      'An internal error occurred while executing the tool. Please try again.'
+    )
+    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(1)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('surfaces cancellation instead of a concurrent permission database failure', async () => {
+    const controller = new AbortController()
+    const abortReason = new Error('Execution cancelled')
+    const databaseError = new DrizzleQueryError(
+      'select "id" from "workspace" where "workspace"."id" = $1',
+      ['workspace-secret-id'],
+      Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    )
+    mockAssertPermissionsAllowed.mockImplementationOnce(async () => {
+      controller.abort(abortReason)
+      throw databaseError
+    })
+
+    const result = await executeTool(
+      'function_execute',
+      { code: 'return 1' },
+      {
+        executionContext: createToolExecutionContext({ userId: 'user-123' }),
+        signal: controller.signal,
+      }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Execution cancelled')
+    expect(mockAssertPermissionsAllowed).toHaveBeenCalledTimes(1)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
   it('should call internal routes directly', async () => {
     const originalFunctionTool = { ...tools.function_execute }
     tools.function_execute = {
@@ -765,6 +916,36 @@ describe('executeTool Function', () => {
     })
     const request = vi.mocked(global.fetch).mock.calls[0]?.[1]
     expect(new Headers(request?.headers).get('authorization')).toBe('Bearer executor-token')
+  })
+
+  it('uses the canonical parent origin for protected tools inside a nested workflow', async () => {
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const executionContext = createToolExecutionContext({
+      userId: 'trusted-user',
+      workflowId: 'child-workflow',
+      executionId: 'parent-execution',
+      executorDelegationOrigin: {
+        subjectUserId: 'trusted-user',
+        workflowId: 'parent-workflow',
+        executionId: 'parent-execution',
+      },
+    })
+    await executeTool('test_executor_delegation', {}, { executionContext })
+
+    expect(mockGenerateInternalDelegationToken).toHaveBeenCalledWith({
+      subjectUserId: 'trusted-user',
+      workflowId: 'parent-workflow',
+      executionId: 'parent-execution',
+    })
   })
 
   it('rejects protected internal tools without trusted executor scope before transport', async () => {
@@ -858,7 +1039,7 @@ describe('executeTool Function', () => {
       },
     },
   ])(
-    'preserves an unverified error status for the $name without exposing its body or headers',
+    'preserves the raw $name error without logging unverifiable details',
     async ({ toolId, status, params }) => {
       const registry = new ResolvedSecretTraceRegistry([], {
         userId: 'user-1',
@@ -880,14 +1061,11 @@ describe('executeTool Function', () => {
       ) as typeof fetch
 
       const result = await executeTool(toolId, params, { resolvedSecretTraceRegistry: registry })
-      const error = `Internal tool request failed (HTTP ${status})`
-
       expect(result).toMatchObject({
         success: false,
-        output: { status, data: { success: false, error } },
-        error,
+        output: { status, data: { error: untrustedDetail } },
+        error: untrustedDetail,
       })
-      expect(JSON.stringify(result)).not.toContain(untrustedDetail)
       expect(JSON.stringify(result)).not.toContain(untrustedHeader)
       expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(untrustedDetail)
       expect(JSON.stringify(mockToolsLogger.error.mock.calls)).not.toContain(untrustedHeader)
@@ -895,7 +1073,7 @@ describe('executeTool Function', () => {
     }
   )
 
-  it('maps an unverified non-error HTTP status to a metadata failure', async () => {
+  it('preserves a headerless legacy HTTP status without poisoning later calls', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     global.fetch = Object.assign(vi.fn().mockResolvedValue(new Response(null, { status: 304 })), {
       preconnect: vi.fn(),
@@ -907,21 +1085,11 @@ describe('executeTool Function', () => {
       { resolvedSecretTraceRegistry: registry }
     )
 
-    expect(result).toMatchObject({
-      success: false,
-      output: {
-        status: 502,
-        data: {
-          success: false,
-          error: 'Internal tool response metadata could not be verified',
-        },
-      },
-      error: 'Internal tool response metadata could not be verified',
-    })
+    expect(result).toMatchObject({ success: false, output: { status: 304 } })
     expect(registry.isComplete()).toBe(true)
   })
 
-  it('contains incomplete File Get Content provenance within that tool call', async () => {
+  it('preserves File Get Content with authenticated incomplete lineage', async () => {
     const registry = new ResolvedSecretTraceRegistry([], {
       userId: 'user-1',
       workspaceId: 'workspace-1',
@@ -961,16 +1129,13 @@ describe('executeTool Function', () => {
       { resolvedSecretTraceRegistry: registry }
     )
 
-    expect(result).toMatchObject({
-      success: false,
-      output: {},
-      error: 'Internal tool response metadata could not be verified',
-    })
-    expect(JSON.stringify(result)).not.toContain('untrusted file content')
-    expect(registry.isComplete()).toBe(true)
+    expect(result.success).toBe(true)
+    expect(JSON.stringify(result)).toContain('untrusted file content')
+    expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
+    expect(registry.isComplete()).toBe(false)
   })
 
-  it('fails one legacy File Get Content response without poisoning the parent registry', async () => {
+  it('preserves a headerless legacy File Get Content response without poisoning later calls', async () => {
     const registry = new ResolvedSecretTraceRegistry([], {
       userId: 'user-1',
       workspaceId: 'workspace-1',
@@ -995,8 +1160,8 @@ describe('executeTool Function', () => {
       { resolvedSecretTraceRegistry: registry }
     )
 
-    expect(result.success).toBe(false)
-    expect(JSON.stringify(result)).not.toContain('legacy content')
+    expect(result.success).toBe(true)
+    expect(JSON.stringify(result)).toContain('legacy content')
     expect(registry.isComplete()).toBe(true)
   })
 
@@ -1387,7 +1552,7 @@ describe('executeTool Function', () => {
     expect(registry.isComplete()).toBe(true)
   })
 
-  it('accepts a legacy Function response after reconstructing its local provenance', async () => {
+  it('preserves a headerless legacy Function response without poisoning later calls', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     global.fetch = Object.assign(
       vi
@@ -1415,7 +1580,7 @@ describe('executeTool Function', () => {
     expect(registry.isComplete()).toBe(true)
   })
 
-  it('reconstructs a crossing secret from a legacy Function response', async () => {
+  it('does not trust provenance inferred only from a headerless legacy Function body', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: 'legacy-secret', encryptedValue: 'encrypted-value' },
     ])
@@ -1440,13 +1605,11 @@ describe('executeTool Function', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(registry.getActiveMatches()).toEqual([
-      { plaintext: 'legacy-secret', replacement: '{{API_KEY}}' },
-    ])
+    expect(registry.getActiveMatches()).toEqual([])
     expect(registry.isComplete()).toBe(true)
   })
 
-  it('attaches exact workflow input provenance through the central internal transport', async () => {
+  it('passes trusted workflow scope and isolated provenance to the in-process runner', async () => {
     const registry = new ResolvedSecretTraceRegistry(
       [
         {
@@ -1457,34 +1620,10 @@ describe('executeTool Function', () => {
       ],
       { userId: 'parent-owner', workspaceId: 'workspace-456' }
     )
-    expect(registry.recordResolved('INPUT_SECRET', 'secret-value')).toBe(true)
-    global.fetch = Object.assign(
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            success: true,
-            workflowId: 'child-workflow',
-            workflowName: 'Child Workflow',
-            output: { ok: true },
-            metadata: { duration: 17 },
-            __resolvedSecretTraceProvenance: {
-              version: 1,
-              complete: true,
-              entries: [],
-              scope: { userId: 'child-owner', workspaceId: 'workspace-456' },
-            },
-          }),
-          {
-            status: 200,
-            headers: {
-              'content-type': 'application/json',
-              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
-            },
-          }
-        )
-      ),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+    expect(
+      registry.recordResolvedAtInputPath('INPUT_SECRET', 'secret-value', ['inputMapping'])
+    ).toBe(true)
+    mockRunWorkflowTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
 
     await executeTool(
       'workflow_executor_child-workflow',
@@ -1495,28 +1634,147 @@ describe('executeTool Function', () => {
       }
     )
 
-    const request = vi.mocked(global.fetch).mock.calls[0]?.[1]
-    const headers = new Headers(request?.headers)
-    const body = JSON.parse(String(request?.body))
-    expect(headers.get('x-sim-private-secret-provenance')).toBe(
-      'private-secret-provenance-bundle-v1'
+    expect(mockRunWorkflowTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: 'child-workflow',
+        inputMapping: { token: 'secret-value' },
+        _context: expect.objectContaining({
+          userId: 'parent-actor',
+          workspaceId: 'workspace-456',
+          workflowId: 'test-workflow',
+        }),
+      }),
+      expect.objectContaining({
+        resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
+      })
     )
-    expect(body.input).toEqual({ token: 'secret-value' })
-    expect(body.__privateSecretProvenance).toEqual({
-      version: 1,
-      complete: true,
-      selections: [
-        {
-          key: 'input',
-          provenance: {
-            version: 1,
-            complete: true,
-            entries: [{ name: 'INPUT_SECRET', encryptedValue: 'encrypted-input-secret' }],
-            scope: { userId: 'parent-owner', workspaceId: 'workspace-456' },
-          },
-        },
-      ],
+    const runnerOptions = mockRunWorkflowTool.mock.calls[0]?.[1] as {
+      resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+    }
+    expect(runnerOptions.resolvedSecretTraceRegistry).not.toBe(registry)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it("hands the in-process runner the invoking run's env and redaction policy", async () => {
+    mockRunWorkflowTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+    const piiBlockOutputRedaction = {
+      enabled: true,
+      entityTypes: ['EMAIL_ADDRESS'],
+      language: 'en',
+    }
+
+    await executeTool(
+      'workflow_executor_child-workflow',
+      {
+        workflowId: 'child-workflow',
+        _context: { environmentVariables: { MY_API_KEY: 'model-injected' } },
+      },
+      {
+        executionContext: createToolExecutionContext({
+          environmentVariables: { MY_API_KEY: 'parent-secret' },
+          piiBlockOutputRedaction,
+        }),
+      }
+    )
+
+    expect(mockRunWorkflowTool).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        environmentVariables: { MY_API_KEY: 'parent-secret' },
+        piiBlockOutputRedaction,
+      })
+    )
+  })
+
+  it('copies the env map so a child run cannot corrupt the parent context', async () => {
+    mockRunWorkflowTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+    const executionContext = createToolExecutionContext({
+      environmentVariables: { MY_API_KEY: 'parent-secret' },
     })
+
+    await executeTool(
+      'workflow_executor_child-workflow',
+      { workflowId: 'child-workflow' },
+      { executionContext }
+    )
+
+    const forwarded = (mockRunWorkflowTool.mock.calls[0]?.[1] as Record<string, unknown>)
+      .environmentVariables as Record<string, string>
+    expect(forwarded).toEqual({ MY_API_KEY: 'parent-secret' })
+    expect(forwarded).not.toBe(executionContext.environmentVariables)
+
+    forwarded.MY_API_KEY = 'mutated-by-child'
+    forwarded.INJECTED = 'added-by-child'
+
+    expect(executionContext.environmentVariables).toEqual({ MY_API_KEY: 'parent-secret' })
+  })
+
+  it('leaves the custom-block runner without the consumer redaction policy', async () => {
+    mockRunCustomBlockTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+
+    await executeTool(
+      'deployed_block_executor_custom_block_123',
+      { blockType: 'custom_block_123' },
+      {
+        executionContext: createToolExecutionContext({
+          environmentVariables: { MY_API_KEY: 'consumer-secret' },
+          piiBlockOutputRedaction: { enabled: true, entityTypes: [], language: 'en' },
+        }),
+      }
+    )
+
+    const options = mockRunCustomBlockTool.mock.calls[0]?.[1] as Record<string, unknown>
+    expect(options).not.toHaveProperty('environmentVariables')
+    expect(options).not.toHaveProperty('piiBlockOutputRedaction')
+  })
+
+  it('overwrites custom-block tool context with the trusted workflow scope', async () => {
+    const executionContext = createToolExecutionContext({
+      userId: 'trusted-user',
+      workflowId: 'trusted-workflow',
+      workspaceId: 'trusted-workspace',
+      executionId: 'trusted-execution',
+      callChain: ['trusted-parent'],
+      isDeployedContext: true,
+    })
+    mockRunCustomBlockTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+
+    await executeTool(
+      'deployed_block_executor_custom_block_123',
+      {
+        blockType: 'custom_block_123',
+        _context: {
+          userId: 'forged-user',
+          workflowId: 'forged-workflow',
+          workspaceId: 'forged-workspace',
+          executionId: 'forged-execution',
+          callChain: ['forged-parent'],
+          isDeployedContext: false,
+          billingAttribution: { forged: true },
+        },
+      },
+      { executionContext }
+    )
+
+    expect(mockRunCustomBlockTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        blockType: 'custom_block_123',
+        _context: expect.objectContaining({
+          userId: 'trusted-user',
+          workflowId: 'trusted-workflow',
+          workspaceId: 'trusted-workspace',
+          executionId: 'trusted-execution',
+          callChain: ['trusted-parent'],
+          isDeployedContext: true,
+          billingAttribution: TEST_BILLING_ATTRIBUTION,
+          requestId: expect.any(String),
+        }),
+      }),
+      expect.objectContaining({
+        resolvedSecretTraceRegistry: undefined,
+      })
+    )
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('filters cross-scope workflow provenance to literals present in the unchanged result', async () => {
@@ -1531,36 +1789,27 @@ describe('executeTool Function', () => {
       answer: 'The child returned crossed-secret verbatim',
       publicValue: 'unchanged',
     }
-    global.fetch = Object.assign(
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            success: true,
-            workflowId: 'child-workflow',
-            workflowName: 'Child Workflow',
-            output: childOutput,
-            metadata: { duration: 17 },
-            __resolvedSecretTraceProvenance: {
-              version: 1,
-              complete: true,
-              entries: [
-                { name: 'CROSSED', encryptedValue: 'crossed-encrypted' },
-                { name: 'UNRELATED', encryptedValue: 'unrelated-encrypted' },
-              ],
-              scope: { userId: 'parent-user', workspaceId: 'child-workspace' },
-            },
-          }),
+    mockRunWorkflowTool.mockImplementationOnce(
+      async (
+        _params: unknown,
+        options: { resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry }
+      ) => {
+        await options.resolvedSecretTraceRegistry.importCrossingProvenance(
           {
-            status: 200,
-            headers: {
-              'content-type': 'application/json',
-              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
-            },
-          }
+            version: 1,
+            complete: true,
+            entries: [
+              { name: 'CROSSED', encryptedValue: 'crossed-encrypted' },
+              { name: 'UNRELATED', encryptedValue: 'unrelated-encrypted' },
+            ],
+            scope: { userId: 'parent-user', workspaceId: 'child-workspace' },
+          },
+          childOutput,
+          { trusted: true, origin: 'workflow-tool-test' }
         )
-      ),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+        return { success: true, output: childOutput }
+      }
+    )
 
     const result = await executeTool(
       'workflow_executor_child-workflow',
@@ -1573,12 +1822,7 @@ describe('executeTool Function', () => {
 
     expect(result).toEqual({
       success: true,
-      duration: 17,
-      childWorkflowId: 'child-workflow',
-      childWorkflowName: 'Child Workflow',
       output: childOutput,
-      result: childOutput,
-      error: undefined,
       timing: {
         startTime: expect.any(String),
         endTime: expect.any(String),
@@ -1595,24 +1839,15 @@ describe('executeTool Function', () => {
     expect(registry.isComplete()).toBe(true)
   })
 
-  it('drops a legacy workflow response without poisoning later provenance', async () => {
+  it('preserves a headerless legacy workflow response without poisoning later calls', async () => {
     const registry = new ResolvedSecretTraceRegistry([], {
       userId: 'parent-user',
       workspaceId: 'workspace-456',
     })
-    global.fetch = Object.assign(
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            success: true,
-            workflowId: 'child-workflow',
-            output: { value: 'unverifiable legacy output' },
-          }),
-          { status: 200, headers: { 'content-type': 'application/json' } }
-        )
-      ),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+    mockRunWorkflowTool.mockResolvedValueOnce({
+      success: true,
+      output: { value: 'unverifiable legacy output' },
+    })
 
     const result = await executeTool(
       'workflow_executor_child-workflow',
@@ -1623,34 +1858,14 @@ describe('executeTool Function', () => {
       }
     )
 
-    expect(result.success).toBe(false)
-    expect(JSON.stringify(result)).not.toContain('unverifiable legacy output')
+    expect(result.success).toBe(true)
+    expect(JSON.stringify(result)).toContain('unverifiable legacy output')
     expect(registry.isComplete()).toBe(true)
 
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          success: true,
-          workflowId: 'child-workflow',
-          workflowName: 'Child Workflow',
-          output: { value: 'later call succeeded' },
-          metadata: { duration: 1 },
-          __resolvedSecretTraceProvenance: {
-            version: 1,
-            complete: true,
-            entries: [],
-            scope: { userId: 'parent-user', workspaceId: 'workspace-456' },
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            'content-type': 'application/json',
-            'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
-          },
-        }
-      )
-    )
+    mockRunWorkflowTool.mockResolvedValueOnce({
+      success: true,
+      output: { value: 'later call succeeded' },
+    })
     const laterResult = await executeTool(
       'workflow_executor_child-workflow',
       { workflowId: 'child-workflow', inputMapping: {} },
@@ -1667,36 +1882,20 @@ describe('executeTool Function', () => {
     expect(registry.isComplete()).toBe(true)
   })
 
-  it('contains incomplete workflow provenance within that tool call', async () => {
+  it('preserves workflow output with authenticated incomplete lineage', async () => {
     const registry = new ResolvedSecretTraceRegistry([], {
       userId: 'parent-user',
       workspaceId: 'workspace-456',
     })
-    global.fetch = Object.assign(
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            success: true,
-            workflowId: 'child-workflow',
-            output: { value: 'untrusted partial output' },
-            __resolvedSecretTraceProvenance: {
-              version: 1,
-              complete: false,
-              entries: [],
-              scope: { userId: 'parent-user', workspaceId: 'workspace-456' },
-            },
-          }),
-          {
-            status: 200,
-            headers: {
-              'content-type': 'application/json',
-              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
-            },
-          }
-        )
-      ),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+    mockRunWorkflowTool.mockImplementationOnce(
+      async (
+        _params: unknown,
+        options: { resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry }
+      ) => {
+        options.resolvedSecretTraceRegistry.markIncomplete('source-provenance-incomplete')
+        return { success: true, output: { value: 'untrusted partial output' } }
+      }
+    )
 
     const result = await executeTool(
       'workflow_executor_child-workflow',
@@ -1707,50 +1906,22 @@ describe('executeTool Function', () => {
       }
     )
 
-    expect(result).toMatchObject({
-      success: false,
-      output: {},
-      error: 'Internal tool response metadata could not be verified',
-    })
-    expect(JSON.stringify(result)).not.toContain('untrusted partial output')
-    expect(registry.isComplete()).toBe(true)
+    expect(result.success).toBe(true)
+    expect(JSON.stringify(result)).toContain('untrusted partial output')
+    expect(JSON.stringify(result)).not.toContain('__resolvedSecretTraceProvenance')
+    expect(registry.isComplete()).toBe(false)
   })
 
-  it('does not charge private provenance against the functional response limit', async () => {
+  it('returns large in-process workflow output without applying the HTTP response cap', async () => {
     const registry = new ResolvedSecretTraceRegistry([], {
       userId: 'parent-user',
       workspaceId: 'workspace-456',
     })
     const functionalValue = 'f'.repeat(9 * 1024 * 1024)
-    const encryptedValue = 'e'.repeat(2 * 1024 * 1024)
-    encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'secret-value' })
-    global.fetch = Object.assign(
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            success: true,
-            workflowId: 'child-workflow',
-            workflowName: 'Child Workflow',
-            output: { value: functionalValue },
-            metadata: { duration: 17 },
-            __resolvedSecretTraceProvenance: {
-              version: 1,
-              complete: true,
-              entries: [{ name: 'TOKEN', encryptedValue }],
-              scope: { userId: 'parent-user', workspaceId: 'workspace-456' },
-            },
-          }),
-          {
-            status: 200,
-            headers: {
-              'content-type': 'application/json',
-              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
-            },
-          }
-        )
-      ),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+    mockRunWorkflowTool.mockResolvedValueOnce({
+      success: true,
+      output: { value: functionalValue },
+    })
 
     const result = await executeTool(
       'workflow_executor_child-workflow',
@@ -1844,12 +2015,12 @@ describe('executeTool Function', () => {
     expect(JSON.stringify(result)).not.toContain('__resolvedSecretNames')
     expect(result).toMatchObject({
       success: false,
-      error: 'Internal tool response metadata could not be verified',
+      error: 'Internal tool request failed (HTTP 500)',
     })
     expect(registry.isComplete()).toBe(true)
   })
 
-  it('projects a thrown error with complete provenance before committing it', async () => {
+  it('preserves a thrown error while committing provenance for downstream projection', async () => {
     const secret = 'transaction-throw-secret'
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-value' },
@@ -1873,8 +2044,9 @@ describe('executeTool Function', () => {
       ),
       { preconnect: vi.fn() }
     ) as typeof fetch
+    const originalError = new Error(secret)
     mockToolsLogger.error.mockImplementation(() => {
-      throw new Error(secret)
+      throw originalError
     })
 
     const execution = executeTool(
@@ -1883,69 +2055,127 @@ describe('executeTool Function', () => {
       { resolvedSecretTraceRegistry: registry }
     )
 
-    await expect(execution).rejects.toMatchObject({ message: '{{API_KEY}}' })
+    await expect(execution).rejects.toBe(originalError)
     expect(registry.getActiveMatches()).toEqual([{ plaintext: secret, replacement: '{{API_KEY}}' }])
     expect(registry.isComplete()).toBe(true)
+    expect(
+      projectToolResultForCopilot({ success: false, error: originalError.message }, registry)
+    ).toEqual({ success: false, error: '{{API_KEY}}' })
   })
 
-  it('contains an incomplete thrown settlement and leaves later calls available', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
+  it('preserves empty thrown errors instead of replacing their runtime semantics', async () => {
+    const secret = '!!!!!!!!'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-value' },
+    ])
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
         new Response(
           JSON.stringify({
             success: false,
-            error: 'untrusted thrown detail',
-            __resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+            error: 'request failed',
+            __resolvedSecretNames: ['API_KEY'],
           }),
           {
             status: 500,
             headers: {
               'content-type': 'application/json',
-              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
+              'x-sim-private-tool-metadata': 'resolved-secret-names-v1',
             },
           }
         )
       ),
       { preconnect: vi.fn() }
     ) as typeof fetch
+    const originalError = new Error('')
+    mockToolsLogger.error.mockImplementation(() => {
+      throw originalError
+    })
+
+    const execution = executeTool(
+      'function_execute',
+      { code: 'throw new Error({{API_KEY}})', envVars: { API_KEY: secret } },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    await expect(execution).rejects.toBe(originalError)
+    expect(registry.getActiveMatches()).toEqual([{ plaintext: secret, replacement: '{{API_KEY}}' }])
+  })
+
+  it('does not rewrite coincidental low-entropy matches in thrown runtime errors', async () => {
+    const secret = 'xxxxxxxx'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-value' },
+    ])
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: false,
+            error: secret,
+            __resolvedSecretNames: ['API_KEY'],
+          }),
+          {
+            status: 500,
+            headers: {
+              'content-type': 'application/json',
+              'x-sim-private-tool-metadata': 'resolved-secret-names-v1',
+            },
+          }
+        )
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+    const originalError = new Error('Box failed')
+    mockToolsLogger.error.mockImplementation(() => {
+      throw originalError
+    })
+
+    const execution = executeTool(
+      'function_execute',
+      { code: 'throw new Error({{API_KEY}})', envVars: { API_KEY: secret } },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    await expect(execution).rejects.toBe(originalError)
+    expect(originalError.message).toBe('Box failed')
+    expect(registry.getActiveMatches()).toEqual([{ plaintext: secret, replacement: '{{API_KEY}}' }])
+  })
+
+  it('rethrows a local failure after authenticated lineage becomes unavailable', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: 'parent-user',
+      workspaceId: 'workspace-456',
+    })
+    mockRunWorkflowTool.mockImplementationOnce(
+      async (
+        _params: unknown,
+        options: { resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry }
+      ) => {
+        options.resolvedSecretTraceRegistry.markIncomplete('source-provenance-incomplete')
+        throw new Error('untrusted thrown detail')
+      }
+    )
     mockToolsLogger.error.mockImplementation(() => {
       throw new Error('untrusted thrown detail')
     })
 
-    const result = await executeTool(
-      'function_execute',
-      { code: 'throw new Error("untrusted thrown detail")', envVars: {} },
-      { resolvedSecretTraceRegistry: registry }
+    const execution = executeTool(
+      'workflow_executor_child-workflow',
+      { workflowId: 'child-workflow', inputMapping: {} },
+      {
+        executionContext: createToolExecutionContext({ userId: 'parent-user' }),
+        resolvedSecretTraceRegistry: registry,
+      }
     )
 
-    expect(result).toEqual({
-      success: false,
-      output: {},
-      error: 'Internal tool response metadata could not be verified',
-    })
-    expect(registry.isComplete()).toBe(true)
-
-    mockToolsLogger.error.mockReset()
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ success: true, output: { result: 'later call succeeded' } }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      })
-    )
-    const laterResult = await executeTool(
-      'function_execute',
-      { code: 'return "later call succeeded"', envVars: {} },
-      { resolvedSecretTraceRegistry: registry }
-    )
-
-    expect(laterResult.success).toBe(true)
-    expect(registry.isComplete()).toBe(true)
+    await expect(execution).rejects.toThrow('untrusted thrown detail')
+    expect(registry.isComplete()).toBe(false)
   })
 
-  it('does not start a private-provenance call from a permanently incomplete parent', async () => {
+  it('runs a private-provenance call from an incomplete parent without replacing its result', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
     const fetchMock = vi.mocked(global.fetch)
 
     const result = await executeTool(
@@ -1954,19 +2184,32 @@ describe('executeTool Function', () => {
       { resolvedSecretTraceRegistry: registry }
     )
 
-    expect(result).toEqual({
-      success: false,
-      output: {},
-      error: 'Internal tool response metadata could not be verified',
-    })
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(registry.isComplete()).toBe(false)
+    expect(fetchMock).toHaveBeenCalled()
   })
 
-  it('does not start a private-provenance call when its input cannot be bounded', async () => {
+  /**
+   * The shape that latched in production with `reason: "unspecified"` — a getter or symbol key on
+   * the params record makes the input lineage unboundable, and the fork is marked before the tool
+   * runs. Pinned by name so a refusal downstream can be traced back to this guard.
+   */
+  it('names the guard when tool params are not enumerable plain data', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const params: Record<string, unknown> = { code: 'return "unreachable"' }
+    Object.defineProperty(params, 'envVars', { enumerable: true, get: () => ({}) })
+
+    await executeTool('function_execute', params, { resolvedSecretTraceRegistry: registry })
+
+    expect(registry.isComplete()).toBe(false)
+    expect(registry.getIncompletenessDiagnostics()?.reasons).toContain('tool-input-not-enumerable')
+  })
+
+  it('runs a private-provenance call when its input lineage cannot be bounded', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     const incompleteToolRegistry = registry.forkForToolCall()
-    incompleteToolRegistry.markIncomplete()
-    vi.spyOn(registry, 'forkForToolInputValues').mockReturnValue(incompleteToolRegistry)
+    incompleteToolRegistry.markIncomplete('unspecified')
+    vi.spyOn(registry, 'forkForInputPaths').mockReturnValue(incompleteToolRegistry)
     const fetchMock = vi.mocked(global.fetch)
 
     const result = await executeTool(
@@ -1975,13 +2218,9 @@ describe('executeTool Function', () => {
       { resolvedSecretTraceRegistry: registry }
     )
 
-    expect(result).toEqual({
-      success: false,
-      output: {},
-      error: 'Internal tool response metadata could not be verified',
-    })
-    expect(registry.isComplete()).toBe(true)
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect(registry.isComplete()).toBe(false)
+    expect(fetchMock).toHaveBeenCalled()
   })
 
   it('should handle non-existent tool', async () => {
@@ -2178,7 +2417,8 @@ describe('Automatic Internal Route Detection', () => {
         encryptedValue: 'encrypted-unused-secret',
       },
     ])
-    registry.recordResolved('PROMPT_TOKEN', 'prompt-secret')
+    registry.recordResolvedAtInputPath('PROMPT_TOKEN', 'prompt-secret', ['prompt'])
+    registry.recordResolvedInputProjection(['prompt'], 'prompt-secret', '{{PROMPT_TOKEN}}')
     const mockTool = {
       id: 'test_internal_model_tool',
       name: 'Test Internal Model Tool',
@@ -2191,7 +2431,7 @@ describe('Automatic Internal Route Detection', () => {
         headers: () => ({ 'Content-Type': 'application/json' }),
         modelInput: {
           mode: 'private-provenance' as const,
-          select: (params: { prompt: string }) => params.prompt,
+          inputPaths: () => [['prompt']],
         },
         body: (params: { prompt: string }) => ({ prompt: params.prompt }),
       },
@@ -2246,7 +2486,7 @@ describe('Automatic Internal Route Detection', () => {
         headers: () => ({ 'Content-Type': 'application/json' }),
         modelInput: {
           mode: 'private-provenance' as const,
-          select: (params: { query?: string }) => params.query,
+          inputPaths: (params: { query?: string }) => (params.query ? [['query']] : []),
         },
         body: (params: { query?: string }) => ({ query: params.query }),
       },
@@ -2305,9 +2545,16 @@ describe('Automatic Internal Route Detection', () => {
         encryptedValue: 'encrypted-synthetic-index-collision',
       },
     ])
-    registry.recordResolved('MODEL_SECRET', 'prompt')
-    registry.recordResolved('UNRELATED_SECRET', 'unrelated-secret')
-    registry.recordResolved('SYNTHETIC_INDEX_COLLISION', '0')
+    registry.recordResolvedAtInputPath('MODEL_SECRET', 'prompt', ['prompt'])
+    registry.recordResolvedInputProjection(['prompt'], 'prompt', '{{MODEL_SECRET}}')
+    registry.recordResolvedAtInputPath('UNRELATED_SECRET', 'unrelated-secret', ['transport'])
+    registry.recordResolvedInputProjection(
+      ['transport'],
+      'unrelated-secret',
+      '{{UNRELATED_SECRET}}'
+    )
+    registry.recordResolvedAtInputPath('SYNTHETIC_INDEX_COLLISION', '0', ['unused'])
+    registry.recordResolvedInputProjection(['unused'], '0', '{{SYNTHETIC_INDEX_COLLISION}}')
     const mockTool = {
       id: 'test_internal_projected_model_tool',
       name: 'Test Internal Projected Model Tool',
@@ -2383,8 +2630,14 @@ describe('Automatic Internal Route Detection', () => {
         encryptedValue: 'encrypted-file-secret',
       },
     ])
-    registry.recordResolved('PROMPT_SECRET', 'prompt-secret')
-    registry.recordResolved('FILE_SECRET', 'file-secret')
+    registry.recordResolvedAtInputPath('PROMPT_SECRET', 'prompt-secret', ['prompt'])
+    registry.recordResolvedInputProjection(['prompt'], 'prompt-secret', '{{PROMPT_SECRET}}')
+    registry.recordResolvedAtInputPath('FILE_SECRET', 'file-secret', ['fileUrl'])
+    registry.recordResolvedInputProjection(
+      ['fileUrl'],
+      'https://files.example/file-secret',
+      'https://files.example/{{FILE_SECRET}}'
+    )
     const mockTool = {
       id: 'test_internal_mixed_model_tool',
       name: 'Test Internal Mixed Model Tool',
@@ -2402,7 +2655,7 @@ describe('Automatic Internal Route Detection', () => {
         modelInput: {
           mode: 'project' as const,
           select: (params: { prompt: string }) => ({ prompt: params.prompt }),
-          privateProvenance: (params: { fileUrl: string }) => ({ fileUrl: params.fileUrl }),
+          privateInputPaths: () => [['fileUrl']],
         },
         body: (params: { prompt: string; fileUrl: string; apiKey: string }) => ({
           prompt: params.prompt,
@@ -2462,7 +2715,17 @@ describe('Automatic Internal Route Detection', () => {
         encryptedValue: 'encrypted-nested-secret',
       },
     ])
-    registry.recordResolved('NESTED_SECRET', 'nested-secret')
+    registry.recordResolvedAtInputPath('NESTED_SECRET', 'nested-secret', [
+      'payload',
+      'items',
+      '0',
+      'prompt',
+    ])
+    registry.recordResolvedInputProjection(
+      ['payload', 'items', '0', 'prompt'],
+      'nested-secret',
+      '{{NESTED_SECRET}}'
+    )
     const mockTool = {
       id: 'test_nested_projected_model_tool',
       name: 'Test Nested Projected Model Tool',
@@ -2550,7 +2813,12 @@ describe('Automatic Internal Route Detection', () => {
         encryptedValue: 'encrypted-nested-secret',
       },
     ])
-    registry.recordResolved('NESTED_SECRET', 'nested-secret')
+    registry.recordResolvedAtInputPath('NESTED_SECRET', 'nested-secret', ['payload', 'prompt'])
+    registry.recordResolvedInputProjection(
+      ['payload', 'prompt'],
+      'nested-secret',
+      '{{NESTED_SECRET}}'
+    )
     const body = vi.fn()
     const mockTool = {
       id: 'test_invalid_nested_projected_model_tool',
@@ -2604,7 +2872,8 @@ describe('Automatic Internal Route Detection', () => {
         encryptedValue: 'encrypted-external-secret',
       },
     ])
-    registry.recordResolved('PROMPT_SECRET', 'external-secret')
+    registry.recordResolvedAtInputPath('PROMPT_SECRET', 'external-secret', ['prompt'])
+    registry.recordResolvedInputProjection(['prompt'], 'external-secret', '{{PROMPT_SECRET}}')
     const mockTool = {
       id: 'test_external_projected_model_tool',
       name: 'Test External Projected Model Tool',
@@ -2643,218 +2912,48 @@ describe('Automatic Internal Route Detection', () => {
     }
   })
 
-  it('rejects secret-derived opaque input before request formatting or network I/O', async () => {
-    const secret = 'quote" slash\\ newline\n123 true'
+  it('sends an explicitly resolved secret through an ordinary external integration input', async () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'OPAQUE_URL', plaintext: secret, encryptedValue: 'encrypted-opaque-secret' },
+      { name: 'EXTERNAL_INPUT', plaintext: 'true', encryptedValue: 'encrypted-external-input' },
     ])
-    registry.recordResolved('OPAQUE_URL', secret)
-    const url = vi.fn(() => 'https://api.example.com/opaque')
-    const headers = vi.fn(() => ({ 'Content-Type': 'application/json' }))
-    const body = vi.fn((params: { payload: unknown }) => ({ payload: params.payload }))
+    registry.recordResolvedAtInputPath('EXTERNAL_INPUT', 'true', ['payload'])
+    registry.recordResolvedInputProjection(['payload'], 'true', '{{EXTERNAL_INPUT}}')
     const mockTool = {
-      id: 'test_external_opaque_model_tool',
-      name: 'Test External Opaque Model Tool',
-      description: 'Rejects resolved secrets in opaque model input',
-      version: '1.0.0',
-      params: { payload: { type: 'json', required: true } },
-      request: {
-        opaqueModelInput: {
-          mode: 'reject-resolved-secrets' as const,
-          select: (params: { payload: unknown }) => params.payload,
-        },
-        url,
-        method: 'POST' as const,
-        headers,
-        body,
-      },
-      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
-    }
-    ;(tools as Record<string, unknown>).test_external_opaque_model_tool = mockTool
-
-    try {
-      const result = await executeTool(
-        'test_external_opaque_model_tool',
-        { payload: { url: `https://example.com/${secret}` } },
-        { resolvedSecretTraceRegistry: registry }
-      )
-
-      expect(result).toMatchObject({
-        success: false,
-        error: 'Model input contains a resolved secret that cannot be safely projected',
-      })
-      expect(url).not.toHaveBeenCalled()
-      expect(headers).not.toHaveBeenCalled()
-      expect(body).not.toHaveBeenCalled()
-      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
-    } finally {
-      Reflect.deleteProperty(tools, 'test_external_opaque_model_tool')
-    }
-  })
-
-  it('rejects opaque input with incomplete provenance before direct execution', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
-    const directExecution = vi.fn().mockResolvedValue({ success: true, output: {} })
-    const mockTool = {
-      id: 'test_direct_opaque_model_tool',
-      name: 'Test Direct Opaque Model Tool',
-      description: 'Rejects unavailable opaque provenance',
-      version: '1.0.0',
-      params: { payload: { type: 'json', required: true } },
-      request: {
-        opaqueModelInput: {
-          mode: 'reject-resolved-secrets' as const,
-          select: (params: { payload: unknown }) => params.payload,
-        },
-        url: '',
-        method: 'POST' as const,
-        headers: () => ({}),
-      },
-      directExecution,
-    }
-    ;(tools as Record<string, unknown>).test_direct_opaque_model_tool = mockTool
-
-    try {
-      const result = await executeTool(
-        'test_direct_opaque_model_tool',
-        { payload: 'ordinary-input' },
-        { resolvedSecretTraceRegistry: registry }
-      )
-
-      expect(result).toMatchObject({
-        success: false,
-        error: 'Model input provenance is unavailable',
-      })
-      expect(directExecution).not.toHaveBeenCalled()
-    } finally {
-      Reflect.deleteProperty(tools, 'test_direct_opaque_model_tool')
-    }
-  })
-
-  it('preserves legacy opaque execution when no provenance registry exists', async () => {
-    const select = vi.fn((params: { payload: unknown }) => params.payload)
-    const directExecution = vi
-      .fn()
-      .mockResolvedValue({ success: true, output: { payload: 'legacy-value' } })
-    const mockTool = {
-      id: 'test_legacy_direct_opaque_model_tool',
-      name: 'Test Legacy Direct Opaque Model Tool',
-      description: 'Preserves legacy calls without provenance support',
+      id: 'test_external_integration_tool',
+      name: 'Test External Integration Tool',
+      description: 'Sends ordinary integration input unchanged',
       version: '1.0.0',
       params: { payload: { type: 'string', required: true } },
       request: {
-        opaqueModelInput: { mode: 'reject-resolved-secrets' as const, select },
-        url: '',
-        method: 'POST' as const,
-        headers: () => ({}),
-      },
-      directExecution,
-    }
-    ;(tools as Record<string, unknown>).test_legacy_direct_opaque_model_tool = mockTool
-
-    try {
-      const result = await executeTool('test_legacy_direct_opaque_model_tool', {
-        payload: 'legacy-value',
-      })
-
-      expect(result.success).toBe(true)
-      expect(select).not.toHaveBeenCalled()
-      expect(directExecution).toHaveBeenCalledWith({ payload: 'legacy-value' }, undefined)
-    } finally {
-      Reflect.deleteProperty(tools, 'test_legacy_direct_opaque_model_tool')
-    }
-  })
-
-  it('skips an inactive opaque boundary even when unrelated provenance is incomplete', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
-    const directExecution = vi.fn().mockResolvedValue({ success: true, output: {} })
-    const mockTool = {
-      id: 'test_inactive_direct_opaque_model_tool',
-      name: 'Test Inactive Direct Opaque Model Tool',
-      description: 'Skips inactive conditional opaque input',
-      version: '1.0.0',
-      params: { mode: { type: 'string', required: true } },
-      request: {
-        opaqueModelInput: {
-          mode: 'reject-resolved-secrets' as const,
-          select: () => undefined,
-        },
-        url: '',
-        method: 'POST' as const,
-        headers: () => ({}),
-      },
-      directExecution,
-    }
-    ;(tools as Record<string, unknown>).test_inactive_direct_opaque_model_tool = mockTool
-
-    try {
-      const result = await executeTool(
-        'test_inactive_direct_opaque_model_tool',
-        { mode: 'ordinary' },
-        { resolvedSecretTraceRegistry: registry }
-      )
-
-      expect(result.success).toBe(true)
-      expect(directExecution).toHaveBeenCalledTimes(1)
-    } finally {
-      Reflect.deleteProperty(tools, 'test_inactive_direct_opaque_model_tool')
-    }
-  })
-
-  it('preserves safe opaque bytes and sends no provenance metadata externally', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'LOW_ENTROPY', plaintext: 'true', encryptedValue: 'encrypted-low-entropy' },
-    ])
-    registry.recordResolved('LOW_ENTROPY', 'true')
-    const opaquePayload = 'quote" slash\\ newline\n123'
-    const mockTool = {
-      id: 'test_safe_external_opaque_model_tool',
-      name: 'Test Safe External Opaque Model Tool',
-      description: 'Preserves safe opaque model input',
-      version: '1.0.0',
-      params: {
-        payload: { type: 'string', required: true },
-        ordinary: { type: 'string', required: true },
-      },
-      request: {
-        opaqueModelInput: {
-          mode: 'reject-resolved-secrets' as const,
-          select: (params: { payload: string }) => params.payload,
-        },
-        url: 'https://api.example.com/safe-opaque',
+        url: 'https://api.example.com/integration',
         method: 'POST' as const,
         headers: () => ({ 'Content-Type': 'application/json' }),
-        body: (params: { payload: string; ordinary: string }) => ({
-          payload: params.payload,
-          ordinary: params.ordinary,
-        }),
+        body: (params: { payload: string }) => ({ payload: params.payload }),
       },
       transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
     }
-    ;(tools as Record<string, unknown>).test_safe_external_opaque_model_tool = mockTool
+    ;(tools as Record<string, unknown>).test_external_integration_tool = mockTool
 
     try {
       const result = await executeTool(
-        'test_safe_external_opaque_model_tool',
-        { payload: opaquePayload, ordinary: 'true' },
+        'test_external_integration_tool',
+        { payload: 'true' },
         { resolvedSecretTraceRegistry: registry }
       )
 
       expect(result.success).toBe(true)
       expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
-        'https://api.example.com/safe-opaque',
+        'https://api.example.com/integration',
         '93.184.216.34',
         expect.objectContaining({
-          body: JSON.stringify({ payload: opaquePayload, ordinary: 'true' }),
+          body: JSON.stringify({ payload: 'true' }),
           headers: expect.not.objectContaining({
             'x-sim-private-model-input-provenance': expect.anything(),
           }),
         })
       )
     } finally {
-      Reflect.deleteProperty(tools, 'test_safe_external_opaque_model_tool')
+      Reflect.deleteProperty(tools, 'test_external_integration_tool')
     }
   })
 
@@ -2866,7 +2965,8 @@ describe('Automatic Internal Route Detection', () => {
         encryptedValue: 'encrypted-direct-secret',
       },
     ])
-    registry.recordResolved('PROMPT_SECRET', 'direct-secret')
+    registry.recordResolvedAtInputPath('PROMPT_SECRET', 'direct-secret', ['prompt'])
+    registry.recordResolvedInputProjection(['prompt'], 'direct-secret', '{{PROMPT_SECRET}}')
     const directExecution = vi.fn().mockResolvedValue({ success: true, output: { ok: true } })
     const postProcess = vi.fn(
       async (result: { success: boolean; output: { ok: boolean } }) => result
@@ -3021,7 +3121,7 @@ describe('Automatic Internal Route Detection', () => {
         headers: () => ({ 'Content-Type': 'application/json' }),
         modelInput: {
           mode: 'private-provenance' as const,
-          select: (params: { prompt: string }) => params.prompt,
+          inputPaths: () => [['prompt']],
         },
         body,
       },
@@ -3682,14 +3782,14 @@ describe('Copilot OAuth Credential Enforcement', () => {
 describe('Copilot Env Variable Reference Resolution', () => {
   let cleanupEnvVars: () => void
 
-  function mockJsonFetch() {
+  function mockJsonFetch(data: Record<string, unknown> = { ok: true }) {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       statusText: 'OK',
       headers: new Headers(),
-      json: () => Promise.resolve({ ok: true }),
-      text: () => Promise.resolve(JSON.stringify({ ok: true })),
+      json: () => Promise.resolve(data),
+      text: () => Promise.resolve(JSON.stringify(data)),
       clone: vi.fn().mockReturnThis(),
     })
     global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
@@ -3731,6 +3831,49 @@ describe('Copilot Env Variable Reference Resolution', () => {
     expect(result.success).toBe(true)
     expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', 'workspace-456')
     expect(sentRequestBody(fetchMock).apiKey).toBe('sntrys_real_token')
+  })
+
+  it('keeps direct integration execution raw while projecting only its active workspace secret', async () => {
+    const activeSecret = 'xxxxxxxx'
+    const unusedSecret = 'true'
+    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({
+      SERPER_API_KEY: activeSecret,
+      UNUSED_SECRET: unusedSecret,
+    })
+    const fetchMock = mockJsonFetch({
+      reflected: activeSecret,
+      ordinary: unusedSecret,
+    })
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'SERPER_API_KEY',
+        plaintext: activeSecret,
+        encryptedValue: 'encrypted-active',
+      },
+      {
+        name: 'UNUSED_SECRET',
+        plaintext: unusedSecret,
+        encryptedValue: 'encrypted-unused',
+      },
+    ])
+    const callerParams = { apiKey: '{{SERPER_API_KEY}}' }
+
+    const result = await executeTool('test_env_ref_tool', callerParams, {
+      executionContext: copilotContext(),
+      resolvedSecretTraceRegistry: registry,
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      output: { reflected: activeSecret, ordinary: unusedSecret },
+    })
+    expect(callerParams).toEqual({ apiKey: '{{SERPER_API_KEY}}' })
+    expect(mockGetEffectiveDecryptedEnv).toHaveBeenCalledWith('user-123', 'workspace-456')
+    expect(sentRequestBody(fetchMock).apiKey).toBe(activeSecret)
+    expect(projectToolResultForCopilot(result, registry)).toMatchObject({
+      success: true,
+      output: { reflected: '{{SERPER_API_KEY}}', ordinary: unusedSecret },
+    })
   })
 
   it('does not let a pending user-only reference affect an unrelated result', async () => {
@@ -4379,7 +4522,7 @@ describe('MCP Tool Execution', () => {
     expect(registry.isComplete()).toBe(true)
   })
 
-  it('drops a legacy MCP response without poisoning later provenance', async () => {
+  it('preserves a headerless legacy MCP response without poisoning later calls', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     global.fetch = Object.assign(
       vi.fn().mockResolvedValue(
@@ -4403,11 +4546,8 @@ describe('MCP Tool Execution', () => {
       }
     )
 
-    expect(result).toMatchObject({
-      success: false,
-      error: 'Internal tool response metadata could not be verified',
-    })
-    expect(JSON.stringify(result)).not.toContain('legacy output')
+    expect(result.success).toBe(true)
+    expect(JSON.stringify(result)).toContain('legacy output')
     expect(registry.isComplete()).toBe(true)
   })
 

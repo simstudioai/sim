@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { blockRetryEquals } from '@sim/workflow-types/workflow'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   extractBlockFieldsForComparison,
@@ -195,7 +196,12 @@ export function generateWorkflowDiffSummary(
           newValue: currentBlock.enabled,
         })
       }
-      const blockFields = ['horizontalHandles', 'advancedMode', 'triggerMode'] as const
+      const blockFields = [
+        'horizontalHandles',
+        'advancedMode',
+        'triggerMode',
+        'errorEnabled',
+      ] as const
       for (const field of blockFields) {
         if (!!currentBlock[field] !== !!previousBlock[field]) {
           changes.push({
@@ -204,6 +210,14 @@ export function generateWorkflowDiffSummary(
             newValue: currentBlock[field],
           })
         }
+      }
+      /** Outside `blockFields`, whose `!!` coercion cannot tell two policies apart. */
+      if (!blockRetryEquals(currentBlock.retry, previousBlock.retry)) {
+        changes.push({
+          field: 'retry',
+          oldValue: previousBlock.retry,
+          newValue: currentBlock.retry,
+        })
       }
       if (normalizedStringify(currentDataRest) !== normalizedStringify(previousDataRest)) {
         const allDataKeys = new Set([

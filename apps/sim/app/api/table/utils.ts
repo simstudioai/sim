@@ -8,15 +8,20 @@ import {
   updateTableColumnBodySchema,
 } from '@/lib/api/contracts/tables'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
-import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  asOrchestrationError,
+  messageForOrchestrationError,
+  type OrchestrationErrorCode,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
-import { typeMetadataOf } from '@/lib/table/column-types'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { isTablePredicate } from '@/lib/table/query-builder/converters'
 import { validateStoragePredicate } from '@/lib/table/query-builder/validate'
+import type { TableLockKind } from '@/lib/table/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
 
@@ -133,10 +138,43 @@ export function orchestrationErrorResponse(error: unknown): NextResponse | null 
 }
 
 /**
- * {@link orchestrationErrorResponse} under the name the row-write routes call
- * it by. Row writes have no classification rules of their own any more.
+ * The failure half of a `lib/table/orchestration` result. Every `perform*`
+ * function returns this shape, so one projection serves all of them.
  */
-export const rowWriteErrorResponse = orchestrationErrorResponse
+export interface TableOrchestrationFailure {
+  error?: string
+  errorCode?: OrchestrationErrorCode
+  /** Which lock rejected the write. Set only when `errorCode` is `'locked'`. */
+  lock?: TableLockKind
+}
+
+/**
+ * Projects an orchestration failure RESULT onto its HTTP response, the
+ * counterpart of {@link orchestrationErrorResponse} for the functions that
+ * return a failure instead of throwing one.
+ *
+ * Routes go through this rather than reading `outcome.error` themselves, for
+ * two reasons the per-route spellings kept getting wrong:
+ *
+ * - An unclassified failure carries whatever text the fault happened to have —
+ *   a driver's failed SQL and its bound parameters — so it renders `fallback`
+ *   instead. Only a classified, caller-fixable failure keeps its own message.
+ * - A `'locked'` failure answers 423 with `{ error, lock }`. The lock kind is
+ *   the only thing that tells a client which lock to clear, and it is computed
+ *   by every `perform*` function already.
+ */
+export function orchestrationOutcomeErrorResponse(
+  outcome: TableOrchestrationFailure,
+  fallback: string
+): NextResponse {
+  return NextResponse.json(
+    {
+      error: messageForOrchestrationError(outcome, fallback),
+      ...(outcome.lock ? { lock: outcome.lock } : {}),
+    },
+    { status: statusForOrchestrationError(outcome.errorCode) }
+  )
+}
 
 /**
  * Next.js buffers the request body for the proxy and silently truncates it past this
@@ -319,21 +357,3 @@ export function serverErrorResponse(message = 'Internal server error') {
 export const CreateColumnSchema = createTableColumnBodySchema
 export const UpdateColumnSchema = updateTableColumnBodySchema
 export const DeleteColumnSchema = deleteTableColumnBodySchema
-
-export function normalizeColumn(
-  col: ColumnDefinition
-): ColumnDefinition & { required: boolean; unique: boolean } {
-  return {
-    // Preserve the stable column id — it's the row-data storage key, so dropping
-    // it makes clients fall back to `name` and miss id-keyed cell values.
-    ...(col.id ? { id: col.id } : {}),
-    name: col.name,
-    type: col.type,
-    required: col.required ?? false,
-    unique: col.unique ?? false,
-    ...(col.workflowGroupId ? { workflowGroupId: col.workflowGroupId } : {}),
-    // Type-specific metadata is forwarded generically: naming keys here meant a
-    // new type's metadata was stored server-side but silently never returned.
-    ...typeMetadataOf(col),
-  }
-}

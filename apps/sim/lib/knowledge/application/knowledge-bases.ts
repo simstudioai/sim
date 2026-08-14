@@ -4,6 +4,7 @@ import { db } from '@sim/db'
 import { knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { inArray } from 'drizzle-orm'
+import type { CursorKey } from '@/lib/api/list-query'
 import {
   authorizeWorkspaceOperation,
   type OperationUseCase,
@@ -13,7 +14,7 @@ import {
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
@@ -69,6 +70,12 @@ export interface ListKnowledgeBasesInput {
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
   sortOrder?: 'asc' | 'desc'
+  /**
+   * Page size for the public list. Omitted reads the whole workspace set, which
+   * is what the internal catalog caller still wants.
+   */
+  limit?: number
+  cursorKeys?: CursorKey[]
 }
 
 export interface KnowledgeBaseResult {
@@ -78,6 +85,9 @@ export interface KnowledgeBaseResult {
 
 export interface ListKnowledgeBasesResult {
   knowledgeBases: KnowledgeBaseResult[]
+  nextCursorKeys: CursorKey[] | null
+  sortBy: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder: 'asc' | 'desc'
 }
 
 export interface ListArchivedKnowledgeBasesResult {
@@ -218,29 +228,42 @@ async function executeListKnowledgeBases(args: {
   input: ListKnowledgeBasesInput
   context: KnowledgeWorkspaceContext
 }): Promise<ListKnowledgeBasesResult> {
+  /**
+   * One index read serves both jobs: rendering each row's `folderPath` and
+   * resolving the caller's `folderPath` filter to an id, so the filter costs no
+   * second, lock-taking read of its own.
+   */
   const index = await loadActiveFolderPathIndex(
     args.context.workspaceId,
     'knowledge_base',
     undefined,
     { maxRows: MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE }
   )
-  const folderId =
-    args.input.folderPath === undefined
-      ? undefined
-      : await resolveKnowledgeFolderPath(args.context.workspaceId, args.input.folderPath).then(
-          (resolved) => resolved.folderId
-        )
-  const rows = await getWorkspaceKnowledgeBases(args.context.workspaceId, 'active', {
-    folderId,
+  const folderFilter = resolveFolderPathFilter(index, args.input.folderPath)
+  if (folderFilter.kind === 'noMatch') {
+    return {
+      knowledgeBases: [],
+      nextCursorKeys: null,
+      sortBy: args.input.sortBy ?? 'createdAt',
+      sortOrder: args.input.sortOrder ?? 'asc',
+    }
+  }
+  const page = await getWorkspaceKnowledgeBases(args.context.workspaceId, 'active', {
+    folderId: folderFilter.kind === 'folder' ? folderFilter.folderId : undefined,
     search: args.input.search,
     sortBy: args.input.sortBy,
     sortOrder: args.input.sortOrder,
+    limit: args.input.limit,
+    cursorKeys: args.input.cursorKeys,
   })
   return {
-    knowledgeBases: rows.map((knowledgeBase) => ({
+    knowledgeBases: page.data.map((knowledgeBase) => ({
       knowledgeBase,
       folderPath: knowledgeFolderPathForId(index, knowledgeBase.folderId),
     })),
+    nextCursorKeys: page.nextCursorKeys,
+    sortBy: args.input.sortBy ?? 'createdAt',
+    sortOrder: args.input.sortOrder ?? 'asc',
   }
 }
 
@@ -397,7 +420,7 @@ export const listArchivedKnowledgeBases = defineAuthorizedKnowledgeUseCase({
     resolveKnowledgeWorkspaceContext(input),
   async execute({ context }): Promise<ListArchivedKnowledgeBasesResult> {
     return {
-      knowledgeBases: await getWorkspaceKnowledgeBases(context.workspaceId, 'archived'),
+      knowledgeBases: (await getWorkspaceKnowledgeBases(context.workspaceId, 'archived')).data,
     }
   },
 })

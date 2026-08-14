@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   deleteConnector: vi.fn(),
   syncConnector: vi.fn(),
   resolveBilling: vi.fn(),
+  getCredentialActorContext: vi.fn(),
+  canUseCredential: vi.fn(),
   resolveTokenIdentity: vi.fn(),
   refreshToken: vi.fn(),
   validateConnectorConfig: vi.fn(),
@@ -44,6 +46,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
+  resolveActiveKnowledgeResourceContext: mocks.resolveKnowledgeBase,
   resolveActiveKnowledgeConnectorContext: mocks.resolveConnector,
 }))
 
@@ -55,6 +58,8 @@ vi.mock('@/lib/knowledge/orchestration/connectors', () => ({
 }))
 
 vi.mock('@/lib/credentials/access', () => ({
+  getCredentialActorContext: mocks.getCredentialActorContext,
+  canUseCredential: mocks.canUseCredential,
   resolveCredentialTokenIdentity: mocks.resolveTokenIdentity,
 }))
 
@@ -119,6 +124,17 @@ describe('knowledge connector application use cases', () => {
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveKnowledgeBase.mockResolvedValue(crossWorkspaceContext)
     mocks.resolveConnector.mockResolvedValue(connectorContext)
+    mocks.getCredentialActorContext.mockResolvedValue({
+      credential: { id: 'credential-1', workspaceId: 'workspace-a' },
+      member: { role: 'member' },
+      hasWorkspaceAccess: true,
+      canWriteWorkspace: true,
+      isAdmin: false,
+    })
+    mocks.canUseCredential.mockImplementation(
+      (access: { hasWorkspaceAccess: boolean; member: unknown; isAdmin: boolean }) =>
+        access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin)
+    )
     mocks.resolveTokenIdentity.mockResolvedValue({ kind: 'oauth', userId: 'credential-owner' })
     mocks.refreshToken.mockResolvedValue('access-token')
     mocks.validateConnectorConfig.mockResolvedValue({ valid: true })
@@ -295,6 +311,7 @@ describe('knowledge connector application use cases', () => {
     expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.updateConnector.mock.invocationCallOrder[0]
     )
+    expect(mocks.getCredentialActorContext).toHaveBeenCalledWith('credential-1', 'shared-user')
     expect(mocks.resolveTokenIdentity).toHaveBeenCalledWith('credential-1', 'workspace-a')
     expect(mocks.refreshToken).toHaveBeenCalledWith(
       'credential-1',
@@ -302,6 +319,122 @@ describe('knowledge connector application use cases', () => {
       expect.any(String)
     )
     expect(mocks.validateConnectorConfig).toHaveBeenCalledWith('access-token', { space: 'ENG' })
+  })
+
+  it('rejects connector creation when the writer cannot use the workspace credential', async () => {
+    const sameWorkspaceContext = {
+      ...connectorContext,
+      workspaceId: 'workspace-a',
+      knowledgeBaseId: 'knowledge-a',
+      knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
+      connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
+    }
+    mocks.resolveKnowledgeBase.mockResolvedValueOnce(sameWorkspaceContext)
+    mocks.getCredentialActorContext.mockResolvedValueOnce({
+      credential: { id: 'credential-1', workspaceId: 'workspace-a' },
+      member: null,
+      hasWorkspaceAccess: true,
+      canWriteWorkspace: true,
+      isAdmin: false,
+    })
+    mocks.createConnector.mockImplementationOnce(
+      async (input: { resolveAccessToken: (credentialId: string) => Promise<string | null> }) => {
+        const accessToken = await input.resolveAccessToken('credential-1')
+        return accessToken
+          ? { success: true, connector: sameWorkspaceContext.connector }
+          : {
+              success: false,
+              error: 'Credential has no access token. Please reconnect your account.',
+              errorCode: 'validation',
+            }
+      }
+    )
+
+    await expect(
+      createKnowledgeConnector.execute({
+        principal: delegatedPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-a',
+          assertedWorkspaceId: 'workspace-a',
+          connectorType: 'confluence',
+          credentialId: 'credential-1',
+          sourceConfig: {},
+          syncIntervalMinutes: 1440,
+          resolveBillingAttribution: mocks.resolveBilling,
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message:
+        'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.',
+    })
+
+    expect(mocks.getCredentialActorContext).toHaveBeenCalledWith('credential-1', 'shared-user')
+    expect(mocks.resolveTokenIdentity).not.toHaveBeenCalled()
+    expect(mocks.refreshToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects source-config revalidation after credential membership is removed', async () => {
+    const sameWorkspaceContext = {
+      ...connectorContext,
+      workspaceId: 'workspace-a',
+      knowledgeBaseId: 'knowledge-a',
+      knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
+      connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
+    }
+    mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
+    mocks.updateConnector.mockResolvedValueOnce({
+      success: true,
+      connector: { ...sameWorkspaceContext.connector, sourceConfig: { space: 'ENG' } },
+    })
+
+    await updateKnowledgeConnector.execute({
+      principal: delegatedPrincipal,
+      input: {
+        connectorId: 'connector-b',
+        assertedWorkspaceId: 'workspace-a',
+        updates: { sourceConfig: { space: 'ENG' } },
+      },
+    })
+
+    const orchestrationInput = mocks.updateConnector.mock.calls[0]?.[0] as {
+      validateSourceConfig?: (
+        connector: {
+          connectorType: string
+          credentialId: string
+          encryptedApiKey: null
+        },
+        sourceConfig: Record<string, unknown>
+      ) => Promise<unknown>
+    }
+    if (!orchestrationInput.validateSourceConfig) {
+      throw new Error('Application command did not provide source-config validation')
+    }
+    mocks.getCredentialActorContext.mockResolvedValueOnce({
+      credential: { id: 'credential-1', workspaceId: 'workspace-a' },
+      member: null,
+      hasWorkspaceAccess: true,
+      canWriteWorkspace: true,
+      isAdmin: false,
+    })
+
+    await expect(
+      orchestrationInput.validateSourceConfig(
+        {
+          connectorType: 'confluence',
+          credentialId: 'credential-1',
+          encryptedApiKey: null,
+        },
+        { space: 'ENG' }
+      )
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message:
+        'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.',
+    })
+    expect(mocks.resolveTokenIdentity).not.toHaveBeenCalled()
+    expect(mocks.refreshToken).not.toHaveBeenCalled()
+    expect(mocks.validateConnectorConfig).not.toHaveBeenCalled()
   })
 
   it.each([

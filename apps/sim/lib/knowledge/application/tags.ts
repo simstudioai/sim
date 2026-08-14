@@ -3,12 +3,16 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
-  resolveActiveKnowledgeBaseContext,
+  resolveActiveKnowledgeResourceContext,
   resolveActiveKnowledgeTagContext,
   resolveCanonicalActiveKnowledgeDocumentContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
+import {
+  getFieldTypeForSlot,
+  isValidSlotForFieldType,
+  SUPPORTED_FIELD_TYPES,
+} from '@/lib/knowledge/constants'
 import {
   cleanupUnusedTagDefinitions,
   createOrUpdateTagDefinitionsBulk,
@@ -70,7 +74,7 @@ export interface DeleteKnowledgeDocumentTagDefinitionsInput
 export const listKnowledgeTags = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listTags,
   resolveContext: ({ input }: { input: ListKnowledgeTagsInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ context }) {
     return { tagDefinitions: await getDocumentTagDefinitions(context.knowledgeBaseId) }
   },
@@ -79,7 +83,7 @@ export const listKnowledgeTags = defineAuthorizedKnowledgeUseCase({
 export const createKnowledgeTag = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.createTag,
   resolveContext: ({ input }: { input: CreateKnowledgeTagInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ input, context }): Promise<{
     tagDefinition: TagDefinition
     knowledgeBaseId: string
@@ -94,6 +98,12 @@ export const createKnowledgeTag = defineAuthorizedKnowledgeUseCase({
       throw new OrchestrationError(
         'validation',
         `No available slots for field type "${fieldType}". Maximum tags of this type reached.`
+      )
+    }
+    if (!isValidSlotForFieldType(tagSlot, fieldType)) {
+      throw new OrchestrationError(
+        'validation',
+        `Tag slot "${tagSlot}" is not valid for field type "${fieldType}"`
       )
     }
     const tagDefinition = await createTagDefinition(
@@ -190,7 +200,7 @@ export const deleteKnowledgeTag = defineAuthorizedKnowledgeUseCase({
 export const readKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readTagUsage,
   resolveContext: ({ input }: { input: ListKnowledgeTagsInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ context }) {
     return { usage: await getTagUsageStats(context.knowledgeBaseId, generateRequestId()) }
   },
@@ -199,7 +209,7 @@ export const readKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
 export const readDetailedKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readDetailedTagUsage,
   resolveContext: ({ input }: { input: ListKnowledgeTagsInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ context }) {
     return { usage: await getTagUsage(context.knowledgeBaseId, generateRequestId()) }
   },
@@ -208,7 +218,7 @@ export const readDetailedKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
 export const readNextKnowledgeTagSlot = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readNextTagSlot,
   resolveContext: ({ input }: { input: ReadNextKnowledgeTagSlotInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ input, context }) {
     if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(input.fieldType)) {
       throw new OrchestrationError('validation', 'Invalid field type')
@@ -255,6 +265,9 @@ export const saveKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseC
           'validation',
           `Unsupported field type: ${definition.fieldType}`
         )
+      }
+      if (getFieldTypeForSlot(definition.tagSlot) === null) {
+        throw new OrchestrationError('validation', `Unsupported tag slot: ${definition.tagSlot}`)
       }
     }
     return createOrUpdateTagDefinitionsBulk(

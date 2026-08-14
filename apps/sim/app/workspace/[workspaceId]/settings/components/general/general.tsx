@@ -217,6 +217,12 @@ export function General() {
     }
   }
 
+  const handleAutoFocusOnClickChange = async (checked: boolean) => {
+    if (checked !== settings?.autoFocusOnClick && !updateSetting.isPending) {
+      await updateSetting.mutateAsync({ key: 'autoFocusOnClick', value: checked })
+    }
+  }
+
   const handleSnapToGridChange = async (value: string) => {
     const newValue = Number.parseInt(value, 10)
     if (newValue !== settings?.snapToGridSize && !updateSetting.isPending) {
@@ -306,7 +312,7 @@ export function General() {
                       )
                     }
                     return (
-                      <span className='font-medium text-[var(--text-primary)] text-base'>
+                      <span className='text-[var(--text-primary)] text-base'>
                         {getInitials(profile?.name) || ''}
                       </span>
                     )
@@ -339,10 +345,7 @@ export function General() {
                   {isEditingName ? (
                     <>
                       <div className='relative inline-flex'>
-                        <span
-                          className='invisible whitespace-pre font-medium text-base'
-                          aria-hidden='true'
-                        >
+                        <span className='invisible whitespace-pre text-base' aria-hidden='true'>
                           {name || ' '}
                         </span>
                         <input
@@ -352,7 +355,7 @@ export function General() {
                           onChange={(e) => setName(e.target.value)}
                           onKeyDown={handleKeyDown}
                           onBlur={handleInputBlur}
-                          className='absolute top-0 left-0 h-full w-full border-0 bg-transparent p-0 font-medium text-base outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                          className='absolute top-0 left-0 h-full w-full border-0 bg-transparent p-0 text-base outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
                           maxLength={100}
                           disabled={updateProfile.isPending}
                           autoComplete='off'
@@ -373,7 +376,7 @@ export function General() {
                     </>
                   ) : (
                     <>
-                      <h3 className='font-medium text-base'>{profile?.name || ''}</h3>
+                      <h3 className='text-base'>{profile?.name || ''}</h3>
                       <Button
                         variant='ghost'
                         className='size-[10.5px] flex-shrink-0 p-0'
@@ -457,6 +460,36 @@ export function General() {
                 id='auto-connect'
                 checked={settings?.autoConnect ?? true}
                 onCheckedChange={handleAutoConnectChange}
+              />
+            </div>
+
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-1.5'>
+                <Label htmlFor='auto-focus-on-click'>Auto-focus on click</Label>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <button
+                      type='button'
+                      aria-label='About auto-focus on click'
+                      className='inline-flex cursor-default text-[var(--text-muted)]'
+                    >
+                      <CircleInfo className='size-[14px]' />
+                    </button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom' align='start'>
+                    <p>Center the canvas on a block when you click it</p>
+                    <Tooltip.Preview
+                      src='/tooltips/auto-focus-on-click.mp4'
+                      alt='Auto-focus on click example'
+                      loop={true}
+                    />
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+              <Switch
+                id='auto-focus-on-click'
+                checked={settings?.autoFocusOnClick ?? true}
+                onCheckedChange={handleAutoFocusOnClickChange}
               />
             </div>
 
@@ -552,8 +585,8 @@ export function General() {
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             A password reset link will be sent to{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>. Click
-            the link in the email to create a new password.
+            <span className='text-[var(--text-primary)]'>{profile?.email}</span>. Click the link in
+            the email to create a new password.
           </p>
           <ChipModalError>{resetPassword.error?.message}</ChipModalError>
         </ChipModalBody>

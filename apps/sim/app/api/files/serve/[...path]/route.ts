@@ -1,19 +1,26 @@
 import { readFile } from 'fs/promises'
+import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { fileServeParamsSchema, fileServeQuerySchema } from '@/lib/api/contracts/storage-transfer'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import {
-  DocCompileUserError,
-  resolveServableDocBytes,
-} from '@/lib/copilot/tools/server/files/doc-compile'
+  concealCrossTenantResourceError,
+  InternalUnauthenticatedError,
+} from '@/lib/api/server/routes'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { resolveServableDocBytes } from '@/lib/copilot/tools/server/files/doc-compile'
+import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
+import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
   createErrorResponse,
@@ -26,23 +33,66 @@ import {
 const logger = createLogger('FilesServeAPI')
 
 /**
- * Resolves the bytes + content type to serve for a stored file via the shared
- * {@link resolveServableDocBytes} (generated docs → compiled artifact). `raw=1`
- * bypasses resolution and serves the stored source as-is.
+ * Records a failed serve at a level that matches whose fault it is.
+ *
+ * A file that is not there is an ordinary answer rather than a server fault: a
+ * workspace file is rewritten under a new key on every content update, so a reader
+ * holding the previous key lands here routinely and correctly receives a 404. Each
+ * handler rethrows into the outer one, so logging those at `error` reports the same
+ * expected 404 twice and buries the failures that do warrant attention.
  */
-async function compileDocumentIfNeeded(
-  buffer: Buffer,
-  filename: string,
-  workspaceId: string | undefined,
-  raw: boolean,
-  ownerKey: string | undefined,
+function logServeFailure(message: string, error: unknown): void {
+  if (error instanceof FileNotFoundError) {
+    logger.info(message, { reason: error.message })
+    return
+  }
+  logger.error(message, error)
+}
+
+interface ServeOptions {
+  /** `raw=1` — bypass all resolution and serve the stored source as-is. */
+  raw: boolean
+  /** `preview=1` — the caller renders these bytes rather than saving them. */
+  preview: boolean
+  /** `v=<updatedAt>` — the URL addresses content-immutable bytes. */
+  versioned: boolean
+}
+
+/**
+ * Resolves the bytes + content type to serve for a stored file.
+ *
+ * Document compilation is unconditional: a generated `.docx`/`.xlsx`/`.pptx` is
+ * stored as source, so the compiled artifact *is* the file, and every download
+ * routes through here. An image derivative is the opposite — the stored bytes are
+ * the file — so it is served only when the caller asked to preview, never when it
+ * asked to download.
+ */
+async function resolveServableBytes(params: {
+  buffer: Buffer
+  filename: string
+  storageKey: string
+  workspaceId: string | undefined
+  options: ServeOptions
+  ownerKey: string | undefined
+  filePrincipal?: Principal
   signal: AbortSignal | undefined
-): Promise<{ buffer: Buffer; contentType: string }> {
-  if (raw) return { buffer, contentType: getContentType(filename) }
+}): Promise<{ buffer: Buffer; contentType: string }> {
+  const { buffer, filename, storageKey, workspaceId, options, ownerKey, filePrincipal, signal } =
+    params
+  if (options.raw) return { buffer, contentType: getContentType(filename) }
+
+  if (options.preview) {
+    // Images resolve independently of the document path: a HEIF has no compiled-source
+    // concept, so it never reaches the doc branch.
+    const image = await resolveServableImageBytes(buffer, storageKey)
+    if (image) return image
+  }
+
   return resolveServableDocBytes({
     rawBuffer: buffer,
     fileName: filename,
     workspaceId,
+    filePrincipal,
     ownerKey,
     signal,
   })
@@ -115,31 +165,52 @@ export const GET = withRouteHandler(
         return await handleLocalFilePublic(fullPath)
       }
 
-      const query = fileServeQuerySchema.parse({
-        raw: request.nextUrl.searchParams.get('raw'),
-        v: request.nextUrl.searchParams.get('v'),
-      })
-      const raw = query.raw === '1'
-      const versioned = query.v != null
+      const storageContext = inferContextFromKey(cloudKey)
+      const workspacePrincipal =
+        storageContext === 'workspace'
+          ? await internalWorkspaceFileServeAuth.authenticate(request, { path })
+          : undefined
+      const legacyAuthResult = workspacePrincipal
+        ? undefined
+        : await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
 
-      const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-
-      if (!authResult.success || !authResult.userId) {
+      if (legacyAuthResult && (!legacyAuthResult.success || !legacyAuthResult.userId)) {
         logger.warn('Unauthorized file access attempt', {
           path,
-          error: authResult.error || 'Missing userId',
+          error: legacyAuthResult.error || 'Missing userId',
         })
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const userId = authResult.userId
-
-      if (isUsingCloudStorage()) {
-        return await handleCloudProxy(cloudKey, userId, raw, versioned, request.signal)
+      const query = fileServeQuerySchema.parse({
+        raw: request.nextUrl.searchParams.get('raw'),
+        preview: request.nextUrl.searchParams.get('preview'),
+        v: request.nextUrl.searchParams.get('v'),
+      })
+      const options: ServeOptions = {
+        raw: query.raw === '1',
+        preview: query.preview === '1',
+        versioned: query.v != null,
       }
 
-      return await handleLocalFile(cloudKey, userId, raw, versioned, request.signal)
+      if (workspacePrincipal) {
+        return await handleWorkspaceFile(cloudKey, workspacePrincipal, options, request)
+      }
+
+      const userId = legacyAuthResult?.userId
+      if (!userId) throw new Error('Authenticated file serve request is missing a user ID')
+
+      if (isUsingCloudStorage()) {
+        return await handleCloudProxy(cloudKey, userId, options, request.signal)
+      }
+
+      return await handleLocalFile(cloudKey, userId, options, request.signal)
     } catch (error) {
+      if (error instanceof InternalUnauthenticatedError) {
+        logger.warn('Unauthorized file access attempt', { error: error.message })
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
       // An in-progress/incomplete doc source fails to compile — this is expected
       // mid-generation, not a server fault. Return 409 (not 500) so it isn't an
       // alarming error; the client re-fetches once the doc finishes (the serve
@@ -151,7 +222,16 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Document is still being generated' }, { status: 409 })
       }
 
-      logger.error('Error serving file:', error)
+      const orchestrationError = asOrchestrationError(
+        concealCrossTenantResourceError(error, 'File not found')
+      )
+      if (orchestrationError?.code === 'not_found') {
+        const notFound = new FileNotFoundError('File not found')
+        logServeFailure('Error serving file:', notFound)
+        return createErrorResponse(notFound)
+      }
+
+      logServeFailure('Error serving file:', error)
 
       if (error instanceof FileNotFoundError) {
         return createErrorResponse(error)
@@ -162,11 +242,49 @@ export const GET = withRouteHandler(
   }
 )
 
+async function handleWorkspaceFile(
+  key: string,
+  principal: Principal,
+  options: ServeOptions,
+  request: NextRequest
+): Promise<NextResponse> {
+  const workspaceId = getWorkspaceIdForCompile(key)
+  if (!workspaceId) throw new FileNotFoundError(`File not found: ${key}`)
+
+  const { file, content } = await readWorkspaceFileContentByKey.execute({
+    principal,
+    input: { key, assertedWorkspaceId: workspaceId },
+    request,
+  })
+  const ownerKey = `user:${requirePrincipalSubjectUserId(principal)}`
+  const resolved = await resolveServableBytes({
+    buffer: content,
+    filename: file.name,
+    storageKey: key,
+    workspaceId,
+    options,
+    ownerKey,
+    filePrincipal: principal,
+    signal: request.signal,
+  })
+
+  logger.info('Workspace file served', {
+    fileId: file.id,
+    workspaceId,
+    size: resolved.buffer.length,
+  })
+  return createFileResponse({
+    buffer: resolved.buffer,
+    contentType: resolved.contentType,
+    filename: file.name,
+    cacheControl: resolveServeCacheControl(options.versioned, 'workspace'),
+  })
+}
+
 async function handleLocalFile(
   filename: string,
   userId: string,
-  raw: boolean,
-  versioned: boolean,
+  options: ServeOptions,
   signal: AbortSignal | undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
@@ -198,14 +316,15 @@ async function handleLocalFile(
     const segment = filename.split('/').pop() || filename
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(filename)
-    const { buffer: fileBuffer, contentType } = await compileDocumentIfNeeded(
-      rawBuffer,
-      displayName,
+    const { buffer: fileBuffer, contentType } = await resolveServableBytes({
+      buffer: rawBuffer,
+      filename: displayName,
+      storageKey: filename,
       workspaceId,
-      raw,
+      options,
       ownerKey,
-      signal
-    )
+      signal,
+    })
 
     logger.info('Local file served', { userId, filename, size: fileBuffer.length })
 
@@ -213,10 +332,10 @@ async function handleLocalFile(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: resolveServeCacheControl(versioned, contextParam),
+      cacheControl: resolveServeCacheControl(options.versioned, contextParam),
     })
   } catch (error) {
-    logger.error('Error reading local file:', error)
+    logServeFailure('Error reading local file:', error)
     throw error
   }
 }
@@ -224,9 +343,8 @@ async function handleLocalFile(
 async function handleCloudProxy(
   cloudKey: string,
   userId: string,
-  raw = false,
-  versioned = false,
-  signal: AbortSignal | undefined = undefined
+  options: ServeOptions,
+  signal: AbortSignal | undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
@@ -260,14 +378,15 @@ async function handleCloudProxy(
     const segment = cloudKey.split('/').pop() || 'download'
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(cloudKey)
-    const { buffer: fileBuffer, contentType } = await compileDocumentIfNeeded(
-      rawBuffer,
-      displayName,
+    const { buffer: fileBuffer, contentType } = await resolveServableBytes({
+      buffer: rawBuffer,
+      filename: displayName,
+      storageKey: cloudKey,
       workspaceId,
-      raw,
+      options,
       ownerKey,
-      signal
-    )
+      signal,
+    })
 
     logger.info('Cloud file served', {
       userId,
@@ -280,10 +399,10 @@ async function handleCloudProxy(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: resolveServeCacheControl(versioned, context),
+      cacheControl: resolveServeCacheControl(options.versioned, context),
     })
   } catch (error) {
-    logger.error('Error downloading from cloud storage:', error)
+    logServeFailure('Error downloading from cloud storage:', error)
     throw error
   }
 }
@@ -320,7 +439,7 @@ async function handleCloudProxyPublic(
       cacheControl: PUBLIC_ASSET_CACHE_CONTROL,
     })
   } catch (error) {
-    logger.error('Error serving public cloud file:', error)
+    logServeFailure('Error serving public cloud file:', error)
     throw error
   }
 }
@@ -345,7 +464,7 @@ async function handleLocalFilePublic(filename: string): Promise<NextResponse> {
       cacheControl: PUBLIC_ASSET_CACHE_CONTROL,
     })
   } catch (error) {
-    logger.error('Error reading public local file:', error)
+    logServeFailure('Error reading public local file:', error)
     throw error
   }
 }

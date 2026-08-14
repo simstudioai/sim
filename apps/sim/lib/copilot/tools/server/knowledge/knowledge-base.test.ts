@@ -168,10 +168,7 @@ vi.mock('@/lib/knowledge/application/tags', () => ({
 }))
 
 import type { ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
-import {
-  knowledgeBaseServerTool,
-  normalizeKnowledgeQueryTopK,
-} from '@/lib/copilot/tools/server/knowledge/knowledge-base'
+import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -226,19 +223,6 @@ function expectDelegatedPrincipal(call: unknown): void {
     },
   })
 }
-
-describe('knowledge query result limit', () => {
-  it.each([
-    { input: undefined, expected: 5 },
-    { input: 0, expected: 5 },
-    { input: -1, expected: 5 },
-    { input: 1.5, expected: 5 },
-    { input: 12, expected: 12 },
-    { input: 10_000, expected: 50 },
-  ])('normalizes $input to $expected', ({ input, expected }) => {
-    expect(normalizeKnowledgeQueryTopK(input)).toBe(expected)
-  })
-})
 
 describe('knowledge_base trusted application delegation', () => {
   beforeEach(() => {
@@ -644,6 +628,33 @@ describe('knowledge_base trusted application delegation', () => {
     expect(result).toEqual({
       success: false,
       message: 'At least one connector update is required',
+    })
+  })
+
+  it('preserves credential access guidance for connector creation', async () => {
+    mockCreateKnowledgeConnector.mockRejectedValueOnce(
+      new OrchestrationError(
+        'validation',
+        'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.'
+      )
+    )
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'add_connector',
+        args: {
+          knowledgeBaseId: KNOWLEDGE_BASE.id,
+          connectorType: 'notion',
+          credentialId: 'credential-1',
+        },
+      },
+      CONTEXT
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.',
     })
   })
 

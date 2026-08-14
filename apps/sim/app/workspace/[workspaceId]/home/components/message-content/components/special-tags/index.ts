@@ -1,5 +1,7 @@
 export type {
   ContentSegment,
+  CredentialItemData,
+  CredentialSubmissionPayload,
   CredentialTagData,
   CredentialTagType,
   FileTagData,
@@ -17,11 +19,18 @@ export type {
   WorkspaceResourceTagType,
 } from './special-tags'
 export {
+  BrowserTakeoverQuestion,
   CREDENTIAL_TAG_TYPES,
   CredentialDisplay,
+  credentialTagHasVisibleCard,
+  formatCredentialSubmissionMessage,
   PendingTagIndicator,
+  parseCredentialSubmissionMessage,
+  parseCredentialSubmissionProgress,
+  parseCredentialTagBody,
   parseFileTag,
   parseJsonTagBody,
+  parseLastCredentialTag,
   parseLastQuestionTag,
   parseQuestionTagBody,
   parseSpecialTags,

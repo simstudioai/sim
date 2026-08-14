@@ -4,14 +4,16 @@ import { SimStudioClient, SimStudioError } from './index'
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
 
-function v2ExecutionResponse(output: unknown = {}) {
+function v2ExecutionResponse(output: unknown = {}, status = 'completed') {
   return {
     data: {
       runId: 'execution-123',
       workflowId: 'workflow-id',
-      status: 'completed',
+      status,
       output,
       error: null,
+      startedAt: '2026-08-11T12:00:00.000Z',
+      endedAt: '2026-08-11T12:00:00.010Z',
       durationMs: 10,
     },
   }
@@ -164,8 +166,59 @@ describe('SimStudioClient', () => {
       )
 
       expect(result).toHaveProperty('success', true)
+      expect(result).toHaveProperty('executionId', 'execution-123')
       expect(result).toHaveProperty('output')
+      expect(result).toHaveProperty('metadata.executionId', 'execution-123')
+      expect(result).toHaveProperty('metadata.startTime', '2026-08-11T12:00:00.000Z')
+      expect(result).toHaveProperty('metadata.endTime', '2026-08-11T12:00:00.010Z')
       expect(result).not.toHaveProperty('jobId')
+    })
+
+    it('throws when a sync workflow run completes with failed status', async () => {
+      const failed = v2ExecutionResponse({ partial: true })
+      failed.data.status = 'failed'
+      failed.data.error = {
+        code: 'BLOCK_EXECUTION_FAILED',
+        message: 'Invalid credentials',
+      }
+      vi.mocked(mockFetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue(failed),
+        headers: { get: vi.fn().mockReturnValue(null) },
+      })
+
+      await expect(client.executeWorkflow('workflow-id', {})).rejects.toMatchObject({
+        name: 'SimStudioError',
+        code: 'BLOCK_EXECUTION_FAILED',
+        message: 'Invalid credentials',
+      })
+    })
+
+    it('reports a cancelled sync run as unsuccessful', async () => {
+      vi.mocked(mockFetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse({}, 'cancelled')),
+        headers: { get: vi.fn().mockReturnValue(null) },
+      })
+
+      const result = await client.executeWorkflow('workflow-id', {})
+
+      expect(result).toHaveProperty('success', false)
+    })
+
+    it('reports a paused sync run as successful', async () => {
+      vi.mocked(mockFetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse({}, 'paused')),
+        headers: { get: vi.fn().mockReturnValue(null) },
+      })
+
+      const result = await client.executeWorkflow('workflow-id', {})
+
+      expect(result).toHaveProperty('success', true)
     })
 
     it('should not set X-Execution-Mode header when async is undefined', async () => {
@@ -484,6 +537,28 @@ describe('SimStudioClient', () => {
       expect(info?.limit).toBe(100)
       expect(info?.remaining).toBe(95)
       expect(info?.reset).toBe(1704067200)
+    })
+
+    it('parses an ISO x-ratelimit-reset, the format the v2 API sends', async () => {
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse()),
+        headers: {
+          get: vi.fn((header: string) => {
+            if (header === 'x-ratelimit-limit') return '100'
+            if (header === 'x-ratelimit-remaining') return '99'
+            if (header === 'x-ratelimit-reset') return '2024-01-01T00:00:00.000Z'
+            return null
+          }),
+        },
+      }
+
+      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
+
+      await client.executeWorkflow('workflow-id', {})
+
+      expect(client.getRateLimitInfo()?.reset).toBe(1704067200000)
     })
   })
 

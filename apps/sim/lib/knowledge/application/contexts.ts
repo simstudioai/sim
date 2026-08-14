@@ -2,7 +2,10 @@ import { db } from '@sim/db'
 import { embedding } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { KnowledgeAuthorizationContext } from '@/lib/knowledge/application/authorization'
+import type {
+  KnowledgeAuthorizationContext,
+  LegacyPersonalKnowledgeAuthorizationContext,
+} from '@/lib/knowledge/application/authorization'
 import type { ChunkData } from '@/lib/knowledge/chunks/types'
 import {
   type ActiveKnowledgeConnectorReference,
@@ -23,27 +26,37 @@ export interface KnowledgeWorkspaceContext extends KnowledgeAuthorizationContext
   billedAccountUserId: string
 }
 
+export interface LegacyPersonalKnowledgeContext
+  extends LegacyPersonalKnowledgeAuthorizationContext {}
+
+export type KnowledgeResourceContext = KnowledgeWorkspaceContext | LegacyPersonalKnowledgeContext
+
 export interface ActiveKnowledgeBaseContext extends KnowledgeWorkspaceContext {
   knowledgeBaseId: string
   knowledgeBase: KnowledgeBaseWithCounts
 }
 
-export interface ActiveKnowledgeDocumentContext extends ActiveKnowledgeBaseContext {
+export type ActiveKnowledgeResourceBaseContext = KnowledgeResourceContext & {
+  knowledgeBaseId: string
+  knowledgeBase: KnowledgeBaseWithCounts
+}
+
+export type ActiveKnowledgeDocumentContext = ActiveKnowledgeResourceBaseContext & {
   documentId: string
   document: ActiveKnowledgeDocument
 }
 
-export interface ActiveKnowledgeTagContext extends ActiveKnowledgeBaseContext {
+export type ActiveKnowledgeTagContext = ActiveKnowledgeResourceBaseContext & {
   tagDefinitionId: string
   tagDefinition: DocumentTagDefinition
 }
 
-export interface ActiveKnowledgeConnectorContext extends ActiveKnowledgeBaseContext {
+export type ActiveKnowledgeConnectorContext = ActiveKnowledgeResourceBaseContext & {
   connectorId: string
   connector: ActiveKnowledgeConnectorReference
 }
 
-export interface ActiveKnowledgeChunkContext extends ActiveKnowledgeDocumentContext {
+export type ActiveKnowledgeChunkContext = ActiveKnowledgeDocumentContext & {
   chunkId: string
   chunk: ChunkData
 }
@@ -90,12 +103,41 @@ export async function resolveActiveKnowledgeBaseContext(input: {
   }
 }
 
+export async function resolveActiveKnowledgeResourceContext(input: {
+  knowledgeBaseId: string
+  assertedWorkspaceId?: string
+}): Promise<ActiveKnowledgeResourceBaseContext> {
+  const knowledgeBase = await getKnowledgeBaseById(input.knowledgeBaseId)
+  if (
+    !knowledgeBase ||
+    (input.assertedWorkspaceId !== undefined &&
+      knowledgeBase.workspaceId !== input.assertedWorkspaceId)
+  ) {
+    throw new OrchestrationError('not_found', 'Knowledge base not found')
+  }
+  if (!knowledgeBase.workspaceId) {
+    return {
+      workspaceId: undefined,
+      legacyPersonalOwnerUserId: knowledgeBase.userId,
+      knowledgeBaseId: knowledgeBase.id,
+      knowledgeBase,
+    }
+  }
+  const workspaceContext = await loadKnowledgeWorkspaceContext(knowledgeBase.workspaceId)
+  if (!workspaceContext) throw new OrchestrationError('not_found', 'Knowledge base not found')
+  return {
+    ...workspaceContext,
+    knowledgeBaseId: knowledgeBase.id,
+    knowledgeBase,
+  }
+}
+
 export async function resolveActiveKnowledgeDocumentContext(input: {
   knowledgeBaseId: string
   documentId: string
   assertedWorkspaceId?: string
 }): Promise<ActiveKnowledgeDocumentContext> {
-  const context = await resolveActiveKnowledgeBaseContext(input)
+  const context = await resolveActiveKnowledgeResourceContext(input)
   const document = await getKnowledgeDocument(context.knowledgeBaseId, input.documentId)
   if (!document) throw new OrchestrationError('not_found', 'Document not found')
   return {
@@ -114,7 +156,7 @@ export async function resolveCanonicalActiveKnowledgeDocumentContext(input: {
   if (!document || document.knowledgeBaseId !== input.knowledgeBaseId) {
     throw new OrchestrationError('not_found', 'Document not found')
   }
-  const context = await resolveActiveKnowledgeBaseContext({
+  const context = await resolveActiveKnowledgeResourceContext({
     knowledgeBaseId: document.knowledgeBaseId,
     assertedWorkspaceId: input.assertedWorkspaceId,
   })
@@ -159,7 +201,7 @@ export async function resolveActiveKnowledgeTagContext(input: {
   ) {
     throw new OrchestrationError('not_found', 'Tag definition not found')
   }
-  const context = await resolveActiveKnowledgeBaseContext({
+  const context = await resolveActiveKnowledgeResourceContext({
     knowledgeBaseId: tagDefinition.knowledgeBaseId,
     assertedWorkspaceId: input.assertedWorkspaceId,
   })
@@ -182,7 +224,7 @@ export async function resolveActiveKnowledgeConnectorContext(input: {
   ) {
     throw new OrchestrationError('not_found', 'Connector not found')
   }
-  const context = await resolveActiveKnowledgeBaseContext({
+  const context = await resolveActiveKnowledgeResourceContext({
     knowledgeBaseId: connector.knowledgeBaseId,
     assertedWorkspaceId: input.assertedWorkspaceId,
   })

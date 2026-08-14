@@ -1,10 +1,15 @@
 import { buildFolderPath } from '@/lib/folders/paths'
+import { folderAncestorChain } from '@/lib/folders/tree'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
 /**
  * Returns true when the folder or one of its ancestors is locked. Used to
  * mirror server-side cascading folder lock policy on the client without an
  * extra round-trip.
+ *
+ * Walks inline rather than through {@link folderAncestorChain} on purpose: this runs per row
+ * on every sidebar render, and stopping at the first locked ancestor beats materializing the
+ * whole chain to scan it. Same for {@link findLockedAncestorFolder} below.
  */
 export function isFolderOrAncestorLocked(
   folderId: string | null | undefined,
@@ -37,21 +42,7 @@ export function getFolderPath(
   folders: Record<string, WorkflowFolder>,
   separator = ' / '
 ): string | null {
-  if (!folderId) return null
-
-  const segments: string[] = []
-  const visited = new Set<string>()
-  let currentFolderId: string | null | undefined = folderId
-
-  while (currentFolderId) {
-    if (visited.has(currentFolderId)) break
-    visited.add(currentFolderId)
-    const folder: WorkflowFolder | undefined = folders[currentFolderId]
-    if (!folder) break
-    segments.unshift(folder.name)
-    currentFolderId = folder.parentId
-  }
-
+  const segments = folderAncestorChain(folderId, (id) => folders[id]).map((folder) => folder.name)
   return segments.length > 0 ? segments.join(separator) : null
 }
 

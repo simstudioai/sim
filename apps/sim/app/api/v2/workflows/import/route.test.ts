@@ -6,6 +6,10 @@ import { describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ defineRoute: vi.fn((definition) => definition) }))
 
 vi.mock('@/lib/api/server/routes', () => ({
+  createInternalResourceConcealmentPolicy: vi.fn(() => ({ kind: 'conceal-internal-resource' })),
+  internalOrchestrationErrorPolicy: { kind: 'internal-plain' },
+  createInternalSessionOrExecutorAuth: vi.fn(() => ({ authenticate: vi.fn() })),
+  createV2ResourceConcealmentPolicy: vi.fn(() => ({ kind: 'conceal-resource' })),
   defineV2JsonRoute: mocks.defineRoute,
   v2ApiKeyAuth: { kind: 'v2-api-key' },
   v2RateLimits: { publicApi: { kind: 'public-api' } },

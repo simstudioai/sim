@@ -4,7 +4,7 @@ import type { PermissionType } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { isPlainRecord, omit } from '@sim/utils/object'
+import { omit } from '@sim/utils/object'
 import {
   type AttributedBillingRequestEnvelope,
   assertBillingAttributionSnapshot,
@@ -28,20 +28,6 @@ import {
   MothershipStreamV1RunKind,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import {
-  COPILOT_CONTEXT_MODEL_TEXT_KEYS,
-  COPILOT_CONTEXT_ROUTING_KEYS,
-  COPILOT_DESKTOP_MODEL_TEXT_KEYS,
-  COPILOT_MESSAGE_DISPLAY_KEYS,
-  COPILOT_USER_METADATA_MODEL_TEXT_KEYS,
-  COPILOT_VFS_MODEL_TEXT_KEYS,
-  COPILOT_VFS_ROUTING_KEYS,
-  isCopilotModelTextKey,
-} from '@/lib/copilot/model-visible-content'
-import {
-  collectModelVisibleSchemaContent,
-  getModelVisibleSchemaAction,
-} from '@/lib/copilot/model-visible-schema'
 import { getAutoAllowedTools } from '@/lib/copilot/persistence/tool-permission/auto-allow'
 import { createStreamingContext } from '@/lib/copilot/request/context/request-context'
 import { buildToolCallSummaries } from '@/lib/copilot/request/context/result'
@@ -54,10 +40,10 @@ import {
 import {
   getToolCallTerminalData,
   requireToolCallStateResult,
+  setTerminalToolCallState,
 } from '@/lib/copilot/request/tool-call-state'
 import { handleBillingLimitResponse } from '@/lib/copilot/request/tools/billing'
 import {
-  cancelToolCallAndReport,
   executeToolAndReport,
   forceFailHungToolCall,
   pendingToolWaitBudgetMs,
@@ -83,514 +69,26 @@ import {
   isHosted,
 } from '@/lib/core/config/env-flags'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import {
-  isResolvedSecretModelContentUnchanged,
-  projectResolvedSecretModelContent,
-  projectResolvedSecretModelJsonStrings,
-} from '@/executor/utils/resolved-secret-content-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotLifecycle')
 
 const MAX_RESUME_ATTEMPTS = 3
 const RESUME_BACKOFF_MS = [250, 500, 1000] as const
-const MAX_SELECTED_CONTENT_NODES = 100_000
-const MAX_SELECTED_CONTENT_DEPTH = 100
-const SIMPLE_MODEL_CONTENT_KEYS = [
-  'message',
-  'systemPrompt',
-  'workspaceContext',
-  'commands',
-  'implicitFeedback',
-  'workflowName',
-] as const
-const TOOL_PAYLOAD_KEYS = ['tools', 'integrationTools', 'mothershipTools'] as const
-const TOOL_SCHEMA_KEYS = new Set(['input_schema', 'parameters', 'outputs'])
 const MOTHERSHIP_CODE_TOOL_ROUTES = new Set([
   '/api/copilot',
   '/api/mothership',
   '/api/mothership/execute',
 ])
-const MESSAGE_CONTAINER_KEYS = new Set([
-  'contentBlocks',
-  'contexts',
-  'display',
-  'fileAttachments',
-  'files',
-  'function',
-  'function_call',
-  'result',
-  'toolCall',
-  'tool_calls',
-])
-const MESSAGE_OPAQUE_CONTENT_KEYS = new Set(['error', 'output', 'params'])
-const ATTACHMENT_PARENT_KEYS = new Set(['attachments', 'fileAttachments', 'files'])
-const MESSAGE_HANDLE_PARENT_KEYS = new Set(['function', 'function_call', 'toolCall'])
 
-type SelectedContentAction =
-  | 'preserve'
-  | 'project'
-  | 'project-json'
-  | 'traverse'
-  | 'traverse-verify-key'
-  | 'verify-key-value'
-  | 'verify'
-type SelectedContentSelector = (
-  path: readonly string[],
-  key: string,
-  value: unknown
-) => SelectedContentAction
+const COPILOT_MODEL_CONTENT_PROJECTION_ERROR = 'Copilot model input could not be safely projected'
 
 class CopilotModelContentProjectionError extends Error {
   constructor() {
-    super('Copilot model input could not be safely projected')
+    super(COPILOT_MODEL_CONTENT_PROJECTION_ERROR)
     this.name = 'CopilotModelContentProjectionError'
   }
-}
-
-interface SelectedContentTraversalState {
-  nodes: number
-  ancestors: WeakSet<object>
-}
-
-interface SelectedContentBuckets {
-  projected: unknown[]
-  jsonStrings: string[]
-  guarded: unknown[]
-}
-
-function visitSelectedContentNode(state: SelectedContentTraversalState, depth: number): void {
-  state.nodes += 1
-  if (state.nodes > MAX_SELECTED_CONTENT_NODES || depth > MAX_SELECTED_CONTENT_DEPTH) {
-    throw new CopilotModelContentProjectionError()
-  }
-}
-
-function projectModelContent(value: unknown, registry: ResolvedSecretTraceRegistry): unknown {
-  const projection = projectResolvedSecretModelContent(value, registry)
-  if (!projection.safe) throw new CopilotModelContentProjectionError()
-  return projection.value
-}
-
-function collectSelectedContent(
-  value: unknown,
-  selector: SelectedContentSelector,
-  selected: SelectedContentBuckets,
-  path: readonly string[] = [],
-  state: SelectedContentTraversalState = { nodes: 0, ancestors: new WeakSet<object>() },
-  depth = 0
-): void {
-  visitSelectedContentNode(state, depth)
-  if (value === null || typeof value !== 'object') return
-  if (state.ancestors.has(value)) throw new CopilotModelContentProjectionError()
-
-  state.ancestors.add(value)
-  try {
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        collectSelectedContent(item, selector, selected, [...path, '*'], state, depth + 1)
-      }
-      return
-    }
-    if (!isPlainRecord(value)) throw new CopilotModelContentProjectionError()
-
-    for (const [key, item] of Object.entries(value)) {
-      const action = selector(path, key, item)
-      if (action === 'project') {
-        selected.projected.push(item)
-      } else if (action === 'project-json') {
-        if (typeof item !== 'string') throw new CopilotModelContentProjectionError()
-        selected.jsonStrings.push(item)
-      } else if (action === 'verify') {
-        selected.guarded.push(item)
-      } else if (action === 'verify-key-value') {
-        selected.guarded.push(key, item)
-      } else if (action === 'traverse' || action === 'traverse-verify-key') {
-        if (action === 'traverse-verify-key') selected.guarded.push(key)
-        collectSelectedContent(item, selector, selected, [...path, key], state, depth + 1)
-      }
-    }
-  } finally {
-    state.ancestors.delete(value)
-  }
-}
-
-function restoreSelectedContent(
-  value: unknown,
-  selector: SelectedContentSelector,
-  projected: readonly unknown[],
-  projectedJsonStrings: readonly string[],
-  cursor: { projected: number; jsonStrings: number },
-  path: readonly string[] = [],
-  state: SelectedContentTraversalState = { nodes: 0, ancestors: new WeakSet<object>() },
-  depth = 0
-): unknown {
-  visitSelectedContentNode(state, depth)
-  if (value === null || typeof value !== 'object') return value
-  if (state.ancestors.has(value)) throw new CopilotModelContentProjectionError()
-
-  state.ancestors.add(value)
-  try {
-    if (Array.isArray(value)) {
-      return value.map((item) =>
-        restoreSelectedContent(
-          item,
-          selector,
-          projected,
-          projectedJsonStrings,
-          cursor,
-          [...path, '*'],
-          state,
-          depth + 1
-        )
-      )
-    }
-    if (!isPlainRecord(value)) throw new CopilotModelContentProjectionError()
-
-    const restored: Record<string, unknown> = { ...value }
-    for (const [key, item] of Object.entries(value)) {
-      const action = selector(path, key, item)
-      if (action === 'project') {
-        if (cursor.projected >= projected.length) throw new CopilotModelContentProjectionError()
-        restored[key] = projected[cursor.projected]
-        cursor.projected += 1
-      } else if (action === 'project-json') {
-        if (cursor.jsonStrings >= projectedJsonStrings.length) {
-          throw new CopilotModelContentProjectionError()
-        }
-        restored[key] = projectedJsonStrings[cursor.jsonStrings]
-        cursor.jsonStrings += 1
-      } else if (action === 'traverse' || action === 'traverse-verify-key') {
-        restored[key] = restoreSelectedContent(
-          item,
-          selector,
-          projected,
-          projectedJsonStrings,
-          cursor,
-          [...path, key],
-          state,
-          depth + 1
-        )
-      }
-    }
-    return restored
-  } finally {
-    state.ancestors.delete(value)
-  }
-}
-
-function projectSelectedContent(
-  value: unknown,
-  registry: ResolvedSecretTraceRegistry,
-  selector: SelectedContentSelector
-): unknown {
-  const selected: SelectedContentBuckets = { projected: [], jsonStrings: [], guarded: [] }
-  collectSelectedContent(value, selector, selected)
-  if (!isResolvedSecretModelContentUnchanged(selected.guarded, registry)) {
-    throw new CopilotModelContentProjectionError()
-  }
-
-  const projected = projectModelContent(selected.projected, registry)
-  if (!Array.isArray(projected) || projected.length !== selected.projected.length) {
-    throw new CopilotModelContentProjectionError()
-  }
-  const jsonProjection = projectResolvedSecretModelJsonStrings(selected.jsonStrings, registry)
-  if (
-    !jsonProjection.safe ||
-    !Array.isArray(jsonProjection.value) ||
-    !jsonProjection.value.every((item) => typeof item === 'string') ||
-    jsonProjection.value.length !== selected.jsonStrings.length
-  ) {
-    throw new CopilotModelContentProjectionError()
-  }
-  const cursor = { projected: 0, jsonStrings: 0 }
-  const restored = restoreSelectedContent(value, selector, projected, jsonProjection.value, cursor)
-  if (cursor.projected !== projected.length || cursor.jsonStrings !== jsonProjection.value.length) {
-    throw new CopilotModelContentProjectionError()
-  }
-  return restored
-}
-
-function projectStructuredContent(
-  value: unknown,
-  registry: ResolvedSecretTraceRegistry,
-  selector: SelectedContentSelector,
-  shape: 'array' | 'record' | 'record-or-array'
-): unknown {
-  if (
-    (shape === 'array' && !Array.isArray(value)) ||
-    (shape === 'record' && !isPlainRecord(value)) ||
-    (shape === 'record-or-array' && !Array.isArray(value) && !isPlainRecord(value))
-  ) {
-    throw new CopilotModelContentProjectionError()
-  }
-  return projectSelectedContent(value, registry, selector)
-}
-
-function schemaContentAction(
-  path: readonly string[],
-  key: string,
-  value: unknown
-): SelectedContentAction {
-  return getModelVisibleSchemaAction(path.at(-1), key, value)
-}
-
-const toolContentSelector: SelectedContentSelector = (path, key, value) => {
-  if (path.length === 0 && key === 'description') return 'project'
-  if (path.length === 0 && key === 'name') return 'verify'
-  if (path.length === 0 && TOOL_SCHEMA_KEYS.has(key)) return 'traverse'
-
-  const schemaRootIndex = path.findIndex((segment) => TOOL_SCHEMA_KEYS.has(segment))
-  if (schemaRootIndex >= 0) {
-    return schemaContentAction(path.slice(schemaRootIndex + 1), key, value)
-  }
-  return 'preserve'
-}
-
-const contextContentSelector: SelectedContentSelector = (_path, key, value) => {
-  if (isCopilotModelTextKey(COPILOT_CONTEXT_MODEL_TEXT_KEYS, key)) return 'project'
-  return value !== null && typeof value === 'object' ? 'traverse' : 'preserve'
-}
-
-function nearestPathContainer(path: readonly string[]): string | undefined {
-  for (let index = path.length - 1; index >= 0; index -= 1) {
-    if (path[index] !== '*') return path[index]
-  }
-  return undefined
-}
-
-const messageContentSelector: SelectedContentSelector = (path, key, value) => {
-  if (key === 'content') {
-    return value !== null && typeof value === 'object' ? 'traverse' : 'project'
-  }
-  if (MESSAGE_OPAQUE_CONTENT_KEYS.has(key)) return 'project'
-  if (key === 'arguments') return 'project-json'
-  if (isCopilotModelTextKey(COPILOT_MESSAGE_DISPLAY_KEYS, key)) return 'project'
-  if (
-    (key === 'name' || key === 'filename' || key === 'fileName') &&
-    ATTACHMENT_PARENT_KEYS.has(nearestPathContainer(path) ?? '')
-  ) {
-    return 'project'
-  }
-  if (
-    key === 'name' &&
-    (path.length === 1 || MESSAGE_HANDLE_PARENT_KEYS.has(nearestPathContainer(path) ?? ''))
-  ) {
-    return 'verify'
-  }
-  if (key === 'name') return 'project'
-  if (key === 'context' && nearestPathContainer(path) === 'files') return 'project'
-  if (MESSAGE_CONTAINER_KEYS.has(key)) return 'traverse'
-  return 'preserve'
-}
-
-const responseFormatContentSelector: SelectedContentSelector = (path, key, value) => {
-  if (path.length === 0 && (key === 'description' || key === 'instructions')) return 'project'
-  if (path.length === 0 && key === 'name') return 'verify'
-  if (path.length === 0 && key === 'schema') return 'traverse'
-  if (path.length === 0) return schemaContentAction(path, key, value)
-  if (path[0] === 'schema') return schemaContentAction(path.slice(1), key, value)
-  return 'preserve'
-}
-
-const vfsContentSelector: SelectedContentSelector = (_path, key, value) => {
-  if (isCopilotModelTextKey(COPILOT_VFS_MODEL_TEXT_KEYS, key)) return 'project'
-  return value !== null && typeof value === 'object' ? 'traverse' : 'preserve'
-}
-
-const userMetadataContentSelector: SelectedContentSelector = (_path, key) =>
-  isCopilotModelTextKey(COPILOT_USER_METADATA_MODEL_TEXT_KEYS, key) ? 'project' : 'preserve'
-
-const desktopContentSelector: SelectedContentSelector = (_path, key, value) => {
-  if (isCopilotModelTextKey(COPILOT_DESKTOP_MODEL_TEXT_KEYS, key)) return 'project'
-  return value !== null && typeof value === 'object' ? 'traverse' : 'preserve'
-}
-
-function projectModelSafeToolPayloads(
-  value: unknown,
-  registry: ResolvedSecretTraceRegistry
-): unknown[] {
-  if (!Array.isArray(value)) throw new CopilotModelContentProjectionError()
-
-  const projected: unknown[] = []
-  for (const candidate of value) {
-    if (!isPlainRecord(candidate) || typeof candidate.name !== 'string') continue
-
-    try {
-      for (const schemaKey of TOOL_SCHEMA_KEYS) {
-        if (Object.hasOwn(candidate, schemaKey)) {
-          collectModelVisibleSchemaContent(candidate[schemaKey])
-        }
-      }
-      projected.push(projectStructuredContent(candidate, registry, toolContentSelector, 'record'))
-    } catch {
-      // Tool definitions are independent protocol entities. Reject an unsafe definition without
-      // turning the entire catalog into one synthetic projection value or failing safe siblings.
-    }
-  }
-
-  // Projection completeness is a request-level invariant, even when every candidate was rejected.
-  projectModelContent([], registry)
-  return projected
-}
-
-function hasModelSafeRoutingFields(
-  value: Record<string, unknown>,
-  routingKeys: readonly string[],
-  registry: ResolvedSecretTraceRegistry
-): boolean {
-  for (const routingKey of routingKeys) {
-    if (!Object.hasOwn(value, routingKey)) continue
-    const routingValue = value[routingKey]
-    if (
-      typeof routingValue !== 'string' ||
-      !isResolvedSecretModelContentUnchanged(routingValue, registry)
-    ) {
-      return false
-    }
-  }
-  return true
-}
-
-function filterModelSafeContextPayload(
-  value: unknown,
-  registry: ResolvedSecretTraceRegistry
-): Record<string, unknown> | unknown[] | undefined {
-  if (Array.isArray(value)) {
-    return value.filter(
-      (candidate) =>
-        isPlainRecord(candidate) &&
-        hasModelSafeRoutingFields(candidate, COPILOT_CONTEXT_ROUTING_KEYS, registry)
-    )
-  }
-  if (!isPlainRecord(value)) throw new CopilotModelContentProjectionError()
-  return hasModelSafeRoutingFields(value, COPILOT_CONTEXT_ROUTING_KEYS, registry)
-    ? value
-    : undefined
-}
-
-function filterModelSafeVfsPayload(
-  value: unknown,
-  registry: ResolvedSecretTraceRegistry
-): Record<string, unknown> {
-  if (!isPlainRecord(value)) throw new CopilotModelContentProjectionError()
-  const filtered: Record<string, unknown> = { ...value }
-
-  for (const [collectionKey, collection] of Object.entries(value)) {
-    if (collectionKey === 'envVars') {
-      if (!Array.isArray(collection) || !collection.every((item) => typeof item === 'string')) {
-        throw new CopilotModelContentProjectionError()
-      }
-      filtered[collectionKey] = collection.filter((name) =>
-        isResolvedSecretModelContentUnchanged(name, registry)
-      )
-      continue
-    }
-    if (!Array.isArray(collection)) continue
-
-    filtered[collectionKey] = collection.filter((candidate) => {
-      if (!isPlainRecord(candidate)) return false
-      return hasModelSafeRoutingFields(candidate, COPILOT_VFS_ROUTING_KEYS, registry)
-    })
-  }
-
-  return filtered
-}
-
-function filterModelSafeUserMetadata(
-  value: unknown,
-  registry: ResolvedSecretTraceRegistry
-): Record<string, unknown> {
-  if (!isPlainRecord(value)) throw new CopilotModelContentProjectionError()
-  const filtered = { ...value }
-  if (
-    Object.hasOwn(filtered, 'timezone') &&
-    (typeof filtered.timezone !== 'string' ||
-      !isResolvedSecretModelContentUnchanged(filtered.timezone, registry))
-  ) {
-    return omit(filtered, ['timezone'])
-  }
-  return filtered
-}
-
-function filterModelSafeDesktopCapabilities(
-  value: unknown,
-  registry: ResolvedSecretTraceRegistry
-): Record<string, unknown> {
-  if (!isPlainRecord(value)) throw new CopilotModelContentProjectionError()
-  const filtered: Record<string, unknown> = { ...value }
-
-  if (Object.hasOwn(value, 'terminals')) {
-    if (!Array.isArray(value.terminals)) throw new CopilotModelContentProjectionError()
-    filtered.terminals = value.terminals.filter((terminal) => {
-      if (!isPlainRecord(terminal)) return false
-      return (
-        !Object.hasOwn(terminal, 'cwd') ||
-        (typeof terminal.cwd === 'string' &&
-          isResolvedSecretModelContentUnchanged(terminal.cwd, registry))
-      )
-    })
-  }
-
-  if (Object.hasOwn(value, 'browserSessions')) {
-    if (!Array.isArray(value.browserSessions)) throw new CopilotModelContentProjectionError()
-    filtered.browserSessions = value.browserSessions.filter(
-      (session) =>
-        isPlainRecord(session) &&
-        typeof session.hostname === 'string' &&
-        isResolvedSecretModelContentUnchanged(session.hostname, registry)
-    )
-  }
-
-  return filtered
-}
-
-function projectAttachmentDisplayNames(
-  payload: Record<string, unknown>,
-  registry: ResolvedSecretTraceRegistry
-): Partial<Record<'attachments' | 'fileAttachments', unknown>> {
-  const projected: Partial<Record<'attachments' | 'fileAttachments', unknown>> = {}
-  for (const key of ['attachments', 'fileAttachments'] as const) {
-    if (!Object.hasOwn(payload, key)) continue
-    const attachments = payload[key]
-    if (!Array.isArray(attachments)) throw new CopilotModelContentProjectionError()
-    const displayNames = attachments.map((attachment) => {
-      if (!isPlainRecord(attachment)) throw new CopilotModelContentProjectionError()
-      return {
-        ...(Object.hasOwn(attachment, 'name') ? { name: attachment.name } : {}),
-        ...(Object.hasOwn(attachment, 'filename') ? { filename: attachment.filename } : {}),
-      }
-    })
-    const projection = projectResolvedSecretModelContent(displayNames, registry)
-    if (
-      !projection.safe ||
-      !Array.isArray(projection.value) ||
-      projection.value.length !== attachments.length
-    ) {
-      throw new CopilotModelContentProjectionError()
-    }
-    const projectedDisplayNames = projection.value
-    projected[key] = attachments.map((attachment, index) => {
-      const displayName = projectedDisplayNames[index]
-      if (!isPlainRecord(attachment) || !isPlainRecord(displayName)) {
-        throw new CopilotModelContentProjectionError()
-      }
-      const name = displayName.name
-      const filename = displayName.filename
-      if (name !== undefined && typeof name !== 'string') {
-        throw new CopilotModelContentProjectionError()
-      }
-      if (filename !== undefined && typeof filename !== 'string') {
-        throw new CopilotModelContentProjectionError()
-      }
-      return {
-        ...attachment,
-        ...(name !== undefined ? { name } : {}),
-        ...(filename !== undefined ? { filename } : {}),
-      }
-    })
-  }
-  return projected
 }
 
 async function omitUnsafeInitialCopilotAttachments(
@@ -601,7 +99,14 @@ async function omitUnsafeInitialCopilotAttachments(
   for (const key of ['attachments', 'fileAttachments'] as const) {
     if (!Object.hasOwn(projected, key)) continue
     const attachments = projected[key]
-    if (!Array.isArray(attachments)) throw new CopilotModelContentProjectionError()
+    if (!Array.isArray(attachments)) {
+      refuseResolvedSecretProjection({
+        site: 'copilot.initialAttachmentsShape',
+        message: COPILOT_MODEL_CONTENT_PROJECTION_ERROR,
+        inputPath: key,
+        createError: () => new CopilotModelContentProjectionError(),
+      })
+    }
 
     let safeAttachments: unknown[]
     try {
@@ -611,7 +116,12 @@ async function omitUnsafeInitialCopilotAttachments(
         attachmentCount: attachments.length,
         error: toError(error).message,
       })
-      throw new CopilotModelContentProjectionError()
+      refuseResolvedSecretProjection({
+        site: 'copilot.initialAttachmentsProvenance',
+        message: COPILOT_MODEL_CONTENT_PROJECTION_ERROR,
+        inputPath: key,
+        createError: () => new CopilotModelContentProjectionError(),
+      })
     }
 
     if (safeAttachments.length === attachments.length) continue
@@ -625,115 +135,11 @@ async function omitUnsafeInitialCopilotAttachments(
   return projected
 }
 
-async function projectInitialCopilotPayload(
+async function filterInitialCopilotAttachmentsForModel(
   payload: Record<string, unknown>,
-  registry: ResolvedSecretTraceRegistry,
   workspaceId?: string
 ): Promise<Record<string, unknown>> {
-  projectModelContent([], registry)
-  let projectedPayload = { ...payload }
-  const simpleContent: Record<string, unknown> = {}
-  for (const key of SIMPLE_MODEL_CONTENT_KEYS) {
-    if (Object.hasOwn(payload, key)) simpleContent[key] = payload[key]
-  }
-  const projectedSimpleContent = projectModelContent(simpleContent, registry)
-  if (!isPlainRecord(projectedSimpleContent)) throw new CopilotModelContentProjectionError()
-  for (const key of SIMPLE_MODEL_CONTENT_KEYS) {
-    if (Object.hasOwn(payload, key) && Object.hasOwn(projectedSimpleContent, key)) {
-      projectedPayload[key] = projectedSimpleContent[key]
-    }
-  }
-  if (Object.hasOwn(payload, 'userTimezone')) {
-    if (
-      typeof payload.userTimezone === 'string' &&
-      isResolvedSecretModelContentUnchanged(payload.userTimezone, registry)
-    ) {
-      projectedPayload.userTimezone = payload.userTimezone
-    } else {
-      projectedPayload = omit(projectedPayload, ['userTimezone'])
-    }
-  }
-
-  if (Object.hasOwn(payload, 'messages')) {
-    projectedPayload.messages = projectStructuredContent(
-      payload.messages,
-      registry,
-      messageContentSelector,
-      'array'
-    )
-  }
-  for (const key of ['context', 'contexts'] as const) {
-    if (Object.hasOwn(payload, key)) {
-      if (typeof payload[key] === 'string') {
-        projectedPayload[key] = projectModelContent(payload[key], registry)
-        continue
-      }
-      const safeContexts = filterModelSafeContextPayload(payload[key], registry)
-      if (safeContexts === undefined) {
-        projectedPayload = omit(projectedPayload, [key])
-      } else {
-        projectedPayload[key] = projectStructuredContent(
-          safeContexts,
-          registry,
-          contextContentSelector,
-          'record-or-array'
-        )
-      }
-    }
-  }
-  for (const key of TOOL_PAYLOAD_KEYS) {
-    if (Object.hasOwn(payload, key)) {
-      projectedPayload[key] = projectModelSafeToolPayloads(payload[key], registry)
-    }
-  }
-  if (Object.hasOwn(payload, 'responseFormat')) {
-    try {
-      if (
-        isPlainRecord(payload.responseFormat) &&
-        Object.hasOwn(payload.responseFormat, 'schema')
-      ) {
-        collectModelVisibleSchemaContent(payload.responseFormat.schema)
-      }
-      projectedPayload.responseFormat =
-        typeof payload.responseFormat === 'string'
-          ? projectModelContent(payload.responseFormat, registry)
-          : projectStructuredContent(
-              payload.responseFormat,
-              registry,
-              responseFormatContentSelector,
-              'record'
-            )
-    } catch {
-      logger.warn('Omitting a Copilot response format with unsafe model-input provenance')
-      projectedPayload = omit(projectedPayload, ['responseFormat'])
-    }
-  }
-  if (Object.hasOwn(payload, 'vfs')) {
-    projectedPayload.vfs = projectStructuredContent(
-      filterModelSafeVfsPayload(payload.vfs, registry),
-      registry,
-      vfsContentSelector,
-      'record'
-    )
-  }
-  if (Object.hasOwn(payload, 'userMetadata')) {
-    projectedPayload.userMetadata = projectStructuredContent(
-      filterModelSafeUserMetadata(payload.userMetadata, registry),
-      registry,
-      userMetadataContentSelector,
-      'record'
-    )
-  }
-  if (Object.hasOwn(payload, 'desktopCapabilities')) {
-    projectedPayload.desktopCapabilities = projectStructuredContent(
-      filterModelSafeDesktopCapabilities(payload.desktopCapabilities, registry),
-      registry,
-      desktopContentSelector,
-      'record'
-    )
-  }
-  Object.assign(projectedPayload, projectAttachmentDisplayNames(payload, registry))
-  return omitUnsafeInitialCopilotAttachments(projectedPayload, workspaceId)
+  return omitUnsafeInitialCopilotAttachments(payload, workspaceId)
 }
 
 async function ensureModelEgressRegistry(
@@ -757,13 +163,6 @@ function nonBlankString(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined
 }
 
-function combineAbortSignals(...signals: Array<AbortSignal | undefined>): AbortSignal | undefined {
-  const activeSignals = [...new Set(signals.filter((signal): signal is AbortSignal => !!signal))]
-  if (activeSignals.length === 0) return undefined
-  if (activeSignals.length === 1) return activeSignals[0]
-  return AbortSignal.any(activeSignals)
-}
-
 function resultContent(context: StreamingContext, options: CopilotLifecycleOptions): string {
   if (options.interactive === false && context.sawMainToolCall) {
     return context.finalAssistantContent
@@ -773,26 +172,16 @@ function resultContent(context: StreamingContext, options: CopilotLifecycleOptio
 
 export interface CopilotLifecycleOptions extends OrchestratorOptions {
   userId: string
-  authorizationUserId?: string
   workflowId?: string
   workspaceId?: string
   chatId?: string
   executionId?: string
   runId?: string
-  /**
-   * Defaults to true. Set false when `chatId` is transport-only and has no
-   * parent row in Sim's `copilot_chats` table, or when the caller owns run
-   * creation and supplies any persisted identity itself.
-   */
-  autoCreateRunIdentity?: boolean
   goRoute?: string
-  resumeRoute?: string
   trace?: TraceCollector
   simRequestId?: string
   otelContext?: Context
   onGoTraceId?: (goTraceId: string) => void
-  /** Fires after Go accepts the initial stream, before any resume legs. */
-  onInitialStreamAccepted?: () => void
   executionContext?: ExecutionContext
   billingAttribution?: BillingAttributionSnapshot
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
@@ -848,12 +237,10 @@ export async function runCopilotLifecycle(
     chatId,
     executionId,
     runId,
-    autoCreateRunIdentity: options.autoCreateRunIdentity,
     messageId: payloadMsgId,
   })
   const resolvedExecutionId = runIdentity.executionId ?? executionId
   const resolvedRunId = runIdentity.runId ?? runId
-  const toolAbortSignal = combineAbortSignals(options.abortSignal, options.userStopSignal)
   const lifecycleOptions: CopilotLifecycleOptions = {
     ...options,
     executionId: resolvedExecutionId,
@@ -862,14 +249,10 @@ export async function runCopilotLifecycle(
       ? {
           executionContext: {
             ...options.executionContext,
-            ...(options.authorizationUserId
-              ? { authorizationUserId: options.authorizationUserId }
-              : {}),
             messageId: payloadMsgId,
             executionId: resolvedExecutionId,
             runId: resolvedRunId,
-            abortSignal: toolAbortSignal,
-            userStopSignal: options.userStopSignal,
+            abortSignal: options.abortSignal,
             billingAttribution:
               options.billingAttribution ?? options.executionContext.billingAttribution,
             ...(options.userPermission ? { userPermission: options.userPermission } : {}),
@@ -889,14 +272,12 @@ export async function runCopilotLifecycle(
     lifecycleOptions.executionContext ??
     (await buildExecutionContext(requestPayload, {
       userId,
-      authorizationUserId: lifecycleOptions.authorizationUserId,
       workflowId,
       workspaceId,
       chatId,
       executionId: resolvedExecutionId,
       runId: resolvedRunId,
-      abortSignal: toolAbortSignal,
-      userStopSignal: lifecycleOptions.userStopSignal,
+      abortSignal: lifecycleOptions.abortSignal,
       billingAttribution: lifecycleOptions.billingAttribution,
       resolvedSecretTraceRegistry: lifecycleOptions.resolvedSecretTraceRegistry,
       environmentContext: lifecycleOptions.environmentContext,
@@ -944,10 +325,9 @@ export async function runCopilotLifecycle(
   let onCompleteStarted = false
 
   try {
-    const modelEgressRegistry = await ensureModelEgressRegistry(execContext, lifecycleOptions)
-    const modelSafeRequestPayload = await projectInitialCopilotPayload(
+    await ensureModelEgressRegistry(execContext, lifecycleOptions)
+    const modelSafeRequestPayload = await filterInitialCopilotAttachmentsForModel(
       requestPayload,
-      modelEgressRegistry,
       lifecycleOptions.workspaceId
     )
     await runCheckpointLoop(
@@ -996,14 +376,12 @@ export async function runCopilotLifecycle(
     return result
   } catch (error) {
     const err = toError(error)
-    const wasCancelled = isAborted(lifecycleOptions, context)
     // A CopilotBackendError carries the upstream HTTP status + body (e.g. a 5xx
     // from /api/tools/resume when an oversized tool result — a rendered-doc
     // image — is posted back). Log those so a client-side "Stream error" that
     // originates from a thrown backend leg (vs an `error` SSE event) is
     // explained, not just reduced to a message string.
-    const logFailure = wasCancelled ? logger.warn : logger.error
-    logFailure.call(logger, 'Copilot orchestration failed', {
+    logger.error('Copilot orchestration failed', {
       error: err.message,
       name: err.name,
       ...(error instanceof CopilotBackendError
@@ -1020,6 +398,7 @@ export async function runCopilotLifecycle(
     // partial content can be appended.
     // Return `cancelled: true` so upstream classification stays
     // consistent with the success-path cancel result.
+    const wasCancelled = lifecycleOptions.abortSignal?.aborted ?? false
     // Preserve whatever streamed before the throw for both terminals. A thrown
     // backend error (as opposed to an `error` SSE event that lets the loop finish
     // normally) must still carry the partial assistant turn so onError can
@@ -1055,9 +434,7 @@ export async function runCopilotLifecycle(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Per-subagent checkpoint resume (concurrent fan-out)
-// ---------------------------------------------------------------------------
 //
 // Under the per-subagent checkpoint model each paused subagent is its OWN
 // checkpoint chain (frame.checkpointId) joined at the orchestrator. Instead of
@@ -1105,7 +482,7 @@ function mothershipRequestHeaders(
 // lockstep: every field reset here is folded back there, and nothing else on
 // StreamingContext is per-leg. Everything not listed is shared BY REFERENCE
 // across all concurrent legs (the one merged chat: contentBlocks, toolCalls,
-// pendingToolPromises, inFlightToolExecutions, subagent maps, etc.). The per-leg ISOLATED set:
+// pendingToolPromises, subagent maps, etc.). The per-leg ISOLATED set:
 //   - streamComplete / awaitingAsyncContinuation: stream-control flags, so a
 //     finished leg can't stop a sibling's read loop (reset only; not merged).
 //   - accumulatedContent / finalAssistantContent / usage / cost: join-leg
@@ -1149,69 +526,19 @@ export function mergeResumeLegOutputs(context: StreamingContext, leg: StreamingC
   if (leg.completionStatus) context.completionStatus = leg.completionStatus
 }
 
-type PendingToolWaitOutcome = 'settled' | 'aborted' | 'timed_out'
-
-/**
- * Waits for tool work to stop before the lifecycle releases its chat lease.
- * Abort is remembered immediately, but the promise settles only after the
- * in-flight handlers have unwound. This is the same stop barrier the web UI
- * relies on: a queued turn must never overlap mutations from the stopped turn.
- */
-function waitForPendingToolPromises(
-  promises: Iterable<Promise<unknown>>,
-  abortSignal?: AbortSignal,
-  timeoutMs?: number
-): Promise<PendingToolWaitOutcome> {
-  const pending = Array.from(promises)
-  if (pending.length === 0) return Promise.resolve('settled')
-
-  return new Promise((resolve) => {
-    let finished = false
-    let abortObserved = abortSignal?.aborted ?? false
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
-    const finish = (outcome: PendingToolWaitOutcome) => {
-      if (finished) return
-      finished = true
-      if (timeoutId !== undefined) clearTimeout(timeoutId)
-      abortSignal?.removeEventListener('abort', onAbort)
-      resolve(outcome)
-    }
-    const onAbort = () => {
-      abortObserved = true
-      // Once Stop fires, safety wins over the ordinary resume watchdog: keep
-      // the lease until the cancellation-aware handler has actually unwound.
-      if (timeoutId !== undefined) {
-        clearTimeout(timeoutId)
-        timeoutId = undefined
-      }
-    }
-
-    abortSignal?.addEventListener('abort', onAbort, { once: true })
-    void Promise.allSettled(pending).then(() => finish(abortObserved ? 'aborted' : 'settled'))
-    if (timeoutMs !== undefined && !abortObserved) {
-      timeoutId = setTimeout(() => finish('timed_out'), timeoutMs)
-    }
-  })
-}
-
-async function waitForToolIds(
-  context: StreamingContext,
-  toolIds: string[],
-  abortSignal?: AbortSignal
-): Promise<PendingToolWaitOutcome> {
+async function waitForToolIds(context: StreamingContext, toolIds: string[]): Promise<void> {
   const promises: Promise<unknown>[] = []
   for (const id of toolIds) {
     const p = context.pendingToolPromises.get(id)
     if (p) promises.push(p)
   }
-  return waitForPendingToolPromises(promises, abortSignal)
+  if (promises.length > 0) await Promise.allSettled(promises)
 }
 
 function collectResultsForToolIds(
   context: StreamingContext,
   toolIds: string[],
-  checkpointId: string,
-  registry: ResolvedSecretTraceRegistry
+  checkpointId: string
 ): Array<{ callId: string; name: string; data: unknown; success: boolean }> {
   return toolIds.map((toolCallId) => {
     const tool = context.toolCalls.get(toolCallId)
@@ -1221,9 +548,6 @@ function collectResultsForToolIds(
       )
     }
     const name = tool.name || ''
-    if (!isResolvedSecretModelContentUnchanged(name, registry)) {
-      throw new CopilotModelContentProjectionError()
-    }
     return {
       callId: toolCallId,
       name,
@@ -1250,7 +574,6 @@ async function runResumeLegWithRetry(
   hostedBillingRequest?: AttributedBillingRequestEnvelope
 ): Promise<void> {
   let attempt = 0
-  const stopSignal = combineAbortSignals(options.abortSignal, options.userStopSignal)
   for (;;) {
     const errorsBeforeAttempt = leg.errors.length
     try {
@@ -1267,7 +590,6 @@ async function runResumeLegWithRetry(
       )
       return
     } catch (error) {
-      if (isAborted(options, leg)) throw error
       if (isRetryableStreamError(error) && attempt < MAX_RESUME_ATTEMPTS - 1) {
         leg.errors.length = errorsBeforeAttempt
         attempt++
@@ -1278,8 +600,7 @@ async function runResumeLegWithRetry(
           backoffMs: backoff,
           error: toError(error).message,
         })
-        await sleepWithAbort(backoff, stopSignal)
-        if (isAborted(options, leg)) return
+        await sleepWithAbort(backoff, options.abortSignal)
         continue
       }
       throw error
@@ -1311,20 +632,16 @@ async function driveOneChildChain(
   if (!frame.checkpointId) return null
   let checkpointId = frame.checkpointId
   let toolIds = frame.pendingToolIds
-  const stopSignal = combineAbortSignals(options.abortSignal, options.userStopSignal)
 
   for (;;) {
     if (isAborted(options, context)) return null
 
-    const waitOutcome = await waitForToolIds(context, toolIds, stopSignal)
-    if (waitOutcome === 'aborted' || isAborted(options, context)) return null
-    const registry = execContext.resolvedSecretTraceRegistry
-    if (!registry) throw new CopilotModelContentProjectionError()
-    const results = collectResultsForToolIds(context, toolIds, checkpointId, registry)
+    await waitForToolIds(context, toolIds)
+    const results = collectResultsForToolIds(context, toolIds, checkpointId)
 
     const leg = makeResumeLegContext(context)
     await runResumeLegWithRetry(
-      `${baseURL}${options.resumeRoute ?? '/api/tools/resume'}`,
+      `${baseURL}/api/tools/resume`,
       {
         streamId: context.messageId,
         checkpointId,
@@ -1428,10 +745,6 @@ async function driveSubagentChains(
         })
       )
     )
-    if (isAborted(options, context)) {
-      await cancelCheckpointWork(context)
-      return null
-    }
     if (firstError !== undefined) throw firstError
     return followOns.find((c): c is AsyncContinuation => !!c) ?? null
   } finally {
@@ -1439,9 +752,7 @@ async function driveSubagentChains(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Checkpoint loop – the core state machine
-// ---------------------------------------------------------------------------
 
 async function runCheckpointLoop(
   initialPayload: Record<string, unknown>,
@@ -1452,20 +763,16 @@ async function runCheckpointLoop(
   hostedBillingRequest?: AttributedBillingRequestEnvelope
 ): Promise<void> {
   let route = initialRoute
-  const resumeRoute = options.resumeRoute ?? '/api/tools/resume'
   let payload: Record<string, unknown> = initialPayload
   let resumeAttempt = 0
   const callerOnEvent = options.onEvent
-  let initialStreamAccepted = false
-  const stopSignal = combineAbortSignals(options.abortSignal, options.userStopSignal)
-  // Route by the identity that authorized this request, not by a projected
-  // billing actor. Workspace API keys deliberately execute under a system
-  // billing actor, but that actor's admin environment override must never
-  // redirect another key owner's Mothership traffic.
-  const mothershipBaseURL = await getMothershipBaseURL({
-    userId: options.authorizationUserId ?? options.userId,
-  })
+  const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
   const lifecycleWorkspaceId = nonBlankString(options.workspaceId)
+  const systemPromptOverride = env.MSHIP_SYSPROMPT_OVERRIDE
+
+  if (typeof systemPromptOverride === 'string' && systemPromptOverride.trim() !== '') {
+    payload = { ...payload, systemPromptOverride }
+  }
 
   // Go's auth middleware re-validates every Sim -> Go request by reading
   // workspaceId from the JSON body and forwarding it to Sim's validate route,
@@ -1483,10 +790,11 @@ async function runCheckpointLoop(
 
   for (;;) {
     context.streamComplete = false
-    const isResume = route === resumeRoute
+    const isResume = route === '/api/tools/resume'
 
     if (isResume && isAborted(options, context)) {
-      await cancelCheckpointWork(context)
+      cancelPendingTools(context)
+      context.awaitingAsyncContinuation = undefined
       break
     }
 
@@ -1548,18 +856,7 @@ async function runCheckpointLoop(
         },
         context,
         execContext,
-        {
-          ...loopOptions,
-          ...(!isResume && !initialStreamAccepted && options.onInitialStreamAccepted
-            ? {
-                onAccepted: () => {
-                  if (initialStreamAccepted) return
-                  initialStreamAccepted = true
-                  options.onInitialStreamAccepted?.()
-                },
-              }
-            : {}),
-        }
+        loopOptions
       )
       const streamStatus = isAborted(options, context)
         ? RequestTraceV1SpanStatus.cancelled
@@ -1572,10 +869,6 @@ async function runCheckpointLoop(
     } catch (streamError) {
       context.trace.endSpan(streamSpan, RequestTraceV1SpanStatus.error)
       context.trace.setActiveSpan(undefined)
-      if (isAborted(options, context)) {
-        await cancelCheckpointWork(context)
-        throw streamError
-      }
       if (streamError instanceof BillingLimitError) {
         await handleBillingLimitResponse(streamError.userId, context, execContext, options)
         break
@@ -1596,7 +889,7 @@ async function runCheckpointLoop(
           backoffMs: backoff,
           error: toError(streamError).message,
         })
-        await sleepWithAbort(backoff, stopSignal)
+        await sleepWithAbort(backoff, options.abortSignal)
         continue
       }
       throw streamError
@@ -1614,7 +907,8 @@ async function runCheckpointLoop(
     })
 
     if (isAborted(options, context)) {
-      await cancelCheckpointWork(context)
+      cancelPendingTools(context)
+      context.awaitingAsyncContinuation = undefined
       break
     }
 
@@ -1632,16 +926,11 @@ async function runCheckpointLoop(
       let next: AsyncContinuation | null = continuation
       while (next && isPerSubagentContinuation(next)) {
         if (isAborted(options, context)) {
-          await cancelCheckpointWork(context)
+          cancelPendingTools(context)
           next = null
           break
         }
-        const waitOutcome = await waitForToolIds(context, next.pendingToolCallIds, stopSignal)
-        if (waitOutcome === 'aborted') {
-          await cancelCheckpointWork(context)
-          next = null
-          break
-        }
+        await waitForToolIds(context, next.pendingToolCallIds)
         next = await driveSubagentChains(
           next,
           context,
@@ -1657,44 +946,52 @@ async function runCheckpointLoop(
     }
 
     if (context.pendingToolPromises.size > 0) {
-      // Bounded by the slowest pending tool's watchdog plus grace. The
-      // per-tool watchdog already guarantees each promise settles; this gate
-      // is the structural backstop so that no tool failure mode — known or
-      // unknown — can park the checkpoint loop (and the chat's pending-stream
-      // lock) forever.
-      const waitBudgetMs =
-        Array.from(context.pendingToolPromises.keys()).reduce(
-          (max, toolCallId) =>
-            Math.max(max, pendingToolWaitBudgetMs(context.toolCalls.get(toolCallId))),
-          0
-        ) + TOOL_WATCHDOG_RESUME_GRACE_MS
+      // Snapshot the gate by tool. Human waits remain durable, but they must
+      // not disable the structural watchdog for an unrelated parallel tool.
+      const pendingTools = Array.from(context.pendingToolPromises.entries()).map(
+        ([toolCallId, promise]) => ({
+          toolCallId,
+          promise,
+          waitBudgetMs: pendingToolWaitBudgetMs(context.toolCalls.get(toolCallId)),
+        })
+      )
+      const durableTools = pendingTools.filter((tool) => tool.waitBudgetMs === null)
+      const boundedTools = pendingTools.flatMap((tool) =>
+        tool.waitBudgetMs === null ? [] : [{ ...tool, waitBudgetMs: tool.waitBudgetMs }]
+      )
+      const boundedWaitBudgetMs =
+        boundedTools.length > 0
+          ? Math.max(...boundedTools.map((tool) => tool.waitBudgetMs)) +
+            TOOL_WATCHDOG_RESUME_GRACE_MS
+          : null
       const waitSpan = context.trace.startSpan('Wait for Tools', 'lifecycle.wait_tools', {
         checkpointId: continuation.checkpointId,
         pendingCount: context.pendingToolPromises.size,
-        waitBudgetMs,
+        durableCount: durableTools.length,
+        ...(boundedWaitBudgetMs !== null ? { waitBudgetMs: boundedWaitBudgetMs } : {}),
       })
       logger.info('Waiting for in-flight tool executions before resume', {
         checkpointId: continuation.checkpointId,
         pendingCount: context.pendingToolPromises.size,
-        waitBudgetMs,
+        durableCount: durableTools.length,
+        waitBudgetMs: boundedWaitBudgetMs,
       })
-      const waitOutcome = await waitForPendingToolPromises(
-        context.pendingToolPromises.values(),
-        stopSignal,
-        waitBudgetMs
-      )
-      const settledInTime = waitOutcome === 'settled'
-      if (waitOutcome === 'aborted') {
-        waitSpan.attributes = { ...waitSpan.attributes, settledInTime: false, aborted: true }
-        context.trace.endSpan(waitSpan, RequestTraceV1SpanStatus.cancelled)
-        await cancelCheckpointWork(context)
-        break
-      }
-      if (!settledInTime) {
-        const hungToolCallIds = Array.from(context.pendingToolPromises.keys())
+      const boundedSettledInTime =
+        boundedWaitBudgetMs === null
+          ? true
+          : await Promise.race([
+              Promise.allSettled(boundedTools.map((tool) => tool.promise)).then(() => true),
+              sleep(boundedWaitBudgetMs).then(() => false),
+            ])
+      if (!boundedSettledInTime) {
+        const hungToolCallIds = boundedTools
+          .filter(
+            ({ toolCallId, promise }) => context.pendingToolPromises.get(toolCallId) === promise
+          )
+          .map(({ toolCallId }) => toolCallId)
         logger.error('Pending tool executions exceeded the resume wait budget; force-failing', {
           checkpointId: continuation.checkpointId,
-          waitBudgetMs,
+          waitBudgetMs: boundedWaitBudgetMs,
           hungToolCallIds,
         })
         for (const toolCallId of hungToolCallIds) {
@@ -1706,12 +1003,14 @@ async function runCheckpointLoop(
           context.pendingToolPromises.delete(toolCallId)
         }
       }
-      waitSpan.attributes = { ...waitSpan.attributes, settledInTime }
+      await Promise.allSettled(durableTools.map((tool) => tool.promise))
+      waitSpan.attributes = { ...waitSpan.attributes, settledInTime: boundedSettledInTime }
       context.trace.endSpan(waitSpan)
     }
 
     if (isAborted(options, context)) {
-      await cancelCheckpointWork(context)
+      cancelPendingTools(context)
+      context.awaitingAsyncContinuation = undefined
       break
     }
 
@@ -1731,20 +1030,16 @@ async function runCheckpointLoop(
         checkpointId: continuation.checkpointId,
         toolCallIds: undispatchedToolIds,
       })
-      const waitOutcome = await waitForPendingToolPromises(
+      await Promise.allSettled(
         undispatchedToolIds.map((toolCallId) =>
           executeToolAndReport(toolCallId, context, execContext, options)
-        ),
-        stopSignal
+        )
       )
-      if (waitOutcome === 'aborted') {
-        await cancelCheckpointWork(context)
-        break
-      }
     }
 
     if (isAborted(options, context)) {
-      await cancelCheckpointWork(context)
+      cancelPendingTools(context)
+      context.awaitingAsyncContinuation = undefined
       break
     }
 
@@ -1756,7 +1051,8 @@ async function runCheckpointLoop(
     }> = []
     for (const toolCallId of continuation.pendingToolCallIds) {
       if (isAborted(options, context)) {
-        await cancelCheckpointWork(context)
+        cancelPendingTools(context)
+        context.awaitingAsyncContinuation = undefined
         break
       }
       const tool = context.toolCalls.get(toolCallId)
@@ -1772,9 +1068,6 @@ async function runCheckpointLoop(
         throw new Error(`Cannot resume: missing result for pending tool call ${toolCallId}`)
       }
       const name = tool.name || ''
-      if (!isResolvedSecretModelContentUnchanged(name, execContext.resolvedSecretTraceRegistry)) {
-        throw new CopilotModelContentProjectionError()
-      }
       results.push({
         callId: toolCallId,
         name,
@@ -1784,7 +1077,8 @@ async function runCheckpointLoop(
     }
 
     if (isAborted(options, context)) {
-      await cancelCheckpointWork(context)
+      cancelPendingTools(context)
+      context.awaitingAsyncContinuation = undefined
       break
     }
 
@@ -1797,7 +1091,7 @@ async function runCheckpointLoop(
     })
 
     context.awaitingAsyncContinuation = undefined
-    route = resumeRoute
+    route = '/api/tools/resume'
     payload = {
       streamId: context.messageId,
       checkpointId: continuation.checkpointId,
@@ -1807,7 +1101,8 @@ async function runCheckpointLoop(
     }
 
     if (isAborted(options, context)) {
-      await cancelCheckpointWork(context)
+      cancelPendingTools(context)
+      context.awaitingAsyncContinuation = undefined
       break
     }
 
@@ -1820,22 +1115,18 @@ async function runCheckpointLoop(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Execution context builder
-// ---------------------------------------------------------------------------
 
 async function buildExecutionContext(
   requestPayload: Record<string, unknown>,
   params: {
     userId: string
-    authorizationUserId?: string
     workflowId?: string
     workspaceId?: string
     chatId?: string
     executionId?: string
     runId?: string
     abortSignal?: AbortSignal
-    userStopSignal?: AbortSignal
     billingAttribution?: BillingAttributionSnapshot
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
     environmentContext?: CopilotEnvironmentContext
@@ -1846,14 +1137,12 @@ async function buildExecutionContext(
 ): Promise<ExecutionContext> {
   const {
     userId,
-    authorizationUserId,
     workflowId,
     workspaceId,
     chatId,
     executionId,
     runId,
     abortSignal,
-    userStopSignal,
     billingAttribution,
     resolvedSecretTraceRegistry,
     environmentContext,
@@ -1864,7 +1153,6 @@ async function buildExecutionContext(
   const userTimezone =
     typeof requestPayload?.userTimezone === 'string' ? requestPayload.userTimezone : undefined
   const requestMode = typeof requestPayload?.mode === 'string' ? requestPayload.mode : undefined
-  const queryOnly = requestPayload?.queryOnly === true
 
   let execContext: ExecutionContext
   if (workflowId) {
@@ -1887,9 +1175,7 @@ async function buildExecutionContext(
   }
 
   if (userTimezone) execContext.userTimezone = userTimezone
-  if (authorizationUserId) execContext.authorizationUserId = authorizationUserId
   execContext.copilotToolExecution = true
-  if (queryOnly) execContext.queryOnly = true
   if (requestMode) execContext.requestMode = requestMode
   if (userPermission) execContext.userPermission = userPermission
   execContext.messageId =
@@ -1897,7 +1183,6 @@ async function buildExecutionContext(
   execContext.executionId = executionId
   execContext.runId = runId
   execContext.abortSignal = abortSignal
-  execContext.userStopSignal = userStopSignal
   if (billingAttribution) execContext.billingAttribution = billingAttribution
   if (resolvedSecretTraceRegistry) {
     execContext.resolvedSecretTraceRegistry = resolvedSecretTraceRegistry
@@ -1915,10 +1200,9 @@ async function ensureHeadlessRunIdentity(input: {
   chatId?: string
   executionId?: string
   runId?: string
-  autoCreateRunIdentity?: boolean
   messageId: string
 }): Promise<{ executionId?: string; runId?: string }> {
-  if (input.autoCreateRunIdentity === false || !input.chatId || input.executionId || input.runId) {
+  if (!input.chatId || input.executionId || input.runId) {
     return {
       executionId: input.executionId,
       runId: input.runId,
@@ -1955,9 +1239,7 @@ async function ensureHeadlessRunIdentity(input: {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Adds `enterpriseByokEligible: true` to the initial mothership payload when the
@@ -1989,36 +1271,22 @@ async function withByokEligibilityHint(
 }
 
 function isAborted(options: CopilotLifecycleOptions, context: StreamingContext): boolean {
-  return !!(options.abortSignal?.aborted || options.userStopSignal?.aborted || context.wasAborted)
+  return !!(options.abortSignal?.aborted || context.wasAborted)
 }
 
-async function cancelCheckpointWork(context: StreamingContext): Promise<void> {
-  context.wasAborted = true
-  context.awaitingAsyncContinuation = undefined
-
-  // The stop signal has already reached every tool context. Keep the chat
-  // lease until those handlers observe it and unwind, then durably terminalize
-  // any call that never reached its normal cancellation branch.
-  await Promise.allSettled([
-    ...context.pendingToolPromises.values(),
-    ...(context.inFlightToolExecutions?.values() ?? []),
-  ])
-  await cancelPendingTools(context)
-}
-
-async function cancelPendingTools(context: StreamingContext): Promise<void> {
-  const cancellations: Promise<void>[] = []
-  for (const [toolCallId, toolCall] of context.toolCalls) {
+function cancelPendingTools(context: StreamingContext): void {
+  for (const [, toolCall] of context.toolCalls) {
     if (
       toolCall.status === 'pending' ||
       toolCall.status === 'executing' ||
-      toolCall.status === 'awaiting_approval' ||
-      toolCall.status === MothershipStreamV1ToolOutcome.cancelled
+      toolCall.status === 'awaiting_approval'
     ) {
-      cancellations.push(cancelToolCallAndReport(toolCallId, context))
+      setTerminalToolCallState(toolCall, {
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        error: 'Stopped by user',
+      })
     }
   }
-  await Promise.allSettled(cancellations)
 }
 
 /**

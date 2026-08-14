@@ -1,7 +1,8 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { isSsoEnabled } from '@/lib/core/config/env-flags'
+import { isRegistrationDisabled, isSsoEnabled } from '@/lib/core/config/env-flags'
+import SSOLoading from '@/app/(auth)/sso/loading'
 import SSOForm from '@/ee/sso/components/sso-form'
 
 export const metadata: Metadata = {
@@ -16,8 +17,8 @@ export default async function SSOPage() {
   }
 
   return (
-    <Suspense fallback={null}>
-      <SSOForm />
+    <Suspense fallback={<SSOLoading />}>
+      <SSOForm registrationDisabled={isRegistrationDisabled} />
     </Suspense>
   )
 }

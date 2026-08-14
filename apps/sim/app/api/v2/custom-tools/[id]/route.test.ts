@@ -3,6 +3,10 @@
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
+} from '@/lib/core/application'
 
 const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
   class MockV2ApiKeyUnauthenticatedError extends Error {}
@@ -89,18 +93,22 @@ const tool = {
 }
 const context = { params: Promise.resolve({ id: tool.id }) }
 
+/**
+ * The read and delete verbs scope themselves with `?workspaceId=`; the write
+ * verb carries `workspaceId` in its body. Sending the query copy on a write is
+ * now a 400 rather than a silently dropped key, so the helper only appends it
+ * where the contract declares it.
+ */
 function request(method: 'GET' | 'PATCH' | 'DELETE', body?: unknown) {
-  return new NextRequest(
-    `http://localhost:3000/api/v2/custom-tools/${tool.id}?workspaceId=${WORKSPACE_ID}`,
-    {
-      method,
-      headers: {
-        'x-api-key': 'key',
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }
-  )
+  const query = method === 'PATCH' ? '' : `?workspaceId=${WORKSPACE_ID}`
+  return new NextRequest(`http://localhost:3000/api/v2/custom-tools/${tool.id}${query}`, {
+    method,
+    headers: {
+      'x-api-key': 'key',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
 }
 
 describe('/api/v2/custom-tools/[id]', () => {
@@ -124,6 +132,25 @@ describe('/api/v2/custom-tools/[id]', () => {
       input: { workspaceId: WORKSPACE_ID, toolId: tool.id },
       request: expect.anything(),
     })
+  })
+
+  /**
+   * Every list in this family rejects a query param it does not implement, so
+   * the single-resource reads must too. A caller who mistypes a flag otherwise
+   * gets a 200 that silently ignored it, which reads as confirmation the flag
+   * exists and does nothing.
+   */
+  it('rejects a query param it does not implement', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/custom-tools/${tool.id}?workspaceId=${WORKSPACE_ID}&includeCodes=true`,
+        { method: 'GET', headers: { 'x-api-key': 'key' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.get).not.toHaveBeenCalled()
   })
 
   it('updates a custom tool through its semantic update operation', async () => {
@@ -159,5 +186,16 @@ describe('/api/v2/custom-tools/[id]', () => {
 
     expect(response.status).toBe(401)
     expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('conceals cross-tenant access while preserving same-workspace role denials', async () => {
+    mocks.get.mockRejectedValueOnce(new NoWorkspaceAccessError())
+    expect((await GET(request('GET'), context)).status).toBe(404)
+
+    mocks.update.mockRejectedValueOnce(new InsufficientWorkspacePermissionsError())
+    expect(
+      (await PATCH(request('PATCH', { workspaceId: WORKSPACE_ID, code: 'return 2' }), context))
+        .status
+    ).toBe(403)
   })
 })

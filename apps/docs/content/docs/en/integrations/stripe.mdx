@@ -37,7 +37,7 @@ Integrates Stripe into the workflow. Manage payment intents, customers, subscrip
 
 ## Actions
 
-### `stripe_create_payment_intent`
+### Stripe Create Payment Intent
 
 Create a new Payment Intent to process a payment
 
@@ -112,7 +112,7 @@ Create a new Payment Intent to process a payment
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_retrieve_payment_intent`
+### Stripe Retrieve Payment Intent
 
 Retrieve an existing Payment Intent by ID
 
@@ -180,7 +180,7 @@ Retrieve an existing Payment Intent by ID
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_update_payment_intent`
+### Stripe Update Payment Intent
 
 Update an existing Payment Intent
 
@@ -253,7 +253,7 @@ Update an existing Payment Intent
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_confirm_payment_intent`
+### Stripe Confirm Payment Intent
 
 Confirm a Payment Intent to complete the payment
 
@@ -322,7 +322,7 @@ Confirm a Payment Intent to complete the payment
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_capture_payment_intent`
+### Stripe Capture Payment Intent
 
 Capture an authorized Payment Intent
 
@@ -391,7 +391,7 @@ Capture an authorized Payment Intent
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_cancel_payment_intent`
+### Stripe Cancel Payment Intent
 
 Cancel a Payment Intent
 
@@ -460,7 +460,7 @@ Cancel a Payment Intent
 |   ↳ `amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_list_payment_intents`
+### Stripe List Payment Intents
 
 List all Payment Intents
 
@@ -528,7 +528,7 @@ List all Payment Intents
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_search_payment_intents`
+### Stripe Search Payment Intents
 
 Search for Payment Intents using query syntax
 
@@ -595,7 +595,7 @@ Search for Payment Intents using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_create_customer`
+### Stripe Create Customer
 
 Create a new customer object
 
@@ -659,7 +659,7 @@ Create a new customer object
 |   ↳ `email` | string | Customer email address |
 |   ↳ `name` | string | Display name |
 
-### `stripe_retrieve_customer`
+### Stripe Retrieve Customer
 
 Retrieve an existing customer by ID
 
@@ -717,7 +717,7 @@ Retrieve an existing customer by ID
 |   ↳ `email` | string | Customer email address |
 |   ↳ `name` | string | Display name |
 
-### `stripe_update_customer`
+### Stripe Update Customer
 
 Update an existing customer
 
@@ -781,7 +781,7 @@ Update an existing customer
 |   ↳ `email` | string | Customer email address |
 |   ↳ `name` | string | Display name |
 
-### `stripe_delete_customer`
+### Stripe Delete Customer
 
 Permanently delete a customer
 
@@ -799,7 +799,7 @@ Permanently delete a customer
 | `deleted` | boolean | Whether the resource was deleted |
 | `id` | string | ID of the deleted resource |
 
-### `stripe_list_customers`
+### Stripe List Customers
 
 List all customers
 
@@ -858,7 +858,7 @@ List all customers
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_search_customers`
+### Stripe Search Customers
 
 Search for customers using query syntax
 
@@ -916,7 +916,7 @@ Search for customers using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_create_subscription`
+### Stripe Create Subscription
 
 Create a new subscription for a customer
 
@@ -961,6 +961,20 @@ Create a new subscription for a customer
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
@@ -984,7 +998,7 @@ Create a new subscription for a customer
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
-### `stripe_retrieve_subscription`
+### Stripe Retrieve Subscription
 
 Retrieve an existing subscription by ID
 
@@ -1024,6 +1038,20 @@ Retrieve an existing subscription by ID
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
@@ -1047,7 +1075,7 @@ Retrieve an existing subscription by ID
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
-### `stripe_update_subscription`
+### Stripe Update Subscription
 
 Update an existing subscription
 
@@ -1090,6 +1118,20 @@ Update an existing subscription
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
@@ -1113,7 +1155,7 @@ Update an existing subscription
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
-### `stripe_cancel_subscription`
+### Stripe Cancel Subscription
 
 Cancel a subscription
 
@@ -1155,6 +1197,20 @@ Cancel a subscription
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
@@ -1178,7 +1234,7 @@ Cancel a subscription
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
-### `stripe_resume_subscription`
+### Stripe Resume Subscription
 
 Resume a subscription that was scheduled for cancellation
 
@@ -1218,6 +1274,20 @@ Resume a subscription that was scheduled for cancellation
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
@@ -1241,7 +1311,7 @@ Resume a subscription that was scheduled for cancellation
 |   ↳ `status` | string | Current state of the resource |
 |   ↳ `customer` | string | Associated customer ID |
 
-### `stripe_list_subscriptions`
+### Stripe List Subscriptions
 
 List all subscriptions
 
@@ -1284,6 +1354,20 @@ List all subscriptions
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
@@ -1306,7 +1390,7 @@ List all subscriptions
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_search_subscriptions`
+### Stripe Search Subscriptions
 
 Search for subscriptions using query syntax
 
@@ -1347,6 +1431,20 @@ Search for subscriptions using query syntax
 |   ↳ `description` | string | Subscription description \(max 500 characters\) |
 |   ↳ `discount` | json | Discount that applies to the subscription |
 |   ↳ `ended_at` | number | Unix timestamp when the subscription ended |
+|   ↳ `items` | object | List of subscription items |
+|     ↳ `object` | string | String representing the object type \(list\) |
+|     ↳ `data` | array | Array of subscription items |
+|       ↳ `id` | string | Unique identifier for the subscription item |
+|       ↳ `object` | string | String representing the object type \(subscription_item\) |
+|       ↳ `billing_thresholds` | json | Billing thresholds for the subscription item |
+|       ↳ `created` | number | Unix timestamp when the item was added |
+|       ↳ `metadata` | json | Set of key-value pairs for storing additional information |
+|       ↳ `price` | json | Price object for this subscription item |
+|       ↳ `quantity` | number | Quantity of the plan to subscribe to |
+|       ↳ `subscription` | string | ID of the subscription this item belongs to |
+|       ↳ `tax_rates` | array | Tax rates applied to this subscription item |
+|     ↳ `has_more` | boolean | Whether there are more items |
+|     ↳ `url` | string | URL to fetch more items |
 |   ↳ `latest_invoice` | string | ID of the most recent invoice |
 |   ↳ `livemode` | boolean | Whether object exists in live mode or test mode |
 |   ↳ `metadata` | json | Set of key-value pairs for storing additional information |
@@ -1369,7 +1467,7 @@ Search for subscriptions using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_create_invoice`
+### Stripe Create Invoice
 
 Create a new invoice
 
@@ -1525,7 +1623,7 @@ Create a new invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_retrieve_invoice`
+### Stripe Retrieve Invoice
 
 Retrieve an existing invoice by ID
 
@@ -1677,7 +1775,7 @@ Retrieve an existing invoice by ID
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_update_invoice`
+### Stripe Update Invoice
 
 Update an existing invoice
 
@@ -1832,7 +1930,7 @@ Update an existing invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_delete_invoice`
+### Stripe Delete Invoice
 
 Permanently delete a draft invoice
 
@@ -1850,7 +1948,7 @@ Permanently delete a draft invoice
 | `deleted` | boolean | Whether the invoice was deleted |
 | `id` | string | The ID of the deleted invoice |
 
-### `stripe_finalize_invoice`
+### Stripe Finalize Invoice
 
 Finalize a draft invoice
 
@@ -2003,7 +2101,7 @@ Finalize a draft invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_pay_invoice`
+### Stripe Pay Invoice
 
 Pay an invoice
 
@@ -2156,7 +2254,7 @@ Pay an invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_void_invoice`
+### Stripe Void Invoice
 
 Void an invoice
 
@@ -2308,7 +2406,7 @@ Void an invoice
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_send_invoice`
+### Stripe Send Invoice
 
 Send an invoice to the customer
 
@@ -2330,7 +2428,7 @@ Send an invoice to the customer
 |   ↳ `amount_due` | number | Amount remaining to be paid in smallest currency unit |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_list_invoices`
+### Stripe List Invoices
 
 List all invoices
 
@@ -2352,7 +2450,7 @@ List all invoices
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_search_invoices`
+### Stripe Search Invoices
 
 Search for invoices using query syntax
 
@@ -2373,7 +2471,7 @@ Search for invoices using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_create_charge`
+### Stripe Create Charge
 
 Create a new charge to process a payment
 
@@ -2402,7 +2500,7 @@ Create a new charge to process a payment
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 |   ↳ `paid` | boolean | Whether payment has been received |
 
-### `stripe_retrieve_charge`
+### Stripe Retrieve Charge
 
 Retrieve an existing charge by ID
 
@@ -2425,7 +2523,7 @@ Retrieve an existing charge by ID
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 |   ↳ `paid` | boolean | Whether payment has been received |
 
-### `stripe_update_charge`
+### Stripe Update Charge
 
 Update an existing charge
 
@@ -2450,7 +2548,7 @@ Update an existing charge
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 |   ↳ `paid` | boolean | Whether payment has been received |
 
-### `stripe_capture_charge`
+### Stripe Capture Charge
 
 Capture an uncaptured charge
 
@@ -2474,7 +2572,7 @@ Capture an uncaptured charge
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 |   ↳ `paid` | boolean | Whether payment has been received |
 
-### `stripe_list_charges`
+### Stripe List Charges
 
 List all charges
 
@@ -2496,7 +2594,7 @@ List all charges
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_search_charges`
+### Stripe Search Charges
 
 Search for charges using query syntax
 
@@ -2517,7 +2615,7 @@ Search for charges using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_create_product`
+### Stripe Create Product
 
 Create a new product object
 
@@ -2542,7 +2640,7 @@ Create a new product object
 |   ↳ `name` | string | Display name |
 |   ↳ `active` | boolean | Whether the resource is currently active |
 
-### `stripe_retrieve_product`
+### Stripe Retrieve Product
 
 Retrieve an existing product by ID
 
@@ -2563,7 +2661,7 @@ Retrieve an existing product by ID
 |   ↳ `name` | string | Display name |
 |   ↳ `active` | boolean | Whether the resource is currently active |
 
-### `stripe_update_product`
+### Stripe Update Product
 
 Update an existing product
 
@@ -2589,7 +2687,7 @@ Update an existing product
 |   ↳ `name` | string | Display name |
 |   ↳ `active` | boolean | Whether the resource is currently active |
 
-### `stripe_delete_product`
+### Stripe Delete Product
 
 Permanently delete a product
 
@@ -2607,7 +2705,7 @@ Permanently delete a product
 | `deleted` | boolean | Whether the product was deleted |
 | `id` | string | The ID of the deleted product |
 
-### `stripe_list_products`
+### Stripe List Products
 
 List all products
 
@@ -2628,7 +2726,7 @@ List all products
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_search_products`
+### Stripe Search Products
 
 Search for products using query syntax
 
@@ -2649,7 +2747,7 @@ Search for products using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_create_price`
+### Stripe Create Price
 
 Create a new price for a product
 
@@ -2676,7 +2774,7 @@ Create a new price for a product
 |   ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_retrieve_price`
+### Stripe Retrieve Price
 
 Retrieve an existing price by ID
 
@@ -2698,7 +2796,7 @@ Retrieve an existing price by ID
 |   ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_update_price`
+### Stripe Update Price
 
 Update an existing price
 
@@ -2722,7 +2820,7 @@ Update an existing price
 |   ↳ `unit_amount` | number | Amount in smallest currency unit \(e.g., cents\) |
 |   ↳ `currency` | string | Three-letter ISO currency code \(lowercase\) |
 
-### `stripe_list_prices`
+### Stripe List Prices
 
 List all prices
 
@@ -2744,7 +2842,7 @@ List all prices
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_search_prices`
+### Stripe Search Prices
 
 Search for prices using query syntax
 
@@ -2765,7 +2863,7 @@ Search for prices using query syntax
 |   ↳ `count` | number | Number of items returned |
 |   ↳ `has_more` | boolean | Whether more items exist beyond this page |
 
-### `stripe_retrieve_event`
+### Stripe Retrieve Event
 
 Retrieve an existing Event by ID
 
@@ -2786,7 +2884,7 @@ Retrieve an existing Event by ID
 |   ↳ `type` | string | Event type identifier |
 |   ↳ `created` | number | Unix timestamp of creation |
 
-### `stripe_list_events`
+### Stripe List Events
 
 List all Events
 

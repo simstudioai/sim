@@ -9,10 +9,7 @@ import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { denyOutputWriteWithoutWritePermission } from '@/lib/copilot/request/tools/permissions'
-import {
-  projectToolErrorMessageForCopilot,
-  projectToolOutputForPersistence,
-} from '@/lib/copilot/request/tools/resolved-secret-result'
+import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import type { TableDefinition } from '@/lib/table'
 import { ProjectedWireRowsValidationError } from '@/lib/table/application/rows'
@@ -36,19 +33,17 @@ async function replaceTableRowsFromWire(
 > {
   const workspaceId = context.workspaceId
   if (!workspaceId) throw new Error('Table persistence requires a workspace ID')
-  const persistenceProjection = context.resolvedSecretTraceRegistry
-    ? projectToolOutputForPersistence(rows, context.resolvedSecretTraceRegistry)
-    : { safe: true as const, value: rows }
-  if (!persistenceProjection.safe) {
-    return { success: false, error: persistenceProjection.error }
-  }
   let replacement: Awaited<ReturnType<typeof executeCopilotReplaceProjectedWireRows>>
   try {
     replacement = await executeCopilotReplaceProjectedWireRows(context, {
       tableId,
       assertedWorkspaceId: workspaceId,
       sourceRows: rows,
-      projectedRows: persistenceProjection.value,
+      projectedRows: rows,
+      secretProvenance: {
+        mode: 'resolved_output',
+        registry: context.resolvedSecretTraceRegistry,
+      },
     })
   } catch (error) {
     if (error instanceof ProjectedWireRowsValidationError) {
@@ -77,14 +72,6 @@ export async function maybeWriteOutputToTable(
   if (!result.success || !result.output) return result
   const outputTable = params?.outputTable as string | undefined
   if (!outputTable) return result
-
-  if (context.queryOnly) {
-    return {
-      success: false,
-      error:
-        'function_execute is query-only: outputTable (workspace table overwrite) is not available; return the data and report it instead',
-    }
-  }
 
   const denied = denyOutputWriteWithoutWritePermission(context)
   if (denied) return denied
@@ -198,14 +185,6 @@ export async function maybeWriteReadCsvToTable(
   if (!result.success || !result.output) return result
   const outputTable = params?.outputTable as string | undefined
   if (!outputTable) return result
-
-  if (context.queryOnly) {
-    return {
-      success: false,
-      error:
-        'read is query-only: outputTable (workspace table overwrite) is not available; inspect the file and report its contents instead',
-    }
-  }
 
   const denied = denyOutputWriteWithoutWritePermission(context)
   if (denied) return denied

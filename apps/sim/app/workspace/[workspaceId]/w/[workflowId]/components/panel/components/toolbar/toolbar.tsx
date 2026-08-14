@@ -26,10 +26,14 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
 import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
-import { ToolbarItemContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/components'
+import {
+  type DragItemInfo,
+  ToolbarItemContextMenu,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/components'
 import { useToolbarItemInteractions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/hooks'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
+import { BlockTile } from '@/blocks/block-tile'
 import {
   buildCustomBlockConfig,
   CUSTOM_BLOCK_TILE_COLOR,
@@ -37,7 +41,6 @@ import {
 } from '@/blocks/custom/build-config'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
-import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
@@ -63,7 +66,7 @@ interface ToolbarItemProps {
     e: React.DragEvent<HTMLElement>,
     type: string,
     enableTriggerMode: boolean,
-    dragItemInfo?: { name: string; bgColor: string; iconElement: HTMLElement | null }
+    dragItemInfo?: DragItemInfo
   ) => void
   onClick: (type: string, enableTriggerMode: boolean) => void
   onContextMenu: (e: React.MouseEvent, type: string, isTrigger: boolean, docsLink?: string) => void
@@ -83,11 +86,11 @@ const ToolbarItem = memo(function ToolbarItem({
 
   const handleDragStart = useCallback(
     (e: React.DragEvent<HTMLElement>) => {
-      const iconElement = e.currentTarget.querySelector('.toolbar-item-icon')
+      const iconContainer = e.currentTarget.querySelector<HTMLElement>('[data-toolbar-item-icon]')
       onDragStart(e, item.type, isTriggerCapable, {
         name: item.name,
         bgColor: item.bgColor ?? '#666666',
-        iconElement: iconElement as HTMLElement | null,
+        iconContainer,
       })
     },
     [item.type, item.name, item.bgColor, isTriggerCapable, onDragStart]
@@ -129,21 +132,12 @@ const ToolbarItem = memo(function ToolbarItem({
       )}
       onKeyDown={handleKeyDown}
     >
-      <div
-        className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-        style={{ background: item.bgColor }}
-      >
-        {Icon && (
-          <Icon
-            className={clsx(
-              'toolbar-item-icon transition-transform duration-200',
-              getTileIconColorClass(item.bgColor),
-              'group-hover:scale-110',
-              'size-[10px]'
-            )}
-          />
-        )}
-      </div>
+      <BlockTile
+        blockType={item.type}
+        icon={Icon}
+        bgColor={item.bgColor}
+        data-toolbar-item-icon=''
+      />
       <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{item.name}</span>
     </div>
   )

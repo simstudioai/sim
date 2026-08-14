@@ -1,14 +1,12 @@
 import { createLogger } from '@sim/logger'
 import type { CursorKey } from '@/lib/api/list-query'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
-import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { workflowFolderPathForId } from '@/lib/workflows/application/workflow-folders'
 import {
-  InvalidWorkflowListCursorError,
   listWorkspaceWorkflows,
   type WorkflowSortBy,
   type WorkflowSortOrder,
@@ -38,34 +36,26 @@ export const listWorkflows = defineAuthorizedWorkflowUseCase({
       undefined,
       { maxRows: MAX_FOLDERS_PER_WORKSPACE }
     )
-    const folderId =
-      input.folderPath === undefined
-        ? undefined
-        : input.folderPath === '/'
-          ? null
-          : folderIndex.idByPath.get(input.folderPath)
-    if (input.folderPath !== undefined && folderId === undefined) {
-      throw new OrchestrationError('not_found', 'Folder not found')
-    }
-
-    let page
-    try {
-      page = await listWorkspaceWorkflows({
-        workspaceId: context.workspaceId,
-        folderId,
-        deployedOnly: input.deployedOnly,
-        search: input.search,
+    const folderFilter = resolveFolderPathFilter(folderIndex, input.folderPath)
+    if (folderFilter.kind === 'noMatch') {
+      return {
+        workflows: [],
+        nextCursorKeys: null,
         sortBy: input.sortBy,
         sortOrder: input.sortOrder,
-        cursorKeys: input.cursorKeys,
-        limit: input.limit,
-      })
-    } catch (error) {
-      if (error instanceof InvalidWorkflowListCursorError) {
-        throw new OrchestrationError('validation', error.message)
       }
-      throw error
     }
+
+    const page = await listWorkspaceWorkflows({
+      workspaceId: context.workspaceId,
+      folderId: folderFilter.kind === 'folder' ? folderFilter.folderId : undefined,
+      deployedOnly: input.deployedOnly,
+      search: input.search,
+      sortBy: input.sortBy,
+      sortOrder: input.sortOrder,
+      cursorKeys: input.cursorKeys,
+      limit: input.limit,
+    })
 
     logger.info('Listed workflows', {
       workspaceId: context.workspaceId,

@@ -179,7 +179,7 @@ describe('ConditionBlockHandler', () => {
         timeout: 5000,
         envVars: mockContext.environmentVariables,
         workflowVariables: mockContext.workflowVariables,
-        blockData: { 'source-block-1': { value: 10, text: 'hello' } },
+        blockData: {},
         blockNameMapping: { sourceblock: 'source-block-1' },
         _context: {
           workflowId: 'test-workflow-id',
@@ -188,6 +188,24 @@ describe('ConditionBlockHandler', () => {
       }),
       { executionContext: mockContext }
     )
+  })
+
+  it('should never forward collected block outputs in the request body', async () => {
+    mockCollectBlockData.mockReturnValueOnce({
+      blockData: { 'huge-block': { payload: 'x'.repeat(1024) } },
+      blockNameMapping: { hugeblock: 'huge-block' },
+    })
+    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+
+    const conditions = [
+      { id: 'cond1', title: 'if', value: 'true' },
+      { id: 'else1', title: 'else', value: '' },
+    ]
+
+    await handler.execute(mockContext, mockBlock, { conditions: JSON.stringify(conditions) })
+
+    const [, toolParams] = mockExecuteTool.mock.calls[0]
+    expect(toolParams.blockData).toEqual({})
   })
 
   it('should select the else path if other conditions fail', async () => {

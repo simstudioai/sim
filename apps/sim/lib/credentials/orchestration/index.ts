@@ -1,4 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, auditUpdatedFields, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { credential, environment, webhook, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -8,7 +8,10 @@ import type { NextRequest } from 'next/server'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
-import { isClientCredentialAccountProviderId } from '@/lib/credentials/client-credential-accounts/descriptors'
+import {
+  getClientCredentialAccountDescriptor,
+  isClientCredentialAccountProviderId,
+} from '@/lib/credentials/client-credential-accounts/descriptors'
 import { type CredentialDeleteReason, deleteCredential } from '@/lib/credentials/deletion'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import {
@@ -78,13 +81,17 @@ async function readStoredSecretBlob(credentialId: string): Promise<Record<string
 }
 
 /**
- * The `dataCenter` already stored in a service-account blob. Used on reconnect
- * so a non-secret regional selector survives a secret rotation that does not
- * resubmit it; undefined lets the provider's own default apply.
+ * A non-secret string field already stored in a service-account blob. Used on
+ * reconnect so a selector the modal did not resubmit (the Zoho data center,
+ * the Salesforce auth method and run-as username) survives a secret rotation;
+ * undefined lets the provider's own default apply.
  */
-function readStoredDataCenter(blob: Record<string, unknown> | null): string | undefined {
-  const dataCenter = blob?.dataCenter
-  return typeof dataCenter === 'string' && dataCenter ? dataCenter : undefined
+function readStoredField(
+  blob: Record<string, unknown> | null,
+  field: 'dataCenter' | 'authMethod' | 'username'
+): string | undefined {
+  const value = blob?.[field]
+  return typeof value === 'string' && value ? value : undefined
 }
 
 /**
@@ -135,8 +142,12 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   /** Client-credential service-account secret rotation (reconnect). */
   clientId?: string
   clientSecret?: string
+  certificateId?: string
   orgId?: string
   dataCenter?: string
+  authMethod?: string
+  privateKey?: string
+  username?: string
 }
 
 export interface PerformCredentialResult {
@@ -196,8 +207,12 @@ export async function performUpdateCredential(
       params.domain !== undefined ||
       params.clientId !== undefined ||
       params.clientSecret !== undefined ||
+      params.certificateId !== undefined ||
       params.orgId !== undefined ||
-      params.dataCenter !== undefined
+      params.dataCenter !== undefined ||
+      params.authMethod !== undefined ||
+      params.privateKey !== undefined ||
+      params.username !== undefined
     let rotatedSlackBotUserId: string | undefined
     let rotatedAuditMetadata: Record<string, string> | undefined
     if (hasRotationSecret && access.credential.type === 'service_account') {
@@ -209,8 +224,15 @@ export async function performUpdateCredential(
       // like the Zoho data center would be silently dropped, moving an EU/IN/AU
       // credential back to the US accounts server. Carry the stored value forward
       // when the caller did not supply one.
-      const needsStoredDataCenter =
-        params.dataCenter === undefined && isClientCredentialAccountProviderId(providerId)
+      const isClientCredentialProvider = isClientCredentialAccountProviderId(providerId)
+      const needsStoredDataCenter = params.dataCenter === undefined && isClientCredentialProvider
+      // Only a multi-grant provider stores these, so single-grant ones must not
+      // pay for a row read + decrypt that can only ever return undefined.
+      const isMultiGrantProvider = Boolean(
+        getClientCredentialAccountDescriptor(providerId)?.defaultAuthMethod
+      )
+      const needsStoredAuthMethod = params.authMethod === undefined && isMultiGrantProvider
+      const needsStoredUsername = params.username === undefined && isMultiGrantProvider
 
       // Rotating to a key that belongs to a different principal makes an
       // identity-derived label (a Google `client_email`, a Slack team name)
@@ -223,7 +245,7 @@ export async function performUpdateCredential(
 
       // One read + decrypt at most, and only for the providers that can use it.
       const storedBlob =
-        needsStoredDataCenter || needsStoredIdentity
+        needsStoredDataCenter || needsStoredAuthMethod || needsStoredUsername || needsStoredIdentity
           ? await readStoredSecretBlob(access.credential.id)
           : null
 
@@ -236,8 +258,16 @@ export async function performUpdateCredential(
           serviceAccountJson: params.serviceAccountJson,
           clientId: params.clientId,
           clientSecret: params.clientSecret,
+          certificateId: params.certificateId,
           orgId: params.orgId,
-          dataCenter: needsStoredDataCenter ? readStoredDataCenter(storedBlob) : params.dataCenter,
+          dataCenter: needsStoredDataCenter
+            ? readStoredField(storedBlob, 'dataCenter')
+            : params.dataCenter,
+          authMethod: needsStoredAuthMethod
+            ? readStoredField(storedBlob, 'authMethod')
+            : params.authMethod,
+          privateKey: params.privateKey,
+          username: needsStoredUsername ? readStoredField(storedBlob, 'username') : params.username,
         })
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
         rotatedSlackBotUserId = secret.botUserId
@@ -309,7 +339,7 @@ export async function performUpdateCredential(
         .where(and(eq(webhook.provider, 'slack'), eq(webhook.routingKey, params.credentialId)))
     }
 
-    const updatedFields = Object.keys(updates).filter((key) => key !== 'updatedAt')
+    const updatedFields = auditUpdatedFields(updates)
     recordAudit({
       workspaceId: access.credential.workspaceId,
       actorId: params.userId,

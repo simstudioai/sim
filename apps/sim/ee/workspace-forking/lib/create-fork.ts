@@ -170,7 +170,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       organizationId: policy.organizationId,
       workspaceMode: policy.workspaceMode,
       billedAccountUserId: policy.billedAccountUserId,
-      allowPersonalApiKeys: true,
+      allowPersonalApiKeys: source.allowPersonalApiKeys,
       forkedFromWorkspaceId: source.id,
       createdAt: now,
       updatedAt: now,
@@ -257,6 +257,10 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       },
       workflowIdMap,
       referencedDocumentIds: Array.from(referencedDocumentIds),
+      documentMappingContext: {
+        edgeChildWorkspaceId: childWorkspaceId,
+        sourceIsParent: true,
+      },
     })
     forkedResourceNames = resourceResult.names
 
@@ -414,7 +418,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
           organizationId: policy.organizationId,
           workspaceMode: policy.workspaceMode,
           billedAccountUserId: policy.billedAccountUserId,
-          allowPersonalApiKeys: true,
+          allowPersonalApiKeys: source.allowPersonalApiKeys,
           forkedFromWorkspaceId: source.id,
         },
         workflowsCopied,

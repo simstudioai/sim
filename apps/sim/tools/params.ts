@@ -31,9 +31,7 @@ import type {
 const logger = createLogger('ToolsParams')
 type ToolParamDefinition = ToolConfig['params'][string]
 
-// ============================================================================
 // Tag/Value Parsing Utilities
-// ============================================================================
 
 interface Option {
   label: string
@@ -667,7 +665,7 @@ export async function createLLMToolSchema(
       }
 
       const propertySchema = buildParameterSchema(toolConfig.id, paramId, param)
-      const enrichedSchema = await enrichmentConfig.enrichSchema(dependencyValue)
+      const enrichedSchema = await enrichmentConfig.enrichSchema(dependencyValue, enrichmentContext)
 
       if (enrichedSchema) {
         safeAssign(propertySchema, enrichedSchema as Record<string, unknown>)
@@ -699,7 +697,7 @@ export async function createLLMToolSchema(
     if (isWorkflowInputMapping) {
       const workflowId = userProvidedParams.workflowId as string
       if (workflowId) {
-        await applyDynamicSchemaForWorkflow(propertySchema, workflowId)
+        await applyDynamicSchemaForWorkflow(propertySchema, workflowId, enrichmentContext)
       }
     }
 
@@ -742,10 +740,11 @@ export async function createLLMToolSchema(
  */
 async function applyDynamicSchemaForWorkflow(
   propertySchema: SchemaProperty,
-  workflowId: string
+  workflowId: string,
+  context: WorkflowToolExecutionContext
 ): Promise<void> {
   try {
-    const workflowInputFields = await fetchWorkflowInputFields(workflowId)
+    const workflowInputFields = await fetchWorkflowInputFields(workflowId, context)
 
     if (workflowInputFields && workflowInputFields.length > 0) {
       propertySchema.type = 'object'
@@ -771,19 +770,32 @@ async function applyDynamicSchemaForWorkflow(
 
 /**
  * Fetches workflow input fields from the API.
+ *
+ * The workflow read route accepts only scoped executor delegations, so the call is
+ * bound to the acting execution subject.
  */
 async function fetchWorkflowInputFields(
-  workflowId: string
+  workflowId: string,
+  context: WorkflowToolExecutionContext
 ): Promise<Array<{ name: string; type: string; description?: string }>> {
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+    if (!context.userId) {
+      throw new Error('Workflow input enrichment requires a trusted execution subject')
+    }
+    const { buildAPIUrl, buildExecutorDelegationHeaders } = await import('@/executor/utils/http')
+    const { executionScopeForTarget } = await import('@/executor/utils/delegation')
 
-    const headers = await buildAuthHeaders()
+    const headers = await buildExecutorDelegationHeaders({
+      subjectUserId: context.userId,
+      workflowId,
+      ...executionScopeForTarget(context, workflowId),
+    })
     const url = buildAPIUrl(`/api/workflows/${workflowId}`)
 
     const response = await fetch(url.toString(), { headers })
     if (!response.ok) {
-      throw new Error('Failed to fetch workflow')
+      await response.text().catch(() => {})
+      throw new Error(`Failed to fetch workflow (${response.status})`)
     }
 
     const { data } = await response.json()
@@ -834,13 +846,16 @@ export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
   return schema
 }
 
-/**
- * Filters out user-provided parameters from tool schema for LLM
- */
-export function filterSchemaForLLM(
-  originalSchema: ToolSchema,
+interface FilterableToolSchema {
+  properties?: Record<string, unknown>
+  required?: string[]
+}
+
+/** Filters user-provided parameters from any object-shaped tool schema sent to an LLM. */
+export function filterSchemaForLLM<T extends FilterableToolSchema>(
+  originalSchema: T,
   userProvidedParams: Record<string, unknown>
-): ToolSchema {
+): T {
   if (!originalSchema || !originalSchema.properties) {
     return originalSchema
   }
@@ -859,11 +874,10 @@ export function filterSchemaForLLM(
     }
   })
 
-  return {
-    ...originalSchema,
+  return Object.assign({}, originalSchema, {
     properties: filteredProperties,
     required: filteredRequired,
-  }
+  })
 }
 
 /**

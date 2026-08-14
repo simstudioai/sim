@@ -24,6 +24,7 @@ vi.mock('@/lib/oauth/credential-service', () => ({
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUse: mockAuthorizeCredentialUse,
+  authorizeCredentialUseForAuth: mockAuthorizeCredentialUse,
 }))
 
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
@@ -201,6 +202,36 @@ describe('OAuth Token API Routes', () => {
     })
 
     describe('service account path', () => {
+      it('threads the NetSuite SuiteTalk instance URL into the token response', async () => {
+        const instanceUrl = 'https://1234567.suitetalk.api.netsuite.com'
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+          accountId: '',
+          credentialId: 'netsuite-credential-id',
+          credentialType: 'service_account',
+          providerId: 'netsuite-service-account',
+          workspaceId: 'workspace-id',
+          usedCredentialTable: true,
+        })
+        mockAuthorizeCredentialUse.mockResolvedValueOnce({
+          ok: true,
+          authType: 'session',
+          requesterUserId: 'test-user-id',
+          workspaceId: 'workspace-id',
+        })
+        mockResolveServiceAccountToken.mockResolvedValueOnce({
+          accessToken: 'netsuite-token',
+          instanceUrl,
+        })
+
+        const response = await POST(
+          createMockRequest('POST', { credentialId: 'netsuite-credential-id' })
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(data).toMatchObject({ accessToken: 'netsuite-token', instanceUrl })
+      })
+
       it('should thread authStyle from the resolver into the response', async () => {
         authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
           accountId: '',
@@ -545,5 +576,66 @@ describe('OAuth Token API Routes', () => {
       expect(response.status).toBe(401)
       expect(data).toHaveProperty('error')
     })
+  })
+})
+
+describe('Salesforce instance URL resolution', () => {
+  const INSTANCE = 'https://acme--sbx.sandbox.my.salesforce.com'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue(null)
+    mockAuthorizeCredentialUse.mockResolvedValue({
+      ok: true,
+      authType: 'session',
+      requesterUserId: 'test-user-id',
+      credentialOwnerUserId: 'owner-user-id',
+    })
+    authOAuthUtilsMockFns.mockRefreshTokenIfNeeded.mockResolvedValue({
+      accessToken: 'fresh-token',
+      refreshed: false,
+    })
+  })
+
+  /**
+   * The org host is smuggled through `scope` because the token response has
+   * nowhere to put it; the tools read it back as their `instanceUrl` param.
+   */
+  function credentialForProvider(providerId: string) {
+    return {
+      id: 'credential-id',
+      accessToken: 'test-token',
+      refreshToken: 'refresh-token',
+      accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+      providerId,
+      scope: `__sf_instance__:${INSTANCE} api refresh_token openid`,
+    }
+  }
+
+  it.each(['salesforce', 'salesforce-sandbox'])(
+    'returns the stored instance URL for a %s credential',
+    async (providerId) => {
+      authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce(
+        credentialForProvider(providerId)
+      )
+
+      const response = await POST(createMockRequest('POST', { credentialId: 'credential-id' }))
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.instanceUrl).toBe(INSTANCE)
+    }
+  )
+
+  it('omits instanceUrl for a non-Salesforce provider carrying a lookalike scope', async () => {
+    authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce({
+      ...credentialForProvider('google'),
+    })
+
+    const response = await POST(createMockRequest('POST', { credentialId: 'credential-id' }))
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.instanceUrl).toBeUndefined()
   })
 })

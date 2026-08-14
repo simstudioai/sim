@@ -43,10 +43,17 @@ export const agiloftSearchRecordsTool: ToolConfig<
     },
     query: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Search query using Agiloft query syntax (e.g., "status=\'Active\'" or "company_name~=\'Acme\'")',
+        "Ad hoc EWSearch query. Combine conditions with && (and) or || (or) and quote every value — e.g. \"summary~='test'&&priority='High'\". Required unless a saved search is given.",
+    },
+    search: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Label of a saved search defined on the table (e.g., "C: Status is Closed"). Can be combined with a query to narrow it further.',
     },
     fields: {
       type: 'string',
@@ -64,7 +71,8 @@ export const agiloftSearchRecordsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of records to return per page',
+      description:
+        'Maximum number of records to return per page. Agiloft treats 0 as "all records", so leave it unset or use a positive value to keep result sizes bounded.',
     },
   },
 
@@ -79,6 +87,7 @@ export const agiloftSearchRecordsTool: ToolConfig<
       password: params.password,
       table: params.table,
       query: params.query,
+      search: params.search,
       fields: params.fields,
       page: params.page,
       limit: params.limit,
@@ -95,21 +104,26 @@ export const agiloftSearchRecordsTool: ToolConfig<
   },
 
   outputs: {
+    truncated: {
+      type: 'boolean',
+      description: 'True when more records were returned upstream than this call reports',
+    },
     records: {
       type: 'json',
       description: 'Array of matching records with their field values',
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of matching records',
+      description:
+        'Number of records in this response. Not a total match count — compare with `truncated`.',
     },
     page: {
       type: 'number',
-      description: 'Current page number',
+      description: 'Page number that was requested (0-based)',
     },
     limit: {
       type: 'number',
-      description: 'Records per page',
+      description: 'Page size that was requested; 0 when no limit was sent and Agiloft chose one',
     },
   },
 }

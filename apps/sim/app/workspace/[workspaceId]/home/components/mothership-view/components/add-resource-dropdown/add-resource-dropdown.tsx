@@ -27,7 +27,10 @@ import {
   buildResourceFolderTree,
   type ResourceTreeNode,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
-import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import {
+  byResourceMenuOrder,
+  getResourceConfig,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
@@ -297,7 +300,7 @@ export function useAvailableResources(
         ],
       })
     }
-    return groups.filter((g) => !excluded.has(g.type))
+    return groups.filter((g) => !excluded.has(g.type)).sort(byResourceMenuOrder)
   }, [
     enabled,
     workflows,
@@ -414,12 +417,17 @@ interface FolderedSectionSpec {
   orderBySortOrder?: boolean
 }
 
-/** Single source of truth for the foldered submenus, in display order. */
+/**
+ * Single source of truth for the foldered submenus. Declared in
+ * {@link RESOURCE_MENU_ORDER}; the merge in {@link ResourceMenuSections} is what
+ * actually positions them among the flat families, so this order only has to agree
+ * with the canonical one rather than carry it.
+ */
 const FOLDERED_SECTION_SPECS: readonly FolderedSectionSpec[] = [
-  { type: 'workflow', folders: { kind: 'group', type: 'folder' }, orderBySortOrder: true },
-  { type: 'file', folders: { kind: 'group', type: 'filefolder' }, folderType: 'filefolder' },
   { type: 'table', folders: { kind: 'structure', key: 'table' } },
+  { type: 'file', folders: { kind: 'group', type: 'filefolder' }, folderType: 'filefolder' },
   { type: 'knowledgebase', folders: { kind: 'structure', key: 'knowledgebase' } },
+  { type: 'workflow', folders: { kind: 'group', type: 'folder' }, orderBySortOrder: true },
 ]
 
 /**
@@ -464,8 +472,11 @@ export function useResourceTreeSections({
   }, [groups, structureFolders])
 }
 
-interface ResourceTreeSectionsProps {
+interface ResourceMenuSectionsProps {
+  /** Foldered families, from {@link useResourceTreeSections}. */
   sections: ResourceTreeSection[]
+  /** Every available family. Foldered ones are taken from `sections` instead. */
+  groups: AvailableItemsByType[]
   onSelect: (resource: MothershipResource) => void
   /**
    * Width override for the submenu panels. The chat menu widens them past the
@@ -475,30 +486,72 @@ interface ResourceTreeSectionsProps {
   subContentClassName?: string
 }
 
-/** Renders {@link useResourceTreeSections} output as one submenu per family. */
-export function ResourceTreeSections({
+/**
+ * Renders every resource family as one submenu, foldered and flat interleaved in
+ * {@link RESOURCE_MENU_ORDER}. Rendering the two kinds in one pass is what lets a
+ * foldered family (Tables) sit above a flat one (Logs) — emitting all the trees
+ * and then all the flat families would pin every tree to the top regardless of the
+ * canonical order.
+ */
+export function ResourceMenuSections({
   sections,
+  groups,
   onSelect,
   subContentClassName,
-}: ResourceTreeSectionsProps) {
+}: ResourceMenuSectionsProps) {
+  const sectionByType = new Map(sections.map((section) => [section.type, section]))
+  const entries = groups
+    .filter(({ type, items }) =>
+      FOLDERED_RESOURCE_TYPES.has(type) ? sectionByType.has(type) : items.length > 0
+    )
+    .sort(byResourceMenuOrder)
+
   return (
     <>
-      {sections.map((section) => {
-        const config = getResourceConfig(section.type)
-        const SectionIcon = config.icon
+      {entries.map(({ type, items }) => {
+        const config = getResourceConfig(type)
+        const Icon = config.icon
+        const section = sectionByType.get(type)
+
+        // Browser and terminal each have one top-level panel — a flat launcher
+        // here creates inner tabs when that panel already exists.
+        if (!section && (type === 'browser' || type === 'terminal')) {
+          const item = items[0]
+          return (
+            <DropdownMenuItem
+              key={type}
+              onClick={() => onSelect({ type, id: item.id, title: item.name })}
+            >
+              <Icon className='size-[14px]' />
+              <span>{config.label}</span>
+            </DropdownMenuItem>
+          )
+        }
+
         return (
-          <DropdownMenuSub key={section.type}>
+          <DropdownMenuSub key={type}>
             <DropdownMenuSubTrigger>
-              <SectionIcon className='size-[14px]' />
+              <Icon className='size-[14px]' />
               <span>{config.label}</span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className={subContentClassName}>
-              <ResourceFolderTreeItems
-                nodes={section.nodes}
-                type={section.type}
-                folderType={section.folderType}
-                onSelect={onSelect}
-              />
+              {section ? (
+                <ResourceFolderTreeItems
+                  nodes={section.nodes}
+                  type={section.type}
+                  folderType={section.folderType}
+                  onSelect={onSelect}
+                />
+              ) : (
+                items.map((item) => (
+                  <DropdownMenuItem
+                    key={item.id}
+                    onClick={() => onSelect({ type, id: item.id, title: item.name })}
+                  >
+                    {config.renderDropdownItem({ item })}
+                  </DropdownMenuItem>
+                ))
+              )}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         )
@@ -633,10 +686,13 @@ export function AddResourceDropdown({
             filtered.length > 0 ? (
               filtered.map(({ type, item }, index) => {
                 const config = getResourceConfig(type)
+                /* The search box keeps focus, so rows never take DOM focus and the menu's
+                   own `focus:` highlight never fires — `activeIndex` is this list's
+                   cursor, so it paints the hover surface rather than the selected one. */
                 return (
                   <DropdownMenuItem
                     key={`${type}:${item.id}`}
-                    className={cn(index === activeIndex && 'bg-[var(--surface-active)]')}
+                    className={cn(index === activeIndex && 'bg-[var(--surface-hover)]')}
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => select({ type, id: item.id, title: item.name })}
                   >
@@ -645,52 +701,12 @@ export function AddResourceDropdown({
                 )
               })
             ) : (
-              <div className='px-2 py-1.5 text-center font-medium text-[var(--text-tertiary)] text-caption'>
+              <div className='px-2 py-1.5 text-center text-[var(--text-tertiary)] text-caption'>
                 No results
               </div>
             )
           ) : (
-            <>
-              <ResourceTreeSections sections={treeSections} onSelect={select} />
-              {available.map(({ type, items }) => {
-                if (FOLDERED_RESOURCE_TYPES.has(type)) return null
-                if (items.length === 0) return null
-                const config = getResourceConfig(type)
-                const Icon = config.icon
-                // Browser and terminal each have one top-level panel — flat
-                // launchers here create inner tabs when that panel exists.
-                if (type === 'browser' || type === 'terminal') {
-                  const item = items[0]
-                  return (
-                    <DropdownMenuItem
-                      key={type}
-                      onClick={() => select({ type, id: item.id, title: item.name })}
-                    >
-                      <Icon className='size-[14px]' />
-                      <span>{config.label}</span>
-                    </DropdownMenuItem>
-                  )
-                }
-                return (
-                  <DropdownMenuSub key={type}>
-                    <DropdownMenuSubTrigger>
-                      <Icon className='size-[14px]' />
-                      <span>{config.label}</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      {items.map((item) => (
-                        <DropdownMenuItem
-                          key={item.id}
-                          onClick={() => select({ type, id: item.id, title: item.name })}
-                        >
-                          {config.renderDropdownItem({ item })}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                )
-              })}
-            </>
+            <ResourceMenuSections sections={treeSections} groups={available} onSelect={select} />
           )}
         </div>
       </DropdownMenuContent>

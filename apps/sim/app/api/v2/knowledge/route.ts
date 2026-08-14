@@ -2,6 +2,7 @@ import {
   v2CreateKnowledgeBaseContract,
   v2ListKnowledgeBasesContract,
 } from '@/lib/api/contracts/v2/knowledge'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -14,41 +15,24 @@ import {
   listKnowledgeBases,
 } from '@/lib/knowledge/application/knowledge-bases'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { v2Error } from '@/app/api/v2/lib/response'
+import { toV2KnowledgeBase, toV2KnowledgeBases } from '@/app/api/v2/knowledge/utils'
+import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-function toV2KnowledgeBase(knowledgeBase: KnowledgeBaseWithCounts, folderPath: string) {
-  return {
-    id: knowledgeBase.id,
-    name: knowledgeBase.name,
-    description: knowledgeBase.description,
-    tokenCount: knowledgeBase.tokenCount,
-    embeddingModel: knowledgeBase.embeddingModel,
-    embeddingDimension: knowledgeBase.embeddingDimension,
-    chunkingConfig: {
-      maxSize: knowledgeBase.chunkingConfig.maxSize,
-      minSize: knowledgeBase.chunkingConfig.minSize,
-      overlap: knowledgeBase.chunkingConfig.overlap,
-      strategy: knowledgeBase.chunkingConfig.strategy,
-      strategyOptions: knowledgeBase.chunkingConfig.strategyOptions
-        ? {
-            pattern: knowledgeBase.chunkingConfig.strategyOptions.pattern,
-            separators: knowledgeBase.chunkingConfig.strategyOptions.separators,
-            recipe: knowledgeBase.chunkingConfig.strategyOptions.recipe,
-            strictBoundaries: knowledgeBase.chunkingConfig.strategyOptions.strictBoundaries,
-          }
-        : undefined,
-    },
-    docCount: knowledgeBase.docCount,
-    connectorTypes: knowledgeBase.connectorTypes,
-    createdAt: knowledgeBase.createdAt.toISOString(),
-    updatedAt: knowledgeBase.updatedAt.toISOString(),
-    folderPath,
-  }
+/** Every param that changes which knowledge bases, in which order, this list returns. */
+function knowledgeCursorFilters(query: {
+  workspaceId: string
+  folderPath?: string
+  search?: string
+}) {
+  return cursorScopeKey(cursorRoute(v2ListKnowledgeBasesContract), {
+    workspaceId: query.workspaceId,
+    folderPath: query.folderPath,
+    search: query.search,
+  })
 }
 
 /** GET /api/v2/knowledge — List knowledge bases in a workspace. */
@@ -64,13 +48,23 @@ export const GET = defineV2JsonRoute({
     search: query.search,
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
+    limit: query.limit,
+    cursorKeys: readSortedCursor(
+      query.cursor,
+      query.sortBy,
+      query.sortOrder,
+      knowledgeCursorFilters(query)
+    ),
   }),
   useCase: listKnowledgeBases,
-  present: ({ knowledgeBases }) => ({
-    data: knowledgeBases.map(({ knowledgeBase, folderPath }) =>
-      toV2KnowledgeBase(knowledgeBase, folderPath)
+  present: async ({ knowledgeBases, nextCursorKeys }, { query }) => ({
+    data: await toV2KnowledgeBases(knowledgeBases),
+    nextCursor: writeSortedCursor(
+      nextCursorKeys,
+      query.sortBy,
+      query.sortOrder,
+      knowledgeCursorFilters(query)
     ),
-    nextCursor: null,
   }),
 })
 
@@ -81,9 +75,6 @@ export const POST = defineV2JsonRoute({
   operation: knowledgeOperations.create,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
-  parseOptions: {
-    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
-  },
   mapInput: ({ body }) => ({
     workspaceId: body.workspaceId,
     name: body.name,
@@ -117,7 +108,7 @@ export const POST = defineV2JsonRoute({
       )
     }
   },
-  present: ({ knowledgeBase, folderPath }) => ({
-    data: { knowledgeBase: toV2KnowledgeBase(knowledgeBase, folderPath) },
+  present: async ({ knowledgeBase, folderPath }) => ({
+    data: await toV2KnowledgeBase(knowledgeBase, folderPath),
   }),
 })

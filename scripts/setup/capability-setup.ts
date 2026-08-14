@@ -49,6 +49,8 @@ interface PromptState {
   values: Record<string, string>
 }
 
+const SKIP_OPTION_ID = '__skip-capability-setup__'
+
 /** Stages a capability transition into a larger setup run without losing prompt context. */
 export function stageCapabilitySetupTransition(
   currentValues: Map<string, string>,
@@ -176,11 +178,11 @@ export function getCapabilitySetupOptions(
   })
 }
 
-/** Resolves the setup option representing the effective current configuration. */
+/** Resolves the setup option representing the effective current configuration, if one exists. */
 export function resolveCurrentCapabilitySetupOptionId(
   setup: CapabilitySetupDefinition,
   values: EnvCapabilityValues
-): string {
+): string | undefined {
   const options = getCapabilitySetupOptions(setup)
   const explicitAction = options.find(
     (option) =>
@@ -214,9 +216,10 @@ export function resolveCurrentCapabilitySetupOptionId(
 
   const firstAction = options.find((option) => option.kind === 'action')
   if (firstAction) return firstAction.id
-  throw new Error(
-    `Capability ${setup.definition.id} has no setup option for its current configuration`
-  )
+  if (options.length === 0) {
+    throw new Error(`Capability ${setup.definition.id} has no setup options`)
+  }
+  return undefined
 }
 
 /** Applies selector and activation inference to the CLI-entered values. */
@@ -473,6 +476,21 @@ async function renderPrompts(prompts: readonly SetupPrompt[], state: PromptState
   }
 }
 
+async function promptSelectedCapabilitySetup(
+  setup: CapabilitySetupDefinition,
+  selected: ResolvedSetupOption,
+  currentValues: ReadonlyMap<string, string>
+): Promise<EnvCapabilitySetupTransition> {
+  const state: PromptState = {
+    setup,
+    optionId: selected.id,
+    currentValues,
+    values: {},
+  }
+  await renderPrompts(selected.prompts, state)
+  return buildCapabilitySetupTransition(setup, selected.id, state.values, currentValues)
+}
+
 /** Renders a CLI-owned capability setup and returns its validated environment transition. */
 export async function promptCapabilitySetup(
   setup: CapabilitySetupDefinition,
@@ -497,12 +515,44 @@ export async function promptCapabilitySetup(
     )
   }
 
-  const state: PromptState = {
-    setup,
-    optionId: selected.id,
-    currentValues,
-    values: {},
+  return promptSelectedCapabilitySetup(setup, selected, currentValues)
+}
+
+/** Offers capability providers while allowing the user to leave configuration unchanged. */
+export async function promptOptionalCapabilitySetup(
+  setup: CapabilitySetupDefinition,
+  currentValues: ReadonlyMap<string, string>,
+  context: CapabilitySetupContext,
+  skipHint: string
+): Promise<EnvCapabilitySetupTransition | null> {
+  const options = getCapabilitySetupOptions(setup)
+  if (options.some((option) => option.id === SKIP_OPTION_ID)) {
+    throw new Error(`Capability ${setup.definition.id} uses reserved option ${SKIP_OPTION_ID}`)
   }
-  await renderPrompts(selected.prompts, state)
-  return buildCapabilitySetupTransition(setup, selected.id, state.values, currentValues)
+  const currentOptionId = resolveCurrentCapabilitySetupOptionId(setup, currentValues)
+  const selectedOptionId = await p.select({
+    message: setup.message,
+    options: [
+      ...options.map((option) => ({
+        value: option.id,
+        label: option.label,
+        hint: markCurrentlyUsed(resolveHint(option.hint, context), option.id === currentOptionId),
+      })),
+      {
+        value: SKIP_OPTION_ID,
+        label: 'Not now',
+        hint: currentOptionId ? 'leave the current configuration unchanged' : skipHint,
+      },
+    ],
+    initialValue: currentOptionId ?? options[0]?.id,
+  })
+  if (selectedOptionId === SKIP_OPTION_ID) return null
+
+  const selected = options.find((option) => option.id === selectedOptionId)
+  if (!selected) {
+    throw new Error(
+      `Capability ${setup.definition.id} returned unknown setup option ${selectedOptionId}`
+    )
+  }
+  return promptSelectedCapabilitySetup(setup, selected, currentValues)
 }

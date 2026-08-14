@@ -12,41 +12,10 @@ import {
   updateKnowledgeBaseOperation,
 } from '@/lib/knowledge/application/knowledge-bases'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
-import { v2Error } from '@/app/api/v2/lib/response'
+import { toV2KnowledgeBase } from '@/app/api/v2/knowledge/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-function toV2KnowledgeBase(knowledgeBase: KnowledgeBaseWithCounts, folderPath: string) {
-  return {
-    id: knowledgeBase.id,
-    name: knowledgeBase.name,
-    description: knowledgeBase.description,
-    tokenCount: knowledgeBase.tokenCount,
-    embeddingModel: knowledgeBase.embeddingModel,
-    embeddingDimension: knowledgeBase.embeddingDimension,
-    chunkingConfig: {
-      maxSize: knowledgeBase.chunkingConfig.maxSize,
-      minSize: knowledgeBase.chunkingConfig.minSize,
-      overlap: knowledgeBase.chunkingConfig.overlap,
-      strategy: knowledgeBase.chunkingConfig.strategy,
-      strategyOptions: knowledgeBase.chunkingConfig.strategyOptions
-        ? {
-            pattern: knowledgeBase.chunkingConfig.strategyOptions.pattern,
-            separators: knowledgeBase.chunkingConfig.strategyOptions.separators,
-            recipe: knowledgeBase.chunkingConfig.strategyOptions.recipe,
-            strictBoundaries: knowledgeBase.chunkingConfig.strategyOptions.strictBoundaries,
-          }
-        : undefined,
-    },
-    docCount: knowledgeBase.docCount,
-    connectorTypes: knowledgeBase.connectorTypes,
-    createdAt: knowledgeBase.createdAt.toISOString(),
-    updatedAt: knowledgeBase.updatedAt.toISOString(),
-    folderPath,
-  }
-}
 
 /** GET /api/v2/knowledge/[id] — Get knowledge base details. */
 export const GET = defineV2JsonRoute({
@@ -60,21 +29,18 @@ export const GET = defineV2JsonRoute({
     assertedWorkspaceId: query.workspaceId,
   }),
   useCase: readKnowledgeBase,
-  present: ({ knowledgeBase, folderPath }) => ({
-    data: { knowledgeBase: toV2KnowledgeBase(knowledgeBase, folderPath) },
+  present: async ({ knowledgeBase, folderPath }) => ({
+    data: await toV2KnowledgeBase(knowledgeBase, folderPath),
   }),
 })
 
-/** PUT /api/v2/knowledge/[id] — Update a knowledge base. */
-export const PUT = defineV2JsonRoute({
+/** PATCH /api/v2/knowledge/[id] — Partially update a knowledge base. */
+export const PATCH = defineV2JsonRoute({
   contract: v2UpdateKnowledgeBaseContract,
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.update,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.default,
-  parseOptions: {
-    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
-  },
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
   mapInput: ({ params, body }) => ({
     knowledgeBaseId: params.id,
     assertedWorkspaceId: body.workspaceId,
@@ -85,8 +51,8 @@ export const PUT = defineV2JsonRoute({
     source: 'api',
   }),
   useCase: updateKnowledgeBaseOperation,
-  present: ({ knowledgeBase, folderPath }) => ({
-    data: { knowledgeBase: toV2KnowledgeBase(knowledgeBase, folderPath) },
+  present: async ({ knowledgeBase, folderPath }) => ({
+    data: await toV2KnowledgeBase(knowledgeBase, folderPath),
   }),
 })
 
@@ -96,7 +62,7 @@ export const DELETE = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.delete,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.default,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     assertedWorkspaceId: query.workspaceId,

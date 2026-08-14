@@ -31,6 +31,15 @@ describe('VFS path utilities', () => {
       })
     ).toBe('files/Reports/Q4%20Report%20(Final)/sales%2Feast.csv')
   })
+
+  it('keeps an escaped slash inside one workspace folder segment', () => {
+    expect(
+      canonicalWorkspaceFilePath({
+        folderPath: 'Finance\\/Legal/Quarterly',
+        name: 'report.pdf',
+      })
+    ).toBe('files/Finance%2FLegal/Quarterly/report.pdf')
+  })
 })
 
 describe('canonical resource VFS paths', () => {

@@ -912,9 +912,7 @@ export function Chat() {
         className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
-        <span className='flex-shrink-0 pr-0.5 font-medium text-[var(--text-primary)] text-sm'>
-          Chat
-        </span>
+        <span className='flex-shrink-0 pr-0.5 text-[var(--text-primary)] text-sm'>Chat</span>
 
         {/* Start inputs button and output selector - with max-width to prevent overflow */}
         <div
@@ -924,7 +922,7 @@ export function Chat() {
           {shouldShowConfigureStartInputsButton && (
             <button
               type='button'
-              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-medium font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)]'
+              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)]'
               title='Add chat inputs to Start block'
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
@@ -949,7 +947,7 @@ export function Chat() {
 
         <div className='flex flex-shrink-0 items-center gap-2'>
           {/* More menu with actions */}
-          <Popover variant='default' size='sm' open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
+          <Popover size='sm' open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant='ghost'
@@ -1032,7 +1030,7 @@ export function Chat() {
                 <div className='flex items-start gap-2'>
                   <CircleAlert className='mt-0.5 size-3 shrink-0 text-[var(--text-error)]' />
                   <div className='flex-1'>
-                    <div className='mb-1 font-medium text-[var(--text-error)] text-caption'>
+                    <div className='mb-1 text-[var(--text-error)] text-caption'>
                       File upload error
                     </div>
                     <div className='space-y-1'>

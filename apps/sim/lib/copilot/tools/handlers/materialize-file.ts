@@ -36,6 +36,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { hasCloudStorage, headObject } from '@/lib/uploads/core/storage-service'
+import { toLegacyWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { isArchiveFileName } from '@/lib/uploads/utils/file-utils'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -109,7 +110,12 @@ async function executeSave(
   if (!head && hasCloudStorage()) {
     return { success: false, error: `Upload object not found: "${fileName}".` }
   }
-  const verifiedSize = head?.size ?? row.size
+  /**
+   * The true byte count can exceed the legacy int4 `size` column, so read the exact
+   * `sizeBytes` first and clamp back down for the legacy projection.
+   */
+  const verifiedSize = head?.size ?? row.sizeBytes ?? row.size
+  const legacySize = toLegacyWorkspaceFileSize(verifiedSize)
   const billingContext = await resolveStorageBillingContext(workspaceId)
   const quotaCheck = await checkStorageQuotaForBillingContext(billingContext, verifiedSize)
   if (!quotaCheck.allowed) {
@@ -145,7 +151,8 @@ async function executeSave(
             messageId: null,
             originalName: materializedName,
             displayName: materializedName,
-            size: verifiedSize,
+            size: legacySize,
+            sizeBytes: verifiedSize,
           })
           .where(
             and(

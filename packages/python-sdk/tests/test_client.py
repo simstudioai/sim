@@ -7,17 +7,30 @@ from unittest.mock import Mock, patch
 from simstudio import SimStudioClient, SimStudioError, WorkflowExecutionResult, WorkflowStatus
 
 
-def v2_execution_response(output=None):
+def v2_execution_response(output=None, status="completed", error=None):
     return {
         "data": {
             "runId": "execution-123",
             "workflowId": "workflow-id",
-            "status": "completed",
+            "status": status,
             "output": {} if output is None else output,
-            "error": None,
+            "error": error,
+            "startedAt": "2026-08-11T12:00:00.000Z",
+            "endedAt": "2026-08-11T12:00:00.010Z",
             "durationMs": 10
         }
     }
+
+
+def mock_execution_post(mock_post, status="completed", error=None, headers=None):
+    """Wire a mocked 200 v2 execution response with the given terminal status."""
+    mock_response = Mock()
+    mock_response.ok = True
+    mock_response.status_code = 200
+    mock_response.json.return_value = v2_execution_response(status=status, error=error)
+    mock_response.headers.get.side_effect = lambda h: (headers or {}).get(h)
+    mock_post.return_value = mock_response
+    return mock_response
 
 
 def test_simstudio_client_initialization():
@@ -161,8 +174,56 @@ def test_sync_execution_returns_result(mock_post):
     )
 
     assert result.success is True
+    assert result.status == "completed"
     assert result.output == {"result": "completed"}
+    assert result.metadata == {
+        "duration": 10,
+        "runId": "execution-123",
+        "startTime": "2026-08-11T12:00:00.000Z",
+        "endTime": "2026-08-11T12:00:00.010Z"
+    }
     assert not hasattr(result, 'task_id')
+
+
+@patch('simstudio.requests.Session.post')
+def test_sync_execution_cancelled_is_not_success(mock_post):
+    """A run cancelled out of band is not a success, matching the TypeScript SDK."""
+    mock_execution_post(mock_post, status="cancelled")
+
+    client = SimStudioClient(api_key="test-api-key")
+    result = client.execute_workflow("workflow-id", {})
+
+    assert result.success is False
+    assert result.status == "cancelled"
+
+
+@patch('simstudio.requests.Session.post')
+def test_sync_execution_failed_is_not_success(mock_post):
+    """A failed run is not a success and surfaces the server's error message."""
+    mock_execution_post(
+        mock_post,
+        status="failed",
+        error={"code": "BLOCK_EXECUTION_FAILED", "message": "Invalid credentials"}
+    )
+
+    client = SimStudioClient(api_key="test-api-key")
+    result = client.execute_workflow("workflow-id", {})
+
+    assert result.success is False
+    assert result.status == "failed"
+    assert result.error == "Invalid credentials"
+
+
+@patch('simstudio.requests.Session.post')
+def test_sync_execution_paused_is_success(mock_post):
+    """A paused run is still a success -- it is waiting, not broken."""
+    mock_execution_post(mock_post, status="paused")
+
+    client = SimStudioClient(api_key="test-api-key")
+    result = client.execute_workflow("workflow-id", {})
+
+    assert result.success is True
+    assert result.status == "paused"
 
 
 @patch('simstudio.requests.Session.post')
@@ -495,6 +556,48 @@ def test_get_rate_limit_info_after_api_call(mock_post):
     assert info.limit == 100
     assert info.remaining == 95
     assert info.reset == 1704067200
+
+
+@patch('simstudio.requests.Session.post')
+def test_rate_limit_reset_accepts_iso_timestamp(mock_post):
+    """The v2 API sends X-RateLimit-Reset as an ISO 8601 timestamp, not an epoch int."""
+    mock_execution_post(mock_post, headers={
+        'x-ratelimit-limit': '100',
+        'x-ratelimit-remaining': '99',
+        'x-ratelimit-reset': '2024-01-01T00:00:00.000Z'
+    })
+
+    client = SimStudioClient(api_key="test-api-key")
+    result = client.execute_workflow("workflow-id", {})
+
+    assert result.success is True
+    info = client.get_rate_limit_info()
+    assert info is not None
+    assert info.reset == 1704067200000
+
+
+@pytest.mark.parametrize('reset_header', ['not-a-timestamp', '²'])
+@patch('simstudio.requests.Session.post')
+def test_rate_limit_reset_tolerates_unparseable_value(mock_post, reset_header):
+    """
+    An unrecognised quota hint reports 0 rather than failing the execution.
+
+    '²' covers the digit-like characters str.isdigit() accepts but int()
+    rejects.
+    """
+    mock_execution_post(mock_post, headers={
+        'x-ratelimit-limit': '100',
+        'x-ratelimit-remaining': '99',
+        'x-ratelimit-reset': reset_header
+    })
+
+    client = SimStudioClient(api_key="test-api-key")
+    result = client.execute_workflow("workflow-id", {})
+
+    assert result.success is True
+    info = client.get_rate_limit_info()
+    assert info is not None
+    assert info.reset == 0
 
 
 @patch('simstudio.requests.Session.get')

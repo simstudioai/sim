@@ -3,7 +3,7 @@ import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { renderOTPEmail } from '@/components/emails'
+import { getOtpSubject, renderOTPEmail } from '@/components/emails'
 import { requestChatEmailOtpContract, verifyChatEmailOtpContract } from '@/lib/api/contracts/chats'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -120,7 +120,7 @@ export const POST = withRouteHandler(
 
       const emailResult = await sendEmail({
         to: email,
-        subject: `Verification code for ${deployment.title || 'Chat'}`,
+        subject: getOtpSubject(deployment.title || 'Chat'),
         html: emailHtml,
       })
 

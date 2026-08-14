@@ -457,7 +457,7 @@ export const CLI_CONTRACT: CliContract = {
     },
     confirm: 'This deletes every listed file.',
   },
-  describeFile: {
+  getFile: {
     command: 'files describe',
     describe: 'Show file metadata and sharing status',
     fields: [
@@ -500,9 +500,21 @@ export const CLI_CONTRACT: CliContract = {
       encoding: { choices: ['utf-8', 'base64'], describe: 'Content encoding' },
     },
   },
-  shareFile: {
-    command: 'files share',
-    describe: 'Share a file or update its access settings',
+  getFileShare: {
+    command: 'files share get',
+    describe: 'Show a file’s share settings',
+    fields: [
+      { header: 'shared', path: 'sharing.enabled', format: 'bool' },
+      { header: 'URL', path: 'sharing.url' },
+      { header: 'auth', path: 'sharing.authType' },
+      { header: 'allowed emails', path: 'sharing.allowedEmails', format: 'count' },
+    ],
+  },
+  // v2 folds share and unshare into one PATCH; `--is-active false` disables it,
+  // so there is no separate unshare operation to expose.
+  upsertFileShare: {
+    command: 'files share set',
+    describe: 'Enable or disable sharing for a file',
     flags: {
       allowedEmails: { list: true },
     },
@@ -512,12 +524,6 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'auth', path: 'sharing.authType' },
       { header: 'allowed emails', path: 'sharing.allowedEmails', format: 'count' },
     ],
-  },
-  unshareFile: {
-    command: 'files unshare',
-    describe: 'Disable sharing for a file',
-    confirm: 'This disables shared access to the file.',
-    fields: [{ header: 'shared', path: 'sharing.enabled', format: 'bool' }],
   },
 
   // ─── Resource-scoped, path-addressed folders ──────────────────────────────

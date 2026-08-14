@@ -11,6 +11,10 @@ import {
   updateWorkspaceFileFolderContract,
   type WorkspaceFileFolderApi,
 } from '@/lib/api/contracts/workspace-file-folders'
+import {
+  buildWorkspaceFileFolderDisplayPath,
+  parseWorkspaceFileFolderDisplayPath,
+} from '@/lib/workspace-files/folder-display-path'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
@@ -109,7 +113,10 @@ export function useUpdateWorkspaceFileFolder() {
         const oldPath = target?.path
         const newPath =
           updates.name !== undefined && oldPath !== undefined
-            ? [...oldPath.split('/').slice(0, -1), updates.name].filter(Boolean).join('/')
+            ? buildWorkspaceFileFolderDisplayPath([
+                ...parseWorkspaceFileFolderDisplayPath(oldPath).slice(0, -1),
+                updates.name,
+              ])
             : oldPath
 
         queryClient.setQueryData<WorkspaceFileFolderApi[]>(

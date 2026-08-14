@@ -219,6 +219,61 @@ describe('uploadFileSession', () => {
     expect(onProgress.mock.calls.map(([event]) => event.loaded)).toEqual([8, 8, 10])
   })
 
+  it('completes a retried PUT whose create-only precondition already committed the object', async () => {
+    vi.useFakeTimers()
+    MockXhr.onSend = (xhr) => {
+      const attempt = MockXhr.instances.length
+      if (attempt === 1) {
+        queueMicrotask(() => xhr.dispatchEvent(new Event('error')))
+        return
+      }
+      xhr.status = 412
+      xhr.statusText = 'Precondition Failed'
+      queueMicrotask(() => xhr.dispatchEvent(new Event('load')))
+    }
+    const complete = vi.fn(async () => 'done')
+    const abort = vi.fn(async () => undefined)
+    const onProgress = vi.fn()
+
+    const promise = uploadFileSession({
+      file: sizedFile(10),
+      transfer: { method: 'put', url: 'https://storage.example/upload', headers: {} },
+      complete,
+      abort,
+      onProgress,
+    })
+    await vi.runAllTimersAsync()
+
+    await expect(promise).resolves.toBe('done')
+    expect(MockXhr.instances).toHaveLength(2)
+    expect(complete).toHaveBeenCalledWith()
+    expect(abort).not.toHaveBeenCalled()
+    expect(onProgress).toHaveBeenLastCalledWith({ loaded: 10, total: 10, percent: 100 })
+  })
+
+  it('does not treat a first-attempt PUT conflict as a committed object', async () => {
+    MockXhr.onSend = (xhr) => {
+      xhr.status = 412
+      xhr.statusText = 'Precondition Failed'
+      queueMicrotask(() => xhr.dispatchEvent(new Event('load')))
+    }
+    const complete = vi.fn()
+    const abort = vi.fn(async () => undefined)
+
+    await expect(
+      uploadFileSession({
+        file: sizedFile(1),
+        transfer: { method: 'put', url: 'https://storage.example/upload', headers: {} },
+        complete,
+        abort,
+      })
+    ).rejects.toMatchObject({ status: 412 })
+
+    expect(MockXhr.instances).toHaveLength(1)
+    expect(complete).not.toHaveBeenCalled()
+    expect(abort).toHaveBeenCalledTimes(1)
+  })
+
   it('aborts XHR and the control session when the caller cancels', async () => {
     const controller = new AbortController()
     MockXhr.onSend = () => undefined

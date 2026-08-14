@@ -16,21 +16,14 @@
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as uploadsConfig from '@/lib/uploads/config'
-import { generatePresignedUploadUrl, headObject } from '@/lib/uploads/core/storage-service'
+import { headObject } from '@/lib/uploads/core/storage-service'
 
 const CONNECTION_STRING =
   'DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;'
 
-const {
-  mockBlobSASPermissionsParse,
-  mockHeadBlobObject,
-  mockGetBlobServiceClient,
-  mockGenerateBlobSASQueryParameters,
-} = vi.hoisted(() => ({
-  mockBlobSASPermissionsParse: vi.fn(() => 'create-only'),
+const { mockHeadBlobObject, mockGetBlobServiceClient } = vi.hoisted(() => ({
   mockHeadBlobObject: vi.fn(),
   mockGetBlobServiceClient: vi.fn(),
-  mockGenerateBlobSASQueryParameters: vi.fn(() => ({ toString: () => 'sig=fake' })),
 }))
 
 vi.mock('@/lib/uploads/providers/blob/client', () => ({
@@ -42,12 +35,6 @@ vi.mock('@/lib/uploads/providers/blob/client', () => ({
     if (!accountName || !accountKey) throw new Error('cannot parse')
     return { accountName, accountKey }
   },
-}))
-
-vi.mock('@azure/storage-blob', () => ({
-  StorageSharedKeyCredential: vi.fn(),
-  BlobSASPermissions: { parse: mockBlobSASPermissionsParse },
-  generateBlobSASQueryParameters: mockGenerateBlobSASQueryParameters,
 }))
 
 const STORAGE_FLAGS = ['USE_S3_STORAGE', 'USE_BLOB_STORAGE', 'USE_GCS_STORAGE'] as const
@@ -104,25 +91,5 @@ describe('Azure Blob storage — connection-string-only auth', () => {
       contentType: 'text/plain',
     })
     expect(mockHeadBlobObject).toHaveBeenCalled()
-  })
-
-  it('generatePresignedUploadUrl derives SAS credentials from connectionString when accountName/accountKey are absent', async () => {
-    const result = await generatePresignedUploadUrl({
-      fileName: 'report.csv',
-      contentType: 'text/csv',
-      context: 'workspace',
-      fileSize: 100,
-    })
-
-    expect(mockGenerateBlobSASQueryParameters).toHaveBeenCalled()
-    expect(mockBlobSASPermissionsParse).toHaveBeenCalledWith('c')
-    expect(result.uploadHeaders).toEqual(
-      expect.objectContaining({
-        'If-None-Match': '*',
-        'x-ms-blob-type': 'BlockBlob',
-        'x-ms-meta-simuploadid': expect.any(String),
-      })
-    )
-    expect(result.url).toContain('sig=fake')
   })
 })

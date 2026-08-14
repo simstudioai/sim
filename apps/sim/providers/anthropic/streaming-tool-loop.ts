@@ -377,7 +377,6 @@ export function createAnthropicStreamingToolLoopStream(
                     executionParams,
                     {
                       signal: loopAbortController.signal,
-                      toolInput: toolParams,
                     }
                   )
                   const toolCallEndTime = Date.now()

@@ -24,6 +24,7 @@ vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   },
 }))
 
+import { WorkspaceFileFolderConflictError } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { GET, POST } from '@/app/api/workspaces/[id]/files/folders/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -103,6 +104,18 @@ describe('/api/workspaces/[id]/files/folders', () => {
       { workspace_id: WORKSPACE_ID },
       { groups: { workspace: WORKSPACE_ID } }
     )
+  })
+
+  it('returns conflict when a sibling folder has the requested name', async () => {
+    mocks.createFolder.mockRejectedValueOnce(new WorkspaceFileFolderConflictError('Reports'))
+
+    const response = await POST(request('POST', { name: 'Reports' }), context)
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'A folder named "Reports" already exists in this location',
+    })
+    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
   })
 
   it('rejects an invalid folder name before the use case', async () => {

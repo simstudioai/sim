@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   activateScope,
   capturePanelSnapshot,
+  cancelActiveTool,
+  cancelTool,
   discardScope,
   disposeScope,
   fillCredential,
@@ -10,6 +12,7 @@ const {
   markScopeSuspended,
   migrateStoreScope,
   nativeMigrateScope,
+  executeTool,
   onPageState,
   onSessionStatus,
   onTabsState,
@@ -21,7 +24,10 @@ const {
   onOpenFind,
   onScopeSuspended,
   onToolbarCommand,
+  openTab,
+  panelAction,
   reorderTab,
+  reorderStoreTab,
   restoreScope,
   nativeSuspendScope,
   setPageState,
@@ -38,6 +44,8 @@ const {
 } = vi.hoisted(() => ({
   activateScope: vi.fn(async (scopeId: string) => ({ scopeId, tabs: [], activeTabId: null })),
   capturePanelSnapshot: vi.fn(),
+  cancelActiveTool: vi.fn(),
+  cancelTool: vi.fn(),
   discardScope: vi.fn(),
   disposeScope: vi.fn(async () => true),
   fillCredential: vi.fn(async () => true),
@@ -45,6 +53,7 @@ const {
   markScopeSuspended: vi.fn(),
   migrateStoreScope: vi.fn(),
   nativeMigrateScope: vi.fn(),
+  executeTool: vi.fn(),
   onPageState: vi.fn(),
   onSessionStatus: vi.fn(),
   onTabsState: vi.fn(),
@@ -56,7 +65,10 @@ const {
   onOpenFind: vi.fn(),
   onScopeSuspended: vi.fn(),
   onToolbarCommand: vi.fn(),
+  openTab: vi.fn(),
+  panelAction: vi.fn(),
   reorderTab: vi.fn(),
+  reorderStoreTab: vi.fn(),
   restoreScope: vi.fn(),
   nativeSuspendScope: vi.fn(async () => true),
   setPageState: vi.fn(),
@@ -78,7 +90,9 @@ vi.mock('@/lib/desktop', () => ({
     browserAgent: {
       supportsAtomicPanelOcclusion: true,
       activateScope,
-      executeTool: vi.fn(),
+      cancelActiveTool,
+      cancelTool,
+      executeTool,
       capturePanelSnapshot,
       disposeScope,
       migrateScope: nativeMigrateScope,
@@ -92,7 +106,8 @@ vi.mock('@/lib/desktop', () => ({
       onToolbarCommand,
       onSessionStatus,
       onTabsState,
-      panelAction: vi.fn(),
+      openTab,
+      panelAction,
       reorderTab,
       restoreScope,
       suspendScope: nativeSuspendScope,
@@ -120,6 +135,7 @@ vi.mock('@/stores/browser-session/store', () => ({
       activateScope,
       discardScope,
       migrateScope: migrateStoreScope,
+      reorderTab: reorderStoreTab,
       suspendScope: markScopeSuspended,
       setPageState,
       setSessionAlive,
@@ -130,8 +146,10 @@ vi.mock('@/stores/browser-session/store', () => ({
 
 import {
   activateBrowserScope,
+  cancelActiveBrowserTools,
   captureBrowserPanelSnapshot,
   discardBrowserScope,
+  executeBrowserTool,
   fillBrowserCredential,
   initBrowserAgentTransport,
   loadBrowserFillOptions,
@@ -143,6 +161,7 @@ import {
   onBrowserFindResult,
   onBrowserOmniboxFocus,
   onBrowserToolbarCommand,
+  openBrowserTab,
   reorderBrowserTab,
   reportBrowserPanelBounds,
   reportBrowserPanelFocused,
@@ -168,12 +187,20 @@ describe('browser panel transport', () => {
     setSessionAlive.mockClear()
     setTabsState.mockClear()
     reorderTab.mockClear()
+    reorderStoreTab.mockClear()
     restoreScope.mockReset()
     nativeSuspendScope.mockReset()
     nativeSuspendScope.mockResolvedValue(true)
     markScopeSuspended.mockClear()
     migrateStoreScope.mockClear()
     nativeMigrateScope.mockReset()
+    cancelActiveTool.mockReset()
+    cancelActiveTool.mockResolvedValue(true)
+    cancelTool.mockReset()
+    cancelTool.mockResolvedValue(true)
+    executeTool.mockReset()
+    panelAction.mockClear()
+    openTab.mockReset()
     setTabPinned.mockClear()
     showTabContextMenu.mockClear()
     showToolbarMenu.mockClear()
@@ -183,6 +210,37 @@ describe('browser panel transport', () => {
     setTheme.mockClear()
     discardScope.mockClear()
     disposeScope.mockClear()
+  })
+
+  it('opens a browser tab through the acknowledged bridge and applies its state', async () => {
+    const state = {
+      scopeId: 'chat-test',
+      activeTabId: '2',
+      tabs: [
+        {
+          tabId: '1',
+          title: 'Existing',
+          url: 'https://example.com',
+          loading: false,
+          active: false,
+          pinned: false,
+        },
+        {
+          tabId: '2',
+          title: '',
+          url: '',
+          loading: false,
+          active: true,
+          pinned: false,
+        },
+      ],
+    }
+    openTab.mockResolvedValue(state)
+
+    await expect(openBrowserTab('chat-test')).resolves.toEqual(state)
+
+    expect(openTab).toHaveBeenCalledWith('chat-test')
+    expect(setTabsState).toHaveBeenCalledWith(state)
   })
 
   it('forwards panel bounds directly to the native view', () => {
@@ -333,6 +391,7 @@ describe('browser panel transport', () => {
   it('forwards tab reordering to the native browser', () => {
     reorderBrowserTab('tab-3', 1)
 
+    expect(reorderStoreTab).toHaveBeenCalledWith('chat-test', 'tab-3', 1)
     expect(reorderTab).toHaveBeenCalledWith('tab-3', 1, 'chat-test')
   })
 
@@ -355,6 +414,141 @@ describe('browser panel transport', () => {
     expect(nativeMigrateScope).toHaveBeenCalledWith('pending:new', 'chat-real')
     expect(migrateStoreScope).toHaveBeenCalledWith('pending:new', 'chat-real')
     expect(disposeScope).not.toHaveBeenCalled()
+  })
+
+  it('cancels a detached native tool by its captured scope without an AbortController', async () => {
+    let settleNative: (response: { ok: boolean; error?: string }) => void = () => {}
+    executeTool.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          settleNative = resolve
+        })
+    )
+    const onCancel = vi.fn()
+    const execution = executeBrowserTool(
+      'tool-detached',
+      'browser_request_takeover',
+      { reason: 'Please sign in' },
+      null,
+      'chat-detached',
+      onCancel
+    )
+    await Promise.resolve()
+
+    await cancelActiveBrowserTools(['chat-detached'])
+
+    expect(onCancel).toHaveBeenCalledOnce()
+    expect(cancelTool).toHaveBeenCalledWith('tool-detached', 'chat-detached')
+    expect(cancelActiveTool).toHaveBeenCalledWith('chat-detached')
+    settleNative({ ok: false, error: 'cancelled' })
+    await expect(execution).rejects.toThrow('cancelled')
+  })
+
+  it('starts the native scope boundary without waiting for exact cancellation', async () => {
+    let settleNative: (response: { ok: boolean; error?: string }) => void = () => {}
+    let settleExactCancellation: (cancelled: boolean) => void = () => {}
+    executeTool.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          settleNative = resolve
+        })
+    )
+    cancelTool.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          settleExactCancellation = resolve
+        })
+    )
+    const execution = executeBrowserTool(
+      'tool-boundary',
+      'browser_request_takeover',
+      { reason: 'Please sign in' },
+      null,
+      'chat-boundary'
+    )
+    await Promise.resolve()
+
+    const stopping = cancelActiveBrowserTools(['chat-boundary'])
+    await Promise.resolve()
+
+    expect(cancelTool).toHaveBeenCalledWith('tool-boundary', 'chat-boundary')
+    expect(cancelActiveTool).toHaveBeenCalledWith('chat-boundary')
+
+    settleExactCancellation(true)
+    await stopping
+    settleNative({ ok: false, error: 'cancelled' })
+    await expect(execution).rejects.toThrow('cancelled')
+  })
+
+  it('moves active tool ownership when a pending browser scope migrates', async () => {
+    let settleNative: (response: { ok: boolean; error?: string }) => void = () => {}
+    executeTool.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          settleNative = resolve
+        })
+    )
+    nativeMigrateScope.mockResolvedValue({
+      scopeId: 'chat-real',
+      tabs: [],
+      activeTabId: null,
+    })
+    const execution = executeBrowserTool(
+      'tool-migrated',
+      'browser_request_takeover',
+      { reason: 'Please sign in' },
+      null,
+      'pending:new'
+    )
+    await Promise.resolve()
+
+    await migrateBrowserScope('pending:new', 'chat-real')
+    await cancelActiveBrowserTools(['chat-real'])
+
+    expect(cancelTool).toHaveBeenCalledWith('tool-migrated', 'chat-real')
+    settleNative({ ok: false, error: 'cancelled' })
+    await expect(execution).rejects.toThrow('cancelled')
+  })
+
+  it('uses takeover hand-back when the installed shell cannot cancel exact tools', async () => {
+    let settleNative: (response: { ok: boolean; result?: unknown }) => void = () => {}
+    executeTool.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          settleNative = resolve
+        })
+    )
+    cancelTool.mockResolvedValue(false)
+    const execution = executeBrowserTool(
+      'tool-old-shell',
+      'browser_request_takeover',
+      { reason: 'Please sign in' },
+      null,
+      'chat-old-shell'
+    )
+    await Promise.resolve()
+
+    await cancelActiveBrowserTools(['chat-old-shell'])
+
+    expect(panelAction).toHaveBeenCalledWith({ action: 'takeover-done' }, 'chat-old-shell')
+    settleNative({ ok: true, result: { completed: true } })
+    await expect(execution).resolves.toEqual({ completed: true })
+  })
+
+  it('cancels the active native scope when renderer tool ownership was lost on reload', async () => {
+    await cancelActiveBrowserTools(['chat-reloaded'])
+
+    expect(cancelTool).not.toHaveBeenCalled()
+    expect(cancelActiveTool).toHaveBeenCalledWith('chat-reloaded')
+    expect(panelAction).not.toHaveBeenCalled()
+  })
+
+  it('hands back a reloaded takeover when the installed shell lacks scope cancellation', async () => {
+    cancelActiveTool.mockResolvedValue(false)
+
+    await cancelActiveBrowserTools(['chat-old-reloaded'])
+
+    expect(panelAction).toHaveBeenCalledWith({ action: 'takeover-done' }, 'chat-old-reloaded')
   })
 
   it('discards a provisional browser scope when the durable destination wins', async () => {

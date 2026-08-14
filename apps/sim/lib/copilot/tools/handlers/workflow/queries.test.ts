@@ -2,19 +2,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 
-const { executeCustomToolUseCaseMock, executeMcpServerUseCaseMock, executeWorkflowUseCaseMock } =
-  vi.hoisted(() => ({
-    executeCustomToolUseCaseMock: vi.fn(),
-    executeMcpServerUseCaseMock: vi.fn(),
-    executeWorkflowUseCaseMock: vi.fn(),
-  }))
-
-vi.mock('@/lib/copilot/application/execute-custom-tool-use-case', () => ({
-  executeCopilotCustomToolUseCase: executeCustomToolUseCaseMock,
-}))
-
-vi.mock('@/lib/copilot/application/execute-mcp-server-use-case', () => ({
-  executeCopilotMcpServerUseCase: executeMcpServerUseCaseMock,
+const { executeWorkflowUseCaseMock } = vi.hoisted(() => ({
+  executeWorkflowUseCaseMock: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
@@ -23,7 +12,7 @@ vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
     getErrorMessage(error, 'Workflow operation failed'),
 }))
 
-import { executeGetBlockOutputs, executeGetWorkflowData } from './queries'
+import { executeGetBlockOutputs } from './queries'
 
 describe('executeGetBlockOutputs', () => {
   beforeEach(() => {
@@ -79,59 +68,5 @@ describe('executeGetBlockOutputs', () => {
         blockIds: ['agent-1', 'loop-1'],
       }
     )
-  })
-
-  it('lists only workspace custom tools for a credentialless context', async () => {
-    executeCustomToolUseCaseMock.mockResolvedValue({
-      tools: [
-        {
-          id: 'tool-workspace',
-          title: 'Workspace tool',
-          schema: { function: { name: 'workspace_tool', description: 'Shared', parameters: {} } },
-        },
-      ],
-    })
-
-    const result = await executeGetWorkflowData({ workflowId: 'wf-1', data_type: 'custom_tools' }, {
-      workflowId: 'wf-1',
-      userId: 'user-1',
-      workspaceId: 'ws-1',
-      secretActorUserId: null,
-    } as ExecutionContext)
-
-    expect(result.success).toBe(true)
-    expect(executeCustomToolUseCaseMock).toHaveBeenCalledWith(
-      expect.objectContaining({ secretActorUserId: null, workspaceId: 'ws-1' }),
-      expect.objectContaining({
-        operation: expect.objectContaining({ id: 'custom_tools.list' }),
-      }),
-      { workspaceId: 'ws-1' }
-    )
-    expect(result.output).toEqual({
-      customTools: [
-        {
-          id: 'tool-workspace',
-          title: 'Workspace tool',
-          functionName: 'workspace_tool',
-          description: 'Shared',
-          parameters: {},
-        },
-      ],
-    })
-  })
-
-  it('does not discover MCP tools for a credentialless context', async () => {
-    const result = await executeGetWorkflowData({ workflowId: 'wf-1', data_type: 'mcp_tools' }, {
-      workflowId: 'wf-1',
-      userId: 'key-creator',
-      workspaceId: 'ws-1',
-      secretActorUserId: null,
-    } as ExecutionContext)
-
-    expect(result).toEqual({
-      success: false,
-      error: 'MCP tools are not available without credential access.',
-    })
-    expect(executeMcpServerUseCaseMock).not.toHaveBeenCalled()
   })
 })

@@ -47,7 +47,7 @@ export const knowledgeUpdateChunkTool: ToolConfig<any, KnowledgeUpdateChunkRespo
     method: 'PUT',
     secretProvenance: {
       request: (params) =>
-        params.content === undefined ? [] : [{ key: 'chunk-content', value: params.content }],
+        params.content === undefined ? [] : [{ key: 'chunk-content', inputPaths: [['content']] }],
       response: { incomplete: 'reject' },
     },
     headers: () => ({

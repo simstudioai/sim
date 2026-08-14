@@ -1,7 +1,8 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getShareForResource,
@@ -41,16 +42,6 @@ export interface UpdateWorkspaceFileShareInput {
 
 export interface UpdateWorkspaceFileShareResult {
   share: ShareRecord
-}
-
-export interface UnshareWorkspaceFileInput {
-  fileId: string
-  assertedWorkspaceId?: string
-}
-
-export interface UnshareWorkspaceFileResult {
-  share: ShareRecord | null
-  changed: boolean
 }
 
 export class WorkspaceFileShareNoopError extends Error {
@@ -94,7 +85,7 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
         await validatePublicFileSharing(subjectUserId, context.workspaceId, effectiveAuthType)
       } catch (error) {
         if (error instanceof PublicFileSharingNotAllowedError)
-          throw new OrchestrationError('forbidden', error.message)
+          throw new ForbiddenOperationError('PUBLIC_SHARING_NOT_ALLOWED', error.message)
         throw error
       }
     }
@@ -133,46 +124,4 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
     resourceName: context.file.name,
     description: `${input.isActive ? 'Enabled' : 'Disabled'} public share for "${context.file.name}"`,
   }),
-})
-
-export const unshareWorkspaceFile = defineAuthorizedWorkspaceFileUseCase({
-  operation: fileOperations.updateShare,
-  async resolveContext({ input }: { input: UnshareWorkspaceFileInput }) {
-    const canonical = await resolveActiveWorkspaceFileContext(input)
-    const file = await getWorkspaceFile(canonical.workspaceId, canonical.fileId, {
-      throwOnError: true,
-    })
-    if (!file) throw new OrchestrationError('not_found', 'File not found')
-    return { ...canonical, file }
-  },
-  async execute({ principal, context }): Promise<UnshareWorkspaceFileResult> {
-    const existingShare = await getShareForResource('file', context.fileId)
-    if (!existingShare?.isActive) return { share: existingShare, changed: false }
-
-    const subjectUserId = resolvePrincipalAttribution(principal).attributedUserId
-    const share = await upsertFileShare({
-      workspaceId: context.workspaceId,
-      fileId: context.fileId,
-      userId: subjectUserId,
-      isActive: false,
-    })
-    if (!share) throw new Error('Disabling workspace file share returned no share')
-
-    logger.info('Disabled share for workspace file', {
-      workspaceId: context.workspaceId,
-      fileId: context.fileId,
-      principalKind: principal.kind,
-    })
-    return { share, changed: true }
-  },
-  projectAudit: ({ context, result }) =>
-    result.changed
-      ? {
-          action: AuditAction.FILE_SHARE_DISABLED,
-          resourceType: AuditResourceType.FILE,
-          resourceId: context.fileId,
-          resourceName: context.file.name,
-          description: `Disabled public share for "${context.file.name}"`,
-        }
-      : [],
 })

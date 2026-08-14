@@ -6,12 +6,23 @@ import { describe, expect, it, vi } from 'vitest'
 interface CapturedDefinition {
   contract: { method: string; path: string }
   auth: unknown
+  errorPolicy: unknown
   operation: { id: string }
   useCase: unknown
+  mapInput(input: {
+    params: { tableId: string }
+    body: {
+      workspaceId: string
+      group: Record<string, unknown>
+      outputColumns: Record<string, unknown>[]
+      autoRun?: boolean
+    }
+  }): Record<string, unknown>
 }
 
 const mocks = vi.hoisted(() => ({
   auth: { kind: 'session-or-executor' },
+  concealTableGroupAuthorization: { kind: 'conceal-table-group' },
   definitions: [] as CapturedDefinition[],
   useCases: {
     create: { operation: { id: 'tables.groups.create' } },
@@ -25,15 +36,17 @@ vi.mock('@/lib/api/server/routes', () => ({
     mocks.definitions.push(definition)
     return vi.fn()
   },
-  extendInternalErrorPolicy: vi.fn(() => ({ kind: 'table' })),
-  internalErrorResponse: vi.fn(),
-  internalPlainOrchestrationErrorPolicy: { kind: 'plain' },
   internalRateLimits: {
     none: ({ reason }: { reason: string }) => ({ kind: 'none', reason }),
   },
 }))
 
-vi.mock('@/lib/table/api', () => ({ internalTableSessionOrExecutorAuth: mocks.auth }))
+vi.mock('@/lib/table/api', () => ({
+  internalTableErrorPolicies: {
+    concealTableGroupAuthorization: mocks.concealTableGroupAuthorization,
+  },
+  internalTableSessionOrExecutorAuth: mocks.auth,
+}))
 
 vi.mock('@/lib/table/application/groups', () => ({
   createTableGroupUseCase: mocks.useCases.create,
@@ -41,7 +54,7 @@ vi.mock('@/lib/table/application/groups', () => ({
   updateTableGroupUseCase: mocks.useCases.update,
 }))
 
-vi.mock('@/app/api/table/utils', () => ({
+vi.mock('@/lib/table/wire', () => ({
   normalizeColumn: vi.fn(),
 }))
 
@@ -68,6 +81,30 @@ describe('/api/table/[tableId]/groups', () => {
       expect(route.auth).toBe(mocks.auth)
       expect(route.useCase).toBe(useCase)
       expect(route.operation.id).toBe(useCase.operation.id)
+      expect(route.errorPolicy).toBe(mocks.concealTableGroupAuthorization)
     }
+  })
+
+  it('preserves the legacy create default while honoring an explicit opt-out', () => {
+    const route = definition('POST')
+    const input = {
+      params: { tableId: 'table-1' },
+      body: {
+        workspaceId: 'workspace-1',
+        group: { id: 'group-1' },
+        outputColumns: [{ name: 'Result' }],
+      },
+    }
+
+    expect(route.mapInput(input)).toEqual({
+      tableId: 'table-1',
+      ...input.body,
+      autoRun: true,
+    })
+    expect(route.mapInput({ ...input, body: { ...input.body, autoRun: false } })).toEqual({
+      tableId: 'table-1',
+      ...input.body,
+      autoRun: false,
+    })
   })
 })

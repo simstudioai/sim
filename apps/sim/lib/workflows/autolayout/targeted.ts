@@ -35,6 +35,15 @@ export interface TargetedLayoutOptions extends LayoutOptions {
   shiftSourceBlockIds?: string[]
   verticalSpacing?: number
   horizontalSpacing?: number
+  /**
+   * Pre-edit block snapshot used to judge whether a note's overlap with a block
+   * is a pre-existing arrangement (preserved) or was introduced by the edit
+   * being laid out (relocated). Without it, the post-edit input blocks serve as
+   * the baseline — which contains newly added notes at their `(0,0)` placeholder,
+   * so a new note dropped onto a block at the origin (e.g. a fresh workflow's
+   * start block) reads as intentional and is never rescued.
+   */
+  previousBlocks?: Record<string, BlockState>
 }
 
 /**
@@ -53,6 +62,7 @@ export function applyTargetedLayout(
     verticalSpacing = DEFAULT_VERTICAL_SPACING,
     horizontalSpacing = DEFAULT_HORIZONTAL_SPACING,
     gridSize,
+    previousBlocks = blocks,
   } = options
 
   if (
@@ -135,8 +145,10 @@ export function applyTargetedLayout(
   )
 
   // Relocate notes only where this pass introduced an overlap, comparing against
-  // the original positions so pre-existing note arrangements are preserved.
-  resolveNoteOverlaps(blocksCopy, verticalSpacing, { previousBlocks: blocks })
+  // the baseline positions so pre-existing note arrangements are preserved. A
+  // note absent from the baseline (newly added by this edit) is always eligible
+  // for relocation.
+  resolveNoteOverlaps(blocksCopy, verticalSpacing, { previousBlocks })
 
   return blocksCopy
 }

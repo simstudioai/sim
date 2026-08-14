@@ -22,6 +22,9 @@ const mocks = vi.hoisted(() => ({
   performBulkUpload: vi.fn(),
   markTimedOut: vi.fn(),
   retryProcessing: vi.fn(),
+  uploadStoredFile: vi.fn(),
+  generateKnowledgeBaseFileKey: vi.fn(),
+  recordKnowledgeBaseFileOwnership: vi.fn(),
   recordAudit: vi.fn(),
   captureServerEvent: vi.fn(),
 }))
@@ -54,6 +57,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
+  resolveActiveKnowledgeResourceContext: mocks.resolveKnowledgeBase,
   resolveActiveKnowledgeDocumentContext: mocks.resolveDocument,
   resolveCanonicalActiveKnowledgeDocumentContext: mocks.resolveCanonicalDocument,
 }))
@@ -72,6 +76,18 @@ vi.mock('@/lib/knowledge/orchestration/documents', () => ({
   performUploadKnowledgeDocuments: mocks.performBulkUpload,
   performMarkKnowledgeDocumentTimedOut: mocks.markTimedOut,
   performRetryKnowledgeDocumentProcessing: mocks.retryProcessing,
+}))
+
+vi.mock('@/lib/uploads', () => ({
+  StorageService: { uploadFile: mocks.uploadStoredFile },
+}))
+
+vi.mock('@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager', () => ({
+  generateKnowledgeBaseFileKey: mocks.generateKnowledgeBaseFileKey,
+}))
+
+vi.mock('@/lib/uploads/server/metadata', () => ({
+  recordKnowledgeBaseFileOwnership: mocks.recordKnowledgeBaseFileOwnership,
 }))
 
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
@@ -106,6 +122,20 @@ const document = {
   uploadedAt: new Date('2026-01-01T00:00:00Z'),
 }
 
+const uploadFile = {
+  buffer: Buffer.alloc(42, 'a'),
+  filename: 'guide.pdf',
+  fileSize: 42,
+  mimeType: 'application/pdf',
+}
+
+const storedDocumentInput = {
+  filename: uploadFile.filename,
+  fileUrl: '/api/files/serve/kb%2Fupload-1?context=knowledge-base',
+  fileSize: uploadFile.fileSize,
+  mimeType: uploadFile.mimeType,
+}
+
 describe('knowledge document application use cases', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -130,6 +160,15 @@ describe('knowledge document application use cases', () => {
       workspaceId: 'workspace-1',
     })
     mocks.checkUsage.mockResolvedValue({ isExceeded: false })
+    mocks.generateKnowledgeBaseFileKey.mockReturnValue('kb/upload-1')
+    mocks.uploadStoredFile.mockResolvedValue({
+      path: '/api/files/serve/kb%2Fupload-1',
+      key: 'kb/upload-1',
+      name: uploadFile.filename,
+      size: uploadFile.fileSize,
+      type: uploadFile.mimeType,
+    })
+    mocks.recordKnowledgeBaseFileOwnership.mockResolvedValue(undefined)
     mocks.createDocument.mockResolvedValue(document)
     mocks.updateDocument.mockResolvedValue(document)
     mocks.processQueue.mockResolvedValue(undefined)
@@ -170,6 +209,79 @@ describe('knowledge document application use cases', () => {
     )
   })
 
+  it('lets the owner list documents in a legacy personal knowledge base', async () => {
+    mocks.resolveKnowledgeBase.mockResolvedValueOnce({
+      workspaceId: undefined,
+      legacyPersonalOwnerUserId: 'user-1',
+      knowledgeBaseId: 'legacy-knowledge',
+      knowledgeBase: { id: 'legacy-knowledge', name: 'Personal docs', userId: 'user-1' },
+    })
+
+    await expect(
+      listKnowledgeDocuments.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { knowledgeBaseId: 'legacy-knowledge' },
+      })
+    ).resolves.toMatchObject({ workspaceId: undefined })
+
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.getDocuments).toHaveBeenCalledWith(
+      'legacy-knowledge',
+      expect.any(Object),
+      expect.any(String)
+    )
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('projects mutation audit entries for an owning legacy personal principal', async () => {
+    mocks.resolveDocument.mockResolvedValueOnce({
+      workspaceId: undefined,
+      legacyPersonalOwnerUserId: 'user-1',
+      knowledgeBaseId: 'legacy-knowledge',
+      knowledgeBase: { id: 'legacy-knowledge', name: 'Personal docs', userId: 'user-1' },
+      documentId: document.id,
+      document: { ...document, knowledgeBaseId: 'legacy-knowledge' },
+    })
+
+    await deleteKnowledgeDocument.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { knowledgeBaseId: 'legacy-knowledge', documentId: document.id, source: 'legacy' },
+    })
+
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: undefined,
+        actorId: 'user-1',
+        action: 'document.deleted',
+        resourceId: document.id,
+        metadata: expect.objectContaining({
+          operation: 'knowledge.documents.delete',
+          knowledgeBaseId: 'legacy-knowledge',
+          actor: { kind: 'session', userId: 'user-1' },
+        }),
+      })
+    )
+  })
+
+  it('conceals legacy personal documents from a non-owner', async () => {
+    mocks.resolveKnowledgeBase.mockResolvedValueOnce({
+      workspaceId: undefined,
+      legacyPersonalOwnerUserId: 'user-1',
+      knowledgeBaseId: 'legacy-knowledge',
+      knowledgeBase: { id: 'legacy-knowledge', name: 'Personal docs', userId: 'user-1' },
+    })
+
+    await expect(
+      listKnowledgeDocuments.execute({
+        principal: { kind: 'session', userId: 'other-user', sessionId: 'session-2' },
+        input: { knowledgeBaseId: 'legacy-knowledge' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(mocks.getDocuments).not.toHaveBeenCalled()
+  })
+
   it('resolves current workspace-key billing while retaining key audit attribution', async () => {
     await uploadKnowledgeDocument.execute({
       principal: {
@@ -180,20 +292,52 @@ describe('knowledge document application use cases', () => {
       input: {
         knowledgeBaseId: 'knowledge-1',
         assertedWorkspaceId: 'workspace-1',
-        document,
+        file: uploadFile,
         source: 'v2',
       },
     })
 
     expect(mocks.resolveSystemBilling).toHaveBeenCalledWith('workspace-1')
+    expect(mocks.recordKnowledgeBaseFileOwnership).toHaveBeenCalledWith({
+      key: 'kb/upload-1',
+      userId: 'billing-owner-1',
+      workspaceId: 'workspace-1',
+      originalName: 'guide.pdf',
+      contentType: 'application/pdf',
+      size: 42,
+    })
+    expect(mocks.uploadStoredFile).toHaveBeenCalledWith({
+      file: uploadFile.buffer,
+      fileName: uploadFile.filename,
+      contentType: uploadFile.mimeType,
+      context: 'knowledge-base',
+      customKey: 'kb/upload-1',
+      preserveKey: true,
+      persistMetadata: false,
+    })
+    expect(mocks.recordKnowledgeBaseFileOwnership.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.uploadStoredFile.mock.invocationCallOrder[0]
+    )
+    expect(mocks.uploadStoredFile.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.createDocument.mock.invocationCallOrder[0]
+    )
     expect(mocks.createDocument).toHaveBeenCalledWith(
-      document,
+      storedDocumentInput,
       'knowledge-1',
       expect.any(String),
       'billing-owner-1',
       undefined,
       undefined,
-      { expectedWorkspaceId: 'workspace-1' }
+      {
+        expectedWorkspaceId: 'workspace-1',
+        processing: {
+          processingOptions: {},
+          billingAttribution: {
+            actorUserId: 'billing-owner-1',
+            workspaceId: 'workspace-1',
+          },
+        },
+      }
     )
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -217,13 +361,60 @@ describe('knowledge document application use cases', () => {
       input: {
         knowledgeBaseId: 'knowledge-1',
         assertedWorkspaceId: 'workspace-1',
-        document,
+        file: uploadFile,
         usageAdmission: 'pre_admitted',
       },
     })
 
     expect(mocks.checkUsage).not.toHaveBeenCalled()
     expect(mocks.createDocument).toHaveBeenCalledOnce()
+  })
+
+  /**
+   * The size guard was upper-bound only, so a zero-byte file was admitted, put
+   * in storage, and registered — even though every parser refuses an empty
+   * buffer outright, so the document could only ever end up `failed`. An input
+   * the system provably cannot process belongs to the caller, not to storage.
+   */
+  it('rejects a zero-byte upload before it reaches storage', async () => {
+    await expect(
+      uploadKnowledgeDocument.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          knowledgeBaseId: 'knowledge-1',
+          assertedWorkspaceId: 'workspace-1',
+          file: { ...uploadFile, buffer: Buffer.alloc(0), fileSize: 0 },
+          usageAdmission: 'pre_admitted',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mocks.uploadStoredFile).not.toHaveBeenCalled()
+    expect(mocks.recordKnowledgeBaseFileOwnership).not.toHaveBeenCalled()
+    expect(mocks.createDocument).not.toHaveBeenCalled()
+  })
+
+  it('leaves only a sweepable knowledge-base binding when final authorization fails', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce('write').mockResolvedValueOnce(null)
+
+    await expect(
+      uploadKnowledgeDocument.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          knowledgeBaseId: 'knowledge-1',
+          assertedWorkspaceId: 'workspace-1',
+          file: uploadFile,
+          usageAdmission: 'pre_admitted',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.recordKnowledgeBaseFileOwnership).toHaveBeenCalledOnce()
+    expect(mocks.uploadStoredFile).toHaveBeenCalledWith(
+      expect.objectContaining({ context: 'knowledge-base', persistMetadata: false })
+    )
+    expect(mocks.createDocument).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
   it('conceals a cross-knowledge-base document before deletion and audit', async () => {
@@ -367,12 +558,40 @@ describe('knowledge document application use cases', () => {
         input: {
           knowledgeBaseId: 'knowledge-1',
           assertedWorkspaceId: 'workspace-1',
-          document,
+          file: uploadFile,
         },
       })
     ).rejects.toBe(failure)
 
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('commits a durable processing intent instead of dispatching from the request', async () => {
+    await uploadKnowledgeDocument.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        file: uploadFile,
+        processingOptions: { recipe: 'default', lang: 'en' },
+      },
+    })
+
+    expect(mocks.createDocument).toHaveBeenCalledWith(
+      storedDocumentInput,
+      'knowledge-1',
+      expect.any(String),
+      'user-1',
+      undefined,
+      undefined,
+      expect.objectContaining({
+        processing: {
+          processingOptions: { recipe: 'default', lang: 'en' },
+          billingAttribution: { actorUserId: 'user-1', workspaceId: 'workspace-1' },
+        },
+      })
+    )
+    expect(mocks.processQueue).not.toHaveBeenCalled()
   })
 
   it('bounds bulk document creation before billing or orchestration', async () => {

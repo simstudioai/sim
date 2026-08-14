@@ -57,18 +57,20 @@ export function resolveMemoryWriteSecretProvenance(options: {
   if (inspection.status !== 'verified' || options.authType !== AuthType.INTERNAL_JWT) {
     return { success: false, response: invalidMemoryProvenanceResponse() }
   }
-  if (
-    !isPrivateSecretProvenanceBundleV1(inspection.value) ||
-    !inspection.value.complete ||
-    inspection.value.selections.length !== 1
-  ) {
+  if (!isPrivateSecretProvenanceBundleV1(inspection.value)) {
+    return { success: false, response: invalidMemoryProvenanceResponse() }
+  }
+  if (!inspection.value.complete) {
+    return { success: true, provenance: { status: 'unknown' } }
+  }
+  if (inspection.value.selections.length !== 1) {
     return { success: false, response: invalidMemoryProvenanceResponse() }
   }
   const provenance = durableSecretProvenanceFromPrivateBundle(inspection.value, 'data', {
     userId: options.userId,
     workspaceId: options.workspaceId,
   })
-  return provenance?.status === 'exact'
+  return provenance
     ? { success: true, provenance }
     : { success: false, response: invalidMemoryProvenanceResponse() }
 }
@@ -96,7 +98,7 @@ export async function createMemoryResponse(options: {
     workspaceId: options.workspaceId,
   })
   if (options.memories.length > MAX_PRIVATE_MEMORY_CROSSINGS) {
-    registry.markIncomplete()
+    registry.markIncomplete('memory-crossing-capacity-exceeded')
   } else {
     const ids = [...new Set(options.memories.map((record) => record.id))]
     const memoriesById = new Map<string, MemoryCrossing[]>()
@@ -121,7 +123,7 @@ export async function createMemoryResponse(options: {
         provenanceEntryCount > MAX_PRIVATE_MEMORY_PROVENANCE_ENTRIES ||
         provenanceBytes > MAX_PRIVATE_MEMORY_PROVENANCE_BYTES
       ) {
-        registry.markIncomplete()
+        registry.markIncomplete('memory-crossing-capacity-exceeded')
         break
       }
       const sidecarById = new Map(sidecars.map((sidecar) => [sidecar.memoryId, sidecar]))
@@ -135,7 +137,7 @@ export async function createMemoryResponse(options: {
             status: sidecar?.status ?? null,
             entries: sidecar?.entries,
           })
-          await importDurableSecretProvenance(registry, provenance, record.data)
+          await importDurableSecretProvenance(registry, provenance, record.data, 'memory')
         }
       }
     }

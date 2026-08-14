@@ -2,12 +2,8 @@ import {
   cancelTableExportResourceContract,
   getTableExportResourceContract,
 } from '@/lib/api/contracts/table-transfers'
-import {
-  defineInternalJsonRoute,
-  internalPlainOrchestrationErrorPolicy,
-  internalRateLimits,
-} from '@/lib/api/server/routes'
-import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import { internalTableErrorPolicies, internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import { cancelTableExportUseCase, readTableExportUseCase } from '@/lib/table/application/exports'
 import { tableOperations } from '@/lib/table/application/operations'
 import { toV2TableExport } from '@/lib/table/orchestration/export-resource'
@@ -21,7 +17,7 @@ export const GET = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   operation: tableOperations.readExport,
   rateLimit,
-  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  errorPolicy: internalTableErrorPolicies.concealExportAuthorization,
   mapInput: ({ params, query }) => ({
     exportId: params.exportId,
     workspaceId: query.workspaceId,
@@ -35,7 +31,7 @@ export const DELETE = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   operation: tableOperations.cancelExport,
   rateLimit,
-  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  errorPolicy: internalTableErrorPolicies.concealExportAuthorization,
   mapInput: ({ params, query }) => ({
     exportId: params.exportId,
     workspaceId: query.workspaceId,

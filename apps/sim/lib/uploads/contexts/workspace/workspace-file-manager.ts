@@ -42,6 +42,7 @@ import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { DbOrTx } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { parseFolderPath } from '@/lib/folders/paths'
@@ -56,6 +57,7 @@ import {
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenancePolicy,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   deleteFile,
   downloadFile,
@@ -66,7 +68,7 @@ import {
 import { MAX_WORKSPACE_FILE_SIZE, toLegacyWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
-import { isUuid, sanitizeFileName } from '@/executor/constants'
+import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 import type { WorkspaceFileFolderRecord } from './workspace-file-folder-manager'
 import {
@@ -160,6 +162,12 @@ interface ListWorkspaceFilesOptions {
   hydrateFolderPaths?: boolean
   /** Propagate storage errors when an incomplete list would be unsafe. */
   throwOnError?: boolean
+  /**
+   * Row cap for callers that only need to know whether the workspace fits a budget.
+   * The result is a prefix of the full list, so a caller that reads it as "the
+   * workspace's files" must not set this.
+   */
+  limit?: number
 }
 
 /**
@@ -204,8 +212,7 @@ export function parseWorkspaceFileKey(key: string): string | null {
 export function generateWorkspaceFileKey(workspaceId: string, fileName: string): string {
   const timestamp = Date.now()
   const random = randomBytes(8).toString('hex')
-  const safeFileName = sanitizeFileName(fileName)
-  return `workspace/${workspaceId}/${timestamp}-${random}-${safeFileName}`
+  return `workspace/${workspaceId}/${buildStorageKeySegment(`${timestamp}-${random}-`, fileName)}`
 }
 
 const MAX_COPY_SUFFIX = 1000
@@ -222,7 +229,9 @@ interface WorkspaceFileMetadataInsert {
   size: number
 }
 
-function workspaceFileSize(file: typeof workspaceFiles.$inferSelect): number {
+function workspaceFileSize(
+  file: Pick<typeof workspaceFiles.$inferSelect, 'size' | 'sizeBytes'>
+): number {
   return file.sizeBytes ?? file.size
 }
 
@@ -1006,7 +1015,7 @@ export async function fileExistsInWorkspace(
 }
 
 function mapWorkspaceFileRecord(
-  file: typeof workspaceFiles.$inferSelect,
+  file: WorkspaceFileListRow,
   workspaceId: string,
   folderPaths: Map<string, string>
 ): WorkspaceFileRecord {
@@ -1143,9 +1152,37 @@ function workspaceFileScopeCondition(workspaceId: string, scope: WorkspaceFileSc
     : and(...base, isNull(workspaceFiles.deletedAt))
 }
 
+/**
+ * The columns {@link mapWorkspaceFileRecord} reads. These list reads are workspace-wide,
+ * so `select()` would ship five unprojected columns for every row of the scan.
+ */
+const workspaceFileListColumns = {
+  id: workspaceFiles.id,
+  key: workspaceFiles.key,
+  userId: workspaceFiles.userId,
+  workspaceId: workspaceFiles.workspaceId,
+  folderId: workspaceFiles.folderId,
+  originalName: workspaceFiles.originalName,
+  contentType: workspaceFiles.contentType,
+  size: workspaceFiles.size,
+  sizeBytes: workspaceFiles.sizeBytes,
+  width: workspaceFiles.width,
+  height: workspaceFiles.height,
+  deletedAt: workspaceFiles.deletedAt,
+  uploadedAt: workspaceFiles.uploadedAt,
+  updatedAt: workspaceFiles.updatedAt,
+  contentUpdatedAt: workspaceFiles.contentUpdatedAt,
+} as const
+
+/** A row carrying exactly the columns {@link mapWorkspaceFileRecord} needs; a full row satisfies it. */
+type WorkspaceFileListRow = Pick<
+  typeof workspaceFiles.$inferSelect,
+  keyof typeof workspaceFileListColumns
+>
+
 /** Resolves `folderPath` for a page of rows, reading the folder tree only if any row needs it. */
 async function hydrateWorkspaceFilePaths(
-  files: (typeof workspaceFiles.$inferSelect)[],
+  files: WorkspaceFileListRow[],
   workspaceId: string,
   options?: { folders?: WorkspaceFileFolderRecord[]; hydrateFolderPaths?: boolean }
 ): Promise<WorkspaceFileRecord[]> {
@@ -1166,12 +1203,13 @@ export async function listWorkspaceFiles(
   options?: ListWorkspaceFilesOptions
 ): Promise<WorkspaceFileRecord[]> {
   try {
-    const { scope = 'active' } = options ?? {}
-    const files = await db
-      .select()
+    const { scope = 'active', limit } = options ?? {}
+    const query = db
+      .select(workspaceFileListColumns)
       .from(workspaceFiles)
       .where(workspaceFileScopeCondition(workspaceId, scope))
       .orderBy(workspaceFiles.uploadedAt)
+    const files = await (limit === undefined ? query : query.limit(limit))
 
     return hydrateWorkspaceFilePaths(files, workspaceId, options)
   } catch (error) {
@@ -1264,7 +1302,7 @@ export async function queryWorkspaceFiles(
   ]
 
   const rows = await db
-    .select()
+    .select(workspaceFileListColumns)
     .from(workspaceFiles)
     .where(and(...conditions))
     .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
@@ -1283,6 +1321,10 @@ export async function queryWorkspaceFiles(
  * Files are addressed by their sanitized canonical path; id-based VFS paths are not supported.
  */
 export function normalizeWorkspaceFileReference(fileReference: string): string {
+  return normalizeWorkspaceFileReferenceSegments(fileReference).join('/')
+}
+
+function normalizeWorkspaceFileReferenceSegments(fileReference: string): string[] {
   const trimmed = fileReference.trim().replace(/^\/+/, '')
   const withoutDeletedPrefix = trimmed.startsWith('recently-deleted/')
     ? trimmed.slice('recently-deleted/'.length)
@@ -1291,15 +1333,15 @@ export function normalizeWorkspaceFileReference(fileReference: string): string {
   if (withoutDeletedPrefix.startsWith('files/')) {
     const withoutPrefix = withoutDeletedPrefix.slice('files/'.length)
     if (withoutPrefix.endsWith('/meta.json')) {
-      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/meta.json'.length)).join('/')
+      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/meta.json'.length))
     }
     if (withoutPrefix.endsWith('/content')) {
-      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/content'.length)).join('/')
+      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/content'.length))
     }
-    return decodeVfsPathSegments(withoutPrefix).join('/')
+    return decodeVfsPathSegments(withoutPrefix)
   }
 
-  return decodeVfsPathSegments(withoutDeletedPrefix).join('/')
+  return decodeVfsPathSegments(withoutDeletedPrefix)
 }
 
 /**
@@ -1324,26 +1366,20 @@ export function findWorkspaceFileRecord(
     return exactIdMatch
   }
 
-  const normalizedReference = normalizeWorkspaceFileReference(fileReference)
+  const referenceSegments = normalizeWorkspaceFileReferenceSegments(fileReference)
+  const normalizedReference = referenceSegments.join('/')
   const normalizedIdMatch = files.find((file) => file.id === normalizedReference)
   if (normalizedIdMatch) {
     return normalizedIdMatch
   }
 
-  const segmentKey = normalizedReference
-    .split('/')
-    .map((segment) => normalizeVfsSegment(segment))
-    .join('/')
-  const normalizedPathMatch = files.find((file) => {
-    const folderPath = file.folderPath
-      ?.split('/')
-      .map((segment) => normalizeVfsSegment(segment))
-      .join('/')
-    const fullPath = folderPath
-      ? `${folderPath}/${normalizeVfsSegment(file.name)}`
-      : normalizeVfsSegment(file.name)
-    return fullPath === segmentKey
-  })
+  const segmentKey = referenceSegments.map(normalizeVfsSegment).join('/')
+  const normalizedPathMatch = files.find(
+    (file) =>
+      canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }).slice(
+        'files/'.length
+      ) === segmentKey
+  )
   if (normalizedPathMatch) return normalizedPathMatch
 
   return files.find((file) => normalizeVfsSegment(file.name) === segmentKey) ?? null
@@ -1351,13 +1387,8 @@ export function findWorkspaceFileRecord(
 
 async function getWorkspaceFileByExactReference(
   workspaceId: string,
-  fileReference: string
+  segments: string[]
 ): Promise<WorkspaceFileRecord | null> {
-  const segments = fileReference
-    .split('/')
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-
   if (segments.length === 0) return null
   if (segments.length === 1) {
     return getWorkspaceFileByName(workspaceId, segments[0], { folderId: null })
@@ -1374,16 +1405,14 @@ export async function resolveWorkspaceFileReference(
   workspaceId: string,
   fileReference: string
 ): Promise<WorkspaceFileRecord | null> {
-  const normalizedReference = normalizeWorkspaceFileReference(fileReference)
+  const referenceSegments = normalizeWorkspaceFileReferenceSegments(fileReference)
+  const normalizedReference = referenceSegments.join('/')
   if (normalizedReference.startsWith('wf_')) {
     const file = await getWorkspaceFile(workspaceId, normalizedReference, { throwOnError: true })
     if (file) return file
   }
 
-  const exactReferenceFile = await getWorkspaceFileByExactReference(
-    workspaceId,
-    normalizedReference
-  )
+  const exactReferenceFile = await getWorkspaceFileByExactReference(workspaceId, referenceSegments)
   if (exactReferenceFile) return exactReferenceFile
 
   const files = await listWorkspaceFiles(workspaceId)
@@ -1570,6 +1599,10 @@ export async function fetchWorkspaceFileBuffer(
     return buffer
   } catch (error) {
     logger.error(`Failed to download workspace file ${fileRecord.name}:`, error)
+    // Rethrow a `maxBytes` breach unwrapped: callers distinguish "too large" from a
+    // transport failure to answer with their own placeholder, and re-wrapping it in a
+    // plain Error would erase the only thing that tells the two apart.
+    if (isPayloadSizeLimitError(error)) throw error
     throw new Error(`Failed to download file: ${getErrorMessage(error, 'Unknown error')}`)
   }
 }

@@ -1,6 +1,8 @@
 export interface FileParseMetadata {
   characterCount?: number
   pageCount?: number
+  /** True when a parser limit stopped extraction before the input was exhausted. */
+  truncated?: boolean
   extractionMethod?: string
   warning?: string
   messages?: unknown[]

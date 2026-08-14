@@ -1,23 +1,20 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isPlainRecord } from '@sim/utils/object'
-import {
-  projectResolvedSecretModelContent,
-  projectResolvedSecretModelControlMessage,
-  projectResolvedSecretModelJsonContent,
-} from '@/executor/utils/resolved-secret-content-projection'
+import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
+import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
+import type { ExecutionContext } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { getPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
 import { type ExecuteToolOptions, executeTool } from '@/tools'
 import type { ToolResponse } from '@/tools/types'
 
 export interface ProviderRuntimeContext {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  /** Trusted server execution context inherited by model-emitted tool calls. */
+  executionContext?: ExecutionContext
 }
 
-export interface ExecuteProviderToolOptions extends ExecuteToolOptions {
-  /** Exact merged tool arguments, excluding execution-only ambient context. */
-  toolInput: Record<string, unknown>
-}
+export type ExecuteProviderToolOptions = ExecuteToolOptions
 
 export interface ProviderToolExecutionResult {
   /** Original tool response retained for workflow outputs, traces, costs, files, and resources. */
@@ -35,83 +32,26 @@ export function runWithProviderRuntimeContext<T>(
   return providerRuntimeContext.run(context, callback)
 }
 
-/** Projects a filename only when a provider adapter is about to serialize it upstream. */
-export function projectProviderAttachmentFilenameForModel(
-  filename: string,
-  extension: string
-): string {
-  const registry = providerRuntimeContext.getStore()?.resolvedSecretTraceRegistry
-  if (!registry) return filename
-
-  const projection = projectResolvedSecretModelContent(filename, registry)
-  if (!projection.safe || typeof projection.value !== 'string') {
-    throw new Error('Model input could not be safely projected')
-  }
-
-  const projected = projection.value
-  const suffix = extension ? `.${extension}` : ''
-  const hadSuffix = suffix !== '' && filename.toLowerCase().endsWith(suffix.toLowerCase())
-  const retainedSuffix = suffix !== '' && projected.toLowerCase().endsWith(suffix.toLowerCase())
-  return hadSuffix && !retainedSuffix ? `${projected}${suffix}` : projected
-}
-
-function omittedProviderToolResponse(
-  result: ToolResponse,
-  registry: ResolvedSecretTraceRegistry
+function toProviderModelResponse(
+  rawResponse: ToolResponse,
+  projectedResponse: ToolExecutionResult
 ): ToolResponse {
-  const error = result.success
-    ? undefined
-    : projectResolvedSecretModelControlMessage('Tool result omitted', registry)
-  const { output: _output, error: _error, ...functionalFields } = result
+  const { output: _output, error: _error, ...functionalFields } = rawResponse
   return {
     ...functionalFields,
-    output: {},
-    ...(error ? { error } : {}),
-  }
-}
-
-type ProviderToolResponseProjection =
-  | { safe: true; response: ToolResponse }
-  | { safe: false; response: ToolResponse }
-
-function projectProviderToolResponse(
-  result: ToolResponse,
-  registry: ResolvedSecretTraceRegistry
-): ProviderToolResponseProjection {
-  const content: Record<string, unknown> = { output: result.output }
-  if (Object.hasOwn(result, 'error')) content.error = result.error
-  const projection = projectResolvedSecretModelJsonContent(content, registry)
-  if (
-    !projection.safe ||
-    !isPlainRecord(projection.value) ||
-    !Object.hasOwn(projection.value, 'output')
-  ) {
-    return { safe: false, response: omittedProviderToolResponse(result, registry) }
-  }
-
-  const { output, error } = projection.value
-  if (error !== undefined && typeof error !== 'string') {
-    return { safe: false, response: omittedProviderToolResponse(result, registry) }
-  }
-  const { output: _output, error: _error, ...functionalFields } = result
-
-  return {
-    safe: true,
-    response: {
-      ...functionalFields,
-      output: output as ToolResponse['output'],
-      ...(error !== undefined ? { error } : {}),
-    },
+    output: Object.hasOwn(projectedResponse, 'output')
+      ? (projectedResponse.output as ToolResponse['output'])
+      : {},
+    ...(projectedResponse.error !== undefined ? { error: projectedResponse.error } : {}),
   }
 }
 
 export async function executeProviderTool(
   toolId: string,
   params: Parameters<typeof executeTool>[1],
-  options: ExecuteProviderToolOptions
+  options: ExecuteProviderToolOptions = {}
 ): Promise<ProviderToolExecutionResult> {
   const runtimeContext = providerRuntimeContext.getStore()
-  const { toolInput, ...executeToolOptions } = options
   const registry =
     options.resolvedSecretTraceRegistry ?? runtimeContext?.resolvedSecretTraceRegistry
 
@@ -119,29 +59,39 @@ export async function executeProviderTool(
     const response: ToolResponse = { success: false, output: {} }
     return { rawResponse: response, modelResponse: response }
   }
-  const toolCallRegistry = registry?.forkForToolInputValues(Object.values(toolInput))
+  const preparedInputProvenance = getPreparedProviderToolInputProvenance(params)
+  const toolCallRegistry = registry
+    ? preparedInputProvenance
+      ? preparedInputProvenance.registry.forkForInputPaths(preparedInputProvenance.inputPaths, {
+          propagated: true,
+        })
+      : runtimeContext
+        ? registry.forkForInputPaths([])
+        : registry.forkForToolCall()
+    : undefined
 
   try {
+    const executionContext = options.executionContext ?? runtimeContext?.executionContext
     const result = await executeTool(toolId, params, {
-      ...executeToolOptions,
+      ...options,
+      ...(executionContext ? { executionContext } : {}),
       resolvedSecretTraceRegistry: toolCallRegistry,
     })
     if (!registry || !toolCallRegistry) {
       return { rawResponse: result, modelResponse: result }
     }
 
-    const projection = projectProviderToolResponse(result, toolCallRegistry)
-    registry.mergeToolCallRegistry(toolCallRegistry)
-    return { rawResponse: result, modelResponse: projection.response }
-  } catch (error) {
-    if (!registry || !toolCallRegistry) throw error
-    const projectedMessage = projectResolvedSecretModelControlMessage(
-      getErrorMessage(error),
-      toolCallRegistry
+    const modelResponse = toProviderModelResponse(
+      result,
+      projectToolResultForCopilot(result, toolCallRegistry)
     )
     registry.mergeToolCallRegistry(toolCallRegistry)
+    return { rawResponse: result, modelResponse }
+  } catch (error) {
+    if (!registry || !toolCallRegistry) throw error
     const errorName =
       error && typeof error === 'object' && 'name' in error ? String(error.name) : undefined
+    registry.mergeToolCallRegistry(toolCallRegistry)
     if (errorName === 'AbortError' || errorName === 'APIUserAbortError') {
       throw error
     }
@@ -150,11 +100,10 @@ export async function executeProviderTool(
       output: {},
       error: getErrorMessage(error),
     }
-    const modelResponse: ToolResponse = {
-      success: false,
-      output: {},
-      ...(projectedMessage !== undefined ? { error: projectedMessage } : {}),
-    }
+    const modelResponse = toProviderModelResponse(
+      rawResponse,
+      projectToolResultForCopilot(rawResponse, toolCallRegistry)
+    )
     return { rawResponse, modelResponse }
   }
 }

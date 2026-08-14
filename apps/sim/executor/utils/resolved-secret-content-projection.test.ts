@@ -3,7 +3,9 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import {
+  createResolvedSecretMatcher,
   isResolvedSecretModelContentUnchanged,
+  projectResolvedSecretContent,
   projectResolvedSecretDiagnosticError,
   projectResolvedSecretModelContent,
   projectResolvedSecretModelJsonContent,
@@ -68,7 +70,7 @@ describe('projectResolvedSecretModelContent', () => {
       value: '{{TOKEN}}',
     })
 
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
     expect(projectResolvedSecretModelContent('secret-value', registry)).toEqual({ safe: false })
     expect(projectResolvedSecretModelContent('secret-value', undefined)).toEqual({ safe: false })
   })
@@ -133,39 +135,63 @@ describe('projectResolvedSecretModelContent', () => {
     })
   })
 
+  it('does not apply provenance traversal limits when no secret was active', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const value = new Array<null>(100_001).fill(null)
+
+    const projection = projectResolvedSecretModelContent(value, registry)
+    expect(projection.safe).toBe(true)
+    if (projection.safe) expect(projection.value).toBe(value)
+    expect(isResolvedSecretModelContentUnchanged(value, registry)).toBe(true)
+
+    const jsonProjection = projectResolvedSecretModelJsonContent(value, registry)
+    expect(jsonProjection.safe).toBe(true)
+    if (jsonProjection.safe) {
+      expect(jsonProjection.value).toHaveLength(value.length)
+      expect((jsonProjection.value as null[]).at(-1)).toBeNull()
+      expect(jsonProjection.value).not.toBe(value)
+    }
+
+    const jsonString = '{\n  "preserve": true\n}'
+    expect(projectResolvedSecretModelJsonStrings([jsonString, undefined], registry)).toEqual({
+      safe: true,
+      value: [jsonString, undefined],
+    })
+  })
+
   it('keeps longest-match semantics when a known opaque placeholder is nested in a secret', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'Test', plaintext: 'Test', encryptedValue: 'test-ciphertext' },
+      { name: 'TestName', plaintext: 'TestName', encryptedValue: 'test-ciphertext' },
       {
         name: 'COMPOSITE',
-        plaintext: 'x{{Test}}y',
+        plaintext: 'x{{TestName}}y',
         encryptedValue: 'composite-ciphertext',
       },
     ])
-    registry.recordResolved('Test', 'Test')
-    registry.recordResolved('COMPOSITE', 'x{{Test}}y')
+    registry.recordResolved('TestName', 'TestName')
+    registry.recordResolved('COMPOSITE', 'x{{TestName}}y')
 
-    expect(projectResolvedSecretModelContent('x{{Test}}y', registry)).toEqual({
+    expect(projectResolvedSecretModelContent('x{{TestName}}y', registry)).toEqual({
       safe: true,
       value: '{{COMPOSITE}}',
     })
   })
 
-  it('projects exact typed primitive secrets without rewriting unrelated primitives', () => {
+  it('projects exact typed numeric secrets, leaving booleans and null identifying nothing', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'NUMBER', plaintext: '123', encryptedValue: 'number-ciphertext' },
+      { name: 'NUMBER', plaintext: '12345678', encryptedValue: 'number-ciphertext' },
       { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'boolean-ciphertext' },
       { name: 'NULL', plaintext: 'null', encryptedValue: 'null-ciphertext' },
     ])
-    registry.recordResolved('NUMBER', '123')
+    registry.recordResolved('NUMBER', '12345678')
     registry.recordResolved('BOOLEAN', 'true')
     registry.recordResolved('NULL', 'null')
 
     expect(
       projectResolvedSecretModelContent(
         {
-          strings: ['123', 'true', 'null'],
-          number: 123,
+          strings: ['12345678', 'true', 'null'],
+          number: 12345678,
           boolean: true,
           nothing: null,
           unrelatedNumber: 1234,
@@ -176,22 +202,22 @@ describe('projectResolvedSecretModelContent', () => {
     ).toEqual({
       safe: true,
       value: {
-        strings: ['{{NUMBER}}', '{{BOOLEAN}}', '{{NULL}}'],
+        strings: ['{{NUMBER}}', 'true', 'null'],
         number: '{{NUMBER}}',
-        boolean: '{{BOOLEAN}}',
-        nothing: '{{NULL}}',
+        boolean: true,
+        nothing: null,
         unrelatedNumber: 1234,
         unrelatedBoolean: false,
       },
     })
   })
 
-  it.each(['123', 'true'])('keeps projected JSON argument strings valid (%s)', (secret) => {
+  it.each(['12345678'])('keeps projected JSON argument strings valid (%s)', (secret) => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
     ])
     registry.recordResolved('TOKEN', secret)
-    const typedValue = secret === '123' ? 123 : true
+    const typedValue = secret === '12345678' ? 12345678 : true
 
     const projection = projectResolvedSecretModelJsonStrings(
       [JSON.stringify({ secret, converted: typedValue, nested: [typedValue] })],
@@ -207,13 +233,33 @@ describe('projectResolvedSecretModelContent', () => {
     })
   })
 
+  it('leaves a boolean-valued secret in a JSON argument string untouched', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'true', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'true')
+
+    const projection = projectResolvedSecretModelJsonStrings(
+      [JSON.stringify({ secret: 'true', converted: true, nested: [true] })],
+      registry
+    )
+
+    expect(projection.safe).toBe(true)
+    if (!projection.safe || !Array.isArray(projection.value)) return
+    expect(JSON.parse(projection.value[0] as string)).toEqual({
+      secret: 'true',
+      converted: true,
+      nested: [true],
+    })
+  })
+
   it('is stable when a secret literal overlaps its own provenance alias', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' },
+      { name: 'TOKEN', plaintext: 'TOKENTOKEN', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('TOKEN', 'TOKEN')
+    registry.recordResolved('TOKEN', 'TOKENTOKEN')
 
-    const first = projectResolvedSecretModelContent('Bearer TOKEN', registry)
+    const first = projectResolvedSecretModelContent('Bearer TOKENTOKEN', registry)
     expect(first).toEqual({ safe: true, value: 'Bearer {{TOKEN}}' })
     if (!first.safe) return
     expect(projectResolvedSecretModelContent(first.value, registry)).toEqual(first)
@@ -221,38 +267,47 @@ describe('projectResolvedSecretModelContent', () => {
 
   it('preserves the canonical provenance label when its name equals the secret plaintext', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
+      { name: 'TestName', plaintext: 'TestName', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('Test', 'Test')
+    registry.recordResolved('TestName', 'TestName')
 
     expect(
       projectResolvedSecretModelContent(
         {
-          result: 'Test',
-          source: 'return {{Test}}',
-          error: "NameError: name 'Test' is not defined",
+          result: 'TestName',
+          source: 'return {{TestName}}',
+          error: "NameError: name 'TestName' is not defined",
         },
         registry
       )
     ).toEqual({
       safe: true,
       value: {
-        result: '{{Test}}',
-        source: 'return {{Test}}',
-        error: "NameError: name '{{Test}}' is not defined",
+        result: '{{TestName}}',
+        source: 'return {{TestName}}',
+        error: "NameError: name '{{TestName}}' is not defined",
       },
     })
   })
 
   it('atomically projects the selected provenance label when its name contains the value', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'TOK', encryptedValue: 'ciphertext' },
+      { name: 'TOKENVALUE_NAME', plaintext: 'TOKENVALUE', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('TOKEN', 'TOK')
+    expect(registry.recordResolved('TOKENVALUE_NAME', 'TOKENVALUE')).toBe(true)
 
-    expect(projectResolvedSecretModelContent('Bearer {{TOKEN}}', registry)).toEqual({
+    /**
+     * The label `{{TOKENVALUE_NAME}}` contains the plaintext that produced it, so it is only left
+     * alone because the label is treated atomically. Projecting the bare plaintext first proves the
+     * matcher is live — without it an empty matcher would satisfy the second assertion too.
+     */
+    expect(projectResolvedSecretModelContent('Bearer TOKENVALUE', registry)).toEqual({
       safe: true,
-      value: 'Bearer {{TOKEN}}',
+      value: 'Bearer {{TOKENVALUE_NAME}}',
+    })
+    expect(projectResolvedSecretModelContent('Bearer {{TOKENVALUE_NAME}}', registry)).toEqual({
+      safe: true,
+      value: 'Bearer {{TOKENVALUE_NAME}}',
     })
   })
 
@@ -262,7 +317,7 @@ describe('projectResolvedSecretModelContent', () => {
       complete: true,
       matches: [
         {
-          plaintext: 'x'.repeat(64 * 1024),
+          plaintext: 'xxxxxxxx'.repeat(64 * 1024),
           replacement: '[REDACTED_SECRET]',
         },
       ],
@@ -275,16 +330,18 @@ describe('projectResolvedSecretModelContent', () => {
 
   it('keeps provenance-shaped content deterministic without trusting it as a protocol handle', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
+      { name: 'TestName', plaintext: 'TestName', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('Test', 'Test')
+    registry.recordResolved('TestName', 'TestName')
 
-    expect(projectResolvedSecretModelContent('{{Test}}', registry)).toEqual({
+    expect(projectResolvedSecretModelContent('{{TestName}}', registry)).toEqual({
       safe: true,
-      value: '{{Test}}',
+      value: '{{TestName}}',
     })
-    expect(isResolvedSecretModelContentUnchanged('{{Test}}', registry)).toBe(false)
-    expect(isResolvedSecretModelContentUnchanged(['resource', '{{Test}}'], registry)).toBe(false)
+    expect(isResolvedSecretModelContentUnchanged('{{TestName}}', registry)).toBe(false)
+    expect(isResolvedSecretModelContentUnchanged(['resource', '{{TestName}}'], registry)).toBe(
+      false
+    )
     expect(isResolvedSecretModelContentUnchanged(['resource', 'safe'], registry)).toBe(true)
   })
 })
@@ -322,7 +379,7 @@ describe('projectResolvedSecretModelJsonContent', () => {
 
   it('does not invoke JSON serialization when provenance is incomplete', () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
     const toJSON = vi.fn(() => ({ value: 'untrusted' }))
 
     expect(projectResolvedSecretModelJsonContent({ toJSON }, registry)).toEqual({ safe: false })
@@ -363,11 +420,29 @@ describe('projectResolvedSecretModelJsonContent', () => {
 
   it('enforces the byte limit after secret aliases are projected', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'X', plaintext: 'x', encryptedValue: 'ciphertext' },
+      { name: 'X_LONGER_NAME', plaintext: 'xxxxxxxx', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('X', 'x')
+    expect(registry.recordResolved('X_LONGER_NAME', 'xxxxxxxx')).toBe(true)
 
-    expect(projectResolvedSecretModelJsonContent({ a: 'x' }, registry, 9)).toEqual({ safe: false })
+    /**
+     * Three separate limits can reject this value, and only the last one is what this test is for:
+     * the raw encoding (16 bytes), the content walk's running budget, and the JSON re-encoding of
+     * the projected object (25 bytes). A limit of 20 is the only band that isolates the third —
+     * the walk charges the key `a` and then admits the 17-byte alias against the remaining 19, so
+     * anything that rejects at 20 can only be the wire check. Pinning both halves keeps it that
+     * way: drop the re-encoding check and the second assertion starts passing.
+     */
+    expect(projectResolvedSecretModelContent({ a: 'xxxxxxxx' }, registry, 20)).toEqual({
+      safe: true,
+      value: { a: '{{X_LONGER_NAME}}' },
+    })
+    expect(projectResolvedSecretModelJsonContent({ a: 'xxxxxxxx' }, registry, 20)).toEqual({
+      safe: false,
+    })
+    expect(projectResolvedSecretModelJsonContent({ a: 'xxxxxxxx' }, registry, 25)).toEqual({
+      safe: true,
+      value: { a: '{{X_LONGER_NAME}}' },
+    })
   })
 })
 
@@ -397,39 +472,38 @@ describe('projectResolvedSecretDiagnosticError', () => {
     })
   })
 
-  it('uses a known compiler alias as diagnostic-only provenance', () => {
-    const secret = 'diagnostic-secret-value'
+  it('sanitizes an inactive compiler alias without activating or scanning its secret', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' },
+      { name: 'X', plaintext: 'xxxxxxxx', encryptedValue: 'ciphertext' },
     ])
-    const error = new Error(`request failed: ${secret} __var_API_KEY`)
+    const error = new Error('Box __var_X')
 
     expect(projectResolvedSecretDiagnosticError(error, registry)).toEqual(
-      expect.objectContaining({ error: 'request failed: {{API_KEY}} {{API_KEY}}' })
+      expect.objectContaining({ error: 'Box [REDACTED_SECRET]' })
     )
     expect(registry.getActiveMatches()).toEqual([])
   })
 
-  it('falls back to text-free diagnostics for unknown or runtime-only aliases', () => {
+  it('lexically sanitizes unknown and runtime-only aliases without catalog inference', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
 
     expect(
       projectResolvedSecretDiagnosticError(new Error('secret-value __var_UNKNOWN'), registry)
-    ).toEqual({ errorType: 'error', hasStack: true })
+    ).toEqual(expect.objectContaining({ error: 'secret-value [REDACTED_SECRET]' }))
     expect(
       projectResolvedSecretDiagnosticError(
         new Error('secret-value __sim_code_1_binding_0'),
         registry
       )
-    ).toEqual({ errorType: 'error', hasStack: true })
+    ).toEqual(expect.objectContaining({ error: 'secret-value [RUNTIME_BINDING]' }))
   })
 
   it('falls back to text-free structure when provenance is missing or incomplete', () => {
     const error = new Error('secret __var_API_KEY')
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     expect(projectResolvedSecretDiagnosticError(error, undefined)).toEqual({
       errorType: 'error',
@@ -439,5 +513,48 @@ describe('projectResolvedSecretDiagnosticError', () => {
       errorType: 'error',
       hasStack: true,
     })
+  })
+})
+
+describe('literals too small to identify anything', () => {
+  const matcher = createResolvedSecretMatcher(
+    [
+      { plaintext: 'false', replacement: '{{BANNER_ENABLED}}' },
+      { plaintext: 'xoxb-real-secret-value', replacement: '{{SLACK_TOKEN}}' },
+    ],
+    { preserveNamedProvenanceLabels: true, mode: 'render' }
+  )!
+
+  const project = (value: unknown) =>
+    projectResolvedSecretContent(value, matcher, 1_000_000, { projectPrimitiveLiterals: true })
+
+  /** A `*_ENABLED` variable holding `false` once rewrote 2,000 boolean cells in one table read. */
+  it('leaves a typed boolean cell alone', () => {
+    expect(project({ had_error: false, ok: true, missing: null })).toEqual({
+      safe: true,
+      value: { had_error: false, ok: true, missing: null },
+    })
+  })
+
+  it('leaves a delimited occurrence inside surrounding text alone', () => {
+    expect(project({ url: 'https://x?fromUser=false&sort=count' })).toEqual({
+      safe: true,
+      value: { url: 'https://x?fromUser=false&sort=count' },
+    })
+  })
+
+  it('still substitutes a real secret sharing the same matcher', () => {
+    expect(project({ token: 'xoxb-real-secret-value', flag: false })).toEqual({
+      safe: true,
+      value: { token: '{{SLACK_TOKEN}}', flag: false },
+    })
+  })
+
+  it('builds no matcher at all when every literal is non-identifying', () => {
+    expect(
+      createResolvedSecretMatcher([{ plaintext: 'true', replacement: '{{FLAG}}' }], {
+        mode: 'render',
+      })
+    ).toBeUndefined()
   })
 })

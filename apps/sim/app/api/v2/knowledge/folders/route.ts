@@ -18,7 +18,6 @@ import {
   relocateKnowledgeFolder,
 } from '@/lib/knowledge/application/folders'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { v2Error } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -49,12 +48,9 @@ export const POST = defineV2JsonRoute({
   operation: knowledgeOperations.createFolder,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
-  parseOptions: {
-    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
-  },
   mapInput: ({ body }) => ({ workspaceId: body.workspaceId, path: body.path, source: 'api' }),
   useCase: createKnowledgeFolder,
-  present: ({ folder }) => ({ data: { folder: toFolderPathView(folder, folder.path) } }),
+  present: ({ folder }) => ({ data: toFolderPathView(folder, folder.path) }),
 })
 
 export const PATCH = defineV2JsonRoute({
@@ -63,9 +59,6 @@ export const PATCH = defineV2JsonRoute({
   operation: knowledgeOperations.relocateFolder,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
-  parseOptions: {
-    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
-  },
   mapInput: ({ body }) => ({
     workspaceId: body.workspaceId,
     path: body.path,
@@ -73,7 +66,7 @@ export const PATCH = defineV2JsonRoute({
     source: 'api',
   }),
   useCase: relocateKnowledgeFolder,
-  present: ({ folder }) => ({ data: { folder: toFolderPathView(folder, folder.path) } }),
+  present: ({ folder }) => ({ data: toFolderPathView(folder, folder.path) }),
 })
 
 export const DELETE = defineV2JsonRoute({

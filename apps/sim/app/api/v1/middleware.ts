@@ -1,9 +1,11 @@
+import type { PersonalApiKeyPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
 import { getValidationErrorMessage, isZodError, validationErrorResponse } from '@/lib/api/server'
 import { buildRateLimitHeaders, recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
+import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getRateLimit, RateLimiter } from '@/lib/core/rate-limiter'
@@ -19,9 +21,13 @@ const logger = createLogger('V1Middleware')
 const rateLimiter = new RateLimiter()
 
 /**
- * Endpoint labels for public API auth/rate-limit telemetry. Version-neutral: the
- * v1 and v2 public surfaces share the same `authenticateV1Request` + `api-endpoint`
- * rate bucket, so the label is only a log/metric dimension, not a policy switch.
+ * Endpoint labels for v1 public API auth/rate-limit telemetry. The label is only
+ * a log/metric dimension, not a policy switch — every label resolves to the same
+ * `authenticateV1Request` + `api-endpoint` rate bucket.
+ *
+ * The v2 surface does not use these labels: v2 routes are built with
+ * `defineV2JsonRoute` and rate-limited through `v2RateLimits`. Add a member only
+ * when a route actually passes it to `checkRateLimit` / `authenticateRequest`.
  */
 export type ApiEndpoint =
   | 'logs'
@@ -30,8 +36,6 @@ export type ApiEndpoint =
   | 'workflow-detail'
   | 'workflow-deploy'
   | 'workflow-rollback'
-  | 'workflow-versions'
-  | 'workflow-version-detail'
   | 'workflow-export'
   | 'workflow-import'
   | 'audit-logs'
@@ -39,37 +43,12 @@ export type ApiEndpoint =
   | 'table-detail'
   | 'table-rows'
   | 'table-row-detail'
-  | 'table-rows-find'
   | 'table-columns'
-  | 'table-views'
-  | 'table-view-detail'
-  | 'table-groups'
-  | 'table-enrichment'
-  | 'table-import'
-  | 'table-export'
-  | 'table-jobs'
   | 'files'
   | 'file-detail'
-  | 'file-share'
-  | 'file-content'
-  | 'file-move'
-  | 'file-bulk-delete'
   | 'knowledge'
   | 'knowledge-detail'
   | 'knowledge-search'
-  | 'copilot-chat'
-  | 'billing-usage'
-  | 'mcp-servers'
-  | 'mcp-server-detail'
-  | 'skills'
-  | 'skill-detail'
-  | 'custom-tools'
-  | 'custom-tool-detail'
-  | 'credentials'
-  | 'secrets'
-  | 'secret-detail'
-  | 'workspaces'
-  | 'workspace-members'
 
 export interface RateLimitResult {
   allowed: boolean
@@ -85,6 +64,7 @@ export interface RateLimitResult {
   userId?: string
   workspaceId?: string
   keyType?: 'personal' | 'workspace'
+  principal?: PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal
   error?: string
 }
 
@@ -102,6 +82,18 @@ export function requireRateLimitUserId(rateLimit: RateLimitResult): string {
     throw new Error('Allowed public API request is missing a user ID')
   }
   return rateLimit.userId
+}
+
+export function requireRateLimitPrincipal(
+  rateLimit: RateLimitResult
+): PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal {
+  if (!rateLimit.allowed) {
+    throw new Error('Cannot authorize a denied public API request')
+  }
+  if (!rateLimit.principal) {
+    throw new Error('Allowed public API request is missing its Principal')
+  }
+  return rateLimit.principal
 }
 
 export async function checkRateLimit(
@@ -166,6 +158,7 @@ export async function checkRateLimit(
       userId,
       workspaceId: auth.workspaceId,
       keyType: auth.keyType,
+      principal: auth.principal,
     }
   } catch (error) {
     logger.error('Rate limit check error', { error })
@@ -239,8 +232,8 @@ export interface WorkspaceAccessError {
  * Core workspace-scope check (no response rendering). Enforces two policies:
  * - A workspace-scoped key may only target its own workspace.
  * - A personal key is rejected when the workspace has disabled personal API
- *   keys (`allowPersonalApiKeys = false`), matching the workflow-execution
- *   surface in `app/api/workflows/middleware.ts`.
+ *   keys (`allowPersonalApiKeys = false`). Other surfaces enforcing the same
+ *   policy share `PERSONAL_KEY_DENIED`.
  */
 export async function resolveWorkspaceScope(
   rateLimit: RateLimitResult,
@@ -254,7 +247,7 @@ export async function resolveWorkspaceScope(
     return {
       status: 403,
       code: 'FORBIDDEN',
-      message: 'API key is not authorized for this workspace',
+      message: WORKSPACE_KEY_SCOPE_DENIED,
     }
   }
 
@@ -264,7 +257,7 @@ export async function resolveWorkspaceScope(
       return {
         status: 403,
         code: 'FORBIDDEN',
-        message: 'Personal API keys are not allowed for this workspace',
+        message: PERSONAL_KEY_DENIED,
       }
     }
   }

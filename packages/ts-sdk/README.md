@@ -2,6 +2,20 @@
 
 The official TypeScript/JavaScript SDK for [Sim](https://sim.ai), allowing you to execute workflows programmatically from your applications.
 
+## Server compatibility
+
+`0.2.x` talks to the v2 API and has no fallback to the older endpoints, so it requires a Sim deployment that serves `POST /api/v2/workflows/{id}/execute`. That surface is newer than the endpoints `0.1.x` used, and a deployment can also have it switched off — a self-hosted build serves `/api/v2` only when the operator enables `V2_API`. Where it is unavailable every v2 route answers 404, so `executeWorkflow` fails with `HTTP 404: Not Found` — enable or upgrade the v2 API on the server, or stay on `simstudio-ts-sdk@0.1.x`, which keeps using `/api/workflows/{id}/execute` and `/api/jobs/{id}`.
+
+## Upgrading from 0.1.x to 0.2.0
+
+`0.2.0` is a breaking release. It is a minor bump rather than a patch precisely so that `^0.1.2` does not pick it up — you upgrade when you choose to.
+
+- **Requests move to `/api/v2`.** `executeWorkflow` posts to `/api/v2/workflows/{id}/execute`, sends the workflow input nested under `input`, and carries `async` / `executionTimeoutSeconds` in the body instead of the `X-Execution-Mode` and `X-Execution-Timeout-Seconds` headers.
+- **`AsyncExecutionResult.jobId` is now `runId`,** and `executionId` has been removed from that interface. Replace `result.jobId` with `result.runId`.
+- **`getJobStatus(taskId)` is legacy.** It still calls `/api/jobs/{taskId}` and only resolves IDs from a `0.1.x` async execution. For runs started by `0.2.x`, use `getWorkflowRun(workflowId, runId)`, which reads `/api/v2/workflows/{id}/runs/{runId}` and returns a typed `WorkflowRunStatus`.
+- **A failed synchronous run now throws.** Previously it resolved with `{ success: false }`; it now rejects with a `SimStudioError` carrying the server's `error.code` and `error.message`. Any `if (!result.success)` branch that handled failures must move into a `catch`.
+- **`success` is derived from the run status.** It is `true` for `completed` and `paused` runs only, so a run cancelled while it was in flight resolves with `success: false` rather than throwing. Combined with the point above: a rejection means the run failed, and a resolved `success: false` means it was cancelled.
+
 ## Installation
 
 ```bash
@@ -79,6 +93,8 @@ const result = await client.executeWorkflow('workflow-id', { message: 'Hello' },
   - `executionTimeoutSeconds` (number): Server-side async execution cap from 1 to 604800 seconds. Requires `async: true` and cannot extend the account policy.
 
 **Returns:** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
+
+Synchronous executions that finish with `status: 'failed'` reject with `SimStudioError`.
 
 ##### getWorkflowStatus(workflowId)
 
@@ -232,12 +248,16 @@ client.setBaseUrl('https://my-custom-domain.com');
 ```typescript
 interface WorkflowExecutionResult {
   success: boolean;
+  executionId?: string;
   output?: any;
   error?: string;
   logs?: any[];
   metadata?: {
     duration?: number;
+    executionId?: string;
     runId?: string;
+    startTime?: string;
+    endTime?: string;
     [key: string]: any;
   };
   traceSpans?: any[];

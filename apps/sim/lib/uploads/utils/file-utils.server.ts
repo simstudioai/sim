@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
@@ -15,6 +16,7 @@ import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
 import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+  type WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   extractStorageKey,
@@ -379,6 +381,7 @@ export async function downloadFileFromStorage(
 export interface ServableFile {
   buffer: Buffer
   contentType: string
+  contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
 }
 
 /**
@@ -401,7 +404,12 @@ export async function downloadServableFileFromStorage(
   userFile: UserFile,
   requestId: string,
   logger: Logger,
-  options: { maxBytes?: number; signal?: AbortSignal; ownerKey?: string } = {}
+  options: {
+    maxBytes?: number
+    signal?: AbortSignal
+    ownerKey?: string
+    filePrincipal?: Principal
+  } = {}
 ): Promise<ServableFile> {
   const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
     maxBytes: options.maxBytes,
@@ -428,6 +436,7 @@ export async function downloadServableFileFromStorage(
     rawBuffer: buffer,
     fileName: userFile.name,
     workspaceId,
+    filePrincipal: options.filePrincipal,
     ownerKey: options.ownerKey,
     signal: options.signal,
   })

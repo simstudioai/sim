@@ -1,9 +1,10 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { getPostgresErrorCode } from '@sim/utils/errors'
-import type { ListSortOrder } from '@/lib/api/list-query'
-import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
+import { defineAuthorizedWorkspaceUseCase, ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { mcpServerDelegationPolicy } from '@/lib/mcp/application/authorization'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
@@ -65,7 +66,8 @@ function requireSuccessfulResult(
     case 'not_found':
       throw new OrchestrationError('not_found', 'MCP server not found')
     case 'forbidden':
-      throw new OrchestrationError('forbidden', result.error ?? fallback)
+      /** The single MCP refusal: the URL is off the domain allowlist or resolves internally. */
+      throw new ForbiddenOperationError('MCP_SERVER_URL_NOT_ALLOWED', result.error ?? fallback)
     case 'bad_gateway':
       throw new OrchestrationError('validation', result.error ?? fallback)
     case 'conflict':
@@ -82,16 +84,28 @@ export interface ListMcpServersInput {
   search?: string
   sortBy?: McpServerSortBy
   sortOrder?: ListSortOrder
+  /** Absent reads the whole set — only the copilot adapter does that. */
+  limit?: number
+  cursorKeys?: CursorKey[]
 }
 
+/**
+ * One page of a workspace's MCP servers, plus the sort the presenter needs to
+ * stamp the next cursor with. The surface presenter sees only this result.
+ */
 export const listMcpServersUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.list,
   resolveContext: ({ input }: { input: ListMcpServersInput }) =>
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
   async execute({ input, context }) {
-    const servers = await listWorkspaceMcpServers({ ...input, workspaceId: context.workspaceId })
-    return { servers }
+    const page = await listWorkspaceMcpServers({ ...input, workspaceId: context.workspaceId })
+    return {
+      servers: page.data,
+      nextCursorKeys: page.nextCursorKeys,
+      sortBy: input.sortBy ?? 'createdAt',
+      sortOrder: input.sortOrder ?? 'desc',
+    }
   },
 })
 
@@ -109,7 +123,66 @@ export const discoverMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
     const tools = await mcpService.discoverTools(
       requirePrincipalSubjectUserId(principal),
       context.workspaceId,
-      input.refresh ?? false
+      /**
+       * A public `refresh` skips the positive cache but keeps the failure
+       * cooldown; only an explicit user action on their own server may bypass
+       * both. See {@link McpDiscoveryRefresh}.
+       */
+      input.refresh ? 'skip-cache' : 'cache-aside'
+    )
+    return { tools }
+  },
+})
+
+export interface DiscoverMcpServerToolsInput {
+  workspaceId: string
+  serverId: string
+  refresh?: boolean
+}
+
+/**
+ * The tool inventory of one registered MCP server.
+ *
+ * Shares `mcp_servers.tools.discover` with the workspace-wide discovery: both
+ * resolve the acting user's own OAuth credentials against a third-party server,
+ * which is why that operation denies workspace API keys. Resolving the server
+ * through {@link resolveServerContext} first is what makes an id from another
+ * workspace a not-found rather than an upstream connection attempt.
+ *
+ * The pass is also the only thing that writes the server row's
+ * `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh`, so
+ * calling this is what makes those fields meaningful on a subsequent read.
+ */
+export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: mcpServerOperations.discoverTools,
+  resolveContext: ({ input }: { input: DiscoverMcpServerToolsInput }) =>
+    resolveServerContext(input.workspaceId, input.serverId),
+  authorizationOptions,
+  async execute({ principal, input, context }) {
+    /**
+     * `enabled: false` is a documented registration value, but discovery loads
+     * its configuration through a query that filters on `enabled`, so a
+     * disabled server surfaced as an untyped "not accessible" fault — rendered
+     * as a Sim-side 500 — and stamped a bogus failure on the row on the way
+     * out. It is a state conflict the caller resolves by enabling the server.
+     */
+    if (!context.server.enabled) {
+      throw new OrchestrationError(
+        'conflict',
+        'The MCP server is disabled; enable it before listing its tools'
+      )
+    }
+
+    const tools = await mcpService.discoverServerTools(
+      requirePrincipalSubjectUserId(principal),
+      context.server.id,
+      context.workspaceId,
+      /**
+       * A public `refresh` skips the positive cache but keeps the failure
+       * cooldown; only an explicit user action on their own server may bypass
+       * both. See {@link McpDiscoveryRefresh}.
+       */
+      input.refresh ? 'skip-cache' : 'cache-aside'
     )
     return { tools }
   },
@@ -176,25 +249,32 @@ async function saveMcpServer(args: {
   return requireSuccessfulResult(result, 'Failed to register MCP server')
 }
 
+/**
+ * A registration is an addition when it inserts a row or revives a soft-deleted
+ * one, and an update when it rewrites a live row — which `registerMcpServer`
+ * allows, repointing headers and the URL's query string. Auditing only the
+ * insert left both upsert outcomes unrecorded.
+ */
 function createAudit(
   input: SaveMcpServerInput,
   result: PerformMcpServerResult & { server: McpServerRow }
 ) {
-  if (result.updated) return []
+  const isRewrite = result.updated === true && !result.revived
   return [
     {
-      action: AuditAction.MCP_SERVER_ADDED,
+      action: isRewrite ? AuditAction.MCP_SERVER_UPDATED : AuditAction.MCP_SERVER_ADDED,
       resourceType: AuditResourceType.MCP_SERVER,
       resourceId: result.server.id,
       resourceName: result.server.name,
-      description: `Added MCP server "${result.server.name}"`,
+      description: `${isRewrite ? 'Updated' : 'Added'} MCP server "${result.server.name}"`,
       metadata: {
         serverName: result.server.name,
         transport: result.server.transport,
-        url: result.server.url,
+        url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
         timeout: result.server.timeout,
         retries: result.server.retries,
         source: input.source,
+        ...(isRewrite ? { updatedFields: result.updatedFields ?? [] } : {}),
       },
     },
   ]
@@ -314,10 +394,8 @@ function updateAudit(
     metadata: {
       serverName: result.server.name,
       transport: result.server.transport,
-      url: result.server.url,
-      updatedFields: Object.keys(input).filter(
-        (key) => !['workspaceId', 'serverId', 'source'].includes(key)
-      ),
+      url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
+      updatedFields: result.updatedFields ?? [],
       source: input.source,
     },
   }
@@ -384,7 +462,7 @@ export const deleteMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
     metadata: {
       serverName: result.server.name,
       transport: result.server.transport,
-      url: result.server.url,
+      url: result.server.url ? sanitizeUrlForLog(result.server.url) : null,
       source: input.source,
     },
   }),

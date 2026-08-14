@@ -1,12 +1,6 @@
-import { v2GetFileContentContract, v2UpdateFileContentContract } from '@/lib/api/contracts/v2/files'
-import {
-  defineV2BinaryRoute,
-  defineV2JsonRoute,
-  v2ApiKeyAuth,
-  v2RateLimits,
-} from '@/lib/api/server/routes'
+import { v2UpdateFileContentContract } from '@/lib/api/contracts/v2/files'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
-import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
   admitUpdateWorkspaceFileContent,
@@ -14,30 +8,9 @@ import {
 } from '@/lib/workspace-files/application/update-workspace-file-content'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { toV2File } from '@/app/api/v2/files/utils'
-import { v2Error } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-/** GET /api/v2/files/[fileId]/content — Stream a file's bytes. */
-export const GET = defineV2BinaryRoute({
-  contract: v2GetFileContentContract,
-  auth: v2ApiKeyAuth,
-  operation: fileOperations.download,
-  rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
-  mapInput: ({ params, query }) => ({
-    fileId: params.fileId,
-    assertedWorkspaceId: query.workspaceId,
-  }),
-  useCase: downloadWorkspaceFileStream,
-  present: ({ file, stream }) => ({
-    body: stream,
-    contentType: file.type || 'application/octet-stream',
-    contentDisposition: `attachment; filename="${file.name.replace(/[^\w.-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-    contentLength: file.size,
-  }),
-})
 
 /** PUT /api/v2/files/[fileId]/content — Replace a file's bytes. */
 export const PUT = defineV2JsonRoute({
@@ -47,9 +20,7 @@ export const PUT = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   parseOptions: {
-    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
     maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
-    payloadTooLargeResponse: () => v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large'),
   },
   beforeParse: async ({ principal, params }) => {
     if (typeof params.fileId === 'string') {

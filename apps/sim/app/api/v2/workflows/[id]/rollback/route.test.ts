@@ -8,8 +8,10 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/api/server/routes', () => ({
+  createInternalResourceConcealmentPolicy: vi.fn(() => ({ kind: 'conceal-internal-resource' })),
+  internalOrchestrationErrorPolicy: { kind: 'internal-plain' },
   createInternalSessionOrExecutorAuth: vi.fn(() => ({ kind: 'internal-workflow' })),
-  createV2ResourceConcealmentPolicy: vi.fn(() => ({ kind: 'conceal-workflow' })),
+  createV2ResourceConcealmentPolicy: vi.fn(() => ({ kind: 'conceal-resource' })),
   defineV2JsonRoute: mocks.defineRoute,
   v2ApiKeyAuth: { kind: 'v2-api-key' },
   v2RateLimits: { publicApi: { kind: 'public-api' } },
@@ -23,6 +25,12 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { POST } from '@/app/api/v2/workflows/[id]/rollback/route'
 
 describe('/api/v2/workflows/[id]/rollback route definition', () => {
+  /**
+   * Both the malformed-body 400 and the oversized-body 413 are v2 builder
+   * defaults, so neither belongs on the route. The envelope they produce is
+   * asserted once against the builder in
+   * `lib/api/server/routes/v2-error-envelope.test.ts`.
+   */
   it('keeps an omitted rollback body valid and delegates version selection to the use case', async () => {
     expect(v2RollbackWorkflowContract.body?.parse(undefined)).toEqual({})
     expect(POST).toMatchObject({
@@ -39,23 +47,10 @@ describe('/api/v2/workflows/[id]/rollback route definition', () => {
       })
     )
 
-    const invalidJsonResponse = Reflect.get(
-      Reflect.get(POST, 'parseOptions'),
-      'invalidJsonResponse'
-    )()
-    expect(invalidJsonResponse.status).toBe(400)
-    expect(await invalidJsonResponse.json()).toEqual({
-      error: { code: 'BAD_REQUEST', message: 'Request body must be valid JSON' },
-    })
-
-    const payloadTooLargeResponse = Reflect.get(
-      Reflect.get(POST, 'parseOptions'),
-      'payloadTooLargeResponse'
-    )()
-    expect(payloadTooLargeResponse.status).toBe(413)
-    expect(await payloadTooLargeResponse.json()).toEqual({
-      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' },
-    })
+    expect(Reflect.get(Reflect.get(POST, 'parseOptions'), 'invalidJsonResponse')).toBeUndefined()
+    expect(
+      Reflect.get(Reflect.get(POST, 'parseOptions'), 'payloadTooLargeResponse')
+    ).toBeUndefined()
   })
 
   it('presents the full declared rollback lifecycle response', () => {

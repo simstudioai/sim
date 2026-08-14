@@ -11,7 +11,7 @@ describe('listWorkspacePrincipalCredentials', () => {
   })
 
   it('selects and returns only connection metadata', async () => {
-    dbChainMockFns.orderBy.mockResolvedValueOnce([
+    dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'credential-1',
         workspaceId: 'workspace-1',
@@ -30,9 +30,11 @@ describe('listWorkspacePrincipalCredentials', () => {
     const result = await listWorkspacePrincipalCredentials({
       workspaceId: 'workspace-1',
       types: ['oauth', 'service_account'],
+      limit: 50,
     })
 
-    expect(result).toEqual([
+    expect(result.nextCursorKeys).toBeNull()
+    expect(result.data).toEqual([
       {
         id: 'credential-1',
         workspaceId: 'workspace-1',
@@ -57,19 +59,20 @@ describe('listWorkspacePrincipalCredentials', () => {
 
   it('fails fast on an empty connection-type policy', async () => {
     await expect(
-      listWorkspacePrincipalCredentials({ workspaceId: 'workspace-1', types: [] })
+      listWorkspacePrincipalCredentials({ workspaceId: 'workspace-1', types: [], limit: 50 })
     ).rejects.toThrow('Workspace credential types cannot be empty')
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
   it('propagates database failures', async () => {
     const failure = new Error('database unavailable')
-    dbChainMockFns.orderBy.mockRejectedValueOnce(failure)
+    dbChainMockFns.limit.mockRejectedValueOnce(failure)
 
     await expect(
       listWorkspacePrincipalCredentials({
         workspaceId: 'workspace-1',
         types: ['oauth', 'service_account'],
+        limit: 50,
       })
     ).rejects.toBe(failure)
   })

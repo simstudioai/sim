@@ -1,7 +1,7 @@
 import { listAuditLogsContract } from '@/lib/api/contracts/audit-logs'
 import {
   defineInternalJsonRoute,
-  internalPlainOrchestrationErrorPolicy,
+  internalOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
@@ -18,7 +18,7 @@ export const GET = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Existing authenticated audit-log settings read has no request-rate policy',
   }),
-  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ query }) => ({
     organizationId: query.organizationId,
     includeDeparted: query.includeDeparted,

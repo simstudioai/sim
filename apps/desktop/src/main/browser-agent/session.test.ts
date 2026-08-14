@@ -21,6 +21,7 @@ interface MockView {
       setPermissionCheckHandler: ReturnType<typeof vi.fn>
     }
     on: ReturnType<typeof vi.fn>
+    setUserAgent: ReturnType<typeof vi.fn>
     setWindowOpenHandler: ReturnType<typeof vi.fn>
     loadURL: ReturnType<typeof vi.fn>
     reload: ReturnType<typeof vi.fn>
@@ -28,6 +29,7 @@ interface MockView {
     getTitle: ReturnType<typeof vi.fn>
     close: ReturnType<typeof vi.fn>
     focus: ReturnType<typeof vi.fn>
+    invalidate: ReturnType<typeof vi.fn>
     isFocused: ReturnType<typeof vi.fn>
     isDestroyed: ReturnType<typeof vi.fn>
     isLoading: ReturnType<typeof vi.fn>
@@ -166,6 +168,18 @@ describe('browser-agent session', () => {
     expect(started).toBeTypeOf('function')
     expect(inPage).toBeTypeOf('function')
     expect(onTabNavigated).toHaveBeenCalledWith(contents, true)
+  })
+
+  it('gives every tab a user agent with no Electron token in it', () => {
+    const first = session.ensureTab()
+    const second = session.addTab()
+
+    for (const tab of [first, second]) {
+      const contents = (tab.view as unknown as MockView).webContents
+      const agent = contents.setUserAgent.mock.calls.at(-1)?.[0] as string | undefined
+      expect(agent).toMatch(/^Mozilla\/5\.0 \(.+\) .*Chrome\/\d+\.0\.0\.0 Safari\/537\.36$/)
+      expect(agent).not.toMatch(/Electron|Sim\//)
+    }
   })
 
   it('settles the tab spinner when only subresources are still loading', () => {
@@ -929,11 +943,12 @@ describe('browser-agent session', () => {
     expect(session.listTabs()[0].tabId).not.toBe(blankTabId)
 
     session.setPanelFocused(false)
+    panel.setPanelBounds(null)
     expect(session.handleFocusedShortcut('close-tab')).toBe(false)
     expect(session.listTabs()).toHaveLength(1)
   })
 
-  it('treats renderer browser chrome as browser focus', () => {
+  it('keeps close-tab routed to a visible browser through a transient focus loss', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     const first = session.requireTab()
     const second = session.addTab()
@@ -945,17 +960,38 @@ describe('browser-agent session', () => {
     expect(session.listTabs()[0].tabId).not.toBe(second.id)
 
     session.setPanelFocused(false)
+    expect(session.handleFocusedShortcut('close-tab')).toBe(true)
+    expect(session.listTabs()).toHaveLength(1)
+
+    panel.setPanelBounds(null)
     expect(session.handleFocusedShortcut('close-tab')).toBe(false)
   })
 
-  it('opens a tab from the shared resource shortcut while browser chrome owns focus', () => {
+  it('keeps browser tab shortcuts routed while the visible panel has no DOM focus', () => {
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     session.requireTab()
-    session.setPanelFocused(true)
+    session.setPanelFocused(false)
     const before = session.listTabs().length
 
     expect(session.handleFocusedShortcut('new-tab')).toBe(true)
     expect(session.listTabs()).toHaveLength(before + 1)
+    expect(session.handleFocusedShortcut('close-tab')).toBe(true)
+    expect(session.listTabs()).toHaveLength(before)
+    expect(session.handleFocusedShortcut('reopen-closed-tab')).toBe(true)
+    expect(session.listTabs()).toHaveLength(before + 1)
+
+    vi.mocked(win.webContents.send).mockClear()
+    expect(session.handleFocusedShortcut('focus-omnibox')).toBe(true)
+    expect(win.webContents.send).toHaveBeenCalledWith(
+      'browser-agent:focus-omnibox',
+      'select',
+      session.getBrowserScopeId()
+    )
+
+    panel.setPanelBounds(null)
+    expect(session.handleFocusedShortcut('new-tab')).toBe(false)
+    expect(session.handleFocusedShortcut('reopen-closed-tab')).toBe(false)
+    expect(session.handleFocusedShortcut('focus-omnibox')).toBe(false)
   })
 
   it('reloads only the focused browser tab', () => {
@@ -1037,7 +1073,7 @@ describe('browser-agent session', () => {
     expect(activeContents.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
   })
 
-  it('moves the automation exemption to whichever tab becomes active', () => {
+  it('moves the automation exemption with the agent cursor, not visible selection', () => {
     const first = session.ensureTab()
     const second = session.addTab()
     session.switchTab(first.id)
@@ -1048,12 +1084,105 @@ describe('browser-agent session', () => {
     firstContents.setBackgroundThrottling.mockClear()
     secondContents.setBackgroundThrottling.mockClear()
 
-    session.switchTab(second.id)
+    session.switchAutomationTab(second.id)
 
     // The old active tab is re-throttled, the new one exempted — otherwise a
     // mid-tool switch would strand the wake on a tab the agent left behind.
     expect(firstContents.setBackgroundThrottling).toHaveBeenLastCalledWith(true)
     expect(secondContents.setBackgroundThrottling).toHaveBeenLastCalledWith(false)
+  })
+
+  it('keeps the user-visible tab selected while the agent opens and switches background tabs', () => {
+    const first = session.ensureTab()
+    const visible = session.addTab()
+
+    session.switchAutomationTab(first.id)
+    const background = session.addAutomationTab()
+
+    expect(session.getTabsState().activeTabId).toBe(visible.id)
+    expect(session.getTabsState().automationTabId).toBe(background.id)
+    expect(session.getTabsState().tabs.find((tab) => tab.active)?.tabId).toBe(visible.id)
+  })
+
+  it('refuses to let automation close a visible tab claimed by the user', () => {
+    const visible = session.ensureTab()
+    session.switchTab(visible.id)
+
+    expect(() => session.closeAutomationTab(visible.id)).toThrow('currently being used by the user')
+    expect(session.getTabsState().activeTabId).toBe(visible.id)
+  })
+
+  it('keeps agent actions on a tab after the user selects it', () => {
+    const visible = session.ensureTab()
+    session.switchTab(visible.id)
+
+    const agent = session.ensureAutomationTab()
+
+    expect(agent.id).toBe(visible.id)
+    expect(session.getTabsState().activeTabId).toBe(visible.id)
+    expect(session.getTabsState().automationTabId).toBe(visible.id)
+    expect(session.listTabs()).toHaveLength(1)
+  })
+
+  it('keeps agent actions on a tab after a toolbar action claims it', () => {
+    const visible = session.ensureTab()
+
+    expect(session.claimActiveTabForUser()?.id).toBe(visible.id)
+    expect(session.listTabs()).toHaveLength(1)
+
+    const agent = session.ensureAutomationTab()
+    expect(agent.id).toBe(visible.id)
+    expect(session.listTabs()).toHaveLength(1)
+  })
+
+  it('does not treat a passive native focus event as user takeover', () => {
+    const visible = session.ensureTab()
+    const contents = (visible.view as unknown as MockView).webContents
+    const focusListener = contents.on.mock.calls.find(
+      ([eventName]) => eventName === 'focus'
+    )?.[1] as (() => void) | undefined
+
+    focusListener?.()
+
+    expect(session.ensureAutomationTab().id).toBe(visible.id)
+    expect(session.listTabs()).toHaveLength(1)
+  })
+
+  it('keeps automation on the same tab after real page interaction', () => {
+    const visible = session.ensureTab()
+    const contents = (visible.view as unknown as MockView).webContents
+    const beforeMouse = contents.on.mock.calls.find(
+      ([eventName]) => eventName === 'before-mouse-event'
+    )?.[1] as ((event: unknown, input: { type: string }) => void) | undefined
+
+    beforeMouse?.({}, { type: 'mouseDown' })
+
+    expect(session.ensureAutomationTab().id).toBe(visible.id)
+    expect(session.getTabsState().activeTabId).toBe(visible.id)
+    expect(session.listTabs()).toHaveLength(1)
+  })
+
+  it('clears automation indicators instead of moving them when their tab closes', () => {
+    const target = session.ensureAutomationTab()
+    session.setAutomationActive(true)
+    session.setAutomationNeedsAttention(true)
+
+    session.closeTab(target.id)
+
+    expect(session.getTabsState()).toMatchObject({
+      automationActive: false,
+      automationNeedsAttention: false,
+    })
+  })
+
+  it('resumes takeover in the same tab after the user explicitly hands it back', () => {
+    const visible = session.ensureTab()
+    session.switchTab(visible.id)
+
+    session.returnAutomationTabToAgent()
+
+    expect(session.ensureAutomationTab().id).toBe(visible.id)
+    expect(session.listTabs()).toHaveLength(1)
   })
 
   it('updates the native backdrop when Sim changes browser theme', () => {
@@ -1149,6 +1278,7 @@ describe('browser-agent session', () => {
     expect(contents?.focus).toHaveBeenCalled()
 
     session.setPanelFocused(false)
+    panel.setPanelBounds(null)
     expect(session.handleFocusedShortcut('reopen-closed-tab')).toBe(false)
   })
 
@@ -1305,14 +1435,17 @@ describe('browser-agent session', () => {
       win as unknown as { contentView: { removeChildView: ReturnType<typeof vi.fn> } }
     ).contentView.removeChildView
     view.setVisible.mockClear()
+    view.webContents.invalidate.mockClear()
     panel.setPanelBounds(null)
     expect(view.setVisible).toHaveBeenCalledWith(false)
+    expect(view.webContents.invalidate).not.toHaveBeenCalled()
     expect(removeChildView).not.toHaveBeenCalled()
 
     // Showing it again reuses the attached view rather than re-adding it.
     content.addChildView.mockClear()
     panel.setPanelBounds({ x: 100, y: 50, width: 800, height: 600 })
     expect(view.setVisible).toHaveBeenLastCalledWith(true)
+    expect(view.webContents.invalidate).toHaveBeenCalledOnce()
     expect(content.addChildView).not.toHaveBeenCalled()
   })
 
@@ -1336,6 +1469,7 @@ describe('browser-agent session', () => {
     // two native views stacked in the window would composite over each other.
     expect(content.removeChildView).toHaveBeenCalledWith(first.view)
     expect(content.addChildView).toHaveBeenCalledWith(second.view)
+    expect(second.view.webContents.invalidate).toHaveBeenCalledOnce()
   })
 
   // The measured report is the sole writer of bounds. A main-process
@@ -1581,6 +1715,48 @@ describe('browser-agent session', () => {
     expect(contents.loadURL).not.toHaveBeenCalled()
   })
 
+  it('keeps agent popups in the background and context-menu links user-owned', () => {
+    const onTabCreated = vi.fn()
+    session = freshSession(win, { onTabCreated })
+    const sourceTab = session.ensureTab()
+    const source = (sourceTab.view as unknown as MockView).webContents
+    onTabCreated.mockClear()
+    session.setAutomationActive(true)
+
+    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as (details: {
+      url: string
+    }) => { action: string }
+    openWindow({ url: 'https://agent-popup.example/' })
+    const agentPopup = session.automationTab()
+    expect(agentPopup).not.toBeNull()
+    expect(session.activeTab()).toBe(sourceTab)
+    expect(onTabCreated).toHaveBeenLastCalledWith(agentPopup?.view.webContents)
+
+    const contextMenu = source.on.mock.calls.find(
+      ([eventName]) => eventName === 'context-menu'
+    )?.[1] as (event: unknown, params: unknown) => void
+    contextMenu(
+      {},
+      {
+        selectionText: '',
+        linkURL: 'https://context-link.example/',
+        isEditable: false,
+        editFlags: { canPaste: false },
+      }
+    )
+    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as
+      | MenuItemConstructorOptions[]
+      | undefined
+    template
+      ?.find((item) => item.label === 'Open Link in New Tab')
+      ?.click?.({} as never, undefined as never, {} as never)
+
+    const userTab = session.activeTab()
+    expect(userTab).not.toBe(sourceTab)
+    expect(session.automationTab()).toBe(agentPopup)
+    expect(onTabCreated).toHaveBeenLastCalledWith(userTab?.view.webContents)
+  })
+
   it('blocks controlled pages from moving or resizing the desktop window', () => {
     const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents
@@ -1594,7 +1770,7 @@ describe('browser-agent session', () => {
     expect(event.preventDefault).toHaveBeenCalledOnce()
   })
 
-  it('permission handlers deny every request on the agent partition', () => {
+  it('permission handlers deny every request on the agent partition but the copy button', () => {
     const tab = session.ensureTab()
     const ses = (tab.view as unknown as MockView).webContents.session
     const requestHandler = ses.setPermissionRequestHandler.mock.calls[0][0] as (
@@ -1602,12 +1778,26 @@ describe('browser-agent session', () => {
       permission: string,
       callback: (granted: boolean) => void
     ) => void
-    const callback = vi.fn()
-    requestHandler(null, 'media', callback)
-    expect(callback).toHaveBeenCalledWith(false)
+    const checkHandler = ses.setPermissionCheckHandler.mock.calls[0][0] as (
+      wc: unknown,
+      permission: string
+    ) => boolean
 
-    const checkHandler = ses.setPermissionCheckHandler.mock.calls[0][0] as () => boolean
-    expect(checkHandler()).toBe(false)
+    // Reading the clipboard would leak whatever the user last copied anywhere
+    // else, so it stays denied alongside everything a page could spy through.
+    for (const permission of ['media', 'geolocation', 'notifications', 'clipboard-read']) {
+      const callback = vi.fn()
+      requestHandler(null, permission, callback)
+      expect(callback).toHaveBeenCalledWith(false)
+      expect(checkHandler(null, permission)).toBe(false)
+    }
+
+    // Chromium routes navigator.clipboard.writeText through this one; denying
+    // it silently broke every copy button that does not use execCommand.
+    const writeCallback = vi.fn()
+    requestHandler(null, 'clipboard-sanitized-write', writeCallback)
+    expect(writeCallback).toHaveBeenCalledWith(true)
+    expect(checkHandler(null, 'clipboard-sanitized-write')).toBe(true)
   })
 
   it('leaves nothing of the signed-out user behind in the browser profile', async () => {

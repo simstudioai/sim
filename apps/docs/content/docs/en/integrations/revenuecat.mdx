@@ -34,7 +34,7 @@ Integrate RevenueCat into the workflow. Manage subscribers, entitlements, offeri
 
 ## Actions
 
-### `revenuecat_get_customer`
+### RevenueCat Get Customer
 
 Retrieve subscriber information by app user ID
 
@@ -86,7 +86,7 @@ Retrieve subscriber information by app user ID
 |   ↳ `active_entitlements` | number | Number of active entitlements |
 |   ↳ `active_subscriptions` | number | Number of active subscriptions |
 
-### `revenuecat_delete_customer`
+### RevenueCat Delete Customer
 
 Permanently delete a subscriber and all associated data
 
@@ -104,7 +104,7 @@ Permanently delete a subscriber and all associated data
 | `deleted` | boolean | Whether the subscriber was deleted |
 | `app_user_id` | string | The deleted app user ID |
 
-### `revenuecat_create_purchase`
+### RevenueCat Create Purchase
 
 Record a purchase (receipt) for a subscriber via the REST API
 
@@ -163,7 +163,7 @@ Record a purchase (receipt) for a subscriber via the REST API
 |   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
 |   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
-### `revenuecat_grant_entitlement`
+### RevenueCat Grant Entitlement
 
 Grant a promotional entitlement to a subscriber
 
@@ -214,7 +214,7 @@ Grant a promotional entitlement to a subscriber
 |   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
 |   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
-### `revenuecat_revoke_entitlement`
+### RevenueCat Revoke Entitlement
 
 Revoke all promotional entitlements for a specific entitlement identifier
 
@@ -262,7 +262,7 @@ Revoke all promotional entitlements for a specific entitlement identifier
 |   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
 |   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
-### `revenuecat_list_offerings`
+### RevenueCat List Offerings
 
 List all offerings configured for the project
 
@@ -289,7 +289,7 @@ List all offerings configured for the project
 |   ↳ `count` | number | Number of offerings returned |
 |   ↳ `current_offering_id` | string | Current offering identifier |
 
-### `revenuecat_update_subscriber_attributes`
+### RevenueCat Update Subscriber Attributes
 
 Update custom subscriber attributes (e.g., $email, $displayName, or custom key-value pairs)
 
@@ -308,7 +308,7 @@ Update custom subscriber attributes (e.g., $email, $displayName, or custom key-v
 | `updated` | boolean | Whether the subscriber attributes were successfully updated |
 | `app_user_id` | string | The app user ID of the updated subscriber |
 
-### `revenuecat_defer_google_subscription`
+### RevenueCat Defer Google Subscription
 
 Defer a Google Play subscription by extending its billing date by a number of days (Google Play only)
 
@@ -358,7 +358,7 @@ Defer a Google Play subscription by extending its billing date by a number of da
 |   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
 |   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
-### `revenuecat_refund_google_subscription`
+### RevenueCat Refund Google Subscription
 
 Refund a specific store transaction by its store transaction identifier and revoke access (subscription or non-subscription, last 365 days)
 
@@ -406,7 +406,7 @@ Refund a specific store transaction by its store transaction identifier and revo
 |   ↳ `other_purchases` | object | Other purchases attached to the subscriber |
 |   ↳ `subscriber_attributes` | object | Custom attributes set on the subscriber. Only returned when using a secret API key |
 
-### `revenuecat_revoke_google_subscription`
+### RevenueCat Revoke Google Subscription
 
 Immediately revoke access to a Google Play subscription and issue a refund (Google Play only)
 

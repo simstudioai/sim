@@ -18,6 +18,10 @@ export interface WorkflowBlockProps {
   isWorkflowLocked?: boolean
   subBlockValues?: Record<string, any>
   blockState?: any
+  /** Persists and broadcasts the Error output toggle. */
+  onSetErrorOutputEnabled?: (blockId: string, enabled: boolean) => void
+  /** Persists and broadcasts edge removals caused by disabling Error output. */
+  onRemoveEdges?: (edgeIds: string[]) => void
 }
 
 /**

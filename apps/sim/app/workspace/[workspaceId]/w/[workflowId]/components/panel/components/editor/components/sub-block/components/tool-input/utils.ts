@@ -1,4 +1,27 @@
 import type { StoredTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/types'
+import type { BlockConfig } from '@/blocks/types'
+
+const CORE_AGENT_TOOL_TYPES = new Set([
+  'api',
+  'webhook_request',
+  'workflow',
+  'workflow_input',
+  'knowledge',
+  'function',
+  'table',
+  'file_v5',
+])
+
+/**
+ * Checks whether a registered block should appear in the agent tool picker.
+ */
+export function isAgentToolBlock(
+  block: Pick<BlockConfig, 'category' | 'hideFromToolbar' | 'type'>
+): boolean {
+  return (
+    !block.hideFromToolbar && (block.category === 'tools' || CORE_AGENT_TOOL_TYPES.has(block.type))
+  )
+}
 
 /**
  * Checks if an MCP tool is already selected.

@@ -10,6 +10,8 @@ const {
   mockAssertItems,
   mockArchive,
   mockCreate,
+  mockEnsure,
+  mockList,
   mockRelocate,
   mockRestore,
   mockAudit,
@@ -21,6 +23,8 @@ const {
   mockAssertItems: vi.fn(),
   mockArchive: vi.fn(),
   mockCreate: vi.fn(),
+  mockEnsure: vi.fn(),
+  mockList: vi.fn(),
   mockRelocate: vi.fn(),
   mockRestore: vi.fn(),
   mockAudit: vi.fn(),
@@ -31,6 +35,8 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   assertWorkspaceFileItemsBelongToWorkspace: mockAssertItems,
   bulkArchiveWorkspaceFileItems: mockArchive,
   createWorkspaceFileFolderAtPath: mockCreate,
+  ensureWorkspaceFileFolderPath: mockEnsure,
+  listWorkspaceFileFolders: mockList,
   loadWorkspaceFileOperationContext: mockLoadContext,
   relocateWorkspaceFileFolderByPath: mockRelocate,
   restoreWorkspaceFileFolder: mockRestore,
@@ -55,6 +61,8 @@ vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mockNotif
 import {
   createWorkspaceFileFolderOperation,
   deleteWorkspaceFileFolderOperation,
+  ensureWorkspaceFileFolderPathOperation,
+  listWorkspaceFileFoldersOperation,
   restoreWorkspaceFileFolderOperation,
   updateWorkspaceFileFolderOperation,
 } from '@/lib/workspace-files/application/workspace-file-folders'
@@ -111,6 +119,86 @@ describe('workspace file folder operations', () => {
     })
     expect(mockAudit).toHaveBeenCalledOnce()
     expect(mockNotify).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['leaves the sort unset so the repository keeps its position ordering', {}, undefined],
+    ['delegates an explicit sort', { sortBy: 'name', sortOrder: 'desc' } as const, 'name'],
+  ])('%s', async (_label, sortInput, expectedSortBy) => {
+    mockList.mockResolvedValue([folder])
+
+    await listWorkspaceFileFoldersOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', ...sortInput },
+    })
+
+    expect(mockList).toHaveBeenCalledWith(
+      'ws-1',
+      expect.objectContaining({ sortBy: expectedSortBy })
+    )
+  })
+
+  it('preserves the order the repository returned rather than re-sorting in memory', async () => {
+    mockList.mockResolvedValue([
+      { ...folder, id: 'newest', name: 'zeta' },
+      { ...folder, id: 'middle', name: 'Alpha' },
+      { ...folder, id: 'oldest', name: 'beta' },
+    ])
+
+    const result = await listWorkspaceFileFoldersOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1' },
+    })
+
+    expect(result.folders.map((item) => item.id)).toEqual(['newest', 'middle', 'oldest'])
+  })
+
+  it('matches a canonical encoded parent path against decoded stored folder paths', async () => {
+    mockList.mockResolvedValue([
+      { ...folder, id: 'child-1', name: 'Q1', path: 'Reports & Plans/Q1' },
+      { ...folder, id: 'other-1', name: 'Other', path: 'Archive/Other' },
+    ])
+
+    const result = await listWorkspaceFileFoldersOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', parentPath: '/Reports%20%26%20Plans' },
+    })
+
+    expect(result.folders.map((item) => item.id)).toEqual(['child-1'])
+  })
+
+  it('matches a parent whose name contains an escaped slash', async () => {
+    mockList.mockResolvedValue([
+      { ...folder, id: 'child-1', name: 'Q1', path: 'Finance\\/Legal/Q1' },
+      { ...folder, id: 'other-1', name: 'Other', path: 'Finance/Legal/Other' },
+    ])
+
+    const result = await listWorkspaceFileFoldersOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', parentPath: '/Finance%2FLegal' },
+    })
+
+    expect(result.folders.map((item) => item.id)).toEqual(['child-1'])
+  })
+
+  it('ensures an entire decoded folder chain for a file write', async () => {
+    mockEnsure.mockResolvedValue({
+      folderId: 'nested-folder',
+      createdFolderIds: ['reports-folder', 'nested-folder'],
+    })
+
+    const result = await ensureWorkspaceFileFolderPathOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', pathSegments: ['Reports', '2026'] },
+    })
+
+    expect(result.folderId).toBe('nested-folder')
+    expect(result.createdFolderIds).toEqual(['reports-folder', 'nested-folder'])
+    expect(mockEnsure).toHaveBeenCalledWith({
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      pathSegments: ['Reports', '2026'],
+    })
   })
 
   it('relocates a canonical path folder without invoking legacy orchestration', async () => {

@@ -2,39 +2,20 @@ import { db, pinnedItem } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   createPinnedItemContract,
   listPinnedItemsContract,
   type PinnedItemApi,
-  pinnedResourceTypeSchema,
 } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { filterToActiveResources, pinnableResourceExists } from '@/lib/pinned-items/resources'
+import { listPinnedItemsForUser } from '@/lib/pinned-items/queries'
+import { pinnableResourceExists } from '@/lib/pinned-items/resources'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('PinnedItemsAPI')
-
-/**
- * Narrows a stored row to the wire shape, dropping any row whose `resourceType` this build does
- * not recognise.
- *
- * `pinned_item.resource_type` is plain `text` — deliberately, so the set of pinnable kinds can
- * grow — while the contract is a closed enum. During a rolling deploy an older pod can therefore
- * read a pin a newer one wrote. Returning it would fail response validation and take the WHOLE
- * list down rather than the single row, so the unknown kind is skipped instead.
- *
- * `filterToActiveResources` already drops these as a side effect of not having a table to look
- * them up in; this makes the guarantee explicit and compiler-checked at the wire boundary.
- */
-function toPinnedItemApi(row: typeof pinnedItem.$inferSelect): PinnedItemApi | null {
-  const resourceType = pinnedResourceTypeSchema.safeParse(row.resourceType)
-  if (!resourceType.success) return null
-  return { ...row, resourceType: resourceType.data, pinnedAt: row.pinnedAt.toISOString() }
-}
 
 /** Lists the session user's pinned items in a workspace, optionally filtered to one `resourceType`. */
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -52,22 +33,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: 'Access denied to this workspace' }, { status: 403 })
   }
 
-  const rows = await db
-    .select()
-    .from(pinnedItem)
-    .where(
-      and(
-        eq(pinnedItem.userId, session.user.id),
-        eq(pinnedItem.workspaceId, workspaceId),
-        resourceType ? eq(pinnedItem.resourceType, resourceType) : undefined
-      )
-    )
-
-  const activeRows = await filterToActiveResources(rows, workspaceId)
-
-  const pinnedItems = activeRows
-    .map(toPinnedItemApi)
-    .filter((item): item is PinnedItemApi => item !== null)
+  const pinnedItems = await listPinnedItemsForUser(session.user.id, workspaceId, resourceType)
 
   return NextResponse.json({ pinnedItems })
 })

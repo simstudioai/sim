@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import {
   isResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
@@ -25,9 +26,9 @@ interface KnowledgeModelInputContext {
 const knowledgeModelInputContext = new AsyncLocalStorage<KnowledgeModelInputContext>()
 
 /**
- * Authenticates and imports provenance supplied by the internal tool transport. External
- * headerless calls retain their existing behavior; internal calls and private envelopes fail
- * closed when metadata is missing, partial, or forged.
+ * Authenticates and imports provenance supplied by the internal tool transport. A missing envelope
+ * is the additive legacy protocol. Once either half of the private protocol is present, partial or
+ * forged metadata fails closed.
  */
 export async function prepareKnowledgeModelInputProvenance(options: {
   headers: HeaderReader
@@ -38,11 +39,7 @@ export async function prepareKnowledgeModelInputProvenance(options: {
   modelInput: unknown
 }): Promise<KnowledgeModelInputProvenancePreparation> {
   const inspection = inspectModelInputProvenanceRequest(options.headers, options.payload)
-  if (inspection.status === 'unsupported') {
-    return options.isInternalRequest
-      ? { success: false, error: 'Model input provenance is unavailable', status: 400 }
-      : { success: true }
-  }
+  if (inspection.status === 'unsupported') return { success: true }
   if (inspection.status === 'invalid' || !options.isInternalRequest) {
     return { success: false, error: 'Invalid model input provenance', status: 400 }
   }
@@ -68,6 +65,7 @@ export async function prepareKnowledgeModelInputProvenance(options: {
   }
 
   const imported = await registry.importProvenanceForValue(inspection.value, options.modelInput, {
+    origin: 'knowledge.modelInputProvenance',
     trusted: true,
   })
   if (!imported || !registry.isComplete()) {
@@ -95,8 +93,13 @@ export function runWithKnowledgeModelInputProvenance<T>(
 
 /** Rejects opaque bytes/URLs that cannot be selectively projected before an external model call. */
 export function assertKnowledgeOpaqueModelInputSafe(): void {
-  if (knowledgeModelInputContext.getStore()?.opaqueInputSafe === false) {
-    throw new Error(MODEL_INPUT_PROJECTION_ERROR)
+  const context = knowledgeModelInputContext.getStore()
+  if (context?.opaqueInputSafe === false) {
+    refuseResolvedSecretProjection({
+      site: 'knowledge.opaqueModelInputSafety',
+      message: MODEL_INPUT_PROJECTION_ERROR,
+      registry: context.registry,
+    })
   }
 }
 
@@ -104,7 +107,11 @@ export function assertKnowledgeOpaqueModelInputSafe(): void {
 export function getKnowledgeOpaqueModelInputRegistry(): ResolvedSecretTraceRegistry {
   const context = knowledgeModelInputContext.getStore()
   if (!context?.opaqueInputSafe) {
-    throw new Error(MODEL_INPUT_PROJECTION_ERROR)
+    refuseResolvedSecretProjection({
+      site: 'knowledge.opaqueModelInputRegistry',
+      message: MODEL_INPUT_PROJECTION_ERROR,
+      registry: context?.registry,
+    })
   }
   return context.registry ?? new ResolvedSecretTraceRegistry()
 }
@@ -116,7 +123,11 @@ export function projectKnowledgeModelInput(value: string): string {
 
   const projection = projectResolvedSecretModelContent(value, registry)
   if (!projection.safe || typeof projection.value !== 'string') {
-    throw new Error(MODEL_INPUT_PROJECTION_ERROR)
+    refuseResolvedSecretProjection({
+      site: 'knowledge.modelInput',
+      message: MODEL_INPUT_PROJECTION_ERROR,
+      registry,
+    })
   }
   return projection.value
 }
@@ -132,7 +143,11 @@ export function projectKnowledgeModelInputs(values: readonly string[]): string[]
     !Array.isArray(projection.value) ||
     !projection.value.every((value) => typeof value === 'string')
   ) {
-    throw new Error(MODEL_INPUT_PROJECTION_ERROR)
+    refuseResolvedSecretProjection({
+      site: 'knowledge.modelInputs',
+      message: MODEL_INPUT_PROJECTION_ERROR,
+      registry,
+    })
   }
   return projection.value
 }

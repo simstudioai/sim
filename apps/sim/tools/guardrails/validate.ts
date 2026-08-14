@@ -199,8 +199,8 @@ export const guardrailsValidateTool: ToolConfig<GuardrailsValidateInput, Guardra
       }),
       modelInput: {
         mode: 'private-provenance',
-        select: (params: GuardrailsValidateInput) =>
-          params.validationType === 'hallucination' ? params.input : undefined,
+        inputPaths: (params: GuardrailsValidateInput) =>
+          params.validationType === 'hallucination' ? [['input']] : [],
       },
       body: (params: GuardrailsValidateInput) => ({
         input: params.input,

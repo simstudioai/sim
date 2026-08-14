@@ -16,6 +16,48 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
   bgColor: '#632CA6',
   iconColor: '#632CA6',
   icon: DatadogIcon,
+  canvasPresentation: {
+    defaultTitle: 'Datadog',
+    sentences: {
+      byOperation: {
+        datadog_submit_metrics: ['Submit custom metric points'],
+        datadog_query_timeseries: [
+          { text: 'Query metric timeseries', field: 'query', core: true },
+          { text: ', since', field: 'from' },
+        ],
+        datadog_create_event: [
+          { text: 'Post', field: 'title', after: 'to the event stream', core: true },
+          { text: ', tagged', field: 'tags' },
+        ],
+        datadog_create_monitor: [
+          { text: 'Create monitor', field: 'name', core: true },
+          { text: ', alerting on', field: 'monitorQuery' },
+        ],
+        datadog_get_monitor: [{ text: 'Read monitor', field: 'monitorId', core: true }],
+        datadog_list_monitors: [
+          'List monitors',
+          { text: ', named like', field: 'listMonitorName' },
+          { text: ', tagged', field: 'listMonitorTags' },
+        ],
+        datadog_mute_monitor: [
+          { text: 'Mute monitor', field: 'muteMonitorId', core: true },
+          { text: ', for scope', field: 'scope' },
+          { text: ', until', field: 'end' },
+        ],
+        datadog_query_logs: [
+          { text: 'Search logs matching', field: 'logQuery', core: true },
+          { text: ', since', field: 'logFrom' },
+        ],
+        datadog_send_logs: ['Send log entries for indexing'],
+        datadog_create_downtime: [
+          { text: 'Schedule downtime for', field: 'downtimeScope', core: true },
+          { text: ', until', field: 'downtimeEnd' },
+        ],
+        datadog_list_downtimes: ['List scheduled downtimes'],
+        datadog_cancel_downtime: [{ text: 'Cancel downtime', field: 'downtimeId', core: true }],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {
@@ -39,9 +81,7 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       value: () => 'datadog_submit_metrics',
     },
 
-    // ========================
     // Submit Metrics inputs
-    // ========================
     {
       id: 'series',
       title: 'Metrics Data (JSON)',
@@ -71,9 +111,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // ========================
     // Query Timeseries inputs
-    // ========================
     {
       id: 'query',
       title: 'Query',
@@ -137,9 +175,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       },
     },
 
-    // ========================
     // Create Event inputs
-    // ========================
     {
       id: 'title',
       title: 'Event Title',
@@ -209,9 +245,7 @@ Return the event description text directly - no extra formatting needed.`,
       mode: 'advanced',
     },
 
-    // ========================
     // Create Monitor inputs
-    // ========================
     {
       id: 'name',
       title: 'Monitor Name',
@@ -324,9 +358,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // ========================
     // Get Monitor inputs
-    // ========================
     {
       id: 'monitorId',
       title: 'Monitor ID',
@@ -336,9 +368,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       required: true,
     },
 
-    // ========================
     // List Monitors inputs
-    // ========================
     {
       id: 'listMonitorName',
       title: 'Filter by Name',
@@ -356,9 +386,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       mode: 'advanced',
     },
 
-    // ========================
     // Mute Monitor inputs
-    // ========================
     {
       id: 'muteMonitorId',
       title: 'Monitor ID',
@@ -397,9 +425,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       },
     },
 
-    // ========================
     // Query Logs inputs
-    // ========================
     {
       id: 'logQuery',
       title: 'Search Query',
@@ -472,9 +498,7 @@ Return ONLY the relative time string - no explanations, no quotes, no extra text
       mode: 'advanced',
     },
 
-    // ========================
     // Send Logs inputs
-    // ========================
     {
       id: 'logs',
       title: 'Logs (JSON)',
@@ -505,9 +529,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // ========================
     // Create Downtime inputs
-    // ========================
     {
       id: 'downtimeScope',
       title: 'Scope',
@@ -584,9 +606,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       mode: 'advanced',
     },
 
-    // ========================
     // List Downtimes inputs
-    // ========================
     {
       id: 'currentOnly',
       title: 'Current Only',
@@ -595,9 +615,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       mode: 'advanced',
     },
 
-    // ========================
     // Cancel Downtime inputs
-    // ========================
     {
       id: 'downtimeId',
       title: 'Downtime ID',
@@ -607,9 +625,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       required: true,
     },
 
-    // ========================
     // Authentication (common)
-    // ========================
     {
       id: 'apiKey',
       title: 'API Key',

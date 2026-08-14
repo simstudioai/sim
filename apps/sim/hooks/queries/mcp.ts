@@ -306,12 +306,21 @@ export function useCreateMcpServer() {
       return {
         ...safeServerData,
         id: serverId,
-        connectionStatus: authType === 'oauth' ? ('disconnected' as const) : ('connected' as const),
+        /** Mirrors what registration writes: no connection has been verified yet. */
+        connectionStatus: 'disconnected' as const,
         serverId,
         updated: wasUpdated,
         authType,
       }
     },
+    /**
+     * Both caches are dropped, so neither waits out its stale time — but the
+     * refetched row still reads `disconnected`, because the discovery that
+     * moves it runs on the tools query this same invalidation kicks off, after
+     * the list has already come back. The status catches up on the next list
+     * refetch; the tools do not wait for it, since
+     * {@link isServerEligibleForDiscovery} gates only OAuth rows on `connected`.
+     */
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: mcpKeys.serversList(variables.workspaceId) })
       queryClient.invalidateQueries({

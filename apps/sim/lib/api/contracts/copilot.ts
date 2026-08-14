@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { requiredFieldSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { cleanedWorkflowStateSchema } from '@/lib/api/contracts/workflows'
 import {
@@ -102,7 +103,8 @@ export const addCopilotChatResourceBodySchema = z.object({
   chatId: z.string(),
   resource: z.object({
     type: copilotResourceTypeSchema,
-    id: z.string(),
+    // Matches the bound the chat-send path enforces.
+    id: requiredFieldSchema('resource.id cannot be empty'),
     title: z.string(),
   }),
 })
@@ -290,6 +292,15 @@ export const validateCopilotApiKeyBodySchema = z.object({
   workspaceId: z.string().min(1).optional(),
 })
 export type ValidateCopilotApiKeyBody = z.input<typeof validateCopilotApiKeyBodySchema>
+
+export const validateCopilotApiKeyResponseSchema = z.object({
+  /**
+   * Server-derived entitlement for the validated key owner. Mothership treats
+   * a missing or false value as ineligible for enterprise-only capabilities.
+   */
+  isEnterprise: z.boolean(),
+})
+export type ValidateCopilotApiKeyResponse = z.output<typeof validateCopilotApiKeyResponseSchema>
 
 export const listCopilotApiKeysContract = defineRouteContract({
   method: 'GET',
@@ -484,7 +495,7 @@ export const validateCopilotApiKeyContract = defineRouteContract({
   path: '/api/copilot/api-keys/validate',
   headers: validateCopilotApiKeyHeadersSchema,
   body: validateCopilotApiKeyBodySchema,
-  response: { mode: 'empty' },
+  response: { mode: 'json', schema: validateCopilotApiKeyResponseSchema },
   error: validateCopilotApiKeyErrorSchema,
 })
 

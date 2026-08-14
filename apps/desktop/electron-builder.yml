@@ -13,11 +13,12 @@ files:
 
 asar: true
 
-# Native modules cannot be dlopen'd from inside an asar.
-# `scripts/ensure-pty-prebuilds.ts` guarantees both arch prebuilds are present
-# before packaging; see mac.x64ArchFiles for how the universal merge treats them.
+# Native modules cannot be dlopen'd from inside an asar. The Help-search addon
+# is already universal; `scripts/ensure-pty-prebuilds.ts` guarantees both pty
+# prebuilds are present before packaging.
 asarUnpack:
   - "**/node_modules/@lydell/node-pty-*/prebuilds/**"
+  - "**/dist/native/*.node"
 
 # Space-free regardless of productName ("Sim Dev" etc.): GitHub rewrites
 # asset names containing spaces, which would desync the electron-updater
@@ -54,6 +55,10 @@ mac:
   mergeASARs: false
   hardenedRuntime: true
   gatekeeperAssess: false
+  # macOS refuses to show the microphone prompt at all — it kills the process —
+  # unless the bundle declares why it wants the device.
+  extendInfo:
+    NSMicrophoneUsageDescription: Sim uses your microphone for voice input in Chat.
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   notarize: true

@@ -43,7 +43,7 @@ const contract = defineRouteContract({
 
 class StageRejection extends Error {}
 
-type RejectableStage = 'admission' | 'body' | 'transfer' | 'application' | 'presenter' | 'effects'
+type RejectableStage = 'admission' | 'body' | 'application' | 'presenter' | 'effects'
 
 let rejectedStage: RejectableStage | null = null
 
@@ -80,11 +80,10 @@ function buildHandler() {
       rejectAt('body')
       return { bytes: Buffer.from('body') }
     },
-    async transfer({ admission }) {
-      rejectAt('transfer')
-      return { url: `stored://${admission.canonicalWorkspaceId}` }
-    },
-    mapInput: ({ parsed, transfer }) => ({ id: parsed.params.id, url: transfer.url }),
+    mapInput: ({ parsed, admission }) => ({
+      id: parsed.params.id,
+      url: `stored://${admission.canonicalWorkspaceId}`,
+    }),
     useCase: {
       operation,
       async execute({ input }) {
@@ -161,7 +160,6 @@ describe('defineV2BodyLifecycleRoute', () => {
         errorPolicy: { render: () => null },
         admission: { mapInput: () => ({}), useCase },
         readBody: async () => Buffer.alloc(0),
-        transfer: async () => ({ url: 'stored://item-1' }),
         mapInput: () => ({}),
         useCase,
         present: () => ({ data: { id: 'item-1' } }),
@@ -183,7 +181,6 @@ describe('defineV2BodyLifecycleRoute', () => {
       'contract',
       'admission',
       'body',
-      'transfer',
       'application',
       'presenter',
       'effects',
@@ -260,24 +257,20 @@ describe('defineV2BodyLifecycleRoute', () => {
     ])
   })
 
-  it.each<RejectableStage>([
-    'admission',
-    'body',
-    'transfer',
-    'application',
-    'presenter',
-    'effects',
-  ])('renders typed %s rejection without entering later phases', async (stage) => {
-    rejectedStage = stage
+  it.each<RejectableStage>(['admission', 'body', 'application', 'presenter', 'effects'])(
+    'renders typed %s rejection without entering later phases',
+    async (stage) => {
+      rejectedStage = stage
 
-    const response = await buildHandler()(buildRequest(), context())
+      const response = await buildHandler()(buildRequest(), context())
 
-    expect(response.status).toBe(409)
-    expect(await response.json()).toEqual({
-      error: { code: 'CONFLICT', message: `${stage} rejected` },
-    })
-    expect(mocks.order.at(-1)).toBe(stage)
-  })
+      expect(response.status).toBe(409)
+      expect(await response.json()).toEqual({
+        error: { code: 'CONFLICT', message: `${stage} rejected` },
+      })
+      expect(mocks.order.at(-1)).toBe(stage)
+    }
+  )
 
   it.each(['authentication', 'rollout', 'rate_limit'] as const)(
     'maps %s infrastructure failures to service unavailable',

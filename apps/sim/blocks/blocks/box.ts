@@ -4,6 +4,9 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 
+/** Canonical pair for the upload payload: file picker in basic mode, file reference in advanced. */
+const UPLOAD_FILE_FIELD = ['uploadFile', 'fileRef'] as const
+
 export const BoxBlock: BlockConfig = {
   type: 'box',
   name: 'Box',
@@ -16,6 +19,63 @@ export const BoxBlock: BlockConfig = {
   bgColor: '#FFFFFF',
   icon: BoxCompanyIcon,
   authMode: AuthMode.OAuth,
+  canvasPresentation: {
+    defaultTitle: 'Box',
+    sentences: {
+      byOperation: {
+        upload_file: [
+          { text: 'Upload', field: UPLOAD_FILE_FIELD, core: true },
+          { text: 'to folder', field: 'parentFolderId' },
+        ],
+        download_file: [{ text: 'Download file', field: 'fileId', core: true }],
+        get_file_info: [{ text: 'Read details of file', field: 'fileId', core: true }],
+        list_folder_items: [
+          { text: 'List items in folder', field: 'folderId', core: true },
+          { text: ', up to', field: 'limit', after: 'per page' },
+        ],
+        create_folder: [
+          { text: 'Create folder', field: 'folderName', core: true },
+          { text: 'in parent folder', field: 'parentFolderId' },
+        ],
+        delete_file: [{ text: 'Delete file', field: 'fileId', core: true }],
+        delete_folder: [{ text: 'Delete folder', field: 'folderId', core: true }],
+        copy_file: [
+          { text: 'Copy file', field: 'fileId', core: true },
+          { text: 'to folder', field: 'parentFolderId' },
+          { text: ', as', field: 'copyName' },
+        ],
+        search: [
+          { text: 'Search files and folders for', field: 'query', core: true },
+          { text: ', under folder', field: 'ancestorFolderId' },
+        ],
+        update_file: [
+          { text: 'Update file', field: 'fileId', core: true },
+          { text: ', renaming to', field: 'newName' },
+          { text: ', moving to folder', field: 'moveToFolderId' },
+        ],
+        sign_create_request: [
+          { text: 'Send files', field: 'sourceFileIds', core: true },
+          { text: 'for signature to', field: 'signerEmail', core: true },
+        ],
+        sign_get_request: [
+          { text: 'Read status of sign request', field: 'signRequestId', core: true },
+        ],
+        sign_list_requests: [
+          'List sign requests',
+          { text: ', up to', field: 'limit', after: 'per page' },
+        ],
+        sign_cancel_request: [{ text: 'Cancel sign request', field: 'signRequestId', core: true }],
+        sign_resend_request: [
+          {
+            text: 'Resend sign request',
+            field: 'signRequestId',
+            core: true,
+            after: 'to pending signers',
+          },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

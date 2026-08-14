@@ -29,6 +29,10 @@ vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   },
 }))
 
+import {
+  WorkspaceFileFolderConflictError,
+  WorkspaceFileItemsNotFoundError,
+} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { POST as RESTORE } from '@/app/api/workspaces/[id]/files/folders/[folderId]/restore/route'
 import { DELETE, PATCH } from '@/app/api/workspaces/[id]/files/folders/[folderId]/route'
 
@@ -101,6 +105,18 @@ describe('/api/workspaces/[id]/files/folders/[folderId]', () => {
     )
   })
 
+  it('returns conflict when a folder rename collides', async () => {
+    mocks.updateFolder.mockRejectedValueOnce(new WorkspaceFileFolderConflictError('Reports'))
+
+    const response = await PATCH(request('PATCH', { name: 'Reports' }), context)
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'A folder named "Reports" already exists in this location',
+    })
+    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
+  })
+
   it('deletes a folder through the shared use case', async () => {
     const response = await DELETE(request('DELETE'), context)
 
@@ -114,6 +130,18 @@ describe('/api/workspaces/[id]/files/folders/[folderId]', () => {
       input: { workspaceId: WORKSPACE_ID, folderId: FOLDER_ID },
       request: expect.anything(),
     })
+  })
+
+  it('returns not found when deleting an already archived folder', async () => {
+    mocks.deleteFolder.mockRejectedValueOnce(new WorkspaceFileItemsNotFoundError([], [FOLDER_ID]))
+
+    const response = await DELETE(request('DELETE'), context)
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({
+      error: `Workspace file items not found (folders: ${FOLDER_ID})`,
+    })
+    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
   })
 
   it('restores a folder through the shared use case', async () => {

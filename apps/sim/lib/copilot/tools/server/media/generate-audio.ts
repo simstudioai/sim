@@ -10,10 +10,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import {
-  assertOpaqueWorkspaceFileModelSafe,
-  projectServerToolModelInput,
-} from '@/lib/copilot/tools/server/model-input'
+import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/copilot/tools/server/model-input'
 import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { type AudioType, generateFalAudio } from '@/lib/media/falai-audio'
@@ -88,11 +85,6 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
     }
 
     try {
-      const modelInput = projectServerToolModelInput(
-        { prompt: params.prompt, lyrics: params.lyrics },
-        context
-      )
-
       // Voice cloning: a reference sample clones that voice into the generated speech.
       let voiceSampleDataUri: string | undefined
       const samplePath = params.inputs?.files?.[0]?.path
@@ -105,7 +97,7 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
             reference: samplePath,
           }
         )
-        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: sample, context })
+        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: sample })
         const { content: sampleBuffer } = await executeCopilotFileUseCase(
           context,
           readWorkspaceFileContent,
@@ -124,12 +116,12 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
       })
 
       const result = await generateFalAudio({
-        prompt: modelInput.prompt,
+        prompt: params.prompt,
         type,
         model: params.model,
         voice: params.voice,
         duration: params.duration,
-        lyrics: modelInput.lyrics,
+        lyrics: params.lyrics,
         instrumental: params.instrumental,
         voiceSampleDataUri,
       })

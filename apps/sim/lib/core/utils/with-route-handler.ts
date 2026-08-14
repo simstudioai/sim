@@ -18,7 +18,15 @@ interface RouteHandlerErrorContext {
   requestId: string
 }
 
+interface RouteHandlerTypedErrorContext {
+  error: HttpError
+  requestId: string
+  status: number
+}
+
 interface RouteHandlerOptions {
+  clientAbortResponse?: (context: RouteHandlerErrorContext) => NextResponse | Response
+  typedErrorResponse?: (context: RouteHandlerTypedErrorContext) => NextResponse | Response
   unhandledErrorResponse?: (context: RouteHandlerErrorContext) => NextResponse | Response
 }
 
@@ -38,11 +46,11 @@ interface RouteHandlerOptions {
  * safe to expose to clients (no stack traces, secrets, file paths, ORM
  * internals).
  */
-function readTypedErrorStatus(error: unknown): number | undefined {
+function readTypedError(error: unknown): RouteHandlerTypedErrorContext['error'] | undefined {
   if (!(error instanceof HttpError)) return undefined
   const status = error.statusCode
-  if (status < 400 || status >= 600) return undefined
-  return status
+  if (!Number.isInteger(status) || status < 400 || status >= 600) return undefined
+  return error
 }
 
 /**
@@ -71,7 +79,9 @@ function applyResponseHeaders(
  * - Generates a unique request ID and stores it in AsyncLocalStorage so every
  *   logger in the request lifecycle automatically includes it
  * - Logs all 4xx and 5xx responses with method, path, status, duration
+ * - Classifies errors after a client disconnect as a normal 499 cancellation
  * - Catches unhandled errors, logs them, and returns a 500 with the request ID
+ * - Supports a route-family-specific client-abort response envelope
  * - Supports a route-family-specific unhandled-error response envelope
  * - Attaches `x-request-id`, plus the rate-limit headers when the route
  *   recorded a snapshot for the request
@@ -94,6 +104,30 @@ export function withRouteHandler<T>(
       } catch (error) {
         const duration = Date.now() - startTime
         const message = getErrorMessage(error, 'Unknown error')
+        if (request.signal.aborted) {
+          logger.info('Client closed request', { duration, status: 499 })
+          response = options.clientAbortResponse
+            ? options.clientAbortResponse({ error, requestId })
+            : new Response(null, { status: 499 })
+          applyResponseHeaders(response, request, requestId)
+          return response
+        }
+
+        const typedError = readTypedError(error)
+        if (typedError) {
+          const typedStatus = typedError.statusCode
+          if (typedStatus >= 500) {
+            logger.error('Unhandled route error', { duration, status: typedStatus, error: message })
+          } else {
+            logger.warn('Typed route error', { duration, status: typedStatus, error: message })
+          }
+          response = options.typedErrorResponse
+            ? options.typedErrorResponse({ error: typedError, requestId, status: typedStatus })
+            : NextResponse.json({ error: message, requestId }, { status: typedStatus })
+          applyResponseHeaders(response, request, requestId)
+          return response
+        }
+
         if (options.unhandledErrorResponse) {
           logger.error('Unhandled route error', { duration, error: message })
           response = options.unhandledErrorResponse({ error, requestId })
@@ -101,21 +135,8 @@ export function withRouteHandler<T>(
           return response
         }
 
-        const typedStatus = readTypedErrorStatus(error)
-        if (typedStatus !== undefined) {
-          if (typedStatus >= 500) {
-            logger.error('Unhandled route error', { duration, status: typedStatus, error: message })
-          } else {
-            logger.warn('Typed route error', { duration, status: typedStatus, error: message })
-          }
-          response = NextResponse.json({ error: message, requestId }, { status: typedStatus })
-        } else {
-          logger.error('Unhandled route error', { duration, error: message })
-          response = NextResponse.json(
-            { error: 'Internal server error', requestId },
-            { status: 500 }
-          )
-        }
+        logger.error('Unhandled route error', { duration, error: message })
+        response = NextResponse.json({ error: 'Internal server error', requestId }, { status: 500 })
         applyResponseHeaders(response, request, requestId)
         return response
       }

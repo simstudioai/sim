@@ -51,9 +51,7 @@ export function errorResponse(
   return NextResponse.json(body, { status })
 }
 
-// =============================================================================
 // Common Error Responses
-// =============================================================================
 
 export function unauthorizedResponse(message = 'Authentication required'): NextResponse {
   return errorResponse('UNAUTHORIZED', message, 401)

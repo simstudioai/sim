@@ -12,9 +12,10 @@ import {
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { generateExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
+import { generateUniqueExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
   MAX_WORKSPACE_FILE_SIZE,
@@ -41,7 +42,6 @@ import type {
   UploadStorageProvider,
   UploadTransferMethod,
 } from '@/lib/uploads/upload-session/types'
-import { sanitizeFileName } from '@/executor/constants'
 
 export const UPLOAD_SESSION_PUT_MAX_BYTES = 50 * 1024 * 1024
 export const UPLOAD_SESSION_PART_SIZE = 8 * 1024 * 1024
@@ -57,7 +57,7 @@ const cleanupDb = dbFor('cleanup')
 export type { UploadSessionPurpose, UploadSessionStatus, UploadTransferMethod }
 
 export type UploadSessionTransfer =
-  | { method: 'put'; url: string; headers: Record<string, string> }
+  | { method: 'put'; url: string; headers: Record<string, string>; expiresAt: string }
   | { method: 'multipart'; partSize: number; partCount: number }
 
 export interface UploadSessionRecord {
@@ -701,6 +701,13 @@ export async function completeUploadSession<T>(params: {
   }
 }
 
+/**
+ * The completion marker is only written when the finalizer reports one. A
+ * finalizer that instead records it inside its own registration transaction —
+ * see `markUploadSessionFileRegistered` — keeps that value: clearing it would
+ * let the abort guard and the expiry sweep treat a session whose durable
+ * resource already exists as disposable.
+ */
 async function markUploadSessionCompleted(
   session: UploadSessionRecord,
   leaseId: string,
@@ -711,7 +718,7 @@ async function markUploadSessionCompleted(
     .update(uploadSession)
     .set({
       status: 'completed',
-      completedFileId,
+      ...(completedFileId !== null ? { completedFileId } : {}),
       completedAt,
       processingLeaseId: null,
       processingLeaseExpiresAt: null,
@@ -921,7 +928,10 @@ export function expectedUploadPartSize(session: UploadSessionRecord, partNumber:
     throw new UploadSessionError('conflict', 'PUT upload sessions do not have multipart parts')
   }
   if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > session.partCount) {
-    throw new UploadSessionError('validation', 'Invalid upload part number')
+    throw new UploadSessionError(
+      'validation',
+      `partNumber must be between 1 and ${session.partCount}`
+    )
   }
   if (partNumber < session.partCount) return session.partSize
   return session.fileSize - session.partSize * (session.partCount - 1)
@@ -1193,7 +1203,7 @@ function resolveUploadStorage(
     case 'table_import':
       return {
         storageContext: 'table-import',
-        finalKey: `table-import/${params.workspaceId}/${id}/${sanitizeFileName(params.fileName)}`,
+        finalKey: `table-import/${params.workspaceId}/${id}/${buildStorageKeySegment('', params.fileName)}`,
       }
     case 'knowledge_document':
       return {
@@ -1203,12 +1213,12 @@ function resolveUploadStorage(
     case 'profile_picture':
       return {
         storageContext: 'profile-pictures',
-        finalKey: `profile-pictures/${id}-${sanitizeFileName(params.fileName)}`,
+        finalKey: `profile-pictures/${buildStorageKeySegment(`${id}-`, params.fileName)}`,
       }
     case 'workspace_logo':
       return {
         storageContext: 'workspace-logos',
-        finalKey: `workspace-logos/${params.workspaceId}/${id}-${sanitizeFileName(params.fileName)}`,
+        finalKey: `workspace-logos/${params.workspaceId}/${buildStorageKeySegment(`${id}-`, params.fileName)}`,
       }
     case 'mothership_attachment':
       return {
@@ -1218,7 +1228,7 @@ function resolveUploadStorage(
     case 'execution_attachment':
       return {
         storageContext: 'execution',
-        finalKey: generateExecutionFileKey(
+        finalKey: generateUniqueExecutionFileKey(
           {
             workspaceId: params.workspaceId,
             workflowId: params.workflowId,

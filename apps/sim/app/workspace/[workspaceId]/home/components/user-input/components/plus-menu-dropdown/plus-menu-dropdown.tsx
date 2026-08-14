@@ -5,25 +5,26 @@ import {
   cn,
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuSearchInput,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import {
-  FOLDERED_RESOURCE_TYPES,
-  ResourceTreeSections,
+  ResourceMenuSections,
   useAvailableResources,
   useResourceTreeSections,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
+import {
+  resourceMentionMatches,
+  withDesktopTabMentions,
+} from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
 import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useBrowserSessionStore } from '@/stores/browser-session/store'
+import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
 
 /**
  * Resource types that are only offered via `@`-mention autocomplete and hidden
@@ -37,6 +38,8 @@ import type {
  */
 const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integration'])
 const NON_ATTACHABLE_RESOURCE_TYPES = new Set<MothershipResourceType>(['browser'])
+const EMPTY_BROWSER_TABS = [] as const
+const EMPTY_TERMINAL_TABS = [] as const
 
 interface PlusMenuDropdownProps {
   workspaceId: string
@@ -68,6 +71,16 @@ export const PlusMenuDropdown = React.memo(
     const [activeIndex, setActiveIndex] = useState(0)
     const searchRef = useRef<HTMLInputElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
+    const browserTabs = useBrowserSessionStore((state) => {
+      const scopeId = state.activeScopeId
+      return scopeId ? (state.sessions[scopeId]?.tabs ?? EMPTY_BROWSER_TABS) : EMPTY_BROWSER_TABS
+    })
+    const terminalTabs = useCopilotTerminalStore((state) => {
+      const scopeId = state.activeScopeId
+      return scopeId
+        ? (state.sessions[scopeId]?.tabs.tabs ?? EMPTY_TERMINAL_TABS)
+        : EMPTY_TERMINAL_TABS
+    })
 
     // Gated so an idle chat surface never fetches the workspace lists.
     const {
@@ -93,16 +106,18 @@ export const PlusMenuDropdown = React.memo(
       setOpen(false)
     }, [])
 
-    // The `+` browse menu hides mention-only resource types; `@`-mention mode
-    // exposes the full catalog so integrations remain searchable inline.
+    // The `+` browse menu hides non-attachable and mention-only resource types.
+    // `@` mode exposes the full catalog and adds each live Browser/Terminal tab
+    // after its always-present whole-resource row.
     const visibleResources = useMemo(() => {
+      if (isMention) {
+        return withDesktopTabMentions(availableResources, browserTabs, terminalTabs)
+      }
       const attachable = availableResources.filter(
         ({ type }) => !NON_ATTACHABLE_RESOURCE_TYPES.has(type)
       )
-      return isMention
-        ? attachable
-        : attachable.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
-    }, [isMention, availableResources])
+      return attachable.filter(({ type }) => !MENTION_ONLY_RESOURCE_TYPES.has(type))
+    }, [availableResources, browserTabs, isMention, terminalTabs])
 
     const treeSections = useResourceTreeSections({
       groups: visibleResources,
@@ -118,7 +133,7 @@ export const PlusMenuDropdown = React.memo(
         return visibleResources.flatMap(({ type, items }) => items.map((item) => ({ type, item })))
       }
       return visibleResources.flatMap(({ type, items }) =>
-        items.filter((item) => item.name.toLowerCase().includes(q)).map((item) => ({ type, item }))
+        items.filter((item) => resourceMentionMatches(item, q)).map((item) => ({ type, item }))
       )
     }, [isMention, mentionQuery, search, visibleResources])
 
@@ -305,38 +320,12 @@ export const PlusMenuDropdown = React.memo(
             {/* Always-mounted; swapping this subtree with filtered results makes Radix's
                   menu FocusScope steal focus from the search input back to the content root. */}
             <div hidden={filteredItems !== null}>
-              <ResourceTreeSections
+              <ResourceMenuSections
                 sections={treeSections}
+                groups={visibleResources}
                 onSelect={handleSelect}
                 subContentClassName='max-w-[min(300px,calc(100vw-32px))]'
               />
-              {visibleResources
-                .filter(({ type }) => !FOLDERED_RESOURCE_TYPES.has(type))
-                .map(({ type, items }) => {
-                  if (items.length === 0) return null
-                  const config = getResourceConfig(type)
-                  const Icon = config.icon
-                  return (
-                    <DropdownMenuSub key={type}>
-                      <DropdownMenuSubTrigger>
-                        <Icon className='size-[14px]' />
-                        <span>{config.label}</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
-                        {items.map((item) => (
-                          <DropdownMenuItem
-                            key={item.id}
-                            onClick={() => {
-                              handleSelect({ type, id: item.id, title: item.name })
-                            }}
-                          >
-                            {config.renderDropdownItem({ item })}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  )
-                })}
             </div>
             {/* Plain buttons, not DropdownMenuItem: mount/unmount must not mutate Radix's
                   menu Collection, or FocusScope restores focus to the content root. */}
@@ -356,8 +345,9 @@ export const PlusMenuDropdown = React.memo(
                         handleSelect({ type, id: item.id, title: item.name })
                       }}
                       className={cn(
-                        'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left font-medium text-[var(--text-body)] text-caption outline-none transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
-                        isActive && 'bg-[var(--surface-active)]'
+                        'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left text-[var(--text-body)] text-caption outline-none transition-colors duration-0 [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
+                        /* `activeIndex` is the cursor, not a selection — hover surface. */
+                        isActive && 'bg-[var(--surface-hover)]'
                       )}
                     >
                       {config.renderDropdownItem({ item })}
@@ -365,7 +355,7 @@ export const PlusMenuDropdown = React.memo(
                   )
                 })
               ) : (
-                <div className='px-2 py-1.5 text-center font-medium text-[var(--text-tertiary)] text-caption'>
+                <div className='px-2 py-1.5 text-center text-[var(--text-tertiary)] text-caption'>
                   No results
                 </div>
               ))}

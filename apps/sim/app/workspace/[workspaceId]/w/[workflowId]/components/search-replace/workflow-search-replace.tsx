@@ -565,7 +565,7 @@ export function WorkflowSearchReplace() {
         onMouseDown={handleMouseDown}
       >
         <div className='flex min-w-0 items-center'>
-          <span className='truncate font-medium text-[13px] text-[var(--text-primary)]'>
+          <span className='truncate text-[13px] text-[var(--text-primary)]'>
             Search and replace
           </span>
         </div>

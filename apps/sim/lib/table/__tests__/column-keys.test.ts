@@ -19,6 +19,7 @@ import {
   generateColumnId,
   getColumnId,
   remapGroupColumnRefs,
+  remapViewConfigColumnRefs,
   rowDataNameToId,
   sortNamesToIds,
   withGeneratedColumnIds,
@@ -159,5 +160,57 @@ describe('remapGroupColumnRefs', () => {
     const out = remapGroupColumnRefs(group, idByName)
     expect(out.outputs[0].columnName).toBe('col_1')
     expect(out.dependencies!.columns).toEqual(['col_existing'])
+  })
+})
+
+describe('remapViewConfigColumnRefs', () => {
+  const idByName = new Map([
+    ['Name', 'col_a'],
+    ['Email', 'col_b'],
+  ])
+  const config = {
+    columnOrder: ['Email', 'col_a'],
+    pinnedColumns: ['Email'],
+    hiddenColumns: ['Name'],
+    columnWidths: { Name: 180, col_b: 240 },
+    sort: [{ field: 'Name', direction: 'asc' as const }],
+    filter: { all: [{ field: 'Email', op: 'eq' as const, value: 'x' }] },
+  }
+
+  it('rewrites every column reference and leaves an already-mapped ref alone', () => {
+    expect(remapViewConfigColumnRefs(config, idByName)).toEqual({
+      columnOrder: ['col_b', 'col_a'],
+      pinnedColumns: ['col_b'],
+      hiddenColumns: ['col_a'],
+      columnWidths: { col_a: 180, col_b: 240 },
+      sort: [{ field: 'col_a', direction: 'asc' }],
+      filter: { all: [{ field: 'col_b', op: 'eq', value: 'x' }] },
+    })
+  })
+
+  it('inverts cleanly, which is what makes the write/read pair symmetric', () => {
+    const nameById = new Map([...idByName].map(([name, id]) => [id, name]))
+    const stored = remapViewConfigColumnRefs(config, idByName)
+    expect(remapViewConfigColumnRefs(stored, nameById)).toEqual({
+      columnOrder: ['Email', 'Name'],
+      pinnedColumns: ['Email'],
+      hiddenColumns: ['Name'],
+      columnWidths: { Name: 180, Email: 240 },
+      sort: [{ field: 'Name', direction: 'asc' }],
+      filter: { all: [{ field: 'Email', op: 'eq', value: 'x' }] },
+    })
+  })
+
+  it('leaves a system row column and a since-deleted ref untouched', () => {
+    const out = remapViewConfigColumnRefs(
+      { sort: [{ field: 'createdAt', direction: 'desc' }], hiddenColumns: ['col_gone'] },
+      idByName
+    )
+    expect(out.sort).toEqual([{ field: 'createdAt', direction: 'desc' }])
+    expect(out.hiddenColumns).toEqual(['col_gone'])
+  })
+
+  it('leaves absent keys absent rather than materializing empty ones', () => {
+    expect(remapViewConfigColumnRefs({}, idByName)).toEqual({})
   })
 })

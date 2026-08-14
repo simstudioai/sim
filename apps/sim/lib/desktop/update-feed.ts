@@ -6,16 +6,20 @@
  * GitHub feed, so each environment independently controls which shell build
  * its clients are offered. The environment IS the channel:
  *
- * - dev.sim.ai      → `alpha`  (per-push prerelease builds from `dev`)
- * - staging.sim.ai  → `beta`   (per-push prerelease builds from `staging`)
- * - sim.ai + self-hosted/unknown → `latest` (stable vX.Y.Z releases only)
+ * - hosted `dev` deployment     → `dev`     (per-push prerelease builds from `dev`)
+ * - hosted `staging` deployment → `staging` (per-push prerelease builds from `staging`)
+ * - production + self-hosted    → `latest`  (stable vX.Y.Z releases only)
  *
- * Artifacts stay on GitHub Releases (dumb storage); the feed route picks the
- * right release for its channel and serves that release's electron-updater
- * manifest with download URLs rewritten to absolute GitHub asset URLs.
+ * Artifacts stay on GitHub Releases (dumb storage). Stable releases live in
+ * the source repository; dev and staging releases live in a release-only
+ * repository so source-repository followers are not notified for every shell
+ * build. The feed route picks both the repository and release for its channel,
+ * then serves that release's electron-updater manifest with download URLs
+ * rewritten to absolute GitHub asset URLs.
  *
- * Channels are strictly isolated: alpha serves only `-alpha.` prereleases,
- * beta only `-beta.` prereleases, and `latest` only stable releases. Builds
+ * Streams are strictly isolated: dev serves `-dev.` prereleases, staging
+ * `-staging.`, and `latest` only stable releases. The legacy `-alpha.` and
+ * `-beta.` tags remain readable so already-published builds keep updating. Builds
  * carry per-channel app identity (Sim Dev / Sim Staging / Sim), so serving a
  * stable prod-identity artifact to a dev shell would offer an update
  * Squirrel.Mac cannot apply (bundle-id mismatch) — each channel only ever
@@ -23,26 +27,35 @@
  */
 import { compareVersions } from '@/lib/desktop/min-version'
 
-export const DESKTOP_RELEASE_REPO = 'simstudioai/sim'
+export const DESKTOP_STABLE_RELEASE_REPOSITORY = 'simstudioai/sim'
+export const DESKTOP_PRERELEASE_REPOSITORY = 'simstudioai/sim-desktop-releases'
 
-export type DesktopUpdateChannel = 'alpha' | 'beta' | 'latest'
+export type DesktopReleaseRepository =
+  | typeof DESKTOP_STABLE_RELEASE_REPOSITORY
+  | typeof DESKTOP_PRERELEASE_REPOSITORY
 
-/** Maps a deployment hostname to its desktop update channel. */
-export function channelForHostname(hostname: string): DesktopUpdateChannel {
-  const host = hostname.toLowerCase()
-  if (host === 'dev.sim.ai' || host.endsWith('.dev.sim.ai')) {
-    return 'alpha'
-  }
-  if (host === 'staging.sim.ai' || host.endsWith('.staging.sim.ai')) {
-    return 'beta'
-  }
+export type DesktopUpdateChannel = 'dev' | 'staging' | 'latest'
+
+/** Maps Sim's server-controlled deployment environment to its update channel. */
+export function channelForDeploymentEnvironment(
+  environment: string | undefined
+): DesktopUpdateChannel {
+  if (environment === 'dev') return 'dev'
+  if (environment === 'staging') return 'staging'
   return 'latest'
+}
+
+/** Keeps stable and prerelease release storage isolated by channel. */
+export function releaseRepositoryForChannel(
+  channel: DesktopUpdateChannel
+): DesktopReleaseRepository {
+  return channel === 'latest' ? DESKTOP_STABLE_RELEASE_REPOSITORY : DESKTOP_PRERELEASE_REPOSITORY
 }
 
 /** The channel a specific version belongs to, from its prerelease tag. */
 export function channelOfVersion(version: string): DesktopUpdateChannel {
-  if (version.includes('-alpha.')) return 'alpha'
-  if (version.includes('-beta.')) return 'beta'
+  if (version.includes('-dev.') || version.includes('-alpha.')) return 'dev'
+  if (version.includes('-staging.') || version.includes('-beta.')) return 'staging'
   return 'latest'
 }
 
@@ -108,8 +121,12 @@ export function selectReleaseForChannel(
  * to the file URL) straight from GitHub while the feed itself stays served
  * by this deployment.
  */
-export function rewriteManifestUrls(manifest: string, tag: string): string {
-  const base = `https://github.com/${DESKTOP_RELEASE_REPO}/releases/download/${tag}/`
+export function rewriteManifestUrls(
+  manifest: string,
+  tag: string,
+  repository: DesktopReleaseRepository
+): string {
+  const base = `https://github.com/${repository}/releases/download/${tag}/`
   return manifest.replace(/^(\s*(?:-\s*)?(?:url|path):\s*)(\S+)\s*$/gm, (line, prefix, value) => {
     if (value.startsWith('http://') || value.startsWith('https://')) {
       return line

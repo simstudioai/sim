@@ -51,6 +51,12 @@ import type {
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { FloatingOverflowText, Resource } from '@/app/workspace/[workspaceId]/components'
+import {
+  FOLDERED_RESOURCE_HEADERS,
+  folderBreadcrumbItems,
+  folderedResourceListHref,
+  useFolderAncestors,
+} from '@/app/workspace/[workspaceId]/components/folders'
 import { DocumentTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import {
   ActionBar,
@@ -71,6 +77,7 @@ import {
   pageUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
@@ -444,10 +451,27 @@ export function KnowledgeBase({
   /**
    * Breadcrumb leaf label. Falls back to the canonical '…' placeholder while
    * the name loads (mirroring loading.tsx) instead of duplicating the root
-   * "Knowledge Base" crumb.
+   * "Knowledge bases" crumb.
    */
   const knowledgeBaseCrumbLabel = knowledgeBase?.name || passedKnowledgeBaseName || '…'
   const error = knowledgeBaseError || documentsError
+
+  /**
+   * The base's own folder trail, so the header reads `Knowledge Base / Research / Papers`
+   * exactly as the list does one level up.
+   */
+  const { ancestors: folderChain } = useFolderAncestors({
+    resourceType: 'knowledge_base',
+    workspaceId,
+    folderId: knowledgeBase?.folderId,
+  })
+
+  const handleNavigateToFolder = useCallback(
+    (folderId: string | null) => {
+      router.push(folderedResourceListHref('knowledge_base', workspaceId, folderId))
+    },
+    [router, workspaceId]
+  )
 
   const totalPages = Math.ceil(pagination.total / pagination.limit)
 
@@ -684,6 +708,14 @@ export function KnowledgeBase({
     setShowAddDocumentsModal(true)
   }
 
+  useRegisterGlobalCommands(() => [
+    { id: 'knowledge-base-new-documents', handler: () => setShowAddDocumentsModal(true) },
+    { id: 'knowledge-base-new-connector', handler: () => setShowAddConnectorModal(true) },
+    { id: 'knowledge-base-rename', handler: () => kbRename.startRename(id, knowledgeBaseName) },
+    { id: 'knowledge-base-tags', handler: () => setShowTagsModal(true) },
+    { id: 'knowledge-base-delete', handler: () => setShowDeleteDialog(true) },
+  ])
+
   /**
    * Handles bulk enabling of selected documents
    */
@@ -870,64 +902,99 @@ export function KnowledgeBase({
     setContextMenuDocument(null)
   }, [closeContextMenu])
 
-  const breadcrumbs: BreadcrumbItem[] = [
-    {
-      label: 'Knowledge Base',
-      icon: Database,
-      onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
-    },
-    {
-      label: knowledgeBaseCrumbLabel,
-      icon: Database,
-      editing: kbRename.editingId
-        ? {
-            isEditing: true,
-            value: kbRename.editValue,
-            onChange: kbRename.setEditValue,
-            onSubmit: kbRename.submitRename,
-            onCancel: kbRename.cancelRename,
-            disabled: kbRename.isSaving,
-          }
-        : undefined,
-      dropdownItems: [
-        ...(userPermissions.canEdit || userPermissions.isLoading
-          ? [
-              {
-                label: 'Rename',
-                icon: Pencil,
-                disabled: !userPermissions.canEdit,
-                onClick: () => kbRename.startRename(id, knowledgeBaseName),
-              },
-              {
-                label: 'Tags',
-                icon: TagIcon,
-                disabled: !userPermissions.canEdit,
-                onClick: () => setShowTagsModal(true),
-              },
-              {
-                label: 'Delete',
-                icon: Trash,
-                disabled: !userPermissions.canEdit,
-                onClick: () => setShowDeleteDialog(true),
-              },
-            ]
-          : []),
-      ],
-    },
-  ]
-
-  const headerActions: ResourceAction[] = [
-    ...(userPermissions.canEdit || userPermissions.isLoading
-      ? [
+  const breadcrumbs: BreadcrumbItem[] = useMemo(
+    () =>
+      folderBreadcrumbItems({
+        rootLabel: FOLDERED_RESOURCE_HEADERS.knowledge_base.rootLabel,
+        rootIcon: FOLDERED_RESOURCE_HEADERS.knowledge_base.rootIcon,
+        breadcrumbs: folderChain,
+        onNavigate: handleNavigateToFolder,
+        trailing: [
           {
-            text: 'New connector',
-            icon: Plus,
-            disabled: !userPermissions.canEdit,
-            onSelect: () => setShowAddConnectorModal(true),
+            label: knowledgeBaseCrumbLabel,
+            icon: Database,
+            editing: kbRename.editingId
+              ? {
+                  isEditing: true,
+                  value: kbRename.editValue,
+                  onChange: kbRename.setEditValue,
+                  onSubmit: kbRename.submitRename,
+                  onCancel: kbRename.cancelRename,
+                  disabled: kbRename.isSaving,
+                }
+              : undefined,
+            dropdownItems: [
+              ...(userPermissions.canEdit || userPermissions.isLoading
+                ? [
+                    {
+                      label: 'Rename',
+                      icon: Pencil,
+                      disabled: !userPermissions.canEdit,
+                      onClick: () => kbRename.startRename(id, knowledgeBaseName),
+                    },
+                    {
+                      label: 'Tags',
+                      icon: TagIcon,
+                      disabled: !userPermissions.canEdit,
+                      onClick: () => setShowTagsModal(true),
+                    },
+                    {
+                      label: 'Delete',
+                      icon: Trash,
+                      disabled: !userPermissions.canEdit,
+                      onClick: () => setShowDeleteDialog(true),
+                    },
+                  ]
+                : []),
+            ],
           },
-        ]
-      : []),
-  ]
+        ],
+      }),
+    [
+      folderChain,
+      handleNavigateToFolder,
+      knowledgeBaseCrumbLabel,
+      knowledgeBaseName,
+      id,
+      kbRename.editingId,
+      kbRename.editValue,
+      kbRename.isSaving,
+      kbRename.setEditValue,
+      kbRename.submitRename,
+      kbRename.cancelRename,
+      kbRename.startRename,
+      userPermissions.canEdit,
+      userPermissions.isLoading,
+    ]
+  )
+
+  const headerActions: ResourceAction[] = useMemo(
+    () => [
+      ...(userPermissions.canEdit || userPermissions.isLoading
+        ? [
+            {
+              text: 'New connector',
+              icon: Plus,
+              disabled: !userPermissions.canEdit,
+              onSelect: () => setShowAddConnectorModal(true),
+            },
+          ]
+        : []),
+      {
+        text: 'New documents',
+        icon: Plus,
+        onSelect: handleAddDocuments,
+        disabled: userPermissions.canEdit !== true,
+        variant: 'primary',
+      },
+    ],
+    [
+      userPermissions.canEdit,
+      userPermissions.isLoading,
+      setShowAddConnectorModal,
+      handleAddDocuments,
+    ]
+  )
 
   const sortConfig: SortConfig = useMemo(
     () => ({
@@ -1145,7 +1212,7 @@ export function KnowledgeBase({
               content: (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <span className='font-medium text-[var(--text-secondary)] text-sm'>
+                    <span className='text-[var(--text-secondary)] text-sm'>
                       {format(new Date(doc.uploadedAt), 'MMM d')}
                     </span>
                   </Tooltip.Trigger>
@@ -1168,9 +1235,7 @@ export function KnowledgeBase({
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <DatabaseX className='size-[32px] text-[var(--text-muted)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-secondary)]'>
-            Knowledge base not found
-          </h2>
+          <h2 className='text-[20px] text-[var(--text-secondary)]'>Knowledge base not found</h2>
           <p className='text-[var(--text-muted)] text-small'>
             This knowledge base may have been deleted or moved
           </p>
@@ -1183,19 +1248,10 @@ export function KnowledgeBase({
     <>
       <Resource onContextMenu={handleEmptyContextMenu}>
         <Resource.Header
-          icon={Database}
-          title='Knowledge Base'
+          icon={FOLDERED_RESOURCE_HEADERS.knowledge_base.rootIcon}
+          title={FOLDERED_RESOURCE_HEADERS.knowledge_base.rootLabel}
           breadcrumbs={breadcrumbs}
-          actions={[
-            ...headerActions,
-            {
-              text: 'New documents',
-              icon: Plus,
-              onSelect: handleAddDocuments,
-              disabled: userPermissions.canEdit !== true,
-              variant: 'primary',
-            },
-          ]}
+          actions={headerActions}
         />
         <Resource.Options
           search={{

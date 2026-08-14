@@ -8,6 +8,8 @@ import type { TableDefinition } from '@/lib/table/types'
 const {
   mockReplaceRowsPrimitive,
   mockDeleteRowsByIds,
+  mockCreateSecretProvenance,
+  mockIsScopeCompatible,
   mockLoadSecretProvenance,
   mockAssertRowCapacity,
   mockNotifyTableRowUsage,
@@ -19,9 +21,17 @@ const {
   mockSignalRowsChanged,
   mockUpsertRow,
   mockWithLockedTable,
+  mockInsertRow,
+  mockBatchInsertRows,
+  mockUpdateRow,
+  mockUpdateRowsByFilter,
+  mockValidateRowData,
+  mockValidateBatchRows,
 } = vi.hoisted(() => ({
   mockReplaceRowsPrimitive: vi.fn(),
   mockDeleteRowsByIds: vi.fn(),
+  mockCreateSecretProvenance: vi.fn(),
+  mockIsScopeCompatible: vi.fn(),
   mockLoadSecretProvenance: vi.fn(),
   mockAssertRowCapacity: vi.fn(),
   mockNotifyTableRowUsage: vi.fn(),
@@ -33,6 +43,12 @@ const {
   mockSignalRowsChanged: vi.fn(),
   mockUpsertRow: vi.fn(),
   mockWithLockedTable: vi.fn(),
+  mockInsertRow: vi.fn(),
+  mockBatchInsertRows: vi.fn(),
+  mockUpdateRow: vi.fn(),
+  mockUpdateRowsByFilter: vi.fn(),
+  mockValidateRowData: vi.fn(),
+  mockValidateBatchRows: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -57,13 +73,13 @@ vi.mock('@/lib/table', () => ({
     MAX_BULK_OPERATION_SIZE: 1000,
     MAX_QUERY_LIMIT: 1000,
   },
-  batchInsertRows: vi.fn(),
+  batchInsertRows: mockBatchInsertRows,
   deleteRow: vi.fn(),
   deleteRowsByFilter: vi.fn(),
   deleteRowsByIds: mockDeleteRowsByIds,
   findRowMatches: vi.fn(),
   getRowById: vi.fn(),
-  insertRow: vi.fn(),
+  insertRow: mockInsertRow,
   queryRows: mockQueryRows,
   replaceTableRows: mockReplaceRowsPrimitive,
   rowDataNameToId: (data: Record<string, unknown>, idByName: Map<string, string>) =>
@@ -74,11 +90,11 @@ vi.mock('@/lib/table', () => ({
       })
     ),
   sortSpecNamesToIds: vi.fn(),
-  updateRow: vi.fn(),
-  updateRowsByFilter: vi.fn(),
+  updateRow: mockUpdateRow,
+  updateRowsByFilter: mockUpdateRowsByFilter,
   upsertRow: mockUpsertRow,
-  validateBatchRows: vi.fn(),
-  validateRowData: vi.fn(),
+  validateBatchRows: mockValidateBatchRows,
+  validateRowData: mockValidateRowData,
   withLockedTable: mockWithLockedTable,
 }))
 
@@ -92,8 +108,23 @@ vi.mock('@/lib/table/column-types', () => ({
 }))
 
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
-  createExactEmptyTableRowSecretProvenance: () => ({ complete: true, columns: {} }),
+  createTableRowSecretProvenanceFromRegistry: mockCreateSecretProvenance,
+  createExactEmptyTableRowSecretProvenance: (data: Record<string, unknown>) => ({
+    complete: true,
+    columns: Object.fromEntries(
+      Object.keys(data).map((columnId) => [columnId, { version: 1, complete: true, entries: [] }])
+    ),
+  }),
+  createUnknownTableRowSecretProvenance: () => ({ complete: false, columns: {} }),
   loadTableRowSecretProvenance: mockLoadSecretProvenance,
+}))
+
+vi.mock('@/lib/table/validation', () => ({
+  coerceRowValues: vi.fn(),
+}))
+
+vi.mock('@/lib/execution/durable-secret-provenance', () => ({
+  isPrivateSecretProvenanceScopeCompatible: mockIsScopeCompatible,
 }))
 
 vi.mock('@/lib/table/rows/service', () => ({
@@ -109,15 +140,20 @@ vi.mock('@/lib/table/events', () => ({
 }))
 
 import {
+  createTableRows,
   deleteTableRows,
+  listTableRows,
   ProjectedWireRowsValidationError,
   queryTableRows,
   replaceProjectedWireRows,
   replaceTableRows,
   TableRowsValidationError,
   tablePredicateNamesToFilter,
+  updateTableRow,
+  updateTableRows,
   upsertTableRow,
 } from '@/lib/table/application/rows'
+import { encodeCursor } from '@/lib/table/rows/cursor'
 
 const TABLE: TableDefinition = {
   id: 'table-1',
@@ -188,6 +224,8 @@ describe('replaceProjectedWireRows application command', () => {
         run(freshTable, { kind: 'transaction' })
     )
     mockReplaceRowsWithTx.mockResolvedValue({ deletedCount: 2, insertedCount: 1 })
+    mockCreateSecretProvenance.mockReturnValue({ complete: true, columns: {} })
+    mockIsScopeCompatible.mockReturnValue(true)
   })
 
   it('validates and replaces against the fresh schema held under the table lock', async () => {
@@ -212,7 +250,12 @@ describe('replaceProjectedWireRows application command', () => {
         workspaceId: TABLE.workspaceId,
         rows: [{ 'column-fresh': 'Ada' }],
         userId: 'user-1',
-        secretProvenance: [{ complete: true, columns: {} }],
+        secretProvenance: [
+          {
+            complete: true,
+            columns: { 'column-fresh': { version: 1, complete: true, entries: [] } },
+          },
+        ],
       },
       freshTable,
       'request-1'
@@ -252,6 +295,106 @@ describe('replaceProjectedWireRows application command', () => {
     expect(mockReplaceRowsWithTx).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockSignalRowsChanged).not.toHaveBeenCalled()
+  })
+
+  it('derives projected-row provenance inside the authorized locked operation', async () => {
+    const registry = { kind: 'resolved-secret-registry' }
+    const provenance = {
+      complete: true,
+      columns: {
+        'column-fresh': {
+          entries: [{ encryptedValue: 'ciphertext' }],
+          scope: { userId: 'user-1', workspaceId: TABLE.workspaceId },
+        },
+      },
+    }
+    mockCreateSecretProvenance.mockReturnValue(provenance)
+
+    await replaceProjectedWireRows.execute({
+      principal: delegatedPrincipal,
+      input: {
+        tableId: TABLE.id,
+        sourceRows: [{ full_name: 'secret-value' }],
+        projectedRows: [{ full_name: 'secret-value' }],
+        secretProvenance: {
+          mode: 'resolved_output',
+          registry: registry as never,
+        },
+      },
+    })
+
+    expect(mockCreateSecretProvenance).toHaveBeenCalledWith(
+      { 'column-fresh': 'secret-value' },
+      registry
+    )
+    expect(mockIsScopeCompatible).toHaveBeenCalledWith(
+      { userId: 'user-1', workspaceId: TABLE.workspaceId },
+      { userId: 'user-1', workspaceId: TABLE.workspaceId }
+    )
+    expect(mockReplaceRowsWithTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ secretProvenance: [provenance] }),
+      freshTable,
+      expect.any(String)
+    )
+  })
+
+  it('stores unknown provenance when the authoritative destination rejects the source scope', async () => {
+    const registry = { kind: 'resolved-secret-registry' }
+    mockCreateSecretProvenance.mockReturnValue({
+      complete: true,
+      columns: {
+        'column-fresh': {
+          entries: [{ encryptedValue: 'ciphertext' }],
+          scope: { userId: 'user-1', workspaceId: 'workspace-other' },
+        },
+      },
+    })
+    mockIsScopeCompatible.mockReturnValue(false)
+
+    await replaceProjectedWireRows.execute({
+      principal: delegatedPrincipal,
+      input: {
+        tableId: TABLE.id,
+        sourceRows: [{ full_name: 'secret-value' }],
+        projectedRows: [{ full_name: 'secret-value' }],
+        secretProvenance: {
+          mode: 'resolved_output',
+          registry: registry as never,
+        },
+      },
+    })
+
+    expect(mockIsScopeCompatible).toHaveBeenCalledWith(
+      { userId: 'user-1', workspaceId: 'workspace-other' },
+      { userId: 'user-1', workspaceId: TABLE.workspaceId }
+    )
+    expect(mockReplaceRowsWithTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
+      freshTable,
+      expect.any(String)
+    )
+  })
+
+  it('stores unknown provenance when resolved output lacks a trace registry', async () => {
+    await replaceProjectedWireRows.execute({
+      principal: delegatedPrincipal,
+      input: {
+        tableId: TABLE.id,
+        sourceRows: [{ full_name: 'value' }],
+        projectedRows: [{ full_name: 'value' }],
+        secretProvenance: { mode: 'resolved_output' },
+      },
+    })
+
+    expect(mockCreateSecretProvenance).not.toHaveBeenCalled()
+    expect(mockReplaceRowsWithTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
+      freshTable,
+      expect.any(String)
+    )
   })
 
   it('rejects delegated table-scope mismatch before opening the mutation lock', async () => {
@@ -332,7 +475,7 @@ describe('replaceTableRows application use case', () => {
         tableId: TABLE.id,
         assertedWorkspaceId: TABLE.workspaceId,
         requestId: 'request-1',
-        rows: [{ name: 'Ada', unknown: 'dropped' }],
+        rows: [{ name: 'Ada' }],
       },
     })
 
@@ -342,13 +485,29 @@ describe('replaceTableRows application use case', () => {
         workspaceId: TABLE.workspaceId,
         rows: [{ 'column-name': 'Ada' }],
         userId: PRINCIPAL.userId,
-        secretProvenance: undefined,
+        secretProvenance: [
+          {
+            complete: true,
+            columns: { 'column-name': { version: 1, complete: true, entries: [] } },
+          },
+        ],
       },
       TABLE,
-      'request-1'
+      'request-1',
+      {}
     )
     expect(result).toMatchObject({ deletedCount: 2, insertedCount: 1 })
     expect(mockSignalRowsChanged).toHaveBeenCalledWith(TABLE.id)
+  })
+
+  it('refuses a replacement row naming an unknown column for a strict caller', async () => {
+    await expect(
+      replaceTableRows.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, rows: [{ name: 'Ada', unknown: 'x' }], strictWrite: true },
+      })
+    ).rejects.toThrow(/Row 1: Unknown column: unknown/)
+    expect(mockReplaceRowsPrimitive).not.toHaveBeenCalled()
   })
 
   it('rejects more than 10,000 rows before opening the atomic primitive', async () => {
@@ -436,6 +595,107 @@ describe('row query and upsert application semantics', () => {
 
     expect(mockQueryRows).not.toHaveBeenCalled()
     expect(mockLoadSecretProvenance).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed list cursor before querying storage', async () => {
+    await expect(
+      listTableRows.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, limit: 25, cursor: 'malformed' },
+      })
+    ).rejects.toMatchObject({ details: { code: 'INVALID_CURSOR' } })
+
+    expect(mockQueryRows).not.toHaveBeenCalled()
+  })
+
+  it('passes the native row cursor through a short list page', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row-50', orderKey: 'a50' },
+      keysetValid: true,
+      nextOffset: 50,
+    })
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [{ id: 'row-51', data: {} }],
+      rowCount: 1,
+      totalCount: null,
+      nextCursor: 'native-next-cursor',
+    })
+
+    const result = await listTableRows.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, limit: 25, cursor },
+    })
+
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      TABLE,
+      {
+        limit: 25,
+        after: { id: 'row-50', orderKey: 'a50' },
+        offset: undefined,
+        includeTotal: false,
+        withExecutions: false,
+      },
+      expect.any(String)
+    )
+    expect(result.nextCursor).toBe('native-next-cursor')
+  })
+
+  /**
+   * An offset cursor names a position in one filtered sequence. Replayed under a
+   * different predicate that ordinal belongs to a sequence the caller never asked
+   * for — page 2 of the archived rows, or an empty page the caller reads as "no
+   * more matches". It must be refused, exactly as a changed sort already is.
+   */
+  it('refuses an offset cursor replayed under a different predicate', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row-100', orderKey: null },
+      keysetValid: false,
+      nextOffset: 100,
+      predicate: { all: [{ field: 'column-name', op: 'eq', value: 'Ada' }] },
+    })
+
+    await expect(
+      queryTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          cursor,
+          predicate: { all: [{ field: 'name', op: 'eq', value: 'Grace' }] },
+        },
+      })
+    ).rejects.toMatchObject({ details: { code: 'CURSOR_FILTER_CONFLICT' } })
+    expect(mockQueryRows).not.toHaveBeenCalled()
+  })
+
+  it('resumes the same offset page under the identical predicate', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row-100', orderKey: null },
+      keysetValid: false,
+      nextOffset: 100,
+      predicate: { all: [{ field: 'column-name', op: 'eq', value: 'Ada' }] },
+    })
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [],
+      rowCount: 0,
+      totalCount: null,
+      nextCursor: null,
+    })
+
+    await expect(
+      queryTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          cursor,
+          predicate: { all: [{ field: 'name', op: 'eq', value: 'Ada' }] },
+        },
+      })
+    ).resolves.toMatchObject({ rowCount: 0 })
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      TABLE,
+      expect.objectContaining({ offset: 100 }),
+      expect.any(String)
+    )
   })
 
   it('loads requested persisted provenance inside the authorized application query', async () => {
@@ -544,7 +804,319 @@ describe('row query and upsert application semantics', () => {
         userId: PRINCIPAL.userId,
       }),
       TABLE,
-      'request-1'
+      'request-1',
+      {}
     )
+  })
+})
+
+describe('table row write secret provenance defaulting', () => {
+  const EXACT_EMPTY_NAME = {
+    complete: true,
+    columns: { 'column-name': { version: 1, complete: true, entries: [] } },
+  }
+  const ROW = {
+    id: 'row-1',
+    data: { 'column-name': 'Ada' },
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue({
+      tableId: TABLE.id,
+      table: TABLE,
+      workspaceId: TABLE.workspaceId,
+      workspaceOrganizationId: 'organization-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+    mockValidateRowData.mockResolvedValue({ valid: true })
+    mockValidateBatchRows.mockResolvedValue({ valid: true })
+    mockInsertRow.mockResolvedValue(ROW)
+    mockBatchInsertRows.mockResolvedValue([ROW])
+    mockUpdateRow.mockResolvedValue(ROW)
+    mockUpdateRowsByFilter.mockResolvedValue({ affectedCount: 1 })
+    mockUpsertRow.mockResolvedValue({ operation: 'insert', row: ROW })
+    mockReplaceRowsPrimitive.mockResolvedValue({ deletedCount: 0, insertedCount: 1 })
+  })
+
+  it('stamps an exact-empty sidecar on a single insert that resolved no provenance', async () => {
+    await createTableRows.execute({
+      principal: PRINCIPAL,
+      input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' } },
+    })
+
+    expect(mockInsertRow).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: EXACT_EMPTY_NAME }),
+      TABLE,
+      expect.any(String),
+      {}
+    )
+  })
+
+  it('stamps an exact-empty sidecar per row on a batch insert', async () => {
+    await createTableRows.execute({
+      principal: PRINCIPAL,
+      input: { kind: 'batch', tableId: TABLE.id, rows: [{ name: 'Ada' }, { name: 'Bob' }] },
+    })
+
+    expect(mockBatchInsertRows).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secretProvenance: [EXACT_EMPTY_NAME, EXACT_EMPTY_NAME],
+      }),
+      TABLE,
+      expect.any(String),
+      {}
+    )
+  })
+
+  it('stamps an exact-empty sidecar on a single row update', async () => {
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, rowId: 'row-1', data: { name: 'Ada' } },
+    })
+
+    expect(mockUpdateRow).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: EXACT_EMPTY_NAME }),
+      TABLE,
+      expect.any(String),
+      {}
+    )
+  })
+
+  it('stamps an exact-empty sidecar on a filtered bulk update', async () => {
+    const filterableTable: TableDefinition = {
+      ...TABLE,
+      schema: { columns: [{ id: 'column_name', name: 'name', type: 'string' }] },
+    }
+    mockResolveContext.mockResolvedValue({
+      tableId: TABLE.id,
+      table: filterableTable,
+      workspaceId: TABLE.workspaceId,
+      workspaceOrganizationId: 'organization-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+
+    await updateTableRows.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        filter: { all: [{ field: 'name', op: 'eq', value: 'Ada' }] },
+        data: { name: 'Grace' },
+      },
+    })
+
+    expect(mockUpdateRowsByFilter).toHaveBeenCalledWith(
+      filterableTable,
+      expect.objectContaining({
+        secretProvenance: {
+          complete: true,
+          columns: { column_name: { version: 1, complete: true, entries: [] } },
+        },
+      }),
+      expect.any(String),
+      {}
+    )
+  })
+
+  it('stamps an exact-empty sidecar on an upsert', async () => {
+    await upsertTableRow.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, data: { name: 'Ada' } },
+    })
+
+    expect(mockUpsertRow).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: EXACT_EMPTY_NAME }),
+      TABLE,
+      expect.any(String),
+      {}
+    )
+  })
+
+  it('stamps an exact-empty sidecar per row on a full replace', async () => {
+    await replaceTableRows.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, rows: [{ name: 'Ada' }] },
+    })
+
+    expect(mockReplaceRowsPrimitive).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: [EXACT_EMPTY_NAME] }),
+      TABLE,
+      expect.any(String),
+      {}
+    )
+  })
+
+  it('never overwrites provenance an authorized caller already resolved', async () => {
+    const unknown = { complete: false, columns: {} }
+
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { name: 'Ada' },
+        secretProvenance: unknown,
+      },
+    })
+
+    expect(mockUpdateRow).toHaveBeenCalledWith(
+      expect.objectContaining({ secretProvenance: unknown }),
+      TABLE,
+      expect.any(String),
+      {}
+    )
+  })
+})
+
+/**
+ * The name→id remap drops keys naming no column, and nothing upstream had
+ * checked that there were none to drop. An insert of `{"nosuchcol":"x"}`
+ * therefore answered 201 having created an empty row, and a patch of
+ * `{"zzz":"x"}` answered `updatedCount: 0` — the same answer a predicate that
+ * matched nothing gives, so a caller could not tell a typo from an empty match.
+ *
+ * The refusal is scoped to `strictWrite`, which only `/api/v2` sets. A
+ * first-party caller still has the key dropped: Copilot feeds the model's raw
+ * arguments in unfiltered, so a hallucinated key, an echoed `id`, or a name
+ * left over from a rename would otherwise refuse the whole write.
+ */
+describe('unknown column names under strictWrite', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue({
+      tableId: TABLE.id,
+      table: TABLE,
+      workspaceId: TABLE.workspaceId,
+      workspaceOrganizationId: 'organization-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+    mockValidateRowData.mockResolvedValue({ valid: true })
+    mockValidateBatchRows.mockResolvedValue({ valid: true })
+    mockInsertRow.mockResolvedValue({ id: 'row-1', data: {} })
+    mockBatchInsertRows.mockResolvedValue([{ id: 'row-1', data: {} }])
+    mockUpdateRow.mockResolvedValue({ id: 'row-1', data: {} })
+    mockUpdateRowsByFilter.mockResolvedValue({ affectedCount: 0 })
+    mockUpsertRow.mockResolvedValue({ operation: 'insert', row: { id: 'row-1', data: {} } })
+  })
+
+  it('refuses a single insert naming a column the table does not have', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: { kind: 'single', tableId: TABLE.id, data: { nosuchcol: 'x' }, strictWrite: true },
+      })
+    ).rejects.toThrow(/Unknown column: nosuchcol/)
+    expect(mockInsertRow).not.toHaveBeenCalled()
+  })
+
+  it('drops the same key for a first-party caller instead of refusing the write', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada', nosuchcol: 'x' } },
+      })
+    ).resolves.toBeDefined()
+    expect(mockInsertRow).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { 'column-name': 'Ada' } }),
+      TABLE,
+      expect.any(String),
+      {}
+    )
+  })
+
+  it('names every unknown column at once', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          kind: 'single',
+          tableId: TABLE.id,
+          data: { zzz: 'x', qqq: 'y' },
+          strictWrite: true,
+        },
+      })
+    ).rejects.toThrow(/Unknown columns: zzz, qqq/)
+  })
+
+  it('refuses a batch insert and says which row was wrong', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          kind: 'batch',
+          tableId: TABLE.id,
+          rows: [{ name: 'Ada' }, { zzz: 'x' }],
+          strictWrite: true,
+        },
+      })
+    ).rejects.toThrow(/Row 2: Unknown column: zzz/)
+    expect(mockBatchInsertRows).not.toHaveBeenCalled()
+  })
+
+  it('refuses a predicate update rather than reporting an empty match', async () => {
+    await expect(
+      updateTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          filter: { all: [{ field: 'name', op: 'eq', value: 'Ada' }] },
+          data: { zzz: 'x' },
+          strictWrite: true,
+        },
+      })
+    ).rejects.toThrow(/Unknown column: zzz/)
+    expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
+  })
+
+  it('refuses a single-row update naming an unknown column', async () => {
+    await expect(
+      updateTableRow.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, rowId: 'row-1', data: { zzz: 'x' }, strictWrite: true },
+      })
+    ).rejects.toThrow(/Unknown column: zzz/)
+    expect(mockUpdateRow).not.toHaveBeenCalled()
+  })
+
+  it('reports an empty match for the same first-party update instead of refusing', async () => {
+    await expect(
+      updateTableRow.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, rowId: 'row-1', data: { zzz: 'x' } },
+      })
+    ).resolves.toBeDefined()
+    expect(mockUpdateRow).toHaveBeenCalled()
+  })
+
+  it('still accepts a write naming only known columns', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' } },
+      })
+    ).resolves.toBeDefined()
+  })
+
+  it('carries the strict value policy to the primitive, and nothing without it', async () => {
+    await createTableRows.execute({
+      principal: PRINCIPAL,
+      input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' }, strictWrite: true },
+    })
+    expect(mockInsertRow).toHaveBeenLastCalledWith(expect.anything(), TABLE, expect.any(String), {
+      uncoercibleValues: 'reject',
+    })
+
+    await createTableRows.execute({
+      principal: PRINCIPAL,
+      input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' } },
+    })
+    expect(mockInsertRow).toHaveBeenLastCalledWith(expect.anything(), TABLE, expect.any(String), {})
   })
 })

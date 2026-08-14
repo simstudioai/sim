@@ -113,6 +113,18 @@ export interface CredentialActorContext {
 }
 
 /**
+ * Whether a user may *use* a credential: they still have access to its workspace
+ * and are either an active member or a derived credential admin.
+ *
+ * Deliberately distinct from the admin-only rule that governs *managing* a
+ * credential (rename, delete, membership changes) — that one has no member
+ * fallback. Do not fold the two together.
+ */
+export function canUseCredential(access: CredentialActorContext): boolean {
+  return access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin)
+}
+
+/**
  * Resolves user access context for a credential. Pass `workspaceAccess` when the
  * caller has already resolved access for the credential's workspace to skip a
  * redundant lookup; it is reused only when it matches the credential's workspace.

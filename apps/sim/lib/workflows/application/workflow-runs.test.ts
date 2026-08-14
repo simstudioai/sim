@@ -90,10 +90,6 @@ describe('workflow run application use cases', () => {
 
       expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
         workflowId: 'workflow-1',
-        assertedWorkspaceId:
-          principal.kind === 'workspace_api_key' || principal.kind === 'delegated'
-            ? 'workspace-1'
-            : undefined,
       })
       expect(mocks.list).toHaveBeenCalledWith(
         expect.objectContaining({ workflowId: 'workflow-1', limit: 25, order: 'desc' })
@@ -115,7 +111,6 @@ describe('workflow run application use cases', () => {
     expect(mocks.resolveRunContext).toHaveBeenCalledWith({
       runId: 'run-1',
       assertedWorkflowId: 'workflow-1',
-      assertedWorkspaceId: 'workspace-1',
     })
     expect(mocks.getStatus).toHaveBeenCalledWith({
       workflowId: 'workflow-1',

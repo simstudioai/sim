@@ -26,7 +26,7 @@ vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: sendEmailSpy }))
 vi.mock('@/lib/messaging/email/unsubscribe', () => ({
   getEmailPreferences: getEmailPreferencesMock,
 }))
-vi.mock('@/components/emails/render', () => ({
+vi.mock('@/components/emails', () => ({
   renderLimitThresholdEmail: renderMock,
   getLimitEmailSubject: subjectMock,
 }))
@@ -72,6 +72,9 @@ describe('maybeSendLimitThresholdEmail', () => {
     expect(sendEmailSpy).toHaveBeenCalledTimes(1)
     expect(renderMock).toHaveBeenCalledWith(expect.objectContaining({ kind: 'warning' }))
     expect(subjectMock).toHaveBeenCalledWith('storage', 'warning')
+    // Pins the subject to the shared helper's return, so a sender that builds
+    // its own string — or a mock aimed at the wrong module path — fails here.
+    expect(sendEmailSpy).toHaveBeenCalledWith(expect.objectContaining({ subject: 'Subject' }))
   })
 
   it('sends a reached email at/over 100%', async () => {

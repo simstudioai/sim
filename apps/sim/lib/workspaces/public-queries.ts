@@ -8,7 +8,6 @@ export interface PublicWorkspaceDetail {
   name: string
   color: string
   logoUrl: string | null
-  mode: 'personal' | 'organization' | 'grandfathered_shared'
   memberCount: number
   createdAt: Date
   updatedAt: Date
@@ -74,7 +73,6 @@ export async function getPublicWorkspaceDetail(
       name: workspace.name,
       color: workspace.color,
       logoUrl: workspace.logoUrl,
-      mode: workspace.workspaceMode,
       organizationId: workspace.organizationId,
       createdAt: workspace.createdAt,
       updatedAt: workspace.updatedAt,
@@ -90,7 +88,6 @@ export async function getPublicWorkspaceDetail(
     name: row.name,
     color: row.color,
     logoUrl: row.logoUrl,
-    mode: row.mode,
     memberCount: await countWorkspaceMembers(workspaceId, row.organizationId),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -120,6 +117,18 @@ export async function queryPublicWorkspaceMembers(
   const emailOrder = sql<string>`${user.email} COLLATE "C"`
   const emailCursor = options.afterEmail ? gt(emailOrder, options.afterEmail) : undefined
   const sourceLimit = options.limit + 1
+  const hasRelevantOrganizationMembership = workspaceRow.organizationId
+    ? sql<boolean>`EXISTS (
+        SELECT 1
+        FROM ${member}
+        WHERE ${member.userId} = ${user.id}
+          AND ${member.organizationId} = ${workspaceRow.organizationId}
+      )`
+    : sql<boolean>`EXISTS (
+        SELECT 1
+        FROM ${member}
+        WHERE ${member.userId} = ${user.id}
+      )`
 
   const explicitPromise = db
     .select({
@@ -129,11 +138,10 @@ export async function queryPublicWorkspaceMembers(
       image: user.image,
       role: permissions.permissionType,
       joinedAt: permissions.createdAt,
-      userOrganizationId: member.organizationId,
+      hasRelevantOrganizationMembership,
     })
     .from(permissions)
     .innerJoin(user, eq(permissions.userId, user.id))
-    .leftJoin(member, eq(member.userId, user.id))
     .where(
       and(
         eq(permissions.entityType, 'workspace'),
@@ -178,7 +186,9 @@ export async function queryPublicWorkspaceMembers(
       role: row.role,
       isExternal:
         row.userId !== workspaceRow.ownerId &&
-        row.userOrganizationId !== workspaceRow.organizationId,
+        (workspaceRow.organizationId
+          ? !row.hasRelevantOrganizationMembership
+          : row.hasRelevantOrganizationMembership),
       joinedAt: row.joinedAt,
     })
   }

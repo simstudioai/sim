@@ -24,7 +24,7 @@ vi.mock('@/lib/logs/application/get-public-log', () => ({
   getPublicLog: { operation: { id: 'logs.read_detail' }, execute: mocks.execute },
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { GET } from '@/app/api/v2/logs/[runId]/route'
 
 const auth = {
@@ -94,10 +94,23 @@ describe('GET /api/v2/logs/[runId]', () => {
     })
   })
 
+  it('serves a run whose persisted status is paused', async () => {
+    mocks.execute.mockResolvedValue({
+      log: { ...log, status: 'paused' },
+      workflowFolderPath: '/agents',
+      executionData: { traceSpans: [], finalOutput: null },
+    })
+
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
+      params: Promise.resolve({ runId: 'run-1' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data).toMatchObject({ runId: 'run-1', status: 'paused' })
+  })
+
   it('conceals canonical workspace authorization as log not-found', async () => {
-    mocks.execute.mockRejectedValueOnce(
-      new OrchestrationError('forbidden', 'Workspace API key cannot perform this operation')
-    )
+    mocks.execute.mockRejectedValueOnce(new NoWorkspaceAccessError())
 
     const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
       params: Promise.resolve({ runId: 'run-1' }),

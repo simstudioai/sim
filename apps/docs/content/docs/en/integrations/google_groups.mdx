@@ -35,7 +35,7 @@ Connect to Google Workspace to create, update, and manage groups and their membe
 
 ## Actions
 
-### `google_groups_list_groups`
+### Google Groups List Groups
 
 List all groups in a Google Workspace domain
 
@@ -56,7 +56,7 @@ List all groups in a Google Workspace domain
 | `groups` | json | Array of group objects |
 | `nextPageToken` | string | Token for fetching next page of results |
 
-### `google_groups_get_group`
+### Google Groups Get Group
 
 Get details of a specific Google Group by email or group ID
 
@@ -72,7 +72,7 @@ Get details of a specific Google Group by email or group ID
 | --------- | ---- | ----------- |
 | `group` | json | Group object |
 
-### `google_groups_create_group`
+### Google Groups Create Group
 
 Create a new Google Group in the domain
 
@@ -90,7 +90,7 @@ Create a new Google Group in the domain
 | --------- | ---- | ----------- |
 | `group` | json | Created group object |
 
-### `google_groups_update_group`
+### Google Groups Update Group
 
 Update an existing Google Group
 
@@ -109,7 +109,7 @@ Update an existing Google Group
 | --------- | ---- | ----------- |
 | `group` | json | Updated group object |
 
-### `google_groups_delete_group`
+### Google Groups Delete Group
 
 Delete a Google Group
 
@@ -125,7 +125,7 @@ Delete a Google Group
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
-### `google_groups_list_members`
+### Google Groups List Members
 
 List all members of a Google Group
 
@@ -145,7 +145,7 @@ List all members of a Google Group
 | `members` | json | Array of member objects |
 | `nextPageToken` | string | Token for fetching next page of results |
 
-### `google_groups_get_member`
+### Google Groups Get Member
 
 Get details of a specific member in a Google Group
 
@@ -162,7 +162,7 @@ Get details of a specific member in a Google Group
 | --------- | ---- | ----------- |
 | `member` | json | Member object |
 
-### `google_groups_add_member`
+### Google Groups Add Member
 
 Add a new member to a Google Group
 
@@ -180,7 +180,7 @@ Add a new member to a Google Group
 | --------- | ---- | ----------- |
 | `member` | json | Added member object |
 
-### `google_groups_remove_member`
+### Google Groups Remove Member
 
 Remove a member from a Google Group
 
@@ -197,7 +197,7 @@ Remove a member from a Google Group
 | --------- | ---- | ----------- |
 | `message` | string | Success message |
 
-### `google_groups_update_member`
+### Google Groups Update Member
 
 Update a member's role in a Google Group (promote or demote)
 
@@ -215,7 +215,7 @@ Update a member's role in a Google Group (promote or demote)
 | --------- | ---- | ----------- |
 | `member` | json | Updated member object |
 
-### `google_groups_has_member`
+### Google Groups Has Member
 
 Check if a user is a member of a Google Group
 
@@ -232,7 +232,7 @@ Check if a user is a member of a Google Group
 | --------- | ---- | ----------- |
 | `isMember` | boolean | Whether the user is a member of the group |
 
-### `google_groups_list_aliases`
+### Google Groups List Aliases
 
 List all email aliases for a Google Group
 
@@ -253,7 +253,7 @@ List all email aliases for a Google Group
 |   ↳ `kind` | string | API resource type |
 |   ↳ `etag` | string | Resource version identifier |
 
-### `google_groups_add_alias`
+### Google Groups Add Alias
 
 Add an email alias to a Google Group
 
@@ -274,7 +274,7 @@ Add an email alias to a Google Group
 | `kind` | string | API resource type |
 | `etag` | string | Resource version identifier |
 
-### `google_groups_remove_alias`
+### Google Groups Remove Alias
 
 Remove an email alias from a Google Group
 
@@ -291,7 +291,7 @@ Remove an email alias from a Google Group
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the alias was successfully deleted |
 
-### `google_groups_get_settings`
+### Google Groups Get Settings
 
 Get the settings for a Google Group including access permissions, moderation, and posting options
 
@@ -339,7 +339,7 @@ Get the settings for a Google Group including access permissions, moderation, an
 | `whoCanDiscoverGroup` | string | Who can discover the group |
 | `defaultSender` | string | Default sender identity \(DEFAULT_SELF or GROUP\) |
 
-### `google_groups_update_settings`
+### Google Groups Update Settings
 
 Update the settings for a Google Group including access permissions, moderation, and posting options
 

@@ -90,18 +90,18 @@ export async function clearCredentialRefs(
     clearInPausedExecutions(credentialId, workspaceId, needle),
     clearInWorkflowCheckpoints(credentialId, workspaceId, needle),
     clearInKnowledgeConnectors(credentialId),
-    deactivateSlackAppWebhooks(credentialId),
+    deactivateCredentialBoundWebhooks(credentialId),
   ])
 }
 
 /**
- * Deactivates Slack trigger webhooks bound to this credential so inbound
- * events stop routing once the account is disconnected: native (`slack_app`)
- * rows reference it via `providerConfig.credentialId`, custom-bot (`slack`)
- * rows via `routingKey` = the bot credential id. Neither is a foreign key, so
+ * Deactivates app-level trigger webhooks bound to this credential so inbound
+ * events stop routing once the account is disconnected. Native Slack and
+ * TikTok rows reference it via `providerConfig.credentialId`; custom-bot Slack
+ * rows use `routingKey` = the bot credential id. Neither is a foreign key, so
  * neither is covered by CASCADE.
  */
-async function deactivateSlackAppWebhooks(credentialId: string): Promise<void> {
+async function deactivateCredentialBoundWebhooks(credentialId: string): Promise<void> {
   await db
     .update(schema.webhook)
     .set({ isActive: false, updatedAt: new Date() })
@@ -111,6 +111,10 @@ async function deactivateSlackAppWebhooks(credentialId: string): Promise<void> {
         or(
           and(
             eq(schema.webhook.provider, 'slack_app'),
+            sql`${schema.webhook.providerConfig}->>'credentialId' = ${credentialId}`
+          ),
+          and(
+            eq(schema.webhook.provider, 'tiktok'),
             sql`${schema.webhook.providerConfig}->>'credentialId' = ${credentialId}`
           ),
           and(eq(schema.webhook.provider, 'slack'), eq(schema.webhook.routingKey, credentialId))

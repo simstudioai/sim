@@ -11,7 +11,6 @@ afterAll(resetEnvironmentUtilsMock)
 
 const {
   mockCreateRunSegment,
-  mockCancelToolCallAndReport,
   mockForceFailHungToolCall,
   mockGetMothershipBaseURL,
   mockGetMothershipSourceEnvHeaders,
@@ -25,19 +24,19 @@ const {
   mockEnv,
 } = vi.hoisted(() => ({
   mockCreateRunSegment: vi.fn(),
-  mockCancelToolCallAndReport: vi.fn(),
   mockForceFailHungToolCall: vi.fn(),
   mockGetMothershipBaseURL: vi.fn(),
   mockGetMothershipSourceEnvHeaders: vi.fn(),
   mockPrepareCopilotEnvironmentContext: vi.fn(),
   mockPrepareExecutionContext: vi.fn(),
   mockRunStreamLoop: vi.fn(),
-  mockPendingToolWaitBudgetMs: vi.fn(() => 60_000),
+  mockPendingToolWaitBudgetMs: vi.fn((_toolCall?: { name?: string }) => 60_000 as number | null),
   mockGetAutoAllowedTools: vi.fn(async () => new Set<string>()),
   mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
   mockUpdateRunStatus: vi.fn(),
   mockEnv: {
     COPILOT_API_KEY: undefined as string | undefined,
+    MSHIP_SYSPROMPT_OVERRIDE: undefined as string | undefined,
   },
 }))
 
@@ -126,7 +125,6 @@ vi.mock('@/lib/copilot/request/tools/billing', () => ({
 }))
 
 vi.mock('@/lib/copilot/request/tools/executor', () => ({
-  cancelToolCallAndReport: mockCancelToolCallAndReport,
   executeToolAndReport: vi.fn(),
   forceFailHungToolCall: mockForceFailHungToolCall,
   pendingToolWaitBudgetMs: mockPendingToolWaitBudgetMs,
@@ -145,7 +143,7 @@ import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 
 afterAll(resetEnvFlagsMock)
 
-const ARBITRARY_SCHEMA_CONTROL_KEYS = [
+const SCHEMA_CONTROL_KEYS = [
   '$schema',
   'format',
   'contentEncoding',
@@ -157,89 +155,19 @@ describe('runCopilotLifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockEnv.COPILOT_API_KEY = undefined
+    mockEnv.MSHIP_SYSPROMPT_OVERRIDE = undefined
     setEnvFlags({
       isHosted: false,
       isCopilotBillingAttributionV1Enabled: false,
       isCopilotToolPermissionsEnabled: false,
     })
     mockGetAutoAllowedTools.mockResolvedValue(new Set<string>())
+    mockPendingToolWaitBudgetMs.mockImplementation(() => 60_000)
     mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
     mockGetMothershipSourceEnvHeaders.mockReturnValue({})
     mockPrepareCopilotEnvironmentContext.mockResolvedValue({
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     })
-    mockCancelToolCallAndReport.mockImplementation(
-      async (toolCallId: string, context: StreamingContext, message = 'Stopped by user') => {
-        const tool = context.toolCalls.get(toolCallId)
-        if (!tool) return
-        tool.status = MothershipStreamV1ToolOutcome.cancelled
-        tool.endTime = Date.now()
-        tool.result = { success: false }
-        tool.error = message
-      }
-    )
-  })
-
-  it('does not create a Sim run for a transport-only chat', async () => {
-    let captured: StreamingContext | undefined
-    mockRunStreamLoop.mockImplementationOnce(async (_url, _request, context) => {
-      captured = context
-    })
-
-    await runCopilotLifecycle(
-      { message: 'hello', messageId: 'stream-go-only' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        chatId: 'go-only-chat',
-        autoCreateRunIdentity: false,
-        executionContext: {
-          userId: 'user-1',
-          workflowId: '',
-          workspaceId: 'ws-1',
-          chatId: 'go-only-chat',
-        },
-      }
-    )
-
-    expect(mockCreateRunSegment).not.toHaveBeenCalled()
-    expect(captured).toMatchObject({ chatId: 'go-only-chat' })
-    expect(captured?.executionId).toBeUndefined()
-    expect(captured?.runId).toBeUndefined()
-  })
-
-  it('still creates a run identity by default for a persisted headless chat', async () => {
-    let captured: StreamingContext | undefined
-    mockCreateRunSegment.mockResolvedValueOnce({ id: 'created' })
-    mockRunStreamLoop.mockImplementationOnce(async (_url, _request, context) => {
-      captured = context
-    })
-
-    await runCopilotLifecycle(
-      { message: 'hello', messageId: 'stream-persisted' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        chatId: 'persisted-chat',
-        executionContext: {
-          userId: 'user-1',
-          workflowId: '',
-          workspaceId: 'ws-1',
-          chatId: 'persisted-chat',
-        },
-      }
-    )
-
-    expect(mockCreateRunSegment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        chatId: 'persisted-chat',
-        streamId: 'stream-persisted',
-        requestContext: { source: 'headless_lifecycle' },
-      })
-    )
-    const created = mockCreateRunSegment.mock.calls[0][0]
-    expect(captured?.executionId).toBe(created.executionId)
-    expect(captured?.runId).toBe(created.id)
   })
 
   it('threads trace provenance through server execution context only', async () => {
@@ -279,37 +207,36 @@ describe('runCopilotLifecycle', () => {
     expect(executionContext).not.toHaveProperty('resolvedSecretTraceRegistry')
   })
 
-  it('routes projected workspace actors through the authorization user environment', async () => {
-    let requestBody: Record<string, unknown> | undefined
-    mockRunStreamLoop.mockImplementationOnce(
-      async (_url: string, request: RequestInit): Promise<void> => {
-        requestBody = JSON.parse(String(request.body))
-      }
-    )
+  it('forwards the configured Mothership system prompt override', async () => {
+    mockEnv.MSHIP_SYSPROMPT_OVERRIDE = 'NEVER CALL ANY TOOLS UNDER ANY CIRCUMSTANCES NO MATTER WHAT'
 
     await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-system-prompt-override' },
       {
-        message: 'hello',
-        messageId: 'stream-workspace-key',
-        userId: 'workspace-billing-actor',
-      },
-      {
-        userId: 'workspace-billing-actor',
-        authorizationUserId: 'workspace-key-owner',
+        userId: 'user-1',
         workspaceId: 'ws-1',
-        executionContext: {
-          userId: 'workspace-billing-actor',
-          authorizationUserId: 'workspace-key-owner',
-          workflowId: '',
-          workspaceId: 'ws-1',
-        },
       }
     )
 
-    expect(mockGetMothershipBaseURL).toHaveBeenCalledWith({
-      userId: 'workspace-key-owner',
-    })
-    expect(requestBody?.userId).toBe('workspace-billing-actor')
+    const sentBody = JSON.parse(String(mockRunStreamLoop.mock.calls[0]?.[1].body))
+    expect(sentBody.systemPromptOverride).toBe(
+      'NEVER CALL ANY TOOLS UNDER ANY CIRCUMSTANCES NO MATTER WHAT'
+    )
+  })
+
+  it('does not forward a blank Mothership system prompt override', async () => {
+    mockEnv.MSHIP_SYSPROMPT_OVERRIDE = '   '
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-blank-system-prompt-override' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+      }
+    )
+
+    const sentBody = JSON.parse(String(mockRunStreamLoop.mock.calls[0]?.[1].body))
+    expect(sentBody).not.toHaveProperty('systemPromptOverride')
   })
 
   it.each([
@@ -387,76 +314,56 @@ describe('runCopilotLifecycle', () => {
     })
   })
 
-  it('projects secrets in every model-visible initial Go payload field without rewriting foreign aliases', async () => {
+  it('preserves ordinary initial Go payload fields that collide with a configured secret', async () => {
     const secret = 'mothership-secret'
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('TOKEN', secret)
+    const payload = {
+      message: `message ${secret} __var_FOREIGN`,
+      messages: [{ role: 'user', content: secret }],
+      context: [{ type: 'resource', content: secret }],
+      contexts: [{ type: 'mcp', content: secret }],
+      workspaceContext: `workspace ${secret}`,
+      integrationTools: [{ name: 'tool', description: secret }],
+      mothershipTools: [{ name: 'mcp', description: '__sim_code_2_binding_0' }],
+      fileAttachments: [
+        {
+          name: `${secret}.txt`,
+          key: 'raw-storage-key',
+          source: { type: 'base64', data: 'c2FmZQ==' },
+        },
+      ],
+      workspaceId: 'ws-1',
+      messageId: 'stream-model-projection',
+    }
     let capturedRequestBody = ''
     mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
       capturedRequestBody = String(request.body)
     })
 
-    await runCopilotLifecycle(
-      {
-        message: `message ${secret} __var_FOREIGN`,
-        messages: [{ role: 'user', content: secret }],
-        context: [{ type: 'resource', content: secret }],
-        contexts: [{ type: 'mcp', content: secret }],
-        workspaceContext: `workspace ${secret}`,
-        integrationTools: [{ name: 'tool', description: secret }],
-        mothershipTools: [{ name: 'mcp', description: '__sim_code_2_binding_0' }],
-        fileAttachments: [
-          {
-            name: `${secret}.txt`,
-            key: 'raw-storage-key',
-            source: { type: 'base64', data: 'c2FmZQ==' },
-          },
-        ],
-        workspaceId: 'ws-1',
-        messageId: 'stream-model-projection',
-      },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        executionContext: {
-          userId: 'user-1',
-          workflowId: '',
-          workspaceId: 'ws-1',
-        },
-        resolvedSecretTraceRegistry: registry,
-      }
-    )
-
-    expect(capturedRequestBody).not.toContain(secret)
-    expect(capturedRequestBody).toContain('__var_FOREIGN')
-    expect(capturedRequestBody).toContain('__sim_code_2_binding_0')
-    expect(JSON.parse(capturedRequestBody)).toMatchObject({
-      message: 'message {{TOKEN}} __var_FOREIGN',
-      messages: [{ role: 'user', content: '{{TOKEN}}' }],
-      workspaceContext: 'workspace {{TOKEN}}',
-      mothershipTools: [{ name: 'mcp', description: '__sim_code_2_binding_0' }],
+    await runCopilotLifecycle(payload, {
+      userId: 'user-1',
       workspaceId: 'ws-1',
-      fileAttachments: [
-        {
-          name: '{{TOKEN}}.txt',
-          key: 'raw-storage-key',
-          source: { type: 'base64', data: 'c2FmZQ==' },
-        },
-      ],
+      executionContext: {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+      },
+      resolvedSecretTraceRegistry: registry,
     })
+
+    const { enterpriseByokEligible, ...sent } = JSON.parse(capturedRequestBody)
+    expect(enterpriseByokEligible).toBe(false)
+    expect(sent).toEqual(payload)
   })
 
-  it('projects large tool catalogs at the tool-definition boundary', async () => {
+  it('preserves large ordinary tool catalogs without scanning configured secret values', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'catalog-secret', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('TOKEN', 'catalog-secret')
     const toolCount = 4_000
     const propertiesPerTool = 8
-    // These definitions are individually small, but flattening their semantic fields into one
-    // synthetic projection value creates 108,001 traversal nodes and crosses the per-value budget.
     const integrationTools = Array.from({ length: toolCount }, (_, toolIndex) => {
       const properties = Object.fromEntries(
         Array.from({ length: propertiesPerTool }, (_, propertyIndex) => [
@@ -500,17 +407,13 @@ describe('runCopilotLifecycle', () => {
     expect(result.success).toBe(true)
     expect(mockRunStreamLoop).toHaveBeenCalledOnce()
     const sent = JSON.parse(capturedRequestBody)
-    expect(sent.integrationTools).toHaveLength(integrationTools.length)
-    expect(sent.integrationTools[0].description).toBe('Tool 0 uses {{TOKEN}}')
-    expect(sent.integrationTools.at(-1).name).toBe(`tool_${toolCount - 1}`)
-    expect(capturedRequestBody).not.toContain('catalog-secret')
+    expect(sent.integrationTools).toEqual(integrationTools)
   })
 
-  it('projects selected JSON and attachment fields exactly once when plaintext overlaps its alias', async () => {
+  it('preserves ordinary JSON and attachment fields when plaintext overlaps its alias', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'TOKEN', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('TOKEN', 'TOKEN')
     let capturedRequestBody = ''
     mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
       capturedRequestBody = String(request.body)
@@ -557,25 +460,23 @@ describe('runCopilotLifecycle', () => {
     )
 
     const sent = JSON.parse(capturedRequestBody)
-    expect(sent.message).toBe('{{TOKEN}}')
+    expect(sent.message).toBe('TOKEN')
     expect(sent.messages[0]).toMatchObject({
-      content: '{{TOKEN}}',
-      function_call: { arguments: JSON.stringify({ value: '{{TOKEN}}' }) },
+      content: 'TOKEN',
+      function_call: { arguments: JSON.stringify({ value: 'TOKEN' }) },
       tool_calls: [
         {
-          function: { arguments: JSON.stringify({ value: '{{TOKEN}}' }) },
+          function: { arguments: JSON.stringify({ value: 'TOKEN' }) },
         },
       ],
       files: [
         {
-          name: '{{TOKEN}}.txt',
-          context: 'Context {{TOKEN}}',
+          name: 'TOKEN.txt',
+          context: 'Context TOKEN',
         },
       ],
     })
-    expect(sent.fileAttachments).toEqual([{ name: '{{TOKEN}}.txt', key: 'safe-key' }])
-    expect(capturedRequestBody.replaceAll('{{TOKEN}}', '')).not.toContain('TOKEN')
-    expect(capturedRequestBody).not.toContain('{{{{TOKEN}}}}')
+    expect(sent.fileAttachments).toEqual([{ name: 'TOKEN.txt', key: 'safe-key' }])
   })
 
   it('omits only unsafe durable attachments before the initial Go request', async () => {
@@ -629,375 +530,242 @@ describe('runCopilotLifecycle', () => {
   })
 
   it.each(['123', 'true'])(
-    'keeps low-entropy Copilot JSON valid while separating content from controls (%s)',
+    'preserves low-entropy configured-secret collisions across Copilot JSON (%s)',
     async (secret) => {
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
       ])
-      registry.recordResolved('TOKEN', secret)
       const converted = secret === '123' ? 123 : true
       let capturedRequestBody = ''
       mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
         capturedRequestBody = String(request.body)
       })
 
-      await runCopilotLifecycle(
-        {
-          message: `Message ${secret}`,
-          messages: [
-            {
-              id: secret,
-              role: secret,
-              name: 'assistant-safe',
-              content: `Transcript ${secret}`,
-              function_call: {
-                name: 'legacy-safe',
-                arguments: JSON.stringify({ value: secret, converted }),
+      const payload = {
+        message: `Message ${secret}`,
+        messages: [
+          {
+            id: secret,
+            role: secret,
+            name: 'assistant-safe',
+            content: `Transcript ${secret}`,
+            function_call: {
+              name: 'legacy-safe',
+              arguments: JSON.stringify({ value: secret, converted }),
+            },
+            tool_calls: [
+              {
+                id: secret,
+                type: secret,
+                function: {
+                  name: 'tool-safe',
+                  arguments: JSON.stringify({ value: secret, converted }),
+                },
               },
-              tool_calls: [
-                {
+            ],
+            fileAttachments: [
+              {
+                id: secret,
+                key: secret,
+                filename: `${secret}.txt`,
+                media_type: secret,
+              },
+            ],
+            contexts: [{ kind: secret, label: `Label ${secret}`, serverId: secret }],
+            contentBlocks: [
+              {
+                type: secret,
+                content: `Block ${secret}`,
+                toolCall: {
                   id: secret,
-                  type: secret,
-                  function: {
-                    name: 'tool-safe',
-                    arguments: JSON.stringify({ value: secret, converted }),
-                  },
+                  name: 'nested-tool-safe',
+                  state: secret,
+                  params: { value: secret },
+                  result: { success: true, output: { value: secret, converted } },
+                  display: { title: `Title ${secret}` },
                 },
-              ],
-              fileAttachments: [
-                {
-                  id: secret,
-                  key: secret,
-                  filename: `${secret}.txt`,
-                  media_type: secret,
-                },
-              ],
-              contexts: [{ kind: secret, label: `Label ${secret}`, serverId: secret }],
-              contentBlocks: [
-                {
-                  type: secret,
-                  content: `Block ${secret}`,
-                  toolCall: {
-                    id: secret,
-                    name: 'nested-tool-safe',
-                    state: secret,
-                    params: { value: secret },
-                    result: { success: true, output: { value: secret, converted } },
-                    display: { title: `Title ${secret}` },
-                  },
-                },
-              ],
-            },
-          ],
-          context: [
-            { type: secret, tag: secret, path: secret, content: `Unsafe ${secret}` },
-            {
-              type: secret,
-              tag: secret,
-              path: 'files/safe.txt',
-              content: `Context ${secret}`,
-            },
-          ],
-          contexts: [
-            {
-              kind: secret,
-              serverId: secret,
-              label: `Context label ${secret}`,
-            },
-          ],
-          integrationTools: [
-            {
-              name: 'safe_tool',
-              description: `Description ${secret}`,
-              input_schema: {
-                type: 'object',
-                properties: {
-                  value: {
-                    type: 'string',
-                    title: `Title ${secret}`,
-                    description: `Field ${secret}`,
-                    enum: ['public'],
-                  },
-                },
-                required: ['value'],
               },
-              params: { runtimeControl: secret },
-              service: secret,
-              operation: secret,
-              oauth: { required: true, provider: secret },
-            },
-            {
-              name: 'unsafe_schema_tool',
-              description: 'Unsafe schema',
-              input_schema: {
-                type: 'object',
-                properties: { [secret]: { type: 'string' } },
-                required: [secret],
-              },
-            },
-            {
-              name: secret,
-              description: 'Unsafe name',
-              input_schema: { type: 'object', properties: {}, required: [] },
-            },
-          ],
-          responseFormat: {
-            name: 'safe_response',
-            schema: {
+            ],
+          },
+        ],
+        context: [
+          { type: secret, tag: secret, path: secret, content: `Unsafe ${secret}` },
+          {
+            type: secret,
+            tag: secret,
+            path: 'files/safe.txt',
+            content: `Context ${secret}`,
+          },
+        ],
+        contexts: [
+          {
+            kind: secret,
+            serverId: secret,
+            label: `Context label ${secret}`,
+          },
+        ],
+        integrationTools: [
+          {
+            name: 'safe_tool',
+            description: `Description ${secret}`,
+            input_schema: {
               type: 'object',
               properties: {
                 value: {
                   type: 'string',
-                  description: `Result ${secret}`,
+                  title: `Title ${secret}`,
+                  description: `Field ${secret}`,
                   enum: ['public'],
                 },
               },
               required: ['value'],
             },
+            params: { runtimeControl: secret },
+            service: secret,
+            operation: secret,
+            oauth: { required: true, provider: secret },
           },
-          fileAttachments: [
-            {
-              id: secret,
-              name: `${secret}.txt`,
-              key: secret,
-              mimeType: secret,
-            },
-          ],
-          vfs: {
-            workspace: { id: secret, ownerId: secret, name: `Workspace ${secret}` },
-            files: [
-              {
-                id: secret,
-                path: secret,
-                folderPath: secret,
-                type: secret,
-                name: `File ${secret}`,
-              },
-              {
-                id: 'safe-file-id',
-                path: 'files/safe.txt',
-                folderPath: 'files',
-                type: 'text/plain',
-                name: `Safe ${secret}`,
-              },
-            ],
-            mcpServers: [
-              { id: secret, name: `Unsafe ${secret}`, url: `https://${secret}.example` },
-              {
-                id: 'safe-mcp-id',
-                name: `Safe MCP ${secret}`,
-                url: 'https://mcp.example',
-              },
-            ],
-          },
-          userTimezone: secret,
-          userMetadata: {
-            name: `User ${secret}`,
-            email: `owner+${secret}@example.com`,
-            timezone: secret,
-          },
-          desktopCapabilities: {
-            terminal: true,
-            terminals: [
-              {
-                id: secret,
-                cwd: `/workspace/${secret}`,
-                running: `command ${secret}`,
-                active: true,
-              },
-              {
-                id: 'safe-terminal-id',
-                cwd: '/workspace/safe',
-                running: `safe command ${secret}`,
-                active: true,
-              },
-            ],
-            browser: true,
-            browserSessions: [
-              { hostname: secret, evidence: 'cookies', lastObservedAt: '2026-01-01T00:00:00.000Z' },
-              {
-                hostname: 'safe.example',
-                evidence: 'sign-in-completed',
-                lastObservedAt: '2026-02-01T00:00:00.000Z',
-              },
-            ],
-          },
-          workspaceId: 'ws-1',
-          messageId: `stream-low-entropy-${secret}`,
-        },
-        {
-          userId: 'user-1',
-          workspaceId: 'ws-1',
-          executionContext: {
-            userId: 'user-1',
-            workflowId: '',
-            workspaceId: 'ws-1',
-          },
-          resolvedSecretTraceRegistry: registry,
-        }
-      )
-
-      const sent = JSON.parse(capturedRequestBody)
-      expect(sent.messages[0]).toMatchObject({
-        id: secret,
-        role: secret,
-        name: 'assistant-safe',
-        content: 'Transcript {{TOKEN}}',
-        function_call: {
-          name: 'legacy-safe',
-        },
-        tool_calls: [
           {
-            id: secret,
-            type: secret,
-            function: {
-              name: 'tool-safe',
+            name: 'unsafe_schema_tool',
+            description: 'Unsafe schema',
+            input_schema: {
+              type: 'object',
+              properties: { [secret]: { type: 'string' } },
+              required: [secret],
             },
+          },
+          {
+            name: secret,
+            description: 'Unsafe name',
+            input_schema: { type: 'object', properties: {}, required: [] },
           },
         ],
+        responseFormat: {
+          name: 'safe_response',
+          schema: {
+            type: 'object',
+            properties: {
+              value: {
+                type: 'string',
+                description: `Result ${secret}`,
+                enum: ['public'],
+              },
+            },
+            required: ['value'],
+          },
+        },
         fileAttachments: [
           {
             id: secret,
+            name: `${secret}.txt`,
             key: secret,
-            filename: '{{TOKEN}}.txt',
-            media_type: secret,
+            mimeType: secret,
           },
         ],
-        contexts: [{ kind: secret, label: 'Label {{TOKEN}}', serverId: secret }],
-        contentBlocks: [
-          {
-            type: secret,
-            content: 'Block {{TOKEN}}',
-            toolCall: {
+        vfs: {
+          workspace: { id: secret, ownerId: secret, name: `Workspace ${secret}` },
+          files: [
+            {
               id: secret,
-              name: 'nested-tool-safe',
-              state: secret,
-              params: { value: '{{TOKEN}}' },
-              result: {
-                success: true,
-                output: { value: '{{TOKEN}}', converted: '{{TOKEN}}' },
-              },
-              display: { title: 'Title {{TOKEN}}' },
+              path: secret,
+              folderPath: secret,
+              type: secret,
+              name: `File ${secret}`,
             },
-          },
-        ],
-      })
-      expect(JSON.parse(sent.messages[0].function_call.arguments)).toEqual({
-        value: '{{TOKEN}}',
-        converted: '{{TOKEN}}',
-      })
-      expect(JSON.parse(sent.messages[0].tool_calls[0].function.arguments)).toEqual({
-        value: '{{TOKEN}}',
-        converted: '{{TOKEN}}',
-      })
-      expect(sent.context).toEqual([
-        {
-          type: secret,
-          tag: '{{TOKEN}}',
-          path: 'files/safe.txt',
-          content: 'Context {{TOKEN}}',
-        },
-      ])
-      expect(sent.contexts).toEqual([
-        {
-          kind: secret,
-          serverId: secret,
-          label: 'Context label {{TOKEN}}',
-        },
-      ])
-      expect(sent.integrationTools).toHaveLength(1)
-      expect(sent.integrationTools[0]).toMatchObject({
-        name: 'safe_tool',
-        description: 'Description {{TOKEN}}',
-        input_schema: {
-          properties: {
-            value: {
-              title: 'Title {{TOKEN}}',
-              description: 'Field {{TOKEN}}',
-              enum: ['public'],
+            {
+              id: 'safe-file-id',
+              path: 'files/safe.txt',
+              folderPath: 'files',
+              type: 'text/plain',
+              name: `Safe ${secret}`,
             },
-          },
-          required: ['value'],
+          ],
+          mcpServers: [
+            { id: secret, name: `Unsafe ${secret}`, url: `https://${secret}.example` },
+            {
+              id: 'safe-mcp-id',
+              name: `Safe MCP ${secret}`,
+              url: 'https://mcp.example',
+            },
+          ],
         },
-        params: { runtimeControl: secret },
-        service: secret,
-        operation: secret,
-        oauth: { required: true, provider: secret },
-      })
-      expect(sent.responseFormat).toMatchObject({
-        name: 'safe_response',
-        schema: {
-          properties: {
-            value: { description: 'Result {{TOKEN}}', enum: ['public'] },
-          },
-          required: ['value'],
+        userTimezone: secret,
+        userMetadata: {
+          name: `User ${secret}`,
+          email: `owner+${secret}@example.com`,
+          timezone: secret,
         },
+        desktopCapabilities: {
+          terminal: true,
+          terminals: [
+            {
+              id: secret,
+              cwd: `/workspace/${secret}`,
+              running: `command ${secret}`,
+              active: true,
+            },
+            {
+              id: 'safe-terminal-id',
+              cwd: '/workspace/safe',
+              running: `safe command ${secret}`,
+              active: true,
+            },
+          ],
+          browser: true,
+          browserSessions: [
+            { hostname: secret, evidence: 'cookies', lastObservedAt: '2026-01-01T00:00:00.000Z' },
+            {
+              hostname: 'safe.example',
+              evidence: 'sign-in-completed',
+              lastObservedAt: '2026-02-01T00:00:00.000Z',
+            },
+          ],
+        },
+        workspaceId: 'ws-1',
+        messageId: `stream-low-entropy-${secret}`,
+      }
+
+      await runCopilotLifecycle(payload, {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+        },
+        resolvedSecretTraceRegistry: registry,
       })
-      expect(sent.fileAttachments[0]).toEqual({
-        id: secret,
-        name: '{{TOKEN}}.txt',
-        key: secret,
-        mimeType: secret,
-      })
-      expect(sent.vfs).toEqual({
-        workspace: { id: secret, ownerId: secret, name: 'Workspace {{TOKEN}}' },
-        files: [
-          {
-            id: 'safe-file-id',
-            path: 'files/safe.txt',
-            folderPath: 'files',
-            type: 'text/plain',
-            name: 'Safe {{TOKEN}}',
-          },
-        ],
-        mcpServers: [
-          {
-            id: 'safe-mcp-id',
-            name: 'Safe MCP {{TOKEN}}',
-            url: 'https://mcp.example',
-          },
-        ],
-      })
-      expect(sent).not.toHaveProperty('userTimezone')
-      expect(sent.userMetadata).toEqual({
-        name: 'User {{TOKEN}}',
-        email: 'owner+{{TOKEN}}@example.com',
-      })
-      expect(sent.desktopCapabilities).toEqual({
-        terminal: true,
-        terminals: [
-          {
-            id: 'safe-terminal-id',
-            cwd: '/workspace/safe',
-            running: 'safe command {{TOKEN}}',
-            active: true,
-          },
-        ],
-        browser: true,
-        browserSessions: [
-          {
-            hostname: 'safe.example',
-            evidence: 'sign-in-completed',
-            lastObservedAt: '2026-02-01T00:00:00.000Z',
-          },
-        ],
-      })
+
+      const { enterpriseByokEligible, ...sent } = JSON.parse(capturedRequestBody)
+      expect(enterpriseByokEligible).toBe(false)
+      expect(sent).toEqual(payload)
     }
   )
 
-  it.each(ARBITRARY_SCHEMA_CONTROL_KEYS)(
-    'guards arbitrary %s schema controls before initial Copilot model egress',
+  it.each(SCHEMA_CONTROL_KEYS)(
+    'preserves ordinary %s schema controls without scanning configured secret values',
     async (controlKey) => {
       const secret = `copilot-schema-control-secret-${controlKey}`
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
       ])
-      registry.recordResolved('TOKEN', secret)
-      const unsafeSchema = {
+      const schema = {
         type: 'object',
         properties: {},
         [controlKey]: secret,
       }
+      const integrationTools = [
+        {
+          name: 'schema_tool',
+          description: 'Schema with an ordinary configured-secret collision',
+          input_schema: schema,
+        },
+        {
+          name: 'safe_tool',
+          description: 'Safe schema',
+          input_schema: { type: 'object', properties: {} },
+        },
+      ]
       let capturedRequestBody = ''
       mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
         capturedRequestBody = String(request.body)
@@ -1007,18 +775,7 @@ describe('runCopilotLifecycle', () => {
         {
           message: 'Use a safe tool',
           messageId: `stream-schema-tool-${controlKey}`,
-          integrationTools: [
-            {
-              name: 'unsafe_tool',
-              description: 'Unsafe schema control',
-              input_schema: unsafeSchema,
-            },
-            {
-              name: 'safe_tool',
-              description: 'Safe schema',
-              input_schema: { type: 'object', properties: {} },
-            },
-          ],
+          integrationTools,
         },
         {
           userId: 'user-1',
@@ -1028,9 +785,7 @@ describe('runCopilotLifecycle', () => {
         }
       )
 
-      expect(JSON.parse(capturedRequestBody).integrationTools).toEqual([
-        expect.objectContaining({ name: 'safe_tool' }),
-      ])
+      expect(JSON.parse(capturedRequestBody).integrationTools).toEqual(integrationTools)
 
       mockRunStreamLoop.mockClear()
       mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
@@ -1040,7 +795,7 @@ describe('runCopilotLifecycle', () => {
         {
           message: 'Use a response schema',
           messageId: `stream-schema-response-${controlKey}`,
-          responseFormat: { name: 'unsafe_response', schema: unsafeSchema },
+          responseFormat: { name: 'ordinary_response', schema },
         },
         {
           userId: 'user-1',
@@ -1051,13 +806,15 @@ describe('runCopilotLifecycle', () => {
       )
 
       expect(result.success).toBe(true)
-      expect(JSON.parse(capturedRequestBody)).not.toHaveProperty('responseFormat')
-      expect(capturedRequestBody).not.toContain(secret)
+      expect(JSON.parse(capturedRequestBody).responseFormat).toEqual({
+        name: 'ordinary_response',
+        schema,
+      })
       expect(mockRunStreamLoop).toHaveBeenCalledOnce()
     }
   )
 
-  it('omits malformed and oversized optional Copilot response schemas', async () => {
+  it('does not couple optional Copilot response schemas to secret provenance', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     for (const [index, schema] of [
       { properties: { field: 'not-a-schema' } },
@@ -1084,7 +841,9 @@ describe('runCopilotLifecycle', () => {
       )
 
       expect(result.success).toBe(true)
-      expect(JSON.parse(capturedRequestBody)).not.toHaveProperty('responseFormat')
+      expect(JSON.stringify(JSON.parse(capturedRequestBody).responseFormat)).toBe(
+        JSON.stringify({ name: 'unsafe_response', schema })
+      )
       expect(mockRunStreamLoop).toHaveBeenCalledOnce()
     }
   })
@@ -1190,9 +949,9 @@ describe('runCopilotLifecycle', () => {
     expect(JSON.parse(capturedRequestBody).responseFormat.schema).toEqual(schema)
   })
 
-  it('fails before the initial Go request when model projection is incomplete', async () => {
+  it('does not block ordinary initial Go payloads on unrelated incomplete provenance', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     const result = await runCopilotLifecycle(
       { message: 'possibly secret', messageId: 'stream-incomplete-projection' },
@@ -1208,11 +967,12 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    expect(result).toMatchObject({
-      success: false,
-      error: 'Copilot model input could not be safely projected',
+    expect(result.success).toBe(true)
+    expect(JSON.parse(String(mockRunStreamLoop.mock.calls[0]?.[1].body))).toMatchObject({
+      message: 'possibly secret',
+      messageId: 'stream-incomplete-projection',
     })
-    expect(mockRunStreamLoop).not.toHaveBeenCalled()
+    expect(mockRunStreamLoop).toHaveBeenCalledOnce()
   })
 
   describe('tool permission feature flag', () => {
@@ -1634,11 +1394,10 @@ describe('runCopilotLifecycle', () => {
     }
   })
 
-  it('fails closed instead of sending a secret-bearing tool name on resume', async () => {
+  it('preserves a resume tool name that collides with a configured secret', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'unsafe-tool', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('TOKEN', 'unsafe-tool')
     mockRunStreamLoop.mockImplementationOnce(
       async (
         _fetchUrl: string,
@@ -1667,11 +1426,11 @@ describe('runCopilotLifecycle', () => {
       }
     )
 
-    expect(result).toMatchObject({
-      success: false,
-      error: 'Copilot model input could not be safely projected',
+    expect(result.success).toBe(true)
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(String(mockRunStreamLoop.mock.calls[1]?.[1].body))).toMatchObject({
+      results: [{ callId: 'tool-1', name: 'unsafe-tool', success: true }],
     })
-    expect(mockRunStreamLoop).toHaveBeenCalledTimes(1)
   })
 
   it('runs legacy-v0 during Sim-first deployment without guessed billing aliases', async () => {
@@ -1848,98 +1607,6 @@ describe('runCopilotLifecycle', () => {
         workspaceId: 'ws-1',
       })
     )
-  })
-
-  it('uses a caller-supplied resume route for async tool checkpoints', async () => {
-    const fetchUrls: string[] = []
-    const executionContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'ws-1',
-      chatId: 'chat-1',
-    }
-
-    mockRunStreamLoop.mockImplementationOnce(
-      async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
-        fetchUrls.push(fetchUrl)
-        context.toolCalls.set('tool-1', {
-          id: 'tool-1',
-          name: 'read',
-          status: MothershipStreamV1ToolOutcome.success,
-          result: { success: true, output: { content: 'file contents' } },
-        })
-        context.awaitingAsyncContinuation = {
-          checkpointId: 'ckpt-1',
-          pendingToolCallIds: ['tool-1'],
-        }
-      }
-    )
-    mockRunStreamLoop.mockImplementationOnce(async (fetchUrl: string) => {
-      fetchUrls.push(fetchUrl)
-    })
-
-    await runCopilotLifecycle(
-      { message: 'hello', messageId: 'stream-1' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        workflowId: 'workflow-1',
-        chatId: 'chat-1',
-        executionId: 'exec-1',
-        runId: 'run-1',
-        executionContext,
-        resumeRoute: '/api/tools/v2-chat/resume',
-      }
-    )
-
-    expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/v2-chat/resume')
-  })
-
-  it('reports initial stream acceptance once and never from resume legs', async () => {
-    const onInitialStreamAccepted = vi.fn()
-
-    mockRunStreamLoop.mockImplementationOnce(
-      async (
-        _fetchUrl: string,
-        _fetchOptions: RequestInit,
-        context: StreamingContext,
-        _execContext: ExecutionContext,
-        options: { onAccepted?: () => void }
-      ) => {
-        options.onAccepted?.()
-        options.onAccepted?.()
-        context.awaitingAsyncContinuation = {
-          checkpointId: 'ckpt-1',
-          pendingToolCallIds: [],
-        }
-      }
-    )
-    mockRunStreamLoop.mockResolvedValueOnce(undefined)
-
-    await runCopilotLifecycle(
-      { message: 'hello', messageId: 'stream-1' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        workflowId: 'workflow-1',
-        chatId: 'chat-1',
-        executionId: 'exec-1',
-        runId: 'run-1',
-        executionContext: {
-          userId: 'user-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'ws-1',
-          chatId: 'chat-1',
-        },
-        onInitialStreamAccepted,
-      }
-    )
-
-    expect(mockRunStreamLoop.mock.calls[0]?.[4]).toEqual(
-      expect.objectContaining({ onAccepted: expect.any(Function) })
-    )
-    expect(onInitialStreamAccepted).toHaveBeenCalledOnce()
-    expect(mockRunStreamLoop.mock.calls[1]?.[4]).not.toHaveProperty('onAccepted')
   })
 
   it('finalizes as success when a resume fails with a retryable error then the retry succeeds', async () => {
@@ -2250,104 +1917,112 @@ describe('runCopilotLifecycle', () => {
     expect(result.errors).toEqual(['The provider is overloaded'])
   })
 
-  it('stops a pending Sim tool without aborting the active Go transport or resuming', async () => {
-    const transportController = new AbortController()
-    const userStopController = new AbortController()
-    const onComplete = vi.fn()
-    const onError = vi.fn()
-    let capturedContext: StreamingContext | undefined
-    let capturedExecutionContext: ExecutionContext | undefined
-    let settleTool!: () => void
-    let settleRawExecution!: () => void
-    const pendingTool = new Promise<void>((resolve) => {
-      settleTool = resolve
-    })
-    const rawExecution = new Promise<void>((resolve) => {
-      settleRawExecution = resolve
-    })
-
-    mockRunStreamLoop.mockImplementationOnce(
-      async (
-        _fetchUrl: string,
-        _fetchOptions: RequestInit,
-        context: StreamingContext,
-        executionContext: ExecutionContext
-      ): Promise<void> => {
-        capturedContext = context
-        capturedExecutionContext = executionContext
-        context.toolCalls.set('tool-running', {
-          id: 'tool-running',
-          name: 'read',
-          status: 'executing',
-        })
-        context.pendingToolPromises.set('tool-running', pendingTool)
-        context.inFlightToolExecutions = new Map([['tool-running', rawExecution]])
-        context.awaitingAsyncContinuation = {
-          checkpointId: 'ckpt-1',
-          pendingToolCallIds: ['tool-running'],
-        }
-      }
-    )
-
-    const lifecycle = runCopilotLifecycle(
-      { message: 'hello', messageId: 'stream-1' },
-      {
+  it('keeps a human wait durable while force-failing a hung parallel tool', async () => {
+    vi.useFakeTimers()
+    try {
+      let releaseTakeover = () => {}
+      let lifecycleSettled = false
+      const fetchUrls: string[] = []
+      const executionContext: ExecutionContext = {
         userId: 'user-1',
+        workflowId: '',
         workspaceId: 'ws-1',
         chatId: 'chat-1',
-        executionId: 'exec-1',
-        runId: 'run-1',
-        abortSignal: transportController.signal,
-        userStopSignal: userStopController.signal,
-        executionContext: {
+      }
+
+      mockPendingToolWaitBudgetMs.mockImplementation((toolCall) =>
+        toolCall?.name === 'browser_request_takeover' ? null : 60_000
+      )
+      mockForceFailHungToolCall.mockImplementation(
+        async (toolCallId: string, context: StreamingContext, message: string) => {
+          const tool = context.toolCalls.get(toolCallId)
+          if (!tool) return
+          tool.status = MothershipStreamV1ToolOutcome.error
+          tool.endTime = Date.now()
+          tool.result = { success: false }
+          tool.error = message
+        }
+      )
+
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          fetchUrl: string,
+          _fetchOptions: RequestInit,
+          context: StreamingContext
+        ): Promise<void> => {
+          fetchUrls.push(fetchUrl)
+          const takeoverId = 'tool-takeover'
+          context.toolCalls.set(takeoverId, {
+            id: takeoverId,
+            name: 'browser_request_takeover',
+            status: 'executing',
+          })
+          const takeover = new Promise<{ status: 'success' }>((resolve) => {
+            releaseTakeover = () => {
+              const tool = context.toolCalls.get(takeoverId)
+              if (tool) {
+                tool.status = MothershipStreamV1ToolOutcome.success
+                tool.endTime = Date.now()
+                tool.result = { success: true, output: { completed: true } }
+              }
+              context.pendingToolPromises.delete(takeoverId)
+              resolve({ status: 'success' })
+            }
+          })
+          context.pendingToolPromises.set(takeoverId, takeover)
+
+          context.toolCalls.set('tool-hung', {
+            id: 'tool-hung',
+            name: 'read',
+            status: 'executing',
+          })
+          context.pendingToolPromises.set('tool-hung', new Promise(() => {}))
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: [takeoverId, 'tool-hung'],
+          }
+        }
+      )
+      mockRunStreamLoop.mockImplementationOnce(
+        async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+          fetchUrls.push(fetchUrl)
+          context.accumulatedContent = 'Continued after browser control resumed.'
+        }
+      )
+
+      const lifecycle = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-1' },
+        {
           userId: 'user-1',
-          workflowId: '',
           workspaceId: 'ws-1',
           chatId: 'chat-1',
-        },
-        onComplete,
-        onError,
-      }
-    )
-
-    await vi.waitFor(() => expect(mockRunStreamLoop).toHaveBeenCalledTimes(1))
-    await new Promise((resolve) => setImmediate(resolve))
-    let lifecycleSettled = false
-    void lifecycle.finally(() => {
-      lifecycleSettled = true
-    })
-    userStopController.abort('submit')
-    await new Promise((resolve) => setImmediate(resolve))
-
-    // Stop reaches the tool immediately, but the turn keeps its lease until
-    // that handler has actually unwound.
-    expect(capturedExecutionContext?.abortSignal?.aborted).toBe(true)
-    expect(lifecycleSettled).toBe(false)
-    settleTool()
-    await new Promise((resolve) => setImmediate(resolve))
-    expect(lifecycleSettled).toBe(false)
-    settleRawExecution()
-
-    const result = await lifecycle
-
-    expect(transportController.signal.aborted).toBe(false)
-    expect(capturedExecutionContext?.abortSignal?.aborted).toBe(true)
-    expect(capturedExecutionContext?.userStopSignal).toBe(userStopController.signal)
-    expect(mockRunStreamLoop).toHaveBeenCalledTimes(1)
-    expect(mockCancelToolCallAndReport).toHaveBeenCalledWith('tool-running', capturedContext)
-    expect(capturedContext?.awaitingAsyncContinuation).toBeUndefined()
-    expect(capturedContext?.toolCalls.get('tool-running')).toEqual(
-      expect.objectContaining({
-        status: MothershipStreamV1ToolOutcome.cancelled,
-        error: 'Stopped by user',
-        result: { success: false },
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext,
+        }
+      ).finally(() => {
+        lifecycleSettled = true
       })
-    )
-    expect(result).toEqual(expect.objectContaining({ success: false, cancelled: true }))
-    expect(onComplete).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, cancelled: true })
-    )
-    expect(onError).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(91_000)
+      expect(mockForceFailHungToolCall).toHaveBeenCalledTimes(1)
+      expect(mockForceFailHungToolCall).toHaveBeenCalledWith(
+        'tool-hung',
+        expect.anything(),
+        expect.stringContaining('hung')
+      )
+      expect(lifecycleSettled).toBe(false)
+      expect(fetchUrls).toEqual(['http://mothership.test/api/copilot'])
+
+      releaseTakeover()
+      await vi.advanceTimersByTimeAsync(0)
+      const result = await lifecycle
+
+      expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
+      expect(result.success).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('force-fails a hung tool promise and resumes with an error result instead of wedging', async () => {

@@ -141,21 +141,25 @@ search, extraction, or "AI-powered" marketing terminology.
 
 - [ ] AI-consumed text/structured fields use `request.modelInput` with `mode: 'project'` and a
       minimal exact selector; nested/JSON-string adapters preserve shape through `applyProjected`
-- [ ] Opaque AI-consumed values sent directly to an external provider or `directExecution` use
-      `request.opaqueModelInput` with `mode: 'reject-resolved-secrets'` and an exact effective-value
-      selector; the central executor rejects incomplete/secret-bearing committed provenance before
-      formatting or I/O, leaves safe bytes unchanged, and sends no provenance metadata externally
-- [ ] Opaque AI-consumed files/bytes/URLs owned by an authenticated internal route use
+- [ ] Ordinary external URLs, domains, resource IDs, and control fields retain normal request
+      semantics unless the exact field is proven model-visible; an AI-backed provider or later model
+      processing of the referenced resource is not sufficient evidence
+- [ ] Serialized content proven to be sent directly to an external model is selected by
+      `request.modelInput`, projected before the existing formatter parses it, and has deterministic
+      formatter behavior when a whole-value placeholder is invalid for the serialized grammar
+- [ ] Actual inline/raw AI-consumed bytes owned by an authenticated internal route use
       `privateProvenance` (or `mode: 'private-provenance'`), and the route validates
-      `validateOpaqueModelInputProvenance` before any download or model call
+      `validateOpaqueModelInputProvenance` before model egress; storage keys, paths, signed URLs,
+      and ordinary remote URLs are not treated as byte provenance, while tracked stored bytes are
+      authorized independently at the owning model-egress boundary
 - [ ] Persisted workspace-file contents are checked with the shared provenance guard only when
       their bytes or decoded content cross into a model/tool-result boundary; ordinary file APIs
       remain unchanged. Unsupported secret-bearing file paths are rejected at `file_write`
 - [ ] Sim-owned durable writes and internal execution handoffs that can enter workflows/models use
       field-scoped `request.secretProvenance`; authenticated receivers validate the exact selection
       and scope, strip private metadata, and persist, import, or propagate it at the owning boundary
-- [ ] Private provenance is never attached to external URLs or `directExecution`; those paths use
-      centralized `opaqueModelInput` rejection when their opaque values are model-bound
+- [ ] Private provenance is never attached to external URLs or `directExecution`; proven
+      model-visible external fields use projection, while other external inputs remain unchanged
 - [ ] No tool performs raw secret plaintext/source substitution or serializes plaintext provenance
 - [ ] No `transformResponse` or tool-local helper blanket-sanitizes ordinary third-party results;
       only execution-scoped, activated Sim provenance is projected at shared model/log boundaries
@@ -166,10 +170,9 @@ search, extraction, or "AI-powered" marketing terminology.
       metadata, provider results, or API payloads
 - [ ] Diagnostic projection is applied only to values carrying execution-scoped provenance;
       ordinary provider responses, filenames, URLs, and errors are unchanged
-- [ ] Tests cover named `{{NAME}}` projection, unproven identical public text, nested shape
-      preservation, malformed/incomplete metadata, centralized opaque rejection before formatting
-      or I/O with safe-byte preservation, headerless legacy requests, metadata stripping, and
-      durable legacy/stale/scope cases when applicable
+- [ ] Tests cover named `{{NAME}}` projection, unproven identical public text, nested and serialized
+      shape handling, unchanged ordinary external inputs, malformed/incomplete metadata, headerless
+      legacy requests, metadata stripping, and durable legacy/stale/scope cases when applicable
 
 Treat a missing or bypassed model, durable, or internal-execution provenance boundary as
 **critical**. Do not fix it with a tool-specific string replacer or by sanitizing every provider
@@ -348,8 +351,7 @@ Group findings by severity:
 - Service-account metadata disagrees with the canonical OAuth service configuration
 - `tools.config.tool` returning wrong tool ID for an operation
 - Type coercions in `tools.config.tool` instead of `tools.config.params`
-- AI-consumed request fields bypass the shared projection, centralized opaque rejection, or
-  private-provenance boundary
+- Proven model-visible request fields bypass the shared projection or private-provenance boundary
 - Opaque model input is downloaded or sent before provenance and workspace-file checks
 - A Sim-owned durable sink or internal execution handoff drops encrypted provenance or breaks
   legacy headerless/`NULL` data

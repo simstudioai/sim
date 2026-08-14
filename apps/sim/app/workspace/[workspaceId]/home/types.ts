@@ -7,6 +7,7 @@ const RUN_SUBAGENT_ID = 'run'
 export type {
   MothershipResource,
   MothershipResourceType,
+  WorkspaceResourceRef,
 } from '@/lib/copilot/resources/types'
 export { SUBAGENT_LABELS } from '@/lib/copilot/tools/subagent-display'
 

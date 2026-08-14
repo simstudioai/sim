@@ -1,13 +1,8 @@
-import type { ShareRecord } from '@/lib/api/contracts/public-shares'
-import type {
-  V2DisabledFileSharing,
-  V2EnabledFileSharing,
-  V2File,
-  V2FileSharing,
-} from '@/lib/api/contracts/v2/files'
+import type { V2File } from '@/lib/api/contracts/v2/files'
 import { buildFolderPath } from '@/lib/folders/paths'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 /** Shared serialization for the v2 files surface. */
 
@@ -20,7 +15,7 @@ function serializeV2File(record: WorkspaceFileRecord, uploadedByEmail: string): 
     ? buildFolderPath(
         (() => {
           if (!record.folderPath) throw new Error('File references an unresolved folder')
-          return record.folderPath.split('/')
+          return parseWorkspaceFileFolderDisplayPath(record.folderPath)
         })()
       )
     : '/'
@@ -35,6 +30,7 @@ function serializeV2File(record: WorkspaceFileRecord, uploadedByEmail: string): 
     uploadedByEmail,
     uploadedAt: record.uploadedAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
+    deletedAt: record.deletedAt?.toISOString() ?? null,
   }
 }
 
@@ -50,30 +46,4 @@ export async function toV2Files(records: WorkspaceFileRecord[]): Promise<V2File[
   return records.map((record) =>
     serializeV2File(record, requireResolvedUserEmail(emailByUserId, record.uploadedBy))
   )
-}
-
-/** Projects the persisted share row into the stable public sharing state. */
-export function toV2FileSharing(share: ShareRecord | null): V2FileSharing {
-  if (!share?.isActive) return { enabled: false }
-
-  return {
-    enabled: true,
-    url: share.url,
-    authType: share.authType,
-    hasPassword: share.hasPassword,
-    allowedEmails: share.allowedEmails,
-  }
-}
-
-/** Projects a successful share mutation and rejects an inconsistent inactive result. */
-export function toV2EnabledFileSharing(share: ShareRecord): V2EnabledFileSharing {
-  const sharing = toV2FileSharing(share)
-  if (!sharing.enabled) throw new Error('Sharing a workspace file returned an inactive share')
-  return sharing
-}
-
-/** Projects a successful unshare mutation and rejects an inconsistent active result. */
-export function toV2DisabledFileSharing(share: ShareRecord | null): V2DisabledFileSharing {
-  if (share?.isActive) throw new Error('Unsharing a workspace file returned an active share')
-  return { enabled: false }
 }

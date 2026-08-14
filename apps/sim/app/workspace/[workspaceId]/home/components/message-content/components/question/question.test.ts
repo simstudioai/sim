@@ -210,4 +210,112 @@ describe('QuestionDisplay', () => {
     act(() => root.unmount())
     container.remove()
   })
+
+  it('uses Continue before the final multi-select page and Submit on the last page', () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const finalQuestion: QuestionItem = {
+      type: 'multi_select',
+      prompt: 'Which format should the report use?',
+      options: [{ id: 'pdf', label: 'PDF' }],
+    }
+
+    act(() => {
+      root.render(
+        createElement(QuestionDisplay, {
+          data: [QUESTIONS[2], finalQuestion],
+          onSelect: () => undefined,
+        })
+      )
+    })
+
+    const firstOption = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'EST'
+    )
+    act(() => firstOption?.click())
+
+    const continueButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Continue'
+    )
+    expect(continueButton).toBeDefined()
+    act(() => continueButton?.click())
+
+    expect(container.textContent).toContain(finalQuestion.prompt)
+    expect(
+      Array.from(container.querySelectorAll('button')).some(
+        (button) => button.textContent === 'Submit'
+      )
+    ).toBe(true)
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('advances a multi-page single-select on selection, with no Continue row', () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onSelect = vi.fn()
+
+    act(() => {
+      root.render(
+        createElement(QuestionDisplay, {
+          data: QUESTIONS.slice(0, 2),
+          onSelect,
+        })
+      )
+    })
+
+    expect(
+      Array.from(container.querySelectorAll('button')).some((button) =>
+        ['Continue', 'Submit'].includes(button.textContent ?? '')
+      )
+    ).toBe(false)
+
+    const firstOption = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Keep the newest entry'
+    )
+    act(() => firstOption?.click())
+
+    expect(container.textContent).toContain(QUESTIONS[1].prompt)
+    expect(onSelect).not.toHaveBeenCalled()
+
+    const finalOption = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Cancel'
+    )
+    act(() => finalOption?.click())
+
+    expect(onSelect).toHaveBeenCalledWith(
+      'How should I handle the duplicates? — Keep the newest entry\n' +
+        'Delete 4 archived workflows? — Cancel'
+    )
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('keeps the single-select arrow inert until the free-text box has content', () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    act(() => {
+      root.render(
+        createElement(QuestionDisplay, {
+          data: [QUESTIONS[0]],
+          onSelect: () => undefined,
+        })
+      )
+    })
+
+    const arrow = container.querySelector<HTMLButtonElement>('button[aria-label="Submit answer"]')
+    expect(arrow?.disabled).toBe(true)
+
+    act(() => root.unmount())
+    container.remove()
+  })
 })

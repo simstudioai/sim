@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { OutlookIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { outlookFoldersSelectorContract } from '@/lib/api/contracts/selectors/microsoft'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { readSubBlockValue } from '@/triggers/editor-state'
 import type { TriggerConfig } from '@/triggers/types'
 
 const logger = createLogger('OutlookPollingTrigger')
@@ -30,6 +30,7 @@ export const outlookPollingTrigger: TriggerConfig = {
     {
       id: 'folderIds',
       title: 'Outlook Folders to Monitor',
+      canvasNoun: 'a folder',
       type: 'dropdown',
       multiSelect: true,
       placeholder: 'Select Outlook folders to monitor for new emails',
@@ -37,7 +38,7 @@ export const outlookPollingTrigger: TriggerConfig = {
       required: false,
       options: [], // Will be populated dynamically
       fetchOptions: async (blockId: string) => {
-        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
+        const credentialId = (await readSubBlockValue(blockId, 'triggerCredentials')) as
           | string
           | null
         if (!credentialId) {

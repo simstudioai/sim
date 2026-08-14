@@ -372,14 +372,26 @@ export async function runStreamLoop(
           return
         }
 
-        await processFilePreviewStreamEvent({
-          streamId: envelope.stream.streamId,
-          streamEvent,
-          context,
-          execContext,
-          options,
-          state: filePreviewAdapterState,
-        })
+        // Presentation only. A throw here abandons the rest of the event, so
+        // the tool-call frame never registers its arguments and the call is
+        // later dispatched with an empty payload.
+        try {
+          await processFilePreviewStreamEvent({
+            streamId: envelope.stream.streamId,
+            streamEvent,
+            context,
+            execContext,
+            options,
+            state: filePreviewAdapterState,
+          })
+        } catch (error) {
+          logger.warn('Failed to process file preview stream event', {
+            type: streamEvent.type,
+            requestId: context.requestId,
+            messageId: context.messageId,
+            error: getErrorMessage(error),
+          })
+        }
 
         await prePersistClientExecutableToolCall(streamEvent, context, options, execContext)
 

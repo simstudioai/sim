@@ -143,6 +143,25 @@ describe('POST /api/credentials', () => {
         auditMetadata: { principalKind: 'tenant', principalId: 'acct_123' },
         principal: { kind: 'tenant', id: 'acct_123' },
       })
+      queueTableRows(credential, [])
+      queueTableRows(credential, [])
+      queueTableRows(credential, [
+        {
+          id: 'credential-1',
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          displayName: 'Zoom account acct_123',
+          description: null,
+          providerId: 'zoom-service-account',
+          accountId: null,
+          envKey: null,
+          envOwnerUserId: null,
+          encryptedServiceAccountKey: 'encrypted-blob',
+          createdBy: 'user-1',
+          createdAt: new Date('2026-08-11T00:00:00.000Z'),
+          updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+        },
+      ])
 
       const req = createMockRequest('POST', {
         workspaceId: WORKSPACE_ID,
@@ -154,8 +173,10 @@ describe('POST /api/credentials', () => {
       })
 
       const response = await POST(req)
+      const body = await response.json()
 
       expect(response.status).toBe(201)
+      expect(body.credential).not.toHaveProperty('encryptedServiceAccountKey')
       expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledTimes(1)
       expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
         'zoom-service-account',
@@ -163,6 +184,58 @@ describe('POST /api/credentials', () => {
           clientId: 'zoom-client-id',
           clientSecret: 'zoom-secret',
           orgId: 'acct_123',
+        })
+      )
+    })
+
+    it('threads NetSuite certificate credentials through the create contract', async () => {
+      mockVerifyAndBuildServiceAccountSecret.mockResolvedValueOnce({
+        providerId: 'netsuite-service-account',
+        encryptedServiceAccountKey: 'encrypted-netsuite-blob',
+        displayName: 'Oracle NetSuite 1234567',
+        auditMetadata: { principalKind: 'tenant', principalId: '1234567' },
+        principal: { kind: 'tenant', id: '1234567' },
+      })
+      queueTableRows(credential, [])
+      queueTableRows(credential, [])
+      queueTableRows(credential, [
+        {
+          id: 'credential-netsuite',
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          displayName: 'Oracle NetSuite 1234567',
+          description: null,
+          providerId: 'netsuite-service-account',
+          accountId: null,
+          envKey: null,
+          envOwnerUserId: null,
+          encryptedServiceAccountKey: 'encrypted-netsuite-blob',
+          createdBy: 'user-1',
+          createdAt: new Date('2026-08-11T00:00:00.000Z'),
+          updatedAt: new Date('2026-08-11T00:00:00.000Z'),
+        },
+      ])
+
+      const response = await POST(
+        createMockRequest('POST', {
+          workspaceId: WORKSPACE_ID,
+          type: 'service_account',
+          providerId: 'netsuite-service-account',
+          orgId: 'https://1234567.suitetalk.api.netsuite.com',
+          clientId: 'netsuite-client-id',
+          certificateId: 'netsuite-certificate-id',
+          privateKey: '-----BEGIN PRIVATE KEY-----key',
+        })
+      )
+
+      expect(response.status).toBe(201)
+      expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+        'netsuite-service-account',
+        expect.objectContaining({
+          orgId: 'https://1234567.suitetalk.api.netsuite.com',
+          clientId: 'netsuite-client-id',
+          certificateId: 'netsuite-certificate-id',
+          privateKey: '-----BEGIN PRIVATE KEY-----key',
         })
       )
     })

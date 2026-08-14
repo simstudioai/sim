@@ -11,15 +11,11 @@ import {
   useState,
 } from 'react'
 import {
-  type DesktopAppearanceTheme,
   type DesktopZoomAction,
   type DesktopZoomPercent,
   resolveDesktopZoom,
-  TERMINAL_DARK_THEME,
-  TERMINAL_LIGHT_THEME,
   type TerminalAppearanceTheme,
   type TerminalShortcutCommand,
-  type TerminalThemePalette,
   type TerminalThemeProfile,
 } from '@sim/desktop-bridge'
 import {
@@ -27,6 +23,7 @@ import {
   NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
   TabStrip,
   type TabStripItem,
+  type TabStripSelectionSource,
   toast,
 } from '@sim/emcn'
 import { TerminalWindow } from '@sim/emcn/icons'
@@ -38,14 +35,19 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { type IBufferRange, Terminal } from '@xterm/xterm'
 import { useTheme } from 'next-themes'
 import '@xterm/xterm/css/xterm.css'
-import type { TerminalTabState, TerminalTabsState } from '@sim/terminal-protocol'
+import {
+  describeRunningCommand,
+  type TerminalTabState,
+  type TerminalTabsState,
+} from '@sim/terminal-protocol'
 import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { getDesktopBridge } from '@/lib/desktop'
 import {
   loadDesktopTerminalAppearance,
   loadDesktopTerminalThemeProfiles,
-  resolveDesktopAppearanceTheme,
+  refreshSelectedTerminalProfile,
+  resolveTerminalThemePalette,
   withSelectedProfile,
 } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
@@ -59,7 +61,9 @@ import {
   onTerminalShortcutCommand,
   openTerminal,
   pasteIntoTerminal,
+  reorderTerminal,
   reportTerminalFocused,
+  reportTerminalVisible,
   resizeTerminal,
   startTerminalSession,
   switchTerminal,
@@ -67,6 +71,7 @@ import {
 } from '@/lib/terminal/transport'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { TerminalContextMenu } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-context-menu'
+import { TerminalTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-tab-icon'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
@@ -75,8 +80,15 @@ import type { ChatContext, TerminalTextSelection } from '@/stores/panel'
 
 const logger = createLogger('TerminalSession')
 const EMPTY_TERMINAL_TABS: TerminalTabsState = { tabs: [], activeTerminalId: null }
+const EMPTY_AGENT_COMMAND_TERMINAL_IDS: Record<string, string> = {}
 const TERMINAL_BASE_FONT_SIZE = 12
 const TERMINAL_ZOOM_BOUNDS = { min: 50, max: 300 } as const
+
+/** Fits xterm to its current host while preserving the addon's method binding. */
+function fitTerminal(addon: FitAddon): void {
+  const fitToHost = addon.fit.bind(addon)
+  fitToHost()
+}
 
 /**
  * Radix keeps closed menus mounted for their exit animation. A full-screen
@@ -294,6 +306,7 @@ function zoomActionForTerminalCommand(command: TerminalShortcutCommand): Desktop
 
 const TerminalView = memo(function TerminalView({
   terminalId,
+  running,
   active,
   visible,
   scopeId,
@@ -302,8 +315,10 @@ const TerminalView = memo(function TerminalView({
   onAppearanceThemeChange,
   appearanceThemePending,
   defaultZoom,
+  focusRequest,
 }: {
   terminalId: string
+  running: string | null
   active: boolean
   visible: boolean
   scopeId: string
@@ -312,17 +327,10 @@ const TerminalView = memo(function TerminalView({
   onAppearanceThemeChange?: (theme: TerminalAppearanceTheme) => void
   appearanceThemePending?: boolean
   defaultZoom: DesktopZoomPercent
+  focusRequest: number
 }) {
   const { resolvedTheme } = useTheme()
-  const profileTheme = typeof appearanceTheme === 'string' ? undefined : appearanceTheme
-  const builtInTheme: DesktopAppearanceTheme =
-    typeof appearanceTheme === 'string' ? appearanceTheme : 'app'
-  const colorScheme = resolveDesktopAppearanceTheme(builtInTheme, resolvedTheme)
-  const terminalTheme: TerminalThemePalette = profileTheme
-    ? profileTheme.palette
-    : colorScheme === 'dark'
-      ? TERMINAL_DARK_THEME
-      : TERMINAL_LIGHT_THEME
+  const terminalTheme = resolveTerminalThemePalette(appearanceTheme, resolvedTheme)
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -381,8 +389,8 @@ const TerminalView = memo(function TerminalView({
       scrollback: 10_000,
       theme: terminalTheme,
     })
-    const fit = new FitAddon()
-    terminal.loadAddon(fit)
+    const fitAddon = new FitAddon()
+    terminal.loadAddon(fitAddon)
     terminal.loadAddon(new WebLinksAddon())
     const unicode = new Unicode11Addon()
     terminal.loadAddon(unicode)
@@ -391,7 +399,7 @@ const TerminalView = memo(function TerminalView({
     terminal.open(host)
 
     terminalRef.current = terminal
-    fitRef.current = fit
+    fitRef.current = fitAddon
     terminal.attachCustomKeyEventHandler((event) => handleTerminalLocalShortcut(event, clearScreen))
 
     const disposeData = terminal.onData((data) => writeToTerminal(terminalId, data, scopeId))
@@ -511,8 +519,7 @@ const TerminalView = memo(function TerminalView({
         // not that it shrank. Fitting to that would resize the pty to nonsense.
         if (!onscreenRef.current || host.clientWidth <= 0 || host.clientHeight <= 0) return
         try {
-          // biome-ignore lint/suspicious/noFocusedTests: xterm FitAddon.fit(), not a focused test
-          fit.fit()
+          fitTerminal(fitAddon)
         } catch {
           // Zero-sized while animating; the next observation refits.
         }
@@ -563,15 +570,20 @@ const TerminalView = memo(function TerminalView({
     const frame = requestAnimationFrame(() => {
       if (host.clientWidth <= 0 || host.clientHeight <= 0) return
       try {
-        // biome-ignore lint/suspicious/noFocusedTests: xterm FitAddon.fit(), not a focused test
-        fitRef.current?.fit()
-        terminal.focus()
+        const fitAddon = fitRef.current
+        if (fitAddon) fitTerminal(fitAddon)
       } catch {
         // Panel still animating; the ResizeObserver refits.
       }
     })
     return () => cancelAnimationFrame(frame)
   }, [currentZoom, onscreen])
+
+  useEffect(() => {
+    if (!onscreen || focusRequest === 0) return
+    const frame = requestAnimationFrame(() => terminalRef.current?.focus())
+    return () => cancelAnimationFrame(frame)
+  }, [focusRequest, onscreen])
 
   useEffect(() => {
     if (!onscreen) return
@@ -665,7 +677,9 @@ const TerminalView = memo(function TerminalView({
   }, [terminalId, scopeId])
 
   const newTab = useCallback(() => {
-    void openTerminal(undefined, scopeId)
+    void openTerminal(undefined, scopeId).catch(() => {
+      toast.error('Could not open a new terminal. Please try again.')
+    })
   }, [scopeId])
 
   // Scoped to the terminal that was right-clicked, not the active one.
@@ -674,8 +688,18 @@ const TerminalView = memo(function TerminalView({
   // for the action to do — and hiding it here while the tab strip's own close
   // stays available would just be the two menus disagreeing.
   const closeThisTerminal = useCallback(() => {
-    void closeTerminal(terminalId, scopeId)
-  }, [terminalId, scopeId])
+    if (
+      running &&
+      !window.confirm(
+        `${describeRunningCommand(running)} is still running. Close this terminal and stop it?`
+      )
+    ) {
+      return
+    }
+    void closeTerminal(terminalId, scopeId).catch(() => {
+      toast.error('Could not close that terminal. Please try again.')
+    })
+  }, [running, terminalId, scopeId])
 
   // An inactive tab is `display: none`, not merely invisible. xterm watches its
   // element with an IntersectionObserver and pauses rendering once it stops
@@ -687,6 +711,7 @@ const TerminalView = memo(function TerminalView({
     <>
       <div
         ref={hostRef}
+        onPointerDown={() => terminalRef.current?.focus()}
         onContextMenu={openMenu}
         className={cn('absolute inset-0 pt-[7px] pr-2 pb-1 pl-1.5', !active && 'hidden')}
         style={{ backgroundColor: terminalTheme.background }}
@@ -746,36 +771,41 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
     (state) => state.sessions[scopeId]?.tabs ?? EMPTY_TERMINAL_TABS
   )
   const suspended = useCopilotTerminalStore((state) => state.sessions[scopeId]?.suspended ?? false)
+  const agentCommandTerminalIds = useCopilotTerminalStore(
+    (state) => state.sessions[scopeId]?.agentCommandTerminalIds ?? EMPTY_AGENT_COMMAND_TERMINAL_IDS
+  )
+  const activityResetEpoch = useCopilotTerminalStore(
+    (state) => state.sessions[scopeId]?.activityResetEpoch ?? 0
+  )
   const { tabs, activeTerminalId } = tabsState
+  const agentCommandTargets = useMemo(
+    () => new Set(Object.values(agentCommandTerminalIds)),
+    [agentCommandTerminalIds]
+  )
   const settledCommands = useSettledCommands(tabs)
   const { removeResource } = useMothershipResources()
   const [startError, setStartError] = useState<string | null>(null)
+  const [focusRequest, setFocusRequest] = useState({ terminalId: '', nonce: 0 })
   const availableProfiles = useMemo(
     () => withSelectedProfile(profiles, appearanceTheme),
     [appearanceTheme, profiles]
   )
 
   useEffect(() => {
+    if (!visible) return
     let active = true
-    void loadDesktopTerminalAppearance().then((next) => {
-      if (!active) return
-      setAppearanceTheme(next.theme)
-      setDefaultZoom(next.defaultZoom)
-    })
+    void Promise.all([loadDesktopTerminalAppearance(), loadDesktopTerminalThemeProfiles()]).then(
+      ([nextAppearance, nextProfiles]) => {
+        if (!active) return
+        setProfiles(nextProfiles)
+        setAppearanceTheme(refreshSelectedTerminalProfile(nextProfiles, nextAppearance.theme))
+        setDefaultZoom(nextAppearance.defaultZoom)
+      }
+    )
     return () => {
       active = false
     }
-  }, [])
-
-  useEffect(() => {
-    let active = true
-    void loadDesktopTerminalThemeProfiles().then((next) => {
-      if (active) setProfiles(next)
-    })
-    return () => {
-      active = false
-    }
-  }, [])
+  }, [visible])
 
   useEffect(() => {
     let active = true
@@ -805,20 +835,17 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
     [setTerminalAppearanceTheme]
   )
 
-  // Interaction ownership is reported once for the whole panel, never per tab.
-  // The shell holds a single focus flag, so a per-tab reporter would let one
-  // tab's unmount erase a sibling's live claim — and Cmd-W would then fall
-  // through to closing the window out from under a running shell.
-  //
-  // No claim on appear: xterm focuses its textarea once the panel is measurably
-  // on screen, and that focusin is the claim. Appearing is not enough, because
-  // the agent opens this panel on the user's behalf — claiming then would let a
-  // Cmd-W meant for the chat close a shell the user never touched.
   useEffect(() => {
+    if (!visible || suspended) return
     const panel = panelRef.current
-    if (!panel || !visible || suspended) return
+    if (!panel) return
     return trackPanelFocus(panel, (focused) => reportTerminalFocused(focused, scopeId))
   }, [visible, suspended, scopeId])
+
+  useEffect(() => {
+    reportTerminalVisible(visible && !suspended, scopeId)
+    return () => reportTerminalVisible(false, scopeId)
+  }, [scopeId, suspended, visible])
 
   useEffect(() => {
     if (suspended) {
@@ -856,29 +883,38 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
     }
   }, [tabs.length, suspended, removeResource])
 
-  // Every tab carries the same glyph. A spinner would have to mean "transient
-  // work", and nothing here can tell that from a coding agent sitting open for
-  // an hour: the alternate screen is the only signal available, and the tools
-  // people leave running — Claude Code, Codex — draw inline without it. A
-  // spinner that is wrong for the longest-lived tabs is worse than none, and
-  // the tab already says what it is running.
-  const items = useMemo<TabStripItem[]>(
-    () =>
-      tabs.map((tab) => {
-        const naming = namesItsCommand(tab, settledCommands) ? tab.running : null
-        return {
-          id: tab.terminalId,
-          title: naming ?? tab.title,
-          // The label is a basename, and the tab may be running something it
-          // is not naming yet, so hovering gives the whole picture: where the
-          // shell is, and what it is doing there.
-          tooltip: terminalTooltip(tab),
-          icon: <TerminalWindow className='size-[12px] shrink-0 text-[var(--text-icon)]' />,
-          active: tab.terminalId === activeTerminalId,
-        }
-      }),
-    [tabs, activeTerminalId, settledCommands]
-  )
+  // Shell process state is not activity state: a coding tool can run for hours.
+  // The agent-command lifecycle is precise, though, so the targeted terminal
+  // replaces its regular glyph while Mothership is actively driving it.
+  const items = useMemo<TabStripItem[]>(() => {
+    const labels = tabs.map((tab) =>
+      namesItsCommand(tab, settledCommands) ? (tab.running ?? tab.title) : tab.title
+    )
+    const counts = new Map<string, number>()
+    for (const label of labels) counts.set(label, (counts.get(label) ?? 0) + 1)
+    const occurrences = new Map<string, number>()
+    return tabs.map((tab, index) => {
+      const label = labels[index]
+      const occurrence = (occurrences.get(label) ?? 0) + 1
+      occurrences.set(label, occurrence)
+      const isAgentCommandRunning = agentCommandTargets.has(tab.terminalId)
+      return {
+        id: tab.terminalId,
+        title: counts.get(label) === 1 ? label : `${label} ${occurrence}`,
+        // The label is a basename, and the tab may be running something it
+        // is not naming yet, so hovering gives the whole picture: where the
+        // shell is, and what it is doing there.
+        tooltip: terminalTooltip(tab),
+        icon: (
+          <TerminalTabIcon
+            key={`${tab.terminalId}:${activityResetEpoch}`}
+            active={isAgentCommandRunning}
+          />
+        ),
+        active: tab.terminalId === activeTerminalId,
+      }
+    })
+  }, [tabs, activeTerminalId, agentCommandTargets, activityResetEpoch, settledCommands])
 
   const [contextTerminalId, setContextTerminalId] = useState<string | null>(null)
   const {
@@ -899,13 +935,45 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
     return () => window.removeEventListener(NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, handlePrepare)
   }, [closeContextMenu, isContextMenuOpen, visible])
   const contextTab = tabs.find((tab) => tab.terminalId === contextTerminalId)
+  const canReorderTabs = Boolean(getDesktopBridge()?.terminal.reorderTerminal)
+
+  useEffect(() => {
+    if (isContextMenuOpen && contextTerminalId && !contextTab) {
+      setContextTerminalId(null)
+      closeContextMenu()
+    }
+  }, [closeContextMenu, contextTab, contextTerminalId, isContextMenuOpen])
 
   const handleNew = useCallback(() => {
     void openTerminal(undefined, scopeId)
+      .then((state) => {
+        if (state.activeTerminalId) {
+          setFocusRequest((current) => ({
+            terminalId: state.activeTerminalId ?? '',
+            nonce: current.nonce + 1,
+          }))
+        }
+      })
+      .catch(() => {
+        toast.error('Could not open a new terminal. Please try again.')
+      })
   }, [scopeId])
   const handleSwitch = useCallback(
-    (terminalId: string) => {
-      void switchTerminal(terminalId, scopeId)
+    (terminalId: string, source?: TabStripSelectionSource) => {
+      if (source !== 'keyboard') {
+        setFocusRequest((current) => ({ terminalId, nonce: current.nonce + 1 }))
+      }
+      void switchTerminal(terminalId, scopeId).catch(() => {
+        toast.error('Could not switch terminals. Please try again.')
+      })
+    },
+    [scopeId]
+  )
+  const handleReorder = useCallback(
+    (terminalId: string, targetIndex: number) => {
+      void reorderTerminal(terminalId, targetIndex, scopeId).catch(() => {
+        toast.error('Could not reorder that terminal. Please try again.')
+      })
     },
     [scopeId]
   )
@@ -913,9 +981,20 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
   // desktop app decides that, so the button means the same thing at any count.
   const handleClose = useCallback(
     (terminalId: string) => {
-      void closeTerminal(terminalId, scopeId)
+      const tab = tabs.find((entry) => entry.terminalId === terminalId)
+      if (
+        tab?.running &&
+        !window.confirm(
+          `${describeRunningCommand(tab.running)} is still running. Close this terminal and stop it?`
+        )
+      ) {
+        return
+      }
+      void closeTerminal(terminalId, scopeId).catch(() => {
+        toast.error('Could not close that terminal. Please try again.')
+      })
     },
-    [scopeId]
+    [scopeId, tabs]
   )
 
   // A duplicate is a new shell in the same directory, not a copy of the
@@ -923,18 +1002,66 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
   const handleDuplicate = useCallback(
     (cwd: string | null) => {
       void openTerminal(cwd ?? undefined, scopeId)
+        .then((state) => {
+          if (state.activeTerminalId) {
+            setFocusRequest((current) => ({
+              terminalId: state.activeTerminalId ?? '',
+              nonce: current.nonce + 1,
+            }))
+          }
+        })
+        .catch(() => {
+          toast.error('Could not duplicate that terminal. Please try again.')
+        })
     },
     [scopeId]
   )
 
-  // Dragging a terminal tab into the chat attaches it as context. This strip
-  // has no reordering, so supplying this is also what makes its tabs
-  // draggable at all.
+  const handleCloseMany = useCallback(
+    (terminalIds: string[]) => {
+      const runningCount = tabs.filter(
+        (tab) => terminalIds.includes(tab.terminalId) && Boolean(tab.running)
+      ).length
+      if (
+        runningCount > 0 &&
+        !window.confirm(
+          `${runningCount} selected ${runningCount === 1 ? 'terminal has' : 'terminals have'} a running process. Close ${runningCount === 1 ? 'it' : 'them'} anyway?`
+        )
+      ) {
+        return
+      }
+      for (const terminalId of terminalIds) {
+        void closeTerminal(terminalId, scopeId).catch(() => {
+          toast.error('Could not close one of those terminals. Please try again.')
+        })
+      }
+    },
+    [scopeId, tabs]
+  )
+
+  const closeOtherTabs = useCallback(() => {
+    if (!contextTab) return
+    handleCloseMany(
+      tabs.filter((tab) => tab.terminalId !== contextTab.terminalId).map((tab) => tab.terminalId)
+    )
+  }, [contextTab, handleCloseMany, tabs])
+
+  const closeTabsToRight = useCallback(() => {
+    if (!contextTab) return
+    const contextIndex = tabs.findIndex((tab) => tab.terminalId === contextTab.terminalId)
+    handleCloseMany(tabs.slice(contextIndex + 1).map((tab) => tab.terminalId))
+  }, [contextTab, handleCloseMany, tabs])
+
+  const contextIndex = contextTab
+    ? tabs.findIndex((tab) => tab.terminalId === contextTab.terminalId)
+    : -1
+
+  // A terminal can move inside the strip or be copied into chat as context.
   const startTabDrag = useCallback(
     (event: ReactDragEvent<HTMLDivElement>, terminalId: string) => {
       const tab = tabs.find((entry) => entry.terminalId === terminalId)
       if (!tab) return
-      event.dataTransfer.effectAllowed = 'copy'
+      event.dataTransfer.effectAllowed = 'copyMove'
       event.dataTransfer.setData(
         SIM_RESOURCE_DRAG_TYPE,
         JSON.stringify({ type: 'terminal', id: tab.terminalId, title: tab.title })
@@ -954,38 +1081,42 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
 
   return (
     <div ref={panelRef} className='flex h-full flex-col overflow-hidden bg-[var(--bg)]'>
-      {tabs.length > 0 && (
-        <TabStrip
-          tabs={items}
-          onSelect={handleSwitch}
-          onNew={handleNew}
-          onTabContextMenu={openTabContextMenu}
-          onTabDragStart={startTabDrag}
-          newTabLabel='New terminal'
-          onClose={handleClose}
-        >
-          <ContextMenu
-            isOpen={isContextMenuOpen && Boolean(contextTab)}
-            position={contextMenuPosition}
-            menuRef={contextMenuRef}
-            onClose={closeContextMenu}
-            onDuplicate={contextTab ? () => handleDuplicate(contextTab.cwd) : undefined}
-            {...(contextTab
-              ? { onCloseTab: () => handleClose(contextTab.terminalId), showCloseTab: true }
-              : {})}
-            onDelete={() => {}}
-            showRename={false}
-            showDuplicate={Boolean(contextTab)}
-            showDelete={false}
-          />
-        </TabStrip>
-      )}
+      <TabStrip
+        tabs={items}
+        onSelect={handleSwitch}
+        onNew={handleNew}
+        onTabContextMenu={openTabContextMenu}
+        onTabDragStart={startTabDrag}
+        {...(canReorderTabs ? { onReorder: handleReorder } : {})}
+        newTabLabel='New terminal'
+        onClose={handleClose}
+      >
+        <ContextMenu
+          isOpen={isContextMenuOpen && Boolean(contextTab)}
+          position={contextMenuPosition}
+          menuRef={contextMenuRef}
+          onClose={closeContextMenu}
+          onDuplicate={contextTab ? () => handleDuplicate(contextTab.cwd) : undefined}
+          onCloseOtherTabs={contextTab ? closeOtherTabs : undefined}
+          onCloseTabsToRight={contextTab ? closeTabsToRight : undefined}
+          disableCloseOtherTabs={tabs.length <= 1}
+          disableCloseTabsToRight={contextIndex < 0 || contextIndex === tabs.length - 1}
+          {...(contextTab
+            ? { onCloseTab: () => handleClose(contextTab.terminalId), showCloseTab: true }
+            : {})}
+          onDelete={() => {}}
+          showRename={false}
+          showDuplicate={Boolean(contextTab)}
+          showDelete={false}
+        />
+      </TabStrip>
 
       <div className='relative min-h-0 flex-1'>
         {tabs.map((tab) => (
           <TerminalView
             key={tab.terminalId}
             terminalId={tab.terminalId}
+            running={tab.running}
             active={tab.terminalId === activeTerminalId}
             visible={visible}
             scopeId={scopeId}
@@ -994,6 +1125,7 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
             onAppearanceThemeChange={hasDesktopBridge ? handleAppearanceThemeChange : undefined}
             appearanceThemePending={appearanceThemePending}
             defaultZoom={defaultZoom}
+            focusRequest={focusRequest.terminalId === tab.terminalId ? focusRequest.nonce : 0}
           />
         ))}
         {startError && (

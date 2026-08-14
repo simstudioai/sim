@@ -52,7 +52,6 @@ import { index, json, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-cor
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 
-// ---------- CLI ----------
 const DRY_RUN = process.argv.includes('--dry-run')
 
 function parseMapArgs(): Record<string, string> {
@@ -225,7 +224,6 @@ if (DRY_RUN && FROM_FILE) {
   process.exit(1)
 }
 
-// ---------- Env ----------
 function getEnv(name: string): string | undefined {
   if (typeof process !== 'undefined' && process.env && name in process.env) {
     return process.env[name]
@@ -245,7 +243,6 @@ if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 64) {
   process.exit(1)
 }
 
-// ---------- Encryption (mirrors apps/sim/lib/core/security/encryption.ts) ----------
 function getEncryptionKeyBuffer(): Buffer {
   return Buffer.from(ENCRYPTION_KEY!, 'hex')
 }
@@ -282,7 +279,6 @@ async function decryptSecret(encryptedValue: string): Promise<string> {
   return decrypted
 }
 
-// ---------- Schema ----------
 const workspaceTable = pgTable('workspace', {
   id: text('id').primaryKey(),
   ownerId: text('owner_id').notNull(),
@@ -347,7 +343,6 @@ const WORKSPACE_CONCURRENCY = 100
 const WORKSPACE_BATCH_SIZE = 1000
 const SLEEP_MS = 30_000
 
-// ---------- DB ----------
 const postgresClient = postgres(CONNECTION_STRING, {
   prepare: false,
   idle_timeout: 20,
@@ -357,7 +352,6 @@ const postgresClient = postgres(CONNECTION_STRING, {
 })
 const db = drizzle(postgresClient)
 
-// ---------- Helpers ----------
 const TOOL_INPUT_SUBBLOCK_IDS: Record<string, string> = {
   agent: 'tools',
   human_in_the_loop: 'notification',
@@ -754,7 +748,6 @@ async function processWorkspace(
   }
 }
 
-// ---------- Main ----------
 async function run() {
   console.log(`Mode: ${DRY_RUN ? 'DRY RUN (audit + preview)' : 'LIVE'}`)
   console.log(

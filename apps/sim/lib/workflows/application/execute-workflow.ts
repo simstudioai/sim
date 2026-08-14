@@ -22,12 +22,11 @@ export interface ExecuteWorkflowInput {
   requestHeaders: Headers
   includeThinking?: boolean
   includeToolCalls?: boolean
-}
-
-function assertedWorkspaceId(principal: Principal): string | undefined {
-  return principal.kind === 'workspace_api_key' || principal.kind === 'delegated'
-    ? principal.workspaceId
-    : undefined
+  /**
+   * Workflow call chain for this hop, already extended with the target workflow
+   * id by the surface adapter. Carries the recursion guard across API hops.
+   */
+  callChain?: string[]
 }
 
 function authenticatesExecutionCredentials(principal: Principal): boolean {
@@ -36,11 +35,8 @@ function authenticatesExecutionCredentials(principal: Principal): boolean {
 
 export const executeWorkflowOperation = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.execute,
-  resolveContext: ({ principal, input }: { principal: Principal; input: ExecuteWorkflowInput }) =>
-    resolveActiveWorkflowApplicationContext({
-      workflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkspaceId(principal),
-    }),
+  resolveContext: ({ input }: { input: ExecuteWorkflowInput }) =>
+    resolveActiveWorkflowApplicationContext({ workflowId: input.workflowId }),
   async execute({ principal, context, input }): Promise<ExecuteWorkflowServiceResult> {
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
@@ -52,6 +48,7 @@ export const executeWorkflowOperation = defineAuthorizedWorkflowUseCase({
       triggerType: 'api',
       requestId: input.requestId,
       executionId: input.executionId,
+      callChain: input.callChain,
       useAuthenticatedUserAsActor: authenticatesExecutionCredentials(principal),
       workflowRecord: context.workflow,
       includeFileBase64: input.includeFileBase64,

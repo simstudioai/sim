@@ -4,11 +4,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { Job } from '@/lib/core/async-jobs/types'
-import {
-  collectFunctionalBlockOutputs,
-  type FunctionalExecutionDataSource,
-} from '@/lib/logs/execution/functional-outputs'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { materializeExecutionDataForDisplayWithBlockOutputs } from '@/lib/logs/execution/trace-store'
 import {
   RESUME_EXECUTION_JOB_ID_PREFIX,
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,
@@ -27,7 +23,7 @@ import type { PausePoint } from '@/executor/types'
 
 type LogStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
-interface ExecutionDataShape extends FunctionalExecutionDataSource {
+interface ExecutionDataShape {
   finalOutput?: { error?: string } & Record<string, unknown>
   error?: { message?: string } | string
   completionFailure?: string
@@ -242,18 +238,15 @@ export async function getWorkflowExecutionStatus(
   if (isCurrentlyPaused && pausedRow) {
     const points = normalizePausePoints(pausedRow.pausePoints)
     const earliest = pickEarliestPausePoint(points)
-    if (!earliest) {
-      throw new Error('Paused execution has no active resume context')
-    }
     const automaticResumeWaiting = getAutomaticResumeWaitingMetadata(pausedRow.metadata)
     paused = {
-      contextId: earliest.contextId,
+      contextId: earliest?.contextId ?? null,
       pausedAt: pausedRow.pausedAt.toISOString(),
-      resumeAt: pausedRow.nextResumeAt?.toISOString() ?? earliest.resumeAt ?? null,
-      pauseKind: earliest.pauseKind,
-      blockedOnBlockId: earliest.blockId ?? null,
+      resumeAt: pausedRow.nextResumeAt?.toISOString() ?? earliest?.resumeAt ?? null,
+      pauseKind: earliest?.pauseKind ?? null,
+      blockedOnBlockId: earliest?.blockId ?? null,
       automaticResumeWaitingReason:
-        automaticResumeWaiting?.reason ?? earliest.automaticResumeWaitingReason ?? null,
+        automaticResumeWaiting?.reason ?? earliest?.automaticResumeWaitingReason ?? null,
       pausedExecutionId: pausedRow.id,
       pausePointCount: points.length,
       resumedCount: pausedRow.resumedCount,
@@ -262,16 +255,19 @@ export async function getWorkflowExecutionStatus(
 
   const cost = logRow.costTotal != null ? { total: Number(logRow.costTotal) } : null
 
-  // Heavy execution data may live in object storage; resolve the pointer
-  // before reading error / finalOutput / traceSpans (no-op for inline rows).
-  const executionData = (await materializeExecutionData(
+  const requestedBlockIds = [
+    ...new Set(selectedOutputs.map((selector) => selector.split('.')[0]).filter(Boolean)),
+  ]
+  const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
     logRow.executionData as Record<string, unknown> | null,
     {
       workspaceId: logRow.workspaceId,
       workflowId: logRow.workflowId,
       executionId: logRow.executionId,
-    }
-  )) as ExecutionDataShape | undefined
+    },
+    requestedBlockIds
+  )
+  const executionData = materialized.executionData as ExecutionDataShape
 
   const error = status === 'failed' ? extractError(executionData) : null
 
@@ -282,7 +278,7 @@ export async function getWorkflowExecutionStatus(
 
   const blockOutputs =
     selectedOutputs.length > 0
-      ? pickSelectedOutputs(selectedOutputs, collectFunctionalBlockOutputs(executionData))
+      ? pickSelectedOutputs(selectedOutputs, materialized.blockOutputs)
       : null
 
   return {

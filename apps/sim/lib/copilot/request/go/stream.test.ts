@@ -41,6 +41,24 @@ vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
   listAllWorkspaceFiles: { execute: listAllWorkspaceFilesMock },
 }))
 
+vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
+  executeCopilotFileUseCase: (
+    context: { userId: string; workspaceId: string; toolCallId: string },
+    useCase: { execute: (args: unknown) => unknown },
+    input: unknown
+  ) =>
+    useCase.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: context.userId,
+        workspaceId: context.workspaceId,
+        delegationId: context.toolCallId,
+      },
+      input,
+    }),
+}))
+
 vi.mock('@/lib/copilot/tools/server/files/file-preview', async () => {
   const actual = await vi.importActual<
     typeof import('@/lib/copilot/tools/server/files/file-preview')
@@ -126,6 +144,21 @@ function createStreamingContext(): StreamingContext {
       enabled: false,
       autoAllowed: new Set(),
     },
+  }
+}
+
+/**
+ * The turn-scoped execution context exactly as the chat lifecycle builds it: no
+ * `toolCallId`, because that identity only exists per dispatched tool call. The
+ * file preview adapter has to take it from the frame it is processing.
+ */
+function turnScopedExecContext(): ExecutionContext {
+  return {
+    userId: 'user-1',
+    workflowId: 'workflow-1',
+    workspaceId: 'workspace-1',
+    messageId: 'msg-1',
+    copilotToolExecution: true,
   }
 }
 
@@ -283,14 +316,7 @@ describe('copilot go stream helpers', () => {
 
     const onEvent = vi.fn()
     const context = createStreamingContext()
-    const execContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-1',
-      messageId: 'msg-1',
-      copilotToolExecution: true,
-      toolCallId: 'stream-tool-1',
-    }
+    const execContext = turnScopedExecContext()
 
     await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
       onEvent,
@@ -414,14 +440,7 @@ describe('copilot go stream helpers', () => {
 
     const onEvent = vi.fn()
     const context = createStreamingContext()
-    const execContext: ExecutionContext = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-1',
-      messageId: 'msg-1',
-      copilotToolExecution: true,
-      toolCallId: 'stream-tool-2',
-    }
+    const execContext = turnScopedExecContext()
 
     await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
       onEvent,
@@ -549,42 +568,6 @@ describe('copilot go stream helpers', () => {
     })
 
     expect(fetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('reports acceptance only after an OK response exposes its stream body', async () => {
-    const complete = createEvent({
-      streamId: 'stream-1',
-      cursor: '1',
-      seq: 1,
-      requestId: 'req-1',
-      type: MothershipStreamV1EventType.complete,
-      payload: { status: MothershipStreamV1CompletionStatus.complete },
-    })
-    const onAccepted = vi.fn()
-    vi.mocked(fetch).mockResolvedValueOnce(createSseResponse([complete]))
-
-    await runStreamLoop(
-      'https://example.com/mothership/stream',
-      {},
-      createStreamingContext(),
-      { userId: 'user-1', workflowId: 'workflow-1' },
-      { timeout: 1000, onAccepted }
-    )
-
-    expect(onAccepted).toHaveBeenCalledOnce()
-
-    onAccepted.mockClear()
-    vi.mocked(fetch).mockResolvedValueOnce(new Response('bad gateway', { status: 502 }))
-    await expect(
-      runStreamLoop(
-        'https://example.com/mothership/stream',
-        {},
-        createStreamingContext(),
-        { userId: 'user-1', workflowId: 'workflow-1' },
-        { timeout: 1000, onAccepted }
-      )
-    ).rejects.toThrow('Copilot backend error')
-    expect(onAccepted).not.toHaveBeenCalled()
   })
 
   it('does not retry non-transient backend statuses before the SSE stream opens', async () => {

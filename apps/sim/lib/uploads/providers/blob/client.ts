@@ -7,6 +7,7 @@ import {
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { BLOB_CONFIG } from '@/lib/uploads/config'
+import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import type {
   AzureMultipartPart,
   AzureMultipartUploadInit,
@@ -274,7 +275,16 @@ export async function getPresignedUrlWithConfig(
   return `${blockBlobClient.url}?${sasToken}`
 }
 
-/** Generates a create-only SAS-backed single-object PUT for a caller-selected final key. */
+/**
+ * Generates a create-only SAS-backed single-object PUT for a caller-selected final key.
+ *
+ * The permission must stay `c` (create), not `w`: `w` is "create or write
+ * content" and authorizes overwriting an existing blob, so a still-valid
+ * signature could replace a completed upload. `If-None-Match` is returned for
+ * parity with the S3 and GCS signers, but Azure does not cover request headers
+ * in a service-SAS string-to-sign, so it is advisory and cannot carry this on
+ * its own.
+ */
 export async function getBlobPresignedUploadUrl(params: {
   key: string
   contentType: string
@@ -300,7 +310,7 @@ export async function getBlobPresignedUploadUrl(params: {
     {
       containerName: params.customConfig.containerName,
       blobName: params.key,
-      permissions: BlobSASPermissions.parse('w'),
+      permissions: BlobSASPermissions.parse('c'),
       startsOn,
       expiresOn,
     },
@@ -499,9 +509,7 @@ export async function headBlobObject(
       ...(properties.metadata ? { metadata: properties.metadata } : {}),
     }
   } catch (err) {
-    const status = (err as { statusCode?: number }).statusCode
-    const code = (err as { code?: string }).code
-    if (status === 404 || code === 'BlobNotFound') {
+    if (isObjectNotFoundError(err)) {
       return null
     }
     throw err
@@ -602,12 +610,18 @@ export async function initiateMultipartUpload(
 }
 
 /**
- * Generate presigned URLs for uploading parts
+ * Generate presigned URLs for uploading parts.
+ *
+ * `expiresOn` is required rather than defaulted: the caller owns the part-URL lifetime and
+ * advertises the matching `expiresAt` to the client, so a local default would be a second
+ * source of truth that silently keeps signing 1h SAS tokens after the caller's window changed.
  */
 export async function getMultipartPartUrls(
   key: string,
   partNumbers: number[],
-  customConfig?: BlobConfig
+  customConfig: BlobConfig | undefined,
+  /** Absolute instant the SAS token stops being valid. */
+  expiresOn: Date
 ): Promise<AzurePartUploadUrl[]> {
   const {
     BlobServiceClient,
@@ -660,7 +674,7 @@ export async function getMultipartPartUrls(
       blobName: key,
       permissions: BlobSASPermissions.parse('w'), // Write permission
       startsOn: new Date(),
-      expiresOn: new Date(Date.now() + 3600 * 1000), // 1 hour
+      expiresOn,
     }
 
     const sasToken = generateBlobSASQueryParameters(
@@ -920,9 +934,7 @@ export async function abortMultipartUpload(
       await blockBlobClient.deleteIfExists()
     }
   } catch (error) {
-    const status = (error as { statusCode?: number }).statusCode
-    const code = (error as { code?: string }).code
-    if (status !== 404 && code !== 'BlobNotFound') {
+    if (!isObjectNotFoundError(error)) {
       logger.warn('Error cleaning up multipart upload:', error)
     }
   }

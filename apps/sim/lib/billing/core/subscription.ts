@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { db } from '@sim/db'
 import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -429,11 +430,7 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
   }
 }
 
-/**
- * Check if an organization has an enterprise plan
- * Used for Access Control (Permission Groups) feature gating
- */
-export async function isOrganizationOnEnterprisePlan(organizationId: string): Promise<boolean> {
+async function resolveOrganizationEnterprisePlan(organizationId: string): Promise<boolean> {
   try {
     if (!isBillingEnabled) {
       return true
@@ -455,6 +452,15 @@ export async function isOrganizationOnEnterprisePlan(organizationId: string): Pr
     return false
   }
 }
+
+/**
+ * Check if an organization has an enterprise plan
+ * Used for Access Control (Permission Groups) feature gating
+ *
+ * Request-memoized: a settings render gates several sections on the same
+ * organization's plan, and it cannot change mid-render.
+ */
+export const isOrganizationOnEnterprisePlan = cache(resolveOrganizationEnterprisePlan)
 
 /**
  * Entitlement for a single org-scoped enterprise feature.
@@ -612,10 +618,15 @@ async function hasWorkspaceTierAccess(
  * Whether the workspace's payer is on a usable Max-or-Enterprise subscription.
  * Shared by the inbox (Sim Mailer), live sync, and custom sandboxes, which all
  * sit on the same entitlement tier.
+ *
+ * Request-memoized: these features are gated side by side on one settings render,
+ * each otherwise repeating the identical workspace and subscription reads. The
+ * per-feature deployment and env short-circuits live in the wrappers and still run
+ * per call.
  */
-async function hasMaxTierWorkspaceAccess(workspaceId: string): Promise<boolean> {
-  return hasWorkspaceTierAccess(workspaceId, isMaxTier)
-}
+const hasMaxTierWorkspaceAccess = cache(
+  (workspaceId: string): Promise<boolean> => hasWorkspaceTierAccess(workspaceId, isMaxTier)
+)
 
 /**
  * Check whether a workspace is entitled to the inbox (Sim Mailer) feature.
@@ -731,21 +742,24 @@ export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
         .limit(1)
 
       if (users.length > 0 && users[0].email) {
-        const { getEmailSubject, renderPlanWelcomeEmail } = await import('@/components/emails')
+        const { getPlanWelcomeSubject, renderPlanWelcomeEmail } = await import(
+          '@/components/emails'
+        )
         const { sendEmail } = await import('@/lib/messaging/email/mailer')
 
         const baseUrl = getBaseUrl()
         const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
+        const displayName = getDisplayPlanName(subPlan)
+
         const html = await renderPlanWelcomeEmail({
-          planName: getDisplayPlanName(subPlan),
+          planName: displayName,
           userName: users[0].name || undefined,
           loginLink: `${baseUrl}/login`,
         })
 
-        const displayName = getDisplayPlanName(subPlan)
         await sendEmail({
           to: users[0].email,
-          subject: `Your ${displayName} plan is now active on ${(await import('@/ee/whitelabeling')).getBrandConfig().name}`,
+          subject: getPlanWelcomeSubject(displayName),
           html,
           emailType: 'updates',
         })

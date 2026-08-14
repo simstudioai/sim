@@ -38,7 +38,7 @@ Integrate Exa into the workflow. Can search the web, get page contents, find sim
 
 ## Actions
 
-### `exa_search`
+### Exa Search
 
 Search the web using Exa AI. Returns relevant search results with titles, URLs, and text snippets.
 
@@ -71,8 +71,6 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 | `startCrawlDate` | string | No | Deprecated: use startPublishedDate. Only include results crawled on or after this ISO 8601 date |
 | `endCrawlDate` | string | No | Deprecated: use endPublishedDate. Only include results crawled on or before this ISO 8601 date |
 | `apiKey` | string | Yes | Exa AI API Key |
-| `pricing` | custom | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -98,7 +96,7 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 | `structuredOutput` | json | Synthesized answer matching outputSchema, when one was supplied |
 | `grounding` | json | Field-level citations backing the synthesized output |
 
-### `exa_get_contents`
+### Exa Get Contents
 
 Retrieve the contents of webpages using Exa AI. Returns the title, text content, and optional summaries for each URL.
 
@@ -120,8 +118,6 @@ Retrieve the contents of webpages using Exa AI. Returns the title, text content,
 | `livecrawlTimeout` | number | No | Live crawl timeout in milliseconds \(max 90000\). Default: 10000 |
 | `livecrawl` | string | No | Deprecated: use maxAgeHours instead. Live crawling mode: never, fallback, always, or preferred |
 | `apiKey` | string | Yes | Exa AI API Key |
-| `pricing` | custom | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -141,7 +137,7 @@ Retrieve the contents of webpages using Exa AI. Returns the title, text content,
 | `statuses` | json | Per-URL crawl outcome, showing which pages succeeded and whether they came from cache |
 | `requestId` | string | Exa request identifier, useful for support |
 
-### `exa_find_similar_links`
+### Exa Find Similar Links
 
 Find webpages similar to a given URL using Exa AI. Deprecated by Exa in favor of Search — prefer Search for new workflows.
 
@@ -162,8 +158,6 @@ Find webpages similar to a given URL using Exa AI. Deprecated by Exa in favor of
 | `livecrawlTimeout` | number | No | Live crawl timeout in milliseconds \(max 90000\). Default: 10000 |
 | `livecrawl` | string | No | Deprecated: use maxAgeHours instead. Live crawling mode: never, fallback, always, or preferred |
 | `apiKey` | string | Yes | Exa AI API Key |
-| `pricing` | custom | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -179,7 +173,7 @@ Find webpages similar to a given URL using Exa AI. Deprecated by Exa in favor of
 |   ↳ `score` | number | Similarity score indicating how similar the page is |
 | `requestId` | string | Exa request identifier, useful for support |
 
-### `exa_answer`
+### Exa Answer
 
 Get an AI-generated answer to a question with citations from the web using Exa AI.
 
@@ -191,8 +185,6 @@ Get an AI-generated answer to a question with citations from the web using Exa A
 | `text` | boolean | No | Include the full page text of each cited source \(default: false\). This does not affect the answer itself. |
 | `outputSchema` | json | No | JSON Schema describing the answer shape. When supplied, the answer is returned as a structured object instead of a string. |
 | `apiKey` | string | Yes | Exa AI API Key |
-| `pricing` | custom | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -208,7 +200,7 @@ Get an AI-generated answer to a question with citations from the web using Exa A
 |   ↳ `publishedDate` | string | Publication date of the cited source |
 | `requestId` | string | Exa request identifier, useful for support |
 
-### `exa_agent`
+### Exa Agent
 
 Run a deep research task with Exa Agent. Handles multi-step list building, enrichment, and research, returning a written answer with field-level citations and optional structured output.
 
@@ -222,8 +214,6 @@ Run a deep research task with Exa Agent. Handles multi-step list building, enric
 | `systemPrompt` | string | No | Additional guidance for how the agent should behave or format its answer |
 | `previousRunId` | string | No | ID of a completed agent run to continue from, for follow-up questions |
 | `apiKey` | string | Yes | Exa AI API Key |
-| `pricing` | custom | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 

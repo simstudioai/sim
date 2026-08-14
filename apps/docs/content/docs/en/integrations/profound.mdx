@@ -36,7 +36,7 @@ Track how your brand appears across AI platforms. Monitor visibility scores, sen
 
 ## Actions
 
-### `profound_list_categories`
+### Profound List Categories
 
 List all organization categories in Profound
 
@@ -54,7 +54,7 @@ List all organization categories in Profound
 |   ↳ `id` | string | Category ID |
 |   ↳ `name` | string | Category name |
 
-### `profound_list_regions`
+### Profound List Regions
 
 List all organization regions in Profound
 
@@ -72,7 +72,7 @@ List all organization regions in Profound
 |   ↳ `id` | string | Region ID \(UUID\) |
 |   ↳ `name` | string | Region name |
 
-### `profound_list_models`
+### Profound List Models
 
 List all AI models/platforms tracked in Profound
 
@@ -90,7 +90,7 @@ List all AI models/platforms tracked in Profound
 |   ↳ `id` | string | Model ID \(UUID\) |
 |   ↳ `name` | string | Model/platform name |
 
-### `profound_list_domains`
+### Profound List Domains
 
 List all organization domains in Profound
 
@@ -109,7 +109,7 @@ List all organization domains in Profound
 |   ↳ `name` | string | Domain name |
 |   ↳ `createdAt` | string | When the domain was added |
 
-### `profound_list_assets`
+### Profound List Assets
 
 List all organization assets (companies/brands) across all categories in Profound
 
@@ -134,7 +134,7 @@ List all organization assets (companies/brands) across all categories in Profoun
 |   ↳ `categoryId` | string | Category ID the asset belongs to |
 |   ↳ `categoryName` | string | Category name |
 
-### `profound_list_personas`
+### Profound List Personas
 
 List all organization personas across all categories in Profound
 
@@ -155,7 +155,7 @@ List all organization personas across all categories in Profound
 |   ↳ `categoryName` | string | Category name |
 |   ↳ `persona` | json | Persona profile with behavior, employment, and demographics |
 
-### `profound_category_topics`
+### Profound Category Topics
 
 List topics for a specific category in Profound
 
@@ -174,7 +174,7 @@ List topics for a specific category in Profound
 |   ↳ `id` | string | Topic ID \(UUID\) |
 |   ↳ `name` | string | Topic name |
 
-### `profound_category_tags`
+### Profound Category Tags
 
 List tags for a specific category in Profound
 
@@ -193,7 +193,7 @@ List tags for a specific category in Profound
 |   ↳ `id` | string | Tag ID \(UUID\) |
 |   ↳ `name` | string | Tag name |
 
-### `profound_category_prompts`
+### Profound Category Prompts
 
 List prompts for a specific category in Profound
 
@@ -229,7 +229,7 @@ List prompts for a specific category in Profound
 |   ↳ `platforms` | json | Associated platforms |
 |   ↳ `createdAt` | string | When the prompt was created |
 
-### `profound_category_assets`
+### Profound Category Assets
 
 List assets (companies/brands) for a specific category in Profound
 
@@ -253,7 +253,7 @@ List assets (companies/brands) for a specific category in Profound
 |   ↳ `createdAt` | string | When the asset was created |
 |   ↳ `logoUrl` | string | URL of the asset logo |
 
-### `profound_category_personas`
+### Profound Category Personas
 
 List personas for a specific category in Profound
 
@@ -273,7 +273,7 @@ List personas for a specific category in Profound
 |   ↳ `name` | string | Persona name |
 |   ↳ `persona` | json | Persona profile with behavior, employment, and demographics |
 
-### `profound_visibility_report`
+### Profound Visibility Report
 
 Query AI visibility report for a category in Profound
 
@@ -300,7 +300,7 @@ Query AI visibility report for a category in Profound
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
-### `profound_sentiment_report`
+### Profound Sentiment Report
 
 Query sentiment report for a category in Profound
 
@@ -327,7 +327,7 @@ Query sentiment report for a category in Profound
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
-### `profound_citations_report`
+### Profound Citations Report
 
 Query citations report for a category in Profound
 
@@ -354,7 +354,7 @@ Query citations report for a category in Profound
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
-### `profound_query_fanouts`
+### Profound Query Fanouts
 
 Query fanout report showing how AI models expand prompts into sub-queries in Profound
 
@@ -381,7 +381,7 @@ Query fanout report showing how AI models expand prompts into sub-queries in Pro
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
-### `profound_prompt_answers`
+### Profound Prompt Answers
 
 Get raw prompt answers data for a category in Profound
 
@@ -413,7 +413,7 @@ Get raw prompt answers data for a category in Profound
 |   ↳ `asset` | string | Asset name |
 |   ↳ `createdAt` | string | Timestamp when the answer was collected |
 
-### `profound_bots_report`
+### Profound Bots Report
 
 Query bot traffic report with hourly granularity for a domain in Profound
 
@@ -440,7 +440,7 @@ Query bot traffic report with hourly granularity for a domain in Profound
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
-### `profound_referrals_report`
+### Profound Referrals Report
 
 Query human referral traffic report with hourly granularity for a domain in Profound
 
@@ -467,7 +467,7 @@ Query human referral traffic report with hourly granularity for a domain in Prof
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
-### `profound_raw_logs`
+### Profound Raw Logs
 
 Get raw traffic logs with filters for a domain in Profound
 
@@ -492,7 +492,7 @@ Get raw traffic logs with filters for a domain in Profound
 |   ↳ `metrics` | json | Array of metric values \(count\) |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
-### `profound_bot_logs`
+### Profound Bot Logs
 
 Get identified bot visit logs with filters for a domain in Profound
 
@@ -517,7 +517,7 @@ Get identified bot visit logs with filters for a domain in Profound
 |   ↳ `metrics` | json | Array of metric values \(count\) |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
-### `profound_list_optimizations`
+### Profound List Optimizations
 
 List content optimization entries for an asset in Profound
 
@@ -543,7 +543,7 @@ List content optimization entries for an asset in Profound
 |   ↳ `type` | string | Content type: file, text, or url |
 |   ↳ `status` | string | Optimization status |
 
-### `profound_optimization_analysis`
+### Profound Optimization Analysis
 
 Get detailed content optimization analysis for a specific content item in Profound
 
@@ -580,7 +580,7 @@ Get detailed content optimization analysis for a specific content item in Profou
 |     ↳ `text` | string | Suggestion text |
 |     ↳ `rationale` | string | Why this recommendation matters |
 
-### `profound_prompt_volume`
+### Profound Prompt Volume
 
 Query prompt volume data to understand search demand across AI platforms in Profound
 
@@ -606,7 +606,7 @@ Query prompt volume data to understand search demand across AI platforms in Prof
 |   ↳ `metrics` | json | Array of metric values matching requested metrics order |
 |   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
 
-### `profound_citation_prompts`
+### Profound Citation Prompts
 
 Get prompts that cite a specific domain across AI platforms in Profound
 

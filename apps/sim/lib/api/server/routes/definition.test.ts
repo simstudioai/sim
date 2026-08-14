@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import {
+  methodMatchesContract,
   requireBinaryRouteDefinition,
   requireJsonRouteDefinition,
 } from '@/lib/api/server/routes/definition'
@@ -26,6 +27,7 @@ describe('declarative route definition invariants', () => {
 
     expect(requireJsonRouteDefinition(contract, renameOperation, renameOperation)).toEqual({
       successStatus: 202,
+      successStatuses: [202],
     })
   })
 
@@ -43,7 +45,7 @@ describe('declarative route definition invariants', () => {
     ).toThrow('does not match')
   })
 
-  it('fails immediately for binary mode or ambiguous success statuses', () => {
+  it('accepts multiple JSON success statuses and rejects binary mode', () => {
     expect(() =>
       requireJsonRouteDefinition(
         defineRouteContract({
@@ -56,7 +58,7 @@ describe('declarative route definition invariants', () => {
       )
     ).toThrow('requires a JSON response contract')
 
-    expect(() =>
+    expect(
       requireJsonRouteDefinition(
         defineRouteContract({
           method: 'PATCH',
@@ -70,7 +72,7 @@ describe('declarative route definition invariants', () => {
         renameOperation,
         renameOperation
       )
-    ).toThrow('must declare one success status')
+    ).toEqual({ successStatus: 200, successStatuses: [200, 202] })
   })
 
   it('accepts binary contracts and rejects JSON contracts at the binary boundary', () => {
@@ -81,6 +83,7 @@ describe('declarative route definition invariants', () => {
     })
     expect(requireBinaryRouteDefinition(binary, renameOperation, renameOperation)).toEqual({
       successStatus: 200,
+      successStatuses: [200],
     })
 
     expect(() =>
@@ -108,5 +111,28 @@ describe('declarative route definition invariants', () => {
         { ...renameOperation, id: 'files.download' }
       )
     ).toThrow('does not match')
+  })
+})
+
+describe('methodMatchesContract', () => {
+  it.each(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const)(
+    'accepts %s against its own contract',
+    (method) => {
+      expect(methodMatchesContract(method, method)).toBe(true)
+    }
+  )
+
+  it('accepts HEAD against a GET contract, which is how Next serves it', () => {
+    expect(methodMatchesContract('HEAD', 'GET')).toBe(true)
+  })
+
+  it.each([
+    ['HEAD', 'POST'],
+    ['HEAD', 'DELETE'],
+    ['POST', 'GET'],
+    ['GET', 'DELETE'],
+    ['PATCH', 'PUT'],
+  ] as const)('rejects %s against a %s contract', (requestMethod, contractMethod) => {
+    expect(methodMatchesContract(requestMethod, contractMethod)).toBe(false)
   })
 })

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import type { NextRequest } from 'next/server'
+import { WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import {
   type ApiKeyAuthResult,
   authenticateApiKeyFromHeader,
@@ -57,7 +58,7 @@ export async function validateWorkflowAccess(
       if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflow.workspaceId) {
         return {
           error: {
-            message: 'API key is not authorized for this workspace',
+            message: WORKSPACE_KEY_SCOPE_DENIED,
             status: 403,
           },
         }

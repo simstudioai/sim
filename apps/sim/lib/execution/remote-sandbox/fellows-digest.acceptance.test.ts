@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { hasPython3, PYTHON_SKIP_REASON } from '@sim/testing/environment'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
@@ -159,7 +160,8 @@ describe('Fellows Council Weekly sandbox acceptance fixture', () => {
     )
   })
 
-  it('stubs every external service and exports deterministic HTML and JSON in a ZIP', () => {
+  it('stubs every external service and exports deterministic HTML and JSON in a ZIP', (ctx) => {
+    if (!hasPython3()) ctx.skip(PYTHON_SKIP_REASON)
     const firstRoot = makeTempRoot()
     const secondRoot = makeTempRoot()
     const first = runFixture(firstRoot)

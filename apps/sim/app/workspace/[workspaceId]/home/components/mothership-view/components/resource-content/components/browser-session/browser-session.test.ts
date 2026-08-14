@@ -6,8 +6,11 @@ import {
   browserPanelSnapshotStyle,
   browserSelectionContext,
   clearOmniboxSelection,
+  hasConfirmedBrowserTabCreation,
+  initialUrlSuggestionIndex,
   resolveUrlBarInput,
   selectFocusedOmniboxOnNextFrame,
+  shouldOpenUrlSuggestions,
   shouldRemoveBrowserResource,
   shouldReportBrowserBounds,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
@@ -150,6 +153,54 @@ describe('clearOmniboxSelection', () => {
 
     expect(input.selectionStart).toBe(input.value.length)
     expect(input.selectionEnd).toBe(input.value.length)
+  })
+})
+
+describe('shouldOpenUrlSuggestions', () => {
+  it('opens only once the renderer owns the painted frame', () => {
+    expect(shouldOpenUrlSuggestions('suggestions', 3)).toBe(true)
+  })
+
+  it('stays closed while the native page is still on top', () => {
+    // The rows are ranked and ready, but a click would land on the
+    // WebContentsView rather than the list — the "clicking a suggestion does
+    // nothing" bug. Not opening is the honest outcome; there is no native menu
+    // to fall back to.
+    expect(shouldOpenUrlSuggestions(null, 3)).toBe(false)
+  })
+
+  it('stays closed when another overlay holds the lease', () => {
+    expect(shouldOpenUrlSuggestions('credentials', 3)).toBe(false)
+    expect(shouldOpenUrlSuggestions('tab', 3)).toBe(false)
+  })
+
+  it('stays closed with nothing to suggest, however the frame is owned', () => {
+    expect(shouldOpenUrlSuggestions('suggestions', 0)).toBe(false)
+    expect(shouldOpenUrlSuggestions(null, 0)).toBe(false)
+  })
+})
+
+describe('initialUrlSuggestionIndex', () => {
+  it('selects the first suggestion on a new tab', () => {
+    expect(initialUrlSuggestionIndex('', 3)).toBe(0)
+    expect(initialUrlSuggestionIndex('about:blank', 3)).toBe(0)
+  })
+
+  it('leaves existing pages unselected so Enter submits the current URL', () => {
+    expect(initialUrlSuggestionIndex('https://sim.ai', 3)).toBeNull()
+  })
+
+  it('selects nothing when there are no suggestions', () => {
+    expect(initialUrlSuggestionIndex('', 0)).toBeNull()
+  })
+})
+
+describe('hasConfirmedBrowserTabCreation', () => {
+  it('requires both a larger strip and a distinct active tab', () => {
+    expect(hasConfirmedBrowserTabCreation('tab-1', 1, 'tab-2', 2)).toBe(true)
+    expect(hasConfirmedBrowserTabCreation('tab-1', 1, 'tab-1', 2)).toBe(false)
+    expect(hasConfirmedBrowserTabCreation('tab-1', 1, 'tab-2', 1)).toBe(false)
+    expect(hasConfirmedBrowserTabCreation('tab-1', 1, null, 2)).toBe(false)
   })
 })
 

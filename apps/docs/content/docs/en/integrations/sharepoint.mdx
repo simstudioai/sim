@@ -33,7 +33,7 @@ Integrate SharePoint into the workflow. Read/create pages, list sites, and work 
 
 ## Actions
 
-### `sharepoint_create_page`
+### Create SharePoint Page
 
 Create a new page in a SharePoint site
 
@@ -60,7 +60,7 @@ Create a new page in a SharePoint site
 |   ↳ `createdDateTime` | string | When the page was created |
 |   ↳ `lastModifiedDateTime` | string | When the page was last modified |
 
-### `sharepoint_read_page`
+### Read SharePoint Page
 
 Read a specific page from a SharePoint site
 
@@ -107,7 +107,7 @@ Read a specific page from a SharePoint site
 | `totalPages` | number | Total number of pages found |
 | `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
 
-### `sharepoint_update_page`
+### Update SharePoint Page
 
 Update the title and/or content of a SharePoint page
 
@@ -134,7 +134,7 @@ Update the title and/or content of a SharePoint page
 |   ↳ `createdDateTime` | string | When the page was created |
 |   ↳ `lastModifiedDateTime` | string | When the page was last modified |
 
-### `sharepoint_publish_page`
+### Publish SharePoint Page
 
 Publish the latest version of a SharePoint page, making it available to all users
 
@@ -153,7 +153,7 @@ Publish the latest version of a SharePoint page, making it available to all user
 | `published` | boolean | Whether the page was published |
 | `pageId` | string | The ID of the published page |
 
-### `sharepoint_delete_page`
+### Delete SharePoint Page
 
 Delete a page from a SharePoint site
 
@@ -172,7 +172,7 @@ Delete a page from a SharePoint site
 | `deleted` | boolean | Whether the page was deleted |
 | `pageId` | string | The ID of the deleted page |
 
-### `sharepoint_list_sites`
+### List SharePoint Sites
 
 List details of all SharePoint sites
 
@@ -211,7 +211,7 @@ List details of all SharePoint sites
 |   ↳ `lastModifiedDateTime` | string | When the site was last modified |
 | `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
 
-### `sharepoint_create_list`
+### Create SharePoint List
 
 Create a new list in a SharePoint site
 
@@ -239,7 +239,7 @@ Create a new list in a SharePoint site
 |   ↳ `lastModifiedDateTime` | string | When the list was last modified |
 |   ↳ `list` | object | List properties \(e.g., template\) |
 
-### `sharepoint_get_list`
+### Get SharePoint List
 
 Get metadata (and optionally columns/items) for a SharePoint list
 
@@ -267,13 +267,16 @@ Get metadata (and optionally columns/items) for a SharePoint list
 |   ↳ `lastModifiedDateTime` | string | When the list was last modified |
 |   ↳ `list` | object | List properties \(e.g., template\) |
 |   ↳ `columns` | array | List column definitions |
+|   ↳ `items` | array | List items \(with fields when expanded\) |
+|     ↳ `id` | string | Item ID |
+|     ↳ `fields` | object | Field values for the item |
 | `lists` | array | All lists in the site when no listId/title provided |
 | `items` | array | List items with expanded fields when reading list items |
 |   ↳ `id` | string | Item ID |
 |   ↳ `fields` | object | Field values for the item |
 | `nextPageUrl` | string | Full Microsoft Graph @odata.nextLink URL for the next page of results |
 
-### `sharepoint_update_list`
+### Update SharePoint List Item
 
 Update the properties (fields) on a SharePoint list item
 
@@ -295,7 +298,7 @@ Update the properties (fields) on a SharePoint list item
 |   ↳ `id` | string | Item ID |
 |   ↳ `fields` | object | Updated field values |
 
-### `sharepoint_add_list_items`
+### Add SharePoint List Item
 
 Add a new item to a SharePoint list
 
@@ -316,7 +319,7 @@ Add a new item to a SharePoint list
 |   ↳ `id` | string | Item ID |
 |   ↳ `fields` | object | Field values for the new item |
 
-### `sharepoint_get_list_item`
+### Get SharePoint List Item
 
 Get a single item (with field values) from a SharePoint list
 
@@ -337,7 +340,7 @@ Get a single item (with field values) from a SharePoint list
 |   ↳ `id` | string | Item ID |
 |   ↳ `fields` | object | Field values for the item |
 
-### `sharepoint_delete_list_item`
+### Delete SharePoint List Item
 
 Delete an item from a SharePoint list
 
@@ -357,7 +360,7 @@ Delete an item from a SharePoint list
 | `deleted` | boolean | Whether the list item was deleted |
 | `itemId` | string | The ID of the deleted list item |
 
-### `sharepoint_upload_file`
+### Upload File to SharePoint
 
 Upload files to a SharePoint document library
 
@@ -394,7 +397,7 @@ Upload files to a SharePoint document library
 |   ↳ `error` | string | Error message |
 |   ↳ `status` | number | HTTP status from Microsoft Graph |
 
-### `sharepoint_download_file`
+### Download File from SharePoint
 
 Download a file from a SharePoint document library
 
@@ -412,7 +415,7 @@ Download a file from a SharePoint document library
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded file stored in execution files |
 
-### `sharepoint_get_drive_item`
+### Get SharePoint Drive Item
 
 Get metadata for a file or folder in a SharePoint document library
 
@@ -438,7 +441,7 @@ Get metadata for a file or folder in a SharePoint document library
 |   ↳ `folder` | object | Present if the item is a folder \(contains childCount\) |
 |   ↳ `parentReference` | object | Reference to the parent folder/drive |
 
-### `sharepoint_delete_file`
+### Delete SharePoint File
 
 Delete a file (or folder) from a SharePoint document library
 

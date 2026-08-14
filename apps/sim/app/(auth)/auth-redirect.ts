@@ -43,10 +43,43 @@ export function resolvePostSignupDestination({
   return redirectUrl ? { kind: 'redirect', url: redirectUrl } : { kind: 'workspace' }
 }
 
+/** The raw redirect-carrying params, as read from a URL on client or server. */
+interface AuthRedirectParams {
+  redirect: string | null
+  callbackUrl: string | null
+  inviteFlow: string | null
+}
+
+/**
+ * The post-auth destination a visitor arrived with, and whether they are mid
+ * invitation.
+ *
+ * `redirect` wins over `callbackUrl` — both spellings are in circulation. The
+ * invite flow is inferred from the destination as well as the explicit flag, so
+ * a link that lost `invite_flow` still reads as an invitation.
+ *
+ * Shared so the signup form and the registration-disabled page cannot drift on
+ * which param wins; both feed the result to {@link buildAuthCrossLink}. The
+ * caller validates — this function does not, so that a client can log the
+ * rejection it already reports.
+ */
+export function resolveAuthRedirect({ redirect, callbackUrl, inviteFlow }: AuthRedirectParams): {
+  rawCallbackUrl: string
+  isInviteFlow: boolean
+} {
+  const rawCallbackUrl = redirect || callbackUrl || ''
+  return {
+    rawCallbackUrl,
+    isInviteFlow: inviteFlow === 'true' || rawCallbackUrl.startsWith('/invite/'),
+  }
+}
+
 interface AuthCrossLinkParams {
   /** Validated post-auth destination to carry over, or null to drop it. */
   callbackUrl: string | null
   isInviteFlow: boolean
+  /** Marks the visitor as new so the invite page leads with account creation. */
+  isNewUser?: boolean
 }
 
 /**
@@ -57,11 +90,12 @@ interface AuthCrossLinkParams {
  */
 export function buildAuthCrossLink(
   path: '/login' | '/signup',
-  { callbackUrl, isInviteFlow }: AuthCrossLinkParams
+  { callbackUrl, isInviteFlow, isNewUser = false }: AuthCrossLinkParams
 ): string {
   const params = new URLSearchParams()
   if (isInviteFlow) params.set('invite_flow', 'true')
   if (callbackUrl) params.set('callbackUrl', callbackUrl)
+  if (isNewUser) params.set('new', 'true')
 
   const query = params.toString()
   return query ? `${path}?${query}` : path

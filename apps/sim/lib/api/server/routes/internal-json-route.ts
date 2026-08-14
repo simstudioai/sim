@@ -7,7 +7,11 @@ import type {
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
-import { requireJsonRouteDefinition } from '@/lib/api/server/routes/definition'
+import {
+  methodMatchesContract,
+  requireJsonRouteDefinition,
+} from '@/lib/api/server/routes/definition'
+import { responseWithRequestId, withRequestId } from '@/lib/api/server/routes/request-id'
 import type {
   JsonApiRouteContract,
   JsonErrorResponseDescriptor,
@@ -49,7 +53,7 @@ export const internalSessionAuth = {
   },
 } as const
 
-export interface InternalSessionOrExecutorAuthOptions {
+interface InternalSessionOrExecutorAuthOptions {
   audience: string
   resourceScope?(
     params: Record<string, string | string[] | undefined>
@@ -116,18 +120,24 @@ export interface InternalErrorPolicy {
   unhandled?(): JsonErrorResponseDescriptor
 }
 
+/**
+ * The single internal error envelope: `{ error, requestId? }`.
+ *
+ * Routes previously chose between a bare `{ error }` and a `{ success: false,
+ * error }` variant. That split approximated pre-builder behavior, where the
+ * shape depended on which branch failed — guard clauses returned `{ error }`
+ * while a route's terminal `try/catch` returned `{ success: false, error }`.
+ * A per-route policy cannot express a per-branch rule, so the two variants
+ * disagreed on the same status across families. The bare shape wins because it
+ * is what {@link messageFromErrorBody} on the client reads and what the
+ * majority of migrated routes already emitted.
+ *
+ * `success: false` is not carried on error bodies: `requestJson` throws an
+ * `ApiClientError` for any non-2xx response, so no typed client ever observes
+ * the discriminator. `success: true` on *success* bodies is a separate
+ * contract and is unaffected.
+ */
 export const internalOrchestrationErrorPolicy: InternalErrorPolicy = {
-  project(error) {
-    const classified = asOrchestrationError(error)
-    if (!classified) return null
-    return internalErrorResponse(statusForOrchestrationError(classified.code), {
-      success: false,
-      error: classified.message,
-    })
-  },
-}
-
-export const internalPlainOrchestrationErrorPolicy: InternalErrorPolicy = {
   project(error) {
     const classified = asOrchestrationError(error)
     if (!classified) return null
@@ -231,7 +241,7 @@ type InternalJsonRouteOptions<
 } & InternalJsonPresenter<C, R>
 
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {
-  return NextResponse.json(descriptor.body, {
+  return NextResponse.json(withRequestId(descriptor.body), {
     status: descriptor.status,
     headers: descriptor.headers,
   })
@@ -272,15 +282,20 @@ export function defineInternalJsonRoute<
   R,
   P extends Principal,
 >(options: InternalJsonRouteOptions<C, O, I, R, P>): JsonNextRouteHandler {
-  const { successStatus } = requireJsonRouteDefinition(
+  const { successStatus, successStatuses } = requireJsonRouteDefinition(
     options.contract,
     options.operation,
     options.useCase.operation
   )
+  if (successStatuses.length !== 1) {
+    throw new Error(
+      `${options.contract.method} ${options.contract.path} internal JSON route requires one success status`
+    )
+  }
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
-      if (request.method !== options.contract.method) {
+      if (!methodMatchesContract(request.method, options.contract.method)) {
         throw new Error(
           `Route received ${request.method} for ${options.contract.method} contract ${options.contract.path}`
         )
@@ -292,7 +307,7 @@ export function defineInternalJsonRoute<
         principal = await options.auth.authenticate(request, rawParams)
       } catch (error) {
         if (error instanceof InternalUnauthenticatedError) {
-          return NextResponse.json({ error: error.message }, { status: 401 })
+          return createJsonErrorResponse(internalErrorResponse(401, { error: error.message }))
         }
         throw error
       }
@@ -313,7 +328,7 @@ export function defineInternalJsonRoute<
         context ?? {},
         options.parseOptions
       )
-      if (!parsed.success) return parsed.response
+      if (!parsed.success) return responseWithRequestId(parsed.response)
 
       try {
         const input = await options.mapInput(parsed.data, { principal, request })
@@ -353,13 +368,16 @@ export function defineInternalJsonRoute<
       }
     },
     {
+      clientAbortResponse: ({ requestId }) =>
+        createJsonErrorResponse(
+          internalErrorResponse(499, { error: 'Client cancelled request', requestId })
+        ),
+      typedErrorResponse: ({ error, status, requestId }) =>
+        NextResponse.json({ error: error.message, requestId }, { status }),
       unhandledErrorResponse: () =>
         createJsonErrorResponse(
           options.errorPolicy.unhandled?.() ??
-            internalErrorResponse(500, {
-              success: false,
-              error: 'Internal server error',
-            })
+            internalErrorResponse(500, { error: 'Internal server error' })
         ),
     }
   )

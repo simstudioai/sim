@@ -157,8 +157,8 @@ sim files describe <fileId>
 sim files get <fileId> [-o <path>]  # stdout by default
 sim files create --name <name> [--folder <path>] [--content <value>] [--encoding utf-8|base64]
 sim files upload <path> [--name <name>] [--folder <path>]
-sim files share <fileId> [--auth-type public|password|email|sso]
-sim files unshare <fileId>
+sim files share get <fileId>
+sim files share set <fileId> --is-active <true|false> [--auth-type public|password|email|sso]
 sim files mv --file-ids <id>… [--to <path>]
 sim files batch-delete --file-ids <id>… --yes
 sim files delete <fileId> --yes

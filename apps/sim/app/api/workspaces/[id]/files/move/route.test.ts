@@ -19,6 +19,7 @@ vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
   },
 }))
 
+import { WorkspaceFileMoveConflictError } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { POST } from '@/app/api/workspaces/[id]/files/move/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -73,6 +74,18 @@ describe('/api/workspaces/[id]/files/move', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('returns conflict when the destination already contains the file name', async () => {
+    mocks.execute.mockRejectedValueOnce(new WorkspaceFileMoveConflictError('report.csv'))
+
+    const response = await POST(request({ fileIds: ['wf_1'], targetFolderId: null }), context)
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'A file named "report.csv" already exists in the destination folder',
+    })
+    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
   })
 
   it('authenticates before parsing the selection', async () => {

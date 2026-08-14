@@ -10,7 +10,7 @@ import { wandGenerateStreamContract } from '@/lib/api/contracts'
 import { readSSEStream } from '@/lib/core/utils/sse'
 import { shouldStripCodeFences, stripCodeFences } from '@/lib/wand/strip-code-fences'
 import type { GenerationType } from '@/blocks/types'
-import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { scheduleUsageRefresh } from '@/hooks/queries/utils/invalidate-usage'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -55,11 +55,15 @@ function buildWandContextInfo({
 
       case 'json-schema':
       case 'json-object':
+      case 'json-array':
       case 'table-schema':
         try {
           const parsed = JSON.parse(currentValue)
-          const keys = Object.keys(parsed)
-          contextInfo += `\n\nJSON analysis: Valid JSON with ${keys.length} top-level keys: ${keys.join(', ')}`
+          // Reporting "top-level keys" for an array would list numeric indices,
+          // which tells the model nothing about the shape it should produce.
+          contextInfo += Array.isArray(parsed)
+            ? `\n\nJSON analysis: Valid JSON array with ${parsed.length} items`
+            : `\n\nJSON analysis: Valid JSON with ${Object.keys(parsed).length} top-level keys: ${Object.keys(parsed).join(', ')}`
         } catch {
           contextInfo += `\n\nJSON analysis: Invalid JSON - needs fixing`
         }
@@ -296,9 +300,7 @@ export function useWand({
           strippedFences: generatedContent !== accumulatedContent,
         })
 
-        setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
-        }, 1000)
+        scheduleUsageRefresh(queryClient)
       } catch (error: any) {
         if (error.name === 'AbortError') {
           logger.debug('Wand generation cancelled')

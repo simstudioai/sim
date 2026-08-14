@@ -302,31 +302,49 @@ describe('commands parsed through commander', () => {
     const [path, options] = await run(['file', 'describe', 'file_1'], {
       data: { id: 'file_1', sharing: { enabled: false } },
     })
-    expect(path).toBe('/api/v2/files/file_1')
+    expect(path).toBe('/api/v2/files/file_1/metadata')
     expect(options.query).toEqual({ workspaceId: 'ws_local' })
   })
 
-  it('exposes sharing as direct file actions', async () => {
+  it('reads and writes sharing through one upsert', async () => {
     const [sharePath, shareOptions] = await run([
       'file',
       'share',
+      'set',
       'file_1',
+      '--is-active',
+      'true',
       '--auth-type',
       'email',
       '--allowed-emails',
       'ada@example.com',
     ])
     expect(sharePath).toBe('/api/v2/files/file_1/share')
+    expect(shareOptions.method).toBe('PATCH')
     expect(shareOptions.body).toEqual({
       workspaceId: 'ws_local',
+      isActive: true,
       authType: 'email',
       allowedEmails: ['ada@example.com'],
     })
 
-    const [unsharePath, unshareOptions] = await run(['file', 'unshare', 'file_1', '--yes'])
-    expect(unsharePath).toBe('/api/v2/files/file_1/share')
-    expect(unshareOptions.method).toBe('DELETE')
-    expect(unshareOptions.query).toEqual({ workspaceId: 'ws_local' })
+    // v2 has no unshare operation; disabling is the same upsert.
+    const [offPath, offOptions] = await run([
+      'file',
+      'share',
+      'set',
+      'file_1',
+      '--is-active',
+      'false',
+    ])
+    expect(offPath).toBe('/api/v2/files/file_1/share')
+    expect(offOptions.body).toMatchObject({ isActive: false })
+
+    const [getPath, getOptions] = await run(['file', 'share', 'get', 'file_1'], {
+      data: { sharing: { enabled: false } },
+    })
+    expect(getPath).toBe('/api/v2/files/file_1/share')
+    expect(getOptions.query).toEqual({ workspaceId: 'ws_local' })
   })
 
   it('moves space-separated file ids to a folder path', async () => {

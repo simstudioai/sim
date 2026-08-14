@@ -41,7 +41,9 @@ vi.mock('@/lib/api/server', () => ({
 }))
 vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
   getClientCredentialAccountMinter: (providerId: string) =>
-    providerId === 'zoom-service-account' || providerId === 'box-service-account'
+    providerId === 'zoom-service-account' ||
+    providerId === 'box-service-account' ||
+    providerId === 'netsuite-service-account'
       ? mockClientCredentialMinter
       : undefined,
 }))
@@ -225,6 +227,38 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     expect(result.auditMetadata).toEqual({ principalKind: 'none' })
     const blob = JSON.parse(result.encryptedServiceAccountKey)
     expect(blob.metadata).toEqual({ principalKind: 'none' })
+  })
+
+  it('threads NetSuite certificate material into the minter and encrypted blob', async () => {
+    mockClientCredentialMinter.mockResolvedValue({
+      accessToken: 'minted',
+      expiresInSeconds: 3600,
+      instanceUrl: 'https://1234567.suitetalk.api.netsuite.com',
+      identity: {
+        displayName: 'Oracle NetSuite 1234567',
+        principal: { kind: 'tenant', id: '1234567' },
+        auditMetadata: { netSuiteAccountId: '1234567' },
+      },
+    })
+
+    const result = await verifyAndBuildServiceAccountSecret('netsuite-service-account', {
+      orgId: ' https://1234567.suitetalk.api.netsuite.com/ ',
+      clientId: ' client-id ',
+      certificateId: ' certificate-id ',
+      privateKey: ' -----BEGIN PRIVATE KEY-----key ',
+    })
+
+    expect(mockClientCredentialMinter).toHaveBeenCalledWith({
+      orgId: 'https://1234567.suitetalk.api.netsuite.com/',
+      clientId: 'client-id',
+      certificateId: 'certificate-id',
+      privateKey: '-----BEGIN PRIVATE KEY-----key',
+    })
+    expect(JSON.parse(result.encryptedServiceAccountKey)).toMatchObject({
+      providerId: 'netsuite-service-account',
+      certificateId: 'certificate-id',
+      privateKey: '-----BEGIN PRIVATE KEY-----key',
+    })
   })
 
   it('throws when client-credential required fields are missing, without minting', async () => {

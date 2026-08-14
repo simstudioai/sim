@@ -4,6 +4,7 @@ import {
   v2ListTableRowsContract,
   v2UpdateRowsByFilterContract,
 } from '@/lib/api/contracts/v2/tables'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2TableRowsErrorPolicy } from '@/lib/table/api/row-route-policies'
 import { tableOperations } from '@/lib/table/application/operations'
@@ -14,11 +15,23 @@ import {
   updateTableRows,
 } from '@/lib/table/application/rows'
 import { namedRowMapper } from '@/lib/table/cell-format'
-import { decodeCursor, encodeCursor } from '@/app/api/v2/lib/response'
+import { encodeScopedCursor, readScopedCursor } from '@/app/api/v2/lib/response'
 import { toApiRow } from '@/app/api/v2/tables/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+/**
+ * The sequence a row cursor names a position in: this list, on THIS table.
+ *
+ * The row codec binds a token to the sort and predicate it was minted under but
+ * carries no table identity, so an unfiltered token from one table decoded
+ * cleanly against another and answered 200 with that other table's rows. The
+ * table id lives in the path, so the route is the only place that knows it.
+ */
+function tableRowCursorScope(tableId: string): string {
+  return cursorScopeKey(cursorRoute(v2ListTableRowsContract, { tableId }))
+}
 
 export const GET = defineV2JsonRoute({
   contract: v2ListTableRowsContract,
@@ -30,14 +43,16 @@ export const GET = defineV2JsonRoute({
     tableId: params.tableId,
     assertedWorkspaceId: query.workspaceId,
     limit: query.limit,
-    offset: query.cursor ? (decodeCursor<{ offset: number }>(query.cursor)?.offset ?? 0) : 0,
+    cursor: readScopedCursor(query.cursor, tableRowCursorScope(params.tableId)),
   }),
   useCase: listTableRows,
-  present: ({ table, rows, nextOffset }) => {
+  present: ({ table, rows, nextCursor }, { params }) => {
     const toNamedRow = namedRowMapper(table.schema.columns)
     return {
       data: rows.map((row) => toApiRow(row, toNamedRow)),
-      nextCursor: nextOffset === null ? null : encodeCursor({ offset: nextOffset }),
+      nextCursor: nextCursor
+        ? encodeScopedCursor(tableRowCursorScope(params.tableId), nextCursor)
+        : null,
     }
   },
 })
@@ -55,18 +70,22 @@ export const POST = defineV2JsonRoute({
           tableId: params.tableId,
           assertedWorkspaceId: body.workspaceId,
           rows: body.rows,
+          strictWrite: true,
         }
       : {
           kind: 'single' as const,
           tableId: params.tableId,
           assertedWorkspaceId: body.workspaceId,
           data: body.data,
+          afterRowId: body.afterRowId,
+          beforeRowId: body.beforeRowId,
+          strictWrite: true,
         },
   useCase: createTableRows,
   present: (result) => {
     const toNamedRow = namedRowMapper(result.table.schema.columns)
     return result.kind === 'single'
-      ? { data: { row: toApiRow(result.row, toNamedRow) } }
+      ? { data: toApiRow(result.row, toNamedRow) }
       : {
           data: {
             rows: result.rows.map((row) => toApiRow(row, toNamedRow)),
@@ -76,7 +95,7 @@ export const POST = defineV2JsonRoute({
   },
 })
 
-export const PUT = defineV2JsonRoute({
+export const PATCH = defineV2JsonRoute({
   contract: v2UpdateRowsByFilterContract,
   operation: tableOperations.updateRows,
   auth: v2ApiKeyAuth,
@@ -88,6 +107,7 @@ export const PUT = defineV2JsonRoute({
     filter: body.filter,
     data: body.data,
     limit: body.limit,
+    strictWrite: true,
   }),
   useCase: updateTableRows,
   present: ({ affectedCount, affectedRowIds }) => ({

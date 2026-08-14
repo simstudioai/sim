@@ -41,6 +41,28 @@ afterAll(resetEnvironmentUtilsMock)
 
 vi.mock('@/lib/oauth', () => ({
   getAllOAuthServices: getAllOAuthServicesMock,
+  // Real implementation: folds only an alternate authorization server's id onto
+  // its service, never a family-wide service-account id.
+  canonicalizeServiceProviderId: (
+    credentialProviderId: string,
+    service?: { providerId: string; additionalProviderIds?: readonly string[] }
+  ) =>
+    service?.additionalProviderIds?.includes(credentialProviderId)
+      ? service.providerId
+      : credentialProviderId,
+  // Real implementation: the tool resolves a credential's provider id to its
+  // service through this, including alternate authorization servers.
+  credentialProviderMatchesService: (
+    credentialProviderId: string,
+    service: {
+      providerId: string
+      serviceAccountProviderId?: string
+      additionalProviderIds?: readonly string[]
+    }
+  ) =>
+    service.providerId === credentialProviderId ||
+    service.serviceAccountProviderId === credentialProviderId ||
+    (service.additionalProviderIds?.includes(credentialProviderId) ?? false),
 }))
 
 vi.mock('@/lib/integrations/availability.server', () => ({
@@ -249,6 +271,98 @@ describe('getCredentialsServerTool', () => {
         (service: { providerId: string }) => service.providerId
       )
     ).not.toContain('claude-platform')
+  })
+
+  it('does not list a service as not-connected when only an alternate provider is connected', async () => {
+    // A credential stored under an alternate authorization server
+    // (`salesforce-sandbox`) still connects the canonical service. Recording the
+    // raw id would list Salesforce as connected AND not connected at once.
+    getAllOAuthServicesMock.mockReturnValue([
+      {
+        serviceId: 'salesforce',
+        providerId: 'salesforce',
+        additionalProviderIds: ['salesforce-sandbox'],
+        serviceAccountProviderId: 'salesforce-service-account',
+        name: 'Salesforce',
+        description: 'Salesforce CRM',
+        baseProvider: 'salesforce',
+        authType: 'oauth',
+      },
+    ])
+    // beforeEach already queued the default Google row; replace the queue so
+    // the sandbox account is the only credential this case sees.
+    resetDbChainMock()
+    wireDb(
+      [
+        {
+          id: 'acct-sf-sandbox',
+          providerId: 'salesforce-sandbox',
+          accountId: 'sf-1',
+          idToken: null,
+          updatedAt: new Date('2026-04-17T02:26:05.546Z'),
+        },
+      ],
+      [{ email: 'brent@cellular.so' }]
+    )
+
+    const result = await getCredentialsServerTool.execute({}, { userId: 'user-1' })
+
+    expect(
+      result.oauth.connected.credentials.map((c: { provider: string }) => c.provider)
+    ).toContain('salesforce-sandbox')
+    expect(
+      result.oauth.notConnected.services.map(
+        (service: { providerId: string }) => service.providerId
+      )
+    ).not.toContain('salesforce')
+  })
+
+  it('does not drop a sibling service when a family-wide service account is connected', async () => {
+    // One `google-service-account` credential matches EVERY Google service via
+    // `serviceAccountProviderId`. Folding it onto the first match would remove
+    // exactly one arbitrary product from not-connected and leave the rest.
+    getAllOAuthServicesMock.mockReturnValue([
+      {
+        serviceId: 'gmail',
+        providerId: 'google-email',
+        serviceAccountProviderId: 'google-service-account',
+        name: 'Gmail',
+        description: 'Gmail',
+        baseProvider: 'google',
+        authType: 'oauth',
+      },
+      {
+        serviceId: 'google-drive',
+        providerId: 'google-drive',
+        serviceAccountProviderId: 'google-service-account',
+        name: 'Google Drive',
+        description: 'Drive',
+        baseProvider: 'google',
+        authType: 'oauth',
+      },
+    ])
+    resetDbChainMock()
+    wireDb([], [{ email: 'brent@cellular.so' }])
+    getAccessibleOAuthCredentialsMock.mockResolvedValue([
+      {
+        id: 'google-sa-1',
+        providerId: 'google-service-account',
+        type: 'service_account',
+        displayName: 'Google SA',
+        updatedAt: new Date('2026-04-17T02:26:05.546Z'),
+      },
+    ])
+
+    const result = await getCredentialsServerTool.execute(
+      {},
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    // Either both stay listed or neither does — never one arbitrary sibling.
+    const notConnected = result.oauth.notConnected.services.map(
+      (service: { providerId: string }) => service.providerId
+    )
+    expect(notConnected).toEqual(expect.arrayContaining(['google-email', 'google-drive']))
   })
 
   it('hides shared service-account credentials disallowed for the viewer', async () => {

@@ -75,7 +75,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 // The macOS desktop shell overlays native traffic lights on the
                 // workspace. Mark it before first paint so the sidebar reserves
                 // its inset title-bar lane without a post-hydration layout shift.
-                var collapsedSidebarWidth = 51;
+                var collapsedSidebarWidth = 48;
                 try {
                   if (window.simDesktop && /Mac/i.test(navigator.userAgent)) {
                     document.documentElement.setAttribute('data-sim-desktop-title-bar', 'inset');
@@ -258,7 +258,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           </>
         )}
 
-        {isHosted ? <PublicEnvScript /> : <RuntimePublicEnvScript />}
+        {isHosted ? <PublicEnvScript /> : <RuntimePublicEnvScript disableNextScript />}
       </head>
       <body className={`${season.variable} font-season`} suppressHydrationWarning>
         {/* Google Tag Manager (noscript) — hosted only */}

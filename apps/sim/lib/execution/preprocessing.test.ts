@@ -34,6 +34,8 @@ vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
     readonly code = 'SERVICE_OVERLOADED'
     readonly statusCode = 503
     readonly retryable = true
+    /** Mirrors ADMISSION_ERROR_DESCRIPTOR.RESERVATION_INFRASTRUCTURE. */
+    readonly retryAfterSeconds = 5
   },
 }))
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
@@ -671,6 +673,8 @@ describe('preprocessExecution billing attribution', () => {
       statusCode: 429,
       code: ADMISSION_ERROR_CODE.RESERVATION_CONCURRENCY,
       retryable: true,
+      /** A retryable denial must carry the descriptor's declared wait to the transport. */
+      retryAfterMs: 5000,
       message: 'Too many concurrent executions',
     },
     {
@@ -678,6 +682,8 @@ describe('preprocessExecution billing attribution', () => {
       statusCode: 402,
       code: ADMISSION_ERROR_CODE.RESERVATION_PAYER_HEADROOM,
       retryable: false,
+      /** Waiting does not fix a billing limit, so no retry pacing is offered. */
+      retryAfterMs: undefined,
       message: 'billing account has no guaranteed base-charge headroom',
     },
     {
@@ -685,11 +691,12 @@ describe('preprocessExecution billing attribution', () => {
       statusCode: 402,
       code: ADMISSION_ERROR_CODE.RESERVATION_MEMBER_HEADROOM,
       retryable: false,
+      retryAfterMs: undefined,
       message: 'organization member usage limit has no guaranteed base-charge headroom',
     },
   ])(
     'maps $reason to stable admission metadata while retaining local wording',
-    async ({ reason, statusCode, code, retryable, message }) => {
+    async ({ reason, statusCode, code, retryable, retryAfterMs, message }) => {
       mockCheckAttributedUsageLimits.mockResolvedValueOnce({
         isExceeded: false,
         payerUsage: { currentUsage: 1, limit: 10 },
@@ -717,6 +724,7 @@ describe('preprocessExecution billing attribution', () => {
       })
       if (result.success) throw new Error('Expected preprocessing to reject the reservation')
       expect(result.error.message).toContain(message)
+      expect(result.error.retryAfterMs).toBe(retryAfterMs)
     }
   )
 
@@ -734,6 +742,7 @@ describe('preprocessExecution billing attribution', () => {
       error: {
         statusCode: 503,
         retryable: true,
+        retryAfterMs: 5000,
         code: ADMISSION_ERROR_CODE.RESERVATION_INFRASTRUCTURE,
         cause: { code: 'SERVICE_OVERLOADED' },
       },

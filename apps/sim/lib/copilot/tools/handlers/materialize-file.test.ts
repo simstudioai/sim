@@ -155,6 +155,9 @@ const STORAGE_CONTEXT = {
   customStorageLimitGB: null,
 }
 
+const POSTGRES_INT4_MAX = 2_147_483_647
+const OVERSIZED_BYTES = 3 * 1024 * 1024 * 1024
+
 const mothershipRow = {
   id: 'file-1',
   key: 'mothership/file-1',
@@ -336,6 +339,58 @@ describe('executeMaterializeFile - save storage transition', () => {
     expect(mockMaybeNotifyStorageLimitForBillingContext).toHaveBeenCalledWith(
       STORAGE_CONTEXT,
       1_250
+    )
+  })
+
+  it('writes an int4-representable legacy size and the exact byte count above the int4 ceiling', async () => {
+    // A row above the int4 ceiling must not be written raw to `size`: Postgres
+    // raises 22003 and the save becomes unrecoverable.
+    mockHeadObject.mockResolvedValue({ size: OVERSIZED_BYTES, contentType: 'text/plain' })
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['report.txt'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    const [updateSet] = dbChainMockFns.set.mock.calls.at(-1) as [Record<string, unknown>]
+    expect(updateSet.size).toBe(POSTGRES_INT4_MAX)
+    expect(updateSet.sizeBytes).toBe(OVERSIZED_BYTES)
+    expect(mockCheckStorageQuotaForBillingContext).toHaveBeenCalledWith(
+      STORAGE_CONTEXT,
+      OVERSIZED_BYTES
+    )
+    expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      STORAGE_CONTEXT,
+      OVERSIZED_BYTES
+    )
+  })
+
+  it('falls back to the exact stored byte count, not the clamped legacy size', async () => {
+    // Without cloud storage a missing object does not short-circuit, so the row is
+    // the only size source — and its `size` is already clamped.
+    mockHeadObject.mockResolvedValue(null)
+    mockHasCloudStorage.mockReturnValue(false)
+    mockFindUpload.mockResolvedValue({
+      ...mothershipRow,
+      size: POSTGRES_INT4_MAX,
+      sizeBytes: OVERSIZED_BYTES,
+    })
+
+    const result = await executeMaterializeFile(
+      { fileNames: ['report.txt'], operation: 'save' },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    const [updateSet] = dbChainMockFns.set.mock.calls.at(-1) as [Record<string, unknown>]
+    expect(updateSet.sizeBytes).toBe(OVERSIZED_BYTES)
+    expect(updateSet.size).toBe(POSTGRES_INT4_MAX)
+    expect(mockIncrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      STORAGE_CONTEXT,
+      OVERSIZED_BYTES
     )
   })
 

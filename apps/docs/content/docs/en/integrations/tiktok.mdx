@@ -18,7 +18,7 @@ Integrate TikTok into your workflow. Get user profile information including foll
 
 ## Actions
 
-### `tiktok_get_user`
+### TikTok Get User
 
 Get the authenticated TikTok user profile information including display name, avatar, bio, follower count, and video statistics.
 
@@ -45,7 +45,7 @@ Get the authenticated TikTok user profile information including display name, av
 | `videoCount` | number | Total number of public videos |
 | `avatarFile` | file | Downloadable copy of the profile avatar image \(largest available variant\), stored as a workflow file so it can be chained into file-consuming blocks \(e.g. attached to an email\). |
 
-### `tiktok_list_videos`
+### TikTok List Videos
 
 Get a list of the authenticated user's TikTok videos with cover images, titles, and metadata. Supports pagination.
 
@@ -79,7 +79,7 @@ Get a list of the authenticated user's TikTok videos with cover images, titles, 
 | `cursor` | number | Cursor for fetching the next page of results |
 | `hasMore` | boolean | Whether there are more videos to fetch |
 
-### `tiktok_query_videos`
+### TikTok Query Videos
 
 Query specific TikTok videos by their IDs to get fresh metadata including cover images, embed links, and video details.
 
@@ -110,7 +110,7 @@ Query specific TikTok videos by their IDs to get fresh metadata including cover 
 |   ↳ `commentCount` | number | Number of comments |
 |   ↳ `shareCount` | number | Number of shares |
 
-### `tiktok_upload_video_draft`
+### TikTok Upload Video Draft
 
 Send an uploaded video to the authenticated user's TikTok inbox for manual editing and posting. The user must open TikTok and tap the inbox notification to complete the post. Rate limit: 6 requests per minute per user.
 
@@ -126,7 +126,7 @@ Send an uploaded video to the authenticated user's TikTok inbox for manual editi
 | --------- | ---- | ----------- |
 | `publishId` | string | Unique identifier for tracking the draft status. Use this with the Get Post Status tool to check when the user has completed posting from their inbox. |
 
-### `tiktok_get_post_status`
+### TikTok Get Post Status
 
 Check the status of a video draft upload. Use the publishId returned from Upload Video Draft to track progress.
 
@@ -185,6 +185,17 @@ Trigger when a draft notification is delivered to the creator inbox
 | --------- | ---- | -------- | ----------- |
 | `triggerCredentials` | string | Yes | TikTok Account |
 
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `publishId` | string | Content Posting API publish_id |
+| `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
+
 
 ---
 
@@ -197,6 +208,18 @@ Trigger when a post is no longer publicly viewable on TikTok
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `triggerCredentials` | string | Yes | TikTok Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `publishId` | string | Content Posting API publish_id |
+| `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
+| `postId` | string | TikTok post_id when the post is publicly available |
 
 
 ---
@@ -211,6 +234,18 @@ Trigger when a published post becomes publicly viewable on TikTok
 | --------- | ---- | -------- | ----------- |
 | `triggerCredentials` | string | Yes | TikTok Account |
 
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `publishId` | string | Content Posting API publish_id |
+| `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
+| `postId` | string | TikTok post_id when the post is publicly available |
+
 
 ---
 
@@ -224,6 +259,17 @@ Trigger when a TikTok Content Posting publish completes
 | --------- | ---- | -------- | ----------- |
 | `triggerCredentials` | string | Yes | TikTok Account |
 
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `publishId` | string | Content Posting API publish_id |
+| `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
+
 
 ---
 
@@ -236,4 +282,16 @@ Trigger when a TikTok Content Posting publish fails
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `triggerCredentials` | string | Yes | TikTok Account |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | TikTok webhook event name |
+| `createTime` | number | UTC epoch seconds when the event occurred |
+| `userOpenId` | string | TikTok user open_id for the connected account |
+| `clientKey` | string | TikTok app client_key that received the event |
+| `publishId` | string | Content Posting API publish_id |
+| `publishType` | string | Publish type \(e.g. DIRECT_POST, INBOX_SHARE\) |
+| `failReason` | string | Failure reason enum from TikTok when publishing fails |
 

@@ -7,6 +7,7 @@ import {
 } from '@/lib/execution/durable-secret-provenance'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
+import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import {
   type ActiveKnowledgeDocumentContext,
   resolveActiveKnowledgeChunkContext,
@@ -38,7 +39,7 @@ interface KnowledgeChunkInput extends KnowledgeDocumentChunkInput {
 
 interface ResolveChunkProvenanceInput {
   userId: string
-  workspaceId: string
+  workspaceId?: string
 }
 
 export interface ListKnowledgeChunksInput extends KnowledgeDocumentChunkInput, ChunkFilters {}
@@ -62,10 +63,7 @@ export interface BulkKnowledgeChunksInput extends KnowledgeDocumentChunkInput {
 
 function requireChunkReadable(context: ActiveKnowledgeDocumentContext): void {
   if (context.document.processingStatus !== 'completed') {
-    throw new OrchestrationError(
-      'validation',
-      `Document is not ready for access (status: ${context.document.processingStatus})`
-    )
+    throw new KnowledgeDocumentNotReadyError(context.document.processingStatus)
   }
 }
 
@@ -149,7 +147,7 @@ export const createKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
     const registry = provenance
       ? await createDurableSecretProvenanceRegistry(provenance, {
           userId,
-          workspaceId: context.workspaceId,
+          ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
         })
       : undefined
     const chunk = await runWithKnowledgeModelInputProvenance(registry, () =>
@@ -209,7 +207,7 @@ export const updateKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
     const registry = provenance
       ? await createDurableSecretProvenanceRegistry(provenance, {
           userId,
-          workspaceId: context.workspaceId,
+          ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
         })
       : undefined
     const chunk = await runWithKnowledgeModelInputProvenance(registry, () =>

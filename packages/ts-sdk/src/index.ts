@@ -17,12 +17,16 @@ export interface LargeValueRef {
 
 export interface WorkflowExecutionResult {
   success: boolean
+  executionId?: string
   output?: any
   error?: string
   logs?: any[]
   metadata?: {
     duration?: number
+    executionId?: string
     runId?: string
+    startTime?: string
+    endTime?: string
     [key: string]: any
   }
   traceSpans?: any[]
@@ -346,6 +350,8 @@ export class SimStudioClient {
           status?: 'completed' | 'failed' | 'paused' | 'cancelled'
           output?: unknown
           error?: WorkflowExecutionError | null
+          startedAt?: string
+          endedAt?: string
           durationMs?: number
         }
       }
@@ -366,13 +372,24 @@ export class SimStudioClient {
         }
       }
 
+      if (result.data.status === 'failed') {
+        throw new SimStudioError(
+          result.data.error?.message || 'Workflow execution failed',
+          result.data.error?.code || 'EXECUTION_FAILED'
+        )
+      }
+
       return {
-        success: result.data.status !== 'failed',
+        success: result.data.status === 'completed' || result.data.status === 'paused',
+        executionId: result.data.runId,
         output: result.data.output,
         error: result.data.error?.message,
         metadata: {
           duration: result.data.durationMs,
+          executionId: result.data.runId,
           runId: result.data.runId,
+          startTime: result.data.startedAt,
+          endTime: result.data.endedAt,
         },
         totalDuration: result.data.durationMs,
       }

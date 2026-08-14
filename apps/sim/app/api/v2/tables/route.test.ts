@@ -2,35 +2,42 @@
  * @vitest-environment node
  */
 
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(),
-  preauthRate: vi.fn(),
-  operationRate: vi.fn(),
-  gate: vi.fn(),
   list: vi.fn(),
   create: vi.fn(),
+  getUserEmailsByIds: vi.fn(),
+  getMaxRowsPerTable: vi.fn(),
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-}))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 vi.mock('@/lib/table/application/tables', () => ({
   listTablesUseCase: { operation: { id: 'tables.list' }, execute: mocks.list },
   createTableUseCase: { operation: { id: 'tables.create' }, execute: mocks.create },
 }))
+vi.mock('@/lib/users/queries', () => ({
+  getUserEmailsByIds: mocks.getUserEmailsByIds,
+  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
+}))
+vi.mock('@/lib/table/billing', () => ({
+  getMaxRowsPerTable: mocks.getMaxRowsPerTable,
+}))
 
+import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { GET, POST } from '@/app/api/v2/tables/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -42,20 +49,14 @@ const principal = {
 const auth = {
   principal,
   rolloutUserId: 'owner-1',
-  rateLimitSubjectIds: [`workspace:${WORKSPACE_ID}`],
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`],
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
-}
-const rate = {
-  allowed: true,
-  remaining: 99,
-  resetAt: new Date('2026-01-01T01:00:00.000Z'),
-  retryAfterMs: 0,
 }
 const table = {
   id: 'table-1',
   workspaceId: WORKSPACE_ID,
-  userId: 'owner-1',
+  createdBy: 'owner-1',
   name: 'Contacts',
   description: null,
   schema: {
@@ -80,10 +81,12 @@ const table = {
 describe('/api/v2/tables', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(auth)
-    mocks.preauthRate.mockResolvedValue(rate)
-    mocks.operationRate.mockResolvedValue(rate)
-    mocks.gate.mockResolvedValue(null)
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+    mocks.getUserEmailsByIds.mockResolvedValue(new Map([['owner-1', 'owner@example.com']]))
+    mocks.getMaxRowsPerTable.mockResolvedValue(5000)
     mocks.list.mockResolvedValue({
       tables: [{ table, folderPath: '/' }],
       nextKeys: undefined,
@@ -91,6 +94,72 @@ describe('/api/v2/tables', () => {
       sortOrder: 'asc',
     })
     mocks.create.mockResolvedValue({ table, folderPath: '/' })
+  })
+
+  /**
+   * The cursor a page mints is bound to the filters that produced it, so
+   * resuming it under a different `search` or `folderPath` is a 400 rather than
+   * a page silently sequenced against rows the new filter excludes. Pins the
+   * binding end-to-end — both the mint in `present` and the read in `mapInput` —
+   * because the contract-level sweep only checks a hand-maintained map of param
+   * names and stays green when a route drops the stamp entirely.
+   */
+  it('refuses a cursor minted under a different filter', async () => {
+    mocks.list.mockResolvedValue({
+      tables: [{ table, folderPath: '/' }],
+      nextKeys: ['Contacts', 'table-1'],
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+
+    const minted = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25&search=alpha`
+      )
+    )
+    const { nextCursor } = await minted.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    mocks.list.mockClear()
+    const replayed = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25&search=beta&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(replayed.status).toBe(400)
+    expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  it('resumes a cursor replayed under the filters it was minted with', async () => {
+    mocks.list.mockResolvedValue({
+      tables: [{ table, folderPath: '/' }],
+      nextKeys: ['Contacts', 'table-1'],
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+
+    const minted = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25&search=alpha`
+      )
+    )
+    const { nextCursor } = await minted.json()
+
+    mocks.list.mockClear()
+    const resumed = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25&search=alpha&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(resumed.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal,
+      input: expect.objectContaining({ after: ['Contacts', 'table-1'] }),
+      request: expect.anything(),
+    })
   })
 
   it('lists through the semantic use case and preserves the cursor envelope', async () => {
@@ -101,7 +170,15 @@ describe('/api/v2/tables', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({
-      data: [{ id: 'table-1', folderPath: '/', description: null }],
+      data: [
+        {
+          id: 'table-1',
+          folderPath: '/',
+          description: null,
+          ownerEmail: 'owner@example.com',
+          maxRows: 5000,
+        },
+      ],
       nextCursor: null,
     })
     expect(mocks.list).toHaveBeenCalledWith({
@@ -115,13 +192,24 @@ describe('/api/v2/tables', () => {
     const response = await GET(new NextRequest('http://localhost:3000/api/v2/tables'))
 
     expect(response.status).toBe(400)
-    expect(mocks.authenticate).toHaveBeenCalled()
-    expect(mocks.operationRate).toHaveBeenCalled()
+    expect(v2RouteMocks.authenticate).toHaveBeenCalled()
+    expect(v2RouteMocks.operationRate).toHaveBeenCalled()
     expect(mocks.list).not.toHaveBeenCalled()
   })
 
+  it('rejects an unauthenticated request', async () => {
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25`)
+    )
+
+    expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
+  })
+
   it('maps operation rate-limit infrastructure failures to service unavailable', async () => {
-    mocks.operationRate.mockRejectedValueOnce(new Error('rate store unavailable'))
+    v2RouteMocks.operationRate.mockRejectedValueOnce(new Error('rate store unavailable'))
 
     const response = await GET(
       new NextRequest(`http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25`)
@@ -150,11 +238,84 @@ describe('/api/v2/tables', () => {
     const response = await POST(request)
 
     expect(response.status).toBe(201)
-    expect((await response.json()).data.table.id).toBe('table-1')
+    expect((await response.json()).data).toMatchObject({
+      id: 'table-1',
+      ownerEmail: 'owner@example.com',
+      maxRows: 5000,
+    })
     expect(mocks.create).toHaveBeenCalledWith({
       principal,
       input: expect.objectContaining({ workspaceId: WORKSPACE_ID, name: 'Contacts' }),
       request,
     })
+  })
+
+  it('forwards required on a table column to the use case', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/tables', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+      body: JSON.stringify({
+        workspaceId: WORKSPACE_ID,
+        name: 'Contacts',
+        schema: { columns: [{ name: 'Name', type: 'string', required: true }] },
+      }),
+    })
+    const response = await POST(request)
+
+    expect(response.status).toBe(201)
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          schema: { columns: [{ name: 'Name', type: 'string', required: true }] },
+        }),
+      })
+    )
+  })
+
+  /**
+   * A quota ceiling and a permission refusal share the `403` status but demand
+   * opposite caller behaviour — delete something and retry, versus stop and
+   * escalate — so the ceiling names itself rather than leaving a client to
+   * string-match the message.
+   */
+  it('names a workspace table-quota refusal in error.details.code', async () => {
+    mocks.create.mockRejectedValueOnce(
+      new ForbiddenOperationError(
+        'WORKSPACE_RESOURCE_LIMIT_REACHED',
+        'Workspace has reached maximum table limit (100)'
+      )
+    )
+
+    const request = new NextRequest('http://localhost:3000/api/v2/tables', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+      body: JSON.stringify({
+        workspaceId: WORKSPACE_ID,
+        name: 'Contacts',
+        schema: { columns: [{ name: 'Name', type: 'string', required: true }] },
+      }),
+    })
+    const response = await POST(request)
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'FORBIDDEN', details: { code: 'WORKSPACE_RESOURCE_LIMIT_REACHED' } },
+    })
+  })
+
+  it('rejects an unrecognized key in a table column before calling the use case', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/tables', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+      body: JSON.stringify({
+        workspaceId: WORKSPACE_ID,
+        name: 'Contacts',
+        schema: { columns: [{ name: 'Name', type: 'string', requried: true }] },
+      }),
+    })
+    const response = await POST(request)
+
+    expect(response.status).toBe(400)
+    expect(mocks.create).not.toHaveBeenCalled()
   })
 })

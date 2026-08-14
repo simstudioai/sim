@@ -36,7 +36,7 @@ Integrate Google Calendar into the workflow. Can create, read, update, and list 
 
 ## Actions
 
-### `google_calendar_create`
+### Google Calendar Create Event
 
 Create a new event in Google Calendar. Returns API-aligned fields only.
 
@@ -74,7 +74,7 @@ Create a new event in Google Calendar. Returns API-aligned fields only.
 | `creator` | json | Event creator |
 | `organizer` | json | Event organizer |
 
-### `google_calendar_list`
+### Google Calendar List Events
 
 List events from Google Calendar. Returns API-aligned fields only.
 
@@ -99,7 +99,7 @@ List events from Google Calendar. Returns API-aligned fields only.
 | `timeZone` | string | Calendar time zone |
 | `events` | json | List of events |
 
-### `google_calendar_get`
+### Google Calendar Get Event
 
 Get a specific event from Google Calendar. Returns API-aligned fields only.
 
@@ -126,7 +126,7 @@ Get a specific event from Google Calendar. Returns API-aligned fields only.
 | `creator` | json | Event creator |
 | `organizer` | json | Event organizer |
 
-### `google_calendar_update`
+### Google Calendar Update Event
 
 Update an existing event in Google Calendar. Returns API-aligned fields only.
 
@@ -165,7 +165,7 @@ Update an existing event in Google Calendar. Returns API-aligned fields only.
 | `creator` | json | Event creator |
 | `organizer` | json | Event organizer |
 
-### `google_calendar_delete`
+### Google Calendar Delete Event
 
 Delete an event from Google Calendar. Returns API-aligned fields only.
 
@@ -184,7 +184,7 @@ Delete an event from Google Calendar. Returns API-aligned fields only.
 | `eventId` | string | Deleted event ID |
 | `deleted` | boolean | Whether deletion was successful |
 
-### `google_calendar_move`
+### Google Calendar Move Event
 
 Move an event to a different calendar. Returns API-aligned fields only.
 
@@ -213,7 +213,7 @@ Move an event to a different calendar. Returns API-aligned fields only.
 | `creator` | json | Event creator |
 | `organizer` | json | Event organizer |
 
-### `google_calendar_instances`
+### Google Calendar Get Instances
 
 Get instances of a recurring event from Google Calendar. Returns API-aligned fields only.
 
@@ -237,7 +237,7 @@ Get instances of a recurring event from Google Calendar. Returns API-aligned fie
 | `timeZone` | string | Calendar time zone |
 | `instances` | json | List of recurring event instances |
 
-### `google_calendar_list_calendars`
+### Google Calendar List Calendars
 
 List all calendars in the user's calendar list. Returns API-aligned fields only.
 
@@ -269,7 +269,7 @@ List all calendars in the user's calendar list. Returns API-aligned fields only.
 |   ↳ `hidden` | boolean | Whether the calendar is hidden |
 |   ↳ `selected` | boolean | Whether the calendar is selected |
 
-### `google_calendar_quick_add`
+### Google Calendar Quick Add
 
 Create events from natural language text. Returns API-aligned fields only.
 
@@ -298,7 +298,7 @@ Create events from natural language text. Returns API-aligned fields only.
 | `creator` | json | Event creator |
 | `organizer` | json | Event organizer |
 
-### `google_calendar_invite`
+### Google Calendar Invite Attendees
 
 Invite attendees to an existing Google Calendar event. Returns API-aligned fields only.
 
@@ -328,7 +328,7 @@ Invite attendees to an existing Google Calendar event. Returns API-aligned field
 | `creator` | json | Event creator |
 | `organizer` | json | Event organizer |
 
-### `google_calendar_freebusy`
+### Google Calendar Free/Busy
 
 Query free/busy information for one or more Google Calendars. Returns API-aligned fields only.
 
@@ -349,7 +349,7 @@ Query free/busy information for one or more Google Calendars. Returns API-aligne
 | `timeMax` | string | End of the queried time range |
 | `calendars` | json | Per-calendar free/busy data with busy periods and any errors |
 
-### `google_calendar_create_calendar`
+### Google Calendar Create Calendar
 
 Create a new secondary calendar. Returns API-aligned fields only.
 
@@ -372,7 +372,7 @@ Create a new secondary calendar. Returns API-aligned fields only.
 | `location` | string | Calendar location |
 | `timeZone` | string | Calendar time zone |
 
-### `google_calendar_update_calendar`
+### Google Calendar Update Calendar
 
 Update a secondary calendar's metadata. Returns API-aligned fields only.
 
@@ -396,7 +396,7 @@ Update a secondary calendar's metadata. Returns API-aligned fields only.
 | `location` | string | Calendar location |
 | `timeZone` | string | Calendar time zone |
 
-### `google_calendar_delete_calendar`
+### Google Calendar Delete Calendar
 
 Permanently delete a secondary calendar. Returns API-aligned fields only.
 
@@ -413,7 +413,7 @@ Permanently delete a secondary calendar. Returns API-aligned fields only.
 | `calendarId` | string | Deleted calendar ID |
 | `deleted` | boolean | Whether deletion was successful |
 
-### `google_calendar_share_calendar`
+### Google Calendar Share Calendar
 
 Grant a user, group, or domain access to a calendar. Returns API-aligned fields only.
 
@@ -435,7 +435,7 @@ Grant a user, group, or domain access to a calendar. Returns API-aligned fields 
 | `role` | string | Granted access role |
 | `scope` | json | Grantee scope \(type and value\) |
 
-### `google_calendar_update_acl`
+### Google Calendar Update Sharing
 
 Change the access role granted by an existing calendar sharing (ACL) rule. Returns API-aligned fields only.
 
@@ -456,7 +456,7 @@ Change the access role granted by an existing calendar sharing (ACL) rule. Retur
 | `role` | string | Granted access role |
 | `scope` | json | Grantee scope \(type and value\) |
 
-### `google_calendar_list_acl`
+### Google Calendar List Sharing
 
 List the access control rules (sharing) for a calendar. Returns API-aligned fields only.
 
@@ -479,7 +479,7 @@ List the access control rules (sharing) for a calendar. Returns API-aligned fiel
 |   ↳ `role` | string | Access role |
 |   ↳ `scope` | json | Grantee scope \(type and value\) |
 
-### `google_calendar_unshare_calendar`
+### Google Calendar Remove Sharing
 
 Revoke an access control rule (sharing) from a calendar. Returns API-aligned fields only.
 

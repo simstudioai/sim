@@ -200,6 +200,49 @@ describe('FunctionBlockHandler', () => {
     }
   })
 
+  it('forwards an explicit selected secret scope without changing legacy unset blocks', async () => {
+    await handler.execute(mockContext, mockBlock, {
+      code: 'return {{API_KEY}}',
+      secretScope: 'selected',
+      mountedSecrets: [' API_KEY ', 42, 'SECOND_KEY', '', 'API_KEY'],
+    })
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({
+        secretScope: 'selected',
+        mountedSecrets: ['API_KEY', 'SECOND_KEY'],
+      }),
+      { executionContext: mockContext }
+    )
+
+    vi.clearAllMocks()
+    mockExecuteTool.mockResolvedValue({ success: true, output: { result: 'Success' } })
+
+    await handler.execute(mockContext, mockBlock, { code: 'return {{API_KEY}}' })
+
+    const legacyParams = mockExecuteTool.mock.calls[0][1]
+    expect(legacyParams).not.toHaveProperty('secretScope')
+    expect(legacyParams).not.toHaveProperty('mountedSecrets')
+  })
+
+  it('fails closed for an invalid explicit secret scope', async () => {
+    await handler.execute(mockContext, mockBlock, {
+      code: 'return {{API_KEY}}',
+      secretScope: 'invalid',
+      mountedSecrets: ['API_KEY'],
+    })
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.objectContaining({
+        secretScope: 'selected',
+        mountedSecrets: [],
+      }),
+      { executionContext: mockContext }
+    )
+  })
+
   it('should handle execution errors from the tool', async () => {
     const inputs = { code: 'throw new Error("Code failed");' }
     const errorResult = { success: false, error: 'Function execution failed: Code failed' }

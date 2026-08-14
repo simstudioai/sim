@@ -1,4 +1,3 @@
-import type { Principal } from '@sim/auth/principal'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -14,19 +13,12 @@ export interface CancelWorkflowRunInput {
   runId: string
 }
 
-function assertedWorkspaceId(principal: Principal): string | undefined {
-  return principal.kind === 'workspace_api_key' || principal.kind === 'delegated'
-    ? principal.workspaceId
-    : undefined
-}
-
 export const cancelWorkflowRun = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.cancelRun,
-  resolveContext: ({ principal, input }: { principal: Principal; input: CancelWorkflowRunInput }) =>
+  resolveContext: ({ input }: { input: CancelWorkflowRunInput }) =>
     resolveActiveWorkflowRunApplicationContext({
       runId: input.runId,
       assertedWorkflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkspaceId(principal),
     }),
   async execute({ principal, context }) {
     const attribution = resolvePrincipalAttribution(principal, {

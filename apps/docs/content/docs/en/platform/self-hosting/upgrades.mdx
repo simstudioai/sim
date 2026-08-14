@@ -142,10 +142,13 @@ kubectl logs -n simstudio deploy/sim-app -c migrations --tail=100
   <Tab value="Docker Compose">
 
 ```bash
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+bun run sim update
 docker compose -f docker-compose.prod.yml logs migrations
 ```
+
+`bun run sim update` pulls the versions configured by `SIM_VERSION` (or `latest` when it is
+unset), recreates the changed services, and keeps data volumes. It is equivalent to running
+`docker compose pull` followed by `docker compose up -d`.
 
 There is a short window where the app is unavailable while containers restart. Compose has no rolling-update mechanism — plan a maintenance window, or run Kubernetes if you need zero-downtime upgrades.
 

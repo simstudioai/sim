@@ -1,4 +1,4 @@
-import { selectModelBoundFileInput } from '@/lib/uploads/utils/model-input'
+import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import type { QuiverImageToSvgParams, QuiverSvgResponse } from '@/tools/quiver/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -68,7 +68,8 @@ export const quiverImageToSvgTool: ToolConfig<QuiverImageToSvgParams, QuiverSvgR
   request: {
     modelInput: {
       mode: 'private-provenance',
-      select: (params) => selectModelBoundFileInput(params.image, { parseSerializedFile: true }),
+      inputPaths: (params) =>
+        selectModelBoundFileInputPaths(params.image, ['image'], { parseSerializedFile: true }),
     },
     url: '/api/tools/quiver/image-to-svg',
     method: 'POST',

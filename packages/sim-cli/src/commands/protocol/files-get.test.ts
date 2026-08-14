@@ -110,7 +110,7 @@ describe('files get', () => {
       path: target,
       status: 'saved',
     })
-    expect(requestRaw).toHaveBeenCalledWith('/api/v2/files/file_1/content', {
+    expect(requestRaw).toHaveBeenCalledWith('/api/v2/files/file_1', {
       method: 'GET',
       query: { workspaceId: 'ws_local' },
     })

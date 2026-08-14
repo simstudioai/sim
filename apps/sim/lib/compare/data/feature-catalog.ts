@@ -183,6 +183,23 @@ export const SIM_FEATURES: SimFeature[] = [
     ],
   },
   {
+    id: 'org-session-policies',
+    name: 'Organization session policies',
+    category: 'enterprise-governance',
+    tags: ['enterprise', 'security'],
+    description:
+      'Enterprise organization owners and admins can cap max session lifetime (1 to 8,760 hours from sign-in, regardless of activity) and set an idle timeout (48 to 8,760 hours without activity), applied to every member on every device. Both limits are optional; the default is a 30-day session that extends automatically while a member stays active. A separate "Sign out all members" action revokes every member session in the organization except the acting admin\'s own.',
+    competitiveNote:
+      'Automation platforms commonly ship SSO without any session-lifetime control of their own, leaving re-authentication cadence entirely to the upstream identity provider.',
+    sources: [
+      {
+        url: 'https://docs.sim.ai/platform/enterprise/session-policies',
+        label: 'Sim Docs: Session Policies',
+        asOf: '2026-08-10',
+      },
+    ],
+  },
+  {
     id: 'scim-directory-sync',
     name: 'SCIM / automated directory sync',
     category: 'enterprise-governance',
@@ -696,12 +713,29 @@ export const SIM_FEATURES: SimFeature[] = [
     category: 'control-flow-execution',
     tags: [],
     description:
-      'A Function block runs arbitrary code: import-free JavaScript executes in a fast local VM, while JavaScript with imports and all Python execute in a remote E2B sandbox using dedicated templates (including one with python-pptx/docx/openpyxl/reportlab preinstalled for document generation).',
+      'A Function block runs arbitrary JavaScript, Python, or Shell. Import-free JavaScript stays in a fast local isolated runtime; JavaScript with imports, all Python, and all Shell run in a remote sandbox provider (E2B or Daytona), defaulting to a dedicated Function base image that ships a data-science stack and generic CLIs such as jq, yq, ripgrep, and sqlite3.',
     sources: [
       {
-        url: 'https://docs.sim.ai/blocks/function',
+        url: 'https://docs.sim.ai/workflows/blocks/function',
         label: 'Sim Docs: Function Block',
-        asOf: '2026-07-02',
+        asOf: '2026-08-10',
+      },
+    ],
+  },
+  {
+    id: 'configurable-workspace-sandboxes',
+    name: 'Configurable workspace code sandboxes',
+    category: 'control-flow-execution',
+    tags: ['enterprise'],
+    description:
+      'A workspace maintains named sandboxes, each declaring a language, its pip or npm dependencies, optional Debian/APT system packages, and optional managed CLI tools from a catalog grouped by cloud, Kubernetes, infrastructure, deployment, data and storage, and security tools. A Function block selects one and its code can import those dependencies and run those commands. Only workspace admins can create or edit them, and on sim.ai they require an active Max or Enterprise plan. There, each specification is prebuilt into a reusable image so runs pay no install cost, and identical specifications share one build; a self-hosted deployment using Daytona installs the specification at the start of every run instead, since prebuilt images require E2B. Managed CLIs use pinned, integrity-checked vendor artifacts.',
+    competitiveNote:
+      'Most automation platforms run custom code on a fixed image whose dependency set the vendor controls, so an unlisted package or vendor CLI is simply unavailable without leaving the platform.',
+    sources: [
+      {
+        url: 'https://docs.sim.ai/workflows/blocks/function#sandboxes',
+        label: 'Sim Docs: Function block - Sandboxes',
+        asOf: '2026-08-10',
       },
     ],
   },

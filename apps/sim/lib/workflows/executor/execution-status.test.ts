@@ -5,20 +5,17 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@s
 import { and } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetJob } = vi.hoisted(() => ({
+const { mockGetJob, mockMaterializeForDisplayWithBlockOutputs } = vi.hoisted(() => ({
   mockGetJob: vi.fn(),
+  mockMaterializeForDisplayWithBlockOutputs: vi.fn(),
 }))
 
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({ getJob: mockGetJob }),
 }))
 
-vi.mock('@/lib/logs/execution/functional-outputs', () => ({
-  collectFunctionalBlockOutputs: vi.fn().mockReturnValue(new Map()),
-}))
-
 vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionData: vi.fn(),
+  materializeExecutionDataForDisplayWithBlockOutputs: mockMaterializeForDisplayWithBlockOutputs,
 }))
 
 vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
@@ -38,6 +35,58 @@ describe('getWorkflowExecutionStatus queue projection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
+      executionData: {},
+      blockOutputs: new Map(),
+    })
+  })
+
+  it('selects run outputs only from the secret-safe display projection', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        status: 'completed',
+        level: 'info',
+        trigger: 'api',
+        startedAt: new Date('2026-08-05T12:00:00.000Z'),
+        endedAt: new Date('2026-08-05T12:00:01.000Z'),
+        totalDurationMs: 1000,
+        executionData: {
+          executionState: {
+            blockStates: { 'block-1': { output: { token: 'resolved-secret' } } },
+          },
+        },
+        costTotal: null,
+      },
+    ])
+    queueTableRows(schemaMock.resumeQueue, [])
+    queueTableRows(schemaMock.pausedExecutions, [])
+    mockMaterializeForDisplayWithBlockOutputs.mockResolvedValueOnce({
+      executionData: { finalOutput: { token: '[REDACTED]' } },
+      blockOutputs: new Map([['block-1', { token: '[REDACTED]' }]]),
+    })
+    const status = await getWorkflowExecutionStatus({
+      ...input,
+      includeOutput: true,
+      selectedOutputs: ['block-1'],
+    })
+
+    expect(mockMaterializeForDisplayWithBlockOutputs).toHaveBeenCalledWith(
+      expect.objectContaining({ executionState: expect.anything() }),
+      {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+      },
+      ['block-1']
+    )
+    expect(status).toMatchObject({
+      finalOutput: { token: '[REDACTED]' },
+      blockOutputs: { 'block-1': { token: '[REDACTED]' } },
+    })
+    expect(JSON.stringify(status)).not.toContain('resolved-secret')
   })
 
   it('projects a queued workflow job as an execution resource', async () => {
@@ -79,6 +128,7 @@ describe('getWorkflowExecutionStatus queue projection', () => {
       status: 'cancelled',
       level: 'info',
       endedAt: '2026-08-05T12:00:01.000Z',
+      totalDurationMs: 1000,
       error: null,
     })
   })
@@ -323,6 +373,57 @@ describe('getWorkflowExecutionStatus queue projection', () => {
       contextId: 'context-1',
       pauseKind: 'human',
       blockedOnBlockId: 'approval-block',
+    })
+  })
+
+  it('returns null pause coordinates while every pause point is mid-resume', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        status: 'paused',
+        level: 'info',
+        trigger: 'api',
+        startedAt: new Date('2026-08-05T12:00:00.000Z'),
+        endedAt: null,
+        totalDurationMs: null,
+        executionData: null,
+        costTotal: null,
+      },
+    ])
+    queueTableRows(schemaMock.resumeQueue, [])
+    queueTableRows(schemaMock.pausedExecutions, [
+      {
+        id: 'paused-execution-1',
+        status: 'partially_resumed',
+        pausePoints: {
+          'context-1': {
+            contextId: 'context-1',
+            blockId: 'approval-block',
+            response: null,
+            registeredAt: '2026-08-05T12:00:01.000Z',
+            resumeStatus: 'resuming',
+            snapshotReady: true,
+            pauseKind: 'human',
+          },
+        },
+        metadata: {},
+        resumedCount: 0,
+        pausedAt: new Date('2026-08-05T12:00:01.000Z'),
+        nextResumeAt: null,
+      },
+    ])
+
+    const status = await getWorkflowExecutionStatus(input)
+
+    expect(status?.status).toBe('paused')
+    expect(status?.paused).toMatchObject({
+      contextId: null,
+      resumeAt: null,
+      pauseKind: null,
+      blockedOnBlockId: null,
+      pausePointCount: 1,
     })
   })
 })

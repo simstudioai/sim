@@ -14,16 +14,15 @@ import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
 
-const { mockDecryptSecret, mockExecuteProviderRequest, mockGenerateInternalToken } = vi.hoisted(
-  () => ({
+const { mockDecryptSecret, mockExecuteProviderRequest, mockGenerateInternalDelegationToken } =
+  vi.hoisted(() => ({
     mockDecryptSecret: vi.fn(),
     mockExecuteProviderRequest: vi.fn(),
-    mockGenerateInternalToken: vi.fn(),
-  })
-)
+    mockGenerateInternalDelegationToken: vi.fn(),
+  }))
 
 vi.mock('@/lib/auth/internal', () => ({
-  generateInternalToken: mockGenerateInternalToken,
+  generateInternalDelegationToken: mockGenerateInternalDelegationToken,
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
@@ -87,7 +86,7 @@ function createInput(registry: ResolvedSecretTraceRegistry) {
 describe('validateHallucination', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGenerateInternalToken.mockResolvedValue('minted-internal-token')
+    mockGenerateInternalDelegationToken.mockResolvedValue('minted-internal-token')
     mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
       decrypted:
         encryptedValue === 'encrypted-reference-secret' ? 'reference-secret' : encryptedValue,
@@ -103,13 +102,23 @@ describe('validateHallucination', () => {
     vi.unstubAllGlobals()
   })
 
-  it('uses authenticated private Knowledge transport and carries result provenance into the provider boundary', async () => {
+  it('carries exact query and result provenance across both model boundaries', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+      { name: 'UNUSED', plaintext: 'x', encryptedValue: 'unused-ciphertext' },
     ])
-    expect(registry.recordResolved('TOKEN', 'secret-value')).toBe(true)
+    expect(
+      registry.recordResolvedAtInputPath('TOKEN', 'secret-value', ['input'], {
+        propagated: true,
+      })
+    ).toBe(true)
+    registry.recordResolvedInputProjection(
+      ['input'],
+      'secret-value __var_FOREIGN',
+      '{{TOKEN}} __var_FOREIGN'
+    )
     const knowledgeBody = {
-      data: { results: [{ content: 'reference-secret' }] },
+      data: { results: [{ content: 'Box reference-secret' }] },
     }
     const fetchMock = vi.fn(async () =>
       createPrivateKnowledgeResponse(knowledgeBody, {
@@ -123,7 +132,10 @@ describe('validateHallucination', () => {
     const result = await validateHallucination(createInput(registry))
 
     expect(result).toMatchObject({ passed: true, score: 8 })
-    expect(mockGenerateInternalToken).toHaveBeenCalledWith('user-1')
+    expect(mockGenerateInternalDelegationToken).toHaveBeenCalledWith({
+      subjectUserId: 'user-1',
+      workflowId: 'workflow-1',
+    })
 
     const [, searchOptions] = fetchMock.mock.calls[0]
     const searchBody = JSON.parse(String(searchOptions?.body)) as {
@@ -141,13 +153,12 @@ describe('validateHallucination', () => {
     expect(searchHeaders.get('x-sim-private-model-input-provenance')).toBe(
       RESOLVED_SECRET_PROVENANCE_METADATA_V1
     )
-    expect(searchBody.query).toBe('{{TOKEN}} __var_FOREIGN')
+    expect(searchBody.query).toBe('secret-value __var_FOREIGN')
     expect(searchBody.__resolvedSecretTraceProvenance).toEqual({
       version: 1,
       complete: true,
-      entries: [],
+      entries: [{ encryptedValue: 'ciphertext', name: 'TOKEN' }],
     })
-    expect(JSON.stringify(searchBody)).not.toContain('secret-value')
     expect(JSON.stringify(searchBody)).toContain('__var_FOREIGN')
 
     const providerCall = mockExecuteProviderRequest.mock.calls[0]
@@ -155,18 +166,23 @@ describe('validateHallucination', () => {
     const providerContext = providerCall[2] as {
       resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
     }
-    expect(providerRequest.messages[0].content).toContain('reference-secret')
+    expect(providerRequest.messages[0].content).toContain('{{TOKEN}} __var_FOREIGN')
+    expect(providerRequest.messages[0].content).toContain('Box {{KB_TOKEN}}')
+    expect(providerRequest.messages[0].content).not.toContain('{{UNUSED}}')
+    expect(providerRequest.messages[0].content).not.toContain('secret-value')
+    expect(providerRequest.messages[0].content).not.toContain('reference-secret')
     expect(providerRequest.messages[0].content).not.toContain(RESOLVED_SECRET_PROVENANCE_FIELD)
     expect(providerContext.resolvedSecretTraceRegistry).not.toBe(registry)
     expect(providerContext.resolvedSecretTraceRegistry.getModelEgressSnapshot()).toMatchObject({
       complete: true,
       matches: expect.arrayContaining([
+        { plaintext: 'secret-value', replacement: '{{TOKEN}}' },
         { plaintext: 'reference-secret', replacement: '{{KB_TOKEN}}' },
       ]),
     })
   })
 
-  it('fails only the hallucination model-bound leg when Knowledge omits private provenance', async () => {
+  it('accepts a successful legacy Knowledge response without private provenance', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     vi.stubGlobal(
       'fetch',
@@ -175,12 +191,29 @@ describe('validateHallucination', () => {
 
     const result = await validateHallucination(createInput(registry))
 
+    expect(result).toMatchObject({ passed: true, score: 8 })
+    const providerRequest = mockExecuteProviderRequest.mock.calls[0][1] as {
+      messages: Array<{ content: string }>
+    }
+    expect(providerRequest.messages[0].content).toContain('public context')
+    expect(registry.isComplete()).toBe(true)
+  })
+
+  it('fails validation when the delegated Knowledge query is rejected', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 401 }))
+    )
+
+    const result = await validateHallucination(createInput(registry))
+
     expect(result).toEqual({
       passed: false,
-      error: 'Validation error: Knowledge result secret provenance is unavailable',
+      error:
+        'Validation error: Failed to query knowledge base: Knowledge base query failed with status 401',
     })
     expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
-    expect(registry.isComplete()).toBe(true)
   })
 
   /**

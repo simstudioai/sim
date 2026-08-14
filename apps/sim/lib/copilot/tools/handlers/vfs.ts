@@ -9,8 +9,9 @@ import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
 import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
+import { isOversizedReadPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 import {
-  importWorkspaceFileSecretProvenanceForValue,
+  importWorkspaceFileSecretProvenanceForModelView,
   type WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
@@ -40,7 +41,6 @@ async function getGatedVFS(context: ExecutionContext) {
   return withBlockVisibility(vis, () =>
     getOrMaterializeVFS(workspaceId, context.userId, {
       secretMountPolicy: context.secretMountPolicy,
-      secretless: context.secretActorUserId === null,
       filePrincipal,
       knowledgePrincipal,
     })
@@ -85,14 +85,6 @@ function serializedResultSize(value: unknown): number {
   }
 }
 
-function isOversizedReadPlaceholder(content: string): boolean {
-  return (
-    content.startsWith('[File too large to display inline:') ||
-    content.startsWith('[Image too large:') ||
-    content.startsWith('[Compiled artifact too large:')
-  )
-}
-
 function hasModelAttachment(result: unknown): boolean {
   if (!result || typeof result !== 'object') {
     return false
@@ -106,16 +98,32 @@ function hasModelAttachment(result: unknown): boolean {
 async function canReturnWorkspaceFileValue(
   file: WorkspaceFileSecretProvenanceIdentity | undefined,
   value: unknown,
-  context: ExecutionContext
+  context: ExecutionContext,
+  view: 'complete' | 'derived',
+  contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] = []
 ): Promise<boolean> {
-  if (!file || !context.workspaceId) return true
-  return importWorkspaceFileSecretProvenanceForValue({
-    workspaceId: context.workspaceId,
-    identity: file,
-    value,
-    registry: context.resolvedSecretTraceRegistry,
-    opaqueAttachment: hasModelAttachment(value),
-  })
+  if (!context.workspaceId) return true
+  const files = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
+  for (const identity of file ? [file, ...contributingFiles] : contributingFiles) {
+    files.set(`${identity.context}:${identity.fileId}:${identity.key}`, identity)
+  }
+  if (files.size === 0) return true
+
+  const provenanceView = hasModelAttachment(value) ? 'opaque' : view
+  for (const identity of files.values()) {
+    if (
+      !(await importWorkspaceFileSecretProvenanceForModelView({
+        workspaceId: context.workspaceId,
+        identity,
+        registry: context.resolvedSecretTraceRegistry,
+        view: provenanceView,
+        value,
+      }))
+    ) {
+      return false
+    }
+  }
+  return true
 }
 
 export async function executeVfsGrep(
@@ -196,7 +204,7 @@ export async function executeVfsGrep(
         ? Object.keys(result).length
         : 0
     const output = { [key]: result }
-    if (!(await canReturnWorkspaceFileValue(provenanceFile, output, context))) {
+    if (!(await canReturnWorkspaceFileValue(provenanceFile, output, context, 'derived'))) {
       return {
         success: false,
         error:
@@ -283,17 +291,6 @@ export async function executeVfsRead(
     return { success: false, error: 'No workspace context available' }
   }
 
-  if (
-    context.queryOnly &&
-    /\/(?:compiled|compiled-check|extract|render)\/?$/.test(path.trim().replace(/^\/+/, ''))
-  ) {
-    return {
-      success: false,
-      error:
-        'read is query-only: document compilation, extraction, and rendering paths are not available; read the file content or metadata instead',
-    }
-  }
-
   try {
     const parseOptionalNumber = (value: unknown): number | undefined => {
       if (typeof value === 'number' && Number.isFinite(value)) return value
@@ -305,12 +302,21 @@ export async function executeVfsRead(
     }
     const offset = parseOptionalNumber(params.offset)
     const limit = parseOptionalNumber(params.limit)
+    /**
+     * Applies the caller's line window, clamped against the content's ACTUAL line count rather than
+     * the self-reported `totalLines`. Synthesized results report `totalLines: 1` for content that is
+     * not one line (e.g. `files/x.pdf/extract` returns a whole extracted document), and clamping to
+     * that collapses the read to its first line — or to nothing for any nonzero offset. An
+     * attachment result is skipped outright: its `content` is a one-line label beside the bytes, so
+     * a window can only blank the label while the model still receives the attachment.
+     */
     const applyWindow = <T extends { content: string; totalLines: number }>(result: T): T => {
       if (offset === undefined && limit === undefined) return result
+      if (hasModelAttachment(result)) return result
       const lines = result.content.split('\n')
-      const start = Math.max(0, Math.min(result.totalLines, offset ?? 0))
-      const endRaw = limit !== undefined ? start + Math.max(0, limit) : result.totalLines
-      const end = Math.max(start, Math.min(result.totalLines, endRaw))
+      const start = Math.max(0, Math.min(lines.length, offset ?? 0))
+      const endRaw = limit !== undefined ? start + Math.max(0, limit) : lines.length
+      const end = Math.max(start, Math.min(lines.length, endRaw))
       return {
         ...result,
         content: lines.slice(start, end).join('\n'),
@@ -332,7 +338,7 @@ export async function executeVfsRead(
         const isAttachment = hasModelAttachment(uploadResult)
         if (
           !isAttachment &&
-          (isOversizedReadPlaceholder(uploadResult.content) ||
+          (isOversizedReadPlaceholder(uploadResult) ||
             serializedResultSize(uploadResult) > TOOL_RESULT_MAX_INLINE_CHARS)
         ) {
           logger.warn('Upload read result too large', {
@@ -343,7 +349,7 @@ export async function executeVfsRead(
           })
           return {
             success: false,
-            error: isOversizedReadPlaceholder(uploadResult.content)
+            error: isOversizedReadPlaceholder(uploadResult)
               ? uploadResult.content
               : // Same as the workspace-file branch below: this size gate runs on
                 // the whole upload before any window, so "retry with offset/limit"
@@ -352,7 +358,19 @@ export async function executeVfsRead(
           }
         }
         const windowedUpload = applyWindow(uploadResult)
-        if (!(await canReturnWorkspaceFileValue(uploadEnvelope?.file, windowedUpload, context))) {
+        const provenanceView =
+          offset === undefined && limit === undefined
+            ? (uploadEnvelope?.view ?? 'derived')
+            : 'derived'
+        if (
+          !(await canReturnWorkspaceFileValue(
+            uploadEnvelope?.file,
+            windowedUpload,
+            context,
+            provenanceView,
+            uploadEnvelope?.contributingFiles
+          ))
+        ) {
           return {
             success: false,
             error:
@@ -390,7 +408,7 @@ export async function executeVfsRead(
       const isAttachment = hasModelAttachment(fileContent)
       if (
         !isAttachment &&
-        (isOversizedReadPlaceholder(fileContent.content) ||
+        (isOversizedReadPlaceholder(fileContent) ||
           serializedResultSize(fileContent) > TOOL_RESULT_MAX_INLINE_CHARS)
       ) {
         logger.warn('File read result too large', {
@@ -401,18 +419,31 @@ export async function executeVfsRead(
         })
         return {
           success: false,
-          error: isOversizedReadPlaceholder(fileContent.content)
+          error: isOversizedReadPlaceholder(fileContent)
             ? fileContent.content
             : 'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
         }
       }
       const windowedFileContent = applyWindow(fileContent)
-      if (!(await canReturnWorkspaceFileValue(fileEnvelope?.file, windowedFileContent, context))) {
+      const provenanceView =
+        offset === undefined && limit === undefined ? (fileEnvelope?.view ?? 'derived') : 'derived'
+      if (
+        !(await canReturnWorkspaceFileValue(
+          fileEnvelope?.file,
+          windowedFileContent,
+          context,
+          provenanceView,
+          fileEnvelope?.contributingFiles
+        ))
+      ) {
         return {
           success: false,
           error:
             'This file result cannot be shared safely because its secret provenance is unavailable.',
         }
+      }
+      if (fileContent.error !== undefined) {
+        return { success: false, error: fileContent.error }
       }
       logger.debug('vfs_read resolved workspace file', {
         path,
@@ -439,7 +470,7 @@ export async function executeVfsRead(
     }
     if (
       !hasModelAttachment(result) &&
-      (isOversizedReadPlaceholder(result.content) ||
+      (isOversizedReadPlaceholder(result) ||
         serializedResultSize(result) > TOOL_RESULT_MAX_INLINE_CHARS)
     ) {
       return {

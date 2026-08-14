@@ -17,6 +17,7 @@ import {
   type JobQueueBackend,
   type JobStatus,
   type JobType,
+  TERMINAL_JOB_STATUSES,
   validateMaxDurationSeconds,
 } from '@/lib/core/async-jobs/types'
 import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
@@ -176,7 +177,6 @@ const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
   'workflow-execution': 'workflow-execution',
   'schedule-execution': 'schedule-execution',
   'webhook-execution': 'webhook-execution',
-  'tiktok-webhook-ingress': 'tiktok-webhook-ingress',
   'resume-execution': 'resume-execution',
   'workflow-group-cell': 'workflow-group-cell',
   'cleanup-logs': 'cleanup-logs',
@@ -212,6 +212,32 @@ function mapTriggerDevStatus(status: string): JobStatus {
     default:
       return JOB_STATUS.PENDING
   }
+}
+
+/**
+ * Dates the end of a run that trigger.dev already reports as terminal.
+ *
+ * A cancellation flips the run to `CANCELED` the moment it is accepted, but
+ * `finishedAt` is only stamped once the worker actually drains — seconds later,
+ * or never for a run that was cancelled before it was ever dequeued. A reader
+ * polling inside that window sees a terminal job carrying no completion
+ * instant, and every consumer that derives an end timestamp or an elapsed
+ * duration from it reports null.
+ *
+ * `updatedAt` is trigger.dev's own record of when the run last changed, so for
+ * a terminal run it dates that final transition rather than the read. It is
+ * consulted only once the status is terminal: an active run's `updatedAt`
+ * describes progress, not an ending, and reporting it would end a run that is
+ * still going.
+ */
+function resolveRunCompletedAt(
+  finishedAt: Date | string | undefined,
+  updatedAt: Date | string | undefined,
+  status: JobStatus
+): Date | undefined {
+  if (finishedAt) return new Date(finishedAt)
+  if (!TERMINAL_JOB_STATUSES.includes(status)) return undefined
+  return updatedAt ? new Date(updatedAt) : undefined
 }
 
 /**
@@ -380,14 +406,16 @@ export class TriggerDevJobQueue implements JobQueueBackend {
             : undefined,
       }
 
+      const status = mapTriggerDevStatus(run.status)
+
       return {
         id: run.id,
         type: run.taskIdentifier as JobType,
         payload: run.payload,
-        status: mapTriggerDevStatus(run.status),
+        status,
         createdAt: run.createdAt ? new Date(run.createdAt) : new Date(),
         startedAt: run.startedAt ? new Date(run.startedAt) : undefined,
-        completedAt: run.finishedAt ? new Date(run.finishedAt) : undefined,
+        completedAt: resolveRunCompletedAt(run.finishedAt, run.updatedAt, status),
         attempts: run.attemptCount ?? 1,
         maxAttempts: 3,
         error: run.error?.message,

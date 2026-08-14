@@ -37,7 +37,7 @@ const logger = createLogger('CopilotClientToolWaiter')
  */
 export async function waitForToolCompletion(
   toolCallId: string,
-  timeoutMs: number,
+  timeoutMs: number | null,
   abortSignal?: AbortSignal
 ): Promise<AsyncTerminalCompletionSnapshot | null> {
   const decision = await waitForToolConfirmation(toolCallId, timeoutMs, abortSignal, {
@@ -57,7 +57,8 @@ interface WaitForClientToolCompletionOptions {
   toolCallId: string
   runId?: string
   userId: string
-  timeoutMs: number
+  /** Null for a durable human-interaction wait that ends only on answer or abort. */
+  timeoutMs: number | null
   abortSignal?: AbortSignal
   registry?: ResolvedSecretTraceRegistry
 }
@@ -84,15 +85,21 @@ export async function waitForClientToolCompletion({
   const completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
   if (!completion) return null
 
-  const toolRegistry = registry?.forkForToolInput(undefined)
+  const toolRegistry = registry?.forkForInputPaths([])
   const genericMessage = getGenericCompletionMessage(completion.status)
   const binding = runId ? { toolCallId, runId, userId } : undefined
   const registryCanImport = toolRegistry !== undefined && !toolRegistry.isPermanentlyIncomplete()
   const finishPendingActivation = toolRegistry?.beginPendingActivation()
   let content: Awaited<ReturnType<typeof unsealClientToolCompletion>> = null
   try {
+    /**
+     * A tool invoked without a run id has no binding to unseal against, which is a configuration
+     * rather than a fault. Tracking whether unsealing was even attempted keeps that ordinary case
+     * out of the error stream while a genuine unseal failure stays in it.
+     */
+    const sealingAttempted = Boolean(binding && registry && toolRegistry && registryCanImport)
     const [sealedContent, sealedContext] =
-      binding && registry && toolRegistry && registryCanImport
+      sealingAttempted && binding && registry
         ? await Promise.all([
             unsealClientToolCompletion(completion.data, binding),
             unsealClientToolContext(completion.data, binding, registry),
@@ -100,20 +107,27 @@ export async function waitForClientToolCompletion({
         : [null, null]
     if (toolRegistry && registryCanImport) {
       if (!sealedContent || !sealedContext) {
-        toolRegistry.markIncomplete()
+        toolRegistry.markIncomplete(
+          sealingAttempted ? 'client-tool-seal-failed' : 'client-tool-seal-absent'
+        )
       } else {
         const imported = await toolRegistry.importProvenance(sealedContext.provenance, {
+          origin: 'copilotToolClient.sealedContext',
           trusted: true,
         })
         if (!imported || !sealedContext.provenance.complete) {
-          toolRegistry.markIncomplete()
+          toolRegistry.markIncomplete('source-provenance-incomplete', {
+            origin: 'copilotToolClient.sealedContext',
+          })
         } else {
           content = sealedContent
         }
       }
     }
   } catch {
-    toolRegistry?.markIncomplete()
+    toolRegistry?.markIncomplete('client-tool-seal-failed', {
+      origin: 'copilotToolClient.sealedContext',
+    })
   } finally {
     finishPendingActivation?.()
   }
@@ -232,7 +246,7 @@ export async function waitForWorkflowToolCompletion({
   abortSignal,
   registry,
 }: WaitForWorkflowToolCompletionOptions): Promise<AsyncTerminalCompletionSnapshot | null> {
-  const toolRegistry = registry?.forkForToolInput(undefined)
+  const toolRegistry = registry?.forkForInputPaths([])
   const finishPendingActivation = toolRegistry?.beginPendingActivation()
   let completion: AsyncTerminalCompletionSnapshot | null = null
   let trustedExecution: Awaited<ReturnType<typeof getTrustedWorkflowToolExecution>> = null
@@ -240,18 +254,18 @@ export async function waitForWorkflowToolCompletion({
   try {
     completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
     if (!completion) {
-      toolRegistry?.markIncomplete()
+      toolRegistry?.markIncomplete('client-tool-completion-missing')
       return null
     }
 
     const executionId = getWorkflowToolCompletionExecutionId(completion.data)
     const deploymentError = getAsyncWorkflowDeploymentError(completion.data)
     if (completion.status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
-      toolRegistry?.markIncomplete()
+      toolRegistry?.markIncomplete('client-tool-completion-deferred')
       return structuralWorkflowCompletion(completion.status, workflowId, executionId)
     }
     if (!workflowId || !executionId) {
-      toolRegistry?.markIncomplete()
+      toolRegistry?.markIncomplete('client-tool-completion-unidentified')
       const structuralStatus =
         completion.status === MothershipStreamV1ToolOutcome.success
           ? MothershipStreamV1ToolOutcome.error
@@ -276,12 +290,12 @@ export async function waitForWorkflowToolCompletion({
     }
 
     if (!trustedExecution) {
-      toolRegistry?.markIncomplete()
+      toolRegistry?.markIncomplete('client-tool-execution-untrusted')
       return structuralWorkflowCompletion(completion.status, workflowId, executionId)
     }
 
     if (!trustedExecution.contentAvailable) {
-      toolRegistry?.markIncomplete()
+      toolRegistry?.markIncomplete('client-tool-content-unavailable')
       return structuralWorkflowCompletion(
         getWorkflowToolConfirmationStatus(trustedExecution.status),
         workflowId,
@@ -294,7 +308,10 @@ export async function waitForWorkflowToolCompletion({
       toolRegistry.isPermanentlyIncomplete() ||
       !trustedExecution.provenance.complete
     ) {
-      if (!trustedExecution.provenance.complete) toolRegistry?.markIncomplete()
+      if (!trustedExecution.provenance.complete)
+        toolRegistry?.markIncomplete('source-provenance-incomplete', {
+          origin: 'copilotToolClient.workflowExecution',
+        })
       return structuralWorkflowCompletion(
         getWorkflowToolConfirmationStatus(trustedExecution.status),
         workflowId,
@@ -314,9 +331,14 @@ export async function waitForWorkflowToolCompletion({
         },
         { trusted: true }
       )
-      if (!imported) toolRegistry.markIncomplete()
+      if (!imported)
+        toolRegistry.markIncomplete('value-provenance-import-failed', {
+          origin: 'copilotToolClient.workflowExecution',
+        })
     } catch (error) {
-      toolRegistry.markIncomplete()
+      toolRegistry.markIncomplete('value-provenance-import-failed', {
+        origin: 'copilotToolClient.workflowExecution',
+      })
       logger.warn('Failed to import bound workflow provenance', {
         toolCallId,
         workflowId,

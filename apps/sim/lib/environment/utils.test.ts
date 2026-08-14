@@ -50,6 +50,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 import {
   getEffectiveDecryptedEnv,
   getEffectiveEnvironmentSnapshot,
+  getExecutionEnvironment,
   getPersonalAndWorkspaceEnv,
   invalidateEffectiveDecryptedEnvCache,
   upsertWorkspaceEnvVars,
@@ -116,6 +117,86 @@ describe('getPersonalAndWorkspaceEnv access filtering', () => {
 
     expect(snapshot.personalDecrypted).toEqual({ SHARED_KEY: 'plain:shared-cipher' })
     expect(snapshot.personalOwners).toEqual({ SHARED_KEY: 'owner-2' })
+  })
+})
+
+describe('getExecutionEnvironment', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGetAccessibleEnvCredentials.mockResolvedValue([])
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: `plain:${encryptedValue}`,
+    }))
+  })
+
+  /** Grants workspace-admin access to one identity so the two slices diverge observably. */
+  function grantAdminTo(adminUserId: string) {
+    mockCheckWorkspaceAccess.mockImplementation(async (_workspaceId: string, userId: string) => ({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: userId === adminUserId,
+    }))
+  }
+
+  it('resolves each slice against its own identity', async () => {
+    grantAdminTo('actor-1')
+    /**
+     * Queued rows are FIFO per table, and the actor resolves first: its access was
+     * already decided, so it skips the `checkWorkspaceAccess` await the personal
+     * resolution still performs. Only the actor is a workspace admin, so the owner's
+     * own workspace slice resolves empty and could not be the one that lands.
+     */
+    queueTableRows(environment, [{ variables: { ACTOR_ONLY: 'actor-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('owner-1', 'actor-1', 'workspace-1')
+
+    expect(snapshot.personalDecrypted).toEqual({ PERSONAL_KEY: 'plain:personal-cipher' })
+    expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+  })
+
+  it('resolves once when both identities are the same', async () => {
+    grantAdminTo('owner-1')
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('owner-1', 'owner-1', 'workspace-1')
+
+    expect(mockCheckWorkspaceAccess).toHaveBeenCalledOnce()
+    expect(snapshot.personalDecrypted).toEqual({ PERSONAL_KEY: 'plain:personal-cipher' })
+    expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+  })
+
+  it('drops the personal slice entirely when no personal identity is supplied', async () => {
+    grantAdminTo('billing-account')
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment(undefined, 'billing-account', 'workspace-1')
+
+    expect(snapshot.personalDecrypted).toEqual({})
+    expect(snapshot.personalEncrypted).toEqual({})
+    expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+  })
+
+  it('falls back to the personal identity when the actor cannot reach the workspace', async () => {
+    mockCheckWorkspaceAccess.mockImplementation(async (_workspaceId: string, userId: string) => ({
+      exists: true,
+      hasAccess: userId === 'owner-1',
+      canWrite: true,
+      canAdmin: true,
+    }))
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment('owner-1', 'departed-payer', 'workspace-1')
+
+    expect(snapshot.personalDecrypted).toEqual({ PERSONAL_KEY: 'plain:personal-cipher' })
+    expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
   })
 })
 

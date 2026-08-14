@@ -24,6 +24,7 @@ import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
+import { assertValidSchema } from '@/lib/table/schema-invariants'
 import { getTableById, withLockedTable } from '@/lib/table/service'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import type {
@@ -37,18 +38,10 @@ import type {
   WorkflowGroup,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
-import { assertValidSchema, runWorkflowColumn, stripGroupDeps } from '@/lib/table/workflow-columns'
+import { runWorkflowColumn } from '@/lib/table/workflow-columns'
+import { stripGroupDeps } from '@/lib/table/workflow-group-deps'
 
 const logger = createLogger('TableWorkflowGroupsService')
-
-/** Keeps mutation ownership separate from the account charged for an auto-run. */
-function resolveTriggerBillingActor(data: {
-  actorUserId?: string | null
-  billingActorUserId?: string | null
-}): string | null | undefined {
-  return data.billingActorUserId === undefined ? data.actorUserId : data.billingActorUserId
-}
-
 /**
  * Drops references to deleted blocks from every workflow group on every table
  * that targets the just-deployed workflow. Called from the workflow deploy
@@ -152,6 +145,13 @@ export async function addWorkflowGroup(
         )
       }
 
+      if (groups.length >= TABLE_LIMITS.MAX_WORKFLOW_GROUPS_PER_TABLE) {
+        throw new OrchestrationError(
+          'validation',
+          `Table has reached the maximum of ${TABLE_LIMITS.MAX_WORKFLOW_GROUPS_PER_TABLE} workflow groups`
+        )
+      }
+
       const existingNames = new Set(schema.columns.map((c) => c.name.toLowerCase()))
       for (const col of data.outputColumns) {
         if (!NAME_PATTERN.test(col.name)) {
@@ -240,7 +240,7 @@ export async function addWorkflowGroup(
       isManualRun: false,
       groupIds: [data.group.id],
       requestId,
-      triggeredByUserId: resolveTriggerBillingActor(data),
+      triggeredByUserId: data.actorUserId,
     }).catch((err) => logger.error(`[${requestId}] auto-dispatch (addWorkflowGroup) failed:`, err))
   }
 
@@ -599,7 +599,7 @@ export async function updateWorkflowGroup(
       isManualRun: false,
       groupIds: [data.groupId],
       requestId,
-      triggeredByUserId: resolveTriggerBillingActor(data),
+      triggeredByUserId: data.actorUserId,
     }).catch((err) =>
       logger.error(`[${requestId}] auto-dispatch (updateWorkflowGroup autoRun=true) failed:`, err)
     )

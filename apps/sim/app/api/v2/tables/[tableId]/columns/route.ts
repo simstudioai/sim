@@ -12,7 +12,7 @@ import {
   updateTableColumnUseCase,
 } from '@/lib/table/application/columns'
 import { tableOperations } from '@/lib/table/application/operations'
-import { normalizeColumn } from '@/app/api/table/utils'
+import { normalizeColumn } from '@/lib/table/wire'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -27,7 +27,7 @@ export const POST = defineV2JsonRoute({
   useCase: addTableColumnUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.default,
+  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
   present: presentColumns,
 })
@@ -38,7 +38,7 @@ export const PATCH = defineV2JsonRoute({
   useCase: updateTableColumnUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.default,
+  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
   present: presentColumns,
 })
@@ -49,7 +49,7 @@ export const DELETE = defineV2JsonRoute({
   useCase: deleteTableColumnUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.default,
+  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
   present: presentColumns,
 })

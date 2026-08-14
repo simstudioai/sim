@@ -9,7 +9,6 @@ import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 
-// ---------- Minimal env helpers ----------
 function getEnv(name: string): string | undefined {
   if (typeof process !== 'undefined' && process.env && name in process.env) {
     return process.env[name]
@@ -23,7 +22,6 @@ if (!CONNECTION_STRING) {
   process.exit(1)
 }
 
-// ---------- Minimal schema (only what we need) ----------
 import { boolean, index, integer, json, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 
 // Tables referenced by the script
@@ -117,7 +115,6 @@ const workflowDeploymentVersion = pgTable(
   })
 )
 
-// ---------- DB client ----------
 const postgresClient = postgres(CONNECTION_STRING, {
   prepare: false,
   idle_timeout: 20,
@@ -127,7 +124,6 @@ const postgresClient = postgres(CONNECTION_STRING, {
 })
 const db = drizzle(postgresClient)
 
-// ---------- Minimal types ----------
 type WorkflowState = {
   blocks: Record<string, any>
   edges: Array<{
@@ -141,7 +137,6 @@ type WorkflowState = {
   parallels: Record<string, any>
 }
 
-// ---------- Normalized loader (inline of loadWorkflowFromNormalizedTables) ----------
 async function loadWorkflowFromNormalizedTables(workflowId: string) {
   const [blocks, edges, subflows] = await Promise.all([
     db.select().from(workflowBlocks).where(sql`${workflowBlocks.workflowId} = ${workflowId}`),
@@ -210,7 +205,6 @@ async function loadWorkflowFromNormalizedTables(workflowId: string) {
   }
 }
 
-// ---------- Migration ----------
 const DRY_RUN = process.argv.includes('--dry-run')
 const BATCH_SIZE = 50
 

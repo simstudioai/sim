@@ -26,6 +26,7 @@ import {
   requestsPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
+import { buildFolderPath } from '@/lib/folders/paths'
 import { getSharesForResources, ShareValidationError } from '@/lib/public-shares/share-manager'
 import {
   ArchiveError,
@@ -62,7 +63,7 @@ import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/r
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { updateWorkspaceFileShare } from '@/lib/workspace-files/application/share-workspace-file'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
-import { createWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import { ensureWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
@@ -295,12 +296,12 @@ async function getFileContentProvenance(
 
   for (const source of sources) {
     if (!source.identity || !source.ownerUserId) {
-      accumulator.markIncomplete()
+      accumulator.markIncomplete('file-source-unidentified')
       continue
     }
     const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, source.identity)
     if (provenance.status === 'unknown') {
-      accumulator.markIncomplete()
+      accumulator.markIncomplete('workspace-file-provenance-unknown')
       continue
     }
     accumulator.record({
@@ -335,26 +336,37 @@ function resolveFileMutationSecretProvenance(options: {
   if (
     inspection.status !== 'verified' ||
     options.authType !== AuthType.INTERNAL_JWT ||
-    !isPrivateSecretProvenanceBundleV1(inspection.value) ||
-    !inspection.value.complete ||
-    inspection.value.selections.length !== options.selectionKeys.length
+    !isPrivateSecretProvenanceBundleV1(inspection.value)
   ) {
     return { success: false, error: 'Invalid file secret provenance' }
   }
 
-  const destinationScope = { userId: options.userId, workspaceId: options.workspaceId }
   const provenanceBySelection = new Map<string, WorkspaceFileSecretProvenance>()
+  if (!inspection.value.complete) {
+    for (const selectionKey of options.selectionKeys) {
+      provenanceBySelection.set(selectionKey, { status: 'unknown' })
+    }
+    return { success: true, provenanceBySelection }
+  }
+  if (inspection.value.selections.length !== options.selectionKeys.length) {
+    return { success: false, error: 'Invalid file secret provenance' }
+  }
+
+  const destinationScope = { userId: options.userId, workspaceId: options.workspaceId }
   for (const selectionKey of options.selectionKeys) {
     const provenance = durableSecretProvenanceFromPrivateBundle(
       inspection.value,
       selectionKey,
       destinationScope
     )
-    if (
-      !provenance ||
-      provenance.status === 'unknown' ||
-      provenance.entries.some((entry) => !entry.name || !entry.sourceUserId)
-    ) {
+    if (!provenance) {
+      return { success: false, error: 'Invalid file secret provenance' }
+    }
+    if (provenance.status === 'unknown') {
+      provenanceBySelection.set(selectionKey, provenance)
+      continue
+    }
+    if (provenance.entries.some((entry) => !entry.name || !entry.sourceUserId)) {
       return { success: false, error: 'Invalid file secret provenance' }
     }
     provenanceBySelection.set(selectionKey, {
@@ -388,7 +400,7 @@ function resolveFileWriteSecretProvenance(options: {
   })
   if (!resolution.success || !resolution.provenanceBySelection) return resolution
   const content = resolution.provenanceBySelection.get('content')
-  if (!content || content.status !== 'exact') {
+  if (!content) {
     return { success: false, error: 'Invalid file secret provenance' }
   }
   return { success: true, contentProvenance: content }
@@ -700,16 +712,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
         const { folderSegments, leafName } = splitWorkspaceFilePath(fileName)
         await admitCreateWorkspaceFile(principal, workspaceId)
-        const folderId =
-          folderSegments.length === 0
-            ? null
-            : (
-                await createWorkspaceFileFolderOperation.execute({
-                  principal,
-                  input: { workspaceId, path: folderSegments.join('/') },
-                  request,
-                })
-              ).folder.id
+        const { folderId } = await ensureWorkspaceFileFolderPathOperation.execute({
+          principal,
+          input: { workspaceId, pathSegments: folderSegments },
+          request,
+        })
         const mimeType = contentType || getMimeTypeFromExtension(getFileExtension(leafName))
         const result = await createWorkspaceFile.execute({
           principal,
@@ -755,12 +762,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               .map((s) => s.trim())
               .filter(Boolean)
           : []
+        let targetFolderPath: string
+        try {
+          targetFolderPath = buildFolderPath(pathSegments)
+        } catch (error) {
+          throw new OrchestrationError('validation', getErrorMessage(error))
+        }
         await moveWorkspaceFileItemsOperation.execute({
           principal,
           input: {
             workspaceId,
             fileIds: [fileId],
-            targetFolderPath: pathSegments.join('/'),
+            targetFolderPath,
           },
           request,
         })
@@ -1153,16 +1166,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           targetOwnerUserId: userId,
           sources: canonicalArchiveSource.concat(selectedArchiveSource),
         })
-        if (archiveProvenance.status === 'unknown' || archiveProvenance.entries.length > 0) {
-          return NextResponse.json(
-            {
-              success: false,
-              error:
-                'Archive cannot be decompressed because its secret provenance is not exact-empty',
-            },
-            { status: 422 }
-          )
-        }
 
         const archiveBuffer = await downloadFileFromStorage(archive, requestId, logger, {
           maxBytes: MAX_ARCHIVE_BYTES,

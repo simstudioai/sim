@@ -3,6 +3,10 @@
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
+} from '@/lib/core/application'
 
 const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
   class MockV2ApiKeyUnauthenticatedError extends Error {}
@@ -82,18 +86,22 @@ const skill = {
 }
 const context = { params: Promise.resolve({ id: skill.id }) }
 
+/**
+ * The read and delete verbs scope themselves with `?workspaceId=`; the write
+ * verb carries `workspaceId` in its body. Sending the query copy on a write is
+ * now a 400 rather than a silently dropped key, so the helper only appends it
+ * where the contract declares it.
+ */
 function request(method: 'GET' | 'PATCH' | 'DELETE', body?: unknown) {
-  return new NextRequest(
-    `http://localhost:3000/api/v2/skills/${skill.id}?workspaceId=${WORKSPACE_ID}`,
-    {
-      method,
-      headers: {
-        'x-api-key': 'key',
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }
-  )
+  const query = method === 'PATCH' ? '' : `?workspaceId=${WORKSPACE_ID}`
+  return new NextRequest(`http://localhost:3000/api/v2/skills/${skill.id}${query}`, {
+    method,
+    headers: {
+      'x-api-key': 'key',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
 }
 
 describe('/api/v2/skills/[id]', () => {
@@ -112,12 +120,31 @@ describe('/api/v2/skills/[id]', () => {
     const response = await GET(request('GET'), context)
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data.skill.content).toBe(skill.content)
+    expect((await response.json()).data.content).toBe(skill.content)
     expect(mocks.get).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: { workspaceId: WORKSPACE_ID, skillId: skill.id },
       request: expect.anything(),
     })
+  })
+
+  /**
+   * Every list in this family rejects a query param it does not implement, so
+   * the single-resource reads must too. A caller who mistypes a flag otherwise
+   * gets a 200 that silently ignored it, which reads as confirmation the flag
+   * exists and does nothing.
+   */
+  it('rejects a query param it does not implement', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/skills/${skill.id}?workspaceId=${WORKSPACE_ID}&includeContents=true`,
+        { method: 'GET', headers: { 'x-api-key': 'key' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.get).not.toHaveBeenCalled()
   })
 
   it('updates a skill and emits only surface analytics', async () => {
@@ -164,5 +191,16 @@ describe('/api/v2/skills/[id]', () => {
 
     expect(response.status).toBe(401)
     expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('conceals cross-tenant access while preserving same-workspace role denials', async () => {
+    mocks.get.mockRejectedValueOnce(new NoWorkspaceAccessError())
+    expect((await GET(request('GET'), context)).status).toBe(404)
+
+    mocks.update.mockRejectedValueOnce(new InsufficientWorkspacePermissionsError())
+    expect(
+      (await PATCH(request('PATCH', { workspaceId: WORKSPACE_ID, content: '# Updated' }), context))
+        .status
+    ).toBe(403)
   })
 })

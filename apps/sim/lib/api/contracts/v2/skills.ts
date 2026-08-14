@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   skillContentSchema,
   skillDescriptionSchema,
@@ -9,8 +9,10 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
   v2DataResponse,
+  v2PaginationFields,
   v2SearchSchema,
   v2SortFields,
+  v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 
 /**
@@ -32,60 +34,95 @@ import {
  */
 
 /** List item — everything but the skill body. */
-export const v2SkillSummarySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string(),
-  /** True for built-in template skills, which ship with Sim and cannot be written to. */
-  readOnly: z.boolean(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-})
+export const v2SkillSummarySchema = z
+  .object({
+    id: z
+      .string()
+      .describe(
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.'
+      ),
+    name: z.string().describe('Kebab-case name that agents use to reference the skill.'),
+    description: z.string().describe('One-line summary of when the skill applies.'),
+    /** True for built-in template skills, which ship with Sim and cannot be written to. */
+    readOnly: z
+      .boolean()
+      .describe('Whether this is a built-in skill that cannot be modified or deleted.'),
+    createdAt: v2TimestampSchema.describe(
+      'ISO 8601 timestamp when the skill was created. Built-in skills report the Unix epoch.'
+    ),
+    updatedAt: v2TimestampSchema.describe(
+      'ISO 8601 timestamp when the skill was last updated. Built-in skills report the Unix epoch.'
+    ),
+  })
+  .meta({
+    id: 'V2SkillSummary',
+    title: 'Skill summary',
+    description: 'Public summary metadata for a workspace or built-in skill.',
+  })
 export type V2SkillSummary = z.output<typeof v2SkillSummarySchema>
 
 /** Detail — the summary plus the skill body. */
-export const v2SkillSchema = v2SkillSummarySchema.extend({
-  content: z.string(),
-})
+export const v2SkillSchema = v2SkillSummarySchema
+  .extend({
+    content: z.string().describe('Skill body containing the instructions given to the agent.'),
+  })
+  .meta({
+    id: 'V2Skill',
+    title: 'Skill',
+    description: 'A workspace or built-in skill including its instruction body.',
+  })
 export type V2Skill = z.output<typeof v2SkillSchema>
 
-/** `{ skill }` payload for single-skill reads and mutations. */
-export const v2SkillDataSchema = z.object({ skill: v2SkillSchema })
-export type V2SkillData = z.output<typeof v2SkillDataSchema>
-
-export const v2SkillDeleteDataSchema = z.object({
-  id: z.string(),
-  deleted: z.literal(true),
-})
+export const v2SkillDeleteDataSchema = z
+  .object({
+    id: z.string().describe('Identifier of the deleted skill.'),
+    deleted: z.literal(true).describe('Whether the skill was deleted.'),
+  })
+  .meta({
+    id: 'V2SkillDeleteData',
+    title: 'Delete skill data',
+    description: 'Skill deletion acknowledgement.',
+  })
 export type V2SkillDeleteData = z.output<typeof v2SkillDeleteDataSchema>
 
 export const v2SkillParamsSchema = z.object({
-  id: nonEmptyIdSchema,
+  id: nonEmptyIdSchema.describe(
+    'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.'
+  ),
 })
 export type V2SkillParams = z.output<typeof v2SkillParamsSchema>
 
-export const v2SkillWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema,
-})
+export const v2SkillWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the skill.'),
+  })
+  .strict()
 export type V2SkillWorkspaceQuery = z.output<typeof v2SkillWorkspaceQuerySchema>
 
 export const v2SkillSortFields = ['name', 'createdAt', 'updatedAt'] as const
 
 export type V2SkillSortBy = (typeof v2SkillSortFields)[number]
 
-export const v2ListSkillsQuerySchema = v2SkillWorkspaceQuerySchema.extend({
-  search: v2SearchSchema,
-  ...v2SortFields(v2SkillSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
-})
+export const v2ListSkillsQuerySchema = v2SkillWorkspaceQuerySchema
+  .extend({
+    search: v2SearchSchema.describe('Case-insensitive substring match against the skill name.'),
+    ...v2SortFields(v2SkillSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+    ...v2PaginationFields({ description: 'Maximum skills to return per page.' }),
+  })
+  .strict()
 
 export type V2ListSkillsQuery = z.output<typeof v2ListSkillsQuerySchema>
 
 export const v2CreateSkillBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    name: skillNameSchema,
-    description: skillDescriptionSchema,
-    content: skillContentSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace in which to create the skill.'),
+    name: skillNameSchema.describe(
+      'Kebab-case name, unique within the workspace and not reserved by a built-in skill.'
+    ),
+    description: skillDescriptionSchema.describe('One-line summary of when the skill applies.'),
+    content: skillContentSchema.describe(
+      'Skill body containing the instructions given to the agent.'
+    ),
   })
   .strict()
 export type V2CreateSkillBody = z.input<typeof v2CreateSkillBodySchema>
@@ -96,10 +133,12 @@ export type V2CreateSkillBody = z.input<typeof v2CreateSkillBodySchema>
  */
 export const v2UpdateSkillBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    name: skillNameSchema.optional(),
-    description: skillDescriptionSchema.optional(),
-    content: skillContentSchema.optional(),
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the skill.'),
+    name: skillNameSchema.optional().describe('New kebab-case skill name.'),
+    description: skillDescriptionSchema
+      .optional()
+      .describe('New one-line summary of when the skill applies.'),
+    content: skillContentSchema.optional().describe('Replacement skill body.'),
   })
   .strict()
   .superRefine((body, ctx) => {
@@ -114,9 +153,11 @@ export const v2UpdateSkillBodySchema = z
 export type V2UpdateSkillBody = z.input<typeof v2UpdateSkillBodySchema>
 
 /**
- * Skill list. The per-workspace set is small and bounded, so the full set is
- * returned as a single page (`nextCursor` is always `null`); the canonical
- * cursor envelope keeps the v2 list surface uniform.
+ * Skill list, paginated by an opaque offset cursor rather than the keyset the
+ * other v2 lists use: the list merges the code-only built-in skills — which
+ * have no DB row for a SQL cursor predicate to act on — with the workspace's
+ * rows and re-sorts the result in memory, so no keyset over `skill` columns can
+ * name a position inside that merged sequence.
  */
 export const v2ListSkillsContract = defineRouteContract({
   method: 'GET',
@@ -131,10 +172,11 @@ export const v2ListSkillsContract = defineRouteContract({
 export const v2CreateSkillContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/skills',
+  query: noInputSchema,
   body: v2CreateSkillBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2SkillDataSchema),
+    schema: v2DataResponse(v2SkillSchema),
     status: 201,
   },
 })
@@ -146,18 +188,19 @@ export const v2GetSkillContract = defineRouteContract({
   query: v2SkillWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2SkillDataSchema),
+    schema: v2DataResponse(v2SkillSchema),
   },
 })
 
 export const v2UpdateSkillContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/skills/[id]',
+  query: noInputSchema,
   params: v2SkillParamsSchema,
   body: v2UpdateSkillBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2SkillDataSchema),
+    schema: v2DataResponse(v2SkillSchema),
   },
 })
 

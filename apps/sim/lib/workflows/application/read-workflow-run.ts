@@ -1,4 +1,3 @@
-import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE,
@@ -16,19 +15,12 @@ export interface ReadWorkflowRunInput {
   selectedOutputs: string[]
 }
 
-function assertedWorkspaceId(principal: Principal): string | undefined {
-  return principal.kind === 'workspace_api_key' || principal.kind === 'delegated'
-    ? principal.workspaceId
-    : undefined
-}
-
 export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readRun,
-  resolveContext: ({ principal, input }: { principal: Principal; input: ReadWorkflowRunInput }) =>
+  resolveContext: ({ input }: { input: ReadWorkflowRunInput }) =>
     resolveActiveWorkflowRunApplicationContext({
       runId: input.runId,
       assertedWorkflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkspaceId(principal),
     }),
   async execute({ context, input }) {
     try {

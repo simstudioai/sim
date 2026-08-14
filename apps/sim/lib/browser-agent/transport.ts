@@ -44,6 +44,16 @@ let activeScopeId: string | null = null
 /** Last VISIBLE rect per scope; a hidden/unmounted panel has no entry. */
 const latestPanelBoundsByScope = new Map<string, BrowserPanelBounds>()
 
+interface ActiveBrowserTool {
+  toolCallId: string
+  tool: BrowserToolName
+  scopeId: string
+  onCancel?: () => void
+}
+
+/** Native browser work outlives any one SSE reader or reconnect AbortController. */
+const activeBrowserTools = new Map<string, ActiveBrowserTool>()
+
 function bridge(): SimDesktopBrowserAgentApi | null {
   return getDesktopBridge()?.browserAgent ?? null
 }
@@ -116,6 +126,9 @@ export async function migrateBrowserScope(fromScopeId: string, toScopeId: string
   }
 
   useBrowserSessionStore.getState().migrateScope(fromScopeId, toScopeId)
+  for (const activeTool of activeBrowserTools.values()) {
+    if (activeTool.scopeId === fromScopeId) activeTool.scopeId = toScopeId
+  }
   if (activeScopeId === fromScopeId) activeScopeId = toScopeId
   const movedBounds = latestPanelBoundsByScope.get(fromScopeId)
   latestPanelBoundsByScope.delete(fromScopeId)
@@ -164,29 +177,103 @@ export async function executeBrowserTool(
   tool: BrowserToolName,
   params: Record<string, unknown>,
   timeoutMs: number | null,
-  scopeId = currentBrowserScopeId()
+  scopeId = currentBrowserScopeId(),
+  onCancel?: () => void
 ): Promise<unknown> {
   const agent = bridge()
   if (!agent) {
     throw new Error('The Sim desktop browser agent is unavailable.')
   }
-  const invocation = agent.executeTool(toolCallId, tool, params, scopeId)
-  const response =
-    timeoutMs === null
-      ? await invocation
-      : await Promise.race([
-          invocation,
-          new Promise<never>((_, reject) => {
-            setTimeout(
-              () => reject(new Error(`The browser did not respond within ${timeoutMs}ms`)),
-              timeoutMs
-            )
-          }),
-        ])
-  if (!response.ok) {
-    throw new Error(response.error || 'The browser agent reported an error')
+  const activeTool = { toolCallId, tool, scopeId, onCancel }
+  activeBrowserTools.set(toolCallId, activeTool)
+  try {
+    const invocation = agent.executeTool(toolCallId, tool, params, scopeId)
+    const response =
+      timeoutMs === null
+        ? await invocation
+        : await Promise.race([
+            invocation,
+            new Promise<never>((_, reject) => {
+              setTimeout(
+                () => reject(new Error(`The browser did not respond within ${timeoutMs}ms`)),
+                timeoutMs
+              )
+            }),
+          ])
+    if (!response.ok) {
+      throw new Error(response.error || 'The browser agent reported an error')
+    }
+    return response.result
+  } finally {
+    if (activeBrowserTools.get(toolCallId) === activeTool) {
+      activeBrowserTools.delete(toolCallId)
+    }
   }
-  return response.result
+}
+
+async function cancelRegisteredBrowserTool(activeTool: ActiveBrowserTool): Promise<boolean> {
+  activeTool.onCancel?.()
+  const agent = bridge()
+  if (!agent) return false
+
+  try {
+    if ((await agent.cancelTool?.(activeTool.toolCallId, activeTool.scopeId)) === true) return true
+  } catch {
+    // Older or transitioning shells fall through to the takeover hand-back.
+  }
+
+  if (activeTool.tool !== 'browser_request_takeover') return false
+  try {
+    agent.panelAction({ action: 'takeover-done' }, activeTool.scopeId)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Requests cancellation of one exact native browser tool. */
+export async function cancelBrowserTool(
+  toolCallId: string,
+  scopeId: string,
+  tool: BrowserToolName
+): Promise<boolean> {
+  return await cancelRegisteredBrowserTool(
+    activeBrowserTools.get(toolCallId) ?? { toolCallId, scopeId, tool }
+  )
+}
+
+/** Cancels native browser work owned by the stopped stream's captured scopes. */
+export async function cancelActiveBrowserTools(scopeIds: Iterable<string>): Promise<void> {
+  const scopes = new Set(scopeIds)
+  const activeTools = [...activeBrowserTools.values()].filter((activeTool) =>
+    scopes.has(activeTool.scopeId)
+  )
+  const exactCancellations = activeTools.map(cancelRegisteredBrowserTool)
+
+  // A renderer reload can lose an older native tool, then register newer work
+  // in the same scope after reconnect. Establish the scope boundary even when
+  // every currently known renderer tool was cancelled exactly, so that older
+  // native work and queued pre-boundary calls cannot survive Stop.
+  const agent = bridge()
+  const scopeCancellations = agent
+    ? [...scopes].map(async (scopeId) => {
+        try {
+          if ((await agent.cancelActiveTool?.(scopeId)) === true) return
+        } catch {
+          // Older or transitioning shells fall through to takeover hand-back.
+        }
+        try {
+          agent.panelAction({ action: 'takeover-done' }, scopeId)
+        } catch {
+          // Best-effort recovery for a renderer-owned registry that no longer exists.
+        }
+      })
+    : []
+
+  // Both IPC paths are started before yielding. A new stream can begin while
+  // cancellation settles, but its tools must land after the native scope
+  // boundary rather than being swept up by the previous stream's Stop.
+  await Promise.all([...exactCancellations, ...scopeCancellations])
 }
 
 /** Browser-chrome commands from the panel header; fire-and-forget. */
@@ -196,6 +283,28 @@ export function sendBrowserPanelAction(
   scopeId = currentBrowserScopeId()
 ): void {
   bridge()?.panelAction({ action, ...payload }, scopeId)
+}
+
+/**
+ * Creates a tab through an acknowledged IPC path when supported. Older shells
+ * retain the fire-and-forget fallback, but callers must not assume completion
+ * until a tab-state push arrives in that case.
+ */
+export async function openBrowserTab(
+  scopeId = currentBrowserScopeId()
+): Promise<BrowserTabsState | null> {
+  const agent = bridge()
+  if (!agent) throw new Error('The Sim desktop browser agent is unavailable.')
+  if (!agent.openTab) {
+    agent.panelAction({ action: 'new-tab' }, scopeId)
+    return null
+  }
+  const state = await agent.openTab(scopeId)
+  if (state.scopeId !== scopeId || !state.activeTabId) {
+    throw new Error('The desktop browser did not confirm the new tab.')
+  }
+  useBrowserSessionStore.getState().setTabsState(state)
+  return state
 }
 
 /** Pins or unpins a live browser tab. */
@@ -218,7 +327,10 @@ export function reorderBrowserTab(
   targetIndex: number,
   scopeId = currentBrowserScopeId()
 ): void {
-  bridge()?.reorderTab(tabId, targetIndex, scopeId)
+  const agent = bridge()
+  if (!agent) return
+  useBrowserSessionStore.getState().reorderTab(scopeId, tabId, targetIndex)
+  agent.reorderTab(tabId, targetIndex, scopeId)
 }
 
 /** Mirrors Sim's raw light/dark/system preference into embedded pages. */

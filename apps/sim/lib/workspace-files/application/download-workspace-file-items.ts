@@ -1,22 +1,22 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   buildWorkspaceFileFolderPathMap,
-  fetchServableWorkspaceFileBuffer,
   listWorkspaceFileFolders,
   listWorkspaceFiles,
   loadWorkspaceFileOperationContext,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
+import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
 import {
   formatFileSize,
-  isGeneratedDocumentSourceType,
-  isRenderableDocumentName,
   MAX_RENDERED_DOCUMENT_BYTES,
+  needsRenderedArtifact,
 } from '@/lib/uploads/utils/file-utils'
-import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/servable-file-response'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 export const MAX_ZIP_DOWNLOAD_FILES = 100
@@ -35,10 +35,6 @@ export interface DownloadWorkspaceFileItemsResult {
   folderPaths: Map<string, string>
   renderedDocuments: Map<string, Buffer>
   declaredBytes: number
-}
-
-function needsRendering(file: WorkspaceFileRecord): boolean {
-  return file.type ? isGeneratedDocumentSourceType(file.type) : isRenderableDocumentName(file.name)
 }
 
 function collectDescendantFolderIds(
@@ -66,10 +62,12 @@ function validationError(message: string): never {
 async function executeDownloadWorkspaceFileItems({
   input,
   context,
-}: {
-  input: DownloadWorkspaceFileItemsInput
-  context: Awaited<ReturnType<typeof resolveDownloadContext>>
-}): Promise<DownloadWorkspaceFileItemsResult> {
+  principal,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.download,
+  DownloadWorkspaceFileItemsInput,
+  Awaited<ReturnType<typeof resolveDownloadContext>>
+>): Promise<DownloadWorkspaceFileItemsResult> {
   const fileIds = [...new Set(input.fileIds)]
   const folderIds = [...new Set(input.folderIds)]
   if (fileIds.length > MAX_REQUESTED_FILE_IDS) {
@@ -89,14 +87,6 @@ async function executeDownloadWorkspaceFileItems({
     listWorkspaceFileFolders(context.workspaceId),
   ])
   const folderPaths = buildWorkspaceFileFolderPathMap(folders)
-  const knownFileIds = new Set(files.map((file) => file.id))
-  const knownFolderIds = new Set(folders.map((folder) => folder.id))
-  if (
-    fileIds.some((fileId) => !knownFileIds.has(fileId)) ||
-    folderIds.some((folderId) => !knownFolderIds.has(folderId))
-  ) {
-    throw new OrchestrationError('not_found', 'File selection not found')
-  }
   const selectedFolderIds = collectDescendantFolderIds(folderIds, folders)
   const requestedFileIds = new Set(fileIds)
   const filesToZip = files.filter(
@@ -120,18 +110,20 @@ async function executeDownloadWorkspaceFileItems({
   }
 
   const reservedForStreamed = filesToZip
-    .filter((file) => !needsRendering(file))
+    .filter((file) => !needsRenderedArtifact(file.type, file.name))
     .reduce((sum, file) => sum + file.size, 0)
   const renderedDocuments = new Map<string, Buffer>()
   const pendingNames: string[] = []
   let renderedBytes = 0
 
   for (const file of filesToZip) {
-    if (!needsRendering(file)) continue
+    if (!needsRenderedArtifact(file.type, file.name)) continue
     const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - reservedForStreamed - renderedBytes)
     const allowance = Math.min(remaining, MAX_RENDERED_DOCUMENT_BYTES)
     try {
-      const { buffer } = await fetchServableWorkspaceFileBuffer(file, { maxBytes: allowance })
+      const { buffer } = await fetchAuthorizedServableWorkspaceFileBuffer(file, principal, {
+        maxBytes: allowance,
+      })
       renderedBytes += buffer.length
       renderedDocuments.set(file.id, buffer)
     } catch (error) {

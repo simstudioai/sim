@@ -25,6 +25,18 @@ export const MAX_WORKSPACE_FORMDATA_FILE_SIZE = 100 * 1024 * 1024
 /** Maximum size accepted by the knowledge-document parsing pipeline. */
 export const MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE = 100 * 1024 * 1024
 
+/**
+ * Rejection wording shared by every surface that admits a knowledge document.
+ *
+ * The size guards were upper-bound only, so a zero-byte file passed admission
+ * and was stored and registered — but the parsing pipeline refuses an empty
+ * buffer outright (`parseBuffer` throws before dispatching to a parser), so the
+ * document could never reach anything but `failed`. A file the pipeline is
+ * guaranteed to reject is a bad request, and admission is the only place a
+ * caller can be told so.
+ */
+export const EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE = 'Knowledge document cannot be empty'
+
 export type StorageContext =
   | 'knowledge-base'
   | 'chat'
@@ -39,25 +51,6 @@ export type StorageContext =
   | 'workspace-logos'
 
 export type MultipartCompletionPolicy = 'create-only' | 'replace' | 'reuse-existing'
-
-/**
- * Contexts exempt from storage quota checks. Includes system-internal contexts
- * (`logs` — written by the execution pipeline, not user-initiated) and small
- * metadata assets (`profile-pictures`, `workspace-logos`, `og-images`).
- * Mothership chat attachments are also exempt because they are not counted as
- * durable workspace-file storage.
- *
- * The small-asset and system contexts are excluded from the multipart endpoint.
- * Mothership remains available there for large chat attachments while retaining
- * the same quota exemption as its single-part upload path.
- */
-export const QUOTA_EXEMPT_STORAGE_CONTEXTS = new Set<StorageContext>([
-  'mothership',
-  'profile-pictures',
-  'workspace-logos',
-  'og-images',
-  'logs',
-])
 
 export interface FileInfo {
   path: string
@@ -102,29 +95,6 @@ export interface DeleteFileOptions {
   context?: StorageContext
 }
 
-export interface GeneratePresignedUrlOptions {
-  fileName: string
-  contentType: string
-  fileSize: number
-  context: StorageContext
-  userId?: string
-  expirationSeconds?: number
-  metadata?: Record<string, string>
-  /**
-   * When provided, overrides the default `${context}/${timestamp}-${id}-${name}` key derivation.
-   * The caller takes responsibility for uniqueness and prefix conventions.
-   */
-  customKey?: string
-}
-
-export interface PresignedUrlResponse {
-  url: string
-  key: string
-  uploadHeaders?: Record<string, string>
-  /** Opaque per-URL receipt persisted in object metadata for safe retry verification. */
-  uploadId?: string
-}
-
 export interface StoredObjectInfo {
   size: number
   contentType?: string
@@ -132,5 +102,3 @@ export interface StoredObjectInfo {
   uploadId?: string
   version?: string
 }
-
-export const PRESIGNED_UPLOAD_RECEIPT_METADATA_KEY = 'simuploadid'

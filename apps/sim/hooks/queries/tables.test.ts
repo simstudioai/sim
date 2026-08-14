@@ -49,33 +49,6 @@ vi.mock('@/lib/api/client/errors', () => ({
   extractValidationIssues: vi.fn(() => []),
 }))
 
-vi.mock('@/lib/api/contracts/tables', () => ({
-  addTableColumnContract: {},
-  addWorkflowGroupContract: {},
-  batchCreateTableRowsContract: {},
-  batchUpdateTableRowsContract: {},
-  cancelTableRunsContract: {},
-  createTableContract: {},
-  createTableRowContract: {},
-  deleteTableColumnContract: {},
-  deleteTableContract: {},
-  deleteTableRowContract: {},
-  deleteTableRowsContract: {},
-  deleteWorkflowGroupContract: {},
-  getTableContract: {},
-  importCsvContract: {},
-  listTableRowsContract: {},
-  listTablesContract: {},
-  renameTableContract: {},
-  restoreTableContract: {},
-  runWorkflowGroupContract: {},
-  updateTableColumnContract: {},
-  updateTableMetadataContract: {},
-  updateTableRowContract: {},
-  updateWorkflowGroupContract: {},
-  uploadCsvContract: {},
-}))
-
 vi.mock('@/app/workspace/providers/socket-provider', () => ({
   useSocket: vi.fn(() => ({ socket: null })),
 }))
@@ -95,6 +68,13 @@ import { tableKeys } from '@/hooks/queries/utils/table-keys'
 
 const TABLE_ID = 'tbl-1'
 const WORKSPACE_ID = 'ws-1'
+
+/**
+ * Where a paged row list actually lives. Seeding at the bare `rowsRoot` prefix would
+ * exercise a key no hook writes, and would keep matching a cache walk that has been
+ * narrowed away from the `find` sibling hanging off the same parent.
+ */
+const ROWS_KEY = tableKeys.infiniteRows(TABLE_ID, tableRowsParamsKey({ pageSize: 1000 }))
 
 function setCache(key: readonly unknown[], value: unknown) {
   cacheStore.set(JSON.stringify(key), value)
@@ -123,7 +103,7 @@ describe('useDeleteColumn optimistic update', () => {
         columnWidths: { name: 200, age: 100 },
       },
     })
-    setCache(tableKeys.rowsRoot(TABLE_ID), {
+    setCache(ROWS_KEY, {
       rows: [
         { id: 'r1', data: { name: 'a', age: 1 } },
         { id: 'r2', data: { name: 'b', age: 2 } },
@@ -141,14 +121,39 @@ describe('useDeleteColumn optimistic update', () => {
     expect(detail?.schema.columns.map((c) => c.name)).toEqual(['name'])
     expect(detail?.metadata.columnWidths).toEqual({ name: 200 })
 
-    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(
-      tableKeys.rowsRoot(TABLE_ID)
-    )
+    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(ROWS_KEY)
     expect(rows?.rows.every((r) => !('age' in r.data))).toBe(true)
     expect(rows?.rows[0]?.data).toEqual({ name: 'a' })
 
     expect(ctx?.previousDetail).toBeDefined()
     expect(ctx?.rowSnapshots?.length).toBeGreaterThan(0)
+  })
+
+  /**
+   * The `find` cache hangs off the same `rowsRoot` parent as the paged rows but holds
+   * `{matches, truncated}` — no `pages`, no `rows`. A cache walk starting at the shared
+   * parent reaches it and throws inside `onMutate`, rejecting the mutation before it ever
+   * reaches the server: search a table, dismiss the search, then edit a cell.
+   */
+  it('survives a cached search result hanging off the shared rows prefix', async () => {
+    setCache(tableKeys.detail(TABLE_ID), {
+      id: TABLE_ID,
+      schema: { columns: [{ name: 'age', type: 'number' }] },
+    })
+    setCache(ROWS_KEY, {
+      rows: [{ id: 'r1', data: { age: 1 } }],
+      totalCount: 1,
+    })
+    setCache(tableKeys.find(TABLE_ID, 'q'), { matches: [{ rowId: 'r1', column: 'age' }] })
+
+    const hook = useDeleteColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+
+    await expect(hook.onMutate?.('age')).resolves.toBeDefined()
+
+    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(ROWS_KEY)
+    expect(rows?.rows[0]?.data).toEqual({})
+    /** The find entry is match coordinates, not row values — it must be left untouched. */
+    expect(getCache<{ matches: unknown[] }>(tableKeys.find(TABLE_ID, 'q'))?.matches).toHaveLength(1)
   })
 
   it('rolls back schema and rows on error using snapshots', async () => {
@@ -162,7 +167,7 @@ describe('useDeleteColumn optimistic update', () => {
       totalCount: 1,
     }
     setCache(tableKeys.detail(TABLE_ID), originalDetail)
-    setCache(tableKeys.rowsRoot(TABLE_ID), originalRows)
+    setCache(ROWS_KEY, originalRows)
 
     const hook = useDeleteColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
     const ctx = await hook.onMutate?.('age')
@@ -172,7 +177,7 @@ describe('useDeleteColumn optimistic update', () => {
     hook.onError?.(new Error('boom'), 'age', ctx)
 
     expect(getCache(tableKeys.detail(TABLE_ID))).toEqual(originalDetail)
-    expect(getCache(tableKeys.rowsRoot(TABLE_ID))).toEqual(originalRows)
+    expect(getCache(ROWS_KEY)).toEqual(originalRows)
   })
 
   it('invalidates schema, rows, and lists in onSettled', () => {
@@ -221,7 +226,7 @@ describe('useUpdateColumn optimistic update', () => {
       id: TABLE_ID,
       schema: { columns: [{ name: 'age', type: 'number' }] },
     })
-    setCache(tableKeys.rowsRoot(TABLE_ID), {
+    setCache(ROWS_KEY, {
       rows: [
         { id: 'r1', data: { age: 30 } },
         { id: 'r2', data: { age: 40 } },
@@ -234,9 +239,7 @@ describe('useUpdateColumn optimistic update', () => {
 
     // Row data is id-keyed; a rename never moves it. The stored key (`age`)
     // becomes the column's stamped id, so cells stay reachable via getColumnId.
-    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(
-      tableKeys.rowsRoot(TABLE_ID)
-    )
+    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(ROWS_KEY)
     expect(rows?.rows[0]?.data).toEqual({ age: 30 })
     expect(rows?.rows[1]?.data).toEqual({ age: 40 })
 
@@ -292,7 +295,7 @@ describe('useDeleteColumn case-insensitive row cleanup', () => {
       id: TABLE_ID,
       schema: { columns: [{ name: 'Age', type: 'number' }] },
     })
-    setCache(tableKeys.rowsRoot(TABLE_ID), {
+    setCache(ROWS_KEY, {
       rows: [{ id: 'r1', data: { Age: 30, name: 'a' } }],
       totalCount: 1,
     })
@@ -300,9 +303,7 @@ describe('useDeleteColumn case-insensitive row cleanup', () => {
     const hook = useDeleteColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
     await hook.onMutate?.('age')
 
-    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(
-      tableKeys.rowsRoot(TABLE_ID)
-    )
+    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(ROWS_KEY)
     expect(rows?.rows[0]?.data).toEqual({ name: 'a' })
   })
 })

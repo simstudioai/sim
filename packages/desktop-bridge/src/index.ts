@@ -76,6 +76,12 @@ export interface SimDesktopTerminalApi {
   /** Open an additional terminal and make it active. */
   openTerminal(cwd: string | undefined, scopeId: string): Promise<ScopedTerminalTabsState>
   switchTerminal(terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState>
+  /** Move a terminal to its final position. Optional for older installed shells. */
+  reorderTerminal?(
+    terminalId: string,
+    targetIndex: number,
+    scopeId: string
+  ): Promise<ScopedTerminalTabsState>
   closeTerminal(terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState>
   getTabs(scopeId: string): Promise<ScopedTerminalTabsState>
   /** Makes a chat's terminal group the renderer-visible group. */
@@ -99,11 +105,12 @@ export interface SimDesktopTerminalApi {
   /** Forget retained output for one terminal. */
   clearScrollback(terminalId: string, scopeId: string): Promise<boolean>
   /**
-   * Reports whether the terminal panel owns keyboard focus, so global menu
-   * accelerators can tell a Cmd-W meant for a terminal from one meant for the
-   * window.
+   * Reports whether the visible terminal panel owns resource shortcuts, so a
+   * transient DOM blur cannot turn Cmd-W into a window-level command.
    */
   setFocused(focused: boolean, scopeId: string): void
+  /** Reports whether this renderer is currently displaying the terminal resource. */
+  setVisible?(visible: boolean, scopeId: string): void
   /**
    * The user finishing a handoff — the hand-back chip on the waiting tool row.
    */
@@ -141,8 +148,17 @@ export interface SimDesktopBrowserAgentApi {
     params: Record<string, unknown>,
     scopeId: string
   ): Promise<BrowserToolResponse>
-  /** Browser-chrome commands from the panel (URL bar, back, reload, takeover Done). */
+  /** Cancel one exact in-flight tool. Optional for compatibility with older shells. */
+  cancelTool?(toolCallId: string, scopeId: string): Promise<boolean>
+  /** Cancel the currently active tool in a scope after renderer state was lost. */
+  cancelActiveTool?(scopeId: string): Promise<boolean>
+  /** Browser-chrome commands from the panel (URL bar, back, reload, takeover hand-back). */
   panelAction(action: BrowserPanelAction, scopeId: string): void
+  /**
+   * Create and activate a blank tab, returning the authoritative list.
+   * Optional for compatibility with installed shells that predate acknowledged tab creation.
+   */
+  openTab?(scopeId: string): Promise<BrowserTabsState>
   /** Makes a chat's browser tab set the renderer-visible set. */
   activateScope(scopeId: string): Promise<BrowserTabsState>
   /** Materializes a lazily activated chat's persisted tabs without showing its panel. */
@@ -614,6 +630,11 @@ export interface DesktopOAuthConnectResult {
   ok: boolean
   /** OAuth error slug forwarded from the provider callback, when the flow failed. */
   error?: string
+  /**
+   * Chat attempt correlated by the desktop handoff, or null for a non-chat
+   * connect. Absent only on older desktop shells that predate correlation.
+   */
+  chatAttemptId?: string | null
 }
 
 /**
@@ -625,6 +646,8 @@ export interface DesktopOAuthConnectResult {
 export interface DesktopOAuthConnectScope {
   workspaceId?: string
   credentialId?: string
+  /** Mothership credential-chip attempt to echo on desktop completion. */
+  chatAttemptId?: string
 }
 
 export interface TerminalThemePalette {
@@ -954,7 +977,7 @@ export interface SimDesktopUpdatesApi {
   onState(callback: (state: DesktopUpdateState) => void): () => void
 }
 
-export type DesktopCommand = 'toggle-sidebar'
+export type DesktopCommand = 'toggle-sidebar' | 'open-search'
 
 export interface DesktopWindowState {
   isFullScreen: boolean

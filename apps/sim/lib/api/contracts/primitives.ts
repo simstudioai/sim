@@ -13,24 +13,34 @@ const resolvedSecretTraceProvenanceEntrySchema = z
     encryptedValue: z
       .string()
       .min(1)
-      .max(8 * 1024 * 1024),
-    name: z.string().min(1).max(1024).optional(),
+      .max(8 * 1024 * 1024)
+      .describe('Encrypted secret value carried across the trusted execution boundary.'),
+    name: z.string().min(1).max(1024).optional().describe('Optional source secret name.'),
   })
   .strict()
 
 /** Private, encrypted provenance carried only across authenticated Sim model-input boundaries. */
 export const resolvedSecretTraceProvenanceSchema = z
   .object({
-    version: z.literal(1),
-    complete: z.boolean(),
-    entries: z.array(resolvedSecretTraceProvenanceEntrySchema).max(10_000),
+    version: z.literal(1).describe('Secret provenance format version.'),
+    complete: z.boolean().describe('Whether the provenance trace is complete.'),
+    entries: z
+      .array(resolvedSecretTraceProvenanceEntrySchema)
+      .max(10_000)
+      .describe('Encrypted secret provenance entries.'),
     scope: z
       .object({
-        userId: z.string().min(1).max(1024),
-        workspaceId: z.string().min(1).max(1024).optional(),
+        userId: z.string().min(1).max(1024).describe('User scope for the encrypted provenance.'),
+        workspaceId: z
+          .string()
+          .min(1)
+          .max(1024)
+          .optional()
+          .describe('Optional workspace scope for the encrypted provenance.'),
       })
       .strict()
-      .optional(),
+      .optional()
+      .describe('Authorization scope bound to the encrypted provenance.'),
   })
   .strict()
   .superRefine((provenance, ctx) => {
@@ -59,18 +69,21 @@ export const resolvedSecretTraceProvenanceSchema = z
 /** Per-selection encrypted provenance for durable internal persistence boundaries. */
 export const privateSecretProvenanceBundleSchema = z
   .object({
-    version: z.literal(1),
-    complete: z.boolean(),
+    version: z.literal(1).describe('Private provenance bundle format version.'),
+    complete: z.boolean().describe('Whether the private provenance bundle is complete.'),
     selections: z
       .array(
         z
           .object({
-            key: z.string().min(1).max(4096),
-            provenance: resolvedSecretTraceProvenanceSchema,
+            key: z.string().min(1).max(4096).describe('Selection key carrying provenance.'),
+            provenance: resolvedSecretTraceProvenanceSchema.describe(
+              'Encrypted provenance for this selection.'
+            ),
           })
           .strict()
       )
-      .max(10_000),
+      .max(10_000)
+      .describe('Selections and their encrypted provenance.'),
   })
   .strict()
   .superRefine((bundle, ctx) => {
@@ -197,7 +210,9 @@ export function requiredFieldSchema(message: string) {
 }
 
 /** Non-empty `workspaceId` field with a stable, human-readable message. */
-export const workspaceIdSchema = requiredFieldSchema('Workspace ID is required')
+export const workspaceIdSchema = requiredFieldSchema('Workspace ID is required').describe(
+  'Unique workspace identifier.'
+)
 
 /**
  * A single workspace-file name, not a path. Folder placement is carried by a
@@ -218,6 +233,22 @@ export const organizationIdSchema = requiredFieldSchema('Organization ID is requ
 
 /** Non-empty `workflowId` field with a stable, human-readable message. */
 export const workflowIdSchema = requiredFieldSchema('Workflow ID is required')
+
+/**
+ * A workflow run identifier, shared by the run resources, the caller-supplied
+ * `X-Run-Id` claim, and the log resources keyed on the same value. One
+ * identifier gets one schema: the log surfaces address the very rows the run
+ * surfaces mint, so a bound enforced on one and not the other decides nothing
+ * except which endpoint an oversized value reaches the database through.
+ */
+export const runIdSchema = z
+  .string()
+  .min(1, 'Invalid run ID')
+  .max(128, 'Run ID too long')
+  .regex(
+    /^[A-Za-z0-9._:-]+$/,
+    'Run ID can only contain letters, numbers, dots, underscores, colons, and hyphens'
+  )
 
 /**
  * A `folder.id` value. Not `.uuid()`: the column is free-form `text` and the

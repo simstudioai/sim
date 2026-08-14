@@ -1,10 +1,6 @@
 import { completeTableImportResourceContract } from '@/lib/api/contracts/table-transfers'
-import {
-  defineInternalJsonRoute,
-  internalPlainOrchestrationErrorPolicy,
-  internalRateLimits,
-} from '@/lib/api/server/routes'
-import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import { internalTableErrorPolicies, internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import { completeTableImportUseCase } from '@/lib/table/application/imports'
 import { tableOperations } from '@/lib/table/application/operations'
 import { toV2TableImport } from '@/lib/table/orchestration/import-resource'
@@ -16,7 +12,7 @@ export const POST = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Existing authenticated table import completion has no request-rate policy',
   }),
-  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  errorPolicy: internalTableErrorPolicies.concealImportAuthorization,
   mapInput: ({ params, query, headers }) => ({
     importId: params.importId,
     workspaceId: query.workspaceId,

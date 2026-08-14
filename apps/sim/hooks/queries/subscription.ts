@@ -13,6 +13,8 @@ import {
   updateUsageLimitContract,
 } from '@/lib/api/contracts/subscription'
 import { organizationKeys } from '@/hooks/queries/organization'
+import { invalidateWorkspaceUsage } from '@/hooks/queries/utils/invalidate-usage'
+import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
 export type { SubscriptionApiResponse }
@@ -20,19 +22,6 @@ export type { SubscriptionApiResponse }
 export const SUBSCRIPTION_DATA_STALE_TIME = 5 * 60 * 1000
 export const USAGE_LIMIT_STALE_TIME = 30 * 1000
 export const INVOICES_STALE_TIME = 5 * 60 * 1000
-
-/**
- * Query key factories for subscription-related queries
- */
-export const subscriptionKeys = {
-  all: ['subscription'] as const,
-  users: () => [...subscriptionKeys.all, 'user'] as const,
-  user: (includeOrg?: boolean) => [...subscriptionKeys.users(), { includeOrg }] as const,
-  usage: () => [...subscriptionKeys.all, 'usage'] as const,
-  invoicesAll: () => [...subscriptionKeys.all, 'invoices'] as const,
-  invoices: (context: 'user' | 'organization' = 'user', organizationId?: string) =>
-    [...subscriptionKeys.invoicesAll(), context, organizationId ?? ''] as const,
-}
 
 /**
  * Fetch user subscription data
@@ -265,6 +254,7 @@ export function useUpdateUsageLimit() {
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() }),
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() }),
+        invalidateWorkspaceUsage(queryClient),
       ])
     },
   })
@@ -291,6 +281,7 @@ export function useUpgradeSubscription() {
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() }),
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.invoicesAll() }),
         queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() }),
+        invalidateWorkspaceUsage(queryClient),
         ...(variables.orgId
           ? [
               queryClient.invalidateQueries({
@@ -328,6 +319,7 @@ export function usePurchaseCredits() {
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() }),
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() }),
+        invalidateWorkspaceUsage(queryClient),
         ...(variables.orgId
           ? [
               queryClient.invalidateQueries({

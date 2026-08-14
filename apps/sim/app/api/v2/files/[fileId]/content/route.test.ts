@@ -1,24 +1,22 @@
 /**
  * @vitest-environment node
  */
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   admit: vi.fn(),
-  download: vi.fn(),
   updateContent: vi.fn(),
-  authenticateV2ApiKey: vi.fn(),
-  checkRateLimitDirect: vi.fn(),
-  checkRateLimitDirectOrThrow: vi.fn(),
   getUserEmailsByIds: vi.fn(),
-}))
-
-vi.mock('@/lib/workspace-files/application/download-workspace-file', () => ({
-  downloadWorkspaceFileStream: {
-    operation: { id: 'files.download', minimumRole: 'read', workspaceApiKey: 'allow' },
-    execute: mocks.download,
-  },
 }))
 
 vi.mock('@/lib/workspace-files/orchestration', () => ({
@@ -33,31 +31,18 @@ vi.mock('@/lib/workspace-files/application/update-workspace-file-content', () =>
   },
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mocks.checkRateLimitDirect
-    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
-  },
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/users/queries', () => ({
   getUserEmailsByIds: mocks.getUserEmailsByIds,
   requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
-import { InsufficientWorkspacePermissionsError } from '@/lib/core/application'
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { GET, PUT } from '@/app/api/v2/files/[fileId]/content/route'
+import { PUT } from '@/app/api/v2/files/[fileId]/content/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -85,15 +70,6 @@ const record = {
   uploadedAt: new Date('2024-01-01T00:00:00Z'),
   updatedAt: new Date('2024-01-03T00:00:00Z'),
 }
-const context = { params: Promise.resolve({ fileId: FILE_ID }) }
-
-const callGet = () =>
-  GET(
-    new NextRequest(
-      `http://localhost:3000/api/v2/files/${FILE_ID}/content?workspaceId=${WORKSPACE_ID}`
-    ),
-    context
-  )
 
 const callPut = (body: unknown, contentLength?: number) =>
   PUT(
@@ -105,80 +81,38 @@ const callPut = (body: unknown, contentLength?: number) =>
       },
       body: typeof body === 'string' ? body : JSON.stringify(body),
     }),
-    context
+    { params: Promise.resolve({ fileId: FILE_ID }) }
   )
-
-describe('GET /api/v2/files/[fileId]/content', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.authenticateV2ApiKey.mockResolvedValue(auth)
-    mocks.checkRateLimitDirect.mockResolvedValue({
-      allowed: true,
-      remaining: 599,
-      resetAt: new Date('2024-01-01T01:00:00Z'),
-    })
-    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
-      allowed: true,
-      remaining: 99,
-      resetAt: new Date('2024-01-01T01:00:00Z'),
-    })
-    mocks.download.mockResolvedValue({
-      file: record,
-      stream: new Blob(['id,name\n']).stream(),
-    })
-  })
-
-  it('streams bytes through the binary adapter', async () => {
-    const response = await callGet()
-
-    expect(response.status).toBe(200)
-    expect(response.headers.get('Content-Type')).toBe('text/csv')
-    expect(response.headers.get('Content-Disposition')).toContain('data.csv')
-    expect(await response.text()).toBe('id,name\n')
-    expect(mocks.download).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
-      request: expect.anything(),
-    })
-  })
-
-  it('conceals content authorization failures', async () => {
-    mocks.download.mockRejectedValue(new InsufficientWorkspacePermissionsError())
-
-    const response = await callGet()
-
-    expect(response.status).toBe(404)
-    expect((await response.json()).error.code).toBe('NOT_FOUND')
-  })
-})
 
 describe('PUT /api/v2/files/[fileId]/content', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticateV2ApiKey.mockResolvedValue(auth)
-    mocks.checkRateLimitDirect.mockResolvedValue({
-      allowed: true,
-      remaining: 599,
-      resetAt: new Date('2024-01-01T01:00:00Z'),
-    })
-    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
-      allowed: true,
-      remaining: 99,
-      resetAt: new Date('2024-01-01T01:00:00Z'),
-    })
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.admit.mockResolvedValue(undefined)
     mocks.updateContent.mockResolvedValue({ file: record })
     mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
   it('performs authenticated admission before parsing a large or malformed body', async () => {
-    mocks.admit.mockRejectedValue(new InsufficientWorkspacePermissionsError())
+    mocks.admit.mockRejectedValue(new NoWorkspaceAccessError())
 
     const response = await callPut('{not-json')
 
     expect(response.status).toBe(404)
     expect(mocks.admit).toHaveBeenCalledWith(auth.principal, FILE_ID)
     expect(mocks.updateContent).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unauthenticated request', async () => {
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await callPut({ workspaceId: WORKSPACE_ID, content: 'id,name\n' })
+
+    expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 
   it('validates body fields after admission', async () => {
@@ -220,6 +154,7 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
         uploadedByEmail: 'ada@example.com',
         uploadedAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-03T00:00:00.000Z',
+        deletedAt: null,
       },
     })
     expect(mocks.updateContent).toHaveBeenCalledWith({
@@ -232,7 +167,7 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
       },
       request,
     })
-    expect(mocks.checkRateLimitDirectOrThrow).toHaveBeenCalledWith(
+    expect(v2RouteMocks.operationRate).toHaveBeenCalledWith(
       'v2:files.update_content:api-key:key-1',
       expect.anything()
     )

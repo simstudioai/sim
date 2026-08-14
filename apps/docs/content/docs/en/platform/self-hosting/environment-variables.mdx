@@ -107,7 +107,7 @@ See [Authentication](/platform/self-hosting/authentication).
 
 | Variable | Description |
 |----------|-------------|
-| `DISABLE_REGISTRATION` | Set `true` to disable new user signups entirely |
+| `DISABLE_REGISTRATION` | Set `true` to block all new accounts, including social sign-in. Invitations still work for people who already have an account. SSO is unaffected |
 | `DISABLE_EMAIL_SIGNUP` | Block new email/password registrations; existing email login keeps working |
 | `ALLOWED_LOGIN_DOMAINS` | Restrict signups to domains (comma-separated) |
 | `ALLOWED_LOGIN_EMAILS` | Restrict signups to specific emails (comma-separated) |
@@ -181,6 +181,7 @@ See [Observability](/platform/self-hosting/observability).
 | `NEXT_PUBLIC_CHAT_DISABLED` | Set to `true` to hide the Chat module: the workspace lands on your first workflow, with no chats list, scheduled tasks, or editor Chat panel. Chat is shown when unset; `bun run setup` sets it for you if you skip the chat key |
 | `PII_REDACTION` | Redact PII from workflow logs via Data Retention rules; requires the PII service and a cluster-reachable `INTERNAL_API_BASE_URL` |
 | `PII_GRANULAR_REDACTION` | Additionally expose the execution-altering redaction stages |
+| `DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES` | Durable stores where a value whose secret provenance was never recorded fails the run instead of logging a warning. `all`, or a comma-separated subset of `memory`, `table-row`, `knowledge`. Unset (nothing enforced) by default |
 | `ADMIN_API_KEY` | Admin API key for GitOps operations and organization provisioning |
 
 ## Enterprise Features

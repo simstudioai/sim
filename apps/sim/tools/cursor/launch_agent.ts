@@ -1,6 +1,6 @@
 import {
+  applyProjectedCursorPromptModelInput,
   selectCursorPromptModelInput,
-  selectCursorPromptOpaqueModelInput,
 } from '@/tools/cursor/model-input'
 import type { LaunchAgentParams, LaunchAgentResponse } from '@/tools/cursor/types'
 import type { ToolConfig } from '@/tools/types'
@@ -72,10 +72,8 @@ const launchAgentBase = {
     modelInput: {
       mode: 'project',
       select: (params: LaunchAgentParams) => selectCursorPromptModelInput(params, 'promptText'),
-    },
-    opaqueModelInput: {
-      mode: 'reject-resolved-secrets',
-      select: selectCursorPromptOpaqueModelInput,
+      applyProjected: (selectedParams, projectedSelection) =>
+        applyProjectedCursorPromptModelInput(selectedParams, projectedSelection, 'promptText'),
     },
     url: () => 'https://api.cursor.com/v0/agents',
     method: 'POST',

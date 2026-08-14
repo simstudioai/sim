@@ -53,8 +53,6 @@ import { TraceCollector } from '@/lib/copilot/request/trace'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
 import { isCopilotBillingAttributionV1Enabled, isHosted } from '@/lib/core/config/env-flags'
-import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export { SSE_RESPONSE_HEADERS }
 
@@ -253,9 +251,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             requestId,
             publisher,
             otelContext,
-            resolvedSecretTraceRegistry:
-              orchestrateOptions.resolvedSecretTraceRegistry ??
-              orchestrateOptions.executionContext?.resolvedSecretTraceRegistry,
           })
 
           try {
@@ -431,9 +426,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   })
 }
 
-// ---------------------------------------------------------------------------
 // Title generation (fire-and-forget side effect)
-// ---------------------------------------------------------------------------
 
 /** Starts the shared chat-title side effect without delaying the response stream. */
 export function fireTitleGeneration(params: {
@@ -449,7 +442,6 @@ export function fireTitleGeneration(params: {
   requestId: string
   publisher: Pick<StreamWriter, 'publish'>
   otelContext?: Context
-  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }): void {
   const {
     chatId,
@@ -464,18 +456,11 @@ export function fireTitleGeneration(params: {
     requestId,
     publisher,
     otelContext,
-    resolvedSecretTraceRegistry,
   } = params
   if (!chatId || currentChat?.title || !isNewChat) return
 
-  const projectedMessage = projectResolvedSecretModelContent(message, resolvedSecretTraceRegistry)
-  if (!projectedMessage.safe || typeof projectedMessage.value !== 'string') {
-    logger.warn(`[${requestId}] Skipping title generation because its input was not safe`)
-    return
-  }
-
   requestChatTitle({
-    message: projectedMessage.value,
+    message,
     model: titleModel,
     provider: titleProvider,
     userId,
@@ -508,9 +493,7 @@ export function fireTitleGeneration(params: {
     })
 }
 
-// ---------------------------------------------------------------------------
 // Chat title helper
-// ---------------------------------------------------------------------------
 
 export async function requestChatTitle(params: {
   message: string

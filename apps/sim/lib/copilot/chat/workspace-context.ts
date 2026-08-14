@@ -25,7 +25,7 @@ import {
 } from '@/lib/credentials/environment'
 import { listWorkspaceSandboxes } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
-import { listCustomToolSummaries } from '@/lib/workflows/custom-tools/operations'
+import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { listSkillsForUser } from '@/lib/workflows/skills/operations'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import {
@@ -330,12 +330,7 @@ export function buildWorkspaceContextMd(data: WorkspaceMdData): string {
 async function buildWorkspaceMdData(
   workspaceId: string,
   userId: string,
-  options?: {
-    workspaceAccess?: WorkspaceAccess
-    secretless?: boolean
-    chatId?: string
-    executionId?: string
-  }
+  options?: { workspaceAccess?: WorkspaceAccess; chatId?: string; executionId?: string }
 ): Promise<WorkspaceMdData | null> {
   try {
     // Reuse the caller's already-asserted access when provided (hot chat path);
@@ -427,17 +422,11 @@ async function buildWorkspaceMdData(
         })
         .then(({ files }) => files),
 
-      options?.secretless
-        ? Promise.resolve([])
-        : getAccessibleOAuthCredentials(workspaceId, userId),
+      getAccessibleOAuthCredentials(workspaceId, userId),
 
-      options?.secretless ? Promise.resolve([]) : getAccessibleEnvCredentials(workspaceId, userId),
+      getAccessibleEnvCredentials(workspaceId, userId),
 
-      listCustomToolSummaries({
-        userId,
-        workspaceId,
-        workspaceOnly: options?.secretless,
-      }),
+      listCustomTools({ userId, workspaceId }),
 
       db
         .select({
@@ -537,12 +526,7 @@ async function buildWorkspaceMdData(
       ),
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
       customBlocks: customBlockSummaries,
-      mcpServers: mcpServerRows.map((server) => ({
-        id: server.id,
-        name: server.name,
-        enabled: server.enabled,
-        ...(options?.secretless ? {} : { url: server.url }),
-      })),
+      mcpServers: mcpServerRows,
       skills: skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description })),
       ...(sandboxResult.entitled
         ? {
@@ -578,7 +562,6 @@ export async function generateWorkspaceContext(
   userId: string,
   options?: {
     workspaceAccess?: WorkspaceAccess
-    secretless?: boolean
     secretMountPolicy?: SecretMountPolicy
     chatId?: string
     executionId?: string
@@ -601,10 +584,9 @@ export async function generateWorkspaceContext(
  */
 export async function generateWorkspaceSnapshot(
   workspaceId: string,
-  userId: string,
-  options?: { workspaceAccess?: WorkspaceAccess; secretless?: boolean }
+  userId: string
 ): Promise<{ markdown: string; snapshot: VfsSnapshotV1 } | null> {
-  const data = await buildWorkspaceMdData(workspaceId, userId, options)
+  const data = await buildWorkspaceMdData(workspaceId, userId)
   if (!data) return null
   return { markdown: buildWorkspaceMd(data), snapshot: buildVfsSnapshot(data) }
 }

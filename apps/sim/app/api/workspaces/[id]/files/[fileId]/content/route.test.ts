@@ -19,6 +19,12 @@ vi.mock('@/lib/workspace-files/application/update-workspace-file-content', () =>
   },
 }))
 
+import { StorageLimitExceededError } from '@/lib/billing/storage'
+import {
+  DelegatedWorkspaceAuthorizationError,
+  NoWorkspaceAccessError,
+  WorkspaceApiKeyScopeAuthorizationError,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PUT } from '@/app/api/workspaces/[id]/files/[fileId]/content/route'
 
@@ -87,6 +93,20 @@ describe('PUT /api/workspaces/[id]/files/[fileId]/content', () => {
     expect(mocks.updateContent).not.toHaveBeenCalled()
   })
 
+  it.each([
+    new NoWorkspaceAccessError(),
+    new WorkspaceApiKeyScopeAuthorizationError(),
+    new DelegatedWorkspaceAuthorizationError(),
+  ])('conceals a cross-tenant admission denial as an absent file: %s', async (error) => {
+    mocks.admit.mockRejectedValue(error)
+
+    const response = await PUT(createRequest('{not-json'), routeContext)
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toMatchObject({ error: 'File not found' })
+    expect(mocks.updateContent).not.toHaveBeenCalled()
+  })
+
   it('rejects malformed base64 after admission', async () => {
     const response = await PUT(
       createRequest({ content: 'not-base64!', encoding: 'base64' }),
@@ -115,9 +135,9 @@ describe('PUT /api/workspaces/[id]/files/[fileId]/content', () => {
     })
   })
 
-  it('allows JSON bodies above the default 50 MiB cap for base64 expansion', async () => {
+  it('allows a base64 JSON body up to what the proxy forwards intact', async () => {
     const response = await PUT(
-      createRequest({ content: 'TQ==', encoding: 'base64' }, 60 * 1024 * 1024),
+      createRequest({ content: 'TQ==', encoding: 'base64' }, 10 * 1024 * 1024),
       routeContext
     )
 
@@ -125,11 +145,29 @@ describe('PUT /api/workspaces/[id]/files/[fileId]/content', () => {
     expect(mocks.updateContent).toHaveBeenCalled()
   })
 
-  it('rejects a JSON body above the inline-content cap after admission', async () => {
-    const response = await PUT(createRequest({ content: '' }, 70 * 1024 * 1024 + 1), routeContext)
+  /**
+   * The route declares a 70 MB inline cap, but Next's proxy truncates a client
+   * body past 10 MiB, so the parser clamps to that ceiling and answers 413
+   * rather than letting a truncated prefix surface as malformed JSON.
+   */
+  it('rejects a JSON body above the proxy ceiling after admission', async () => {
+    const response = await PUT(createRequest({ content: '' }, 10 * 1024 * 1024 + 1), routeContext)
 
     expect(response.status).toBe(413)
     expect(mocks.admit).toHaveBeenCalled()
     expect(mocks.updateContent).not.toHaveBeenCalled()
+  })
+
+  it('preserves the legacy 402 response when storage quota is exhausted', async () => {
+    mocks.updateContent.mockRejectedValueOnce(
+      new StorageLimitExceededError('Storage limit exceeded')
+    )
+
+    const response = await PUT(createRequest({ content: 'hello' }), routeContext)
+
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Storage limit exceeded',
+    })
   })
 })

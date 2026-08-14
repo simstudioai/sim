@@ -1,12 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
 import { recordUsage } from '@/lib/billing/core/usage-log'
-import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
+import {
+  checkAndBillOverageThreshold,
+  checkAndBillPayerOverageThreshold,
+} from '@/lib/billing/threshold-billing'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -18,7 +22,7 @@ import {
   resolveKnowledgeBillingAttribution,
 } from '@/lib/knowledge/application/billing'
 import {
-  type KnowledgeWorkspaceContext,
+  type KnowledgeResourceContext,
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -26,6 +30,7 @@ import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { rerank } from '@/lib/knowledge/reranker'
+import type { RerankerStatus } from '@/lib/knowledge/reranker-models'
 import {
   executeKnowledgeSearch,
   generateSearchEmbedding,
@@ -34,8 +39,12 @@ import {
 } from '@/lib/knowledge/search/queries'
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import {
+  type KnowledgeTagNameFilter,
+  resolveKnowledgeTagFilters,
+} from '@/lib/knowledge/tags/filter-resolution'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
-import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
+import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { KnowledgeBaseWithCounts, StructuredFilter } from '@/lib/knowledge/types'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -57,13 +66,11 @@ export class KnowledgeSearchProvenanceUnavailableError extends Error {
   }
 }
 
-export interface KnowledgeSearchTagFilter {
-  tagName: string
-  fieldType?: 'text' | 'number' | 'date' | 'boolean'
-  operator: string
-  value: string | number | boolean
-  valueTo?: string | number
-}
+/**
+ * Search filters tags by display name. The resolution to storage slots is
+ * shared with the document list so both knowledge reads speak one vocabulary.
+ */
+export type KnowledgeSearchTagFilter = KnowledgeTagNameFilter
 
 export interface SearchKnowledgeInput {
   /** Optional assertion from a trusted adapter or public contract. */
@@ -82,19 +89,21 @@ export interface SearchKnowledgeInput {
   resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
   prepareModelInputProvenance?(input: {
     userId: string
-    workspaceId: string
+    workspaceId?: string
   }): Promise<ResolvedSecretTraceRegistry | undefined>
   /** Trusted execution provenance sink; never sourced from an HTTP or model payload. */
   resultSecretRegistry?: ResolvedSecretTraceRegistry
 }
 
-interface KnowledgeSearchContext extends KnowledgeWorkspaceContext {
+type KnowledgeSearchContext = KnowledgeResourceContext & {
   knowledgeBases: KnowledgeBaseWithCounts[]
 }
 
 export interface KnowledgeSearchItem {
   /** Trusted embedding identity for provenance import; HTTP presenters omit it. */
   embeddingId: string
+  /** Knowledge base the matching chunk came from; a search spans up to 20. */
+  knowledgeBaseId: string
   documentId: string
   documentName: string | null
   sourceUrl: string | null
@@ -126,7 +135,7 @@ export interface SearchKnowledgeResult {
   topK: number
   totalResults: number
   cost?: KnowledgeSearchCost
-  workspaceId: string
+  workspaceId?: string
   userId: string
   resultSecretRegistry?: ResolvedSecretTraceRegistry
 }
@@ -154,28 +163,42 @@ async function resolveKnowledgeSearchContext(
     )
   }
   const knowledgeBases = await Promise.all(input.knowledgeBaseIds.map(getKnowledgeBaseById))
-  const missingIds = input.knowledgeBaseIds.filter(
-    (_, index) => !knowledgeBases[index]?.workspaceId
-  )
+  const missingIds = input.knowledgeBaseIds.filter((_, index) => !knowledgeBases[index])
   if (missingIds.length > 0) {
     throw new OrchestrationError(
       'not_found',
       `Knowledge bases not found or access denied: ${missingIds.join(', ')}`
     )
   }
-  const canonicalWorkspaceIds = new Set(knowledgeBases.map((kb) => kb?.workspaceId))
+  const canonicalWorkspaceIds = new Set(knowledgeBases.map((kb) => kb?.workspaceId ?? null))
   if (canonicalWorkspaceIds.size !== 1) {
     throw new OrchestrationError(
       'validation',
       'Selected knowledge bases must belong to the same workspace'
     )
   }
-  const canonicalWorkspaceId = knowledgeBases[0]?.workspaceId
-  if (!canonicalWorkspaceId || (input.workspaceId && input.workspaceId !== canonicalWorkspaceId)) {
+  const canonicalWorkspaceId = knowledgeBases[0]?.workspaceId ?? null
+  if (input.workspaceId && input.workspaceId !== canonicalWorkspaceId) {
     throw new OrchestrationError(
       'not_found',
       `Knowledge bases not found or access denied: ${input.knowledgeBaseIds.join(', ')}`
     )
+  }
+  if (!canonicalWorkspaceId) {
+    const ownerUserIds = new Set(knowledgeBases.map((knowledgeBase) => knowledgeBase?.userId))
+    if (ownerUserIds.size !== 1) {
+      throw new OrchestrationError(
+        'not_found',
+        `Knowledge bases not found or access denied: ${input.knowledgeBaseIds.join(', ')}`
+      )
+    }
+    const legacyPersonalOwnerUserId = knowledgeBases[0]?.userId
+    if (!legacyPersonalOwnerUserId) throw new Error('Legacy Knowledge base owner is missing')
+    return {
+      workspaceId: undefined,
+      legacyPersonalOwnerUserId,
+      knowledgeBases: knowledgeBases as KnowledgeBaseWithCounts[],
+    }
   }
   const workspaceContext = await resolveKnowledgeWorkspaceContext({
     workspaceId: canonicalWorkspaceId,
@@ -183,92 +206,6 @@ async function resolveKnowledgeSearchContext(
   return {
     ...workspaceContext,
     knowledgeBases: knowledgeBases as KnowledgeBaseWithCounts[],
-  }
-}
-
-async function buildStructuredFilters(
-  filters: KnowledgeSearchTagFilter[],
-  knowledgeBaseIds: string[]
-): Promise<{
-  structuredFilters: StructuredFilter[]
-  definitionsByKnowledgeBase: Map<string, Awaited<ReturnType<typeof getDocumentTagDefinitions>>>
-}> {
-  const definitionEntries = await Promise.all(
-    knowledgeBaseIds.map(
-      async (knowledgeBaseId) =>
-        [knowledgeBaseId, await getDocumentTagDefinitions(knowledgeBaseId)] as const
-    )
-  )
-  const definitionsByKnowledgeBase = new Map(definitionEntries)
-  const sharedDefinitions = new Map<string, { tagSlot: string; fieldType: string }>()
-  for (const [, definitions] of definitionEntries) {
-    const currentByName = new Map(
-      definitions.map((definition) => [
-        definition.displayName,
-        { tagSlot: definition.tagSlot, fieldType: definition.fieldType },
-      ])
-    )
-    for (const filter of filters) {
-      const current = currentByName.get(filter.tagName)
-      if (!current) {
-        if (knowledgeBaseIds.length > 1) {
-          throw new OrchestrationError(
-            'validation',
-            `Tag "${filter.tagName}" does not exist in all selected knowledge bases. Search those knowledge bases separately.`
-          )
-        }
-        continue
-      }
-      const existing = sharedDefinitions.get(filter.tagName)
-      if (
-        existing &&
-        (existing.tagSlot !== current.tagSlot || existing.fieldType !== current.fieldType)
-      ) {
-        throw new OrchestrationError(
-          'validation',
-          `Tag "${filter.tagName}" is not mapped consistently across the selected knowledge bases. Search those knowledge bases separately.`
-        )
-      }
-      sharedDefinitions.set(filter.tagName, current)
-    }
-  }
-  const undefinedTags: string[] = []
-  const typeErrors: string[] = []
-  for (const filter of filters) {
-    const definition = sharedDefinitions.get(filter.tagName)
-    if (!definition) {
-      undefinedTags.push(filter.tagName)
-      continue
-    }
-    const validationError = validateTagValue(
-      filter.tagName,
-      String(filter.value),
-      definition.fieldType
-    )
-    if (validationError) typeErrors.push(validationError)
-  }
-  if (undefinedTags.length > 0 || typeErrors.length > 0) {
-    throw new OrchestrationError(
-      'validation',
-      [
-        ...(undefinedTags.length > 0 ? [buildUndefinedTagsError(undefinedTags)] : []),
-        ...typeErrors,
-      ].join('\n')
-    )
-  }
-  return {
-    structuredFilters: filters.map((filter) => {
-      const definition = sharedDefinitions.get(filter.tagName)
-      if (!definition) throw new Error('Validated knowledge tag definition disappeared')
-      return {
-        tagSlot: definition.tagSlot,
-        fieldType: definition.fieldType,
-        operator: filter.operator,
-        value: filter.value,
-        valueTo: filter.valueTo,
-      }
-    }),
-    definitionsByKnowledgeBase,
   }
 }
 
@@ -292,13 +229,16 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       principal.kind === 'delegated' &&
       principal.serviceId === 'executor'
     )
-    const billingAttribution = hasQuery
-      ? input.resolveBillingAttribution
-        ? await input.resolveBillingAttribution(context.workspaceId)
-        : await resolveKnowledgeBillingAttribution(principal, context)
-      : undefined
-    if (shouldMeter && billingAttribution) {
-      const usage = await checkAttributedUsageLimits(billingAttribution)
+    const billingAttribution =
+      hasQuery && context.workspaceId
+        ? input.resolveBillingAttribution
+          ? await input.resolveBillingAttribution(context.workspaceId)
+          : await resolveKnowledgeBillingAttribution(principal, context)
+        : undefined
+    if (shouldMeter && hasQuery) {
+      const usage = billingAttribution
+        ? await checkAttributedUsageLimits(billingAttribution)
+        : await checkActorUsageLimits(userId)
       if (usage.isExceeded) {
         throw new KnowledgeUsageLimitExceededError(
           usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
@@ -308,12 +248,9 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
 
     const knowledgeBaseIds = context.knowledgeBases.map((knowledgeBase) => knowledgeBase.id)
     let structuredFilters: StructuredFilter[] = []
-    let definitionsByKnowledgeBase = new Map<
-      string,
-      Awaited<ReturnType<typeof getDocumentTagDefinitions>>
-    >()
+    let definitionsByKnowledgeBase = new Map<string, DocumentTagDefinition[]>()
     if (filters.length > 0) {
-      const built = await buildStructuredFilters(filters, knowledgeBaseIds)
+      const built = await resolveKnowledgeTagFilters(filters, knowledgeBaseIds)
       structuredFilters = built.structuredFilters
       definitionsByKnowledgeBase = built.definitionsByKnowledgeBase
     }
@@ -372,7 +309,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
         results: rows,
       })
       if (!provenanceSnapshot.imported) {
-        registry.markIncomplete()
+        registry.markIncomplete('knowledge-result-provenance-unavailable')
         if (useReranker) throw new KnowledgeSearchProvenanceUnavailableError()
       }
     }
@@ -380,6 +317,35 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     const rerankerScores = new Map<string, number>()
     let rerankerBilled = false
     let rerankerIsBYOK = false
+    /**
+     * Returned on every search. The fallback to vector ordering is deliberate — a
+     * Cohere outage should not take knowledge search down with it — but until this
+     * was reported the fallback was also invisible: a 200 whose results were
+     * byte-identical to an unreranked search, with no `rerankerScore` anywhere and
+     * nothing to say why.
+     *
+     * It starts at the outcome that holds if the rerank call below never happens or
+     * never completes, so only the success path has to move it. A request with
+     * nothing to rank — no query text, or no candidate rows — is `skipped` rather
+     * than `unavailable`: the reranker was never the obstacle. Anything else that
+     * was asked for and did not produce a usable ordering is `unavailable`,
+     * including a request that reaches here with no model, which no HTTP contract
+     * can now produce.
+     *
+     * A call that returns without raising but hands back an empty ordering counts
+     * as `unavailable` too, and it is not the reranker "matching nothing":
+     * `rerank` asks for `top_n` over a non-empty document list, so a provider that
+     * ranked them returns one entry per document. Empty means the response carried
+     * nothing usable — no results, or only indices outside the batch, which
+     * `rerank` drops. The caller is left in vector order with no `rerankerScore`,
+     * which is exactly what `unavailable` promises, and retrying is exactly the
+     * right advice.
+     */
+    let rerankerStatus: RerankerStatus = !input.rerankerEnabled
+      ? 'not_requested'
+      : !hasQuery || rows.length === 0
+        ? 'skipped'
+        : 'unavailable'
     if (useReranker && input.rerankerModel && rows.length > 0) {
       const candidateCount = rows.length
       try {
@@ -407,6 +373,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
           for (const ranked of reranked.results) {
             rerankerScores.set(ranked.item.id, ranked.relevanceScore)
           }
+          rerankerStatus = 'applied'
         }
       } catch (error) {
         if (registry?.isPermanentlyIncomplete()) throw error
@@ -416,6 +383,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
           candidateCount,
         })
         rows = rows.slice(0, input.topK)
+        rerankerStatus = 'unavailable'
       }
     } else if (useReranker) {
       rows = rows.slice(0, input.topK)
@@ -450,12 +418,12 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
             }
       }
     }
-    if (shouldMeter && billingAttribution && baseCost && baseCost.total > 0) {
+    if (shouldMeter && baseCost && baseCost.total > 0) {
       try {
         await recordUsage({
           userId,
-          workspaceId: context.workspaceId,
-          ...toBillingContext(billingAttribution),
+          ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+          ...(billingAttribution ? toBillingContext(billingAttribution) : {}),
           entries: [
             {
               category: 'model',
@@ -466,7 +434,11 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
             },
           ],
         })
-        await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+        if (billingAttribution) {
+          await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+        } else {
+          await checkAndBillOverageThreshold(userId)
+        }
       } catch (error) {
         logger.error('Failed to record Knowledge search usage', { error })
       }
@@ -504,6 +476,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       const rerankerScore = rerankerScores.get(row.id)
       return {
         embeddingId: row.id,
+        knowledgeBaseId: row.knowledgeBaseId,
         documentId: row.documentId,
         documentName: document?.filename ?? null,
         sourceUrl: document?.sourceUrl ?? null,
@@ -525,9 +498,14 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
           }))
         if (
           renderedMetadata.length > 0 &&
-          !(await importDurableSecretProvenance(registry, document.provenance, renderedMetadata))
+          !(await importDurableSecretProvenance(
+            registry,
+            document.provenance,
+            renderedMetadata,
+            'knowledge'
+          ))
         ) {
-          registry.markIncomplete()
+          registry.markIncomplete('knowledge-result-provenance-unavailable')
         }
       }
     }
@@ -559,8 +537,9 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       knowledgeBaseId: knowledgeBaseIds[0],
       topK: input.topK,
       totalResults: results.length,
+      rerankerStatus,
       cost,
-      workspaceId: context.workspaceId,
+      ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
       userId,
       resultSecretRegistry: registry,
     }

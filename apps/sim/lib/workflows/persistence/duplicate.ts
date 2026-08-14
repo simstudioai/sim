@@ -12,6 +12,10 @@ import {
   FolderLockedError,
 } from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
+import {
+  normalizeWorkflowEdgeSourceHandle,
+  normalizeWorkflowEdgeTargetHandle,
+} from '@sim/workflow-types/workflow'
 import { and, eq, isNull, min } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
@@ -398,7 +402,10 @@ export async function duplicateWorkflow(
             workflowId: newWorkflowId,
             sourceBlockId: newSourceBlockId,
             targetBlockId: newTargetBlockId,
-            sourceHandle: newSourceHandle,
+            /* Rows are copied straight across, bypassing save.ts — canonicalize
+               here so a copy never re-seeds a stale handle into a new workflow. */
+            sourceHandle: normalizeWorkflowEdgeSourceHandle(newSourceHandle),
+            targetHandle: normalizeWorkflowEdgeTargetHandle(edge.targetHandle),
             createdAt: now,
             updatedAt: now,
           },

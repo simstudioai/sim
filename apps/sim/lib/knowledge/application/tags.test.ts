@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   resolveKnowledgeBase: vi.fn(),
   resolveTag: vi.fn(),
+  resolveDocument: vi.fn(),
   resolvePermission: vi.fn(),
   listTags: vi.fn(),
   nextSlot: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   updateTag: vi.fn(),
   deleteTag: vi.fn(),
   readUsage: vi.fn(),
+  saveTags: vi.fn(),
   recordAudit: vi.fn(),
 }))
 
@@ -35,7 +37,9 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
+  resolveActiveKnowledgeResourceContext: mocks.resolveKnowledgeBase,
   resolveActiveKnowledgeTagContext: mocks.resolveTag,
+  resolveCanonicalActiveKnowledgeDocumentContext: mocks.resolveDocument,
 }))
 
 vi.mock('@/lib/knowledge/tags/service', () => ({
@@ -45,6 +49,7 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
   updateTagDefinition: mocks.updateTag,
   deleteTagDefinition: mocks.deleteTag,
   getTagUsageStats: mocks.readUsage,
+  createOrUpdateTagDefinitionsBulk: mocks.saveTags,
 }))
 
 import {
@@ -52,6 +57,7 @@ import {
   deleteKnowledgeTag,
   listKnowledgeTags,
   readKnowledgeTagUsage,
+  saveKnowledgeDocumentTagDefinitions,
   updateKnowledgeTag,
 } from '@/lib/knowledge/application/tags'
 
@@ -76,6 +82,22 @@ const tagContext = {
   },
 }
 
+const documentContext = {
+  ...crossWorkspaceContext,
+  documentId: 'document-b',
+  document: {
+    id: 'document-b',
+    knowledgeBaseId: 'knowledge-b',
+    filename: 'customers.csv',
+  },
+}
+
+const sessionPrincipal = {
+  kind: 'session' as const,
+  userId: 'user-1',
+  sessionId: 'session-1',
+}
+
 const delegatedPrincipal = {
   kind: 'delegated' as const,
   serviceId: 'copilot',
@@ -94,6 +116,8 @@ describe('knowledge tag application use cases', () => {
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveKnowledgeBase.mockResolvedValue(crossWorkspaceContext)
     mocks.resolveTag.mockResolvedValue(tagContext)
+    mocks.resolveDocument.mockResolvedValue(documentContext)
+    mocks.saveTags.mockResolvedValue({ created: [], updated: [], errors: [] })
   })
 
   it.each([
@@ -199,5 +223,94 @@ describe('knowledge tag application use cases', () => {
         }),
       })
     )
+  })
+
+  it.each([
+    ['an unknown slot', { tagSlot: 'tag99', fieldType: 'text' }],
+    ['a slot reserved for another field type', { tagSlot: 'number1', fieldType: 'text' }],
+  ])('rejects create with %s before persistence', async (_description, slotInput) => {
+    await expect(
+      createKnowledgeTag.execute({
+        principal: sessionPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          displayName: 'Region',
+          ...slotInput,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mocks.createTag).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('accepts a create slot matching its field type', async () => {
+    const tagDefinition = { ...tagContext.tagDefinition, id: 'tag-new' }
+    mocks.createTag.mockResolvedValueOnce(tagDefinition)
+
+    await expect(
+      createKnowledgeTag.execute({
+        principal: sessionPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          tagSlot: 'tag1',
+          displayName: 'Region',
+          fieldType: 'text',
+        },
+      })
+    ).resolves.toEqual({ tagDefinition, knowledgeBaseId: 'knowledge-b' })
+
+    expect(mocks.createTag).toHaveBeenCalledWith(
+      {
+        knowledgeBaseId: 'knowledge-b',
+        tagSlot: 'tag1',
+        displayName: 'Region',
+        fieldType: 'text',
+      },
+      expect.any(String)
+    )
+  })
+
+  it.each([
+    ['an unsupported field type', { tagSlot: 'tag1', fieldType: 'nonsense' }],
+    ['an unknown slot', { tagSlot: 'tag99', fieldType: 'text' }],
+  ])('rejects bulk save with %s before persistence', async (_description, definition) => {
+    await expect(
+      saveKnowledgeDocumentTagDefinitions.execute({
+        principal: sessionPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          documentId: 'document-b',
+          definitions: [{ ...definition, displayName: 'Region' }],
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mocks.saveTags).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('preserves legacy bulk rename payloads whose existing slot and field type differ', async () => {
+    const definitions = [
+      {
+        tagSlot: 'number1',
+        displayName: 'Customer region',
+        originalDisplayName: 'Region',
+        fieldType: 'text',
+      },
+    ]
+
+    await expect(
+      saveKnowledgeDocumentTagDefinitions.execute({
+        principal: sessionPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          documentId: 'document-b',
+          definitions,
+        },
+      })
+    ).resolves.toEqual({ created: [], updated: [], errors: [] })
+
+    expect(mocks.saveTags).toHaveBeenCalledWith('knowledge-b', { definitions }, expect.any(String))
   })
 })

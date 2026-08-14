@@ -197,11 +197,17 @@ export const knowledgeOperations = {
     workspaceApiKey: 'deny',
     ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
+  /**
+   * The tag vocabulary is required input for two operations a workspace API key
+   * may already perform — filtering documents and search by tag display name —
+   * so it carries the same policy as those sibling reads (`documents.list`,
+   * `read`, `search`) rather than the stricter one the tag *writes* keep.
+   */
   listTags: defineWorkspaceOperation({
     id: 'knowledge.tags.list',
     minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
   }),
   createTag: defineWorkspaceOperation({
     id: 'knowledge.tags.create',

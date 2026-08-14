@@ -18,6 +18,7 @@ import type { ColumnType } from '@/lib/table/column-types'
 import { parseCurrencyInput } from '@/lib/table/currency'
 import { type NormalizeDateCellOptions, normalizeDateCellValue } from '@/lib/table/dates'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
+import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
  * Field separators we sniff for, in tie-break priority order. Semicolon files are
@@ -230,10 +231,15 @@ export const CSV_MAX_BATCH_SIZE = 5000
 /** Maximum serialized CSV row data retained before an import batch is flushed. */
 export const CSV_MAX_BATCH_SIZE_BYTES = 5 * 1024 * 1024
 
-/** Maximum CSV/TSV file size accepted by import routes (25 MB). */
-export const CSV_MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
+/** Maximum CSV/TSV size accepted by legacy multipart routes that buffer request bodies. */
+export const CSV_SYNC_MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
 
-export const CSV_MAX_FILE_SIZE_MESSAGE = `File exceeds maximum allowed size of ${CSV_MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB`
+export const CSV_SYNC_MAX_FILE_SIZE_MESSAGE = `File exceeds maximum allowed size of ${CSV_SYNC_MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB`
+
+/** Maximum CSV/TSV size accepted by the bounded streaming import worker. */
+export const CSV_DURABLE_MAX_FILE_SIZE_BYTES = MAX_WORKSPACE_FILE_SIZE
+
+export const CSV_DURABLE_MAX_FILE_SIZE_MESSAGE = 'File exceeds maximum allowed size of 5 GB'
 
 /**
  * Error thrown when the user-supplied mapping or CSV does not line up with the

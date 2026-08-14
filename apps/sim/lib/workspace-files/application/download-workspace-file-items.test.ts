@@ -30,10 +30,12 @@ const {
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   buildWorkspaceFileFolderPathMap: (folders: Array<{ id: string; path?: string; name: string }>) =>
     new Map(folders.map((folder) => [folder.id, folder.path ?? folder.name])),
-  fetchServableWorkspaceFileBuffer: mockFetchServable,
   listWorkspaceFileFolders: mockListFolders,
   listWorkspaceFiles: mockListFiles,
   loadWorkspaceFileOperationContext: mockLoadContext,
+}))
+vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
+  fetchAuthorizedServableWorkspaceFileBuffer: mockFetchServable,
 }))
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: (actual: string | null, required: string) =>
@@ -45,8 +47,10 @@ vi.mock('@/lib/uploads/utils/file-utils', () => ({
   isGeneratedDocumentSourceType: mockIsGenerated,
   isRenderableDocumentName: mockIsRenderable,
   MAX_RENDERED_DOCUMENT_BYTES: 50 * 1024 * 1024,
+  needsRenderedArtifact: (contentType: string | null | undefined, fileName: string) =>
+    contentType ? mockIsGenerated(contentType) : mockIsRenderable(fileName),
 }))
-vi.mock('@/lib/uploads/utils/servable-file-response', () => ({
+vi.mock('@/lib/uploads/utils/doc-not-ready', () => ({
   docNotReadyMessage: (names: string[]) => `Pending: ${names.join(', ')}`,
   isDocNotReadyError: mockIsDocNotReady,
 }))
@@ -159,9 +163,11 @@ describe('downloadWorkspaceFileItems', () => {
 
     expect(result.filesToZip[0].id).toBe('f1')
     expect(result.renderedDocuments.get('f1')).toEqual(Buffer.from('rendered'))
-    expect(mockFetchServable).toHaveBeenCalledWith(expect.objectContaining({ id: 'f1' }), {
-      maxBytes: 50 * 1024 * 1024,
-    })
+    expect(mockFetchServable).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'f1' }),
+      principal,
+      { maxBytes: 50 * 1024 * 1024 }
+    )
   })
 
   it('returns typed validation and conflict failures without recording audit', async () => {
@@ -186,13 +192,12 @@ describe('downloadWorkspaceFileItems', () => {
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
-  it('rejects unknown selected IDs rather than exposing another workspace selection', async () => {
-    mockListFiles.mockResolvedValue([])
-    await expect(
-      downloadWorkspaceFileItems.execute({
-        principal,
-        input: { workspaceId: 'ws-1', fileIds: ['other-workspace-file'], folderIds: [] },
-      })
-    ).rejects.toEqual(expect.objectContaining({ code: 'not_found' }))
+  it('ignores stale selected IDs when another selected file still resolves', async () => {
+    const result = await downloadWorkspaceFileItems.execute({
+      principal,
+      input: { workspaceId: 'ws-1', fileIds: ['f1', 'stale-file'], folderIds: [] },
+    })
+
+    expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
   })
 })

@@ -8,7 +8,6 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/application/deployments'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { v2Error } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -22,8 +21,6 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
   parseOptions: {
     optionalJsonBody: true,
-    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
-    payloadTooLargeResponse: () => v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large'),
   },
   mapInput: ({ params, body }) => ({
     workflowId: params.id,
@@ -63,10 +60,14 @@ export const DELETE = defineV2JsonRoute({
       latestDeploymentAttempt: null,
     },
   }),
+  /**
+   * Telemetry only. `workflowOperations.undeploy` denies a workspace API key at
+   * admission, so a non-personal principal cannot reach here — and this hook runs
+   * after the undeploy has already committed, so asserting the invariant here
+   * would report a succeeded undeploy as a 500 rather than catching anything.
+   */
   onSuccess: ({ principal, result }) => {
-    if (principal.kind !== 'personal_api_key') {
-      throw new Error('Admin undeployment unexpectedly admitted a workspace API key')
-    }
+    if (principal.kind !== 'personal_api_key') return
     captureServerEvent(
       principal.userId,
       'workflow_undeployed',

@@ -23,6 +23,8 @@ export type SelectorKey =
   | 'microsoft.planner.plans'
   | 'notion.databases'
   | 'notion.pages'
+  | 'netsuite.recordTypes'
+  | 'netsuite.asyncTasks'
   | 'pipedrive.pipelines'
   | 'sharepoint.lists'
   | 'trello.boards'
@@ -31,6 +33,13 @@ export type SelectorKey =
   | 'zoho_desk.agents'
   | 'zoom.meetings'
   | 'slack.channels'
+  | 'snowflake.databases'
+  | 'snowflake.schemas'
+  | 'snowflake.tables'
+  | 'snowflake.warehouses'
+  | 'snowflake.roles'
+  | 'snowflake.fileFormats'
+  | 'snowflake.procedures'
   | 'slack.users'
   | 'gmail.labels'
   | 'outlook.folders'
@@ -104,6 +113,12 @@ export interface SelectorContext {
   logGroupName?: string
   mcpServerId?: string
   tableId?: string
+  /** NetSuite asynchronous job whose bounded task list a picker enumerates. */
+  jobId?: string
+  /** Snowflake database holding the objects a picker enumerates. */
+  database?: string
+  /** Snowflake schema holding the objects a picker enumerates. */
+  schema?: string
   /** Zoho Desk organization (portal) id — the `orgId` header every Desk call but `/organizations` requires. */
   orgId?: string
 }

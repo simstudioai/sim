@@ -21,7 +21,9 @@ vi.mock('@/lib/execution/payloads/store', () => ({
 import {
   externalizeExecutionData,
   materializeExecutionData,
+  materializeExecutionDataForDisplayWithBlockOutputs,
   projectExecutionDataForDisplay,
+  RESOLVED_SECRET_PROVENANCE_KEY,
   SECRET_PROJECTION_VERSION,
   TRACE_STORE_REF_KEY,
 } from '@/lib/logs/execution/trace-store'
@@ -35,7 +37,7 @@ const CONTEXT = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  decryptSecretMock.mockResolvedValue({ decrypted: '1234' })
+  decryptSecretMock.mockResolvedValue({ decrypted: '12345678' })
 })
 
 describe('execution data storage', () => {
@@ -91,12 +93,176 @@ describe('execution data storage', () => {
 })
 
 describe('projectExecutionDataForDisplay', () => {
+  it('projects authoritative state-only block outputs without mutating execution state', async () => {
+    const executionData = {
+      secretProjectionVersion: SECRET_PROJECTION_VERSION,
+      traceSpans: [],
+      executionState: {
+        resolvedSecretTraceProvenance: {
+          version: 1 as const,
+          complete: true,
+          entries: [{ name: 'OPENAI_API_KEY', encryptedValue: 'ciphertext' }],
+          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+        },
+        blockStates: {
+          'function-1': {
+            output: { token: 12345678, derived: 12345683 },
+            resolvedSecretTraceProvenance: {
+              version: 1 as const,
+              complete: true,
+              entries: [{ name: 'OPENAI_API_KEY', encryptedValue: 'ciphertext' }],
+              scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+            },
+          },
+        },
+      },
+    }
+
+    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
+      executionData,
+      CONTEXT,
+      ['function-1']
+    )
+
+    expect(materialized.executionData).not.toHaveProperty('executionState')
+    expect(materialized.blockOutputs).toEqual(
+      new Map([['function-1', { token: '{{OPENAI_API_KEY}}', derived: 12345683 }]])
+    )
+    expect(executionData.executionState.blockStates['function-1'].output).toEqual({
+      token: 12345678,
+      derived: 12345683,
+    })
+    expect(JSON.stringify(materialized.executionData)).not.toContain('12345678')
+    expect(JSON.stringify([...materialized.blockOutputs])).not.toContain('12345678')
+  })
+
+  it('does not use trace output for a requested block missing from partial state', async () => {
+    const emptyProvenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    }
+    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
+      {
+        secretProjectionVersion: SECRET_PROJECTION_VERSION,
+        traceSpans: [
+          {
+            id: 'span-1',
+            blockId: 'trace-only',
+            name: 'Trace-only block',
+            type: 'function',
+            duration: 1,
+            startTime: '2026-08-11T00:00:00.000Z',
+            endTime: '2026-08-11T00:00:00.001Z',
+            output: { result: 'trace-output' },
+          },
+        ],
+        executionState: {
+          resolvedSecretTraceProvenance: emptyProvenance,
+          blockStates: {
+            'state-only': {
+              output: { result: 'state-output' },
+              resolvedSecretTraceProvenance: emptyProvenance,
+            },
+          },
+        },
+      },
+      CONTEXT,
+      ['state-only', 'trace-only']
+    )
+
+    expect(materialized.blockOutputs).toEqual(new Map([['state-only', { result: 'state-output' }]]))
+  })
+
+  it('does not derive block outputs from legacy trace spans', async () => {
+    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
+      {
+        traceSpans: [
+          {
+            id: 'span-1',
+            blockId: 'function-1',
+            name: 'Function 1',
+            type: 'function',
+            duration: 1,
+            startTime: '2026-08-11T00:00:00.000Z',
+            endTime: '2026-08-11T00:00:00.001Z',
+            output: { token: 'raw-legacy-secret' },
+          },
+        ],
+      },
+      CONTEXT,
+      ['function-1']
+    )
+
+    expect(materialized.blockOutputs).toEqual(new Map())
+  })
+
+  it('does not mix legacy trace output into partial execution state', async () => {
+    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
+      {
+        traceSpans: [
+          {
+            id: 'span-1',
+            blockId: 'trace-only',
+            name: 'Trace-only block',
+            type: 'function',
+            duration: 1,
+            startTime: '2026-08-11T00:00:00.000Z',
+            endTime: '2026-08-11T00:00:00.001Z',
+            output: { token: 'raw-legacy-secret' },
+          },
+        ],
+        executionState: {
+          blockStates: {
+            'state-only': { output: { result: 'unproven-state-output' } },
+          },
+        },
+      },
+      CONTEXT,
+      ['state-only', 'trace-only']
+    )
+
+    expect(materialized.blockOutputs).toEqual(new Map())
+    expect(JSON.stringify([...materialized.blockOutputs])).not.toContain('raw-legacy-secret')
+  })
+
+  it('omits state-only block outputs that lack usable secret provenance', async () => {
+    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
+      {
+        secretProjectionVersion: SECRET_PROJECTION_VERSION,
+        traceSpans: [
+          {
+            id: 'span-1',
+            blockId: 'function-1',
+            name: 'Function 1',
+            type: 'function',
+            duration: 1,
+            startTime: '2026-08-11T00:00:00.000Z',
+            endTime: '2026-08-11T00:00:00.001Z',
+            output: { token: 'trace-fallback' },
+          },
+        ],
+        executionState: {
+          blockStates: {
+            'function-1': { output: { token: 'unproven-secret' } },
+          },
+        },
+      },
+      CONTEXT,
+      ['function-1']
+    )
+
+    expect(materialized.blockOutputs).toEqual(new Map())
+    expect(JSON.stringify(materialized)).not.toContain('unproven-secret')
+  })
+
   it('retains run-global projection for legacy rows without exact value sidecars', async () => {
     const executionData = {
-      finalOutput: { result: 1234, derived: 1239 },
-      workflowInput: { nested: { token: 'prefix-1234-suffix' } },
-      completionFailure: 'Function failed with 1234',
-      errorDetails: { blockId: 'function-1', error: 'Invalid token 1234' },
+      finalOutput: { result: 12345678, derived: 12345683 },
+      workflowInput: { nested: { token: 'prefix-12345678-suffix' } },
+      completionFailure: 'Function failed with 12345678',
+      errorDetails: { blockId: 'function-1', error: 'Invalid token 12345678' },
       traceSpans: [
         {
           id: 'span-1',
@@ -105,11 +271,11 @@ describe('projectExecutionDataForDisplay', () => {
           duration: 1,
           startTime: '2026-07-31T00:00:00.000Z',
           endTime: '2026-07-31T00:00:00.001Z',
-          output: { result: 1234 },
+          output: { result: 12345678 },
         },
       ],
       executionState: {
-        blockStates: { 'function-1': { output: { result: 1234 } } },
+        blockStates: { 'function-1': { output: { result: 12345678 } } },
         resolvedSecretTraceProvenance: {
           version: 1 as const,
           complete: true,
@@ -123,7 +289,7 @@ describe('projectExecutionDataForDisplay', () => {
 
     expect(displayData.finalOutput).toEqual({
       result: '{{OPENAI_API_KEY}}',
-      derived: 1239,
+      derived: 12345683,
     })
     expect(displayData.workflowInput).toEqual({
       nested: { token: 'prefix-{{OPENAI_API_KEY}}-suffix' },
@@ -137,15 +303,15 @@ describe('projectExecutionDataForDisplay', () => {
       expect.objectContaining({ output: { result: '{{OPENAI_API_KEY}}' } }),
     ])
     expect(displayData).not.toHaveProperty('executionState')
-    expect(executionData.finalOutput).toEqual({ result: 1234, derived: 1239 })
+    expect(executionData.finalOutput).toEqual({ result: 12345678, derived: 12345683 })
     expect(executionData.executionState.resolvedSecretTraceProvenance.entries).toEqual([
       { name: 'OPENAI_API_KEY', encryptedValue: 'ciphertext' },
     ])
-    expect(JSON.stringify(displayData)).not.toContain('1234')
+    expect(JSON.stringify(displayData)).not.toContain('12345678')
   })
 
   it('projects only values carrying exact provenance when sibling fields share low-entropy bytes', async () => {
-    decryptSecretMock.mockResolvedValue({ decrypted: 'Test' })
+    decryptSecretMock.mockResolvedValue({ decrypted: 'TestValue' })
     const secretProvenance = {
       version: 1 as const,
       complete: true,
@@ -159,8 +325,8 @@ describe('projectExecutionDataForDisplay', () => {
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     }
     const executionData = {
-      finalOutput: { result: 'Test' },
-      workflowInput: { token: 'Test' },
+      finalOutput: { result: 'TestValue' },
+      workflowInput: { token: 'TestValue' },
       executionState: {
         resolvedSecretTraceProvenance: secretProvenance,
         finalOutputResolvedSecretTraceProvenance: emptyProvenance,
@@ -170,7 +336,7 @@ describe('projectExecutionDataForDisplay', () => {
 
     const displayData = await projectExecutionDataForDisplay(executionData, CONTEXT)
 
-    expect(displayData.finalOutput).toEqual({ result: 'Test' })
+    expect(displayData.finalOutput).toEqual({ result: 'TestValue' })
     expect(displayData.workflowInput).toEqual({ token: '{{TOKEN}}' })
     expect(displayData).not.toHaveProperty('executionState')
   })
@@ -282,5 +448,91 @@ describe('projectExecutionDataForDisplay', () => {
     )
 
     expect(displayData).not.toHaveProperty('traceSpans')
+  })
+})
+
+describe('projectExecutionDataForDisplay provenance handling', () => {
+  const PROVENANCE = { version: 1, complete: true, entries: [] } as const
+
+  /** A truncated row: spans and markers survive, `executionState` does not. */
+  function truncatedRow(overrides: Record<string, unknown> = {}) {
+    return {
+      secretProjectionVersion: SECRET_PROJECTION_VERSION,
+      executionDataTruncated: true,
+      finalOutput: { result: 'unknown-secret' },
+      traceSpans: [
+        {
+          id: 'span-1',
+          name: 'activeEmails',
+          type: 'function',
+          duration: 16,
+          startTime: '2026-08-11T00:38:53.000Z',
+          endTime: '2026-08-11T00:38:53.016Z',
+          status: 'error',
+          input: { code: 'const activeEmails = rows.length' },
+          output: { error: 'nested large values' },
+        },
+      ],
+      ...overrides,
+    }
+  }
+
+  /** First span of a projected display payload. */
+  function firstSpan(displayData: Record<string, unknown>): Record<string, unknown> {
+    const [span] = displayData.traceSpans as Record<string, unknown>[]
+    return span
+  }
+
+  it.each([
+    ['a contract row', () => truncatedRow({ [RESOLVED_SECRET_PROVENANCE_KEY]: PROVENANCE })],
+    ['a legacy row', () => ({ [RESOLVED_SECRET_PROVENANCE_KEY]: PROVENANCE, finalOutput: {} })],
+  ])('never returns the resolved-secret provenance to the client from %s', async (_case, row) => {
+    const displayData = await projectExecutionDataForDisplay(row(), CONTEXT)
+
+    expect(displayData).not.toHaveProperty(RESOLVED_SECRET_PROVENANCE_KEY)
+  })
+
+  it('rebuilds the registry from the top-level key alone', async () => {
+    const { secretProjectionVersion: _marker, ...withoutMarker } = truncatedRow()
+
+    const displayData = await projectExecutionDataForDisplay(
+      { ...withoutMarker, [RESOLVED_SECRET_PROVENANCE_KEY]: PROVENANCE },
+      CONTEXT
+    )
+
+    expect(displayData.finalOutput).toEqual({ result: 'unknown-secret' })
+    expect(firstSpan(displayData)).toHaveProperty('input')
+  })
+
+  it('keeps write-time-projected spans on a truncated row with no provenance', async () => {
+    const displayData = await projectExecutionDataForDisplay(truncatedRow(), CONTEXT)
+
+    expect(firstSpan(displayData)).toMatchObject({
+      input: { code: 'const activeEmails = rows.length' },
+      output: { error: 'nested large values' },
+    })
+    // The envelope has no write-time guarantee, so it still fails closed.
+    expect(displayData).not.toHaveProperty('finalOutput')
+  })
+
+  it.each([
+    ['the row was never truncated', { executionDataTruncated: undefined }],
+    ['the provenance key is present but null', { [RESOLVED_SECRET_PROVENANCE_KEY]: null }],
+    ['the provenance is malformed', { [RESOLVED_SECRET_PROVENANCE_KEY]: { version: 99 } }],
+  ])('fails closed when %s', async (_case, overrides) => {
+    const displayData = await projectExecutionDataForDisplay(truncatedRow(overrides), CONTEXT)
+
+    const span = firstSpan(displayData)
+    expect(span).not.toHaveProperty('input')
+    expect(span).not.toHaveProperty('output')
+  })
+
+  it('leaves an empty span array intact', async () => {
+    const displayData = await projectExecutionDataForDisplay(
+      truncatedRow({ traceSpans: [] }),
+      CONTEXT
+    )
+
+    expect(displayData.traceSpans).toEqual([])
   })
 })

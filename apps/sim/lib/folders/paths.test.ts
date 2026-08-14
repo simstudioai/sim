@@ -9,6 +9,7 @@ import {
   buildFolderPath,
   buildFolderPathIndex,
   encodeFolderPathSegment,
+  FolderPathError,
   MAX_FOLDER_PATH_SEGMENTS,
   parseFolderPath,
   ROOT_FOLDER_PATH,
@@ -38,6 +39,18 @@ describe('canonical folder paths', () => {
     '/%E0%A4%A',
   ])('rejects noncanonical path %s', (path) => {
     expect(() => parseFolderPath(path)).toThrow()
+  })
+
+  it.each(['/apitest_%00x', '/%00', '/Reports/Q1%00'])(
+    'rejects a percent-encoded NUL in path %s',
+    (path) => {
+      expect(() => parseFolderPath(path)).toThrow(FolderPathError)
+    }
+  )
+
+  it('rejects a NUL in a folder name before it can be encoded into a path', () => {
+    expect(() => encodeFolderPathSegment('apitest_\u0000x')).toThrow(FolderPathError)
+    expect(() => buildFolderPath(['apitest_\u0000x'])).toThrow(FolderPathError)
   })
 
   it('builds a bidirectional index and rejects corrupt hierarchies', () => {
@@ -75,6 +88,17 @@ describe('canonical folder paths', () => {
         { id: 'b', name: 'B', parentId: 'a' },
       ])
     ).toThrow('cycle')
+  })
+
+  it('keeps slashes inside names as one segment in every resource folder index', () => {
+    const index = buildFolderPathIndex([
+      { id: 'legal', name: 'Finance/Legal', parentId: null },
+      { id: 'quarterly', name: 'Quarterly', parentId: 'legal' },
+    ])
+
+    expect(index.pathById.get('legal')).toBe('/Finance%2FLegal')
+    expect(index.pathById.get('quarterly')).toBe('/Finance%2FLegal/Quarterly')
+    expect(index.idByPath.get('/Finance%2FLegal')).toBe('legal')
   })
 
   it('enforces segment and byte limits', () => {
@@ -118,7 +142,7 @@ describe('canonical folder paths', () => {
       }).recursive
     ).toBe(true)
     expect(
-      v2DeleteFolderQuerySchema.safeParse({ workspaceId: 'workspace-1', path: '/Reports' }).success
+      v2DeleteFolderQuerySchema.parse({ workspaceId: 'workspace-1', path: '/Reports' }).recursive
     ).toBe(false)
   })
 })

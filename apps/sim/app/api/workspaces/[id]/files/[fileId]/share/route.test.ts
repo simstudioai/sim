@@ -23,6 +23,11 @@ vi.mock('@/lib/workspace-files/application/share-workspace-file', () => ({
   },
 }))
 
+import {
+  DelegatedWorkspaceAuthorizationError,
+  NoWorkspaceAccessError,
+  WorkspaceApiKeyScopeAuthorizationError,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET, PUT } from '@/app/api/workspaces/[id]/files/[fileId]/share/route'
 
@@ -96,7 +101,20 @@ describe('/api/workspaces/[id]/files/[fileId]/share', () => {
     const response = await GET(getRequest(), context)
 
     expect(response.status).toBe(403)
-    expect(await response.json()).toEqual({ success: false, error: 'Access denied' })
+    expect(await response.json()).toEqual({ error: 'Access denied' })
+  })
+
+  it.each([
+    new NoWorkspaceAccessError(),
+    new WorkspaceApiKeyScopeAuthorizationError(),
+    new DelegatedWorkspaceAuthorizationError(),
+  ])('conceals a cross-tenant denial as an absent file: %s', async (error) => {
+    mocks.getShare.mockRejectedValueOnce(error)
+
+    const response = await GET(getRequest(), context)
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'File not found' })
   })
 
   it('renders resource absence as 404', async () => {
@@ -142,7 +160,7 @@ describe('/api/workspaces/[id]/files/[fileId]/share', () => {
     const response = await PUT(putRequest({ isActive: true }), context)
 
     expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({ success: false, error: 'Password is required' })
+    expect(await response.json()).toEqual({ error: 'Password is required' })
   })
 
   it('preserves the internal caller-supplied token field for compatibility', async () => {

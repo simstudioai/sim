@@ -33,7 +33,6 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     addResource,
     removeResource,
     setResources,
-    setActiveResourceId,
     resourcesRef,
     activeResourceIdRef,
     previewSessionsRef,
@@ -59,7 +58,6 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       removeWorkflowFromActiveCache(queryClient, workspaceId, resource.id)
     }
     invalidateResourceQueries(queryClient, workspaceId, resourceType, resource.id)
-    onResourceEvent?.()
     return
   }
 
@@ -115,14 +113,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   }
   invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
 
-  if (
-    !shouldSuppressFileResourceActivation &&
-    !wasAdded &&
-    activeResourceIdRef.current !== resource.id
-  ) {
-    setActiveResourceId(resource.id)
-  }
-  onResourceEvent?.()
+  if (!shouldSuppressFileResourceActivation) onResourceEvent?.(resource.id)
 
   if (resource.type === 'workflow') {
     const wasRegistered = ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)

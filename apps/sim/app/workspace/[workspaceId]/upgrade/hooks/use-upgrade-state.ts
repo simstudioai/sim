@@ -9,6 +9,8 @@ import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
 import { CREDIT_TIERS } from '@/lib/billing/constants'
 import { getPlanTierCredits, isEnterprise, isFree, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { invalidateWorkspaceUsage } from '@/hooks/queries/utils/invalidate-usage'
+import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceHostKeys } from '@/hooks/queries/workspace-host'
 
 const PRO_TIER = CREDIT_TIERS[0]
@@ -89,8 +91,22 @@ export function useUpgradeState({
     }
   }, [ownerBilling.billingInterval, subscription.isPaid])
 
-  const refreshHostContext = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: workspaceHostKeys.detail(workspaceId) }),
+  /**
+   * A non-redirect plan switch settles server-side immediately, so every read that
+   * describes the plan has to be refetched — the host context the page renders from,
+   * the subscription/usage reads the billing surfaces share, the proration invoice the
+   * switch just produced, and the workspace credit availability that drives the credits
+   * chip and the run gate.
+   */
+  const refreshBillingState = useCallback(
+    () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: workspaceHostKeys.detail(workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() }),
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() }),
+        queryClient.invalidateQueries({ queryKey: subscriptionKeys.invoicesAll() }),
+        invalidateWorkspaceUsage(queryClient),
+      ]),
     [queryClient, workspaceId]
   )
 
@@ -123,9 +139,9 @@ export function useUpgradeState({
       await requestJson(billingSwitchPlanContract, {
         body: { targetPlanName: subscription.plan, interval, workspaceId },
       })
-      await refreshHostContext()
+      await refreshBillingState()
     },
-    [isLegacyPlan, refreshHostContext, subscription.plan, workspaceId]
+    [isLegacyPlan, refreshBillingState, subscription.plan, workspaceId]
   )
 
   const currentCredits = getPlanTierCredits(subscription.plan)
@@ -154,11 +170,11 @@ export function useUpgradeState({
           workspaceId,
         },
       })
-      await refreshHostContext()
+      await refreshBillingState()
     } catch (e) {
       toast.error(getErrorMessage(e, 'Failed to upgrade'))
     }
-  }, [subscription.isTeam, isAnnual, refreshHostContext, workspaceId])
+  }, [subscription.isTeam, isAnnual, refreshBillingState, workspaceId])
 
   const onUpgradeToOtherTier = useCallback(async () => {
     const onMax =
@@ -170,11 +186,11 @@ export function useUpgradeState({
       await requestJson(billingSwitchPlanContract, {
         body: { targetPlanName, workspaceId },
       })
-      await refreshHostContext()
+      await refreshBillingState()
     } catch (e) {
       toast.error(getErrorMessage(e, 'Failed to switch plan'))
     }
-  }, [subscription.plan, subscription.isTeam, refreshHostContext, workspaceId])
+  }, [subscription.plan, subscription.isTeam, refreshBillingState, workspaceId])
 
   return {
     isLoading: false,

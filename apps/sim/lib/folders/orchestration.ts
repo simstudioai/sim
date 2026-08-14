@@ -27,7 +27,11 @@ import {
   parentFolderPath,
   requireNonRootFolderPath,
 } from '@/lib/folders/paths'
-import { loadActiveFolderPathIndex, wouldCreateFolderCycle } from '@/lib/folders/queries'
+import {
+  assertFolderCollectionHasRoom,
+  loadActiveFolderPathIndex,
+  wouldCreateFolderCycle,
+} from '@/lib/folders/queries'
 import type { FolderMutationErrorCode } from '@/lib/folders/status'
 import { notifyFolderResourceChanged } from '@/lib/realtime/notify'
 
@@ -572,6 +576,12 @@ export async function createFolder(params: CreateFolderParams): Promise<FolderMu
     const outcome = await withTransactionRetry(
       async (tx) => {
         await acquireFolderMutationLock(tx, params.workspaceId, params.resourceType)
+        /**
+         * The path-owned create enforces the same ceiling from its index; this
+         * one has no index to count, so it asks the collection directly. Under
+         * the mutation lock the count cannot be raced past the cap.
+         */
+        await assertFolderCollectionHasRoom(params.workspaceId, params.resourceType, tx)
         if (parentId) {
           const parentError = await assertParentFolderInWorkspace(
             params.resourceType,
@@ -643,6 +653,12 @@ export async function createFolder(params: CreateFolderParams): Promise<FolderMu
     // name, so surface a 409 rather than silently deduplicating.
     if (getPostgresErrorCode(error) === '23505') {
       return { success: false, error: DUPLICATE_NAME_ERROR, errorCode: 'conflict' }
+    }
+    // The collection ceiling is a caller-fixable refusal, not a fault: surface its own
+    // message and status rather than the generic 500 an unclassified throw would get.
+    const classified = asOrchestrationError(error)
+    if (classified) {
+      return { success: false, error: classified.message, errorCode: classified.code }
     }
     logger.error('Failed to create folder', { error, resourceType: params.resourceType })
     return { success: false, error: 'Internal server error', errorCode: 'internal' }

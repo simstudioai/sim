@@ -228,4 +228,29 @@ describe('knowledge document processing source', () => {
     expect(mockProcessDocument).not.toHaveBeenCalled()
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
   })
+
+  it('takes over an existing processing attempt', async () => {
+    dbChainMockFns.limit
+      .mockReset()
+      .mockResolvedValueOnce([{ ...PERSISTED_CONTEXT, processingStatus: 'processing' }])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
+    dbChainMockFns.returning.mockReset().mockResolvedValueOnce([])
+
+    await processDocumentAsync('knowledge-base-1', 'document-1', {
+      filename: 'stale.pdf',
+      fileUrl: 'https://example.com/stale.pdf',
+      fileSize: 1,
+      mimeType: 'text/plain',
+    })
+
+    expect(mockProcessDocument).toHaveBeenCalled()
+    expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        processingStatus: 'processing',
+        processingStartedAt: expect.any(Date),
+      })
+    )
+  })
 })

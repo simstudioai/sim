@@ -3,6 +3,7 @@ import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   chat as chatTable,
+  customTools as customToolsTable,
   folder as folderTable,
   mcpServers as mcpServersTable,
   skill as skillTable,
@@ -13,7 +14,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import {
@@ -44,10 +45,11 @@ import {
   lintEditedWorkflowState,
 } from '@/lib/copilot/tools/server/workflow/edit-workflow/lint'
 import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/copilot/tools/server/workflow/edit-workflow/validation'
-import { formatWorkflowStateForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import {
   type FileReadResult,
+  isReadableFileType,
+  MAX_IMAGE_SOURCE_BYTES,
   MAX_TEXT_READ_BYTES,
   readFileRecord,
 } from '@/lib/copilot/vfs/file-reader'
@@ -60,6 +62,7 @@ import {
   canonicalWorkspaceFilePath,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
+import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 import type { DeploymentData, VfsServiceAccountAuth } from '@/lib/copilot/vfs/serializers'
 import {
   describeServiceAccountForOAuthProvider,
@@ -123,20 +126,22 @@ import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integrat
 import { listTables } from '@/lib/table/service'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { findWorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenanceEnvelope } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type {
+  WorkspaceFileSecretProvenanceEnvelope,
+  WorkspaceFileSecretProvenanceIdentity,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { isImageFileType, resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
-import {
-  getCustomToolById,
-  getWorkspaceCustomTool,
-  listCustomToolSummaries,
-} from '@/lib/workflows/custom-tools/operations'
+import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
@@ -163,16 +168,35 @@ const MAX_VFS_KNOWLEDGE_DOCUMENTS = 10_000
 
 function bindWorkspaceFileResult<T>(
   record: WorkspaceFileRecord,
-  value: T
+  value: T,
+  view: 'complete' | 'derived' = 'derived',
+  contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] = []
 ): WorkspaceFileSecretProvenanceEnvelope<T> {
   return {
     value,
+    view,
     file: {
       fileId: record.id,
       key: record.key,
       context: record.storageContext ?? 'workspace',
     },
+    ...(contributingFiles.length > 0 ? { contributingFiles } : {}),
   }
+}
+
+function renderErrorResult(error: string): FileReadResult {
+  return {
+    content: JSON.stringify({ ok: false, error }),
+    totalLines: 1,
+    error,
+  }
+}
+
+function recordContributingFile(
+  files: Map<string, WorkspaceFileSecretProvenanceIdentity>,
+  identity: WorkspaceFileSecretProvenanceIdentity
+): void {
+  files.set(`${identity.context}:${identity.fileId}:${identity.key}`, identity)
 }
 
 /**
@@ -589,7 +613,6 @@ export class WorkspaceVFS {
   >()
   private deploymentCache = new Map<string, Promise<DeploymentData | null>>()
   private _workspaceId = ''
-  private _secretless = false
   /**
    * Types of the org's CURRENT custom blocks (enabled + disabled — a disabled block
    * still resolves/renders). Populated by {@link materializeCustomBlocks}; used to
@@ -752,7 +775,7 @@ export class WorkspaceVFS {
   async materialize(
     workspaceId: string,
     userId: string,
-    options?: { secretMountPolicy?: SecretMountPolicy; secretless?: boolean }
+    options?: { secretMountPolicy?: SecretMountPolicy }
   ): Promise<void> {
     const start = Date.now()
     this.files = new Map()
@@ -761,7 +784,6 @@ export class WorkspaceVFS {
     this.deploymentCache = new Map()
     this._customBlockTypes = null
     this._workspaceId = workspaceId
-    this._secretless = options?.secretless === true
 
     // Per-phase wall-clock, stamped on the span so a slow materialize in a
     // trace names its bottleneck instead of showing up as unattributed dead
@@ -1085,13 +1107,11 @@ export class WorkspaceVFS {
   private async renderDocRecordResult(
     record: WorkspaceFileRecord,
     ext: string,
-    buildMessage: (pageCount: number) => string
+    buildMessage: (pageCount: number) => string,
+    contributingFiles: Map<string, WorkspaceFileSecretProvenanceIdentity>
   ): Promise<FileReadResult> {
     if (typeof record.size === 'number' && record.size > MAX_DOC_READ_INPUT_BYTES) {
-      return {
-        content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
-        totalLines: 1,
-      }
+      return renderErrorResult('File is too large to render')
     }
     const { content: buffer } = await readWorkspaceFileContent.execute({
       principal: this.requireFilePrincipal(),
@@ -1102,10 +1122,7 @@ export class WorkspaceVFS {
       },
     })
     if (buffer.length > MAX_DOC_READ_INPUT_BYTES) {
-      return {
-        content: JSON.stringify({ ok: false, error: 'File is too large to render' }),
-        totalLines: 1,
-      }
+      return renderErrorResult('File is too large to render')
     }
     // Already-binary uploads render directly; source files are compiled first
     // (E2B regime -> doc sandbox: Node pptx/docx, Python pdf; otherwise
@@ -1116,10 +1133,7 @@ export class WorkspaceVFS {
     } else {
       const code = buffer.toString('utf-8')
       if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
-        return {
-          content: JSON.stringify({ ok: false, error: 'File source exceeds maximum size' }),
-          totalLines: 1,
-        }
+        return renderErrorResult('File source exceeds maximum size')
       }
       if (isDocSandboxEnabled && (await getE2BDocFormat(record.name))) {
         bin = (
@@ -1133,12 +1147,16 @@ export class WorkspaceVFS {
       } else {
         const taskId = BINARY_DOC_TASKS[ext]
         if (!taskId) {
-          return {
-            content: JSON.stringify({ ok: false, error: 'Cannot render this file' }),
-            totalLines: 1,
-          }
+          return renderErrorResult('Cannot render this file')
         }
-        bin = await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
+        bin = await runSandboxTask(
+          taskId,
+          { code, workspaceId: this._workspaceId },
+          {
+            onWorkspaceFileAccess: (identity) =>
+              recordContributingFile(contributingFiles, identity),
+          }
+        )
       }
     }
     const { grid, pageCount } = await renderDocToGrid({
@@ -1181,13 +1199,14 @@ export class WorkspaceVFS {
     const compiledMatch = /^files\/.+\/compiled$/.test(path)
     if (compiledMatch) {
       let record: WorkspaceFileRecord | null = null
+      const contributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
       try {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(record.name) : null
+        const docFmt = await getE2BDocFormat(record.name)
         const taskId = BINARY_DOC_TASKS[ext]
-        if (!e2bFmt && !taskId) return null
+        if (!docFmt && !taskId) return null
 
         // Only PDF can be attached as a model-readable `document` block —
         // Bedrock/Anthropic document blocks accept application/pdf ONLY. Attaching
@@ -1198,15 +1217,16 @@ export class WorkspaceVFS {
         if (ext !== 'pdf') {
           if (isRenderableDocExt(ext)) {
             const compiledName = record.name
-            return bindWorkspaceFileResult(
+            const rendered = await this.renderDocRecordResult(
               record,
-              await this.renderDocRecordResult(
-                record,
-                ext,
-                (pageCount) =>
-                  `${compiledName}: the raw ${ext.toUpperCase()} binary isn't model-readable, so it was rendered to ${pageCount} page image(s) for inspection.`
-              )
+              ext,
+              (pageCount) =>
+                `${compiledName}: the raw ${ext.toUpperCase()} binary isn't model-readable, so it was rendered to ${pageCount} page image(s) for inspection.`,
+              contributingFiles
             )
+            return bindWorkspaceFileResult(record, rendered, 'derived', [
+              ...contributingFiles.values(),
+            ])
           }
           const extractPath = `${canonicalWorkspaceFilePath({
             folderPath: record.folderPath,
@@ -1233,35 +1253,56 @@ export class WorkspaceVFS {
             totalLines: 1,
           })
         }
-        const compiled = e2bFmt
-          ? (
-              await compileDoc({
-                source: code,
-                fileName: record.name,
-                workspaceId: this._workspaceId,
-                filePrincipal: this.requireFilePrincipal(),
-              })
-            ).buffer
-          : await runSandboxTask(taskId, { code, workspaceId: this._workspaceId })
-        if (compiled.length > MAX_COMPILED_ATTACHMENT_BYTES) {
-          return bindWorkspaceFileResult(record, {
-            content: `[Compiled artifact too large: ${record.name} (${compiled.length} bytes, limit ${MAX_COMPILED_ATTACHMENT_BYTES})]`,
-            totalLines: 1,
+        let compiled: Buffer
+        if (isDocSandboxEnabled && docFmt) {
+          const compiledResult = await compileDoc({
+            source: code,
+            fileName: record.name,
+            workspaceId: this._workspaceId,
+            filePrincipal: this.requireFilePrincipal(),
           })
+          for (const identity of compiledResult.contributingFiles ?? []) {
+            recordContributingFile(contributingFiles, identity)
+          }
+          compiled = compiledResult.buffer
+        } else {
+          compiled = await runSandboxTask(
+            taskId,
+            { code, workspaceId: this._workspaceId },
+            {
+              onWorkspaceFileAccess: (identity) =>
+                recordContributingFile(contributingFiles, identity),
+            }
+          )
         }
-        return bindWorkspaceFileResult(record, {
-          content: `Compiled file: ${record.name} (${compiled.length} bytes, application/pdf)`,
-          totalLines: 1,
-          attachment: {
-            type: 'file',
-            name: record.name,
-            source: {
-              type: 'base64',
-              media_type: 'application/pdf',
-              data: compiled.toString('base64'),
+        if (compiled.length > MAX_COMPILED_ATTACHMENT_BYTES) {
+          return bindWorkspaceFileResult(
+            record,
+            readPlaceholder.compiledArtifactTooLarge(
+              record.name,
+              compiled.length,
+              MAX_COMPILED_ATTACHMENT_BYTES
+            )
+          )
+        }
+        return bindWorkspaceFileResult(
+          record,
+          {
+            content: `Compiled file: ${record.name} (${compiled.length} bytes, application/pdf)`,
+            totalLines: 1,
+            attachment: {
+              type: 'file',
+              name: record.name,
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: compiled.toString('base64'),
+              },
             },
           },
-        })
+          'derived',
+          [...contributingFiles.values()]
+        )
       } catch (err) {
         logger.warn('Compiled artifact read failed via VFS', {
           workspaceId: this._workspaceId,
@@ -1286,43 +1327,38 @@ export class WorkspaceVFS {
     const renderMatch = /^files\/.+\/render$/.test(path)
     if (renderMatch) {
       let record: WorkspaceFileRecord | null = null
+      const contributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
       try {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'render')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
         if (!isRenderableDocExt(ext)) {
-          return bindWorkspaceFileResult(record, {
-            content: JSON.stringify({
-              ok: false,
-              error: 'Render supports .pptx, .docx, and .pdf only',
-            }),
-            totalLines: 1,
-          })
+          return bindWorkspaceFileResult(
+            record,
+            renderErrorResult('Render supports .pptx, .docx, and .pdf only')
+          )
         }
         const renderName = record.name
-        return bindWorkspaceFileResult(
+        const rendered = await this.renderDocRecordResult(
           record,
-          await this.renderDocRecordResult(
-            record,
-            ext,
-            (pageCount) =>
-              `Rendered ${pageCount} page(s) of ${renderName} as a contact-sheet grid for visual QA. Inspect each page for text overflow/cutoff, overlapping elements, low contrast, misalignment, and leftover placeholder text; fix and re-render until clean.`
-          )
+          ext,
+          (pageCount) =>
+            `Rendered ${pageCount} page(s) of ${renderName} as a contact-sheet grid for visual QA. Inspect each page for text overflow/cutoff, overlapping elements, low contrast, misalignment, and leftover placeholder text; fix and re-render until clean.`,
+          contributingFiles
         )
+        return bindWorkspaceFileResult(record, rendered, 'derived', [...contributingFiles.values()])
       } catch (err) {
+        const error = toError(err).message
         logger.warn('Render read failed via VFS', {
           workspaceId: this._workspaceId,
           path,
           fileId: record?.id,
-          error: toError(err).message,
+          error,
         })
         // Return an explicit error (not null) once the file resolved — a null read
         // looks like a missing path and sends the agent hunting for the "correct"
         // render path instead of surfacing the real compile/render failure.
-        const errorResult = {
-          content: JSON.stringify({ ok: false, error: toError(err).message }),
-          totalLines: 1,
-        }
+        const errorResult = renderErrorResult(error)
         return record ? bindWorkspaceFileResult(record, errorResult) : { value: errorResult }
       }
     }
@@ -1534,11 +1570,19 @@ export class WorkspaceVFS {
           fileId: record.id,
           assertedWorkspaceId: this._workspaceId,
           includeDeleted: scope === 'archived',
-          maxBytes: MAX_TEXT_READ_BYTES,
+          maxBytes: isImageFileType(resolveEffectiveMimeType(record.type, record.name))
+            ? MAX_IMAGE_SOURCE_BYTES
+            : MAX_TEXT_READ_BYTES,
         },
       })
       const result = await readFileRecord(file, content)
-      return result ? bindWorkspaceFileResult(file, result) : null
+      return result
+        ? bindWorkspaceFileResult(
+            file,
+            result,
+            isReadableFileType(file.type) ? 'complete' : 'derived'
+          )
+        : null
     } catch (err) {
       logger.warn('Failed to list workspace files for readFileContent', {
         workspaceId: this._workspaceId,
@@ -1671,15 +1715,15 @@ export class WorkspaceVFS {
           // loadWorkflowFromNormalizedTables returns null for a zero-block
           // workflow; it still exists and must be readable, so emit an
           // empty-but-valid state.json rather than a 404.
-          const state = normalized
-            ? {
+          const sanitized = normalized
+            ? sanitizeForCopilot({
                 blocks: normalized.blocks,
                 edges: normalized.edges,
                 loops: normalized.loops,
                 parallels: normalized.parallels,
-              }
-            : { blocks: {}, edges: [], loops: {}, parallels: {} }
-          return formatWorkflowStateForCopilot(state, { secretless: this._secretless })
+              } as any)
+            : sanitizeForCopilot({ blocks: {}, edges: [], loops: {}, parallels: {} } as any)
+          return JSON.stringify(sanitized, null, 2)
         })
 
         this.registerLazy(`${prefix}lint.json`, async () => {
@@ -1908,7 +1952,10 @@ export class WorkspaceVFS {
         listAllWorkspaceFiles.execute({ principal, input: { workspaceId, scope: 'active' } }),
       ])
       for (const folder of folders) {
-        this.files.set(`files/${encodeVfsPathSegments(folder.path.split('/'))}/.folder`, '')
+        this.files.set(
+          `files/${encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(folder.path))}/.folder`,
+          ''
+        )
       }
 
       for (const file of files) {
@@ -2054,21 +2101,26 @@ export class WorkspaceVFS {
   ): Promise<NonNullable<WorkspaceMdData['customTools']>> {
     try {
       // Metadata only — tool code can be large; keep it out of the eager map.
-      // Normal chats retain legacy user-owned tools. Secretless projections are
-      // workspace-only so a shared key cannot inherit its creator's private code.
-      const toolRows = await listCustomToolSummaries({
-        userId,
-        workspaceId,
-        workspaceOnly: this._secretless,
-      })
+      // Visibility matches listCustomTools: workspace tools + legacy user-owned.
+      const toolRows = await db
+        .select({
+          id: customToolsTable.id,
+          title: customToolsTable.title,
+        })
+        .from(customToolsTable)
+        .where(
+          or(
+            eq(customToolsTable.workspaceId, workspaceId),
+            and(isNull(customToolsTable.workspaceId), eq(customToolsTable.userId, userId))
+          )
+        )
+        .orderBy(desc(customToolsTable.createdAt))
 
       for (const tool of toolRows) {
         const safeName = sanitizeName(tool.title)
         const toolId = tool.id
         const load = async () => {
-          const full = this._secretless
-            ? await getWorkspaceCustomTool({ toolId, workspaceId })
-            : await getCustomToolById({ toolId, userId, workspaceId })
+          const full = await getCustomToolById({ toolId, userId, workspaceId })
           if (!full) return null
           return serializeCustomTool({
             id: full.id,
@@ -2159,7 +2211,7 @@ export class WorkspaceVFS {
           serializeMcpServer({
             id: server.id,
             name: server.name,
-            ...(this._secretless ? {} : { url: server.url }),
+            url: server.url,
             transport: server.transport,
             enabled: server.enabled,
             connectionStatus: server.connectionStatus,
@@ -2167,12 +2219,7 @@ export class WorkspaceVFS {
         )
       }
 
-      return servers.map((server) => ({
-        id: server.id,
-        name: server.name,
-        enabled: server.enabled,
-        ...(this._secretless ? {} : { url: server.url }),
-      }))
+      return servers.map((s) => ({ id: s.id, name: s.name, url: s.url, enabled: s.enabled }))
     } catch (err) {
       logger.warn('Failed to materialize MCP servers', {
         workspaceId,
@@ -2347,8 +2394,7 @@ export class WorkspaceVFS {
       }
 
       for (const folder of archivedFileFolders) {
-        const safePath = folder.path
-          .split('/')
+        const safePath = parseWorkspaceFileFolderDisplayPath(folder.path)
           .map((segment) => sanitizeName(segment))
           .join('/')
         this.files.set(
@@ -2434,13 +2480,6 @@ export class WorkspaceVFS {
     oauthIntegrations: WorkspaceMdData['oauthIntegrations']
     envVariables: WorkspaceMdData['envVariables']
   }> {
-    if (this._secretless) {
-      this.files.set('environment/credentials.json', serializeCredentials([]))
-      this.files.set('environment/api-keys.json', serializeApiKeys([]))
-      this.files.set('environment/variables.json', serializeEnvironmentVariables([], []))
-      return { oauthIntegrations: [], envVariables: [] }
-    }
-
     try {
       const isWorkspaceAdmin = await hasWorkspaceAdminAccess(userId, workspaceId)
       const [envCredentials, oauthCredentials, apiKeyRows, envData, permissionConfig] =
@@ -2542,7 +2581,6 @@ export async function getOrMaterializeVFS(
   userId: string,
   options?: {
     secretMountPolicy?: SecretMountPolicy
-    secretless?: boolean
     filePrincipal?: Principal
     knowledgePrincipal?: Principal
   }

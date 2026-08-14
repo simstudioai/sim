@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { StorageLimitExceededError } from '@/lib/billing/storage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { internalFileErrorPolicies } from '@/lib/workspace-files/api/internal-error-policies'
 import {
@@ -29,6 +30,18 @@ describe('internal file error policies', () => {
     ).toEqual({
       status: 404,
       body: { error: 'FileNotFoundError', message: 'Not found' },
+      headers: undefined,
+    })
+  })
+
+  it('preserves the legacy payment-required status for storage quota failures', () => {
+    expect(
+      internalFileErrorPolicies.content.project(
+        new StorageLimitExceededError('Storage limit exceeded')
+      )
+    ).toEqual({
+      status: 402,
+      body: { error: 'Storage limit exceeded' },
       headers: undefined,
     })
   })

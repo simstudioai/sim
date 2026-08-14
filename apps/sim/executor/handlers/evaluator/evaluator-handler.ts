@@ -1,8 +1,5 @@
 import { createLogger } from '@sim/logger'
-import {
-  addModelInputProvenanceToRequest,
-  createModelInputProvenanceRequestMetadata,
-} from '@/lib/execution/model-input-provenance'
+import { projectResolvedModelInput } from '@/lib/execution/model-input-provenance'
 import {
   type AutoRoutingResult,
   addAutoRoutingCost,
@@ -13,13 +10,16 @@ import type { BlockOutput } from '@/blocks/types'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import { BlockType, DEFAULTS, EVALUATOR } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
+import { executeBlockProviderRequest } from '@/executor/utils/provider-request'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
+import type {
+  ResolvedSecretInputPath,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { resolveProxiedModelCost } from '@/providers/cost-policy'
-import { collectProviderModelInputProvenanceValues } from '@/providers/model-input-provenance'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import type { ProviderRequest } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
@@ -51,8 +51,6 @@ export class EvaluatorBlockHandler implements BlockHandler {
       bedrockRegion: inputs.bedrockRegion,
     }
 
-    const processedContent = this.processContent(inputs.content)
-
     let systemPromptObj: { systemPrompt: string; responseFormat: any } = {
       systemPrompt: '',
       responseFormat: null,
@@ -64,15 +62,48 @@ export class EvaluatorBlockHandler implements BlockHandler {
     } else {
       metrics = []
     }
+    const modelInputPaths: ResolvedSecretInputPath[] = [
+      ['content'],
+      ...metrics.flatMap((_, index) => [
+        ['metrics', String(index), 'name'],
+        ['metrics', String(index), 'description'],
+        ['metrics', String(index), 'range', 'min'],
+        ['metrics', String(index), 'range', 'max'],
+      ]),
+    ]
+    const modelInputProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { content: inputs.content, metrics: inputs.metrics },
+      modelInputPaths
+    )
+    if (!modelInputProjection.complete) {
+      refuseResolvedSecretProjection({
+        site: 'evaluator.contentMetricsModelInput',
+        message: 'Evaluator model input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'content,metrics',
+      })
+    }
+    const processedContent = this.processContent(modelInputProjection.value.content)
+    const projectedMetrics = Array.isArray(modelInputProjection.value.metrics)
+      ? modelInputProjection.value.metrics
+      : []
     const metricDescriptions = metrics
-      .filter((m: any) => m?.name && m.range)
-      .map((m: any) => `"${m.name}" (${m.range.min}-${m.range.max}): ${m.description || ''}`)
+      .map((metric: any, index: number) => ({ metric, projected: projectedMetrics[index] }))
+      .filter(({ metric, projected }) =>
+        Boolean(metric?.name && metric.range && projected?.name && projected.range)
+      )
+      .map(
+        ({ projected }) =>
+          `"${projected.name}" (${projected.range.min}-${projected.range.max}): ${projected.description || ''}`
+      )
       .join('\n')
 
     const responseProperties: Record<string, any> = {}
     metrics.forEach((m: any, metricIndex: number) => {
-      if (m?.name) {
-        responseProperties[m.name.toLowerCase()] = { type: 'number' }
+      const projectedMetric = projectedMetrics[metricIndex]
+      if (m?.name && projectedMetric?.name) {
+        responseProperties[projectedMetric.name.toLowerCase()] = { type: 'number' }
       } else {
         logger.warn('Skipping invalid metric entry during response format generation', {
           metricIndex,
@@ -96,7 +127,10 @@ export class EvaluatorBlockHandler implements BlockHandler {
         schema: {
           type: 'object',
           properties: responseProperties,
-          required: metrics.filter((m: any) => m?.name).map((m: any) => m.name.toLowerCase()),
+          required: metrics.flatMap((m: any, metricIndex: number) => {
+            const projectedName = projectedMetrics[metricIndex]?.name
+            return m?.name && projectedName ? [projectedName.toLowerCase()] : []
+          }),
           additionalProperties: false,
         },
         strict: true,
@@ -148,13 +182,12 @@ export class EvaluatorBlockHandler implements BlockHandler {
         credentialId: evaluatorConfig.vertexCredential,
         actingUserId: ctx.userId,
         workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
         callerLabel: 'vertex-evaluator',
       })
     }
 
     try {
-      const url = buildAPIUrl('/api/providers', ctx.userId ? { userId: ctx.userId } : {})
-
       const providerRequest: ProviderRequest = {
         model,
         systemPrompt: systemPromptObj.systemPrompt,
@@ -180,38 +213,22 @@ export class EvaluatorBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
       }
 
-      const headers = new Headers(await buildAuthHeaders(ctx.userId))
-      const requestBody = addModelInputProvenanceToRequest(
-        { provider: providerId, ...providerRequest },
-        headers,
-        createModelInputProvenanceRequestMetadata(
-          ctx.resolvedSecretTraceRegistry,
-          collectProviderModelInputProvenanceValues(providerRequest, providerId)
-        )
-      )
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers,
-        body: stringifyJSON(requestBody),
+      const result = await executeBlockProviderRequest({
+        ctx,
+        providerId,
+        request: providerRequest,
+        resolvedSecretTraceRegistry: modelInputProjection.registry,
       })
-
-      if (!response.ok) {
-        const errorMessage = await extractAPIErrorMessage(response)
-        throw new Error(errorMessage)
-      }
-
-      const result = await response.json()
 
       const parsedContent = this.extractJSONFromResponse(
         result.content,
         ctx.resolvedSecretTraceRegistry
       )
 
-      const metricScores = this.extractMetricScores(parsedContent, inputs.metrics)
+      const metricScores = this.extractMetricScores(parsedContent, metrics, projectedMetrics)
 
-      const inputTokens = result.tokens?.input || result.tokens?.prompt || DEFAULTS.TOKENS.PROMPT
-      const outputTokens =
-        result.tokens?.output || result.tokens?.completion || DEFAULTS.TOKENS.COMPLETION
+      const inputTokens = result.tokens?.input || DEFAULTS.TOKENS.PROMPT
+      const outputTokens = result.tokens?.output || DEFAULTS.TOKENS.COMPLETION
 
       const cost = addAutoRoutingCost(
         resolveProxiedModelCost(result.cost),
@@ -297,7 +314,8 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
   private extractMetricScores(
     parsedContent: Record<string, any>,
-    metrics: any
+    metrics: any,
+    projectedMetrics: any
   ): Record<string, number> {
     const metricScores: Record<string, number> = {}
     let validMetrics: any[]
@@ -316,6 +334,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
       return metricScores
     }
 
+    const validProjectedMetrics = Array.isArray(projectedMetrics) ? projectedMetrics : []
     validMetrics.forEach((metric: any, metricIndex: number) => {
       if (!metric?.name) {
         logger.warn('Skipping invalid metric entry', {
@@ -325,7 +344,11 @@ export class EvaluatorBlockHandler implements BlockHandler {
         return
       }
 
-      const score = this.findMetricScore(parsedContent, metric.name)
+      const projectedName = validProjectedMetrics[metricIndex]?.name
+      const score = this.findMetricScore(
+        parsedContent,
+        typeof projectedName === 'string' && projectedName ? projectedName : metric.name
+      )
       metricScores[metric.name.toLowerCase()] = score
     })
 

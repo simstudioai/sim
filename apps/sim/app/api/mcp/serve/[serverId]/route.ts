@@ -34,6 +34,7 @@ import {
   mcpServeRouteParamsSchema,
   mcpToolCallParamsSchema,
 } from '@/lib/api/contracts/mcp'
+import { PERSONAL_KEY_DENIED } from '@/lib/api-key/policy-messages'
 import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import {
   assertBillingAttributionSnapshot,
@@ -60,6 +61,7 @@ import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema
 import { executeWorkflowService } from '@/lib/workflows/executor/execute-service'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import {
   isResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
@@ -203,17 +205,29 @@ async function projectWorkflowToolOutput(
   provenance: unknown,
   scope: { userId: string; workspaceId: string }
 ): Promise<unknown> {
+  /**
+   * Deliberately compares the tenant only, never the user. The executor stamps provenance with
+   * the workflow AUTHOR (`personalEnvUserId` falls back to `metadata.workflowUserId` on this
+   * non-session path) while `scope` here is the ACTING caller, and a caller who did not author
+   * the workflow is the ordinary team configuration — demanding they match refuses every such
+   * call after the workflow has already run and been billed. Restoring a user comparison here
+   * is not hardening: the registry compares both scope fields itself and marks every entry
+   * imported from another user anonymous, so a non-author already sees the opaque redaction
+   * placeholder rather than the author's secret names.
+   */
   if (
     !isResolvedSecretTraceProvenanceV1(provenance) ||
     !provenance.complete ||
-    provenance.scope?.userId !== scope.userId ||
-    provenance.scope.workspaceId !== scope.workspaceId
+    provenance.scope?.workspaceId !== scope.workspaceId
   ) {
     throw new Error('MCP workflow execution provenance is unavailable')
   }
 
   const registry = new ResolvedSecretTraceRegistry([], scope)
-  const imported = await registry.importProvenance(provenance, { trusted: true })
+  const imported = await registry.importProvenance(provenance, {
+    trusted: true,
+    origin: 'mcpServe.workflowCrossing',
+  })
   if (!imported || !registry.isComplete()) {
     throw new Error('MCP workflow execution provenance could not be restored')
   }
@@ -223,7 +237,11 @@ async function projectWorkflowToolOutput(
     MAX_MCP_TOOL_RESULT_TEXT_BYTES
   )
   if (!projected.safe) {
-    throw new Error('MCP workflow execution output could not be safely projected')
+    refuseResolvedSecretProjection({
+      site: 'mcpServe.workflowOutput',
+      message: 'MCP workflow execution output could not be safely projected',
+      registry,
+    })
   }
   return projected.value
 }
@@ -319,6 +337,7 @@ async function getServer(serverId: string) {
       workspaceId: workflowMcpServer.workspaceId,
       isPublic: workflowMcpServer.isPublic,
       createdBy: workflowMcpServer.createdBy,
+      workspaceAllowsPersonalApiKeys: workspace.allowPersonalApiKeys,
     })
     .from(workflowMcpServer)
     .innerJoin(workspace, eq(workflowMcpServer.workspaceId, workspace.id))
@@ -380,11 +399,22 @@ async function authorizeMcpServeRequest(
     return { response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
 
+  /**
+   * The in-process execution service receives the resolved actor, not the
+   * caller's original API-key type, so enforce the workspace key policy at
+   * this authenticated MCP boundary.
+   */
+  const isPersonalApiKey = auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal'
+  if (isPersonalApiKey && !server.workspaceAllowsPersonalApiKeys) {
+    return {
+      response: NextResponse.json({ error: PERSONAL_KEY_DENIED }, { status: 403 }),
+    }
+  }
+
   return {
     executeAuthContext: {
       userId: auth.userId,
-      useAuthenticatedUserAsActor:
-        auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal',
+      useAuthenticatedUserAsActor: isPersonalApiKey,
     },
   }
 }
@@ -917,7 +947,7 @@ async function handleToolsCall(
       )
     }
 
-    const isError = serviceResult.status !== 'completed'
+    const isError = serviceResult.status === 'failed' || serviceResult.status === 'cancelled'
     const toolOutput = isError
       ? {
           success: false,

@@ -36,7 +36,7 @@ Integrate OneDrive into the workflow. Can create text and Excel files, upload fi
 
 ## Actions
 
-### `onedrive_upload`
+### Upload to OneDrive
 
 Upload a file to OneDrive
 
@@ -57,7 +57,7 @@ Upload a file to OneDrive
 | `success` | boolean | Whether the file was uploaded successfully |
 | `file` | object | The uploaded file object with metadata including id, name, webViewLink, webContentLink, and timestamps |
 
-### `onedrive_create_folder`
+### Create Folder in OneDrive
 
 Create a new folder in OneDrive
 
@@ -75,7 +75,7 @@ Create a new folder in OneDrive
 | `success` | boolean | Whether the folder was created successfully |
 | `file` | object | The created folder object with metadata including id, name, webViewLink, and timestamps |
 
-### `onedrive_download`
+### Download File from OneDrive
 
 Download a file from OneDrive
 
@@ -92,7 +92,7 @@ Download a file from OneDrive
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded file stored in execution files |
 
-### `onedrive_list`
+### List OneDrive Files
 
 List files and folders in OneDrive
 
@@ -113,7 +113,7 @@ List files and folders in OneDrive
 | `files` | array | Array of file and folder objects with metadata |
 | `nextPageToken` | string | Token for retrieving the next page of results \(optional\) |
 
-### `onedrive_search`
+### Search OneDrive Files
 
 Search for files and folders across OneDrive by name, metadata, or content (recursive)
 
@@ -133,7 +133,7 @@ Search for files and folders across OneDrive by name, metadata, or content (recu
 | `files` | array | Array of file and folder objects matching the search query |
 | `nextPageToken` | string | Token for retrieving the next page of results \(optional\) |
 
-### `onedrive_get_item`
+### Get OneDrive Item Metadata
 
 Get metadata for a specific OneDrive file or folder by ID, or the drive root
 
@@ -150,7 +150,7 @@ Get metadata for a specific OneDrive file or folder by ID, or the drive root
 | `success` | boolean | Whether the item metadata was retrieved |
 | `file` | object | The file or folder metadata, including id, name, webViewLink, size, and timestamps |
 
-### `onedrive_get_drive_info`
+### Get OneDrive Info
 
 Get information about the OneDrive drive, including storage quota
 
@@ -170,7 +170,7 @@ Get information about the OneDrive drive, including storage quota
 | `owner` | string | Display name of the drive owner |
 | `quota` | object | Storage quota information in bytes \(total, used, remaining, deleted, state\) |
 
-### `onedrive_move`
+### Move or Rename OneDrive File
 
 Move a file or folder to a new parent folder, rename it, or both
 
@@ -189,7 +189,7 @@ Move a file or folder to a new parent folder, rename it, or both
 | `success` | boolean | Whether the move or rename was successful |
 | `file` | object | The updated file object with its new name and/or parent folder |
 
-### `onedrive_copy`
+### Copy OneDrive File
 
 Copy a file or folder to another location within OneDrive
 
@@ -210,7 +210,7 @@ Copy a file or folder to another location within OneDrive
 | `name` | string | The requested name for the copy, if provided |
 | `monitorUrl` | string | URL to poll for the status of the asynchronous copy operation \(copy completes in the background\) |
 
-### `onedrive_create_share_link`
+### Create OneDrive Sharing Link
 
 Create a view or edit sharing link for a OneDrive file or folder
 
@@ -229,7 +229,7 @@ Create a view or edit sharing link for a OneDrive file or folder
 | `success` | boolean | Whether the sharing link was created successfully |
 | `link` | object | The created sharing link, including its type, scope, and URL |
 
-### `onedrive_delete`
+### Delete File from OneDrive
 
 Delete a file or folder from OneDrive
 

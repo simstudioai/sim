@@ -5,7 +5,6 @@ import { getTableQuerySchema, updateTableContract } from '@/lib/api/contracts/ta
 import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
-import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
@@ -19,11 +18,12 @@ import {
   performUpdateTableLocks,
 } from '@/lib/table/orchestration'
 import { TABLE_LOCK_FLAGS, TABLE_LOCK_KINDS } from '@/lib/table/types'
+import { normalizeColumn } from '@/lib/table/wire'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import {
   accessError,
   checkAccess,
-  normalizeColumn,
+  orchestrationOutcomeErrorResponse,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
 
@@ -187,10 +187,7 @@ export const PATCH = withRouteHandler(
           request,
         })
         if (!lockOutcome.success) {
-          return NextResponse.json(
-            { error: lockOutcome.error ?? 'Failed to update table locks' },
-            { status: statusForOrchestrationError(lockOutcome.errorCode) }
-          )
+          return orchestrationOutcomeErrorResponse(lockOutcome, 'Failed to update table locks')
         }
       }
 
@@ -203,10 +200,7 @@ export const PATCH = withRouteHandler(
           request,
         })
         if (!renameOutcome.success) {
-          return NextResponse.json(
-            { error: renameOutcome.error ?? 'Failed to rename table' },
-            { status: statusForOrchestrationError(renameOutcome.errorCode) }
-          )
+          return orchestrationOutcomeErrorResponse(renameOutcome, 'Failed to rename table')
         }
       }
 
@@ -229,11 +223,11 @@ export const PATCH = withRouteHandler(
           request,
         })
         if (!moveOutcome.success) {
-          return NextResponse.json(
-            {
-              error: moveOutcome.errorCode === 'not_found' ? 'Table not found' : moveOutcome.error,
-            },
-            { status: statusForOrchestrationError(moveOutcome.errorCode) }
+          return orchestrationOutcomeErrorResponse(
+            moveOutcome.errorCode === 'not_found'
+              ? { ...moveOutcome, error: 'Table not found' }
+              : moveOutcome,
+            'Failed to move table'
           )
         }
       }
@@ -302,10 +296,7 @@ export const DELETE = withRouteHandler(
         request,
       })
       if (!outcome.success) {
-        return NextResponse.json(
-          { error: outcome.error ?? 'Failed to delete table' },
-          { status: statusForOrchestrationError(outcome.errorCode) }
-        )
+        return orchestrationOutcomeErrorResponse(outcome, 'Failed to delete table')
       }
 
       return NextResponse.json({

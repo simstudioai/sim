@@ -1,4 +1,4 @@
-import { generateMockPayloadFromOutputsDefinition } from '@/lib/workflows/triggers/trigger-utils'
+import { generateMockPayloadFromOutputsDefinition } from '@/lib/workflows/triggers/mock-payload'
 import type { SubBlockConfig } from '@/blocks/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 import type { TriggerConfig } from '@/triggers/types'
@@ -197,6 +197,9 @@ export function buildTriggerSubBlocks(options: BuildTriggerSubBlocksOptions): Su
     blocks.push({
       id: 'selectedTriggerId',
       title: 'Trigger Type',
+      /* The card reads "Runs on ⟨an event⟩" before a pick; "a trigger type" is
+         the form label, not prose. Seeded, so this is a belt-and-braces case. */
+      canvasNoun: 'an event',
       type: 'dropdown',
       mode: 'trigger',
       options: triggerOptions,

@@ -1,4 +1,3 @@
-import type { Principal } from '@sim/auth/principal'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowRunApplicationContext } from '@/lib/workflows/application/context'
@@ -12,19 +11,12 @@ export interface ResumeWorkflowRunInput {
   resumeInput: unknown
 }
 
-function assertedWorkspaceId(principal: Principal): string | undefined {
-  return principal.kind === 'workspace_api_key' || principal.kind === 'delegated'
-    ? principal.workspaceId
-    : undefined
-}
-
 export const resumeWorkflowRun = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.resumeRun,
-  resolveContext: ({ principal, input }: { principal: Principal; input: ResumeWorkflowRunInput }) =>
+  resolveContext: ({ input }: { input: ResumeWorkflowRunInput }) =>
     resolveActiveWorkflowRunApplicationContext({
       runId: input.runId,
       assertedWorkflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkspaceId(principal),
     }),
   async execute({ principal, input, context }) {
     const attribution = resolvePrincipalAttribution(principal, {

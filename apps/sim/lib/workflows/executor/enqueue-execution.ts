@@ -33,6 +33,9 @@ export interface EnqueueWorkflowExecutionParams {
   callChain?: string[]
   executionTimeoutMs: number
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  /** Identity decisions the enqueuing surface made; the worker cannot re-derive them. */
+  enforceCredentialAccess?: boolean
+  isPublicApiAccess?: boolean
 }
 
 /**
@@ -77,6 +80,8 @@ export async function enqueueWorkflowExecution(
     callChain,
     executionTimeoutMs,
     trustedInitialResolvedSecretTraceProvenance,
+    enforceCredentialAccess,
+    isPublicApiAccess,
   } = params
   const asyncLogger = logger.withMetadata({
     requestId,
@@ -107,6 +112,8 @@ export async function enqueueWorkflowExecution(
     requestId,
     correlation,
     callChain,
+    enforceCredentialAccess,
+    isPublicApiAccess,
     executionMode: 'async',
     admissionCompleted: true,
     executionTimeoutMs,

@@ -2,7 +2,8 @@
  * @vitest-environment node
  */
 
-import { dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
+import { createLogger } from '@sim/logger'
+import { dbChainMockFns, loggerMock, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
@@ -133,6 +134,10 @@ describe('processContextsServer - knowledge contexts', () => {
   })
 })
 
+const mockProcessContentsLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'ProcessContents')
+].value
+
 describe('processContextsServer - block contexts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -200,6 +205,35 @@ describe('processContextsServer - skill contexts', () => {
     ])
   })
 
+  it('uses the skill ID only for lookup and omits it from model context', async () => {
+    const skillId = 'private-skill-id'
+    getSkillById.mockResolvedValue({
+      id: skillId,
+      name: 'Resolved Skill',
+      description: 'desc',
+      content: '# Resolved Skill\n\nDo the thing.',
+    })
+
+    const result = await processContextsServer(
+      [{ kind: 'skill', skillId, label: 'Skill' } as ChatContext],
+      'user-1',
+      'hello',
+      'ws-1'
+    )
+
+    expect(getSkillById).toHaveBeenCalledWith({ skillId, workspaceId: 'ws-1' })
+    expect(result).toEqual([
+      {
+        type: 'skill',
+        tag: '@Skill',
+        content: '# Resolved Skill\n\nDo the thing.',
+        path: 'agent/skills/Resolved%20Skill.json',
+      },
+    ])
+    expect(JSON.stringify(result)).not.toContain(skillId)
+    expect(JSON.stringify(result)).not.toContain('SKILL_ID')
+  })
+
   it('drops a skill that does not resolve (unknown or cross-workspace)', async () => {
     getSkillById.mockResolvedValue(null)
 
@@ -223,6 +257,28 @@ describe('processContextsServer - skill contexts', () => {
 
     expect(getSkillById).not.toHaveBeenCalled()
     expect(result).toEqual([])
+  })
+
+  it('does not log a private skill selector when lookup throws', async () => {
+    const skillId = 'private-skill-id __var_API_KEY __sim_code_0_binding_0'
+    getSkillById.mockRejectedValue(new Error(`Lookup failed for ${skillId}`))
+
+    const result = await processContextsServer(
+      [{ kind: 'skill', skillId, label: 'Skill 1' } as ChatContext],
+      'user-1',
+      'hello',
+      'ws-1'
+    )
+
+    expect(result).toEqual([])
+    expect(mockProcessContentsLogger.error).toHaveBeenCalledWith(
+      'Error processing skill context (db)',
+      { workspaceId: 'ws-1', hasSkillId: true }
+    )
+    const logged = JSON.stringify(mockProcessContentsLogger.error.mock.calls)
+    expect(logged).not.toContain('private-skill-id')
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
   })
 })
 
@@ -261,6 +317,31 @@ describe('processContextsServer - MCP contexts', () => {
 })
 
 describe('processContextsServer - browser and terminal selections', () => {
+  it('describes whole Browser and Terminal mentions without inventing tab ids', async () => {
+    const result = await processContextsServer(
+      [
+        { kind: 'browser_tab', tabId: 'browser-session', label: 'Browser' },
+        { kind: 'terminal_tab', terminalId: 'terminal-session', label: 'Terminal' },
+      ],
+      'user-1'
+    )
+
+    expect(result).toMatchObject([
+      {
+        type: 'browser_tab',
+        tag: '@Browser',
+        content: expect.stringContaining('resource as a whole'),
+      },
+      {
+        type: 'terminal_tab',
+        tag: '@Terminal',
+        content: expect.stringContaining('resource as a whole'),
+      },
+    ])
+    expect(result[0].content).toContain('browser_list_tabs')
+    expect(result[1].content).toContain('terminal list operation')
+  })
+
   it('keeps the live browser pointer and appends quoted untrusted page text', async () => {
     const result = await processContextsServer(
       [

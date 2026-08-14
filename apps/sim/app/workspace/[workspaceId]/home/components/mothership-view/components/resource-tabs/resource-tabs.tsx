@@ -10,8 +10,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Button, cn, Tooltip } from '@sim/emcn'
-import { Columns3, Eye, PanelLeft, Pencil } from '@sim/emcn/icons'
+import { Button, cn, Tooltip, tabStripWheelPosition } from '@sim/emcn'
+import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
 import { sendBrowserPanelAction } from '@/lib/browser-agent/transport'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isEphemeralResource } from '@/lib/copilot/resources/types'
@@ -179,6 +179,7 @@ interface ResourceTabItemProps {
   isHovered: boolean
   isDragging: boolean
   isSelected: boolean
+  hasActivity: boolean
   showGapBefore: boolean
   showGapAfter: boolean
   displayName: string
@@ -198,6 +199,7 @@ const ResourceTabItem = memo(function ResourceTabItem({
   isHovered,
   isDragging,
   isSelected,
+  hasActivity,
   showGapBefore,
   showGapAfter,
   displayName,
@@ -241,6 +243,12 @@ const ResourceTabItem = memo(function ResourceTabItem({
       >
         {config.renderTabIcon(resource, 'mr-1.5 size-[14px]')}
         {displayName}
+        {hasActivity && !isActive && (
+          <span
+            className='ml-1 size-1.5 shrink-0 rounded-full bg-[var(--brand-primary)]'
+            aria-label='Background activity'
+          />
+        )}
         {/* Closable without a chat, matching the add control: a resource opened
             while composing the first prompt has to be removable too, and
             removal already skips the server delete when nothing is persisted. */}
@@ -282,7 +290,7 @@ interface ResourceTabsProps {
   chatId?: string
   resources: MothershipResource[]
   activeId: string | null
-  useFixedResourceToggle: boolean
+  activityIds?: ReadonlySet<string>
   previewMode?: PreviewMode
   onCyclePreviewMode?: () => void
   actions?: ReactNode
@@ -296,7 +304,7 @@ export function ResourceTabs({
   chatId,
   resources,
   activeId,
-  useFixedResourceToggle,
+  activityIds,
   previewMode,
   onCyclePreviewMode,
   actions,
@@ -310,7 +318,6 @@ export function ResourceTabs({
     addResource: onAddResource,
     removeResource: onRemoveResource,
     reorderResources: onReorderResources,
-    collapseResource,
   } = useMothershipResources()
   const scrollNodeRef = useRef<HTMLDivElement>(null)
 
@@ -318,10 +325,16 @@ export function ResourceTabs({
     const node = scrollNodeRef.current
     if (!node) return
     const handler = (e: WheelEvent) => {
-      if (e.deltaY !== 0) {
-        node.scrollLeft += e.deltaY
-        e.preventDefault()
-      }
+      const next = tabStripWheelPosition(
+        node.scrollLeft,
+        node.scrollWidth,
+        node.clientWidth,
+        e.deltaX,
+        e.deltaY
+      )
+      if (next === null) return
+      node.scrollLeft = next
+      e.preventDefault()
     }
     node.addEventListener('wheel', handler, { passive: false })
     return () => node.removeEventListener('wheel', handler)
@@ -618,29 +631,10 @@ export function ResourceTabs({
         'flex shrink-0 items-center border-[var(--border)] border-b',
         RESOURCE_HEADER_CLASSES.bar,
         RESOURCE_HEADER_CLASSES.startPadding,
-        useFixedResourceToggle
-          ? RESOURCE_HEADER_CLASSES.fixedEndPadding
-          : RESOURCE_HEADER_CLASSES.endPadding,
+        RESOURCE_HEADER_CLASSES.endPadding,
         RESOURCE_TAB_GAP_CLASS
       )}
     >
-      {!useFixedResourceToggle && (
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant='subtle'
-              onClick={collapseResource}
-              className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-              aria-label='Collapse resource view'
-            >
-              <PanelLeft className={cn(RESOURCE_TAB_ICON_CLASS, '-scale-x-100')} />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='bottom'>
-            <p>Collapse</p>
-          </Tooltip.Content>
-        </Tooltip.Root>
-      )}
       <div className={cn('flex min-w-0 flex-1 items-center', RESOURCE_TAB_GAP_CLASS)}>
         <div
           ref={scrollNodeRef}
@@ -680,6 +674,7 @@ export function ResourceTabs({
                 isHovered={isHovered}
                 isDragging={isDragging}
                 isSelected={isSelected}
+                hasActivity={activityIds?.has(resource.id) ?? false}
                 showGapBefore={showGapBefore}
                 showGapAfter={showGapAfter}
                 displayName={displayName}
@@ -697,15 +692,11 @@ export function ResourceTabs({
         {/* Offered before the chat exists too: a resource opened while composing
             the first prompt is context for that prompt, and gating on a chat id
             meant the panel could be opened but not filled. */}
-        {useFixedResourceToggle ? (
-          <div
-            className={cn('flex', resources.length === 0 && RESOURCE_HEADER_CLASSES.emptyAddOffset)}
-          >
-            {addResourceDropdown}
-          </div>
-        ) : (
-          addResourceDropdown
-        )}
+        <div
+          className={cn('flex', resources.length === 0 && RESOURCE_HEADER_CLASSES.emptyAddOffset)}
+        >
+          {addResourceDropdown}
+        </div>
       </div>
       {(actions || (previewMode && onCyclePreviewMode)) && (
         <div className={cn('ml-auto flex shrink-0 items-center', RESOURCE_TAB_GAP_CLASS)}>

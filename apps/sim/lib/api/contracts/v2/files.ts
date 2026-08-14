@@ -1,25 +1,28 @@
 import { z } from 'zod'
 import {
   isCanonicalBase64,
+  noInputSchema,
   workspaceFileIdSchema,
   workspaceFileNameSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
-import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
+import { shareAuthTypeSchema, shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  V2_FOLDER_FILTER_MISS,
   v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
   v2DeleteFolderQuerySchema,
-  v2ErrorResponseSchema,
   v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
+  v2PaginationFields,
   v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
+  v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 import {
   v2PartUrlsBodySchema,
@@ -44,113 +47,222 @@ import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
  */
 
 /** A workspace file as exposed by the v2 surface. */
-export const v2FileSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  size: z.number().nonnegative(),
-  type: z.string(),
-  key: z.string(),
-  /** Canonical containing-folder path; `/` means the workspace root. */
-  folderPath: v2FolderPathSchema,
-  uploadedByEmail: z.email(),
-  /** ISO-8601 timestamp. */
-  uploadedAt: z.string(),
-  /** ISO-8601 timestamp; advances on content and metadata writes alike. */
-  updatedAt: z.string(),
-})
+export const v2FileSchema = z
+  .object({
+    id: z
+      .string()
+      .describe('Unique file identifier.')
+      .meta({ examples: ['wf_V1StGXR8z5jdHi6BmyT91'] }),
+    name: z
+      .string()
+      .describe('Original file name.')
+      .meta({ examples: ['data.csv'] }),
+    size: z
+      .number()
+      .nonnegative()
+      .describe(
+        'Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes `GET /files/{fileId}` returns.'
+      )
+      .meta({ examples: [1024] }),
+    type: z
+      .string()
+      .describe(
+        'MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type `GET /files/{fileId}` serves.'
+      )
+      .meta({ examples: ['text/csv'] }),
+    key: z
+      .string()
+      .describe('Storage key for the file.')
+      .meta({ examples: ['workspace/example/data.csv'] }),
+    /** Canonical containing-folder path; `/` means the workspace root. */
+    folderPath: v2FolderPathSchema.describe(
+      'Canonical containing-folder path. `/` is the workspace root.'
+    ),
+    uploadedByEmail: z
+      .email()
+      .describe('Current email address of the uploader.')
+      .meta({ examples: ['jane@example.com'] }),
+    /** ISO-8601 timestamp. */
+    uploadedAt: z
+      .string()
+      .describe('ISO 8601 timestamp when the file was uploaded.')
+      .meta({ format: 'date-time', examples: ['2026-01-15T10:30:00Z'] }),
+    /** ISO-8601 timestamp; advances on content and metadata writes alike. */
+    updatedAt: z
+      .string()
+      .describe('ISO 8601 timestamp of the last content or metadata write.')
+      .meta({ format: 'date-time', examples: ['2026-01-15T10:30:00Z'] }),
+    /** Non-null only for a file `DELETE` archived; see `scope` on the list. */
+    deletedAt: z
+      .string()
+      .nullable()
+      .describe(
+        'ISO 8601 timestamp when the file was archived by `DELETE /files/{fileId}`, or null while the file is active. Only `GET /files?scope=archived` returns files with a non-null value.'
+      )
+      .meta({ format: 'date-time', examples: ['2026-01-16T09:00:00Z'] }),
+  })
+  .meta({
+    id: 'V2File',
+    title: 'Workspace file',
+    description: 'A workspace file exposed by the public v2 API.',
+  })
 
 export type V2File = z.output<typeof v2FileSchema>
 
-export const v2DisabledFileSharingSchema = z.object({ enabled: z.literal(false) })
+/**
+ * Public share state. Reuses the internal {@link shareRecordSchema}, which is
+ * already public-safe — `hasPassword` is a boolean and neither the ciphertext
+ * nor the storage key is carried — with `url` tightened to a real URL.
+ */
+export const v2FileShareSchema = shareRecordSchema
+  .extend({
+    url: z
+      .string()
+      .url()
+      .describe('Public share URL.')
+      .meta({ examples: ['https://www.sim.ai/f/share-token-example'] }),
+  })
+  .meta({
+    id: 'V2FileShare',
+    title: 'File share',
+    description: 'Public-safe share configuration for a workspace file.',
+  })
 
-export const v2EnabledFileSharingSchema = z.object({
-  enabled: z.literal(true),
-  url: z.string().url(),
-  authType: shareAuthTypeSchema,
-  hasPassword: z.boolean(),
-  allowedEmails: z.array(z.string().min(1).max(320)),
+export type V2FileShare = z.output<typeof v2FileShareSchema>
+
+/** File metadata enriched with its current public-share configuration. */
+export const v2FileMetadataSchema = v2FileSchema
+  .extend({
+    share: v2FileShareSchema
+      .nullable()
+      .describe('Current public-share state, or null when the file has never been shared.'),
+  })
+  .meta({
+    id: 'V2FileMetadata',
+    title: 'File metadata',
+    description: 'Workspace file metadata enriched with nullable public-share state.',
+  })
+
+export type V2FileMetadata = z.output<typeof v2FileMetadataSchema>
+
+export const v2FileUploadParamsSchema = z.object({
+  uploadId: z.string().min(1).describe('Upload session identifier.'),
 })
-
-export const v2FileSharingSchema = z.discriminatedUnion('enabled', [
-  v2DisabledFileSharingSchema,
-  v2EnabledFileSharingSchema,
-])
-
-export type V2DisabledFileSharing = z.output<typeof v2DisabledFileSharingSchema>
-export type V2EnabledFileSharing = z.output<typeof v2EnabledFileSharingSchema>
-export type V2FileSharing = z.output<typeof v2FileSharingSchema>
-
-/** A single file's canonical description, including its current sharing state. */
-export const v2FileDescriptionSchema = v2FileSchema.extend({
-  sharing: v2FileSharingSchema,
-})
-
-export type V2FileDescription = z.output<typeof v2FileDescriptionSchema>
-
-export const v2FileUploadParamsSchema = z.object({ uploadId: z.string().min(1) })
 export type V2FileUploadParams = z.output<typeof v2FileUploadParamsSchema>
 
 export const v2CreateFileUploadBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    name: workspaceFileNameSchema,
-    contentType: z.string().trim().min(1, 'contentType is required').max(255),
-    size: z.number().int().nonnegative().max(MAX_WORKSPACE_FILE_SIZE),
-    folderPath: v2FolderPathInputSchema.optional(),
+    workspaceId: workspaceIdSchema.describe('Workspace in which the file will be registered.'),
+    name: workspaceFileNameSchema.describe('File name, including its extension.'),
+    contentType: z
+      .string()
+      .trim()
+      .min(1, 'contentType is required')
+      .max(255)
+      .describe('MIME type of the uploaded file.'),
+    size: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(MAX_WORKSPACE_FILE_SIZE)
+      .describe('Exact file size in bytes.'),
+    folderPath: v2FolderPathInputSchema
+      .optional()
+      .describe('Canonical destination folder path. Omit for the workspace root.'),
   })
   .strict()
 export type V2CreateFileUploadBody = z.input<typeof v2CreateFileUploadBodySchema>
 
-export const v2FileUploadWorkspaceQuerySchema = z.object({ workspaceId: workspaceIdSchema })
+export const v2FileUploadWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the upload session.'),
+  })
+  .strict()
 export type V2FileUploadWorkspaceQuery = z.output<typeof v2FileUploadWorkspaceQuerySchema>
 
-export const v2FileUploadSchema = z.object({
-  id: z.string(),
-  status: v2UploadStatusSchema,
-  name: z.string(),
-  contentType: z.string(),
-  size: z.number().int().nonnegative(),
-  expiresAt: z.string().datetime(),
-  error: z.string().nullable(),
-  file: v2FileSchema.nullable(),
-})
+export const v2FileUploadSchema = z
+  .object({
+    id: z.string().describe('Upload session identifier.'),
+    status: v2UploadStatusSchema.describe('Current upload session status.'),
+    name: z.string().describe('File name supplied when the session was created.'),
+    contentType: z.string().describe('MIME type supplied when the session was created.'),
+    size: z.number().int().nonnegative().describe('Expected file size in bytes.'),
+    expiresAt: v2TimestampSchema.describe('ISO 8601 time when the upload session expires.'),
+    error: z.string().nullable().describe('Failure message, or null when no failure has occurred.'),
+    file: v2FileSchema
+      .nullable()
+      .describe('Registered file after finalization, or null before finalization completes.'),
+  })
+  .meta({
+    id: 'V2FileUpload',
+    title: 'File upload session',
+    description: 'Current state of a resumable workspace-file upload session.',
+  })
 export type V2FileUpload = z.output<typeof v2FileUploadSchema>
 
 export const v2CreateFileUploadDataSchema = z
   .object({
-    session: v2FileUploadSchema,
-    uploadToken: z.string().min(1),
-    transfer: v2UploadTransferSchema,
+    session: v2FileUploadSchema.describe('New upload session.'),
+    uploadToken: z
+      .string()
+      .min(1)
+      .describe('Signed control token required by later upload-session requests.'),
+    transfer: v2UploadTransferSchema.describe('Instructions for transferring the file bytes.'),
   })
   .strict()
+  .meta({
+    id: 'V2CreateFileUploadData',
+    title: 'Create file upload data',
+    description: 'A new file upload session, its control token, and byte-transfer instructions.',
+  })
 export type V2CreateFileUploadData = z.output<typeof v2CreateFileUploadDataSchema>
 
-export const v2DeleteFileResultSchema = z.object({
-  id: z.string(),
-  deleted: z.literal(true),
-})
+export const v2DeleteFileResultSchema = z
+  .object({
+    id: z.string().describe('Identifier of the deleted file.'),
+    deleted: z.literal(true).describe('Confirms that the file was deleted.'),
+  })
+  .meta({
+    id: 'V2DeleteFileResult',
+    title: 'Delete file result',
+    description: 'File deletion acknowledgement.',
+  })
 
 export type V2DeleteFileResult = z.output<typeof v2DeleteFileResultSchema>
 
 export const v2FileParamsSchema = z.object({
-  fileId: workspaceFileIdSchema,
+  fileId: workspaceFileIdSchema.describe('File identifier.'),
 })
 
 export type V2FileParams = z.output<typeof v2FileParamsSchema>
 
 export const v2CreateFileBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    name: workspaceFileNameSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace in which to create the file.'),
+    name: workspaceFileNameSchema.describe(
+      'File name, including its extension. Path separators and dot segments are rejected.'
+    ),
     contentType: z
       .string()
       .trim()
       .min(1, 'contentType cannot be empty')
       .max(255, 'contentType is too long')
+      .describe('MIME type. When omitted, it is inferred from the file extension.')
       .optional(),
-    folderPath: v2FolderPathInputSchema.optional(),
-    content: z.string().max(70_000_000, 'content is too large').default(''),
-    encoding: z.enum(['utf-8', 'base64']).default('utf-8'),
+    folderPath: v2FolderPathInputSchema
+      .optional()
+      .describe('Canonical containing-folder path. Omit for the workspace root.'),
+    content: z
+      .string()
+      .max(70_000_000, 'content is too large')
+      .default('')
+      .describe(
+        'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger.'
+      ),
+    encoding: z
+      .enum(['utf-8', 'base64'])
+      .default('utf-8')
+      .describe('Encoding of the content field.'),
   })
   .superRefine(({ content, encoding }, ctx) => {
     if (encoding === 'base64' && !isCanonicalBase64(content)) {
@@ -171,6 +283,15 @@ export const v2FileSortFields = ['name', 'size', 'uploadedAt', 'updatedAt'] as c
 export type V2FileSortBy = (typeof v2FileSortFields)[number]
 
 /**
+ * Listing scopes, matching the internal surface. `all` is deliberately absent
+ * on both: it drops the `deleted_at` predicate, so it cannot use the partial
+ * index that serves the other two and degrades to a full workspace scan.
+ */
+export const v2FileScopeSchema = z.enum(['active', 'archived'])
+
+export type V2FileScope = z.output<typeof v2FileScopeSchema>
+
+/**
  * List query: workspace scope, the v2 search/sort convention, an optional
  * folder filter, and opaque keyset cursor pagination. `limit` clamps to
  * `[1, 1000]` (default 100) to bound the response.
@@ -181,101 +302,155 @@ export type V2FileSortBy = (typeof v2FileSortFields)[number]
  */
 export const v2ListFilesQuerySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace whose files should be listed.'),
     /** Restrict to one file folder. Omit to list the whole workspace. */
-    folderPath: v2FolderPathInputSchema.optional(),
-    search: v2SearchSchema,
-    ...v2SortFields(v2FileSortFields, { sortBy: 'uploadedAt', sortOrder: 'asc' }),
-    limit: z.coerce
-      .number()
+    folderPath: v2FolderPathInputSchema
       .optional()
-      .default(100)
-      .transform((v) => Math.min(Math.max(1, Math.trunc(v)), 1000)),
-    cursor: z.string().min(1).optional(),
+      .describe(`Restrict results to files directly inside this folder. ${V2_FOLDER_FILTER_MISS}`),
+    scope: v2FileScopeSchema
+      .default('active')
+      .describe(
+        'Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
+      ),
+    search: v2SearchSchema.describe('Case-insensitive substring match against the file name.'),
+    ...v2SortFields(v2FileSortFields, { sortBy: 'uploadedAt', sortOrder: 'asc' }),
+    ...v2PaginationFields({
+      max: 1000,
+      fallback: 100,
+      outOfRange: 'clamp',
+      description: 'Maximum files per page.',
+    }),
   })
   .strict()
 
 export type V2ListFilesQuery = z.output<typeof v2ListFilesQuerySchema>
 
 /** Download/delete both target a single file within a workspace-scoped query. */
-export const v2FileWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema,
-})
+export const v2FileWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+  })
+  .strict()
 
 export type V2FileWorkspaceQuery = z.output<typeof v2FileWorkspaceQuerySchema>
 
 export const v2RenameFileBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    name: workspaceFileNameSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+    name: workspaceFileNameSchema.describe('New file name, including its extension.'),
   })
   .strict()
+
+export const v2RestoreFileBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the archived file.'),
+  })
+  .strict()
+
+export type V2RestoreFileBody = z.input<typeof v2RestoreFileBodySchema>
 
 export type V2RenameFileBody = z.input<typeof v2RenameFileBodySchema>
 
 const fileSelectionSchema = {
-  fileIds: z.array(z.string().min(1, 'fileIds entries cannot be empty')).min(1).max(1000),
+  fileIds: z
+    .array(z.string().min(1, 'fileIds entries cannot be empty'))
+    .min(1)
+    .max(1000)
+    .describe('File identifiers to update.'),
 }
 
 export const v2MoveFileItemsBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace containing the files.'),
     ...fileSelectionSchema,
     /** Omission moves the files to the workspace root. */
-    targetFolderPath: v2FolderPathInputSchema.optional(),
+    targetFolderPath: v2FolderPathInputSchema
+      .optional()
+      .describe('Destination folder path. Omit to move files to the workspace root.'),
   })
   .strict()
 
 export type V2MoveFileItemsBody = z.input<typeof v2MoveFileItemsBodySchema>
 
-export const v2MoveFileItemsResultSchema = z.object({
-  movedItems: z.object({ files: z.number().int() }),
-})
+export const v2MoveFileItemsResultSchema = z
+  .object({
+    movedItems: z
+      .object({
+        files: z.number().int().describe('Number of files moved.'),
+      })
+      .describe('Counts of file items moved by the request.'),
+  })
+  .meta({
+    id: 'V2MoveFileItemsResult',
+    title: 'Move file items result',
+    description: 'Counts of workspace file items moved by the request.',
+  })
 
 export type V2MoveFileItemsResult = z.output<typeof v2MoveFileItemsResultSchema>
 
 export const v2BulkDeleteFilesBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace containing the files.'),
     ...fileSelectionSchema,
   })
   .strict()
 
 export type V2BulkDeleteFilesBody = z.input<typeof v2BulkDeleteFilesBodySchema>
 
-export const v2BulkDeleteFilesResultSchema = z.object({
-  deletedItems: z.object({ files: z.number().int() }),
-})
+export const v2BulkDeleteFilesResultSchema = z
+  .object({
+    deletedItems: z
+      .object({
+        files: z.number().int().describe('Number of files deleted.'),
+      })
+      .describe('Counts of file items deleted by the request.'),
+  })
+  .meta({
+    id: 'V2BulkDeleteFilesResult',
+    title: 'Bulk delete files result',
+    description: 'Counts of workspace files deleted by the request.',
+  })
 
 export type V2BulkDeleteFilesResult = z.output<typeof v2BulkDeleteFilesResultSchema>
 
-export const v2FileFolderDataSchema = z.object({ folder: v2FolderSchema })
-
-export const v2DeleteFileFolderDataSchema = z.object({
-  path: v2FolderPathSchema,
-  deleted: z.literal(true),
-  deletedItems: z.object({ folders: z.number().int(), files: z.number().int() }),
-})
+export const v2DeleteFileFolderDataSchema = z
+  .object({
+    path: v2FolderPathSchema.describe('Deleted folder path.'),
+    deleted: z.literal(true).describe('Confirms that the folder was deleted.'),
+    deletedItems: z
+      .object({
+        folders: z.number().int().describe('Number of folders deleted.'),
+        files: z.number().int().describe('Number of files deleted.'),
+      })
+      .describe('Counts of folders and files deleted by the request.'),
+  })
+  .meta({
+    id: 'V2DeleteFileFolderData',
+    title: 'Delete file folder data',
+    description: 'File-folder deletion acknowledgement and deletion counts.',
+  })
 
 export const v2ListFileFoldersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/files/folders',
   query: v2ListFoldersQuerySchema,
-  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema) },
+  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema, { paged: false }) },
 })
 
 export const v2CreateFileFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/folders',
+  query: noInputSchema,
   body: v2CreateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2FileFolderDataSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2FolderSchema), status: 201 },
 })
 
 export const v2RelocateFileFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/files/folders',
+  query: noInputSchema,
   body: v2RelocateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2FileFolderDataSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2FolderSchema) },
 })
 
 export const v2DeleteFileFolderContract = defineRouteContract({
@@ -285,11 +460,13 @@ export const v2DeleteFileFolderContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2DeleteFileFolderDataSchema) },
 })
 
-export const v2ShareFileResultSchema = z.object({ sharing: v2EnabledFileSharingSchema })
-export const v2UnshareFileResultSchema = z.object({ sharing: v2DisabledFileSharingSchema })
+/**
+ * The share resource as the read endpoint returns it: `null` when the file has
+ * never been shared.
+ */
+export const v2NullableFileShareSchema = v2FileShareSchema.nullable()
 
-export type V2ShareFileResult = z.output<typeof v2ShareFileResultSchema>
-export type V2UnshareFileResult = z.output<typeof v2UnshareFileResultSchema>
+export type V2NullableFileShare = z.output<typeof v2NullableFileShareSchema>
 
 /**
  * Share upsert body. The internal surface accepts a caller-supplied `token` so
@@ -297,23 +474,38 @@ export type V2UnshareFileResult = z.output<typeof v2UnshareFileResultSchema>
  * let a caller mint predictable public URLs, and a token collision surfaces as
  * an unhandled unique-index violation. v2 tokens are always server-generated.
  */
-export const v2ShareFileBodySchema = z
+export const v2UpsertFileShareBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    authType: shareAuthTypeSchema.optional(),
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+    isActive: z
+      .boolean()
+      .describe(
+        'Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use.'
+      ),
+    authType: shareAuthTypeSchema
+      .optional()
+      .describe(
+        'How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password.'
+      ),
     password: z
       .string()
       .min(1, 'password cannot be empty')
       .max(1024, 'password is too long')
-      .optional(),
+      .optional()
+      .describe(
+        'Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.'
+      ),
     allowedEmails: z
       .array(z.string().min(1, 'allowedEmails entries cannot be empty').max(320))
       .max(200, 'Too many allowed emails')
-      .optional(),
+      .optional()
+      .describe(
+        'Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400.'
+      ),
   })
   .strict()
 
-export type V2ShareFileBody = z.input<typeof v2ShareFileBodySchema>
+export type V2UpsertFileShareBody = z.input<typeof v2UpsertFileShareBodySchema>
 
 /**
  * Content replace body. `content` is the whole new body of the file — this is a
@@ -321,9 +513,17 @@ export type V2ShareFileBody = z.input<typeof v2ShareFileBodySchema>
  */
 export const v2UpdateFileContentBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    content: z.string().max(70_000_000, 'content is too large'),
-    encoding: z.enum(['utf-8', 'base64']).default('utf-8'),
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+    content: z
+      .string()
+      .max(70_000_000, 'content is too large')
+      .describe(
+        'Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`.'
+      ),
+    encoding: z
+      .enum(['utf-8', 'base64'])
+      .default('utf-8')
+      .describe('Encoding of the content field.'),
   })
   .superRefine(({ content, encoding }, ctx) => {
     if (encoding === 'base64' && !isCanonicalBase64(content)) {
@@ -351,6 +551,7 @@ export const v2ListFilesContract = defineRouteContract({
 export const v2CreateFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files',
+  query: noInputSchema,
   body: v2CreateFileBodySchema,
   response: {
     mode: 'json',
@@ -362,6 +563,7 @@ export const v2CreateFileContract = defineRouteContract({
 export const v2CreateFileUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/uploads',
+  query: noInputSchema,
   body: v2CreateFileUploadBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2CreateFileUploadDataSchema), status: 201 },
 })
@@ -394,27 +596,37 @@ export const v2CompleteFileUploadContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
 })
 
-export const v2DescribeFileContract = defineRouteContract({
+export const v2DownloadFileContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/files/[fileId]',
   params: v2FileParamsSchema,
   query: v2FileWorkspaceQuerySchema,
   response: {
+    mode: 'binary',
+  },
+})
+
+export const v2GetFileContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/files/[fileId]/metadata',
+  params: v2FileParamsSchema,
+  query: v2FileWorkspaceQuerySchema,
+  response: {
     mode: 'json',
-    schema: v2DataResponse(v2FileDescriptionSchema),
+    schema: v2DataResponse(v2FileMetadataSchema),
   },
 })
 
 export const v2RenameFileContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/files/[fileId]',
+  query: noInputSchema,
   params: v2FileParamsSchema,
   body: v2RenameFileBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2FileSchema),
   },
-  error: v2ErrorResponseSchema,
 })
 
 export const v2DeleteFileContract = defineRouteContract({
@@ -428,9 +640,22 @@ export const v2DeleteFileContract = defineRouteContract({
   },
 })
 
+export const v2RestoreFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/files/[fileId]/restore',
+  query: noInputSchema,
+  params: v2FileParamsSchema,
+  body: v2RestoreFileBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2FileSchema),
+  },
+})
+
 export const v2MoveFileItemsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/move',
+  query: noInputSchema,
   body: v2MoveFileItemsBodySchema,
   response: {
     mode: 'json',
@@ -441,6 +666,7 @@ export const v2MoveFileItemsContract = defineRouteContract({
 export const v2BulkDeleteFilesContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/bulk-delete',
+  query: noInputSchema,
   body: v2BulkDeleteFilesBodySchema,
   response: {
     mode: 'json',
@@ -448,41 +674,43 @@ export const v2BulkDeleteFilesContract = defineRouteContract({
   },
 })
 
-export const v2ShareFileContract = defineRouteContract({
-  method: 'PUT',
-  path: '/api/v2/files/[fileId]/share',
-  params: v2FileParamsSchema,
-  body: v2ShareFileBodySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2ShareFileResultSchema),
-  },
-})
-
-export const v2UnshareFileContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/v2/files/[fileId]/share',
-  params: v2FileParamsSchema,
-  query: v2FileWorkspaceQuerySchema,
-  response: {
-    mode: 'json',
-    schema: v2DataResponse(v2UnshareFileResultSchema),
-  },
-})
-
-export const v2GetFileContentContract = defineRouteContract({
+export const v2GetFileShareContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/files/[fileId]/content',
+  path: '/api/v2/files/[fileId]/share',
   params: v2FileParamsSchema,
   query: v2FileWorkspaceQuerySchema,
   response: {
-    mode: 'binary',
+    mode: 'json',
+    schema: v2DataResponse(v2NullableFileShareSchema),
+  },
+})
+
+/**
+ * PATCH, not PUT: only `isActive` is required, and omitting `authType`,
+ * `password`, or `allowedEmails` preserves whatever is already stored rather
+ * than resetting it. The resource is not round-trippable either — the share
+ * representation reports `hasPassword` and never the password itself, so a
+ * client cannot construct a full replacement body from a prior read.
+ *
+ * Disabling with `{ isActive: false }` keeps the token and the whole access
+ * configuration, so a later `{ isActive: true }` restores the share as it was.
+ */
+export const v2UpsertFileShareContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/files/[fileId]/share',
+  query: noInputSchema,
+  params: v2FileParamsSchema,
+  body: v2UpsertFileShareBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2FileShareSchema),
   },
 })
 
 export const v2UpdateFileContentContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/files/[fileId]/content',
+  query: noInputSchema,
   params: v2FileParamsSchema,
   body: v2UpdateFileContentBodySchema,
   response: {

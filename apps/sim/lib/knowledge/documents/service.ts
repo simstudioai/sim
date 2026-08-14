@@ -26,6 +26,7 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
+import { searchFilter } from '@/lib/api/list-query'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   assertBillingAttributionSnapshot,
@@ -64,6 +65,8 @@ import {
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import { failStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
+import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
   createDocumentProcessingPayload,
@@ -96,6 +99,7 @@ import {
   parseBooleanValue,
   parseDateValue,
   parseNumberValue,
+  uncompilableTagFilterError,
   validateTagValue,
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
@@ -120,6 +124,13 @@ const logger = createLogger('DocumentService')
  * Thrown when a knowledge-base document's `fileUrl` references an internal
  * knowledge-base storage object not owned by the target knowledge base's workspace.
  * Routes map this to a 403.
+ *
+ * Deliberately carries no `details.code`. It belongs to the cross-tenant class
+ * the closed set in `lib/core/application/forbidden.ts` excludes: it fires
+ * identically for a key bound to another tenant and for a key bound to nothing
+ * at all, so the single fixed message is the whole of what a caller may learn,
+ * and a machine-readable name would only invite a client to read resource
+ * existence into it.
  */
 export class KnowledgeBaseFileOwnershipError extends OrchestrationError {
   constructor(public readonly storageKey: string) {
@@ -777,6 +788,7 @@ export async function processDocumentAsync(
   providedBillingContext?: BillingAttributionSnapshot | DocumentProcessingBillingContext
 ): Promise<void> {
   const startTime = Date.now()
+  const processingStartedAt = new Date()
   try {
     logger.info(`[${documentId}] Starting document processing`, {
       knowledgeBaseId,
@@ -859,7 +871,7 @@ export async function processDocumentAsync(
       .update(document)
       .set({
         processingStatus: 'processing',
-        processingStartedAt: new Date(),
+        processingStartedAt,
         processingCompletedAt: null,
         processingError: null,
       })
@@ -934,11 +946,16 @@ export async function processDocumentAsync(
             usageGate.message ?? 'Usage limit exceeded. Please upgrade your plan to continue.',
           processingCompletedAt: new Date(),
         })
-        .where(eq(document.id, documentId))
+        .where(
+          and(
+            eq(document.id, documentId),
+            eq(document.processingStatus, 'processing'),
+            eq(document.processingStartedAt, processingStartedAt)
+          )
+        )
       return
     }
-    let totalEmbeddingTokens = 0
-    let embeddingIsBYOK = false
+    let billableEmbeddingTokens = 0
     let embeddingModelName = kbEmbeddingModel
     let embeddingPricingId = kbEmbeddingModel
 
@@ -954,6 +971,7 @@ export async function processDocumentAsync(
       currentSourceFileProvenance
     )
 
+    let processingCommitted = false
     await withTimeout(
       runWithKnowledgeModelInputProvenance(
         documentSecretContext.registry,
@@ -1005,17 +1023,15 @@ export async function processDocumentAsync(
               logger.info(`[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`)
               const {
                 embeddings: batchEmbeddings,
-                totalTokens: batchTokens,
-                isBYOK,
+                billableTokens: batchBillableTokens,
                 modelName,
                 pricingId,
               } = await generateEmbeddings(batch, kbEmbeddingModel, ctx.workspaceId)
               for (const emb of batchEmbeddings) {
                 embeddings.push(emb)
               }
-              totalEmbeddingTokens += batchTokens
+              billableEmbeddingTokens += batchBillableTokens
               if (i === 0) {
-                embeddingIsBYOK = isBYOK
                 embeddingModelName = modelName
                 embeddingPricingId = pricingId
               }
@@ -1071,7 +1087,7 @@ export async function processDocumentAsync(
             updatedAt: now,
           }))
 
-          await db.transaction(async (tx) => {
+          processingCommitted = await db.transaction(async (tx) => {
             const activeDocument = await tx
               .select({ id: document.id })
               .from(document)
@@ -1079,15 +1095,18 @@ export async function processDocumentAsync(
               .where(
                 and(
                   eq(document.id, documentId),
+                  eq(document.processingStatus, 'processing'),
+                  eq(document.processingStartedAt, processingStartedAt),
                   isNull(document.archivedAt),
                   isNull(document.deletedAt),
                   isNull(knowledgeBase.deletedAt)
                 )
               )
+              .for('update', { of: document })
               .limit(1)
 
             if (activeDocument.length === 0) {
-              return
+              return false
             }
 
             if (embeddingRecords.length > 0) {
@@ -1133,7 +1152,14 @@ export async function processDocumentAsync(
                 processingCompletedAt: now,
                 processingError: null,
               })
-              .where(eq(document.id, documentId))
+              .where(
+                and(
+                  eq(document.id, documentId),
+                  eq(document.processingStatus, 'processing'),
+                  eq(document.processingStartedAt, processingStartedAt)
+                )
+              )
+            return true
           })
         },
         {
@@ -1146,15 +1172,20 @@ export async function processDocumentAsync(
       'Document processing'
     )
 
+    if (!processingCommitted) {
+      logger.info(`[${documentId}] Discarded output from an obsolete processing attempt`)
+      return
+    }
+
     const processingTime = Date.now() - startTime
     logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
 
-    if (!embeddingIsBYOK && totalEmbeddingTokens > 0) {
+    if (billableEmbeddingTokens > 0) {
       try {
         const costMultiplier = getCostMultiplier()
         const { total: cost } = calculateCost(
           embeddingPricingId,
-          totalEmbeddingTokens,
+          billableEmbeddingTokens,
           0,
           false,
           costMultiplier
@@ -1171,7 +1202,7 @@ export async function processDocumentAsync(
                 description: embeddingModelName,
                 cost,
                 sourceReference: `knowledge-document:${documentId}:${startTime}`,
-                metadata: { inputTokens: totalEmbeddingTokens, outputTokens: 0 },
+                metadata: { inputTokens: billableEmbeddingTokens, outputTokens: 0 },
               },
             ],
           })
@@ -1183,7 +1214,7 @@ export async function processDocumentAsync(
         } else {
           logger.warn(
             `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
-            { totalEmbeddingTokens, embeddingModelName }
+            { billableEmbeddingTokens, embeddingModelName }
           )
         }
       } catch (billingError) {
@@ -1207,7 +1238,13 @@ export async function processDocumentAsync(
         processingError: errorMessage,
         processingCompletedAt: new Date(),
       })
-      .where(eq(document.id, documentId))
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(document.processingStatus, 'processing'),
+          eq(document.processingStartedAt, processingStartedAt)
+        )
+      )
 
     throw error
   }
@@ -1648,15 +1685,14 @@ export async function getDocuments(
   }
 
   if (search) {
-    whereConditions.push(sql`LOWER(${document.filename}) LIKE LOWER(${`%${search}%`})`)
+    whereConditions.push(searchFilter(document.filename, search))
   }
 
   if (tagFilters && tagFilters.length > 0) {
     for (const filter of tagFilters) {
       const condition = buildTagFilterCondition(filter)
-      if (condition) {
-        whereConditions.push(condition)
-      }
+      if (!condition) throw uncompilableTagFilterError(filter)
+      whereConditions.push(condition)
     }
   }
 
@@ -1863,7 +1899,13 @@ export async function createSingleDocument(
   uploadedBy: string | null = null,
   documentId = generateId(),
   secretProvenance?: KnowledgeDocumentWriteSecretProvenance,
-  options?: { expectedWorkspaceId?: string }
+  options?: {
+    expectedWorkspaceId?: string
+    processing?: {
+      processingOptions: ProcessingOptions
+      billingAttribution: BillingAttributionSnapshot
+    }
+  }
 ): Promise<{
   id: string
   knowledgeBaseId: string
@@ -1874,6 +1916,7 @@ export async function createSingleDocument(
   chunkCount: number
   tokenCount: number
   characterCount: number
+  processingStatus: 'pending'
   enabled: boolean
   uploadedAt: Date
   tag1: string | null
@@ -1939,6 +1982,7 @@ export async function createSingleDocument(
     chunkCount: 0,
     tokenCount: 0,
     characterCount: 0,
+    processingStatus: 'pending' as const,
     enabled: true,
     uploadedAt: now,
     uploadedBy,
@@ -2061,6 +2105,15 @@ export async function createSingleDocument(
       .set({ updatedAt: now })
       .where(eq(knowledgeBase.id, knowledgeBaseId))
 
+    if (options?.processing) {
+      await enqueueKnowledgeDocumentProcessing(tx, {
+        knowledgeBaseId,
+        documentId,
+        processingOptions: options.processing.processingOptions,
+        billingAttribution: options.processing.billingAttribution,
+      })
+    }
+
     return storageNotification
   })
 
@@ -2083,6 +2136,7 @@ export async function createSingleDocument(
     chunkCount: number
     tokenCount: number
     characterCount: number
+    processingStatus: 'pending'
     enabled: boolean
     uploadedAt: Date
     tag1: string | null
@@ -2100,7 +2154,7 @@ export async function getDocumentByUploadId(
   documentId: string,
   knowledgeBaseId: string
 ): Promise<
-  | (Awaited<ReturnType<typeof createSingleDocument>> & {
+  | (Omit<Awaited<ReturnType<typeof createSingleDocument>>, 'processingStatus'> & {
       processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
     })
   | null
@@ -2185,7 +2239,7 @@ export async function bulkDocumentOperation(
     )
 
   if (documentsToUpdate.length === 0) {
-    throw new Error('No valid documents found to update')
+    throw new OrchestrationError('not_found', 'No valid documents found to update')
   }
 
   if (documentsToUpdate.length !== documentIds.length) {
@@ -2314,31 +2368,17 @@ export async function markDocumentAsFailedTimeout(
   processingStartedAt: Date,
   requestId: string
 ): Promise<{ success: boolean; processingDuration: number }> {
-  const now = new Date()
-  const processingDuration = now.getTime() - processingStartedAt.getTime()
-  const DEAD_PROCESS_THRESHOLD_MS = 600 * 1000 // 10 minutes
+  const result = await failStaleDocumentProcessingClaim({ documentId, processingStartedAt })
 
-  if (processingDuration <= DEAD_PROCESS_THRESHOLD_MS) {
-    throw new Error('Document has not been processing long enough to be considered dead')
+  if (result.success) {
+    logger.info(
+      `[${requestId}] Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(result.processingDuration / 1000)}s)`
+    )
+  } else {
+    logger.info(`[${requestId}] Did not time out document ${documentId} because its claim changed`)
   }
 
-  await db
-    .update(document)
-    .set({
-      processingStatus: 'failed',
-      processingError: 'Processing timed out. Please retry or re-sync the connector.',
-      processingCompletedAt: now,
-    })
-    .where(eq(document.id, documentId))
-
-  logger.info(
-    `[${requestId}] Marked document ${documentId} as failed due to dead process (processing time: ${Math.round(processingDuration / 1000)}s)`
-  )
-
-  return {
-    success: true,
-    processingDuration,
-  }
+  return result
 }
 
 export async function retryDocumentProcessing(

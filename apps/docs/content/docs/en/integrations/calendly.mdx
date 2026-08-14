@@ -32,7 +32,7 @@ Integrate Calendly into your workflow. Manage event types, scheduled events, inv
 
 ## Actions
 
-### `calendly_get_current_user`
+### Calendly Get Current User
 
 Get information about the currently authenticated Calendly user
 
@@ -58,7 +58,37 @@ Get information about the currently authenticated Calendly user
 |   ↳ `updated_at` | string | ISO timestamp when user was last updated |
 |   ↳ `current_organization` | string | URI of current organization |
 
-### `calendly_list_event_types`
+### Calendly Get User
+
+Get information about a specific Calendly user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `userUuid` | string | Yes | User UUID. Format: UUID \(e.g., "abc123-def456"\), full URI \(e.g., "https://api.calendly.com/users/abc123-def456"\), or the constant "me" for the authenticated user |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | User information |
+|   ↳ `uri` | string | Canonical reference to the user |
+|   ↳ `name` | string | User full name |
+|   ↳ `slug` | string | Unique identifier for the user in URLs |
+|   ↳ `email` | string | User email address |
+|   ↳ `scheduling_url` | string | URL to the user's scheduling page |
+|   ↳ `timezone` | string | User timezone |
+|   ↳ `time_notation` | string | Time notation preference \(12h or 24h\) |
+|   ↳ `avatar_url` | string | URL to user avatar image |
+|   ↳ `created_at` | string | ISO timestamp when user was created |
+|   ↳ `updated_at` | string | ISO timestamp when user was last updated |
+|   ↳ `current_organization` | string | URI of current organization |
+|   ↳ `resource_type` | string | Resource type |
+|   ↳ `locale` | string | User locale |
+
+### Calendly List Event Types
 
 Retrieve a list of all event types for a user or organization
 
@@ -99,7 +129,7 @@ Retrieve a list of all event types for a user or organization
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
-### `calendly_get_event_type`
+### Calendly Get Event Type
 
 Get detailed information about a specific event type
 
@@ -136,7 +166,30 @@ Get detailed information about a specific event type
 |   ↳ `type` | string | Event type classification |
 |   ↳ `updated_at` | string | ISO timestamp of last update |
 
-### `calendly_list_scheduled_events`
+### Calendly List Event Type Available Times
+
+Retrieve bookable time slots for an event type within a date range
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `eventTypeUri` | string | Yes | Event type to check. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/event_types/abc123-def456"\) |
+| `startTime` | string | Yes | Start of the availability range. Cannot be in the past. Format: ISO 8601 \(e.g., "2024-01-01T00:00:00Z"\) |
+| `endTime` | string | Yes | End of the availability range. Must be in the future and no more than 31 days after the start. Format: ISO 8601 \(e.g., "2024-01-15T00:00:00Z"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | array | Array of available time slots |
+|   ↳ `status` | string | Availability status of the slot |
+|   ↳ `invitees_remaining` | number | Number of invitees that can still book this slot |
+|   ↳ `start_time` | string | ISO timestamp of the slot start |
+|   ↳ `scheduling_url` | string | URL that books this exact slot |
+
+### Calendly List Scheduled Events
 
 Retrieve a list of scheduled events for a user or organization
 
@@ -183,7 +236,7 @@ Retrieve a list of scheduled events for a user or organization
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
-### `calendly_get_scheduled_event`
+### Calendly Get Scheduled Event
 
 Get detailed information about a specific scheduled event
 
@@ -224,7 +277,7 @@ Get detailed information about a specific scheduled event
 |   ↳ `created_at` | string | ISO timestamp of event creation |
 |   ↳ `updated_at` | string | ISO timestamp of last update |
 
-### `calendly_list_event_invitees`
+### Calendly List Event Invitees
 
 Retrieve a list of invitees for a scheduled event
 
@@ -269,7 +322,109 @@ Retrieve a list of invitees for a scheduled event
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
-### `calendly_cancel_event`
+### Calendly Get Event Invitee
+
+Retrieve a single invitee of a scheduled event, including their intake answers
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `eventUuid` | string | Yes | Scheduled event UUID. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/scheduled_events/abc123-def456"\) |
+| `inviteeUuid` | string | Yes | Invitee UUID. Format: UUID \(e.g., "abc123-def456"\) or full invitee URI \(e.g., "https://api.calendly.com/scheduled_events/abc123/invitees/def456"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | Invitee details |
+|   ↳ `uri` | string | Canonical reference to the invitee |
+|   ↳ `email` | string | Invitee email address |
+|   ↳ `name` | string | Invitee full name |
+|   ↳ `first_name` | string | Invitee first name |
+|   ↳ `last_name` | string | Invitee last name |
+|   ↳ `status` | string | Invitee status \(active or canceled\) |
+|   ↳ `timezone` | string | Invitee timezone |
+|   ↳ `event` | string | URI of the scheduled event |
+|   ↳ `created_at` | string | ISO timestamp when invitee was created |
+|   ↳ `updated_at` | string | ISO timestamp when invitee was updated |
+|   ↳ `cancel_url` | string | URL to cancel the booking |
+|   ↳ `reschedule_url` | string | URL to reschedule the booking |
+|   ↳ `rescheduled` | boolean | Whether the invitee rescheduled |
+|   ↳ `text_reminder_number` | string | Phone number used for SMS reminders |
+|   ↳ `routing_form_submission` | string | URI of the routing form submission that produced this booking |
+|   ↳ `questions_and_answers` | array | Responses to custom questions |
+|     ↳ `question` | string | Question text |
+|     ↳ `answer` | string | Invitee answer |
+|     ↳ `position` | number | Question order |
+|   ↳ `tracking` | object | UTM and Salesforce tracking parameters captured at booking |
+|     ↳ `utm_campaign` | string | UTM campaign |
+|     ↳ `utm_source` | string | UTM source |
+|     ↳ `utm_medium` | string | UTM medium |
+|     ↳ `utm_content` | string | UTM content |
+|     ↳ `utm_term` | string | UTM term |
+|     ↳ `salesforce_uuid` | string | Salesforce record identifier |
+|   ↳ `cancellation` | object | Cancellation details when the invitee has canceled |
+|     ↳ `canceled_by` | string | Name of person who canceled |
+|     ↳ `reason` | string | Cancellation reason |
+|     ↳ `canceler_type` | string | Type of canceler \(host or invitee\) |
+|     ↳ `created_at` | string | ISO timestamp of the cancellation |
+|   ↳ `no_show` | object | No-show record when the invitee has been marked as a no-show |
+|     ↳ `uri` | string | Canonical reference to the no-show |
+|     ↳ `created_at` | string | ISO timestamp when marked as no-show |
+|   ↳ `payment` | object | Payment collected at booking |
+|     ↳ `external_id` | string | Payment identifier at the provider |
+|     ↳ `provider` | string | Payment provider |
+|     ↳ `amount` | number | Amount charged |
+|     ↳ `currency` | string | Currency code |
+|     ↳ `terms` | string | Payment terms |
+|     ↳ `successful` | boolean | Whether the payment succeeded |
+
+### Calendly Book Meeting
+
+Book a meeting by creating an invitee on an event type at a chosen time. Requires a paid Calendly plan
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `eventTypeUri` | string | Yes | Event type to book. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/event_types/abc123-def456"\) |
+| `startTime` | string | Yes | Start time of the booking in UTC. Must be an available slot. Format: ISO 8601 \(e.g., "2024-01-15T09:00:00Z"\) |
+| `inviteeEmail` | string | Yes | Email address of the invitee being booked |
+| `inviteeTimezone` | string | Yes | Invitee timezone. Format: IANA timezone \(e.g., "America/New_York"\) |
+| `inviteeName` | string | No | Full name of the invitee. Required when a first name is not provided |
+| `inviteeFirstName` | string | No | First name of the invitee. Required when a full name is not provided |
+| `inviteeLastName` | string | No | Last name of the invitee |
+| `textReminderNumber` | string | No | Phone number for SMS reminders. Format: E.164 phone number \(e.g., "+14155551234"\) |
+| `eventGuests` | json | No | Additional guests to copy on the invite. Format: array of email strings \(max 10, e.g., \["guest@example.com"\]\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | The invitee created for the booking |
+|   ↳ `uri` | string | Canonical reference to the invitee |
+|   ↳ `email` | string | Invitee email address |
+|   ↳ `name` | string | Invitee full name |
+|   ↳ `first_name` | string | Invitee first name |
+|   ↳ `last_name` | string | Invitee last name |
+|   ↳ `status` | string | Invitee status \(active or canceled\) |
+|   ↳ `timezone` | string | Invitee timezone |
+|   ↳ `event` | string | URI of the scheduled event that was booked |
+|   ↳ `created_at` | string | ISO timestamp when the booking was created |
+|   ↳ `updated_at` | string | ISO timestamp when the booking was updated |
+|   ↳ `cancel_url` | string | URL to cancel the booking |
+|   ↳ `reschedule_url` | string | URL to reschedule the booking |
+|   ↳ `rescheduled` | boolean | Whether the invitee rescheduled |
+|   ↳ `text_reminder_number` | string | Phone number used for SMS reminders |
+|   ↳ `questions_and_answers` | array | Responses to custom questions |
+|     ↳ `question` | string | Question text |
+|     ↳ `answer` | string | Invitee answer |
+|     ↳ `position` | number | Question order |
+
+### Calendly Cancel Event
 
 Cancel a scheduled event
 
@@ -290,6 +445,248 @@ Cancel a scheduled event
 |   ↳ `canceled_by` | string | Name of person who canceled |
 |   ↳ `reason` | string | Cancellation reason |
 |   ↳ `created_at` | string | ISO timestamp when event was canceled |
+
+### Calendly Mark Invitee No-Show
+
+Mark an invitee of a scheduled event as a no-show
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `inviteeUri` | string | Yes | Full invitee URI to mark as a no-show. Format: URI \(e.g., "https://api.calendly.com/scheduled_events/abc123/invitees/def456"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | The created no-show record |
+|   ↳ `uri` | string | Canonical reference to the no-show |
+|   ↳ `invitee` | string | URI of the invitee marked as a no-show |
+|   ↳ `created_at` | string | ISO timestamp when the no-show was recorded |
+
+### Calendly Unmark Invitee No-Show
+
+Remove the no-show status from an invitee
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `noShowUuid` | string | Yes | No-show UUID to remove. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/invitee_no_shows/abc123-def456"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the no-show status was successfully removed |
+| `message` | string | Status message |
+
+### Calendly Create Scheduling Link
+
+Create a single-use scheduling link for an event type
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `eventTypeUri` | string | Yes | Event type the link books. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/event_types/abc123-def456"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resource` | object | The created scheduling link |
+|   ↳ `booking_url` | string | Single-use URL to share with an invitee |
+|   ↳ `owner` | string | URI of the event type that owns the link |
+|   ↳ `owner_type` | string | Resource type of the owner |
+
+### Calendly List User Busy Times
+
+Retrieve a user's internal and external busy times within a date range, based on their connected calendars
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `user` | string | Yes | User whose busy times are returned. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/users/abc123-def456"\) |
+| `startTime` | string | Yes | Start of the requested range. Cannot be in the past. Format: ISO 8601 \(e.g., "2024-01-01T00:00:00Z"\) |
+| `endTime` | string | Yes | End of the requested range. Must be after the start and no more than 7 days later. Format: ISO 8601 \(e.g., "2024-01-07T00:00:00Z"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | array | Array of busy time blocks |
+|   ↳ `type` | string | Source of the busy block \(calendly, external, or reserved\) |
+|   ↳ `start_time` | string | ISO timestamp when the block starts |
+|   ↳ `end_time` | string | ISO timestamp when the block ends |
+|   ↳ `buffered_start_time` | string | ISO timestamp when the block starts including buffer |
+|   ↳ `buffered_end_time` | string | ISO timestamp when the block ends including buffer |
+|   ↳ `event` | object | The Calendly event occupying this block |
+|     ↳ `uri` | string | URI of the scheduled event |
+
+### Calendly List User Availability Schedules
+
+Retrieve a user's availability schedules, working hours, and date overrides
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `user` | string | Yes | User whose schedules are returned. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/users/abc123-def456"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | array | Array of availability schedules |
+|   ↳ `uri` | string | Canonical reference to the schedule |
+|   ↳ `name` | string | Schedule name |
+|   ↳ `default` | boolean | Whether this is the user's default schedule |
+|   ↳ `user` | string | URI of the owning user |
+|   ↳ `timezone` | string | Timezone the schedule is defined in |
+|   ↳ `rules` | array | Weekly rules and date overrides that make up the schedule |
+|     ↳ `type` | string | Rule type \(wday or date\) |
+|     ↳ `wday` | string | Day of week the rule applies to, for wday rules |
+|     ↳ `date` | string | Calendar date the rule overrides, for date rules |
+|     ↳ `intervals` | array | Available intervals for the rule; empty means unavailable |
+|       ↳ `from` | string | Interval start time \(HH:MM\) |
+|       ↳ `to` | string | Interval end time \(HH:MM\) |
+
+### Calendly List Organization Memberships
+
+Retrieve the members of an organization, including each member profile and role
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `organization` | string | No | Return memberships that belong to this organization. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/organizations/abc123-def456"\) |
+| `user` | string | No | Return memberships that belong to this user. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/users/abc123-def456"\) |
+| `email` | string | No | Filter memberships by member email address |
+| `role` | string | No | Filter by role. Format: "owner", "admin", or "user" |
+| `count` | number | No | Number of results per page. Format: integer \(default: 20, max: 100\) |
+| `pageToken` | string | No | Page token for pagination. Format: opaque string from previous response next_page_token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | array | Array of organization membership objects |
+|   ↳ `uri` | string | Canonical reference to the membership |
+|   ↳ `role` | string | Member role \(owner, admin, or user\) |
+|   ↳ `organization` | string | URI of the organization |
+|   ↳ `created_at` | string | ISO timestamp when the member joined |
+|   ↳ `updated_at` | string | ISO timestamp when the membership changed |
+|   ↳ `user` | object | The member |
+|     ↳ `uri` | string | Canonical reference to the user |
+|     ↳ `name` | string | User full name |
+|     ↳ `slug` | string | Unique identifier for the user in URLs |
+|     ↳ `email` | string | User email address |
+|     ↳ `scheduling_url` | string | URL to the user's scheduling page |
+|     ↳ `timezone` | string | User timezone |
+|     ↳ `time_notation` | string | Time notation preference \(12h or 24h\) |
+|     ↳ `avatar_url` | string | URL to user avatar image |
+|     ↳ `locale` | string | User locale |
+|     ↳ `created_at` | string | ISO timestamp when user was created |
+|     ↳ `updated_at` | string | ISO timestamp when user was updated |
+| `pagination` | object | Pagination information |
+|   ↳ `count` | number | Number of results in this page |
+|   ↳ `next_page` | string | URL to next page \(if available\) |
+|   ↳ `previous_page` | string | URL to previous page \(if available\) |
+|   ↳ `next_page_token` | string | Token for next page |
+|   ↳ `previous_page_token` | string | Token for previous page |
+
+### Calendly List Routing Forms
+
+Retrieve the routing forms of an organization, including their questions
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `organization` | string | Yes | Organization whose routing forms are returned. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/organizations/abc123-def456"\) |
+| `count` | number | No | Number of results per page. Format: integer \(default: 20, max: 100\) |
+| `pageToken` | string | No | Page token for pagination. Format: opaque string from previous response next_page_token |
+| `sort` | string | No | Sort order for results. Format: "created_at:direction" \(e.g., "created_at:asc", "created_at:desc"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | array | Array of routing form objects |
+|   ↳ `uri` | string | Canonical reference to the routing form |
+|   ↳ `organization` | string | URI of the owning organization |
+|   ↳ `name` | string | Routing form name |
+|   ↳ `status` | string | Routing form status \(published or draft\) |
+|   ↳ `created_at` | string | ISO timestamp when the form was created |
+|   ↳ `updated_at` | string | ISO timestamp when the form was updated |
+|   ↳ `questions` | array | Questions asked by the routing form |
+|     ↳ `uuid` | string | Question identifier |
+|     ↳ `name` | string | Question text |
+|     ↳ `type` | string | Question answer type |
+|     ↳ `required` | boolean | Whether an answer is required |
+|     ↳ `answer_choices` | array | Selectable answers for choice questions |
+| `pagination` | object | Pagination information |
+|   ↳ `count` | number | Number of results in this page |
+|   ↳ `next_page` | string | URL to next page \(if available\) |
+|   ↳ `previous_page` | string | URL to previous page \(if available\) |
+|   ↳ `next_page_token` | string | Token for next page |
+|   ↳ `previous_page_token` | string | Token for previous page |
+
+### Calendly List Routing Form Submissions
+
+Retrieve the submissions of a routing form, including answers and routing result
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Calendly Personal Access Token |
+| `formUri` | string | Yes | Routing form whose submissions are returned. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/routing_forms/abc123-def456"\) |
+| `count` | number | No | Number of results per page. Format: integer \(default: 20, max: 100\) |
+| `pageToken` | string | No | Page token for pagination. Format: opaque string from previous response next_page_token |
+| `sort` | string | No | Sort order for results. Format: "created_at:direction" \(e.g., "created_at:asc", "created_at:desc"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `collection` | array | Array of routing form submission objects |
+|   ↳ `uri` | string | Canonical reference to the submission |
+|   ↳ `routing_form` | string | URI of the routing form |
+|   ↳ `submitter` | string | URI of the invitee who submitted, when the submission led to a booking |
+|   ↳ `submitter_type` | string | Type of the submitter |
+|   ↳ `created_at` | string | ISO timestamp when the form was submitted |
+|   ↳ `updated_at` | string | ISO timestamp when the submission was updated |
+|   ↳ `questions_and_answers` | array | Answers given on the routing form |
+|     ↳ `question_uuid` | string | Question identifier |
+|     ↳ `question` | string | Question text |
+|     ↳ `answer` | string | Submitted answer |
+|   ↳ `tracking` | object | UTM and Salesforce tracking parameters captured at submission |
+|     ↳ `utm_campaign` | string | UTM campaign |
+|     ↳ `utm_source` | string | UTM source |
+|     ↳ `utm_medium` | string | UTM medium |
+|     ↳ `utm_content` | string | UTM content |
+|     ↳ `utm_term` | string | UTM term |
+|     ↳ `salesforce_uuid` | string | Salesforce record identifier |
+|   ↳ `result` | object | Where the submission routed to |
+|     ↳ `type` | string | Routing result type |
+|     ↳ `value` | string | Routing destination |
+| `pagination` | object | Pagination information |
+|   ↳ `count` | number | Number of results in this page |
+|   ↳ `next_page` | string | URL to next page \(if available\) |
+|   ↳ `previous_page` | string | URL to previous page \(if available\) |
+|   ↳ `next_page_token` | string | Token for next page |
+|   ↳ `previous_page_token` | string | Token for previous page |
 
 
 
@@ -324,6 +721,14 @@ Trigger workflow when someone cancels a scheduled event on Calendly
 |   ↳ `status` | string | Invitee status \(active or canceled\) |
 |   ↳ `timezone` | string | Invitee timezone |
 |   ↳ `event` | string | Scheduled event URI |
+|   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
+|   ↳ `tracking` | object | tracking output from the tool |
+|     ↳ `utm_campaign` | string | UTM campaign parameter |
+|     ↳ `utm_source` | string | UTM source parameter |
+|     ↳ `utm_medium` | string | UTM medium parameter |
+|     ↳ `utm_content` | string | UTM content parameter |
+|     ↳ `utm_term` | string | UTM term parameter |
+|     ↳ `salesforce_uuid` | string | Salesforce UUID |
 |   ↳ `text_reminder_number` | string | Phone number for text reminders |
 |   ↳ `rescheduled` | boolean | Whether this invitee rescheduled |
 |   ↳ `old_invitee` | string | URI of the old invitee \(if rescheduled\) |
@@ -379,6 +784,14 @@ Trigger workflow when someone schedules a new event on Calendly
 |   ↳ `status` | string | Invitee status \(active or canceled\) |
 |   ↳ `timezone` | string | Invitee timezone |
 |   ↳ `event` | string | Scheduled event URI |
+|   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
+|   ↳ `tracking` | object | tracking output from the tool |
+|     ↳ `utm_campaign` | string | UTM campaign parameter |
+|     ↳ `utm_source` | string | UTM source parameter |
+|     ↳ `utm_medium` | string | UTM medium parameter |
+|     ↳ `utm_content` | string | UTM content parameter |
+|     ↳ `utm_term` | string | UTM term parameter |
+|     ↳ `salesforce_uuid` | string | Salesforce UUID |
 |   ↳ `text_reminder_number` | string | Phone number for text reminders |
 |   ↳ `rescheduled` | boolean | Whether this invitee rescheduled |
 |   ↳ `old_invitee` | string | URI of the old invitee \(if rescheduled\) |
@@ -433,6 +846,14 @@ Trigger workflow when someone submits a Calendly routing form
 |     ↳ `email` | string | Submitter email address |
 |     ↳ `name` | string | Submitter full name |
 |   ↳ `submitter_type` | string | Type of submitter |
+|   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
+|   ↳ `tracking` | object | tracking output from the tool |
+|     ↳ `utm_campaign` | string | UTM campaign parameter |
+|     ↳ `utm_source` | string | UTM source parameter |
+|     ↳ `utm_medium` | string | UTM medium parameter |
+|     ↳ `utm_content` | string | UTM content parameter |
+|     ↳ `utm_term` | string | UTM term parameter |
+|     ↳ `salesforce_uuid` | string | Salesforce UUID |
 |   ↳ `result` | object | Routing result details |
 |     ↳ `type` | string | Result type \(event_type, custom_message, or external_url\) |
 |     ↳ `value` | string | Result value \(event type URI, message, or URL\) |

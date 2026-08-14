@@ -3,7 +3,10 @@ import { db } from '@sim/db'
 import { document as documentTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
-import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
+import {
+  type BillingAttributionSnapshot,
+  checkAttributedUsageLimits,
+} from '@/lib/billing/core/billing-attribution'
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -19,12 +22,14 @@ import {
   KnowledgeUsageLimitExceededError,
   resolveKnowledgeAttributedUserId,
   resolveKnowledgeBillingAttribution,
+  resolveKnowledgeUsageAdmission,
 } from '@/lib/knowledge/application/billing'
 import {
-  type ActiveKnowledgeBaseContext,
   type ActiveKnowledgeDocumentContext,
+  type ActiveKnowledgeResourceBaseContext,
   resolveActiveKnowledgeBaseContext,
   resolveActiveKnowledgeDocumentContext,
+  resolveActiveKnowledgeResourceContext,
   resolveCanonicalActiveKnowledgeDocumentContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -34,7 +39,6 @@ import {
   bulkDocumentOperationByFilter,
   createDocumentRecords,
   createSingleDocument,
-  type DocumentData,
   deleteDocument,
   deleteKnowledgeDocumentInKnowledgeBase,
   getDocuments,
@@ -52,7 +56,19 @@ import {
   performUploadKnowledgeDocuments,
 } from '@/lib/knowledge/orchestration/documents'
 import type { KnowledgeDocumentWriteSecretProvenance } from '@/lib/knowledge/secret-provenance'
-import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
+import {
+  type KnowledgeTagNameFilter,
+  resolveKnowledgeTagFilters,
+  toKnowledgeTagFilterConditions,
+} from '@/lib/knowledge/tags/filter-resolution'
+import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
+import { StorageService } from '@/lib/uploads'
+import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
+import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
+import {
+  EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE,
+  MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
+} from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 
 const logger = createLogger('KnowledgeDocumentApplication')
@@ -66,7 +82,14 @@ export interface ListKnowledgeDocumentsInput {
   offset?: number
   sortBy?: DocumentSortField
   sortOrder?: SortOrder
+  /** Slot-addressed filters, as first-party surfaces already build them. */
   tagFilters?: TagFilterCondition[]
+  /**
+   * Display-name-addressed filters, resolved to slots here against the
+   * knowledge base's own tag definitions. Public surfaces send these so that
+   * document filtering and search speak one tag vocabulary.
+   */
+  tagNameFilters?: KnowledgeTagNameFilter[]
 }
 
 export interface ReadKnowledgeDocumentInput {
@@ -96,7 +119,12 @@ export interface KnowledgeDocumentInput {
 }
 
 export interface UploadKnowledgeDocumentInput extends UploadKnowledgeDocumentAdmissionInput {
-  document: KnowledgeDocumentInput
+  file: {
+    buffer: Buffer
+    filename: string
+    fileSize: number
+    mimeType: string
+  }
   processingOptions?: ProcessingOptions
   startProcessing?: boolean
   /** Code-defined admission state; HTTP/model payloads must never populate it. */
@@ -109,12 +137,10 @@ export interface CreateKnowledgeDocumentsInput extends UploadKnowledgeDocumentAd
   bulk: boolean
   processingOptions?: ProcessingOptions
   source?: 'ui' | 'api' | 'agent'
-  resolveBillingAttribution?(
-    workspaceId: string
-  ): Promise<Awaited<ReturnType<typeof resolveKnowledgeBillingAttribution>>>
+  resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
   resolveSecretProvenances(input: {
     userId: string
-    workspaceId: string
+    workspaceId?: string
   }): KnowledgeDocumentWriteSecretProvenance[] | undefined
 }
 
@@ -147,7 +173,7 @@ interface BulkDeleteKnowledgeDocumentsExecutionResult
   extends BulkDeleteKnowledgeDocumentsResult,
     KnowledgeBatchExecutionResult {}
 
-interface BulkDeleteKnowledgeDocumentsContext extends ActiveKnowledgeBaseContext {
+type BulkDeleteKnowledgeDocumentsContext = ActiveKnowledgeResourceBaseContext & {
   documentIds: string[]
 }
 
@@ -157,9 +183,7 @@ export interface UpdateKnowledgeDocumentInput extends ReadKnowledgeDocumentInput
   updates?: Parameters<typeof updateDocument>[1]
   markFailedDueToTimeout?: boolean
   retryProcessing?: boolean
-  resolveBillingAttribution?(
-    workspaceId: string
-  ): Promise<Awaited<ReturnType<typeof resolveKnowledgeBillingAttribution>>>
+  resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
   source?: string
 }
 
@@ -178,19 +202,23 @@ export interface UpsertKnowledgeDocumentInput extends UploadKnowledgeDocumentAdm
   mimeType: string
   documentTagsData?: string
   processingOptions?: ProcessingOptions
-  resolveBillingAttribution(
-    workspaceId: string
-  ): Promise<Awaited<ReturnType<typeof resolveKnowledgeBillingAttribution>>>
+  resolveBillingAttribution(workspaceId: string): Promise<BillingAttributionSnapshot>
   resolveSecretProvenances(input: {
     userId: string
-    workspaceId: string
+    workspaceId?: string
   }): KnowledgeDocumentWriteSecretProvenance[] | undefined
 }
 
+/**
+ * Lists documents, resolving any display-named tag filters against the
+ * knowledge base's tag definitions. The definitions are returned with the page
+ * so a presenter can key each document's tag values by display name — the same
+ * projection knowledge search performs — without reading protected data itself.
+ */
 export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listDocuments,
   resolveContext: ({ input }: { input: ListKnowledgeDocumentsInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ input, context }) {
     const limit = input.limit ?? 50
     const offset = input.offset ?? 0
@@ -200,6 +228,15 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
     if (!Number.isInteger(offset) || offset < 0) {
       throw new OrchestrationError('validation', 'Document offset must be a non-negative integer')
     }
+    const resolvedNameFilters = input.tagNameFilters?.length
+      ? await resolveKnowledgeTagFilters(input.tagNameFilters, [context.knowledgeBaseId])
+      : null
+    const tagFilters = [
+      ...(input.tagFilters ?? []),
+      ...(resolvedNameFilters
+        ? toKnowledgeTagFilterConditions(resolvedNameFilters.structuredFilters)
+        : []),
+    ]
     const result = await getDocuments(
       context.knowledgeBaseId,
       {
@@ -209,11 +246,17 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         offset,
         sortBy: input.sortBy,
         sortOrder: input.sortOrder,
-        tagFilters: input.tagFilters,
+        tagFilters: tagFilters.length > 0 ? tagFilters : undefined,
       },
       generateRequestId()
     )
-    return { ...result, workspaceId: context.workspaceId }
+    return {
+      ...result,
+      tagDefinitions:
+        resolvedNameFilters?.definitionsByKnowledgeBase.get(context.knowledgeBaseId) ??
+        (await getDocumentTagDefinitions(context.knowledgeBaseId)),
+      workspaceId: context.workspaceId,
+    }
   },
 })
 
@@ -222,7 +265,11 @@ export const readKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: ReadKnowledgeDocumentInput }) =>
     resolveActiveKnowledgeDocumentContext(input),
   async execute({ context }: { context: ActiveKnowledgeDocumentContext }) {
-    return { document: context.document, workspaceId: context.workspaceId }
+    return {
+      document: context.document,
+      tagDefinitions: await getDocumentTagDefinitions(context.knowledgeBaseId),
+      workspaceId: context.workspaceId,
+    }
   },
 })
 
@@ -242,7 +289,6 @@ export const admitKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase({
       knowledgeBaseId: context.knowledgeBaseId,
       knowledgeBaseName: context.knowledgeBase.name,
       workspaceId: context.workspaceId,
-      storageActorUserId: resolveKnowledgeAttributedUserId(principal, context),
     }
   },
 })
@@ -252,16 +298,22 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: UploadKnowledgeDocumentInput }) =>
     resolveActiveKnowledgeBaseContext(input),
   async execute({ principal, input, context }) {
-    if (input.document.fileSize < 0 || input.document.fileSize > MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE) {
+    if (input.file.fileSize < 0 || input.file.fileSize > MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE) {
       throw new OrchestrationError(
         'payload_too_large',
         'Knowledge document exceeds the 100MB limit'
       )
     }
-    const fileTypeError = validateFileType(input.document.filename, input.document.mimeType)
+    if (input.file.fileSize !== input.file.buffer.byteLength) {
+      throw new Error('Knowledge document upload size does not match its buffered bytes')
+    }
+    if (input.file.fileSize === 0) {
+      throw new OrchestrationError('validation', EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE)
+    }
+    const fileTypeError = validateFileType(input.file.filename, input.file.mimeType)
     if (fileTypeError) throw new OrchestrationError('validation', fileTypeError.message)
-    const billingAttribution = await resolveKnowledgeBillingAttribution(principal, context)
     if (input.usageAdmission !== 'pre_admitted') {
+      const billingAttribution = await resolveKnowledgeBillingAttribution(principal, context)
       const usage = await checkAttributedUsageLimits(billingAttribution)
       if (usage.isExceeded) {
         throw new KnowledgeUsageLimitExceededError(
@@ -270,38 +322,71 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       }
     }
     const requestId = generateRequestId()
-    const uploadedBy = resolveKnowledgeAttributedUserId(principal, context)
+    const storageActorUserId = resolveKnowledgeAttributedUserId(principal, context)
+    const storageKey = generateKnowledgeBaseFileKey(input.file.filename)
+    await recordKnowledgeBaseFileOwnership({
+      key: storageKey,
+      userId: storageActorUserId,
+      workspaceId: context.workspaceId,
+      originalName: input.file.filename,
+      contentType: input.file.mimeType,
+      size: input.file.fileSize,
+    })
+    const storedFile = await StorageService.uploadFile({
+      file: input.file.buffer,
+      fileName: input.file.filename,
+      contentType: input.file.mimeType,
+      context: 'knowledge-base',
+      customKey: storageKey,
+      preserveKey: true,
+      persistMetadata: false,
+    })
+    if (storedFile.key !== storageKey || storedFile.size !== input.file.fileSize) {
+      throw new Error('Knowledge document storage did not preserve the admitted file identity')
+    }
+    if (storedFile.path.includes('?')) {
+      throw new Error('Knowledge document storage returned a path with an unexpected query')
+    }
+
+    const registrationContext = await resolveActiveKnowledgeBaseContext(input)
+    await authorizeWorkspaceOperation(
+      principal,
+      knowledgeOperations.uploadDocument,
+      registrationContext,
+      {
+        delegation: knowledgeDelegationPolicy,
+      }
+    )
+    const billingAttribution = await resolveKnowledgeBillingAttribution(
+      principal,
+      registrationContext
+    )
+    const uploadedBy = resolveKnowledgeAttributedUserId(principal, registrationContext)
+    const documentInput: KnowledgeDocumentInput = {
+      filename: input.file.filename,
+      fileUrl: `${storedFile.path}?context=knowledge-base`,
+      fileSize: input.file.fileSize,
+      mimeType: input.file.mimeType,
+    }
     const document = await createSingleDocument(
-      input.document,
-      context.knowledgeBaseId,
+      documentInput,
+      registrationContext.knowledgeBaseId,
       requestId,
       uploadedBy,
       undefined,
       undefined,
-      { expectedWorkspaceId: context.workspaceId }
-    )
-    if (input.startProcessing !== false) {
-      const processingDocument: DocumentData = {
-        documentId: document.id,
-        filename: document.filename,
-        fileUrl: document.fileUrl,
-        fileSize: document.fileSize,
-        mimeType: document.mimeType,
+      {
+        expectedWorkspaceId: registrationContext.workspaceId,
+        ...(input.startProcessing !== false
+          ? {
+              processing: {
+                processingOptions: input.processingOptions ?? {},
+                billingAttribution,
+              },
+            }
+          : {}),
       }
-      processDocumentsWithQueue(
-        [processingDocument],
-        context.knowledgeBaseId,
-        input.processingOptions ?? {},
-        requestId,
-        billingAttribution
-      ).catch((error: unknown) => {
-        logger.error('Knowledge document processing pipeline failed', {
-          knowledgeBaseId: context.knowledgeBaseId,
-          documentId: document.id,
-          error,
-        })
-      })
-    }
+    )
     return { document, created: true as const }
   },
   projectAudit: ({ input, context, result }) => ({
@@ -324,7 +409,7 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
 export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadDocument,
   resolveContext: ({ input }: { input: CreateKnowledgeDocumentsInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ principal, input, context, request }) {
     if (input.documents.length === 0) {
       throw new OrchestrationError('validation', 'No documents specified')
@@ -335,16 +420,16 @@ export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         `At most ${MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE} documents may be created at once`
       )
     }
-    const billingAttribution = input.resolveBillingAttribution
-      ? await input.resolveBillingAttribution(context.workspaceId)
-      : await resolveKnowledgeBillingAttribution(principal, context)
-    const usage = await checkAttributedUsageLimits(billingAttribution)
+    const { billingAttribution, usage, userId } = await resolveKnowledgeUsageAdmission(
+      principal,
+      context,
+      input.resolveBillingAttribution
+    )
     if (usage.isExceeded) {
       throw new KnowledgeUsageLimitExceededError(
         usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
       )
     }
-    const userId = resolveKnowledgeAttributedUserId(principal, context)
     const secretProvenances = input.resolveSecretProvenances({
       userId,
       workspaceId: context.workspaceId,
@@ -352,7 +437,7 @@ export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
     const knowledgeBase = {
       id: context.knowledgeBaseId,
       name: context.knowledgeBase.name,
-      workspaceId: context.workspaceId,
+      workspaceId: context.workspaceId ?? null,
     }
     if (input.bulk) {
       const outcome = await performUploadKnowledgeDocuments({
@@ -459,16 +544,18 @@ export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
 export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadDocument,
   resolveContext: ({ input }: { input: UpsertKnowledgeDocumentInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ principal, input, context }) {
-    const billingAttribution = await input.resolveBillingAttribution(context.workspaceId)
-    const usage = await checkAttributedUsageLimits(billingAttribution)
+    const { billingAttribution, usage, userId } = await resolveKnowledgeUsageAdmission(
+      principal,
+      context,
+      input.resolveBillingAttribution
+    )
     if (usage.isExceeded) {
       throw new KnowledgeUsageLimitExceededError(
         usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
       )
     }
-    const userId = resolveKnowledgeAttributedUserId(principal, context)
     const secretProvenances = input.resolveSecretProvenances({
       userId,
       workspaceId: context.workspaceId,
@@ -629,7 +716,7 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       BULK_DELETE_KNOWLEDGE_DOCUMENTS_COST_POLICY.maxItems
     )
     return {
-      ...(await resolveActiveKnowledgeBaseContext(input)),
+      ...(await resolveActiveKnowledgeResourceContext(input)),
       documentIds,
     }
   },
@@ -650,12 +737,14 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
           documentId,
           assertedWorkspaceId: context.workspaceId,
         })
-        await authorizeWorkspaceOperation(
-          principal,
-          knowledgeOperations.bulkDeleteDocuments,
-          canonical,
-          { delegation: knowledgeDelegationPolicy }
-        )
+        if (canonical.workspaceId) {
+          await authorizeWorkspaceOperation(
+            principal,
+            knowledgeOperations.bulkDeleteDocuments,
+            canonical,
+            { delegation: knowledgeDelegationPolicy }
+          )
+        }
         if (input.cancellationSignal?.aborted) break
         await deleteKnowledgeDocumentInKnowledgeBase(
           canonical.knowledgeBaseId,
@@ -718,9 +807,13 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
         : await performRetryKnowledgeDocumentProcessing({
             knowledgeBaseId: context.knowledgeBaseId,
             document: context.document,
-            billingAttribution: input.resolveBillingAttribution
-              ? await input.resolveBillingAttribution(context.workspaceId)
-              : await resolveKnowledgeBillingAttribution(principal, context),
+            billingAttribution: (
+              await resolveKnowledgeUsageAdmission(
+                principal,
+                context,
+                input.resolveBillingAttribution
+              )
+            ).billingAttribution,
           })
       if (!outcome.success) {
         if (outcome.errorCode === 'internal') {
@@ -745,6 +838,7 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     return {
       kind: 'updated' as const,
       document: await updateDocument(context.documentId, updates, generateRequestId()),
+      tagDefinitions: await getDocumentTagDefinitions(context.knowledgeBaseId),
       updatedFields,
     }
   },
@@ -771,7 +865,7 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
 export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.bulkDocuments,
   resolveContext: ({ input }: { input: BulkKnowledgeDocumentsInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ input, context }) {
     const result = input.selectAll
       ? await bulkDocumentOperationByFilter(
@@ -793,6 +887,13 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       operation: input.operation,
       successCount: result.successCount,
       updatedDocuments: result.updatedDocuments,
+      /**
+       * Reported so a surface can tell a bounded selection from an unbounded
+       * one: `documentIds` is capped by the request, `selectAll` is capped by
+       * nothing, and a presenter that echoes the identifiers either way returns
+       * a multi-megabyte array on a large knowledge base.
+       */
+      selectAll: input.selectAll === true,
     }
   },
 })

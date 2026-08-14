@@ -8,6 +8,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import {
   admitV2Request,
+  V2_PARSE_DEFAULTS,
   V2RouteInfrastructureError,
   v2ApiKeyAuth,
   v2RateLimits,
@@ -18,7 +19,7 @@ import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resumeWorkflowRun } from '@/lib/workflows/application/resume-run'
 import { ResumeWorkflowExecutionError } from '@/lib/workflows/executor/resume-execution'
-import { type V2ErrorCode, v2Data, v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
+import { type V2ErrorCode, v2Data, v2Error } from '@/app/api/v2/lib/response'
 import { classifyExecutionError } from '@/executor/utils/errors'
 
 const logger = createLogger('V2WorkflowResumeAPI')
@@ -52,8 +53,8 @@ export const POST = withRouteHandler(
     if (!admission.success) return admission.response
 
     const parsed = await parseRequest(v2ResumeWorkflowContract, request, context, {
+      ...V2_PARSE_DEFAULTS,
       maxBodyBytes: 10 * 1024 * 1024,
-      validationErrorResponse: v2ValidationError,
     })
     if (!parsed.success) return parsed.response
     const { id: workflowId, runId } = parsed.data.params

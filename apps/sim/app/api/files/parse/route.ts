@@ -13,6 +13,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
+import { isHtmlComplexityError } from '@/lib/file-parsers/html-parser'
 import { isYamlComplexityError } from '@/lib/file-parsers/yaml-parser'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
@@ -1047,6 +1048,7 @@ async function handleGenericTextBuffer(
       // Fail closed on a resource-exhaustion rejection instead of silently
       // storing the crafted document as raw text.
       if (isYamlComplexityError(parserError)) throw parserError
+      if (isHtmlComplexityError(parserError)) throw parserError
 
       logger.warn('Specialized parser failed, falling back to generic parsing:', parserError)
     }

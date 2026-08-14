@@ -41,6 +41,75 @@ const MENU_ROW_HEIGHT_CLASS = 'h-[28px]'
 const MENU_ROW_RADIUS_CLASS = 'rounded-lg'
 
 /**
+ * Rows settle instantly, matching the sidebar (`[&_.group.cursor-pointer]:duration-0`
+ * on its `aside`). A menu is walked, not read: at the default 150ms the fill lags a
+ * cursor dragged down the list and two or three rows are mid-fade at once, which reads
+ * as smear rather than as one row following the pointer. `transition-colors` stays so a
+ * consumer can opt a row back into a duration.
+ */
+const MENU_ROW_TRANSITION_CLASS = 'transition-colors duration-0'
+
+/**
+ * The two row surfaces, mirroring `chipHoverSurfaceClass` / `chipActiveSurfaceClass`
+ * — mutually exclusive, so a selected row holds its surface through hover instead of
+ * dimming to the hover fill under the cursor.
+ *
+ * Highlight is keyed off `focus:`, not `hover:`: Radix moves DOM focus to the row on
+ * pointer-move, so one selector covers both the pointer and the arrow-key cursor.
+ * Rows previously highlighted to `--surface-active` — the *selected* surface — so a
+ * hovered row looked selected and a menu appeared to have two selections at once. The
+ * `group-*` variants are inert outside the `action` layout, which is the only place a
+ * `group/dropdownitem` ancestor exists.
+ */
+const MENU_ROW_HIGHLIGHT_CLASS =
+  'focus:bg-[var(--surface-hover)] group-focus-within/dropdownitem:bg-[var(--surface-hover)] group-hover/dropdownitem:bg-[var(--surface-hover)]'
+/** @see {@link MENU_ROW_HIGHLIGHT_CLASS} — the selected half of the same pair. */
+const MENU_ROW_SELECTED_CLASS =
+  'bg-[var(--surface-active)] focus:bg-[var(--surface-active)] group-focus-within/dropdownitem:bg-[var(--surface-active)] group-hover/dropdownitem:bg-[var(--surface-active)]'
+
+/**
+ * Rows are a fixed height, so a label that wraps overflows its row and paints
+ * over its neighbours instead of growing the row. Every row is therefore held
+ * to one line, and its label ellipsizes — see {@link withEllipsizedLabel}.
+ */
+const MENU_ROW_SINGLE_LINE_CLASS = 'whitespace-nowrap [&>span]:min-w-0 [&>span]:truncate'
+
+/**
+ * Wraps a row's bare text children in a truncating box so a label wider than
+ * the menu ends in an ellipsis rather than being cut mid-word at the surface
+ * edge. Consumers that already wrap their label in a `<span>` are unaffected —
+ * the row's `[&>span]` rule truncates those in place.
+ *
+ * Adjacent text is coalesced into a single box: a row is a flex container, so
+ * wrapping `Insert row {n}` as two boxes would make them two flex items and
+ * open the row's `gap` between the words. `React.Children.toArray` keys the
+ * element children it returns, so the rebuilt array needs no keys of its own.
+ */
+function withEllipsizedLabel(children: React.ReactNode): React.ReactNode {
+  const rebuilt: React.ReactNode[] = []
+  let text: React.ReactNode[] = []
+  const flushText = () => {
+    if (text.length === 0) return
+    rebuilt.push(
+      <span key={`label-${rebuilt.length}`} className='min-w-0 truncate'>
+        {text}
+      </span>
+    )
+    text = []
+  }
+  for (const child of React.Children.toArray(children)) {
+    if (typeof child === 'string' || typeof child === 'number') {
+      text.push(child)
+      continue
+    }
+    flushText()
+    rebuilt.push(child)
+  }
+  flushText()
+  return rebuilt
+}
+
+/**
  * Surface corner, shared by the root menu and submenus — they previously
  * disagreed, at 12px and 8px.
  *
@@ -110,13 +179,16 @@ const DropdownMenuSubTrigger = React.forwardRef<
     <DropdownMenuPrimitive.SubTrigger
       ref={ref}
       className={cn(
-        `flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center gap-2 ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[state=open]:bg-[var(--surface-active)] [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`,
+        /* An open submenu keeps its trigger on the selected surface — including while
+           the pointer is on it, so walking into the submenu doesn't drop the trigger
+           back to the hover fill. */
+        `flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center gap-2 ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[state=open]:bg-[var(--surface-active)] data-[state=open]:focus:bg-[var(--surface-active)] ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`,
         inset && 'pl-7',
         className
       )}
       {...props}
     >
-      {children}
+      {withEllipsizedLabel(children)}
       <ChevronRight className='ml-auto size-[14px] shrink-0' />
     </DropdownMenuPrimitive.SubTrigger>
   )
@@ -172,12 +244,22 @@ const DropdownMenuContent = React.forwardRef<
 ))
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
 
-const DROPDOWN_MENU_ITEM_BASE_CLASSES = `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-pointer select-none items-center gap-2 ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`
+const DROPDOWN_MENU_ITEM_BASE_CLASSES = `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-pointer select-none items-center gap-2 ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none ${MENU_ROW_TRANSITION_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`
 
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
     inset?: boolean
+    /**
+     * Renders the row as selected — the current route, the checked value, the row
+     * whose own menu is open. Selected is a state the row *holds*, so it keeps
+     * `--surface-active` through hover rather than dimming to the hover fill.
+     *
+     * Not for a pointer/keyboard cursor: that is the row highlight, which the row
+     * already paints on its own. A menu that marks its cursor row `active` puts two
+     * selections on screen.
+     */
+    active?: boolean
     /**
      * Optional inline action rendered on the right edge of the item — e.g. a
      * "more" icon button. Reveals on hover/focus of the row, and the row stays
@@ -185,7 +267,9 @@ const DropdownMenuItem = React.forwardRef<
      */
     action?: React.ReactNode
   }
->(({ className, inset, action, ...props }, ref) => {
+>(({ className, inset, active, action, asChild, children, ...props }, ref) => {
+  const content = asChild ? children : withEllipsizedLabel(children)
+  const stateClasses = active ? MENU_ROW_SELECTED_CLASS : MENU_ROW_HIGHLIGHT_CLASS
   if (action) {
     return (
       <div className='group/dropdownitem relative'>
@@ -193,12 +277,16 @@ const DropdownMenuItem = React.forwardRef<
           ref={ref}
           className={cn(
             DROPDOWN_MENU_ITEM_BASE_CLASSES,
-            'pr-[28px] group-focus-within/dropdownitem:bg-[var(--surface-active)] group-hover/dropdownitem:bg-[var(--surface-active)]',
+            stateClasses,
+            'pr-[28px]',
             inset && 'pl-7',
             className
           )}
+          asChild={asChild}
           {...props}
-        />
+        >
+          {content}
+        </DropdownMenuPrimitive.Item>
         <div className='-translate-y-1/2 absolute top-1/2 right-1 flex items-center opacity-0 transition-opacity group-focus-within/dropdownitem:opacity-100 group-hover/dropdownitem:opacity-100'>
           {action}
         </div>
@@ -208,9 +296,12 @@ const DropdownMenuItem = React.forwardRef<
   return (
     <DropdownMenuPrimitive.Item
       ref={ref}
-      className={cn(DROPDOWN_MENU_ITEM_BASE_CLASSES, inset && 'pl-7', className)}
+      className={cn(DROPDOWN_MENU_ITEM_BASE_CLASSES, stateClasses, inset && 'pl-7', className)}
+      asChild={asChild}
       {...props}
-    />
+    >
+      {content}
+    </DropdownMenuPrimitive.Item>
   )
 })
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName
@@ -252,7 +343,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      `relative flex ${MENU_ROW_HEIGHT_CLASS} cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
+      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-none ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
       className
     )}
     checked={checked}
@@ -263,7 +354,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
         <Check className='size-[14px]' />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
-    {children}
+    {withEllipsizedLabel(children)}
   </DropdownMenuPrimitive.CheckboxItem>
 ))
 DropdownMenuCheckboxItem.displayName = DropdownMenuPrimitive.CheckboxItem.displayName
@@ -275,7 +366,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      `relative flex ${MENU_ROW_HEIGHT_CLASS} cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
+      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-none ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
       className
     )}
     {...props}
@@ -285,7 +376,7 @@ const DropdownMenuRadioItem = React.forwardRef<
         <Circle className='size-[6px] fill-current' />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
-    {children}
+    {withEllipsizedLabel(children)}
   </DropdownMenuPrimitive.RadioItem>
 ))
 DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName

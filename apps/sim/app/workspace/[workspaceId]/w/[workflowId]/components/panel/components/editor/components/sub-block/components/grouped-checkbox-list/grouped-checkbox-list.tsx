@@ -175,7 +175,7 @@ export function GroupedCheckboxList({
             <div className='flex flex-col gap-6'>
               {Object.entries(groupedOptions).map(([groupName, groupOptions]) => (
                 <div key={groupName}>
-                  <h3 className='mb-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider'>
+                  <h3 className='mb-3 text-muted-foreground text-xs uppercase tracking-wider'>
                     {groupName}
                   </h3>
                   <div className='flex flex-col gap-3'>

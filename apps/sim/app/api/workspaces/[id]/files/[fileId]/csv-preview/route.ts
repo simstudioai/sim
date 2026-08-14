@@ -14,11 +14,12 @@ export const GET = defineInternalJsonRoute({
   auth: internalSessionOrExecutorAuth,
   operation: csvPreviewWorkspaceFile.operation,
   rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal CSV preview behavior' }),
-  errorPolicy: internalFileErrorPolicies.plain,
-  mapInput: ({ params, query }) => ({
+  errorPolicy: internalFileErrorPolicies.default,
+  mapInput: ({ params, query }, { request }) => ({
     fileId: params.fileId,
     assertedWorkspaceId: params.id,
     key: query.key,
+    signal: request.signal,
   }),
   useCase: csvPreviewWorkspaceFile,
   onSuccess: ({ result }) => {

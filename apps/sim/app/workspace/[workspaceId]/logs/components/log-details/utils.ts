@@ -1,7 +1,7 @@
 import type React from 'react'
+import { perceivedBrightness } from '@sim/utils/color'
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
-import { perceivedBrightness } from '@/lib/colors'
 import { hasUnhandledError } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
@@ -85,12 +85,6 @@ export function getBlockIconAndColor(
  * `cutoff / MAX_YIQ_SUM` here.
  */
 const MAX_YIQ_SUM = 255_000
-
-/** Returns 'text-white' for dark backgrounds, dark text for light ones. */
-export function iconColorClass(bgColor: string): string {
-  const brightness = perceivedBrightness(bgColor)
-  return brightness !== null && brightness > 160_000 / MAX_YIQ_SUM ? 'text-[#111111]' : 'text-white'
-}
 
 /**
  * Near-black bgColors disappear against the dark-mode surface (--bg: #1b1b1b).

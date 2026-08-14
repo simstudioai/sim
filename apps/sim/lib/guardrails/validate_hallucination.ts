@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
-import { generateInternalToken } from '@/lib/auth/internal'
+import { generateInternalDelegationToken } from '@/lib/auth/internal'
 import {
   BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
@@ -22,6 +23,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { refreshTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
@@ -29,6 +31,7 @@ import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('HallucinationValidator')
 const KNOWLEDGE_PROVENANCE_ERROR = 'Knowledge result secret provenance is unavailable'
+const HALLUCINATION_INPUT_PATHS = [['input']] as const
 
 class KnowledgeProvenanceError extends Error {
   constructor() {
@@ -89,10 +92,16 @@ async function queryKnowledgeBase(
   billingAttribution: BillingAttributionSnapshot,
   workflowId: string | undefined,
   resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry
-): Promise<string[]> {
+): Promise<{ context: string[]; registry: ResolvedSecretTraceRegistry }> {
+  const resultRegistry = resolvedSecretTraceRegistry.forkForInputPaths([])
+  if (!workflowId) throw new Error('Hallucination validation requires a workflow ID')
+
   try {
     const searchUrl = `${getInternalApiBaseUrl()}/api/knowledge/search`
-    const internalToken = await generateInternalToken(actorUserId)
+    const internalToken = await generateInternalDelegationToken({
+      subjectUserId: actorUserId,
+      workflowId,
+    })
     const headers = new Headers({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${internalToken}`,
@@ -107,11 +116,10 @@ async function queryKnowledgeBase(
     }
     const modelInputMetadata = createModelInputProvenanceRequestMetadata(
       resolvedSecretTraceRegistry,
-      query
+      HALLUCINATION_INPUT_PATHS
     )
-    if (!modelInputMetadata) throw new Error('Knowledge model input provenance is unavailable')
+    if (!modelInputMetadata) throw new KnowledgeProvenanceError()
     const body = addModelInputProvenanceToRequest(requestBody, headers, modelInputMetadata)
-
     // boundary-raw-fetch: authenticated internal Knowledge call with private provenance envelopes
     const response = await fetch(searchUrl, {
       method: 'POST',
@@ -120,10 +128,7 @@ async function queryKnowledgeBase(
     })
 
     if (!response.ok) {
-      logger.error(`[${requestId}] Knowledge base query failed`, {
-        status: response.status,
-      })
-      return []
+      throw new Error(`Knowledge base query failed with status ${response.status}`)
     }
 
     const payload: unknown = await response.json()
@@ -134,38 +139,44 @@ async function queryKnowledgeBase(
       payload,
       RESOLVED_SECRET_PROVENANCE_METADATA_V1
     )
-    if (inspection.status !== 'verified') throw new KnowledgeProvenanceError()
+    if (inspection.status === 'invalid') throw new KnowledgeProvenanceError()
 
-    const functionalResponse = { ...payload }
-    delete functionalResponse[RESOLVED_SECRET_PROVENANCE_FIELD]
-    const imported = await resolvedSecretTraceRegistry.importProvenanceForValue(
-      inspection.value,
-      functionalResponse,
-      { trusted: true }
-    )
-    if (!imported || !resolvedSecretTraceRegistry.isComplete()) {
-      throw new KnowledgeProvenanceError()
+    let functionalResponse = payload
+    if (inspection.status === 'verified') {
+      functionalResponse = { ...payload }
+      delete functionalResponse[RESOLVED_SECRET_PROVENANCE_FIELD]
+      const imported = await resultRegistry.importProvenance(inspection.value, {
+        origin: 'guardrails.hallucinationResult',
+        trusted: true,
+      })
+      if (!imported || !resultRegistry.isComplete()) {
+        throw new KnowledgeProvenanceError()
+      }
     }
 
     const data = isPlainRecord(functionalResponse.data) ? functionalResponse.data : undefined
     const results = Array.isArray(data?.results) ? data.results : []
 
-    return results.flatMap((result) => {
-      if (
-        !isPlainRecord(result) ||
-        typeof result.content !== 'string' ||
-        result.content.length === 0
-      ) {
-        return []
-      }
-      return [result.content]
-    })
-  } catch (error: any) {
+    return {
+      context: results.flatMap((result) => {
+        if (
+          !isPlainRecord(result) ||
+          typeof result.content !== 'string' ||
+          result.content.length === 0
+        ) {
+          return []
+        }
+        return [result.content]
+      }),
+      registry: resultRegistry,
+    }
+  } catch (error) {
     if (error instanceof KnowledgeProvenanceError) throw error
+    const message = getErrorMessage(error, 'Unknown Knowledge query error')
     logger.error(`[${requestId}] Error querying knowledge base`, {
-      error: error.message,
+      error: message,
     })
-    return []
+    throw new Error(`Failed to query knowledge base: ${message}`, { cause: error })
   }
 }
 
@@ -348,27 +359,18 @@ export async function validateHallucination(
         error: 'Knowledge base ID is required',
       }
     }
-    const projection = projectResolvedSecretModelContent(userInput, resolvedSecretTraceRegistry)
-    if (!projection.safe || typeof projection.value !== 'string') {
-      throw new Error('Hallucination input could not be safely projected')
-    }
-    const modelSafeUserInput = projection.value
-    const providerRegistry = resolvedSecretTraceRegistry.forkForToolInput(modelSafeUserInput)
-    if (!providerRegistry.isComplete()) {
-      throw new Error('Hallucination model input provenance is unavailable')
-    }
-
     // Step 1: Query knowledge base with RAG
-    const ragContext = await queryKnowledgeBase(
+    const knowledgeResult = await queryKnowledgeBase(
       knowledgeBaseId,
-      modelSafeUserInput,
+      userInput,
       topK,
       requestId,
       actorUserId,
       billingAttribution,
       workflowId,
-      providerRegistry
+      resolvedSecretTraceRegistry
     )
+    const ragContext = knowledgeResult.context
 
     if (ragContext.length === 0) {
       return {
@@ -377,10 +379,39 @@ export async function validateHallucination(
       }
     }
 
+    const inputRegistry = resolvedSecretTraceRegistry.forkForInputPaths(HALLUCINATION_INPUT_PATHS, {
+      propagated: true,
+    })
+    const inputProjection = projectResolvedSecretModelContent(userInput, inputRegistry)
+    const contextProjection = projectResolvedSecretModelContent(
+      ragContext,
+      knowledgeResult.registry.forkForPropagatedEntries()
+    )
+    if (
+      !inputProjection.safe ||
+      typeof inputProjection.value !== 'string' ||
+      !contextProjection.safe ||
+      !Array.isArray(contextProjection.value) ||
+      !contextProjection.value.every((value) => typeof value === 'string')
+    ) {
+      refuseResolvedSecretProjection({
+        site: 'guardrails.hallucinationModelInput',
+        message: 'Hallucination model input could not be safely projected',
+        registry: inputRegistry,
+        inputPath: 'input',
+      })
+    }
+
+    const providerRegistry = inputRegistry
+    providerRegistry.mergeToolCallRegistry(knowledgeResult.registry)
+    if (!providerRegistry.isComplete()) {
+      throw new Error('Hallucination model input provenance is unavailable')
+    }
+
     // Step 2: Use LLM to score confidence
     const { score, reasoning, cost } = await scoreHallucinationWithLLM(
-      modelSafeUserInput,
-      ragContext,
+      inputProjection.value,
+      contextProjection.value,
       model,
       apiKey,
       providerCredentials,

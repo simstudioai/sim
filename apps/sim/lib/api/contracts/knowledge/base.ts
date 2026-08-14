@@ -22,10 +22,23 @@ export const listKnowledgeBasesQuerySchema = z.object({
 
 export const chunkingStrategyOptionsSchema = z
   .object({
-    pattern: z.string().max(500).optional(),
-    separators: z.array(z.string()).optional(),
-    recipe: z.enum(['plain', 'markdown', 'code']).optional(),
-    strictBoundaries: z.boolean().optional(),
+    pattern: z
+      .string()
+      .max(500)
+      .optional()
+      .describe('Regular expression used by the regex chunking strategy.'),
+    separators: z
+      .array(z.string())
+      .optional()
+      .describe('Ordered separators used to split content into chunks.'),
+    recipe: z
+      .enum(['plain', 'markdown', 'code'])
+      .optional()
+      .describe('Content-aware recipe used by the automatic chunking strategy.'),
+    strictBoundaries: z
+      .boolean()
+      .optional()
+      .describe('Whether regex matches must form strict chunk boundaries.'),
   })
   .strict() satisfies z.ZodType<StrategyOptions>
 

@@ -143,7 +143,7 @@ export async function executeCreateWorkflow(
       return { success: false, error: 'Workflow name must be 200 characters or less' }
     }
     const workspaceId =
-      context.workspaceId || params?.workspaceId || (await getDefaultWorkspaceId(context.userId))
+      params?.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
 
     const folderPath = typeof params?.folderPath === 'string' ? params.folderPath.trim() : ''
     const folderId =

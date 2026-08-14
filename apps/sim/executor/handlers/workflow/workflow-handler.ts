@@ -37,6 +37,7 @@ import {
   type BlockHandler,
   type ExecutionContext,
   type ExecutionResult,
+  type ExecutorDelegationOrigin,
   START_BLOCK_METADATA_FIELD,
   type StartBlockRunMetadata,
   type StreamingExecution,
@@ -278,17 +279,22 @@ export class WorkflowBlockHandler implements BlockHandler {
     /** Large-value id list shared with the child (and any nested custom blocks). */
     let sharedLargeValueIds: string[] | undefined
     let childCancellation: { signal: AbortSignal; dispose: () => void } | undefined
+    let childExecutorDelegationOrigin: ExecutorDelegationOrigin | undefined
     /** Settled in `finally` once the child is fully done — see `trackChildRun`. */
     let settleChildRun: (() => void) | undefined
     try {
       if (!loadUserId) {
         throw new Error('Workflow child loading requires a human execution subject')
       }
-      const workflowReadHeaders = await buildExecutorDelegationHeaders({
-        subjectUserId: loadUserId,
-        workflowId: isCustomBlock ? workflowId : ctx.workflowId,
-        ...(!isCustomBlock && ctx.executionId ? { executionId: ctx.executionId } : {}),
-      })
+      const workflowReadDelegationOrigin: ExecutorDelegationOrigin = isCustomBlock
+        ? { subjectUserId: loadUserId, workflowId }
+        : (ctx.executorDelegationOrigin ?? {
+            subjectUserId: loadUserId,
+            workflowId: ctx.workflowId,
+            ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
+          })
+      if (!isCustomBlock) childExecutorDelegationOrigin = workflowReadDelegationOrigin
+      const workflowReadHeaders = await buildExecutorDelegationHeaders(workflowReadDelegationOrigin)
 
       // A custom block runs the source's latest deployment; if the source has been
       // undeployed there's nothing to run. `BoundarySafeError` marks the message as
@@ -459,6 +465,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           await childResolvedSecretTraceRegistry.importProvenance(crossingProvenance, {
             trusted: true,
             anonymous: true,
+            origin: 'workflowHandler.childCrossing',
           })
         }
         // Custom-block children authenticate internal tool calls as the source
@@ -508,10 +515,13 @@ export class WorkflowBlockHandler implements BlockHandler {
           ...(correlation ? { triggerData: { correlation } } : {}),
         })
         if (!childSessionStarted) {
-          logger.error('Custom block child logging failed to start; child spend will be unbilled', {
-            workflowId,
-            childExecutionId,
-          })
+          childExecutionId = undefined
+          throw new Error('Custom block child logging failed to start')
+        }
+        childExecutorDelegationOrigin = {
+          subjectUserId: loadUserId,
+          workflowId,
+          executionId: childExecutionId,
         }
         // The child no longer shares the parent's execution id, so it no longer
         // hears the parent's cancellation event — bridge it explicitly.
@@ -598,6 +608,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           enforceCredentialAccess: ctx.enforceCredentialAccess,
           workspaceId: childWorkspaceId,
           userId: childUserId,
+          executorDelegationOrigin: childExecutorDelegationOrigin,
           executionId: childExecutionId ?? ctx.executionId,
           // Large values are cached per execution id, so a child running under its
           // own id still needs the invoking run's id to read values in its inputs.
@@ -714,12 +725,13 @@ export class WorkflowBlockHandler implements BlockHandler {
         const exposedOutput = this.projectCustomBlockOutput(executionResult, exposedOutputs)
         if (ctx.resolvedSecretTraceRegistry && childResolvedSecretTraceRegistry) {
           const crossingProvenance =
-            childResolvedSecretTraceRegistry.exportCatalogProvenanceForValue(exposedOutput, {
+            childResolvedSecretTraceRegistry.exportCommittedProvenanceForValue(exposedOutput, {
               anonymous: true,
             })
           await ctx.resolvedSecretTraceRegistry.importProvenance(crossingProvenance, {
             trusted: true,
             anonymous: true,
+            origin: 'workflowHandler.parentCrossing',
           })
         }
         return exposedOutput

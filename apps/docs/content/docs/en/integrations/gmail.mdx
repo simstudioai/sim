@@ -37,7 +37,7 @@ Integrate Gmail into the workflow. Can send, read, search, and move emails. Can 
 
 ## Actions
 
-### `gmail_send`
+### Gmail Send
 
 Send emails using Gmail. Returns API-aligned fields only.
 
@@ -63,7 +63,7 @@ Send emails using Gmail. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Email labels |
 
-### `gmail_draft`
+### Gmail Draft
 
 Draft emails using Gmail. Returns API-aligned fields only.
 
@@ -90,7 +90,7 @@ Draft emails using Gmail. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Email labels |
 
-### `gmail_edit_draft`
+### Gmail Edit Draft
 
 Update an existing Gmail draft in place without deleting and recreating it.
 
@@ -118,7 +118,7 @@ Update an existing Gmail draft in place without deleting and recreating it.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Email labels |
 
-### `gmail_read`
+### Gmail Read
 
 Read emails from Gmail. Returns API-aligned fields only.
 
@@ -149,7 +149,7 @@ Read emails from Gmail. Returns API-aligned fields only.
 | `attachments` | file[] | Downloaded attachments \(if enabled\) |
 | `results` | json | Summary results when reading multiple messages |
 
-### `gmail_search`
+### Gmail Search
 
 Search emails in Gmail. Returns API-aligned fields only.
 
@@ -166,7 +166,7 @@ Search emails in Gmail. Returns API-aligned fields only.
 | --------- | ---- | ----------- |
 | `results` | json | Array of search results |
 
-### `gmail_move`
+### Gmail Move
 
 Move emails between labels/folders in Gmail. Returns API-aligned fields only.
 
@@ -186,7 +186,7 @@ Move emails between labels/folders in Gmail. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Email labels |
 
-### `gmail_mark_read`
+### Gmail Mark as Read
 
 Mark a Gmail message as read. Returns API-aligned fields only.
 
@@ -204,7 +204,7 @@ Mark a Gmail message as read. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Updated email labels |
 
-### `gmail_mark_unread`
+### Gmail Mark as Unread
 
 Mark a Gmail message as unread. Returns API-aligned fields only.
 
@@ -222,7 +222,7 @@ Mark a Gmail message as unread. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Updated email labels |
 
-### `gmail_archive`
+### Gmail Archive
 
 Archive a Gmail message (remove from inbox). Returns API-aligned fields only.
 
@@ -240,7 +240,7 @@ Archive a Gmail message (remove from inbox). Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Updated email labels |
 
-### `gmail_unarchive`
+### Gmail Unarchive
 
 Unarchive a Gmail message (move back to inbox). Returns API-aligned fields only.
 
@@ -258,7 +258,7 @@ Unarchive a Gmail message (move back to inbox). Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Updated email labels |
 
-### `gmail_delete`
+### Gmail Delete
 
 Delete a Gmail message (move to trash). Returns API-aligned fields only.
 
@@ -276,7 +276,7 @@ Delete a Gmail message (move to trash). Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Updated email labels |
 
-### `gmail_add_label`
+### Gmail Add Label
 
 Add label(s) to a Gmail message. Returns API-aligned fields only.
 
@@ -295,7 +295,7 @@ Add label(s) to a Gmail message. Returns API-aligned fields only.
 | `threadId` | string | Gmail thread ID |
 | `labelIds` | array | Updated email labels |
 
-### `gmail_remove_label`
+### Gmail Remove Label
 
 Remove label(s) from a Gmail message. Returns API-aligned fields only.
 

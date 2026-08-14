@@ -1,7 +1,10 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import type { ListSortOrder } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { parseFolderPath } from '@/lib/folders/paths'
+import type { FolderSortBy } from '@/lib/folders/queries'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   assertWorkspaceFileItemsBelongToWorkspace,
@@ -9,6 +12,7 @@ import {
   createWorkspaceFileFolder,
   createWorkspaceFileFolderAtPath,
   deleteWorkspaceFileFolderByPath,
+  ensureWorkspaceFileFolderPath,
   listWorkspaceFileFolders,
   loadWorkspaceFileOperationContext,
   relocateWorkspaceFileFolderByPath,
@@ -19,6 +23,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 const logger = createLogger('WorkspaceFileFolders')
 
@@ -27,8 +32,14 @@ export interface ListWorkspaceFileFoldersInput {
   scope?: 'active' | 'archived' | 'all'
   parentPath?: string
   search?: string
-  sortBy?: 'name' | 'createdAt' | 'updatedAt'
-  sortOrder?: 'asc' | 'desc'
+  /**
+   * Only v2 sends a sort; the internal route, Copilot, and the VFS do not, and some of
+   * their consumers render the payload in the order it arrives. So this stays optional
+   * and undefined means "leave the repository's `position` ordering alone" — a default
+   * applied here would silently reorder those surfaces.
+   */
+  sortBy?: Exclude<FolderSortBy, 'position'>
+  sortOrder?: ListSortOrder
 }
 
 export interface ListWorkspaceFileFoldersResult {
@@ -44,6 +55,22 @@ export interface CreateWorkspaceFileFolderInput {
 
 export interface CreateWorkspaceFileFolderResult {
   folder: WorkspaceFileFolderRecord
+}
+
+export interface EnsureWorkspaceFileFolderPathInput {
+  workspaceId: string
+  /** Decoded folder names, outermost first. An empty list resolves to the root. */
+  pathSegments: string[]
+}
+
+export interface EnsureWorkspaceFileFolderPathResult {
+  /** Id of the deepest folder, or `null` when the path resolves to the root. */
+  folderId: string | null
+  /**
+   * Ids this call inserted, outermost-first — never a folder it reused. Callers that
+   * materialize a tree use it to unwind exactly their own writes on failure.
+   */
+  createdFolderIds: string[]
 }
 
 export interface UpdateWorkspaceFileFolderInput {
@@ -96,28 +123,21 @@ async function executeListWorkspaceFileFolders(args: {
 }): Promise<ListWorkspaceFileFoldersResult> {
   let folders = await listWorkspaceFileFolders(args.context.workspaceId, {
     scope: args.input.scope,
+    sortBy: args.input.sortBy,
+    sortOrder: args.input.sortOrder,
   })
   if (args.input.parentPath !== undefined) {
-    const parentPath = args.input.parentPath === '/' ? '' : args.input.parentPath.replace(/^\//, '')
+    const parentSegments = parseFolderPath(args.input.parentPath)
     folders = folders.filter((folder) => {
-      const parent = folder.path.includes('/')
-        ? folder.path.slice(0, folder.path.lastIndexOf('/'))
-        : ''
-      return parent === parentPath
+      const folderSegments = parseWorkspaceFileFolderDisplayPath(folder.path)
+      if (folderSegments.length !== parentSegments.length + 1) return false
+      return parentSegments.every((segment, index) => folderSegments[index] === segment)
     })
   }
   if (args.input.search) {
     const search = args.input.search.toLowerCase()
     folders = folders.filter((folder) => folder.name.toLowerCase().includes(search))
   }
-  const sortBy = args.input.sortBy ?? 'name'
-  const sortOrder = args.input.sortOrder ?? 'asc'
-  folders.sort((left, right) => {
-    const leftValue = left[sortBy]
-    const rightValue = right[sortBy]
-    const comparison = leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0
-    return sortOrder === 'asc' ? comparison : -comparison
-  })
   return { folders }
 }
 
@@ -146,6 +166,21 @@ async function executeCreateWorkspaceFileFolder(args: {
         }
   const folder = 'path' in result ? { ...result.folder, path: result.path } : result.folder
   return { folder }
+}
+
+async function executeEnsureWorkspaceFileFolderPath(args: {
+  principal: Parameters<typeof resolvePrincipalAttribution>[0]
+  input: EnsureWorkspaceFileFolderPathInput
+  context: FolderOperationContext
+}): Promise<EnsureWorkspaceFileFolderPathResult> {
+  const attribution = resolvePrincipalAttribution(args.principal, {
+    workspaceBillingOwnerUserId: args.context.billedAccountUserId,
+  })
+  return ensureWorkspaceFileFolderPath({
+    workspaceId: args.context.workspaceId,
+    userId: attribution.attributedUserId,
+    pathSegments: args.input.pathSegments,
+  })
 }
 
 async function executeUpdateWorkspaceFileFolder(args: {
@@ -238,6 +273,20 @@ export const createWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileU
   async afterSuccess({ context }) {
     await notifyWorkspaceFilesChanged(context.workspaceId)
   },
+})
+
+/**
+ * Idempotently materializes a whole folder chain, reusing every folder that already
+ * exists and creating only the missing ones. Unlike {@link createWorkspaceFileFolderOperation}
+ * — which creates exactly one leaf and fails on an existing path or a missing parent —
+ * this is the primitive for writers that materialize a tree (archive extraction), where
+ * intermediate folders and repeat runs are expected rather than exceptional.
+ */
+export const ensureWorkspaceFileFolderPathOperation = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.createFolder,
+  resolveContext: (args: { input: EnsureWorkspaceFileFolderPathInput }) =>
+    resolveFolderContext(args),
+  execute: executeEnsureWorkspaceFileFolderPath,
 })
 
 export const updateWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileUseCase({

@@ -16,6 +16,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
@@ -33,7 +34,6 @@ import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import {
   compileDoc,
   DOCXJS_SOURCE_MIME,
-  DocCompileUserError,
   getE2BDocFormat,
   PPTXGENJS_SOURCE_MIME,
 } from './doc-compile'
@@ -194,9 +194,9 @@ export type CompileForWriteResult =
  * Shared write-time doc handling for create + edit_content: validates and builds
  * the document (E2B doc sandbox when enabled — Node pptx/docx, Python pdf/xlsx —
  * else isolated-vm JS) and returns the source MIME to store, or a user-facing
- * failure message. Non-doc files resolve to `fallbackMime`. Compilation happens
- * here exactly once per write; the artifact is content-addressed so a read can
- * later just load it.
+ * failure message. Non-doc files resolve to `fallbackMime`. The remote backend publishes a
+ * content-addressed artifact; the isolated-VM backend compiles through its live file broker and
+ * retains its historical compile-and-return behavior.
  */
 export async function compileDocForWrite(args: {
   source: string
@@ -220,10 +220,15 @@ export async function compileDocForWrite(args: {
   }
 
   if (e2bFmt) {
-    // compileDoc is load-or-build, so an identical re-write reuses the cached
-    // binary instead of re-running E2B.
     try {
-      await compileDoc({ source, fileName, workspaceId, filePrincipal: principal })
+      await compileDoc({
+        source,
+        fileName,
+        workspaceId,
+        filePrincipal: principal,
+        ownerKey,
+        signal,
+      })
     } catch (err) {
       if (err instanceof DocCompileUserError) {
         return {

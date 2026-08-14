@@ -4,7 +4,11 @@ import { updateWorkspaceCredentialContract } from '@/lib/api/contracts/credentia
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { type CredentialActorContext, getCredentialActorContext } from '@/lib/credentials/access'
+import {
+  type CredentialActorContext,
+  canUseCredential,
+  getCredentialActorContext,
+} from '@/lib/credentials/access'
 import {
   isProviderOutageCode,
   performDeleteCredential,
@@ -49,7 +53,7 @@ export const GET = withRouteHandler(
       if (!access.credential) {
         return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
       }
-      if (!access.hasWorkspaceAccess || (!access.member && !access.isAdmin)) {
+      if (!canUseCredential(access)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
@@ -92,8 +96,12 @@ export const PUT = withRouteHandler(
         domain: body.domain,
         clientId: body.clientId,
         clientSecret: body.clientSecret,
+        certificateId: body.certificateId,
         orgId: body.orgId,
         dataCenter: body.dataCenter,
+        authMethod: body.authMethod,
+        privateKey: body.privateKey,
+        username: body.username,
         request,
       })
       if (!result.success) {

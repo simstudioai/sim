@@ -249,8 +249,11 @@ function toTypeScript(schema: JsonSchema, indent = 0, refs?: Map<string, string>
     }
   }
 
-  // `z.unknown()` / `z.any()` render as an empty schema.
-  if (Object.keys(schema).filter((k) => k !== '$schema').length === 0) return 'unknown'
+  // `z.unknown()` / `z.any()` render as a schema carrying no constraints. A
+  // `.describe()` on one adds annotation keys without narrowing the type, so
+  // those are not constraints either.
+  const ANNOTATION_KEYS = new Set(['$schema', 'description', 'title', 'default', 'examples'])
+  if (Object.keys(schema).every((k) => ANNOTATION_KEYS.has(k))) return 'unknown'
 
   throw new Error(`Unhandled JSON Schema construct: ${JSON.stringify(schema).slice(0, 200)}`)
 }
@@ -383,8 +386,23 @@ function renderSlotMap(schema: z.ZodType | undefined, indent: string): string | 
   // JSON flag instead.
   if (keys.length === 0) return null
 
+  // A schema carrying `.meta({ id })` is lifted into `$defs` and referenced, so
+  // the property here is a bare `$ref` with no type to classify. Left
+  // unresolved every such field reads as `unknown` and the CLI demands JSON for
+  // what is really a plain string flag.
+  const defs = (json.$defs ?? {}) as Record<string, JsonSchema>
+  const deref = (schema: JsonSchema): JsonSchema => {
+    let current = schema
+    for (let depth = 0; typeof current.$ref === 'string' && depth < 10; depth++) {
+      const resolved = defs[current.$ref.replace('#/$defs/', '')]
+      if (!resolved) break
+      current = resolved
+    }
+    return current
+  }
+
   const lines = keys.map((key) => {
-    const property = properties[key]
+    const property = deref(properties[key])
     const parts = [`kind: '${fieldKind(property)}'`]
     if (required.has(key)) parts.push('required: true')
     if (property.enum) {

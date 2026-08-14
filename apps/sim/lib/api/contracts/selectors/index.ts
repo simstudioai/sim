@@ -80,6 +80,7 @@ import {
   mondayBoardsSelectorContract,
   mondayGroupsSelectorContract,
 } from '@/lib/api/contracts/selectors/monday'
+import { netsuiteObjectsSelectorContract } from '@/lib/api/contracts/selectors/netsuite'
 import {
   notionDatabasesSelectorContract,
   notionPagesSelectorContract,
@@ -95,6 +96,7 @@ import {
   slackUserSelectorContract,
   slackUsersSelectorContract,
 } from '@/lib/api/contracts/selectors/slack'
+import { snowflakeObjectsSelectorContract } from '@/lib/api/contracts/selectors/snowflake'
 import { trelloBoardsSelectorContract } from '@/lib/api/contracts/selectors/trello'
 import {
   wealthboxItemContract,
@@ -130,11 +132,13 @@ export * from '@/lib/api/contracts/selectors/knowledge'
 export * from '@/lib/api/contracts/selectors/linear'
 export * from '@/lib/api/contracts/selectors/microsoft'
 export * from '@/lib/api/contracts/selectors/monday'
+export * from '@/lib/api/contracts/selectors/netsuite'
 export * from '@/lib/api/contracts/selectors/notion'
 export * from '@/lib/api/contracts/selectors/oauth'
 export * from '@/lib/api/contracts/selectors/pipedrive'
 export * from '@/lib/api/contracts/selectors/sharepoint'
 export * from '@/lib/api/contracts/selectors/slack'
+export * from '@/lib/api/contracts/selectors/snowflake'
 export * from '@/lib/api/contracts/selectors/trello'
 export * from '@/lib/api/contracts/selectors/wealthbox'
 export * from '@/lib/api/contracts/selectors/webflow'
@@ -173,6 +177,7 @@ export const selectorContractsByPath = {
   '/api/tools/zoho_desk/agents': zohoDeskAgentsSelectorContract,
   '/api/tools/zoom/meetings': zoomMeetingsSelectorContract,
   '/api/tools/slack/channels': slackChannelsSelectorContract,
+  '/api/tools/snowflake/objects': snowflakeObjectsSelectorContract,
   '/api/tools/slack/users': slackUsersSelectorContract,
   '/api/tools/slack/users:detail': slackUserSelectorContract,
   '/api/tools/gmail/labels': gmailLabelsSelectorContract,
@@ -197,6 +202,7 @@ export const selectorContractsByPath = {
   '/api/tools/jira/issues:POST': jiraIssueSelectorContract,
   '/api/tools/monday/boards': mondayBoardsSelectorContract,
   '/api/tools/monday/groups': mondayGroupsSelectorContract,
+  '/api/tools/netsuite/objects': netsuiteObjectsSelectorContract,
   '/api/tools/linear/teams': linearTeamsSelectorContract,
   '/api/tools/linear/projects': linearProjectsSelectorContract,
   '/api/tools/confluence/pages': confluencePagesSelectorContract,

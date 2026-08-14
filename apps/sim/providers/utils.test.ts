@@ -1286,6 +1286,21 @@ describe('prepareToolExecution', () => {
       expect(toolParams.channel).toBe('#llm-channel')
       expect(toolParams.message).toBe('Hello')
     })
+
+    it('runs the legacy parameter transform once when no secret provenance is attached', () => {
+      const paramsTransform = vi.fn((params: Record<string, unknown>) => ({
+        token: params.apiKey,
+      }))
+
+      const { toolParams } = prepareToolExecution(
+        { params: { apiKey: 'ordinary-key' }, paramsTransform },
+        {},
+        {}
+      )
+
+      expect(toolParams).toEqual({ token: 'ordinary-key' })
+      expect(paramsTransform).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('_context propagation', () => {
@@ -1633,7 +1648,7 @@ describe('transformBlockTool multi-instance unique IDs', () => {
     expect(result?.id).toBe('table_query_rows_tbl_abc')
   })
 
-  it('resolves the canonical table id before enriching the LLM tool schema', async () => {
+  it('resolves the active table selector before enriching the LLM tool schema', async () => {
     const enrichTool = vi.fn(
       async (
         tableId: string,
@@ -1657,7 +1672,7 @@ describe('transformBlockTool multi-instance unique IDs', () => {
       {
         type: 'table',
         operation: 'query_rows',
-        params: { tableSelector: 'tbl_abc' },
+        params: { tableId: 'tbl_stale', tableSelector: 'tbl_active' },
       },
       {
         selectedOperation: 'query_rows',
@@ -1683,7 +1698,7 @@ describe('transformBlockTool multi-instance unique IDs', () => {
     )
 
     expect(enrichTool).toHaveBeenCalledWith(
-      'tbl_abc',
+      'tbl_active',
       expect.objectContaining({
         properties: expect.objectContaining({ filter: expect.any(Object) }),
       }),
@@ -1694,15 +1709,16 @@ describe('transformBlockTool multi-instance unique IDs', () => {
       }
     )
     expect(result).toMatchObject({
-      id: 'table_query_rows_tbl_abc',
-      description: 'Query rows from tbl_abc',
-      params: { tableSelector: 'tbl_abc' },
+      id: 'table_query_rows_tbl_active',
+      description: 'Query rows from tbl_active',
+      params: { tableId: 'tbl_stale', tableSelector: 'tbl_active' },
       parameters: {
         properties: {
           customer_name: { type: 'string' },
         },
       },
     })
+    expect(result?.paramsTransform?.(result.params)).toEqual({ tableId: 'tbl_active' })
   })
 
   it('appends the table id resolved from the advanced manual input', async () => {
@@ -1724,6 +1740,16 @@ describe('transformBlockTool multi-instance unique IDs', () => {
   it('appends the canonical table id when already present in params', async () => {
     const result = await transformTable({ tableId: 'tbl_direct' })
     expect(result?.id).toBe('table_query_rows_tbl_direct')
+  })
+
+  it('preserves the canonical table id when advanced mode is active', async () => {
+    const result = await transformTable(
+      { tableId: 'tbl_advanced', tableSelector: 'tbl_basic' },
+      { '0:tableId': 'advanced' },
+      0
+    )
+    expect(result?.id).toBe('table_query_rows_tbl_advanced')
+    expect(result?.paramsTransform?.(result.params)).toEqual({ tableId: 'tbl_advanced' })
   })
 
   it('falls back to the base tool id when no table is selected', async () => {

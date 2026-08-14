@@ -1,17 +1,26 @@
 /**
  * @vitest-environment node
  */
+import { getRequestContext } from '@sim/logger'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import {
   defineInternalJsonRoute,
+  InternalUnauthenticatedError,
   internalErrorResponse,
-  internalPlainOrchestrationErrorPolicy,
+  internalOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes/internal-json-route'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { HttpError } from '@/lib/core/utils/http-error'
+
+const mockGetRequestContext = vi.mocked(getRequestContext)
+
+class TestLockedError extends HttpError {
+  readonly statusCode = 423
+}
 
 const operation = { id: 'test.read' } as const
 const auth = {
@@ -34,6 +43,7 @@ const contract = defineRouteContract({
 describe('defineInternalJsonRoute', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetRequestContext.mockReturnValue(undefined)
   })
 
   it('uses the use-case result directly when it already matches the contract', async () => {
@@ -42,7 +52,7 @@ describe('defineInternalJsonRoute', () => {
       auth,
       operation,
       rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
-      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      errorPolicy: internalOrchestrationErrorPolicy,
       mapInput: () => undefined,
       useCase: {
         operation,
@@ -65,7 +75,7 @@ describe('defineInternalJsonRoute', () => {
       auth,
       operation,
       rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
-      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      errorPolicy: internalOrchestrationErrorPolicy,
       mapInput: () => undefined,
       useCase: {
         operation,
@@ -81,10 +91,128 @@ describe('defineInternalJsonRoute', () => {
     await expect(response.json()).resolves.toEqual({ error: 'Already exists' })
   })
 
+  it('preserves HttpError status through the internal envelope', async () => {
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute(): Promise<{ value: string }> {
+          throw new TestLockedError('Table imports are locked')
+        },
+      },
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(response.status).toBe(423)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Table imports are locked',
+      requestId: expect.any(String),
+    })
+    expect(response.headers.get('x-request-id')).toBeTruthy()
+  })
+
   it('rejects invalid error statuses immediately', () => {
     expect(() => internalErrorResponse(200, { error: 'Invalid' })).toThrow(
       'Internal error responses require a 4xx or 5xx status'
     )
+  })
+
+  it('projects a classified orchestration error as a bare error envelope', async () => {
+    mockGetRequestContext.mockReturnValue({ requestId: 'req-orchestration' })
+
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute() {
+          throw new OrchestrationError('not_found', 'Widget not found')
+        },
+      },
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+    const body = await response.json()
+
+    expect(response.status).toBe(404)
+    expect(body).toEqual({ error: 'Widget not found', requestId: 'req-orchestration' })
+    expect(body).not.toHaveProperty('success')
+  })
+
+  it('stamps the request id onto an authentication failure', async () => {
+    mockGetRequestContext.mockReturnValue({ requestId: 'req-auth' })
+
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth: {
+        authenticate: vi.fn(async () => {
+          throw new InternalUnauthenticatedError('Unauthorized')
+        }),
+      },
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute() {
+          return { value: 'unreachable' }
+        },
+      },
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Unauthorized',
+      requestId: 'req-auth',
+    })
+  })
+
+  it('stamps the request id onto a request parsing failure', async () => {
+    mockGetRequestContext.mockReturnValue({ requestId: 'req-parse' })
+
+    const queryContract = defineRouteContract({
+      method: 'GET',
+      path: '/api/test/internal-json-route',
+      query: z.object({ widgetId: z.string().min(1, 'widgetId is required') }),
+      response: {
+        mode: 'json',
+        schema: z.object({ value: z.string() }),
+      },
+    })
+
+    const handler = defineInternalJsonRoute({
+      contract: queryContract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute() {
+          return { value: 'unreachable' }
+        },
+      },
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+    const body = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(body.requestId).toBe('req-parse')
   })
 
   it('orders auth, rate limiting, parsing, async mapping, and application execution', async () => {
@@ -114,7 +242,7 @@ describe('defineInternalJsonRoute', () => {
           events.push('rate')
         },
       },
-      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      errorPolicy: internalOrchestrationErrorPolicy,
       async mapInput({ body }) {
         events.push('map:start')
         await Promise.resolve()
@@ -148,7 +276,7 @@ describe('defineInternalJsonRoute', () => {
       auth,
       operation,
       rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
-      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      errorPolicy: internalOrchestrationErrorPolicy,
       async mapInput() {
         await Promise.resolve()
         throw new OrchestrationError('validation', 'Invalid mapped input')
@@ -170,7 +298,7 @@ describe('defineInternalJsonRoute', () => {
       auth,
       operation,
       rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
-      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      errorPolicy: internalOrchestrationErrorPolicy,
       mapInput: () => undefined,
       useCase: {
         operation,
@@ -194,7 +322,7 @@ describe('defineInternalJsonRoute', () => {
       auth,
       operation,
       rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
-      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      errorPolicy: internalOrchestrationErrorPolicy,
       mapInput: () => undefined,
       useCase: {
         operation,
@@ -228,7 +356,7 @@ describe('defineInternalJsonRoute', () => {
       auth,
       operation,
       rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
-      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      errorPolicy: internalOrchestrationErrorPolicy,
       mapInput: () => undefined,
       useCase: {
         operation,

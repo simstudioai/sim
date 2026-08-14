@@ -401,10 +401,14 @@ export async function buildCopilotRequestPayload(
           chatId,
           error: cause.message,
         })
-        throw new Error(
-          `Failed to prepare attached file "${filename}" for Copilot. Please try again.`,
-          { cause }
-        )
+        // Isolate failures by entry. Aborting here discarded every valid
+        // sibling attachment in the request, even ones already tracked. Give
+        // the model a local marker for this file and continue preparing the
+        // rest of the batch.
+        uploadContexts.push({
+          type: 'uploaded_file',
+          content: `File "${filename}" could not be prepared for Copilot and was omitted. Other attached files remain available.`,
+        })
       }
     }
   }

@@ -10,6 +10,7 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteCredential } from '@/lib/credentials/deletion'
+import { providerIdsForService } from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 export const dynamic = 'force-dynamic'
@@ -61,7 +62,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         ? and(eq(account.userId, session.user.id), eq(account.providerId, providerId))
         : and(
             eq(account.userId, session.user.id),
-            or(eq(account.providerId, provider), like(account.providerId, `${provider}-%`))
+            or(
+              // The prefix sweep already caught `{base}-{feature}` ids by
+              // accident; an alternate authorization server shares that shape,
+              // so name it explicitly rather than relying on the accident.
+              inArray(account.providerId, providerIdsForService(provider)),
+              like(account.providerId, `${provider}-%`)
+            )
           )
 
     const targetAccounts = await db.select({ id: account.id }).from(account).where(accountFilter)

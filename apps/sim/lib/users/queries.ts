@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq, inArray } from 'drizzle-orm'
 import type { UserSettingsApi } from '@/lib/api/contracts/user'
+import { normalizeStringArray } from '@/lib/core/utils/arrays'
 
 const logger = createLogger('UserQueries')
 const MAX_USER_EMAIL_BATCH = 1000
@@ -23,19 +24,10 @@ export const defaultUserSettings: UserSettingsApi = {
   errorNotificationsEnabled: true,
   snapToGridSize: 0,
   showActionBar: true,
+  autoFocusOnClick: true,
   copilotAutoAllowedTools: [],
   timezone: null,
   lastActiveWorkspaceId: null,
-}
-
-/**
- * The auto-allowed tool list is a jsonb column, so the driver hands back
- * `unknown`. Anything that is not an array of strings is treated as an empty
- * list: a malformed value must not widen what the copilot may run unprompted.
- */
-function normalizeAutoAllowedTools(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value.filter((entry): entry is string => typeof entry === 'string')
 }
 
 /**
@@ -59,6 +51,7 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
       errorNotificationsEnabled: settings.errorNotificationsEnabled,
       snapToGridSize: settings.snapToGridSize,
       showActionBar: settings.showActionBar,
+      autoFocusOnClick: settings.autoFocusOnClick,
       copilotAutoAllowedTools: settings.copilotAutoAllowedTools,
       timezone: settings.timezone,
       lastActiveWorkspaceId: settings.lastActiveWorkspaceId,
@@ -85,7 +78,8 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
     errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
     snapToGridSize: userSettings.snapToGridSize ?? 0,
     showActionBar: userSettings.showActionBar ?? true,
-    copilotAutoAllowedTools: normalizeAutoAllowedTools(userSettings.copilotAutoAllowedTools),
+    autoFocusOnClick: userSettings.autoFocusOnClick ?? true,
+    copilotAutoAllowedTools: normalizeStringArray(userSettings.copilotAutoAllowedTools),
     timezone: userSettings.timezone ?? null,
     lastActiveWorkspaceId: userSettings.lastActiveWorkspaceId ?? null,
   }

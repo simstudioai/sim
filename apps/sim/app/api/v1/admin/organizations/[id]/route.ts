@@ -30,7 +30,13 @@
  * Response: AdminSingleResponse<{ success, organizationId, slug, membersRemoved, workspacesDetached }>
  */
 
-import { AuditAction, AuditResourceType, recordAudit, recordAuditBatch } from '@sim/audit'
+import {
+  AuditAction,
+  AuditResourceType,
+  auditUpdatedFields,
+  recordAudit,
+  recordAuditBatch,
+} from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -178,9 +184,8 @@ export const PATCH = withRouteHandler(
         .where(eq(organization.id, organizationId))
         .returning()
 
-      logger.info(`Admin API: Updated organization ${organizationId}`, {
-        fields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
-      })
+      const updatedFields = auditUpdatedFields(updateData)
+      logger.info(`Admin API: Updated organization ${organizationId}`, { updatedFields })
 
       recordAudit({
         workspaceId: null,
@@ -190,7 +195,7 @@ export const PATCH = withRouteHandler(
         resourceId: organizationId,
         resourceName: updated.name,
         description: `Admin API updated organization "${updated.name}"`,
-        metadata: { fields: Object.keys(updateData).filter((k) => k !== 'updatedAt') },
+        metadata: { updatedFields },
         request,
       })
 

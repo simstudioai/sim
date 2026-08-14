@@ -43,7 +43,7 @@ Read and update Zoho Desk tickets, manage comments and threads, look up contacts
 
 ## Actions
 
-### `zoho_desk_list_tickets`
+### Zoho Desk List Tickets
 
 List tickets from a Zoho Desk organization with optional filters. Returns a list projection: description, resolution, statusType and classification are only available from Get Ticket.
 
@@ -103,7 +103,7 @@ List tickets from a Zoho Desk organization with optional filters. Returns a list
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 | `count` | number | Number of tickets returned |
 
-### `zoho_desk_get_ticket`
+### Zoho Desk Get Ticket
 
 Retrieve a single Zoho Desk ticket by ID.
 
@@ -154,7 +154,7 @@ Retrieve a single Zoho Desk ticket by ID.
 |   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
-### `zoho_desk_update_ticket`
+### Zoho Desk Update Ticket
 
 Update fields on an existing Zoho Desk ticket.
 
@@ -216,7 +216,7 @@ Update fields on an existing Zoho Desk ticket.
 |   ↳ `isSpam` | boolean | Whether the ticket is marked spam |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
-### `zoho_desk_list_comments`
+### Zoho Desk List Comments
 
 List comments on a Zoho Desk ticket.
 
@@ -259,7 +259,7 @@ List comments on a Zoho Desk ticket.
 |     ↳ `href` | string | Download href |
 | `count` | number | Number of comments returned |
 
-### `zoho_desk_add_comment`
+### Zoho Desk Add Comment
 
 Add a comment to a Zoho Desk ticket.
 
@@ -301,7 +301,7 @@ Add a comment to a Zoho Desk ticket.
 |     ↳ `size` | string | File size as reported by Zoho |
 |     ↳ `href` | string | Download href |
 
-### `zoho_desk_list_threads`
+### Zoho Desk List Threads
 
 List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sendDateTime descending by default). Returns a list projection: message bodies (content, summary, to/cc/bcc) come back only from Get Thread.
 
@@ -359,7 +359,7 @@ List conversation threads on a Zoho Desk ticket, newest first (Zoho sorts by sen
 |     ↳ `href` | string | Download href |
 | `count` | number | Number of threads returned |
 
-### `zoho_desk_get_thread`
+### Zoho Desk Get Thread
 
 Retrieve the full content of a single Zoho Desk ticket thread.
 
@@ -415,7 +415,7 @@ Retrieve the full content of a single Zoho Desk ticket thread.
 |     ↳ `size` | string | File size as reported by Zoho |
 |     ↳ `href` | string | Download href |
 
-### `zoho_desk_get_contact`
+### Zoho Desk Get Contact
 
 Retrieve a Zoho Desk contact by ID.
 
@@ -452,7 +452,7 @@ Retrieve a Zoho Desk contact by ID.
 |   ↳ `description` | string | Description |
 |   ↳ `cf` | json | Custom field values, keyed by custom field API name |
 
-### `zoho_desk_get_attachment`
+### Zoho Desk Get Attachment
 
 Download a Zoho Desk ticket attachment (from its href) as a file.
 
@@ -471,7 +471,7 @@ Download a Zoho Desk ticket attachment (from its href) as a file.
 | --------- | ---- | ----------- |
 | `file` | file | The downloaded attachment file |
 
-### `zoho_desk_list_organizations`
+### Zoho Desk List Organizations
 
 List the Zoho Desk organizations (portals) the connected account can access.
 
