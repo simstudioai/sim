@@ -3,13 +3,13 @@ import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   SIM_FINAL_OUTPUT_MAX_BYTES,
   type SimEventType,
-  type SimPlainEventType,
   type SimRuleEventType,
 } from '@/lib/workspace-events/constants'
 import type {
   ExecutionEventContext,
   SimEventPayload,
   SimRunSummary,
+  SimToolError,
 } from '@/lib/workspace-events/types'
 
 /**
@@ -46,7 +46,26 @@ function basePayload(params: {
     cost: null,
     finalOutput: null,
     triggeringRun: null,
+    toolError: null,
     version: null,
+  }
+}
+
+/** Payload for one failed Agent tool invocation discovered at run completion. */
+export function buildAgentToolErrorEventPayload(params: {
+  workflowId: string
+  workflowName: string
+  runId: string
+  toolError: SimToolError
+}): SimEventPayload {
+  return {
+    ...basePayload({
+      event: 'agent_tool_error',
+      workflowId: params.workflowId,
+      workflowName: params.workflowName,
+    }),
+    runId: params.runId,
+    toolError: params.toolError,
   }
 }
 
@@ -67,7 +86,7 @@ function summarizeRun(context: ExecutionEventContext): SimRunSummary {
  * the condition that fired, so it nests under `triggeringRun`.
  */
 export function buildExecutionEventPayload(params: {
-  event: Exclude<SimPlainEventType, 'workflow_deployed' | 'workflow_undeployed'> | SimRuleEventType
+  event: 'execution_success' | 'execution_error' | SimRuleEventType
   workflowName: string
   context: ExecutionEventContext
 }): SimEventPayload {

@@ -222,6 +222,12 @@ describe('sim workspace event outputs', () => {
     }
   })
 
+  it('agent tool errors expose the source run and safe tool metadata', () => {
+    expect(visibleOutputsFor('agent_tool_error')).toEqual(
+      ['event', 'runId', 'timestamp', 'toolError', 'workflowId', 'workflowName'].sort()
+    )
+  })
+
   it('run-backed rule events expose the base fields plus the nested triggeringRun', () => {
     for (const eventType of EXECUTION_BACKED.filter(
       (type) => type !== 'execution_success' && type !== 'execution_error'

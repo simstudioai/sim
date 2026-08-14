@@ -46,6 +46,17 @@ export interface SimRunSummary {
   finalOutput: unknown
 }
 
+/** Safe, bounded metadata describing one failed tool invocation inside an Agent. */
+export interface SimToolError {
+  agentBlockId: string
+  agentBlockName: string
+  toolName: string
+  toolCallId: string | null
+  errorMessage: string
+  durationMs: number
+  recovered: boolean
+}
+
 /**
  * Wire payload delivered to a Sim trigger workflow. Keys must align with
  * SIM_EVENT_PAYLOAD_FIELDS — enforced by tests on the payload builders.
@@ -60,5 +71,6 @@ export type SimEventPayload = Record<SimEventPayloadFieldKey, unknown> & {
   cost: number | null
   finalOutput: unknown
   triggeringRun: SimRunSummary | null
+  toolError: SimToolError | null
   version: number | null
 }

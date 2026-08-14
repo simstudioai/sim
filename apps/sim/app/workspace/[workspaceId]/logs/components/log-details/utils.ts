@@ -38,7 +38,9 @@ export function isIterationType(type: string): boolean {
 
 export function hasErrorInTree(span: TraceSpan): boolean {
   if (span.status === 'error') return true
-  if (span.children?.length) return span.children.some(hasErrorInTree)
+  if (span.children?.length) {
+    return span.children.some((child) => hasUnhandledError(child, { includeToolCalls: true }))
+  }
   if (span.toolCalls?.length) return span.toolCalls.some((tc) => tc.error)
   return false
 }
