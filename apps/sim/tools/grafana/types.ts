@@ -624,3 +624,23 @@ export interface GrafanaGetAlertRuleGroupResponse extends ToolResponse {
     rules: ReturnType<typeof import('@/tools/grafana/utils').mapAlertRule>[]
   }
 }
+
+export interface GrafanaQueryDataSourceParams extends GrafanaBaseParams {
+  queries: string
+  from?: string
+  to?: string
+}
+
+export interface GrafanaQuerySeries {
+  refId: string
+  fields: { name: string; type: string | null }[]
+  rowCount: number
+  rows: Record<string, unknown>[]
+}
+
+export interface GrafanaQueryDataSourceResponse extends ToolResponse {
+  output: {
+    results: Record<string, unknown>
+    series: GrafanaQuerySeries[]
+  }
+}

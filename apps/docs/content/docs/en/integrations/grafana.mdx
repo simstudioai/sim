@@ -935,4 +935,32 @@ Read an alert rule group: its evaluation interval and every rule in it. The inte
 |   ↳ `notification_settings` | json | Per-rule notification settings \(overrides\) |
 |   ↳ `record` | json | Recording rule configuration \(recording rules only\) |
 
+### Grafana Query Data Source
+
+Run one or more queries against a Grafana data source that has a backend implementation, and read the values back. This is how you get actual metric numbers out of Grafana rather than dashboard or alert configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Grafana Service Account Token |
+| `baseUrl` | string | Yes | Grafana instance URL \(e.g., https://your-grafana.com\) |
+| `organizationId` | string | No | Organization ID for multi-org Grafana instances \(e.g., 1, 2\) |
+| `queries` | string | Yes | JSON array of at least one query. Each needs a datasource.uid and a refId, plus the fields that data source expects — expr for Prometheus, rawSql for SQL. Example: \[\{"refId":"A","datasource":\{"uid":"P123"\},"expr":"up","format":"time_series"\}\] |
+| `from` | string | No | Start of the time range, either epoch milliseconds or Grafana relative time \(e.g., now-5m\). Defaults to now-1h |
+| `to` | string | No | End of the time range, epoch milliseconds or relative \(e.g., now\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Raw Grafana response, keyed by each query refId, each holding the frames that query produced |
+| `series` | array | The same frames flattened into rows, so values can be read without walking the columnar layout |
+|   ↳ `refId` | string | The query this frame came from |
+|   ↳ `fields` | array | Field metadata in column order |
+|     ↳ `name` | string | Field name, e.g. time or A-series |
+|     ↳ `type` | string | Field type, e.g. time or number |
+|   ↳ `rowCount` | number | Number of rows in the frame |
+|   ↳ `rows` | array | Rows keyed by field name |
+
 

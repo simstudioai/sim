@@ -52,6 +52,7 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
         grafana_delete_alert_rule: [
           { text: 'Delete alert rule', field: 'alertRuleUid', core: true },
         ],
+        grafana_query_data_source: ['Query a data source', { text: ', over', field: 'queryFrom' }],
         grafana_list_contact_points: [
           'List contact points',
           { text: ', named', field: 'contactPointName' },
@@ -141,6 +142,7 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
         { label: 'Delete Annotation', id: 'grafana_delete_annotation' },
         { label: 'List Data Sources', id: 'grafana_list_data_sources' },
         { label: 'Get Data Source', id: 'grafana_get_data_source' },
+        { label: 'Query Data Source', id: 'grafana_query_data_source' },
         { label: 'Check Data Source Health', id: 'grafana_check_data_source_health' },
         { label: 'List Folders', id: 'grafana_list_folders' },
         { label: 'Create Folder', id: 'grafana_create_folder' },
@@ -921,6 +923,47 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     },
 
     {
+      id: 'dataSourceQueries',
+      title: 'Queries (JSON)',
+      type: 'long-input',
+      placeholder: '[{"refId":"A","datasource":{"uid":"P123"},"expr":"up","format":"time_series"}]',
+      required: { field: 'operation', value: 'grafana_query_data_source' },
+      condition: { field: 'operation', value: 'grafana_query_data_source' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Grafana /api/ds/query queries array based on the user's request.
+
+Rules:
+- Always a JSON array with at least one query object
+- Every query needs a refId (e.g. "A") and datasource.uid
+- Add the fields that data source expects: expr for Prometheus/Loki, rawSql for SQL sources
+- format is "time_series" or "table"
+
+Examples:
+- [{"refId":"A","datasource":{"uid":"PROM_UID"},"expr":"rate(http_requests_total[5m])","format":"time_series"}]
+- [{"refId":"A","datasource":{"uid":"PG_UID"},"rawSql":"SELECT now() AS time, count(*) AS c FROM orders","format":"table"}]
+
+Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
+        placeholder: 'Describe the metric or query you want...',
+        generationType: 'json-array',
+      },
+    },
+    {
+      id: 'queryFrom',
+      title: 'From',
+      type: 'short-input',
+      placeholder: 'now-1h or epoch milliseconds',
+      condition: { field: 'operation', value: 'grafana_query_data_source' },
+    },
+    {
+      id: 'queryTo',
+      title: 'To',
+      type: 'short-input',
+      placeholder: 'now or epoch milliseconds',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_query_data_source' },
+    },
+    {
       id: 'contactPointUid',
       title: 'Contact Point UID',
       type: 'short-input',
@@ -1052,6 +1095,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       'grafana_delete_contact_point',
       'grafana_move_folder',
       'grafana_get_alert_rule_group',
+      'grafana_query_data_source',
     ],
     config: {
       tool: (params) => params.operation,
@@ -1087,6 +1131,11 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             if (params.contactPointNameNew) result.name = params.contactPointNameNew
             if (params.contactPointType) result.type = params.contactPointType
             if (params.contactPointSettings) result.settings = params.contactPointSettings
+            break
+          case 'grafana_query_data_source':
+            result.queries = params.dataSourceQueries
+            if (params.queryFrom) result.from = params.queryFrom
+            if (params.queryTo) result.to = params.queryTo
             break
           case 'grafana_move_folder':
             result.folderUid = params.manageFolderUid
@@ -1147,6 +1196,9 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     },
   },
   inputs: {
+    dataSourceQueries: { type: 'string', description: 'JSON array of data source queries' },
+    queryFrom: { type: 'string', description: 'Query range start, relative or epoch ms' },
+    queryTo: { type: 'string', description: 'Query range end, relative or epoch ms' },
     contactPointUid: {
       type: 'string',
       description: 'UID of the contact point to update or delete',
@@ -1260,6 +1312,15 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     dataSourceUid: { type: 'string', description: 'Data source UID for health checks' },
   },
   outputs: {
+    results: {
+      type: 'json',
+      description: 'Raw data source query response, keyed by query refId',
+    },
+    series: {
+      type: 'array',
+      description:
+        'Query frames flattened into rows (refId, fields, rowCount, rows) so values can be read directly',
+    },
     interval: {
       type: 'number',
       description: 'Evaluation interval of an alert rule group, in seconds',
@@ -1416,7 +1477,7 @@ export const GrafanaBlockMeta = {
       icon: GrafanaIcon,
       title: 'Grafana alert auto-context',
       prompt:
-        'Build a scheduled workflow that polls Grafana for firing alert rules, pulls related logs and recent deploys, summarizes them with an agent, and posts the enriched alert to PagerDuty and Slack.',
+        'Build a scheduled workflow that reads Grafana alert-state annotations to find rules that just started firing, queries the underlying data source for the current metric value, summarizes the two together with an agent, and posts the enriched alert to PagerDuty and Slack.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring'],
@@ -1426,7 +1487,7 @@ export const GrafanaBlockMeta = {
       icon: GrafanaIcon,
       title: 'Grafana SLO scorecard',
       prompt:
-        'Create a scheduled weekly workflow that queries Grafana for SLO compliance across services, calculates burn rates, and writes a scorecard to a tables-based SRE review board.',
+        'Create a scheduled weekly workflow that runs SLI queries against a Grafana data source for each service, calculates error budget burn rates from the returned series, and writes a scorecard to a tables-based SRE review board.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'reporting'],
@@ -1444,7 +1505,7 @@ export const GrafanaBlockMeta = {
       icon: GrafanaIcon,
       title: 'Grafana metric export',
       prompt:
-        'Create a workflow that exports Grafana metric queries on schedule into a Sim table, so the data can be combined with business metrics for unified reporting.',
+        'Create a workflow that runs a set of Grafana data source queries on schedule and writes the returned series into a Sim table, so the metrics can be combined with business data for unified reporting.',
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['analysis', 'sync'],
@@ -1473,7 +1534,7 @@ export const GrafanaBlockMeta = {
       icon: GrafanaIcon,
       title: 'Grafana + Linear feature-impact',
       prompt:
-        'Build a scheduled workflow that polls Grafana for metric regressions correlated with recent Linear releases and posts a regression review to the team Slack with the suspected change.',
+        'Build a scheduled workflow that queries a Grafana data source for latency and error rates, compares each series against the prior period to spot regressions, correlates them with recent Linear releases, and posts a regression review to the team Slack with the suspected change.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'analysis'],
@@ -1493,7 +1554,7 @@ export const GrafanaBlockMeta = {
       description:
         'List Grafana alert rules and surface those currently firing with their contact points.',
       content:
-        '# Review Firing Alerts\n\nProduce a snapshot of alerting health for an on-call handoff or incident triage.\n\n## Steps\n1. List alert rules and capture each rule name, condition, and current state.\n2. Get details on rules that are firing or in a pending state.\n3. List contact points so each firing rule can be mapped to who gets notified.\n4. Group findings by severity or folder.\n\n## Output\nReturn a list of firing and pending alerts with rule name, state, and notification target, plus a count of healthy rules. Suitable for an on-call digest.',
+        "# Review Firing Alerts\n\nProduce a snapshot of alerting health for an on-call handoff or incident triage.\n\n## Steps\n1. Run List Annotations with `type: 'alert'` over the window you care about. Alert-state transitions are recorded as annotations and carry `newState` and `prevState`, which is how you find what actually fired — the alert rule operations return rule *definitions*, never live instance state.\n2. Run List Alert Rules to join each firing rule id back to its title, folder, condition, and labels.\n3. Optionally run Query Data Source on the rule's own query to see how far the metric is from its threshold right now.\n4. Run List Contact Points, and Get Alert Rule Group for the evaluation interval, so each firing rule maps to who gets notified and how often it is checked.\n5. Group findings by severity label or folder.\n\n## Output\nReturn the rules that transitioned into a firing state in the window, each with its title, the transition, its notification target, and its group evaluation interval. Say explicitly that this is derived from state-change annotations rather than a live instance snapshot, and give the window covered.",
     },
     {
       name: 'audit-dashboards',
