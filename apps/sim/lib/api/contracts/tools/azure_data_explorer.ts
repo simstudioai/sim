@@ -4,25 +4,48 @@ import { genericToolResponseSchema } from '@/lib/api/contracts/tools/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 /**
- * Kusto cluster host suffixes Sim will talk to. A cluster URI is user-supplied,
- * so the proxy is pinned to the documented Azure Data Explorer and Fabric
- * Eventhouse service domains rather than trusting any HTTPS host. Apex hosts
- * are allowed too, because the documented token audiences
- * (`https://api.kusto.windows.net`, `https://kusto.fabric.microsoft.com`) sit
- * at the apex.
+ * Kusto service domains Sim will talk to, each paired with the Microsoft Entra
+ * authority that issues tokens for it.
+ *
+ * A cluster URI is user-supplied, so the proxy is pinned to the documented Azure
+ * Data Explorer and Fabric Eventhouse domains rather than trusting any HTTPS
+ * host. Host and authority are declared together on purpose: a sovereign cloud
+ * authenticates against its own isolated Entra instance, so accepting a cluster
+ * host without its authority would pass validation and then fail to get a token.
+ *
+ * Apex hosts match as well as subdomains, because the documented token
+ * audiences (`https://api.kusto.windows.net`,
+ * `https://kusto.fabric.microsoft.com`) sit at the apex.
  */
-const ALLOWED_CLUSTER_HOST_SUFFIXES = [
-  'kusto.windows.net',
-  'kustomfa.windows.net',
-  'kusto.chinacloudapi.cn',
-  'kusto.usgovcloudapi.net',
-  'kusto.fabric.microsoft.com',
+const KUSTO_CLOUDS = [
+  { hostSuffix: 'kusto.windows.net', authority: 'https://login.microsoftonline.com' },
+  { hostSuffix: 'kustomfa.windows.net', authority: 'https://login.microsoftonline.com' },
+  { hostSuffix: 'kusto.fabric.microsoft.com', authority: 'https://login.microsoftonline.com' },
+  { hostSuffix: 'kusto.usgovcloudapi.net', authority: 'https://login.microsoftonline.us' },
+  { hostSuffix: 'kusto.chinacloudapi.cn', authority: 'https://login.partner.microsoftonline.cn' },
 ] as const
 
-function isAllowedKustoHost(host: string): boolean {
-  return ALLOWED_CLUSTER_HOST_SUFFIXES.some(
-    (suffix) => host === suffix || host.endsWith(`.${suffix}`)
+const ALLOWED_CLUSTER_HOSTS = KUSTO_CLOUDS.map((cloud) => cloud.hostSuffix).join(', ')
+
+function matchKustoCloud(host: string): (typeof KUSTO_CLOUDS)[number] | null {
+  return (
+    KUSTO_CLOUDS.find(
+      (cloud) => host === cloud.hostSuffix || host.endsWith(`.${cloud.hostSuffix}`)
+    ) ?? null
   )
+}
+
+/**
+ * Resolves the Entra authority that issues tokens for a cluster host. Callers
+ * pass a host already accepted by {@link checkAzureDataExplorerClusterUri}, so
+ * an unmatched host here means the two fell out of sync and is a bug, not input.
+ */
+export function resolveEntraAuthority(clusterHost: string): string {
+  const cloud = matchKustoCloud(clusterHost.toLowerCase())
+  if (!cloud) {
+    throw new Error(`No Microsoft Entra authority is configured for cluster host ${clusterHost}`)
+  }
+  return cloud.authority
 }
 
 export function checkAzureDataExplorerClusterUri(
@@ -45,10 +68,10 @@ export function checkAzureDataExplorerClusterUri(
   if (isPrivateIpHost(host)) {
     return { ok: false, message: `${label} host is not allowed (private/loopback range)` }
   }
-  if (!isAllowedKustoHost(host)) {
+  if (!matchKustoCloud(host)) {
     return {
       ok: false,
-      message: `${label} host must be an Azure Data Explorer or Fabric Eventhouse endpoint (${ALLOWED_CLUSTER_HOST_SUFFIXES.join(', ')})`,
+      message: `${label} host must be an Azure Data Explorer or Fabric Eventhouse endpoint (${ALLOWED_CLUSTER_HOSTS})`,
     }
   }
   return { ok: true, url: parsed }

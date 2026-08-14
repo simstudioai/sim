@@ -201,6 +201,20 @@ describe('POST /api/tools/azure_data_explorer/proxy', () => {
     })
   })
 
+  it.each([
+    ['https://c.usgovvirginia.kusto.usgovcloudapi.net', 'https://login.microsoftonline.us'],
+    ['https://c.chinanorth.kusto.chinacloudapi.cn', 'https://login.partner.microsoftonline.cn'],
+    ['https://c.eastus.kusto.windows.net', 'https://login.microsoftonline.com'],
+  ])('authenticates %s against its own cloud Entra authority', async (clusterUri, authority) => {
+    mockCluster(queryResponse({ severity: 4, statusDescription: 'Query completed successfully' }))
+
+    const response = await post({ ...baseBody, clusterUri, resource: undefined })
+
+    expect(response.status).toBe(200)
+    const [tokenUrl] = mockSecureFetch.mock.calls[0]
+    expect(tokenUrl).toBe(`${authority}/tenant-1/oauth2/token`)
+  })
+
   it('rejects a cluster URI outside the Kusto service domains', async () => {
     mockCluster(queryResponse({ severity: 4, statusDescription: 'Query completed successfully' }))
 

@@ -7,6 +7,7 @@ import {
   type AzureDataExplorerProxyRequest,
   assertSafeAzureDataExplorerClusterUri,
   azureDataExplorerProxyContract,
+  resolveEntraAuthority,
 } from '@/lib/api/contracts/tools/azure_data_explorer'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
@@ -22,7 +23,6 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('AzureDataExplorerProxyAPI')
 
-const ENTRA_AUTHORITY = 'https://login.microsoftonline.com'
 const OUTBOUND_FETCH_TIMEOUT_MS = 120_000
 const TOKEN_FETCH_TIMEOUT_MS = 30_000
 const TOKEN_CACHE_MAX_ENTRIES = 500
@@ -44,9 +44,13 @@ function resolveResource(req: AzureDataExplorerProxyRequest, clusterUrl: URL): s
   return (req.resource || clusterUrl.origin).replace(/\/+$/, '')
 }
 
-function tokenCacheKey(req: AzureDataExplorerProxyRequest, resource: string): string {
+function tokenCacheKey(
+  req: AzureDataExplorerProxyRequest,
+  authority: string,
+  resource: string
+): string {
   const secretHash = createHash('sha256').update(req.clientSecret).digest('hex').slice(0, 16)
-  return `${req.tenantId}::${req.clientId}::${secretHash}::${resource}`
+  return `${authority}::${req.tenantId}::${req.clientId}::${secretHash}::${resource}`
 }
 
 function rememberToken(key: string, token: CachedToken): void {
@@ -61,10 +65,11 @@ function rememberToken(key: string, token: CachedToken): void {
 
 async function fetchAccessToken(
   req: AzureDataExplorerProxyRequest,
+  authority: string,
   resource: string,
   requestId: string
 ): Promise<string> {
-  const cacheKey = tokenCacheKey(req, resource)
+  const cacheKey = tokenCacheKey(req, authority, resource)
   const cached = TOKEN_CACHE.get(cacheKey)
   if (cached && cached.expiresAt - TOKEN_SAFETY_WINDOW_MS > Date.now()) {
     return cached.accessToken
@@ -78,7 +83,7 @@ async function fetchAccessToken(
   })
 
   const response = await secureFetchWithValidation(
-    `${ENTRA_AUTHORITY}/${encodeURIComponent(req.tenantId)}/oauth2/token`,
+    `${authority}/${encodeURIComponent(req.tenantId)}/oauth2/token`,
     {
       method: 'POST',
       headers: {
@@ -314,7 +319,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const clusterUrl = assertSafeAzureDataExplorerClusterUri(proxyReq.clusterUri)
     const resource = resolveResource(proxyReq, clusterUrl)
-    const accessToken = await fetchAccessToken(proxyReq, resource, requestId)
+    const authority = resolveEntraAuthority(clusterUrl.hostname)
+    const accessToken = await fetchAccessToken(proxyReq, authority, resource, requestId)
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
