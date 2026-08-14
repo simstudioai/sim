@@ -80,11 +80,11 @@ describe('Microsoft Dataverse OAuth connections', () => {
       'openid',
       'profile',
       'email',
-      'https://contoso.crm4.dynamics.com/.default',
+      'https://contoso.api.crm4.dynamics.com/.default',
       'offline_access',
     ])
     expect(new URL(request.callbackURL).searchParams.get('__sim_dataverse_environment')).toBe(
-      'https://contoso.crm4.dynamics.com'
+      'https://contoso.api.crm4.dynamics.com'
     )
   })
 
@@ -102,12 +102,12 @@ describe('Microsoft Dataverse OAuth connections', () => {
     expect(mockLink).toHaveBeenCalledWith({
       providerId: 'microsoft-dataverse',
       callbackURL:
-        'https://sim.test/workflow?__sim_dataverse_environment=https%3A%2F%2Fcontoso.crm.dynamics.com',
+        'https://sim.test/workflow?__sim_dataverse_environment=https%3A%2F%2Fcontoso.api.crm.dynamics.com',
       scopes: [
         'openid',
         'profile',
         'email',
-        'https://contoso.crm.dynamics.com/.default',
+        'https://contoso.api.crm.dynamics.com/.default',
         'offline_access',
       ],
     })
@@ -164,7 +164,7 @@ describe('Microsoft Dataverse OAuth connections', () => {
 
     expect(hook.result().state).toBe(state)
     if (state === 'bound') {
-      expect(hook.result().environmentUrl).toBe('https://contoso.crm.dynamics.com')
+      expect(hook.result().environmentUrl).toBe('https://contoso.api.crm.dynamics.com')
     }
     hook.unmount()
   })

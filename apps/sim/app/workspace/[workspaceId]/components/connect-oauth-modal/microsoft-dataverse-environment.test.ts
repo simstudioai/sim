@@ -51,12 +51,12 @@ describe('useMicrosoftDataverseEnvironmentForm', () => {
     expect(hook.result().error).toContain('supported public-cloud Microsoft Dynamics host')
 
     act(() => hook.result().setValue(' https://contoso.crm4.dynamics.com/ '))
-    act(() => expect(hook.result().validate()).toBe('https://contoso.crm4.dynamics.com'))
+    act(() => expect(hook.result().validate()).toBe('https://contoso.api.crm4.dynamics.com'))
     expect(hook.result().effectiveScopes).toEqual([
       'openid',
       'profile',
       'email',
-      'https://contoso.crm4.dynamics.com/.default',
+      'https://contoso.api.crm4.dynamics.com/.default',
       'offline_access',
     ])
     hook.unmount()
@@ -77,7 +77,7 @@ describe('useMicrosoftDataverseEnvironmentForm', () => {
       isLocked: true,
       value: 'https://contoso.crm.dynamics.com',
     })
-    expect(hook.result().validate()).toBe('https://contoso.crm.dynamics.com')
+    expect(hook.result().validate()).toBe('https://contoso.api.crm.dynamics.com')
     hook.unmount()
   })
 

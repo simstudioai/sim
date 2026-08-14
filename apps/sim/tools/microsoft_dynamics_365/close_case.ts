@@ -81,6 +81,7 @@ export const microsoftDynamics365CloseCaseTool: ToolConfig<
     url: (params) =>
       `${getDynamics365BaseUrl(params.environmentUrl, params.instanceUrl)}/api/data/v9.2/CloseIncident`,
     method: 'POST',
+    stripAuthOnRedirect: true,
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',

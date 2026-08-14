@@ -2,7 +2,7 @@ export const MICROSOFT_DATAVERSE_PROVIDER_ID = 'microsoft-dataverse'
 
 const DATAVERSE_ORGANIZATION_LABEL = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?'
 const DATAVERSE_PUBLIC_HOST_PATTERN = new RegExp(
-  `^(${DATAVERSE_ORGANIZATION_LABEL})(?:\\.api)?\\.crm\\d*\\.dynamics\\.com$`
+  `^(${DATAVERSE_ORGANIZATION_LABEL})(?:\\.api)?\\.(crm\\d*)\\.dynamics\\.com$`
 )
 const RESERVED_DATAVERSE_ORGANIZATION_LABELS = new Set(['disco', 'globaldisco'])
 const DATAVERSE_REQUEST_SCOPE_SUFFIX = '/.default'
@@ -31,8 +31,10 @@ export function normalizeMicrosoftDataverseEnvironmentUrl(environmentUrl: unknow
 
   const hostMatch = url.hostname.match(DATAVERSE_PUBLIC_HOST_PATTERN)
   const organizationLabel = hostMatch?.[1]
+  const regionLabel = hostMatch?.[2]
   const hasTrustedHost =
     organizationLabel !== undefined &&
+    regionLabel !== undefined &&
     !RESERVED_DATAVERSE_ORGANIZATION_LABELS.has(organizationLabel)
 
   if (
@@ -50,7 +52,7 @@ export function normalizeMicrosoftDataverseEnvironmentUrl(environmentUrl: unknow
     )
   }
 
-  return url.origin
+  return `https://${organizationLabel}.api.${regionLabel}.dynamics.com`
 }
 
 /** Builds the exact delegated OAuth grant Microsoft documents for one Dataverse environment. */
@@ -164,9 +166,10 @@ export function assertMicrosoftDataverseOAuthLinkRequest(
 }
 
 /**
- * Resolves the scopes Better Auth should persist after a Dataverse callback. A returned scope is
- * authoritative only when it contains exactly the flow-bound audience. Microsoft may legally
- * omit scope from a token response; only that empty case falls back to the signed requested grant.
+ * Resolves the scopes Better Auth should persist after a Dataverse callback. Resource-qualified
+ * scopes must match the environment protected by OAuth state. Microsoft may omit scopes or return
+ * only bare permissions; those cases retain the provider scopes and append the trusted environment
+ * marker from the protected flow binding until the live Better Auth response shape is verified.
  */
 export function resolveMicrosoftDataverseOAuthCallbackScopes(
   callbackURL: unknown,

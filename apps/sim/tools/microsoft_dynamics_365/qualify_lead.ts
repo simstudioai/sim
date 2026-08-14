@@ -122,6 +122,7 @@ export const microsoftDynamics365QualifyLeadTool: ToolConfig<
       return `${baseUrl}/api/data/v9.2/leads(${leadId})/Microsoft.Dynamics.CRM.QualifyLead`
     },
     method: 'POST',
+    stripAuthOnRedirect: true,
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',

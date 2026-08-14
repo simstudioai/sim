@@ -139,6 +139,7 @@ export const microsoftDynamics365SearchRecordsTool: ToolConfig<
       return `${baseUrl}/api/data/v9.2/searchquery`
     },
     method: 'POST',
+    stripAuthOnRedirect: true,
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',

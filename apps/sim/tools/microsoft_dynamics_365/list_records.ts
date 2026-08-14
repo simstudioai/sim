@@ -8,6 +8,7 @@ import {
   getDataverseErrorMessage,
   getDynamics365BaseUrl,
   isDataverseObject,
+  normalizeDynamics365EnvironmentUrl,
   normalizeDynamics365ListEntitySetName,
 } from '@/tools/microsoft_dynamics_365/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -31,8 +32,10 @@ function assertDynamics365ListNextLink(
   }
 
   let nextUrl: URL
+  let normalizedNextOrigin: string
   try {
     nextUrl = new URL(value)
+    normalizedNextOrigin = normalizeDynamics365EnvironmentUrl(nextUrl.origin)
   } catch {
     throw new Error('nextLink must be a valid URL')
   }
@@ -42,7 +45,7 @@ function assertDynamics365ListNextLink(
     nextUrl.username !== '' ||
     nextUrl.password !== '' ||
     nextUrl.hash !== '' ||
-    nextUrl.origin !== baseUrl ||
+    normalizedNextOrigin !== baseUrl ||
     nextUrl.pathname !== `/api/data/v9.2/${entitySetName}`
   ) {
     throw new Error('nextLink must stay on the selected environment and CRM table')
@@ -155,6 +158,7 @@ export const microsoftDynamics365ListRecordsTool: ToolConfig<
       return `${baseUrl}/api/data/v9.2/${entitySetName}${query}`
     },
     method: 'GET',
+    stripAuthOnRedirect: true,
     headers: (params) => {
       const pageSize = params.pageSize ?? 100
       if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {

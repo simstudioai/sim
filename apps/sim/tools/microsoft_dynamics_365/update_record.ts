@@ -74,6 +74,7 @@ export const microsoftDynamics365UpdateRecordTool: ToolConfig<
       return `${baseUrl}/api/data/v9.2/${entitySetName}(${recordId})`
     },
     method: 'PATCH',
+    stripAuthOnRedirect: true,
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',

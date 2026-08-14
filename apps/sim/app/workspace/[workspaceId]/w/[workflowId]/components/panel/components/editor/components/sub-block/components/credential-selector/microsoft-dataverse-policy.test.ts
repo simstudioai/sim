@@ -6,6 +6,7 @@ import { getMicrosoftDataverseRequiredScope } from '@/lib/oauth/microsoft-datave
 import { resolveMicrosoftDataverseCredentialPolicy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/microsoft-dataverse-policy'
 
 const ENVIRONMENT = 'https://contoso.crm.dynamics.com'
+const CANONICAL_ENVIRONMENT = 'https://contoso.api.crm.dynamics.com'
 
 function resolve(scopes?: string[], environmentUrl: unknown = ENVIRONMENT) {
   return resolveMicrosoftDataverseCredentialPolicy({
@@ -43,8 +44,18 @@ describe('resolveMicrosoftDataverseCredentialPolicy', () => {
     expect(resolve([getMicrosoftDataverseRequiredScope(ENVIRONMENT)])).toMatchObject({
       applies: true,
       bindingState: 'matching',
-      environmentUrl: ENVIRONMENT,
+      environmentUrl: CANONICAL_ENVIRONMENT,
       requiredScopes: [getMicrosoftDataverseRequiredScope(ENVIRONMENT)],
+      requiresSeparateCredential: false,
+    })
+  })
+
+  it('matches a credential across documented environment and Web API host aliases', () => {
+    expect(
+      resolve([getMicrosoftDataverseRequiredScope(CANONICAL_ENVIRONMENT)], ENVIRONMENT)
+    ).toMatchObject({
+      bindingState: 'matching',
+      environmentUrl: CANONICAL_ENVIRONMENT,
       requiresSeparateCredential: false,
     })
   })

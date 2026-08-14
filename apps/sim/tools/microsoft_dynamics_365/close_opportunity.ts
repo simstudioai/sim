@@ -92,6 +92,7 @@ export const microsoftDynamics365CloseOpportunityTool: ToolConfig<
       return `${baseUrl}/api/data/v9.2/${outcome === 'won' ? 'WinOpportunity' : 'LoseOpportunity'}`
     },
     method: 'POST',
+    stripAuthOnRedirect: true,
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',

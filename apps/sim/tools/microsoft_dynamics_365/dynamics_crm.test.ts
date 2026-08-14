@@ -25,7 +25,8 @@ import {
   normalizeDataverseGuid,
 } from '@/tools/microsoft_dynamics_365/utils'
 
-const ENVIRONMENT_URL = 'https://contoso.crm.dynamics.com'
+const ENVIRONMENT_ALIAS = 'https://contoso.crm.dynamics.com'
+const ENVIRONMENT_URL = 'https://contoso.api.crm.dynamics.com'
 const ACCESS_TOKEN = 'test-access-token'
 const LEAD_ID = '11111111-1111-4111-8111-111111111111'
 const OPPORTUNITY_ID = '22222222-2222-4222-8222-222222222222'
@@ -38,21 +39,21 @@ const PROCESS_INSTANCE_ID = '77777777-7777-4777-8777-777777777777'
 const LIST_PARAMS: DataverseListRecordsParams = {
   accessToken: ACCESS_TOKEN,
   instanceUrl: ENVIRONMENT_URL,
-  environmentUrl: ENVIRONMENT_URL,
+  environmentUrl: ENVIRONMENT_ALIAS,
   entitySetName: 'accounts',
 }
 
 const SEARCH_PARAMS: DataverseSearchParams = {
   accessToken: ACCESS_TOKEN,
   instanceUrl: ENVIRONMENT_URL,
-  environmentUrl: ENVIRONMENT_URL,
+  environmentUrl: ENVIRONMENT_ALIAS,
   searchTerm: 'Contoso',
 }
 
 const QUALIFY_PARAMS: DataverseQualifyLeadParams = {
   accessToken: ACCESS_TOKEN,
   instanceUrl: ENVIRONMENT_URL,
-  environmentUrl: ENVIRONMENT_URL,
+  environmentUrl: ENVIRONMENT_ALIAS,
   leadId: LEAD_ID,
   createAccount: true,
   createContact: true,
@@ -62,7 +63,7 @@ const QUALIFY_PARAMS: DataverseQualifyLeadParams = {
 const CLOSE_OPPORTUNITY_PARAMS: DataverseCloseOpportunityParams = {
   accessToken: ACCESS_TOKEN,
   instanceUrl: ENVIRONMENT_URL,
-  environmentUrl: ENVIRONMENT_URL,
+  environmentUrl: ENVIRONMENT_ALIAS,
   opportunityId: OPPORTUNITY_ID,
   outcome: 'won',
   subject: 'Opportunity won',
@@ -71,7 +72,7 @@ const CLOSE_OPPORTUNITY_PARAMS: DataverseCloseOpportunityParams = {
 const CLOSE_CASE_PARAMS: DataverseCloseCaseParams = {
   accessToken: ACCESS_TOKEN,
   instanceUrl: ENVIRONMENT_URL,
-  environmentUrl: ENVIRONMENT_URL,
+  environmentUrl: ENVIRONMENT_ALIAS,
   caseId: CASE_ID,
   subject: 'Case resolved',
 }
@@ -104,10 +105,23 @@ describe('Microsoft Dataverse Dynamics CRM shared safety', () => {
   })
 
   it.each([
-    ['https://contoso.crm.dynamics.com/', 'https://contoso.crm.dynamics.com'],
-    ['https://contoso.crm4.dynamics.com', 'https://contoso.crm4.dynamics.com'],
+    microsoftDynamics365ListRecordsTool,
+    microsoftDynamics365GetRecordTool,
+    microsoftDynamics365CreateRecordTool,
+    microsoftDynamics365UpdateRecordTool,
+    microsoftDynamics365SearchRecordsTool,
+    microsoftDynamics365QualifyLeadTool,
+    microsoftDynamics365CloseOpportunityTool,
+    microsoftDynamics365CloseCaseTool,
+  ])('$id strips OAuth authorization before following redirects', (tool) => {
+    expect(tool.request.stripAuthOnRedirect).toBe(true)
+  })
+
+  it.each([
+    ['https://contoso.crm.dynamics.com/', 'https://contoso.api.crm.dynamics.com'],
+    ['https://contoso.crm4.dynamics.com', 'https://contoso.api.crm4.dynamics.com'],
     ['https://contoso.api.crm4.dynamics.com', 'https://contoso.api.crm4.dynamics.com'],
-    ['https://contoso.crm9.dynamics.com', 'https://contoso.crm9.dynamics.com'],
+    ['https://contoso.crm9.dynamics.com', 'https://contoso.api.crm9.dynamics.com'],
   ])('accepts a public-cloud Dataverse environment host', (input, expected) => {
     expect(getDynamics365BaseUrl(input, expected)).toBe(expected)
   })
@@ -195,6 +209,7 @@ describe('microsoft_dynamics_365_list_records response validation', () => {
 
   it('uses only a validated same-table continuation URL for the next page', () => {
     const nextLink = `${ENVIRONMENT_URL}/api/data/v9.2/accounts?$skiptoken=opaque`
+    const aliasNextLink = `${ENVIRONMENT_ALIAS}/api/data/v9.2/accounts?$skiptoken=opaque`
     expect(
       resolveUrl(microsoftDynamics365ListRecordsTool.request.url, {
         ...LIST_PARAMS,
@@ -203,6 +218,12 @@ describe('microsoft_dynamics_365_list_records response validation', () => {
         filter: 'statecode eq 0',
       })
     ).toBe(nextLink)
+    expect(
+      resolveUrl(microsoftDynamics365ListRecordsTool.request.url, {
+        ...LIST_PARAMS,
+        nextLink: aliasNextLink,
+      })
+    ).toBe(aliasNextLink)
 
     for (const invalidNextLink of [
       'https://attacker.example/api/data/v9.2/accounts?$skiptoken=opaque',
