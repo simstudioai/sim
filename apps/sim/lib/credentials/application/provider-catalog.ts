@@ -280,7 +280,7 @@ export async function listCredentialProviderCatalog(
       description: service.description,
       providerFamily: service.baseProvider,
       available: visibility.isOAuthServiceVisible(service),
-      supportsReconnect: !['trello', 'shopify'].includes(service.providerId),
+      supportsReconnect: true,
       authorizationOptions,
     }
   })

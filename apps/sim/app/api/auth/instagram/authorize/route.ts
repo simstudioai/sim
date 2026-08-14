@@ -38,7 +38,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const { returnUrl, workspaceId, draftId } = parsed.data.query
     let credentialDraftId = draftId
 
-    if (workspaceId) {
+    if (workspaceId && !draftId) {
       const access = await checkWorkspaceAccess(workspaceId, session.user.id)
       if (!access.canWrite) {
         return NextResponse.json({ error: 'Workspace write access denied' }, { status: 403 })

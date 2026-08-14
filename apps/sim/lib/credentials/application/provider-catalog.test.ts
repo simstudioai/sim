@@ -144,7 +144,7 @@ describe('listCredentialProviderCatalog', () => {
         description: 'Connect Trello.',
         providerFamily: 'trello',
         available: false,
-        supportsReconnect: false,
+        supportsReconnect: true,
         authorizationOptions: [{ providerId: 'trello', label: 'Trello' }],
       },
       {
