@@ -1152,7 +1152,13 @@ export async function queryRows(
   // unfiltered count already plans an index-only scan on the table_id prefix.
   // The count uses the full-view WHERE (no cursor seek): totals cover the whole
   // view, not the remaining pages.
-  const hasFilter = Boolean(userClause)
+  /**
+   * The delete mask counts as a filter: it injects JSONB predicates into `baseConditions`, which
+   * is exactly the plan shape `countRowsTenantBounded` exists to keep off a seq scan of the shared
+   * relation. Reading only `userClause` sent a masked-but-unfiltered count down the plain branch,
+   * bounded only by the statement timeout.
+   */
+  const hasFilter = Boolean(userClause || deleteMask)
   const countPromise = includeTotal
     ? hasFilter
       ? countRowsTenantBounded(whereClause)
@@ -1264,7 +1270,15 @@ interface BoundedFetchResult {
   anchorOffset: number
 }
 
-/** Belt-and-braces bound on drain iterations; unreachable in practice. */
+/**
+ * Belt-and-braces bound on drain iterations.
+ *
+ * Unreachable only because every iteration either consumes at least one row or cuts, and a bounded
+ * page's `limit` is capped at {@link TABLE_LIMITS.MAX_QUERY_LIMIT} — so the limit cut always fires
+ * first. That makes the two constants exactly tight: raising `MAX_QUERY_LIMIT` above this bound
+ * would let the loop exit with rows still unread and `hasMore: false`, which clients now trust as
+ * end-of-table (they terminate on `nextCursor`, which this decides). Raise both together.
+ */
 const MAX_QUERY_BATCHES = 1000
 
 /**
