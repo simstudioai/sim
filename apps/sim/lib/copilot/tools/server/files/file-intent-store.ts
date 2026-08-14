@@ -156,33 +156,6 @@ export async function storeFileIntent(
   })
 }
 
-async function consumeFileIntent(
-  workspaceId: string,
-  fileId: string,
-  scope?: FileIntentScope
-): Promise<PendingFileIntent | undefined> {
-  const redis = getRedisClient()
-  if (!redis) {
-    const key = buildKey(workspaceId, buildScopedField(fileId, scope))
-    const intent = memoryStore.get(key)
-    if (intent) {
-      memoryStore.delete(key)
-    }
-    return intent
-  }
-
-  const raw = await withRedisRetry('consume_file_intent', workspaceId, async (client) => {
-    const key = getWorkspaceRedisKey(workspaceId)
-    const field = buildScopedField(fileId, scope)
-    const value = await client.hget(key, field)
-    if (value !== null) {
-      await client.hdel(key, field)
-    }
-    return value
-  })
-  return parseIntent(raw)
-}
-
 export async function peekFileIntent(
   workspaceId: string,
   fileId: string,

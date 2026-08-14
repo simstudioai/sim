@@ -279,19 +279,6 @@ function toToolInputSchema(schema: unknown): Partial<Tool['inputSchema']> {
   }
 }
 
-function parseJsonValue(text: string): { success: true; value: unknown } | { success: false } {
-  if (!text) return { success: true, value: {} }
-  try {
-    return { success: true, value: JSON.parse(text) }
-  } catch {
-    return { success: false }
-  }
-}
-
-function hasResponseField(value: Record<string, unknown>, property: string): boolean {
-  return Object.hasOwn(value, property)
-}
-
 function getWorkflowErrorStatus(status: number): number {
   return [400, 401, 402, 403, 404, 408, 409, 413, 429, 499, 503].includes(status) ? status : 500
 }

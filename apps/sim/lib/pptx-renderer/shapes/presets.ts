@@ -26,24 +26,6 @@ function adj(
   return raw / 100000
 }
 
-/** Helper: generate a regular polygon path (inscribed in bounding box). */
-function _regularPolygon(w: number, h: number, sides: number): string {
-  const cx = w / 2
-  const cy = h / 2
-  const rx = w / 2
-  const ry = h / 2
-  const parts: string[] = []
-  for (let i = 0; i < sides; i++) {
-    // Start from top center (-90 degrees)
-    const angle = (2 * Math.PI * i) / sides - Math.PI / 2
-    const x = cx + rx * Math.cos(angle)
-    const y = cy + ry * Math.sin(angle)
-    parts.push(i === 0 ? `M${x},${y}` : `L${x},${y}`)
-  }
-  parts.push('Z')
-  return parts.join(' ')
-}
-
 /** Raw adj helper: get adjustment value without dividing by 100000. */
 function adjRaw(
   adjustments: Map<string, number> | undefined,

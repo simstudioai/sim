@@ -313,11 +313,6 @@ export function tableAccessError(
   return NextResponse.json({ error: message }, { status })
 }
 
-async function verifyTableWorkspace(tableId: string, workspaceId: string): Promise<boolean> {
-  const table = await getTableById(tableId)
-  return table?.workspaceId === workspaceId
-}
-
 export function errorResponse(
   message: string,
   status: number,
