@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type { ZodType } from 'zod'
 import { isPayloadSizeLimitError, readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
@@ -79,12 +80,8 @@ interface ReadTikTokApiResponseOptions {
   signal?: AbortSignal
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return isRecord(value) ? value : null
+  return isRecordLike(value) ? value : null
 }
 
 function parseTikTokError(value: unknown): TikTokApiError | null {

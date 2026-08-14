@@ -1,4 +1,5 @@
 import { mcpServers, workflow } from '@sim/db/schema'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray } from 'drizzle-orm'
 import type {
   ForkClearedRef,
@@ -8,7 +9,6 @@ import type {
 import type { DbOrTx } from '@/lib/db/types'
 import {
   coerceObjectArray,
-  isRecord,
   type SubBlockRecord,
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import {
@@ -136,9 +136,9 @@ function collectForkWorkflowReferences(
       if (!array) continue
       for (const tool of array) {
         if (
-          isRecord(tool) &&
+          isRecordLike(tool) &&
           tool.type === 'workflow_input' &&
-          isRecord(tool.params) &&
+          isRecordLike(tool.params) &&
           typeof tool.params.workflowId === 'string' &&
           tool.params.workflowId
         ) {

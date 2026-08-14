@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
@@ -137,10 +138,6 @@ const TOOL_INPUT_TEXT_EXCLUDED_PATH_KEYS = new Set(['schema'])
 
 type WorkflowSearchSubBlockConfig = Pick<SubBlockConfig, 'id' | 'type'> & Partial<SubBlockConfig>
 type DisplayLabelLeaf = { value: string; path: WorkflowSearchValuePath; fieldTitle?: string }
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
 
 function looksLikeStoredSkillList(value: unknown): boolean {
   return (
@@ -315,10 +312,11 @@ function getOptionLabelLeaves(
 
 function getMcpDynamicArgEnumLabelLeaves(value: unknown, schema: unknown): DisplayLabelLeaf[] {
   const parsedValue = typeof value === 'string' ? safeParseJson(value) : value
-  if (!isRecord(parsedValue) || !isRecord(schema) || !isRecord(schema.properties)) return []
+  if (!isRecordLike(parsedValue) || !isRecordLike(schema) || !isRecordLike(schema.properties))
+    return []
 
   return Object.entries(schema.properties).flatMap(([paramName, paramSchema]) => {
-    if (!isRecord(paramSchema) || !Array.isArray(paramSchema.enum)) return []
+    if (!isRecordLike(paramSchema) || !Array.isArray(paramSchema.enum)) return []
     const selectedValue = parsedValue[paramName]
     if (selectedValue === undefined || selectedValue === null || selectedValue === '') return []
     return [

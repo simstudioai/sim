@@ -20,6 +20,7 @@
 
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { getMaxExecutionTimeout, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
@@ -81,7 +82,7 @@ import {
 } from '@/executor/handlers/pi/search/extension-source'
 import { getPiProviderId } from '@/providers/pi-providers'
 import { executeTool } from '@/tools'
-import { isRecord, requiredRecord, requiredTrimmedString } from '@/tools/github/response-parsers'
+import { requiredRecord, requiredTrimmedString } from '@/tools/github/response-parsers'
 
 const logger = createLogger('PiCloudBackend')
 
@@ -187,7 +188,7 @@ async function openPullRequest(
     throw new Error(`PR creation failed for branch ${branch}: ${result.error ?? 'unknown error'}`)
   }
 
-  if (!isRecord(result.output)) {
+  if (!isRecordLike(result.output)) {
     throw new Error(`PR creation returned an invalid response for branch ${branch}`)
   }
   const metadata = requiredRecord(result.output, 'metadata', 'GitHub create pull request response')
@@ -224,7 +225,7 @@ async function repositoryDefaultBranch(
       `Failed to determine the repository default branch: ${result.error ?? 'unknown error'}`
     )
   }
-  if (!isRecord(result.output)) {
+  if (!isRecordLike(result.output)) {
     throw new Error('GitHub repository response must be an object')
   }
   return requiredTrimmedString(result.output, 'default_branch', 'GitHub repository response')

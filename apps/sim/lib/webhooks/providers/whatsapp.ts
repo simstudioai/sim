@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import type {
@@ -14,26 +15,22 @@ import type {
 
 const logger = createLogger('WebhookProvider:WhatsApp')
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
 function getWhatsAppChanges(
   body: unknown
 ): Array<{ field?: string; value: Record<string, unknown> }> {
-  if (!isRecord(body) || !Array.isArray(body.entry)) {
+  if (!isRecordLike(body) || !Array.isArray(body.entry)) {
     return []
   }
 
   const changes: Array<{ field?: string; value: Record<string, unknown> }> = []
 
   for (const entry of body.entry) {
-    if (!isRecord(entry) || !Array.isArray(entry.changes)) {
+    if (!isRecordLike(entry) || !Array.isArray(entry.changes)) {
       continue
     }
 
     for (const change of entry.changes) {
-      if (!isRecord(change) || !isRecord(change.value)) {
+      if (!isRecordLike(change) || !isRecordLike(change.value)) {
         continue
       }
 
@@ -48,7 +45,7 @@ function getWhatsAppChanges(
 }
 
 function normalizeWhatsAppContact(contact: Record<string, unknown>) {
-  const profile = isRecord(contact.profile) ? contact.profile : undefined
+  const profile = isRecordLike(contact.profile) ? contact.profile : undefined
 
   return {
     wa_id: typeof contact.wa_id === 'string' ? contact.wa_id : undefined,
@@ -75,7 +72,7 @@ function extractWhatsAppMedia(message: Record<string, unknown>) {
     return undefined
   }
 
-  const media = isRecord(message[type]) ? (message[type] as Record<string, unknown>) : undefined
+  const media = isRecordLike(message[type]) ? (message[type] as Record<string, unknown>) : undefined
   if (!media) {
     return undefined
   }
@@ -93,7 +90,7 @@ function normalizeWhatsAppMessage(
   message: Record<string, unknown>,
   metadata?: Record<string, unknown>
 ) {
-  const text = isRecord(message.text) ? message.text : undefined
+  const text = isRecordLike(message.text) ? message.text : undefined
   const media = extractWhatsAppMedia(message)
 
   return {
@@ -132,8 +129,8 @@ function normalizeWhatsAppStatus(
         : undefined,
     status: typeof status.status === 'string' ? status.status : undefined,
     timestamp: typeof status.timestamp === 'string' ? status.timestamp : undefined,
-    conversation: isRecord(status.conversation) ? status.conversation : undefined,
-    pricing: isRecord(status.pricing) ? status.pricing : undefined,
+    conversation: isRecordLike(status.conversation) ? status.conversation : undefined,
+    pricing: isRecordLike(status.pricing) ? status.pricing : undefined,
     raw: status,
   }
 }
@@ -270,7 +267,7 @@ export const whatsappHandler: WebhookProviderHandler = {
     for (const { field, value } of getWhatsAppChanges(body)) {
       if (Array.isArray(value.messages)) {
         for (const message of value.messages) {
-          if (!isRecord(message) || typeof message.id !== 'string') {
+          if (!isRecordLike(message) || typeof message.id !== 'string') {
             continue
           }
 
@@ -280,7 +277,7 @@ export const whatsappHandler: WebhookProviderHandler = {
 
       if (Array.isArray(value.statuses)) {
         for (const status of value.statuses) {
-          if (!isRecord(status) || typeof status.id !== 'string') {
+          if (!isRecordLike(status) || typeof status.id !== 'string') {
             continue
           }
 
@@ -292,7 +289,7 @@ export const whatsappHandler: WebhookProviderHandler = {
 
       if (Array.isArray(value.groups)) {
         for (const group of value.groups) {
-          if (!isRecord(group) || typeof group.request_id !== 'string') {
+          if (!isRecordLike(group) || typeof group.request_id !== 'string') {
             continue
           }
 
@@ -309,7 +306,7 @@ export const whatsappHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const payload = isRecord(body) ? body : undefined
+    const payload = isRecordLike(body) ? body : undefined
     const contacts: Array<{ wa_id?: string; profile?: { name?: string } }> = []
     const messages: Array<{
       messageId?: string
@@ -339,11 +336,11 @@ export const whatsappHandler: WebhookProviderHandler = {
     }> = []
 
     for (const { value } of getWhatsAppChanges(body)) {
-      const metadata = isRecord(value.metadata) ? value.metadata : undefined
+      const metadata = isRecordLike(value.metadata) ? value.metadata : undefined
 
       if (Array.isArray(value.contacts)) {
         for (const contact of value.contacts) {
-          if (!isRecord(contact)) {
+          if (!isRecordLike(contact)) {
             continue
           }
 
@@ -353,7 +350,7 @@ export const whatsappHandler: WebhookProviderHandler = {
 
       if (Array.isArray(value.messages)) {
         for (const message of value.messages) {
-          if (!isRecord(message)) {
+          if (!isRecordLike(message)) {
             continue
           }
 
@@ -363,7 +360,7 @@ export const whatsappHandler: WebhookProviderHandler = {
 
       if (Array.isArray(value.statuses)) {
         for (const status of value.statuses) {
-          if (!isRecord(status)) {
+          if (!isRecordLike(status)) {
             continue
           }
 

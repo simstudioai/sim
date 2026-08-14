@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import {
   keepPreviousData,
   type UseQueryResult,
@@ -74,14 +75,10 @@ type OrganizationSubscriptionCandidate = {
 
 type OrganizationBillingQueryResult = UseQueryResult<OrganizationBillingApiResponse | null, Error>
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
 function isOrganizationSubscriptionCandidate(
   value: unknown
 ): value is OrganizationSubscriptionCandidate {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     typeof value.id === 'string' &&
     typeof value.referenceId === 'string' &&
@@ -402,8 +399,8 @@ export function useUpdateOrganizationUsageLimit() {
       queryClient.setQueryData<unknown>(
         organizationKeys.billing(organizationId),
         (old: unknown) => {
-          if (!isRecord(old) || !isRecord(old.data)) return old
-          const usage = isRecord(old.data.usage) ? old.data.usage : {}
+          if (!isRecordLike(old) || !isRecordLike(old.data)) return old
+          const usage = isRecordLike(old.data.usage) ? old.data.usage : {}
           const currentUsage =
             readNumber(old.data.currentUsage) ??
             readNumber(usage.current) ??

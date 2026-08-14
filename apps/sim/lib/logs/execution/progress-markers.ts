@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike as isRecord } from '@sim/utils/object'
+import { isRecordLike } from '@sim/utils/object'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getExecutionReservationTtlMs } from '@/lib/core/execution-limits'
 import type { ExecutionLastCompletedBlock, ExecutionLastStartedBlock } from '@/lib/logs/types'
@@ -167,7 +167,7 @@ function safeJsonParse(raw: string | undefined): unknown {
  */
 function parseStartedMarker(raw: string | undefined): ExecutionLastStartedBlock | undefined {
   const v = safeJsonParse(raw)
-  if (!isRecord(v)) return undefined
+  if (!isRecordLike(v)) return undefined
   const { blockId, blockName, blockType, startedAt } = v
   if (
     typeof blockId === 'string' &&
@@ -186,7 +186,7 @@ function parseStartedMarker(raw: string | undefined): ExecutionLastStartedBlock 
  */
 function parseCompletedMarker(raw: string | undefined): ExecutionLastCompletedBlock | undefined {
   const v = safeJsonParse(raw)
-  if (!isRecord(v)) return undefined
+  if (!isRecordLike(v)) return undefined
   const { blockId, blockName, blockType, endedAt, success } = v
   if (
     typeof blockId === 'string' &&
