@@ -224,12 +224,37 @@ function createAgentGroupSegment(name: string, id: string): AgentGroupSegment {
  * Streamed chunks and resume legs are concatenated verbatim, so a token split
  * like `v2.` + `1` is never mutated.
  */
+const INTENT_TAG_RE = /<intent>([\s\S]*?)<\/intent>\n?/g
+
+/**
+ * Extracts complete <intent> tags from a group's accumulated text: the last
+ * tag becomes the group's live status line and every complete tag is removed
+ * from the rendered prose. Runs on the accumulated buffer each append, so a
+ * tag split across streamed chunks is picked up once its close arrives —
+ * covering the span path, the legacy block path, and persisted reloads alike.
+ */
+function extractGroupIntents(group: AgentGroupSegment, item: { content: string }): void {
+  let lastIntent: string | undefined
+  const stripped = item.content.replace(INTENT_TAG_RE, (_match, inner: string) => {
+    const intent = inner.trim()
+    if (intent) lastIntent = intent
+    return ''
+  })
+  if (lastIntent !== undefined) {
+    item.content = stripped
+    group.intent = lastIntent
+  }
+}
+
 function appendTextItem(group: AgentGroupSegment, content: string): void {
   const lastItem = group.items[group.items.length - 1]
   if (lastItem?.type === 'text') {
     lastItem.content += content
+    extractGroupIntents(group, lastItem)
   } else {
-    group.items.push({ type: 'text', content })
+    const item = { type: 'text' as const, content }
+    group.items.push(item)
+    extractGroupIntents(group, item)
   }
 }
 
