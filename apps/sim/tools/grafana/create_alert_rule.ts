@@ -171,7 +171,6 @@ export const createAlertRuleTool: ToolConfig<
         ruleGroup: params.ruleGroup,
         data: dataArray,
       }
-      if (params.organizationId) body.orgID = Number(params.organizationId)
 
       if (params.condition) body.condition = params.condition
       if (params.uid) body.uid = params.uid.trim()

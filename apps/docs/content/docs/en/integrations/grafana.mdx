@@ -397,7 +397,7 @@ List all alert notification contact points
 |   ↳ `uid` | string | Contact point UID |
 |   ↳ `name` | string | Contact point name |
 |   ↳ `type` | string | Notification type \(email, slack, etc.\) |
-|   ↳ `settings` | object | Type-specific settings |
+|   ↳ `settings` | json | Type-specific settings |
 |   ↳ `disableResolveMessage` | boolean | Whether resolve messages are disabled |
 |   ↳ `provenance` | string | Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI |
 
@@ -629,8 +629,9 @@ Test connectivity to a data source by its UID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `status` | string | Health status of the data source \(e.g., OK\) |
-| `message` | string | Detailed health message from the data source |
+| `status` | string | Verdict Grafana returned for the data source, e.g. OK or ERROR. An unhealthy source reports here rather than failing the tool |
+| `message` | string | The plugin's diagnostic detail, which carries the reason on a failed check |
+| `details` | json | Extra structured detail, when the data source plugin supplies any |
 
 ### Grafana List Folders
 

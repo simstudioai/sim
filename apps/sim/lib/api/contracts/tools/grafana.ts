@@ -28,8 +28,10 @@ const grafanaUpdateDashboardOutputSchema = z.object({
 
 export const grafanaUpdateDashboardResponseSchema = z.object({
   success: z.boolean(),
-  output: grafanaUpdateDashboardOutputSchema,
+  /** Absent on the auth short-circuit, `{}` on handled failures. */
+  output: grafanaUpdateDashboardOutputSchema.partial().optional(),
   error: z.string().optional(),
+  details: z.array(z.unknown()).optional(),
 })
 
 const grafanaUpdateAlertRuleBodySchema = z.object({
@@ -80,8 +82,10 @@ const grafanaUpdateAlertRuleOutputSchema = z.object({
 
 export const grafanaUpdateAlertRuleResponseSchema = z.object({
   success: z.boolean(),
-  output: z.union([grafanaUpdateAlertRuleOutputSchema, z.object({})]),
+  /** Absent on the auth short-circuit, `{}` on handled failures. */
+  output: z.union([grafanaUpdateAlertRuleOutputSchema, z.object({})]).optional(),
   error: z.string().optional(),
+  details: z.array(z.unknown()).optional(),
 })
 
 const grafanaUpdateFolderBodySchema = z.object({
@@ -112,8 +116,37 @@ const grafanaUpdateFolderOutputSchema = z.object({
 
 export const grafanaUpdateFolderResponseSchema = z.object({
   success: z.boolean(),
-  output: z.union([grafanaUpdateFolderOutputSchema, z.object({})]),
+  /** Absent on the auth short-circuit, `{}` on handled failures. */
+  output: z.union([grafanaUpdateFolderOutputSchema, z.object({})]).optional(),
   error: z.string().optional(),
+  details: z.array(z.unknown()).optional(),
+})
+
+const grafanaCheckDataSourceHealthBodySchema = z.object({
+  apiKey: z.string().min(1, 'Grafana Service Account Token is required'),
+  baseUrl: z.string().min(1, 'Grafana instance URL is required'),
+  organizationId: z.string().optional(),
+  dataSourceUid: z.string().min(1, 'Data source UID is required').max(40, 'UID is too long'),
+})
+
+const grafanaCheckDataSourceHealthOutputSchema = z.object({
+  status: z.string(),
+  message: z.string().nullable(),
+  details: z.unknown().optional(),
+})
+
+export const grafanaCheckDataSourceHealthResponseSchema = z.object({
+  success: z.boolean(),
+  output: grafanaCheckDataSourceHealthOutputSchema.optional(),
+  error: z.string().optional(),
+  details: z.array(z.unknown()).optional(),
+})
+
+export const grafanaCheckDataSourceHealthContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/grafana/check_data_source_health',
+  body: grafanaCheckDataSourceHealthBodySchema,
+  response: { mode: 'json', schema: grafanaCheckDataSourceHealthResponseSchema },
 })
 
 export const grafanaUpdateDashboardContract = defineRouteContract({

@@ -69,7 +69,8 @@ export interface GrafanaDataSourceHealthParams extends GrafanaBaseParams {
 export interface GrafanaDataSourceHealthResponse extends ToolResponse {
   output: {
     status: string
-    message: string
+    message: string | null
+    details?: unknown
   }
 }
 

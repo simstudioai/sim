@@ -1075,7 +1075,11 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     folderUid: { type: 'string', description: 'Folder UID' },
     tags: { type: 'string', description: 'Comma-separated tags' },
     panels: { type: 'string', description: 'JSON array of panels' },
-    message: { type: 'string', description: 'Commit message' },
+    message: {
+      type: 'string',
+      description:
+        'Message returned by Grafana — a confirmation for writes, or the diagnostic detail on a health check',
+    },
     query: { type: 'string', description: 'Search query' },
     tag: { type: 'string', description: 'Filter by tag' },
     folderUIDs: {
@@ -1108,12 +1112,19 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       type: 'string',
       description: 'JSON of per-rule notification settings',
     },
-    record: { type: 'string', description: 'JSON of recording rule configuration' },
+    record: {
+      type: 'string',
+      description: 'Recording rule configuration (metric, from, target_datasource_uid)',
+    },
     disableProvenance: {
       type: 'boolean',
       description: 'Disable provenance tracking so the rule remains UI-editable',
     },
-    annotations: { type: 'string', description: 'JSON of alert annotations' },
+    annotations: {
+      type: 'string',
+      description:
+        'For annotation operations, the matched annotations (id, dashboardUID, panelId, time, timeEnd, text, tags, newState, prevState, ...). For alert rules, the rule annotation map (summary, description, runbook_url)',
+    },
     labels: { type: 'string', description: 'JSON of alert labels' },
     overwrite: { type: 'boolean', description: 'Overwrite existing dashboard on version conflict' },
     text: { type: 'string', description: 'Annotation text' },
@@ -1210,19 +1221,59 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       description:
         'Revision number of the dashboard, folder, or data source. Get Health instead returns the Grafana version as a string',
     },
-    database: { type: 'string', description: 'Database health status' },
+    database: {
+      type: 'string',
+      description:
+        'Database name of the data source; for Get Health, the Grafana database status (e.g. ok)',
+    },
     commit: { type: 'string', description: 'Git commit hash of the Grafana build' },
-    status: { type: 'string', description: 'Health status (e.g., data source health)' },
-    dashboard: { type: 'json', description: 'Dashboard JSON' },
-    meta: { type: 'json', description: 'Dashboard metadata' },
-    dashboards: { type: 'array', description: 'List of dashboards' },
-    uid: { type: 'string', description: 'Created/updated UID' },
-    url: { type: 'string', description: 'Dashboard URL' },
-    rules: { type: 'array', description: 'Alert rules list' },
-    contactPoints: { type: 'array', description: 'Contact points list' },
-    name: { type: 'string', description: 'Name of the created contact point' },
-    type: { type: 'string', description: 'Type of the created contact point' },
-    settings: { type: 'json', description: 'Contact point receiver settings' },
+    status: {
+      type: 'string',
+      description:
+        'Outcome reported by Grafana — a data source health verdict, or the save status of a dashboard write',
+    },
+    dashboard: {
+      type: 'json',
+      description: 'Full dashboard JSON as stored by Grafana (panels, templating, time, ...)',
+    },
+    meta: {
+      type: 'json',
+      description: 'Dashboard metadata (isStarred, url, folderId, folderUid, slug)',
+    },
+    dashboards: {
+      type: 'array',
+      description:
+        'Matched dashboards (id, uid, title, uri, url, type, tags, isStarred, folderId, folderUid, folderTitle, folderUrl)',
+    },
+    uid: {
+      type: 'string',
+      description:
+        'UID of the affected resource — dashboard, folder, alert rule, data source, or contact point, depending on the operation',
+    },
+    url: {
+      type: 'string',
+      description: 'URL of the affected dashboard or folder; the connection URL for a data source',
+    },
+    rules: {
+      type: 'array',
+      description:
+        'Provisioned alert rules (uid, title, folderUID, ruleGroup, condition, data, for, labels, annotations, isPaused, noDataState, execErrState, provenance, ...)',
+    },
+    contactPoints: {
+      type: 'array',
+      description: 'Contact points (uid, name, type, settings, disableResolveMessage, provenance)',
+    },
+    name: { type: 'string', description: 'Name of the affected contact point or data source' },
+    type: {
+      type: 'string',
+      description:
+        'Type of the affected contact point (e.g. slack) or data source (e.g. prometheus)',
+    },
+    settings: {
+      type: 'json',
+      description:
+        'Contact point receiver settings — the shape depends on the receiver type, e.g. url and recipient for a Slack receiver',
+    },
     condition: { type: 'string', description: 'Alert condition refId' },
     for: { type: 'string', description: 'Duration the condition must hold before firing' },
     keepFiringFor: {
@@ -1244,9 +1295,20 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     record: { type: 'json', description: 'Recording rule configuration' },
     updated: { type: 'string', description: 'Last update timestamp' },
     annotations: { type: 'array', description: 'Annotations list' },
-    id: { type: 'number', description: 'Annotation ID' },
-    dataSources: { type: 'array', description: 'Data sources list' },
-    folders: { type: 'array', description: 'Folders list' },
+    id: {
+      type: 'number',
+      description:
+        'Numeric id of the affected resource — annotation, alert rule, dashboard, folder, or data source, depending on the operation',
+    },
+    dataSources: {
+      type: 'array',
+      description:
+        'Data sources (id, uid, orgId, name, type, typeLogoUrl, access, url, database, isDefault, jsonData, readOnly, ...)',
+    },
+    folders: {
+      type: 'array',
+      description: 'Folders (id, uid, title, and parentUid when nested folders are enabled)',
+    },
     message: { type: 'string', description: 'Status message' },
   },
 }
