@@ -100,6 +100,28 @@ const RETRY_AFTER_SECONDS_BY_STATUS: Partial<Record<number, number>> = {
   503: ADMISSION_RETRY_AFTER_SECONDS,
 }
 
+/**
+ * The challenge every v2 `401` carries, so a 401 is a complete one.
+ *
+ * RFC 9110 §11.6.1 makes `WWW-Authenticate` a MUST on 401 — a 401 without it is
+ * a refusal that never says what would have been accepted, and a generic HTTP
+ * client has nothing to react to.
+ *
+ * The scheme name is deliberately Sim-specific rather than a registered one.
+ * v2 authenticates from the `x-api-key` header and accepts no `Authorization`
+ * scheme at all — `Authorization: Bearer <key>` is not a channel here — so
+ * `Bearer` and `Basic` would both be false advertising. `Basic` is worse than
+ * false: a browser reacts to it by opening a native credential prompt that
+ * cannot produce an API key. An unregistered scheme is what remains, and it is
+ * legal: §11.6.1's grammar requires *an* `auth-scheme` token, not a registered
+ * one. Every challenge implies "retry via `Authorization: <scheme> …`" by
+ * construction, so the token is chosen to be one no client has a built-in
+ * handler for — the challenge surfaces to a human instead of triggering an
+ * automatic retry down a channel v2 does not read — and the real channel is
+ * named outright in the `header` parameter beside it.
+ */
+const V2_AUTH_CHALLENGE = 'SimApiKey realm="Sim API", header="x-api-key"'
+
 type RateLimitHeaderSource = Pick<RateLimitResult, 'limit' | 'remaining' | 'resetAt'>
 
 function rateLimitHeaders(rateLimit?: RateLimitHeaderSource): Record<string, string> {
@@ -183,6 +205,7 @@ export function v2Error(
       status,
       headers: {
         ...PRIVATE_NO_STORE,
+        ...(status === 401 ? { 'WWW-Authenticate': V2_AUTH_CHALLENGE } : {}),
         ...(retryAfterSeconds === undefined ? {} : { 'Retry-After': retryAfterSeconds.toString() }),
         ...options.headers,
       },

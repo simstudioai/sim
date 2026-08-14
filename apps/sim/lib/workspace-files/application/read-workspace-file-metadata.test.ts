@@ -24,6 +24,7 @@ vi.mock('@/lib/public-shares/share-manager', () => ({
   getShareForResource: mocks.getShareForResource,
 }))
 
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 
 const canonical = {
@@ -89,6 +90,61 @@ describe('readWorkspaceFileMetadata', () => {
       throwOnError: true,
     })
     expect(mocks.getShareForResource).toHaveBeenCalledWith('file', 'file-1')
+  })
+
+  it('resolves a soft-deleted file when the caller opts into the archived lifecycle set', async () => {
+    const archived = { ...file, deletedAt: new Date('2026-01-03T00:00:00Z') }
+    mocks.getWorkspaceFile.mockResolvedValueOnce(archived)
+
+    await expect(
+      readWorkspaceFileMetadata.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          fileId: 'file-1',
+          assertedWorkspaceId: 'workspace-1',
+          includeDeleted: true,
+        },
+      })
+    ).resolves.toEqual({ file: archived, share })
+
+    expect(mocks.loadContext).toHaveBeenCalledWith('file-1', { includeDeleted: true })
+    expect(mocks.getWorkspaceFile).toHaveBeenCalledWith('workspace-1', 'file-1', {
+      includeDeleted: true,
+      throwOnError: true,
+    })
+  })
+
+  it('authorizes an archived read exactly like an active one', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce(null)
+
+    await expect(
+      readWorkspaceFileMetadata.execute({
+        principal: { kind: 'session', userId: 'outsider', sessionId: 'session-2' },
+        input: {
+          fileId: 'file-1',
+          assertedWorkspaceId: 'workspace-1',
+          includeDeleted: true,
+        },
+      })
+    ).rejects.toBeInstanceOf(NoWorkspaceAccessError)
+
+    expect(mocks.getWorkspaceFile).not.toHaveBeenCalled()
+    expect(mocks.getShareForResource).not.toHaveBeenCalled()
+  })
+
+  it('still refuses an archived read that asserts the wrong workspace', async () => {
+    await expect(
+      readWorkspaceFileMetadata.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          fileId: 'file-1',
+          assertedWorkspaceId: 'workspace-2',
+          includeDeleted: true,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(mocks.getWorkspaceFile).not.toHaveBeenCalled()
   })
 
   it('fails fast if the authorized file disappears before projection', async () => {

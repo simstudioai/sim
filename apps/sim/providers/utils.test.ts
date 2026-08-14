@@ -948,6 +948,15 @@ describe('Provider Management', () => {
       expect(getProviderFromModel('unknown-model')).toBe('ollama')
     })
 
+    it('should resolve gateway models that getBaseModelProviders deliberately omits', () => {
+      // getBaseModelProviders() filters these providers out entirely, so a model
+      // block that looked models up there rejected valid ids like these.
+      expect(getProviderFromModel('openrouter/meta-llama/llama-4-maverick')).toBe('openrouter')
+      expect(getProviderFromModel('together/some-model')).toBe('together')
+      expect(getProviderFromModel('fireworks/some-model')).toBe('fireworks')
+      expect(getBaseModelProviders()['openrouter/meta-llama/llama-4-maverick']).toBeUndefined()
+    })
+
     it('should be case insensitive', () => {
       expect(getProviderFromModel('GPT-4O')).toBe('openai')
       expect(getProviderFromModel('CLAUDE-SONNET-4-0')).toBe('anthropic')

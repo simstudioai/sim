@@ -836,8 +836,16 @@ export const MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS = 10
  */
 export const MAX_V2_KNOWLEDGE_SEARCH_QUERY_LENGTH = 8192 * 4
 
-export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema
-  .safeExtend({
+/**
+ * Rebuilt from the v1 shape rather than extended from the v1 schema: v1 carries
+ * the "query or tagFilters" rule as a bare `.refine`, which reports at path `[]`,
+ * so no client could attach the failure to a field. The rule is restated below as
+ * a `superRefine` with a `path` — extending v1 would inherit the pathless issue
+ * alongside it and report the same violation twice.
+ */
+export const v2KnowledgeSearchBodySchema = z
+  .object({
+    ...v1KnowledgeSearchBodySchema.shape,
     workspaceId: v1KnowledgeSearchBodySchema.shape.workspaceId.describe(
       'Workspace that owns the knowledge bases.'
     ),
@@ -855,9 +863,14 @@ export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema
         `Natural-language query; required when tag filters are omitted. At most ${MAX_V2_KNOWLEDGE_SEARCH_QUERY_LENGTH} characters — longer text exceeds the embedding model's per-input token ceiling and would be truncated before the billed search ran.`
       )
       .meta({ examples: ['How do I reset my password?'] }),
-    topK: v1KnowledgeSearchBodySchema.shape.topK.describe(
-      'Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.'
-    ),
+    topK: z
+      .number()
+      .min(1, 'topK must be at least 1')
+      .max(100, 'topK cannot exceed 100')
+      .default(10)
+      .describe(
+        'Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.'
+      ),
     tagFilters: z
       .array(v2KnowledgeSearchTagFilterSchema)
       .max(
@@ -909,6 +922,22 @@ export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema
    * parameters never arrived.
    */
   .strict()
+  /**
+   * A search with neither a query nor a tag filter has nothing to retrieve on.
+   * Reported on `query`, the field a caller who sent neither is most likely to be
+   * missing, so the failure lands on an input instead of on the request as a whole.
+   */
+  .superRefine((body, ctx) => {
+    const hasQuery = Boolean(body.query && body.query.trim().length > 0)
+    const hasTagFilters = Boolean(body.tagFilters && body.tagFilters.length > 0)
+    if (!hasQuery && !hasTagFilters) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['query'],
+        message: 'Either query or tagFilters must be provided',
+      })
+    }
+  })
 export type V2KnowledgeSearchBody = z.input<typeof v2KnowledgeSearchBodySchema>
 
 export const v2SearchKnowledgeContract = defineRouteContract({

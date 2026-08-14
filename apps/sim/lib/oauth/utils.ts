@@ -36,6 +36,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/adwords': 'Manage Google Ads campaigns and reporting',
   'https://www.googleapis.com/auth/bigquery': 'View and manage data in Google BigQuery',
   'https://www.googleapis.com/auth/ediscovery': 'Access Google Vault for eDiscovery',
+  'https://www.googleapis.com/auth/ediscovery.readonly':
+    'View Google Vault matters, holds, and saved queries',
   'https://www.googleapis.com/auth/devstorage.read_only': 'Read files from Google Cloud Storage',
   'https://www.googleapis.com/auth/admin.directory.group': 'Manage Google Workspace groups',
   'https://www.googleapis.com/auth/admin.directory.group.member':
@@ -686,10 +688,25 @@ export function getMissingRequiredScopes(
   for (const s of requiredScopes) {
     if (IGNORED_SCOPES.has(s)) continue
 
-    if (!granted.has(s)) missing.push(s)
+    if (!granted.has(s) && !isScopeSatisfiedBy(s, granted)) missing.push(s)
   }
 
   return missing
+}
+
+/**
+ * Whether a granted scope already covers `required` despite not matching it verbatim.
+ *
+ * A read-write scope subsumes its `.readonly` sibling — a credential holding
+ * `.../auth/ediscovery` is accepted by every method that documents
+ * `.../auth/ediscovery.readonly`. Without this, narrowing a consumer to the
+ * least-privileged scope would report every already-connected credential as
+ * missing it and prompt a re-consent that grants nothing new.
+ */
+function isScopeSatisfiedBy(required: string, granted: ReadonlySet<string>): boolean {
+  const readonlySuffix = '.readonly'
+  if (!required.endsWith(readonlySuffix)) return false
+  return granted.has(required.slice(0, -readonlySuffix.length))
 }
 
 /**

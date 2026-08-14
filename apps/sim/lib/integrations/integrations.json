@@ -1093,7 +1093,7 @@
       "slug": "ashby",
       "name": "Ashby",
       "description": "Manage candidates, jobs, and applications in Ashby",
-      "longDescription": "Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag), applications (list, get, create, change stage), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).",
+      "longDescription": "Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag, anonymize), applications (list, get, create, delete, change stage, change source), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), custom field values (set one or many), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).",
       "bgColor": "#5D4ED6",
       "iconName": "AshbyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/ashby",
@@ -1147,12 +1147,24 @@
           "description": "Creates a new application for a candidate on a job. Optionally specify interview plan, stage, source, and credited user."
         },
         {
+          "name": "Delete Application",
+          "description": "Permanently deletes an application in Ashby. Requires the candidatesDelete permission, which is a separate module permission from candidatesWrite - a read and write key returns 403 here. There is no equivalent endpoint for deleting a candidate; candidate deletion is UI-only."
+        },
+        {
           "name": "List Offers",
           "description": "Lists all offers with their latest version in an Ashby organization."
         },
         {
           "name": "Change Application Stage",
           "description": "Moves an application to a different interview stage. Requires an archive reason when moving to an Archived stage."
+        },
+        {
+          "name": "Change Application Source",
+          "description": "Changes the source attributed to an existing application, so programmatically created applications report correctly on the recruiting side. Requires the candidatesWrite permission."
+        },
+        {
+          "name": "Anonymize Candidate",
+          "description": "Strips personally identifiable information from a candidate in Ashby. This does not delete the candidate - the record and its applications remain, with the PII removed. Ashby exposes no candidate deletion endpoint; true deletion is UI-only, restricted by role, and limited to a 10-day window. Requires the candidatesWrite permission."
         },
         {
           "name": "Add Candidate Tag",
@@ -1183,6 +1195,14 @@
           "description": "Lists all custom field definitions configured in Ashby."
         },
         {
+          "name": "Set Custom Field Value",
+          "description": "Sets the value of a single custom field on an Ashby Application, Candidate, Job, or Opening. Custom fields are the only way to annotate a job or req, since Ashby has no job notes and no job tags. Requires the candidatesWrite permission."
+        },
+        {
+          "name": "Set Custom Field Values",
+          "description": "Sets several custom field values on one Ashby Application, Candidate, Job, or Opening in a single call. Prefer this over repeated single-field writes to the same object - Ashby recommends it because concurrent single-field calls can race and overwrite each other. Requires the candidatesWrite permission."
+        },
+        {
           "name": "List Departments",
           "description": "Lists all departments in Ashby."
         },
@@ -1211,7 +1231,7 @@
           "description": "Lists interview schedules in Ashby, optionally filtered by application or interview stage."
         }
       ],
-      "operationCount": 28,
+      "operationCount": 33,
       "triggers": [
         {
           "id": "ashby_application_submit",
