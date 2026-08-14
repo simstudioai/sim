@@ -1339,6 +1339,9 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
         hidden: {
           type: 'boolean',
         },
+        inbandOwned: {
+          type: 'boolean',
+        },
         internal: {
           type: 'boolean',
         },

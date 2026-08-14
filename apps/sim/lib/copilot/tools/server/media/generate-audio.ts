@@ -14,6 +14,7 @@ import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/copilot/tools/server/m
 import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { type AudioType, generateFalAudio } from '@/lib/media/falai-audio'
+import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 
@@ -132,11 +133,21 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
       const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
+      // The prompt is the only secret-bearing input; recording its provenance
+      // keeps the written file model-readable (see generate-image).
+      const promptProvenance = await createWorkspaceFileSecretProvenanceFromRegistry(
+        context.resolvedSecretTraceRegistry,
+        params.prompt,
+        { userId: context.userId, workspaceId }
+      )
       const written = await writeCopilotWorkspaceFileByPath(context, {
         workspaceId,
         target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType,
+        secretProvenance: promptProvenance.safe
+          ? promptProvenance.provenance
+          : { status: 'unknown' },
       })
 
       logger.info('Generated audio saved', {

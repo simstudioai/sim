@@ -56,7 +56,8 @@ export function createServerToolHandler(toolId: string): ToolHandler {
       )
       const safeMessage = projectToolErrorMessageForCopilot(
         messageForCopilotApplicationError(error),
-        context.resolvedSecretTraceRegistry
+        context.resolvedSecretTraceRegistry,
+        toolId
       )
       return {
         success: false,

@@ -160,6 +160,7 @@ export interface MothershipStreamV1AdditionalPropertiesMap {
 export interface MothershipStreamV1ToolUI {
   clientExecutable?: boolean
   hidden?: boolean
+  inbandOwned?: boolean
   internal?: boolean
 }
 export interface MothershipStreamV1ToolArgsDeltaEventEnvelope {

@@ -7,6 +7,8 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { inferContentType } from '@/lib/copilot/tools/server/files/workspace-file'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   createWorkspaceFileByPath,
   updateWorkspaceFileContentByPath,
@@ -58,27 +60,43 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     const contentType = outputFile?.mimeType ?? inferContentType(outputPath, explicitType)
     assertServerToolNotAborted(context)
     const mode = outputFile?.mode ?? 'create'
+    // An empty shell provably contains no secrets; recording that keeps the
+    // file model-readable (an absent sidecar reads as "unknown" and gates
+    // every later content view of the file).
+    const emptyProvenance = EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+    const createShell = () =>
+      executeCopilotFileUseCase(context, createWorkspaceFileByPath, {
+        workspaceId,
+        path: outputPath,
+        mode: 'create',
+        content: '',
+        encoding: 'utf-8',
+        contentType,
+        exactName: true,
+        secretProvenance: emptyProvenance,
+      })
     try {
-      const result =
-        mode === 'overwrite'
-          ? await executeCopilotFileUseCase(context, updateWorkspaceFileContentByPath, {
-              workspaceId,
-              path: outputPath,
-              mode,
-              content: '',
-              encoding: 'utf-8',
-              contentType,
-              syncLiveDoc: false,
-            })
-          : await executeCopilotFileUseCase(context, createWorkspaceFileByPath, {
-              workspaceId,
-              path: outputPath,
-              mode,
-              content: '',
-              encoding: 'utf-8',
-              contentType,
-              exactName: true,
-            })
+      let result
+      if (mode === 'overwrite') {
+        try {
+          result = await executeCopilotFileUseCase(context, updateWorkspaceFileContentByPath, {
+            workspaceId,
+            path: outputPath,
+            mode,
+            content: '',
+            encoding: 'utf-8',
+            contentType,
+            syncLiveDoc: false,
+            secretProvenance: emptyProvenance,
+          })
+        } catch (overwriteError) {
+          // Upsert: overwrite of a missing path falls through to create.
+          if (asOrchestrationError(overwriteError)?.code !== 'not_found') throw overwriteError
+          result = await createShell()
+        }
+      } else {
+        result = await createShell()
+      }
 
       logger.info('File created via create_empty_file', {
         fileId: result.id,

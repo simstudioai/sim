@@ -508,11 +508,16 @@ async function handleCallPhase(
   const readPath = typeof args?.path === 'string' ? args.path : undefined
   if (toolName === 'read' && readPath?.startsWith('internal/')) return
 
-  const { clientExecutable, simExecutable, internal } = ui
+  const { clientExecutable, simExecutable, internal, inbandOwned } = ui
   const catalogEntry = getToolEntry(toolName)
   const isInternal = internal || catalogEntry?.internal === true
   const staticSimExecuted = isSimExecuted(toolName)
-  const willDispatch = !isInternal && (staticSimExecuted || simExecutable || clientExecutable)
+  // Go executes inband-owned calls itself via /api/copilot/tools/execute
+  // (background lanes, and the main lane while background agents run); the
+  // event exists only to draw the row. Dispatching it here would run the
+  // tool a second time, racing the in-band execution on mutations.
+  const willDispatch =
+    !isInternal && !inbandOwned && (staticSimExecuted || simExecutable || clientExecutable)
   logger.info('Tool call routing decision', {
     toolCallId,
     toolName,
@@ -524,6 +529,7 @@ async function handleCallPhase(
     simExecutable,
     staticSimExecuted,
     internal: isInternal,
+    inbandOwned,
     hasPendingPromise: context.pendingToolPromises.has(toolCallId),
     existingStatus: existing?.status,
     willDispatch,
