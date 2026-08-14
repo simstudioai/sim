@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 export const PRIVATE_TOOL_METADATA_REQUEST_HEADER = 'x-sim-request-private-tool-metadata'
 export const PRIVATE_TOOL_METADATA_RESPONSE_HEADER = 'x-sim-private-tool-metadata'
 export const MAX_PRIVATE_TOOL_METADATA_OVERHEAD_BYTES = 10 * 1024 * 1024
@@ -109,10 +110,7 @@ export function inspectPrivateToolMetadataEnvelope(
   expectedType: PrivateToolMetadataType
 ): PrivateToolMetadataEnvelopeInspection {
   const capability = inspectPrivateToolMetadataResponseCapability(headers, expectedType)
-  const record =
-    payload !== null && typeof payload === 'object' && !Array.isArray(payload)
-      ? (payload as Record<string, unknown>)
-      : undefined
+  const record = isRecordLike(payload) ? (payload as Record<string, unknown>) : undefined
   const hasNames = record ? Object.hasOwn(record, RESOLVED_SECRET_NAMES_FIELD) : false
   const hasProvenance = record ? Object.hasOwn(record, RESOLVED_SECRET_PROVENANCE_FIELD) : false
 

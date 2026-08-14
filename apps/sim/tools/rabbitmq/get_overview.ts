@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { RabbitmqGetOverviewParams, RabbitmqGetOverviewResponse } from '@/tools/rabbitmq/types'
 import {
   buildAuthHeaders,
@@ -20,9 +21,7 @@ const EMPTY_OVERVIEW = {
 } as const
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+  return isRecordLike(value) ? (value as Record<string, unknown>) : {}
 }
 
 function asStringOrNull(value: unknown): string | null {

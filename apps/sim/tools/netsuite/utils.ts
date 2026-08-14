@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
@@ -922,5 +923,5 @@ function sanitizeErrorText(value: string, auth?: NetSuiteAuthParams): string {
 }
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  return isRecordLike(value)
 }

@@ -1,6 +1,7 @@
 import { folder as folderTable, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { assertFolderCollectionHasRoom } from '@/lib/folders/queries'
@@ -447,7 +448,7 @@ export async function copyWorkflowStateIntoTarget(
     const newBlockId = blockIdMapping.get(oldBlockId)!
 
     let updatedData = block.data
-    if (block.data && typeof block.data === 'object' && !Array.isArray(block.data)) {
+    if (isRecordLike(block.data)) {
       const dataObj = block.data as Record<string, unknown>
       if (typeof dataObj.parentId === 'string' && blockIdMapping.has(dataObj.parentId)) {
         updatedData = {

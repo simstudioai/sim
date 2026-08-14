@@ -26,6 +26,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -265,12 +266,9 @@ function toToolInputSchema(schema: unknown): Partial<Tool['inputSchema']> {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return {}
 
   const candidate = schema as Record<string, unknown>
-  const properties =
-    candidate.properties &&
-    typeof candidate.properties === 'object' &&
-    !Array.isArray(candidate.properties)
-      ? (candidate.properties as Tool['inputSchema']['properties'])
-      : {}
+  const properties = isRecordLike(candidate.properties)
+    ? (candidate.properties as Tool['inputSchema']['properties'])
+    : {}
   const required = Array.isArray(candidate.required)
     ? candidate.required.filter((entry): entry is string => typeof entry === 'string')
     : undefined
@@ -282,7 +280,7 @@ function toToolInputSchema(schema: unknown): Partial<Tool['inputSchema']> {
 }
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
+  return isRecordLike(value)
 }
 
 function parseJsonValue(text: string): { success: true; value: unknown } | { success: false } {

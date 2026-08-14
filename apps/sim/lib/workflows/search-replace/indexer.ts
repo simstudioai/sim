@@ -144,11 +144,7 @@ function looksLikeStoredSkillList(value: unknown): boolean {
     Array.isArray(value) &&
     value.length > 0 &&
     value.every(
-      (item) =>
-        item &&
-        typeof item === 'object' &&
-        !Array.isArray(item) &&
-        typeof (item as Record<string, unknown>).skillId === 'string'
+      (item) => isRecordLike(item) && typeof (item as Record<string, unknown>).skillId === 'string'
     )
   )
 }
@@ -163,7 +159,7 @@ function looksLikeStructuredString(value: string): boolean {
 
 function getFallbackToolParamType(value: unknown, paramType?: string): SubBlockType {
   if (paramType === 'object') return 'workflow-input-mapper'
-  if (value && typeof value === 'object' && !Array.isArray(value)) return 'workflow-input-mapper'
+  if (isRecordLike(value)) return 'workflow-input-mapper'
   if (typeof value !== 'string') return DEFAULT_SUBBLOCK_TYPE as SubBlockType
 
   const trimmed = value.trim()
@@ -173,7 +169,7 @@ function getFallbackToolParamType(value: unknown, paramType?: string): SubBlockT
 
   try {
     const parsed: unknown = JSON.parse(trimmed)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    if (isRecordLike(parsed)) {
       return 'workflow-input-mapper'
     }
   } catch {}

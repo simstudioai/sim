@@ -210,7 +210,7 @@ function mergeConditions(existing: unknown, incoming: unknown): Record<string, J
 }
 
 function toOperatorObject(value: unknown): Record<string, JsonValue> {
-  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+  if (isRecordLike(value)) {
     return { ...(value as Record<string, JsonValue>) }
   }
   return { $eq: value as JsonValue }

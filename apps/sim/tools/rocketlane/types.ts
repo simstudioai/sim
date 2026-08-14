@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Base URL for the Rocketlane REST API (v1.0). */
@@ -58,7 +59,7 @@ function asBoolean(value: unknown): boolean | null {
 }
 
 function asObject(value: unknown): Raw | null {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Raw) : null
+  return isRecordLike(value) ? (value as Raw) : null
 }
 
 function asArray(value: unknown): unknown[] {

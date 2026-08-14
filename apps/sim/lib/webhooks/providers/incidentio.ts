@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
+import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -57,7 +58,7 @@ function verifyIncidentioSignature(
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
+  if (isRecordLike(value)) {
     return value as Record<string, unknown>
   }
   return null

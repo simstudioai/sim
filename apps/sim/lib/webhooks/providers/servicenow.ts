@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -10,9 +11,7 @@ import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
 const logger = createLogger('WebhookProvider:ServiceNow')
 
 function asRecord(body: unknown): Record<string, unknown> {
-  return body && typeof body === 'object' && !Array.isArray(body)
-    ? (body as Record<string, unknown>)
-    : {}
+  return isRecordLike(body) ? (body as Record<string, unknown>) : {}
 }
 
 export const servicenowHandler: WebhookProviderHandler = {

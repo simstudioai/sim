@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { calculateCostSummary } from '@/lib/logs/execution/logging-factory'
 import type { TraceSpan } from '@/lib/logs/types'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
@@ -123,10 +124,9 @@ export async function runWorkflowTool(
       workflowId: params.workflowId,
       inputMapping,
     })
-    const normalized: Record<string, unknown> =
-      output && typeof output === 'object' && !Array.isArray(output)
-        ? (output as Record<string, unknown>)
-        : { result: output }
+    const normalized: Record<string, unknown> = isRecordLike(output)
+      ? (output as Record<string, unknown>)
+      : { result: output }
     const result: ToolResponse = { success: true, output: normalized }
     await markResultProvenanceCrossing(options.resolvedSecretTraceRegistry, result)
     return result

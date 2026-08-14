@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type {
   DynatraceAttack,
@@ -165,15 +166,11 @@ function toStringArray(value: unknown): string[] {
 }
 
 function toRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+  return isRecordLike(value) ? (value as Record<string, unknown>) : {}
 }
 
 function toRecordOrNull(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null
+  return isRecordLike(value) ? (value as Record<string, unknown>) : null
 }
 
 /** Flattens an `EntityStub` (`{ entityId: { id, type }, name }`) into a single object. */

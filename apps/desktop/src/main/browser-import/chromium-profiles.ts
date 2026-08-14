@@ -2,6 +2,7 @@ import { constants } from 'node:fs'
 import { access, lstat, readdir, readFile, realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { isRecordLike } from '@sim/utils/object'
 import {
   BROWSER_SOURCES,
   type BrowserSource,
@@ -134,7 +135,7 @@ async function readProfileDisplayNames(userDataDir: string): Promise<Map<string,
     const raw = await readFile(join(userDataDir, 'Local State'), 'utf8')
     const infoCache = (JSON.parse(raw) as { profile?: { info_cache?: unknown } }).profile
       ?.info_cache
-    if (infoCache && typeof infoCache === 'object' && !Array.isArray(infoCache)) {
+    if (isRecordLike(infoCache)) {
       for (const [dir, info] of Object.entries(infoCache as Record<string, unknown>)) {
         if (!PROFILE_DIR_PATTERN.test(dir)) continue
         const name = (info as { name?: unknown })?.name

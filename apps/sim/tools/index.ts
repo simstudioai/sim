@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { describeError, findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { isPlainRecord } from '@sim/utils/object'
+import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { getBYOKKey } from '@/lib/api-key/byok'
@@ -1345,10 +1345,7 @@ async function consumePrivateToolPayloadMetadata(
   if (!requestedType) return 'verified'
 
   const inspection = inspectPrivateToolMetadataEnvelope(headers, payload, requestedType)
-  const record =
-    payload !== null && typeof payload === 'object' && !Array.isArray(payload)
-      ? (payload as Record<string, unknown>)
-      : undefined
+  const record = isRecordLike(payload) ? (payload as Record<string, unknown>) : undefined
 
   if (requestedType === RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2 && record) {
     const capability = inspectPrivateToolMetadataResponseCapability(headers, requestedType)
@@ -2789,10 +2786,7 @@ async function executeToolRequest(
 
       const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
       const hasStructuredErrorPayload =
-        errorData !== null &&
-        typeof errorData === 'object' &&
-        !Array.isArray(errorData) &&
-        ('error' in errorData || 'message' in errorData)
+        isRecordLike(errorData) && ('error' in errorData || 'message' in errorData)
 
       if (response.status === 413 && !hasStructuredErrorPayload) {
         logger.error(

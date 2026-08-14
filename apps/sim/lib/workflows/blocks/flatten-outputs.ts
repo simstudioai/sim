@@ -8,6 +8,7 @@
  * output shapes, BFS sort order) don't drift between consumers.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 
 /**
@@ -90,9 +91,7 @@ export function flattenWorkflowOutputs(
     const add = (path: string, outputObj: unknown, prefix = ''): void => {
       const fullPath = prefix ? `${prefix}.${path}` : path
       const declaredType =
-        outputObj &&
-        typeof outputObj === 'object' &&
-        !Array.isArray(outputObj) &&
+        isRecordLike(outputObj) &&
         'type' in (outputObj as object) &&
         typeof (outputObj as { type: unknown }).type === 'string'
           ? (outputObj as { type: string }).type

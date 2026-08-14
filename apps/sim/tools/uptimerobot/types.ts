@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Base URL for the UptimeRobot v3 REST API. */
@@ -196,7 +197,7 @@ function asEnum(value: unknown): string | null {
 }
 
 function asObject(value: unknown): Raw | null {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Raw) : null
+  return isRecordLike(value) ? (value as Raw) : null
 }
 
 function asArray(value: unknown): unknown[] {

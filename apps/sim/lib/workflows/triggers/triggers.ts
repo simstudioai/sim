@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { getBlock } from '@/blocks'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -224,7 +225,7 @@ type SubBlockWithValue = { value?: unknown }
 
 function readSubBlockValue(subBlocks: Record<string, unknown> | undefined, key: string): unknown {
   const raw = subBlocks?.[key]
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+  if (isRecordLike(raw)) {
     return (raw as SubBlockWithValue).value
   }
   return undefined

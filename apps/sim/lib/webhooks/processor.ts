@@ -2,6 +2,7 @@ import { db, webhook, webhookPathClaim, workflow, workflowDeploymentVersion } fr
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -693,9 +694,7 @@ export interface WebhookDispatchResult {
 }
 
 function parseProviderConfig(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+  return isRecordLike(value) ? (value as Record<string, unknown>) : {}
 }
 
 function getCredentialId(providerConfig: Record<string, unknown>): string | undefined {

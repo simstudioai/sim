@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
@@ -115,11 +116,7 @@ export const gitlabHandler: WebhookProviderHandler = {
     const branch = ref.replace('refs/heads/', '')
     const objectAttributes = b.object_attributes
     let input: Record<string, unknown> = { ...b, event_type: eventType, branch }
-    if (
-      objectAttributes &&
-      typeof objectAttributes === 'object' &&
-      !Array.isArray(objectAttributes)
-    ) {
+    if (isRecordLike(objectAttributes)) {
       const workItemType = (objectAttributes as Record<string, unknown>).type
       if (workItemType !== undefined) {
         input = {

@@ -1,4 +1,5 @@
 import { isLoopbackIp } from '@sim/security/ssrf'
+import { isRecordLike } from '@sim/utils/object'
 import type {
   RabbitmqBinding,
   RabbitmqChannel,
@@ -283,9 +284,7 @@ export function unwrapPaginated<T>(data: unknown): PaginatedResult<T> {
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+  return isRecordLike(value) ? (value as Record<string, unknown>) : {}
 }
 
 function asNumberOrNull(value: unknown): number | null {
