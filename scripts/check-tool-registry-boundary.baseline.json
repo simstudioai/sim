@@ -138,16 +138,16 @@
       }
     },
     "app/workspace/[workspaceId]/knowledge/page.tsx": {
-      "modules": 2091,
+      "modules": 2137,
       "gateways": {
         "apps/sim/triggers/registry.ts": 446,
-        "apps/sim/blocks/registry.ts": 317,
-        "apps/sim/app/workspace/[workspaceId]/knowledge/prefetch.ts": 249,
-        "apps/sim/lib/knowledge/application/knowledge-bases.ts": 198,
-        "apps/sim/app/workspace/[workspaceId]/knowledge/knowledge.tsx": 168,
+        "apps/sim/blocks/registry.ts": 322,
+        "apps/sim/app/workspace/[workspaceId]/knowledge/prefetch.ts": 272,
+        "apps/sim/lib/knowledge/application/knowledge-bases.ts": 218,
+        "apps/sim/app/workspace/[workspaceId]/knowledge/knowledge.tsx": 171,
         "apps/sim/lib/auth/index.ts": 158,
-        "apps/sim/lib/knowledge/orchestration/index.ts": 121,
-        "apps/sim/lib/knowledge/orchestration/connectors.ts": 116
+        "apps/sim/lib/knowledge/orchestration/index.ts": 141,
+        "apps/sim/lib/knowledge/orchestration/connectors.ts": 136
       }
     },
     "app/workspace/[workspaceId]/layout.tsx": {
