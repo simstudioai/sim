@@ -1,5 +1,5 @@
+import { Table } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
-import { TableIcon } from '@/components/icons'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
 import type { BlockConfig } from '@/blocks/types'
@@ -201,7 +201,7 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/table',
   category: 'blocks',
   bgColor: '#10B981',
-  icon: TableIcon,
+  icon: Table,
   canvasPresentation: {
     defaultTitle: 'Table',
     /*
