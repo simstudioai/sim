@@ -610,16 +610,26 @@ function waitTitle(args: ToolArgs): string {
   return formatWaitTitle(requestedWaitSeconds(args), stringArg(args, 'reason'))
 }
 
-/** Title for a wait_agents sleep, naming the agent(s) being collected and honoring mode "any". */
+/**
+ * An async agent id is its slugified display name plus a sequence suffix
+ * ("digest-workflow-build-4"); recover the human name for titles.
+ */
+function humanizeAgentId(id: string): string {
+  const words = id.replace(/-\d+$/, '').split('-').filter(Boolean)
+  if (words.length === 0) return id
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+}
+
+/** Title for a wait_agents sleep, naming the agents and honoring mode "any". */
 function waitAgentsTitle(args: ToolArgs): string {
   const raw = args?.agent_ids
   const ids = Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : []
+  const names = ids.map(humanizeAgentId)
   const anyMode = stringArg(args, 'mode') === 'any'
-  if (ids.length === 1) return `Waiting for ${ids[0]}`
-  if (ids.length > 1) {
-    return anyMode
-      ? `Waiting for the first of ${ids.length} agents`
-      : `Waiting for ${ids.length} agents`
+  if (names.length === 1) return `Waiting for ${names[0]}`
+  if (names.length > 1) {
+    const listed = `${names[0]} + ${names.length - 1} more`
+    return anyMode ? `Waiting for the first of ${listed}` : `Waiting for ${listed}`
   }
   return 'Waiting for agents'
 }
@@ -732,11 +742,11 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'wait_agents':
       return waitAgentsTitle(args)
     case 'tail_agent':
-      return `Checking on ${stringArg(args, 'agent_id') || 'agent'}`
+      return `Checking on ${humanizeAgentId(stringArg(args, 'agent_id')) || 'agent'}`
     case 'steer_agent':
-      return `Steering ${stringArg(args, 'agent_id') || 'agent'}`
+      return `Steering ${humanizeAgentId(stringArg(args, 'agent_id')) || 'agent'}`
     case 'interrupt_agent':
-      return `Stopping ${stringArg(args, 'agent_id') || 'agent'}`
+      return `Stopping ${humanizeAgentId(stringArg(args, 'agent_id')) || 'agent'}`
     case 'terminal':
       return terminalTitle(args)
     // The surface used to be one tool per operation. Conversations recorded
