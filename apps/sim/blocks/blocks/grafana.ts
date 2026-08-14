@@ -60,6 +60,21 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
           { text: 'Create contact point', field: 'contactPointNameNew', core: true },
           { text: ', of type', field: 'contactPointType' },
         ],
+        grafana_update_contact_point: [
+          { text: 'Replace contact point', field: 'contactPointUid', core: true },
+          { text: ', as type', field: 'contactPointType' },
+        ],
+        grafana_delete_contact_point: [
+          { text: 'Delete contact point', field: 'contactPointUid', core: true },
+        ],
+        grafana_move_folder: [
+          { text: 'Move folder', field: 'manageFolderUid', core: true },
+          { text: ', under', field: 'newParentUid' },
+        ],
+        grafana_get_alert_rule_group: [
+          { text: 'Read alert rule group', field: 'ruleGroupName', core: true },
+          { text: ', in folder', field: 'manageFolderUid' },
+        ],
         grafana_create_annotation: [
           { text: 'Create annotation', field: 'text', core: true },
           { text: ', on dashboard', field: 'annotationDashboardUid' },
@@ -112,11 +127,14 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
         { label: 'Delete Dashboard', id: 'grafana_delete_dashboard' },
         { label: 'List Alert Rules', id: 'grafana_list_alert_rules' },
         { label: 'Get Alert Rule', id: 'grafana_get_alert_rule' },
+        { label: 'Get Alert Rule Group', id: 'grafana_get_alert_rule_group' },
         { label: 'Create Alert Rule', id: 'grafana_create_alert_rule' },
         { label: 'Update Alert Rule', id: 'grafana_update_alert_rule' },
         { label: 'Delete Alert Rule', id: 'grafana_delete_alert_rule' },
         { label: 'List Contact Points', id: 'grafana_list_contact_points' },
         { label: 'Create Contact Point', id: 'grafana_create_contact_point' },
+        { label: 'Update Contact Point', id: 'grafana_update_contact_point' },
+        { label: 'Delete Contact Point', id: 'grafana_delete_contact_point' },
         { label: 'Create Annotation', id: 'grafana_create_annotation' },
         { label: 'List Annotations', id: 'grafana_list_annotations' },
         { label: 'Update Annotation', id: 'grafana_update_annotation' },
@@ -129,6 +147,7 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
         { label: 'Get Folder', id: 'grafana_get_folder' },
         { label: 'Update Folder', id: 'grafana_update_folder' },
         { label: 'Delete Folder', id: 'grafana_delete_folder' },
+        { label: 'Move Folder', id: 'grafana_move_folder' },
         { label: 'Get Health', id: 'grafana_get_health' },
       ],
       value: () => 'grafana_list_dashboards',
@@ -628,6 +647,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           'grafana_create_alert_rule',
           'grafana_update_alert_rule',
           'grafana_create_contact_point',
+          'grafana_update_contact_point',
         ],
       },
     },
@@ -875,7 +895,13 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
       required: true,
       condition: {
         field: 'operation',
-        value: ['grafana_get_folder', 'grafana_update_folder', 'grafana_delete_folder'],
+        value: [
+          'grafana_get_folder',
+          'grafana_update_folder',
+          'grafana_delete_folder',
+          'grafana_move_folder',
+          'grafana_get_alert_rule_group',
+        ],
       },
     },
     {
@@ -894,6 +920,35 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'grafana_delete_folder' },
     },
 
+    {
+      id: 'contactPointUid',
+      title: 'Contact Point UID',
+      type: 'short-input',
+      placeholder: 'Enter contact point UID',
+      required: {
+        field: 'operation',
+        value: ['grafana_update_contact_point', 'grafana_delete_contact_point'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['grafana_update_contact_point', 'grafana_delete_contact_point'],
+      },
+    },
+    {
+      id: 'newParentUid',
+      title: 'New Parent Folder UID',
+      type: 'short-input',
+      placeholder: 'Leave empty to move to the root',
+      condition: { field: 'operation', value: 'grafana_move_folder' },
+    },
+    {
+      id: 'ruleGroupName',
+      title: 'Rule Group',
+      type: 'short-input',
+      placeholder: 'Enter rule group name',
+      required: { field: 'operation', value: 'grafana_get_alert_rule_group' },
+      condition: { field: 'operation', value: 'grafana_get_alert_rule_group' },
+    },
     {
       id: 'contactPointName',
       title: 'Contact Point Name',
@@ -924,8 +979,14 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
         { label: 'Discord', id: 'discord' },
       ],
       value: () => 'slack',
-      required: true,
-      condition: { field: 'operation', value: 'grafana_create_contact_point' },
+      required: {
+        field: 'operation',
+        value: ['grafana_create_contact_point', 'grafana_update_contact_point'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_contact_point', 'grafana_update_contact_point'],
+      },
     },
     {
       id: 'contactPointSettings',
@@ -933,7 +994,10 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
       type: 'long-input',
       placeholder: 'JSON object of receiver settings (e.g., {"url":"https://hooks.slack.com/..."})',
       required: true,
-      condition: { field: 'operation', value: 'grafana_create_contact_point' },
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_contact_point', 'grafana_update_contact_point'],
+      },
       wandConfig: {
         enabled: true,
         prompt: `Generate a Grafana contact point settings JSON object based on the user's description and receiver type.
@@ -984,6 +1048,10 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       'grafana_update_folder',
       'grafana_delete_folder',
       'grafana_get_health',
+      'grafana_update_contact_point',
+      'grafana_delete_contact_point',
+      'grafana_move_folder',
+      'grafana_get_alert_rule_group',
     ],
     config: {
       tool: (params) => params.operation,
@@ -1014,6 +1082,19 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             if (params.contactPointNameNew) result.name = params.contactPointNameNew
             if (params.contactPointType) result.type = params.contactPointType
             if (params.contactPointSettings) result.settings = params.contactPointSettings
+            break
+          case 'grafana_update_contact_point':
+            if (params.contactPointNameNew) result.name = params.contactPointNameNew
+            if (params.contactPointType) result.type = params.contactPointType
+            if (params.contactPointSettings) result.settings = params.contactPointSettings
+            break
+          case 'grafana_move_folder':
+            result.folderUid = params.manageFolderUid
+            result.parentUid = params.newParentUid ?? ''
+            break
+          case 'grafana_get_alert_rule_group':
+            result.folderUid = params.manageFolderUid
+            result.ruleGroup = params.ruleGroupName
             break
           case 'grafana_create_annotation':
             if (params.annotationTags) result.tags = params.annotationTags
@@ -1066,6 +1147,15 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     },
   },
   inputs: {
+    contactPointUid: {
+      type: 'string',
+      description: 'UID of the contact point to update or delete',
+    },
+    newParentUid: {
+      type: 'string',
+      description: 'UID of the new parent folder, empty for the root',
+    },
+    ruleGroupName: { type: 'string', description: 'Name of the alert rule group' },
     operation: { type: 'string', description: 'Operation to perform' },
     baseUrl: { type: 'string', description: 'Grafana instance URL' },
     apiKey: { type: 'string', description: 'Service Account Token' },
@@ -1170,6 +1260,11 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     dataSourceUid: { type: 'string', description: 'Data source UID for health checks' },
   },
   outputs: {
+    interval: {
+      type: 'number',
+      description: 'Evaluation interval of an alert rule group, in seconds',
+    },
+    folderUid: { type: 'string', description: 'UID of the folder holding the alert rule group' },
     title: {
       type: 'string',
       description: 'Title of the affected dashboard, folder, or alert rule',

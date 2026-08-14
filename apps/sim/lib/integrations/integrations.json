@@ -9027,6 +9027,10 @@
           "description": "Get a specific alert rule by its UID"
         },
         {
+          "name": "Get Alert Rule Group",
+          "description": "Read an alert rule group: its evaluation interval and every rule in it. The interval is the group-level knob that decides how often those rules are evaluated, which the individual alert rule operations do not expose."
+        },
+        {
           "name": "Create Alert Rule",
           "description": "Create a new alert rule"
         },
@@ -9045,6 +9049,14 @@
         {
           "name": "Create Contact Point",
           "description": "Create a notification contact point (e.g., Slack, email, PagerDuty)"
+        },
+        {
+          "name": "Update Contact Point",
+          "description": "Replace a contact point by its UID. Grafana has no partial update for contact points, so every field is rewritten — resend the name, type, and full settings, or the omitted ones are reset."
+        },
+        {
+          "name": "Delete Contact Point",
+          "description": "Permanently delete a contact point by its UID. Grafana refuses the delete while the contact point is still referenced by the notification policy tree or by an alert rule."
         },
         {
           "name": "Create Annotation",
@@ -9095,11 +9107,15 @@
           "description": "Delete a folder by its UID"
         },
         {
+          "name": "Move Folder",
+          "description": "Move a folder under a different parent folder, or to the root by leaving the parent empty. Returns the folder with its new ancestry."
+        },
+        {
           "name": "Get Health",
           "description": "Check the health of the Grafana instance (version, database status)"
         }
       ],
-      "operationCount": 25,
+      "operationCount": 29,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

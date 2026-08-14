@@ -571,3 +571,56 @@ export type GrafanaResponse =
   | GrafanaDeleteFolderResponse
   | GrafanaListContactPointsResponse
   | GrafanaCreateContactPointResponse
+
+export interface GrafanaUpdateContactPointParams extends GrafanaBaseParams {
+  contactPointUid: string
+  name: string
+  type: string
+  settings: string
+  disableResolveMessage?: boolean
+  disableProvenance?: boolean
+}
+
+export interface GrafanaUpdateContactPointResponse extends ToolResponse {
+  output: {
+    /** Echoed from the request — the update answers with only a message. */
+    uid: string | null
+    message: string | null
+  }
+}
+
+export interface GrafanaDeleteContactPointParams extends GrafanaBaseParams {
+  contactPointUid: string
+}
+
+export interface GrafanaDeleteContactPointResponse extends ToolResponse {
+  output: {
+    /** Echoed from the request. */
+    uid: string | null
+    message: string | null
+  }
+}
+
+export interface GrafanaMoveFolderParams extends GrafanaBaseParams {
+  folderUid: string
+  parentUid?: string
+}
+
+export interface GrafanaMoveFolderResponse extends ToolResponse {
+  output: GrafanaFolder
+}
+
+export interface GrafanaGetAlertRuleGroupParams extends GrafanaBaseParams {
+  folderUid: string
+  ruleGroup: string
+}
+
+export interface GrafanaGetAlertRuleGroupResponse extends ToolResponse {
+  output: {
+    title: string | null
+    folderUid: string | null
+    /** Evaluation interval in seconds. */
+    interval: number | null
+    rules: ReturnType<typeof import('@/tools/grafana/utils').mapAlertRule>[]
+  }
+}
