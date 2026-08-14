@@ -1,7 +1,9 @@
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { filterUniqueWorkflowEdges } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
+import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
@@ -10,6 +12,7 @@ import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
 import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks'
+import type { SubBlockConfig } from '@/blocks/types'
 import { escapeRegExp, normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -101,6 +104,44 @@ export interface PrepareBlockStateOptions {
   parentId?: string
   extent?: 'parent'
   triggerMode?: boolean
+  /**
+   * Gate for the seeded operation. A block whose declared default operation the
+   * creator's permission group denies is seeded with the first operation they
+   * can run instead — nothing revisits a field that already holds a value, so
+   * an unpermitted default would otherwise survive until it failed at
+   * execution. Omitted where the acting user's config is unknown or does not
+   * apply, in which case the declared default is used unchanged.
+   */
+  isOperationAllowed?: (operationId: string) => boolean
+}
+
+/**
+ * The first operation the caller may run from an operation subblock's declared
+ * options, skipping the ones its block hides from the picker.
+ */
+function firstAllowedOperation(
+  subBlock: SubBlockConfig,
+  isOperationAllowed: (operationId: string) => boolean
+): string | null {
+  let options: unknown
+  try {
+    options = typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
+  } catch {
+    return null
+  }
+  if (!Array.isArray(options)) return null
+
+  for (const option of options) {
+    if (typeof option === 'string') {
+      if (isOperationAllowed(option)) return option
+      continue
+    }
+    if (isRecordLike(option) && typeof option.id === 'string' && !option.hidden) {
+      if (isOperationAllowed(option.id)) return option.id
+    }
+  }
+
+  return null
 }
 
 /**
@@ -108,7 +149,17 @@ export interface PrepareBlockStateOptions {
  * Generates subBlocks and outputs from the block registry.
  */
 export function prepareBlockState(options: PrepareBlockStateOptions): BlockState {
-  const { id, type, name, position, data, parentId, extent, triggerMode = false } = options
+  const {
+    id,
+    type,
+    name,
+    position,
+    data,
+    parentId,
+    extent,
+    triggerMode = false,
+    isOperationAllowed,
+  } = options
 
   const blockConfig = getBlock(type)
 
@@ -151,6 +202,15 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
         initialValue = [createDefaultInputFormatField()]
       } else if (subBlock.type === 'table') {
         initialValue = []
+      }
+
+      if (
+        isOperationAllowed &&
+        subBlock.id === OPERATION_SUBBLOCK_ID &&
+        typeof initialValue === 'string' &&
+        !isOperationAllowed(initialValue)
+      ) {
+        initialValue = firstAllowedOperation(subBlock, isOperationAllowed)
       }
 
       subBlocks[subBlock.id] = {
