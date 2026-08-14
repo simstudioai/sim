@@ -1,353 +1,362 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
-  Button,
-  ButtonGroup,
-  ButtonGroupItem,
+  Chip,
   ChipConfirmModal,
-  cn,
-  Expand,
+  ChipTag,
   Label,
   Modal,
   ModalBody,
   ModalContent,
   ModalDescription,
   ModalHeader,
-  Skeleton,
-  Tooltip,
+  PopoverScrollArea,
 } from '@sim/emcn'
+import {
+  BubbleChatPreview,
+  ChevronRight,
+  Code,
+  Eye,
+  RefreshCw,
+  SendToBack,
+  Server,
+} from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { formatDateTime } from '@sim/utils/formatting'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import { Versions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/components'
+import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
-import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
+import { Preview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { Versions } from './components'
-import { formatVersionLabel } from './format-version-label'
 
 const logger = createLogger('GeneralDeploy')
 
+export type DeploymentAccessView = 'api' | 'mcp' | 'chat'
+
+export interface DeploymentAccessMethod {
+  id: DeploymentAccessView
+  label: string
+  description: string
+  status: string
+}
+
 interface GeneralDeployProps {
   workflowId: string | null
-  deployedState?: WorkflowState | null
-  isLoadingDeployedState: boolean
   versions: WorkflowDeploymentVersionResponse[]
   versionsLoading: boolean
   isPromotingVersion: boolean
   deployReadiness: DeployReadiness
+  accessMethods: DeploymentAccessMethod[]
+  selectedVersion: number | null
+  onSelectVersion: (version: number | null) => void
+  onOpenAccessMethod: (view: DeploymentAccessView) => void
   onPromoteToLive: (version: number) => Promise<void>
   onLoadDeploymentComplete: () => void
   onLoadDeploymentBlocked: (message: string) => void
 }
 
-type PreviewMode = 'active' | 'selected'
+const ACCESS_METHOD_ICONS = {
+  api: Code,
+  mcp: Server,
+  chat: BubbleChatPreview,
+} as const
 
-/**
- * General deployment tab content displaying live workflow preview and version history.
- */
 export function GeneralDeploy({
   workflowId,
-  deployedState,
-  isLoadingDeployedState,
   versions,
   versionsLoading,
   isPromotingVersion,
   deployReadiness,
+  accessMethods,
+  selectedVersion,
+  onSelectVersion,
+  onOpenAccessMethod,
   onPromoteToLive,
   onLoadDeploymentComplete,
   onLoadDeploymentBlocked,
 }: GeneralDeployProps) {
-  const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
-  const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
-  const previewMode: PreviewMode =
-    selectedVersion !== null && !showActiveDespiteSelection ? 'selected' : 'active'
-  const [showLoadDialog, setShowLoadDialog] = useState(false)
-  const [showPromoteDialog, setShowPromoteDialog] = useState(false)
-  const [showExpandedPreview, setShowExpandedPreview] = useState(false)
-  const [versionToLoad, setVersionToLoad] = useState<{
-    workflowId: string
-    version: number
-  } | null>(null)
-  const [versionToPromote, setVersionToPromote] = useState<{
-    workflowId: string
-    version: number
-  } | null>(null)
+  const [showVersionPreview, setShowVersionPreview] = useState(false)
+  const [versionToRestore, setVersionToRestore] = useState<number | null>(null)
+  const [versionToPromote, setVersionToPromote] = useState<number | null>(null)
 
-  const selectedVersionInfo = versions.find((v) => v.version === selectedVersion)
-  const versionToPromoteInfo = versions.find((v) => v.version === versionToPromote?.version)
-  const versionToLoadInfo = versions.find((v) => v.version === versionToLoad?.version)
-
-  const { data: selectedVersionState } = useDeploymentVersionState(workflowId, selectedVersion)
-
+  const showRestoreDialog = versionToRestore !== null
+  const showPromoteDialog = versionToPromote !== null
+  const selectedVersionInfo = versions.find((version) => version.version === selectedVersion)
+  const versionToRestoreInfo = versions.find((version) => version.version === versionToRestore)
+  const versionToPromoteInfo = versions.find((version) => version.version === versionToPromote)
+  const { data: selectedVersionState, isLoading: isLoadingSelectedVersionState } =
+    useDeploymentVersionState(workflowId, selectedVersion)
   const revertMutation = useRevertToVersion()
 
-  const handleSelectVersion = (version: number | null) => {
-    setSelectedVersion(version)
-    setShowActiveDespiteSelection(false)
+  const handleRestoreVersion = (version: number) => {
+    setVersionToRestore(version)
   }
 
-  const handleLoadDeployment = (version: number) => {
-    if (!workflowId) return
-    setVersionToLoad({ workflowId, version })
-    setShowLoadDialog(true)
+  const handlePromoteVersion = (version: number) => {
+    setVersionToPromote(version)
   }
 
-  const handlePromoteToLive = (version: number) => {
-    if (!workflowId) return
-    setVersionToPromote({ workflowId, version })
-    setShowPromoteDialog(true)
-  }
+  const confirmRestoreVersion = async () => {
+    if (!workflowId || versionToRestore === null) return
+    const targetWorkflowId = workflowId
+    const targetVersion = versionToRestore
 
-  const confirmLoadDeployment = async () => {
-    if (!versionToLoad) return
-    const target = versionToLoad
     if (!(await deployReadiness.waitUntilReady())) {
-      if (
-        workflowId !== target.workflowId ||
-        useWorkflowRegistry.getState().activeWorkflowId !== target.workflowId
-      ) {
-        setShowLoadDialog(false)
-        setVersionToLoad(null)
+      if (useWorkflowRegistry.getState().activeWorkflowId !== targetWorkflowId) {
+        setVersionToRestore(null)
         return
       }
       onLoadDeploymentBlocked(deployReadiness.tooltip)
       return
     }
-    if (
-      workflowId !== target.workflowId ||
-      useWorkflowRegistry.getState().activeWorkflowId !== target.workflowId
-    ) {
-      setShowLoadDialog(false)
-      setVersionToLoad(null)
+
+    if (useWorkflowRegistry.getState().activeWorkflowId !== targetWorkflowId) {
+      setVersionToRestore(null)
       return
     }
 
-    setShowLoadDialog(false)
-    setVersionToLoad(null)
+    setVersionToRestore(null)
 
     try {
-      await revertMutation.mutateAsync({ workflowId: target.workflowId, version: target.version })
+      await revertMutation.mutateAsync({ workflowId: targetWorkflowId, version: targetVersion })
       onLoadDeploymentComplete()
     } catch (error) {
-      logger.error('Failed to load deployment:', error)
+      logger.error('Failed to restore deployment as draft', { error })
     }
   }
 
-  useEffect(() => {
-    setShowLoadDialog(false)
-    setVersionToLoad(null)
-    setShowPromoteDialog(false)
-    setVersionToPromote(null)
-  }, [workflowId])
+  const confirmPromoteVersion = async () => {
+    if (!workflowId || versionToPromote === null || isPromotingVersion) return
+    const targetVersion = versionToPromote
 
-  const confirmPromoteToLive = async () => {
-    if (!versionToPromote || isPromotingVersion) return
-    const target = versionToPromote
-
-    setShowPromoteDialog(false)
     setVersionToPromote(null)
 
-    if (
-      workflowId !== target.workflowId ||
-      useWorkflowRegistry.getState().activeWorkflowId !== target.workflowId
-    ) {
-      return
-    }
+    if (useWorkflowRegistry.getState().activeWorkflowId !== workflowId) return
 
     try {
-      await onPromoteToLive(target.version)
+      await onPromoteToLive(targetVersion)
     } catch (error) {
-      logger.error('Failed to promote version:', error)
+      logger.error('Failed to promote deployment version', { error })
     }
   }
 
-  const workflowToShow =
-    previewMode === 'selected' && selectedVersionState ? selectedVersionState : deployedState
-
-  const showToggle = selectedVersion !== null && deployedState
-
-  const hasDeployedData = deployedState && Object.keys(deployedState.blocks || {}).length > 0
-  const showLoadingSkeleton = isLoadingDeployedState && !hasDeployedData
-
-  if (showLoadingSkeleton) {
-    return (
-      <div className='space-y-3'>
-        <div>
-          <div className='relative mb-[6.5px]'>
-            <Skeleton className='h-[16px] w-[90px]' />
-          </div>
-          <div className='h-[260px] w-full overflow-hidden rounded-sm border border-[var(--border)]'>
-            <Skeleton className='h-full w-full rounded-none' />
-          </div>
-        </div>
-        <div>
-          <Skeleton className='mb-[6.5px] h-[16px] w-[60px]' />
-          <div className='h-[120px] w-full overflow-hidden rounded-sm border border-[var(--border)]'>
-            <Skeleton className='h-full w-full rounded-none' />
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
+  const renderDialogs = () => (
     <>
-      <div className='space-y-3'>
-        <div>
-          <div className='relative mb-[6.5px]'>
-            <Label className='block truncate pl-0.5 text-[var(--text-primary)] text-small'>
-              {previewMode === 'selected' && selectedVersionInfo
-                ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
-                : 'Live Workflow'}
-            </Label>
-            <div className={cn('absolute top-[-5px] right-0', !showToggle && 'invisible')}>
-              <ButtonGroup
-                value={previewMode}
-                onValueChange={(val) =>
-                  setShowActiveDespiteSelection((val as PreviewMode) === 'active')
-                }
-              >
-                <ButtonGroupItem value='active'>Live</ButtonGroupItem>
-                <ButtonGroupItem value='selected' className='truncate'>
-                  {selectedVersionInfo
-                    ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
-                    : `v${selectedVersion}`}
-                </ButtonGroupItem>
-              </ButtonGroup>
-            </div>
-          </div>
-
-          <div
-            className='relative h-[260px] w-full overflow-hidden rounded-sm border border-[var(--border)]'
-            onWheelCapture={(e) => {
-              if (e.ctrlKey || e.metaKey) return
-              e.stopPropagation()
-            }}
-          >
-            {workflowToShow ? (
-              <>
-                <div className='[&_*]:!cursor-default h-full w-full cursor-default'>
-                  <PreviewWorkflow
-                    workflowState={workflowToShow}
-                    height='100%'
-                    width='100%'
-                    isPannable={true}
-                    defaultPosition={{ x: 0, y: 0 }}
-                    defaultZoom={0.6}
-                  />
-                </div>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      type='button'
-                      variant='default'
-                      onClick={() => setShowExpandedPreview(true)}
-                      className='absolute right-[8px] bottom-2 z-10 size-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
-                    >
-                      <Expand className='size-[14px]' />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>See preview</Tooltip.Content>
-                </Tooltip.Root>
-              </>
-            ) : (
-              <div className='flex h-full flex-col items-center justify-center gap-1 bg-[var(--surface-1)] px-6 text-center'>
-                <p className='font-medium text-[var(--text-secondary)] text-small'>
-                  No live version
-                </p>
-                <p className='max-w-[320px] text-[var(--text-muted)] text-small'>
-                  Deploy this workflow to create a live preview and version history.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-            Versions
-          </Label>
-          <Versions
-            workflowId={workflowId}
-            versions={versions}
-            versionsLoading={versionsLoading}
-            isPromotingVersion={isPromotingVersion}
-            selectedVersion={selectedVersion}
-            onSelectVersion={handleSelectVersion}
-            onPromoteToLive={handlePromoteToLive}
-            onLoadDeployment={handleLoadDeployment}
-          />
-        </div>
-      </div>
-
       <ChipConfirmModal
-        open={showLoadDialog}
-        onOpenChange={setShowLoadDialog}
-        srTitle='Load Deployment'
-        title='Load Deployment'
+        open={showRestoreDialog}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setVersionToRestore(null)
+        }}
+        srTitle='Restore as draft'
+        title='Restore as draft'
         text={[
-          'Are you sure you want to load ',
+          'Restore ',
           {
-            text: versionToLoadInfo
-              ? formatVersionLabel(versionToLoadInfo.version, versionToLoadInfo.name)
-              : `v${versionToLoad?.version}`,
+            text: versionToRestoreInfo
+              ? formatVersionLabel(versionToRestoreInfo.version, versionToRestoreInfo.name)
+              : `v${versionToRestore}`,
             bold: true,
           },
-          '? ',
+          ' as your editable workflow? ',
           {
-            text: 'This will replace your current workflow with the deployed version.',
+            text: 'This replaces the current draft. The live deployment will not change.',
             error: true,
           },
         ]}
         confirm={{
-          label: 'Load deployment',
-          onClick: confirmLoadDeployment,
+          label: 'Restore as draft',
+          onClick: confirmRestoreVersion,
           pending: revertMutation.isPending,
         }}
       />
 
       <ChipConfirmModal
         open={showPromoteDialog}
-        onOpenChange={setShowPromoteDialog}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setVersionToPromote(null)
+        }}
         srTitle='Promote to live'
         title='Promote to live'
         text={[
-          'Are you sure you want to promote ',
+          'Promote ',
           {
             text: versionToPromoteInfo
               ? formatVersionLabel(versionToPromoteInfo.version, versionToPromoteInfo.name)
-              : `v${versionToPromote?.version}`,
+              : `v${versionToPromote}`,
             bold: true,
           },
-          ' to live? This version will become the active deployment and serve all API requests.',
+          ' to live? This version will become the active deployment and serve all workflow requests.',
         ]}
         confirm={{
           label: 'Promote to live',
-          onClick: confirmPromoteToLive,
+          onClick: confirmPromoteVersion,
           variant: 'primary',
           pending: isPromotingVersion,
         }}
       />
 
-      {workflowToShow && (
-        <Modal open={showExpandedPreview} onOpenChange={setShowExpandedPreview}>
+      {selectedVersionState && selectedVersionInfo && (
+        <Modal open={showVersionPreview} onOpenChange={setShowVersionPreview}>
           <ModalContent size='full' className='flex h-[90vh] flex-col'>
             <ModalHeader>
-              {previewMode === 'selected' && selectedVersionInfo
-                ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
-                : 'Live Workflow'}
+              {formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)}
             </ModalHeader>
             <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
               <ModalDescription className='sr-only'>
-                Visual preview of the selected workflow version.
+                Read-only preview of the selected deployment version.
               </ModalDescription>
-              <Preview workflowState={workflowToShow} autoSelectLeftmost />
+              <Preview workflowState={selectedVersionState} autoSelectLeftmost />
             </ModalBody>
           </ModalContent>
         </Modal>
       )}
+    </>
+  )
+
+  if (selectedVersionInfo) {
+    return (
+      <>
+        <div className='space-y-4'>
+          <div className='rounded-sm border border-[var(--border)] bg-[var(--surface-1)] p-3'>
+            <div className='flex items-center justify-between gap-3'>
+              <div className='min-w-0'>
+                <div className='flex min-w-0 items-center gap-2'>
+                  <p className='truncate font-medium text-[var(--text-primary)] text-sm'>
+                    {formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)}
+                  </p>
+                  <ChipTag variant='gray'>
+                    {selectedVersionInfo.isActive ? 'Live' : 'Inactive'}
+                  </ChipTag>
+                </div>
+                <p className='mt-1 text-[var(--text-muted)] text-xs'>
+                  Deployed {formatDateTime(new Date(selectedVersionInfo.createdAt))} by{' '}
+                  {selectedVersionInfo.deployedBy || 'Unknown'}
+                </p>
+              </div>
+            </div>
+            {!selectedVersionInfo.isActive && (
+              <Chip
+                type='button'
+                variant='primary'
+                fullWidth
+                leftIcon={RefreshCw}
+                className='mt-3 justify-center [&>span]:flex-none'
+                onClick={() => handlePromoteVersion(selectedVersionInfo.version)}
+                disabled={isPromotingVersion}
+              >
+                Promote to live
+              </Chip>
+            )}
+          </div>
+
+          <div>
+            <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
+              Version notes
+            </Label>
+            <div className='min-h-[72px] rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-3 py-2.5'>
+              <p className='text-[var(--text-secondary)] text-small'>
+                {selectedVersionInfo.description || 'No description was added for this version.'}
+              </p>
+            </div>
+          </div>
+
+          <div className='grid grid-cols-2 gap-2'>
+            <Chip
+              type='button'
+              variant='border'
+              fullWidth
+              leftIcon={Eye}
+              className='justify-center [&>span]:flex-none'
+              onClick={() => setShowVersionPreview(true)}
+              disabled={isLoadingSelectedVersionState || !selectedVersionState}
+            >
+              Preview version
+            </Chip>
+            <Chip
+              type='button'
+              variant='border'
+              fullWidth
+              leftIcon={SendToBack}
+              className='justify-center [&>span]:flex-none'
+              onClick={() => handleRestoreVersion(selectedVersionInfo.version)}
+            >
+              Restore as draft
+            </Chip>
+          </div>
+        </div>
+        {renderDialogs()}
+      </>
+    )
+  }
+
+  return (
+    <>
+      <div>
+        {accessMethods.length > 0 && (
+          <section>
+            <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
+              Access methods
+            </Label>
+            <div className='divide-y divide-[var(--border)] overflow-hidden rounded-sm border border-[var(--border)] bg-[var(--surface-2)]'>
+              {accessMethods.map((method) => {
+                const Icon = ACCESS_METHOD_ICONS[method.id]
+                return (
+                  <button
+                    key={method.id}
+                    type='button'
+                    className='group flex min-h-[58px] w-full items-center gap-3 px-3 text-left transition-colors duration-100 hover-hover:bg-[var(--surface-4)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-inset'
+                    onClick={() => onOpenAccessMethod(method.id)}
+                  >
+                    <span className='flex size-8 shrink-0 items-center justify-center rounded-sm border border-[var(--border)] bg-[var(--surface-1)]'>
+                      <Icon className='size-[14px] text-[var(--text-icon)]' />
+                    </span>
+                    <span className='min-w-0 flex-1'>
+                      <span className='block font-medium text-[var(--text-primary)] text-small'>
+                        {method.label}
+                      </span>
+                      <span className='block truncate text-[var(--text-muted)] text-xs'>
+                        {method.description}
+                      </span>
+                    </span>
+                    <span className='shrink-0 text-[var(--text-tertiary)] text-xs'>
+                      {method.status}
+                    </span>
+                    <ChevronRight className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {accessMethods.length > 0 && <div className='-mx-4 mt-5 h-px bg-[var(--border)]' />}
+
+        <section className={accessMethods.length > 0 ? 'mt-3' : undefined}>
+          <div className='mb-[6.5px] pl-0.5'>
+            <Label className='text-[var(--text-primary)] text-small'>Version history</Label>
+          </div>
+          <PopoverScrollArea
+            fadeVariant='panel'
+            bottomFade={false}
+            scrollbar='hidden'
+            className='max-h-[260px] pb-20'
+          >
+            <Versions
+              workflowId={workflowId}
+              versions={versions}
+              versionsLoading={versionsLoading}
+              isPromotingVersion={isPromotingVersion}
+              onSelectVersion={onSelectVersion}
+              onPromoteToLive={handlePromoteVersion}
+              onLoadDeployment={handleRestoreVersion}
+            />
+          </PopoverScrollArea>
+        </section>
+      </div>
+      {renderDialogs()}
     </>
   )
 }
