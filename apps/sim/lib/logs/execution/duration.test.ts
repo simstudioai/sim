@@ -37,7 +37,7 @@ describe('elapsedDurationMsSql', () => {
     const { sql, params } = render(new Date('2026-08-13T12:00:05.000Z'))
 
     expect(sql).toContain('::timestamp')
-    expect(params).toEqual(['2026-08-13T12:00:05.000Z'])
+    expect(params).toContain('2026-08-13T12:00:05.000Z')
     expect(params.some((param) => Array.isArray(param))).toBe(false)
   })
 
@@ -48,5 +48,18 @@ describe('elapsedDurationMsSql', () => {
     expect(sql).toContain('GREATEST(1,')
     expect(sql).toContain('ROUND(')
     expect(sql).toContain('::integer')
+  })
+
+  /**
+   * An untimed run cancelled after ~24.8 days exceeds `integer`. Without the
+   * ceiling the cast raises, and the terminal write is lost entirely — the row
+   * stays `running` with no end timestamp, which is worse than a saturated
+   * duration.
+   */
+  it('saturates at the column ceiling instead of overflowing the cast', () => {
+    const { sql, params } = render(new Date('2026-08-13T12:00:05.000Z'))
+
+    expect(sql).toContain('LEAST(')
+    expect(params).toContain(2_147_483_647)
   })
 })

@@ -19,7 +19,18 @@ import { type SQL, sql } from 'drizzle-orm'
  *
  * Floored at 1ms to match `completeWorkflowExecution`, so a cancellation that
  * lands inside the same millisecond as the start still records that it ran.
+ *
+ * Saturated at the column's own ceiling rather than left to overflow. The
+ * column is `integer`, so an untimed run cancelled after ~24.8 days would
+ * otherwise raise `numeric_value_out_of_range` — which costs more than the
+ * duration it was recording: the direct write is caught and logged, leaving
+ * the row `running` with no end timestamp at all, and the workflow-group write
+ * fails its transaction and takes the whole cancellation with it. A saturated
+ * duration is wrong in the last digit; a failed terminal write is wrong about
+ * whether the run ended.
  */
+const INT4_MAX_MS = 2_147_483_647
+
 export function elapsedDurationMsSql(endedAt: Date): SQL<number> {
-  return sql<number>`GREATEST(1, ROUND(EXTRACT(EPOCH FROM (${endedAt.toISOString()}::timestamp - ${workflowExecutionLogs.startedAt})) * 1000))::integer`
+  return sql<number>`LEAST(${INT4_MAX_MS}, GREATEST(1, ROUND(EXTRACT(EPOCH FROM (${endedAt.toISOString()}::timestamp - ${workflowExecutionLogs.startedAt})) * 1000)))::integer`
 }
