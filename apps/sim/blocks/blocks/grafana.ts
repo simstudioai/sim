@@ -1005,8 +1005,14 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       title: 'Contact Point Name',
       type: 'short-input',
       placeholder: 'Enter contact point name',
-      required: true,
-      condition: { field: 'operation', value: 'grafana_create_contact_point' },
+      required: {
+        field: 'operation',
+        value: ['grafana_create_contact_point', 'grafana_update_contact_point'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_contact_point', 'grafana_update_contact_point'],
+      },
     },
     {
       id: 'contactPointType',
@@ -1061,7 +1067,10 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       title: 'Disable Resolve Message',
       type: 'switch',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'grafana_create_contact_point' },
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_contact_point', 'grafana_update_contact_point'],
+      },
     },
   ],
   tools: {
