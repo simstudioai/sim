@@ -21,6 +21,7 @@ interface MockView {
       setPermissionCheckHandler: ReturnType<typeof vi.fn>
     }
     on: ReturnType<typeof vi.fn>
+    setUserAgent: ReturnType<typeof vi.fn>
     setWindowOpenHandler: ReturnType<typeof vi.fn>
     loadURL: ReturnType<typeof vi.fn>
     reload: ReturnType<typeof vi.fn>
@@ -167,6 +168,18 @@ describe('browser-agent session', () => {
     expect(started).toBeTypeOf('function')
     expect(inPage).toBeTypeOf('function')
     expect(onTabNavigated).toHaveBeenCalledWith(contents, true)
+  })
+
+  it('gives every tab a user agent with no Electron token in it', () => {
+    const first = session.ensureTab()
+    const second = session.addTab()
+
+    for (const tab of [first, second]) {
+      const contents = (tab.view as unknown as MockView).webContents
+      const agent = contents.setUserAgent.mock.calls.at(-1)?.[0] as string | undefined
+      expect(agent).toMatch(/^Mozilla\/5\.0 \(.+\) .*Chrome\/\d+\.0\.0\.0 Safari\/537\.36$/)
+      expect(agent).not.toMatch(/Electron|Sim\//)
+    }
   })
 
   it('settles the tab spinner when only subresources are still loading', () => {

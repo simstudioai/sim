@@ -62,6 +62,7 @@ import {
   isBlockedSubresourceUrl,
   subresourceNeedsResolution,
 } from '@/main/browser-agent/url-guard'
+import { browserUserAgent } from '@/main/browser-agent/user-agent'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 import { suggestedFilename, uniqueDownloadPath } from '@/main/downloads'
 import {
@@ -819,6 +820,11 @@ function configureAgentPartition(ses: Session): void {
   configuredPartitions.add(ses)
   ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
   ses.setPermissionCheckHandler(() => false)
+  // Service workers do not inherit a tab's user agent. With only the tab's set,
+  // the document request carries the browser string while the worker's own
+  // script request still announces Electron — and on a site that routes its
+  // fetches through a worker, that is the one the server sees.
+  ses.setUserAgent(browserUserAgent())
   // SSRF choke point for the agent partition. Document navigations (top-level +
   // iframes) get the full DNS-resolving check — the one seam every navigation
   // passes through, including page-initiated ones the driver never sees (server
@@ -1101,6 +1107,10 @@ function createTabView(): WebContentsView {
   const contents = view.webContents
   registerAgentWebContents(contents)
   configureAgentPartition(contents.session)
+  // The session default does not reach a WebContents that already exists, and
+  // the first tab is what brings the session into being, so each tab sets its
+  // own as well — otherwise tab one browses as Electron and the rest as Chrome.
+  contents.setUserAgent(browserUserAgent())
   attachAgentContextMenu(contents, {
     addToChat: (text) => withBrowserScope(scopeId, () => addPageSelectionToChat(contents, text)),
     openTab: (url) => withBrowserScope(scopeId, () => openTabWithUrl(url, false)),
