@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import {
+  booleanQueryFlagSchema,
   folderIdSchema,
   privateSecretProvenanceBundleSchema,
   requiredFieldSchema,
@@ -800,11 +801,17 @@ export const tableRowsQueryBaseSchema = z.object({
         .optional()
     )
     .default(0),
+  /**
+   * Absent, null, and empty all fall through to the `true` default, so a bare request still
+   * gets its count. Everything else goes to {@link booleanQueryFlagSchema}, which accepts a real
+   * boolean as well as the URL strings — `requestJson` parses this schema on the CLIENT before
+   * building the URL, so the value arrives as the caller's own type, and a string-only coercion
+   * silently read the grid's `includeTotal: param === 0` as `false`.
+   */
   includeTotal: z
     .preprocess(
-      (value) =>
-        value === null || value === undefined || value === '' ? undefined : value === 'true',
-      z.boolean().optional()
+      (value) => (value === null || value === undefined || value === '' ? undefined : value),
+      booleanQueryFlagSchema.optional()
     )
     .default(true),
 })

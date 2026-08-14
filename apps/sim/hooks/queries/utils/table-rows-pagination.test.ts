@@ -51,6 +51,35 @@ describe('hasMoreTableRows', () => {
   it('returns false when a stale-low count is already exceeded', () => {
     expect(hasMoreTableRows([makePage(10, 5)])).toBe(false)
   })
+
+  /**
+   * The server sets `nextCursor` exactly when the drain proved an unreturned witness row, so it
+   * answers correctly for a page cut by the byte budget — where both page fullness and the count
+   * mislead. It therefore wins over the count rules whenever it is present.
+   */
+  describe('nextCursor', () => {
+    it('ends the drain on a null cursor even when the count claims more rows', () => {
+      expect(hasMoreTableRows([{ ...makePage(36, 100), nextCursor: null }])).toBe(false)
+    })
+
+    it('continues on a non-null cursor even when the count is already covered', () => {
+      // A byte-cut page: fewer rows than asked for, and the advisory count disagrees.
+      expect(hasMoreTableRows([{ ...makePage(3, 3), nextCursor: 'c1' }])).toBe(true)
+    })
+
+    it('reads the cursor from the last page, not page 0', () => {
+      const pages = [
+        { ...makePage(1000, null), nextCursor: 'c1' },
+        { ...makePage(12, null, 1000), nextCursor: null },
+      ]
+      expect(hasMoreTableRows(pages)).toBe(false)
+    })
+
+    it('falls back to the count rules for pages cached before the cursor was threaded through', () => {
+      expect(hasMoreTableRows([makePage(36, 100)])).toBe(true)
+      expect(hasMoreTableRows([makePage(3, 3)])).toBe(false)
+    })
+  })
 })
 
 describe('getNextTableRowsPageParam', () => {

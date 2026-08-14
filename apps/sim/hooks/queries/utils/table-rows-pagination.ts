@@ -9,6 +9,11 @@ export type TableRowsPageParam = number | TableRowsCursor
 interface TableRowsPageLike {
   rows: ReadonlyArray<{ id: string; orderKey?: string }>
   totalCount: number | null
+  /**
+   * Optional because pages cached before this field was threaded through predate it; those fall
+   * back to the count rules below.
+   */
+  nextCursor?: string | null
 }
 
 /** Rows loaded across all fetched pages. */
@@ -17,18 +22,23 @@ export function countLoadedTableRows(pages: readonly TableRowsPageLike[]): numbe
 }
 
 /**
- * Whether more rows may exist past the fetched pages. A page is terminal only when it is
- * empty or when page 0's `COUNT(*)` is already covered — never when it is merely shorter
- * than the requested page size, so a short server page can never be misread as end-of-table.
+ * Whether more rows may exist past the fetched pages.
  *
- * `totalCount` is advisory (computed in a separate transaction from the page read). A
- * stale-high count self-corrects via the empty-page rule at the cost of one extra request;
- * a stale-low count (rows deleted after page 0's COUNT) stops the drain early — accepted,
- * since the view is already stale and the run-stream/interval invalidations refetch it.
+ * `nextCursor` is the authoritative answer and is preferred whenever the server sent one: it is
+ * non-null exactly when the drain proved an unreturned witness row, so it is correct for a page
+ * cut by the byte budget as well as one cut by `limit`. Page fullness cannot answer this — a
+ * byte-cut page is legitimately shorter than the requested size.
+ *
+ * The count rules remain as a fallback for pages cached before `nextCursor` was threaded through.
+ * They are weaker: `totalCount` is advisory (computed in a separate transaction from the page
+ * read), so a stale-high count self-corrects via the empty-page rule at the cost of one extra
+ * request, and a stale-low count stops the drain early. A null `totalCount` is read as "unknown,
+ * assume more" — which is why the `includeTotal` coercion bug made every table page forever.
  */
 export function hasMoreTableRows(pages: readonly TableRowsPageLike[]): boolean {
   const lastPage = pages[pages.length - 1]
   if (!lastPage || lastPage.rows.length === 0) return false
+  if (lastPage.nextCursor !== undefined) return lastPage.nextCursor !== null
   const totalCount = pages[0].totalCount
   return totalCount == null || countLoadedTableRows(pages) < totalCount
 }
