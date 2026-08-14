@@ -190,6 +190,31 @@ describe('defineV2BodyLifecycleRoute', () => {
     expect(response.headers.get('x-request-id')).toBeTruthy()
   })
 
+  /**
+   * `v2InvalidBodyResponse` answers `415` when an unreadable body declared a
+   * non-JSON media type, and `multipart/form-data` is exactly such a type. That
+   * change is argued safe for this builder in prose — its contract must omit the
+   * body schema, so `parseRequest` never attempts a JSON read and the
+   * classification is unreachable — but nothing executed it. A multipart upload
+   * is the shape this builder exists for, so it gets a test rather than a
+   * paragraph.
+   */
+  it('accepts a multipart body, which the JSON builder would classify as 415', async () => {
+    const form = new FormData()
+    form.append('file', new Blob([new Uint8Array([1, 2, 3])]), 'data.bin')
+    const request = new NextRequest(
+      'http://localhost/api/v2/body-lifecycle/item-1?workspaceId=workspace-1',
+      { method: 'POST', headers: { 'x-api-key': 'secret' }, body: form }
+    )
+    expect(request.headers.get('content-type')).toContain('multipart/form-data')
+
+    const response = await buildHandler()(request, context())
+
+    expect(response.status).toBe(201)
+    expect(await response.json()).toEqual({ data: { id: 'item-1' } })
+    expect(mocks.order).toContain('body')
+  })
+
   it('rejects at the IP abuse limit before authentication', async () => {
     v2RouteMocks.preauthRate.mockImplementation(async () => {
       mocks.order.push('ip-limit')
