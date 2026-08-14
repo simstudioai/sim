@@ -1,5 +1,4 @@
 import { Command } from 'commander'
-import { chatCommand } from './chat.js'
 import { attachFileGet } from './files-get.js'
 import { attachFileUpload } from './files-upload.js'
 import { attachKnowledgeDocumentUpload } from './knowledge-document-upload.js'
@@ -16,8 +15,6 @@ function group(program: Command, name: string): Command {
 
 /** Attaches commands whose multi-request or binary protocols cannot be generated. */
 export function attachProtocolCommands(program: Command): void {
-  chatCommand({}, group(program, 'chat'))
-
   const files = group(program, 'files')
   attachFileUpload(files)
   attachFileGet(files)

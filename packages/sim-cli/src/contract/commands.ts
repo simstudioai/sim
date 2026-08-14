@@ -292,61 +292,6 @@ export const CLI_CONTRACT: CliContract = {
   updateCustomTool: { flags: { schema: { json: true, describe: CUSTOM_TOOL_SCHEMA_HELP } } },
 
   // ─── Output columns for list commands ─────────────────────────────────────
-  listChats: {
-    flags: { search: { describe: 'Filter chats by title' } },
-    columns: [
-      { header: 'id' },
-      { header: 'title' },
-      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
-      { header: 'pinned', format: 'bool' },
-      { header: 'active', format: 'bool' },
-    ],
-  },
-  getChat: {
-    describe: 'Show chat metadata and message count',
-    flags: {
-      readOnly: {
-        boolean: true,
-        describe: 'Bind the returned continuation token to read-only mode',
-      },
-    },
-    fields: [
-      { header: 'id' },
-      { header: 'title' },
-      { header: 'messages', format: 'count' },
-      { header: 'active', format: 'bool' },
-    ],
-  },
-  listChatRuns: {
-    describe: 'List recent Sim Chat runs',
-    auth: 'optional',
-    flags: { status: { describe: 'Filter by durable run status' } },
-    columns: [
-      { header: 'started', path: 'startedAt', format: 'timestamp' },
-      { header: 'status' },
-      { header: 'title', path: 'chatTitle' },
-      { header: 'chat', path: 'chatId' },
-      { header: 'run', path: 'runId' },
-    ],
-  },
-  getChatRun: {
-    describe: 'Show chat run status (response and activity are included in JSON or YAML output)',
-    auth: 'optional',
-    fields: [
-      { header: 'run', path: 'runId' },
-      { header: 'chat', path: 'chatId' },
-      { header: 'title', path: 'chatTitle' },
-      { header: 'status' },
-      { header: 'started', path: 'startedAt', format: 'timestamp' },
-      { header: 'completed', path: 'completedAt', format: 'timestamp' },
-    ],
-  },
-  renameChat: {
-    command: 'chats rename',
-    describe: 'Rename a chat',
-    flags: { title: { describe: 'New chat title' } },
-    fields: [{ header: 'id' }, { header: 'title' }],
-  },
   listTables: {
     flags: { folderPath: FOLDER_PATH_FLAG },
     columns: [

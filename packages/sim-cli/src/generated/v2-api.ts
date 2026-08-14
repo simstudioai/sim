@@ -352,61 +352,6 @@ export type CancelWorkflowRunResponse = {
   }
 }
 
-/** `POST /api/v2/chat` */
-export type ChatBody = {
-  workspaceId: string
-  prompt: string
-  continuationToken?: string
-  readOnly?: boolean
-  async?: boolean
-  persistChat?: boolean
-  attachments?: Array<{
-    name: string
-    mediaType: string
-    data: string
-  }>
-  contexts?: Array<
-    | {
-        kind: 'workflow'
-        workflowId: string
-        label: string
-      }
-    | {
-        kind: 'table'
-        tableId: string
-        label: string
-      }
-    | {
-        kind: 'file'
-        fileId: string
-        label: string
-      }
-    | {
-        kind: 'knowledge'
-        knowledgeId: string
-        label: string
-      }
-    | {
-        kind: 'logs'
-        executionId: string
-        label: string
-      }
-    | {
-        kind: 'skill'
-        skillId: string
-        label: string
-      }
-    | {
-        kind: 'mcp'
-        serverId: string
-        label: string
-      }
-  >
-}
-
-/** Non-JSON response (`stream`). */
-export type ChatResponse = never
-
 /** `POST /api/v2/files/uploads/[uploadId]/complete` */
 export type CompleteFileUploadParams = {
   uploadId: string
@@ -1982,66 +1927,6 @@ export type GetBillingStatusResponse = {
   }
 }
 
-/** `GET /api/v2/chats/[chatId]` */
-export type GetChatParams = {
-  chatId: string
-}
-
-export type GetChatQuery = {
-  workspaceId: string
-  readOnly?: boolean
-}
-
-export type GetChatResponse = {
-  data: {
-    id: string
-    title: string | null
-    messages: Array<{
-      id: string
-      role: 'user' | 'assistant'
-      content: string
-      timestamp: string
-    }>
-    continuationToken: string
-    active: boolean
-  }
-}
-
-/** `GET /api/v2/chat/runs/[runId]` */
-export type GetChatRunParams = {
-  runId: string
-}
-
-export type GetChatRunQuery = {
-  workspaceId: string
-}
-
-export type GetChatRunResponse = {
-  data: {
-    runId: string
-    chatId: string
-    chatTitle: string | null
-    status: 'active' | 'paused_waiting_for_tool' | 'resuming' | 'complete' | 'error' | 'cancelled'
-    startedAt: string
-    completedAt: string | null
-    response: string
-    activities: Array<
-      | {
-          kind: 'subagent' | 'tool'
-          id: string
-          parentId?: string
-          label: string
-          state: 'running' | 'complete' | 'error'
-        }
-      | {
-          kind: 'narration'
-          parentId: string
-          delta: string
-        }
-    >
-  }
-}
-
 /** `GET /api/v2/custom-tools/[id]` */
 export type GetCustomToolParams = {
   id: string
@@ -2687,45 +2572,6 @@ export type ListBillingLogsResponse = {
     } | null
     runId: string | null
     creditCost: number
-  }>
-  nextCursor: string | null
-}
-
-/** `GET /api/v2/chat/runs` */
-export type ListChatRunsQuery = {
-  workspaceId: string
-  status?: 'active' | 'paused_waiting_for_tool' | 'resuming' | 'complete' | 'error' | 'cancelled'
-  limit?: number
-  cursor?: string
-}
-
-export type ListChatRunsResponse = {
-  data: Array<{
-    runId: string
-    chatId: string
-    chatTitle: string | null
-    status: 'active' | 'paused_waiting_for_tool' | 'resuming' | 'complete' | 'error' | 'cancelled'
-    startedAt: string
-    completedAt: string | null
-  }>
-  nextCursor: string | null
-}
-
-/** `GET /api/v2/chats` */
-export type ListChatsQuery = {
-  workspaceId: string
-  search?: string
-  limit?: number
-  cursor?: string
-}
-
-export type ListChatsResponse = {
-  data: Array<{
-    id: string
-    title: string | null
-    updatedAt: string
-    pinned: boolean
-    active: boolean
   }>
   nextCursor: string | null
 }
@@ -3501,23 +3347,6 @@ export type RelocateWorkflowFolderResponse = {
       updatedAt: string
       locked: boolean
     }
-  }
-}
-
-/** `PATCH /api/v2/chats/[chatId]` */
-export type RenameChatParams = {
-  chatId: string
-}
-
-export type RenameChatBody = {
-  workspaceId: string
-  title: string
-}
-
-export type RenameChatResponse = {
-  data: {
-    id: string
-    title: string
   }
 }
 
@@ -4485,23 +4314,6 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Cancel a run',
   },
-  chat: {
-    method: 'POST',
-    path: '/api/v2/chat',
-    pathParams: [] as const,
-    responseMode: 'stream',
-    summary: 'Ask Sim Chat',
-    body: {
-      workspaceId: { kind: 'string', required: true },
-      prompt: { kind: 'string', required: true },
-      continuationToken: { kind: 'string' },
-      readOnly: { kind: 'boolean', default: false },
-      async: { kind: 'boolean', default: false },
-      persistChat: { kind: 'boolean', default: true },
-      attachments: { kind: 'array' },
-      contexts: { kind: 'array' },
-    },
-  },
   completeFileUpload: {
     method: 'POST',
     path: '/api/v2/files/uploads/[uploadId]/complete',
@@ -5072,27 +4884,6 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string' },
     },
   },
-  getChat: {
-    method: 'GET',
-    path: '/api/v2/chats/[chatId]',
-    pathParams: ['chatId'] as const,
-    responseMode: 'json',
-    summary: 'Open Sim Chat',
-    query: {
-      workspaceId: { kind: 'string', required: true },
-      readOnly: { kind: 'boolean' },
-    },
-  },
-  getChatRun: {
-    method: 'GET',
-    path: '/api/v2/chat/runs/[runId]',
-    pathParams: ['runId'] as const,
-    responseMode: 'json',
-    summary: 'Get Sim Chat Run',
-    query: {
-      workspaceId: { kind: 'string', required: true },
-    },
-  },
   getCustomTool: {
     method: 'GET',
     path: '/api/v2/custom-tools/[id]',
@@ -5306,42 +5097,6 @@ export const V2_OPERATIONS = {
       startDate: { kind: 'string' },
       endDate: { kind: 'string' },
       limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
-    },
-  },
-  listChatRuns: {
-    method: 'GET',
-    path: '/api/v2/chat/runs',
-    pathParams: [] as const,
-    responseMode: 'json',
-    summary: 'List Sim Chat Runs',
-    query: {
-      workspaceId: { kind: 'string', required: true },
-      status: {
-        kind: 'enum',
-        values: [
-          'active',
-          'paused_waiting_for_tool',
-          'resuming',
-          'complete',
-          'error',
-          'cancelled',
-        ] as const,
-      },
-      limit: { kind: 'number', default: 30 },
-      cursor: { kind: 'string' },
-    },
-  },
-  listChats: {
-    method: 'GET',
-    path: '/api/v2/chats',
-    pathParams: [] as const,
-    responseMode: 'json',
-    summary: 'List Sim Chats',
-    query: {
-      workspaceId: { kind: 'string', required: true },
-      search: { kind: 'string' },
-      limit: { kind: 'number', default: 30 },
       cursor: { kind: 'string' },
     },
   },
@@ -5789,17 +5544,6 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
       path: { kind: 'string', required: true },
       destinationPath: { kind: 'string', required: true },
-    },
-  },
-  renameChat: {
-    method: 'PATCH',
-    path: '/api/v2/chats/[chatId]',
-    pathParams: ['chatId'] as const,
-    responseMode: 'json',
-    summary: 'Rename Sim Chat',
-    body: {
-      workspaceId: { kind: 'string', required: true },
-      title: { kind: 'string', required: true },
     },
   },
   renameFile: {

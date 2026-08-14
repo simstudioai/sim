@@ -21,7 +21,6 @@ import {
   searchFilter,
   textKey,
   timestampKey,
-  uuidKey,
 } from '@/lib/api/list-query'
 
 const thing = pgTable('thing', {
@@ -139,13 +138,6 @@ describe('cursor key value validation', () => {
     expect(sizeKey.bind(Number.NaN)).toBeNull()
     expect(sizeKey.bind(Number.POSITIVE_INFINITY)).toBeNull()
     expect(sizeKey.bind(12)).not.toBeNull()
-  })
-
-  it('rejects a malformed UUID before it reaches a UUID column comparison', () => {
-    const id = uuidKey<Row>(thing.id, (row) => row.id)
-
-    expect(id.bind('not-a-uuid')).toBeNull()
-    expect(id.bind('4bfa6f89-b746-43be-8246-bf1c69b58593')).not.toBeNull()
   })
 })
 

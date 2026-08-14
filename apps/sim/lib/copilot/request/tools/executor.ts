@@ -499,33 +499,6 @@ function terminalCompletionFromToolCall(toolCall: ToolCallState): AsyncToolCompl
   })
 }
 
-/**
- * Recovers a tool call's arguments from the raw argument stream.
- *
- * Arguments reach Sim two ways: whole, on a tool frame's `arguments`, or in
- * pieces, as `argumentsDelta` chunks that `handleToolArgsDelta` concatenates
- * into `streamingArgs`. Only the first populates `params`. When a call is
- * checkpointed before any frame carries `arguments` — which is how the file
- * subagent's `workspace_file` calls arrive — `params` stays undefined and the
- * tool executes with `{}`, failing its own schema on every required property.
- * The arguments were never lost, only unparsed, so recover them here rather
- * than dispatching a call known to be incomplete.
- */
-function hydrateParamsFromStreamedArgs(toolCall: ToolCallState): void {
-  if (toolCall.params !== undefined) return
-  const streamed = toolCall.streamingArgs?.trim()
-  if (!streamed) return
-  try {
-    const parsed = JSON.parse(streamed)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      toolCall.params = parsed as Record<string, unknown>
-    }
-  } catch {
-    // A truncated stream is not recoverable; leave params undefined so the
-    // tool's own validation reports the failure.
-  }
-}
-
 export async function executeToolAndReport(
   toolCallId: string,
   context: StreamingContext,
@@ -538,8 +511,6 @@ export async function executeToolAndReport(
       status: MothershipStreamV1ToolOutcome.error,
       message: 'Tool call not found',
     })
-
-  hydrateParamsFromStreamedArgs(toolCall)
 
   const argsPayload = toolCall.params
     ? (() => {

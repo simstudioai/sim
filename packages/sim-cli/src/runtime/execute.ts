@@ -54,7 +54,6 @@ export async function executeOperation(
   }
 
   const { client, profile } = clientFrom(host)
-  const auth = commandSpec.auth
   const hasWorkspaceField = Boolean(
     (operationSpec.query && PROFILE_INJECTED_FIELD in operationSpec.query) ||
       (operationSpec.body && PROFILE_INJECTED_FIELD in operationSpec.body)
@@ -64,11 +63,7 @@ export async function executeOperation(
     operation,
     positional,
     requestFlags,
-    hasWorkspaceField && !omitsWorkspace
-      ? auth
-        ? client.requireWorkspace(undefined, { auth })
-        : client.requireWorkspace()
-      : profile.workspaceId
+    hasWorkspaceField && !omitsWorkspace ? client.requireWorkspace() : profile.workspaceId
   )
   const paging = cursorSlot(operationSpec)
 
@@ -92,7 +87,6 @@ export async function executeOperation(
           paging === 'body'
             ? { ...(request.body ?? {}), ...pageLimit, ...(cursor ? { cursor } : {}) }
             : request.body,
-        ...(auth ? { auth } : {}),
       })
       rows.push(...page.data)
       cursor = page.nextCursor
@@ -106,7 +100,6 @@ export async function executeOperation(
     method: operationSpec.method,
     query: request.query,
     body: request.body,
-    ...(auth ? { auth } : {}),
   })
   renderResult(operation, profile.output, result?.data ?? result, commandSpec, {
     expandedTrace: requestFlags.trace === true,

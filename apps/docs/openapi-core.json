@@ -1434,7 +1434,7 @@
       "post": {
         "operationId": "chat",
         "summary": "Ask Sim Chat",
-        "description": "Chat with the Mothership agent for a workspace. Personal API keys use their owner's current workspace permission, integrations, credentials, environment context, and memory, and their conversations are synchronized with the Sim Home chat history. Shared workspace keys retain normal workspace capabilities but do not inherit a human owner's personal integrations, secrets, environment, memory, or private chat history. Set `readOnly` to select the subtractive, secretless workspace-query policy. Omit `continuationToken` for a one-shot or first interactive turn, then send the latest opaque token returned by the stream to continue the same conversation. Tokens are bound to the workspace, authorization principal, credential type, and read-only mode, and expire on a rolling 24-hour window; this chat POST never accepts a raw chat ID. Set `async: true` with a personal API key to keep an accepted persisted turn running after disconnect; its first accepted `session` event includes a durable `runId` that can be polled through the chat-run endpoints. `runId` is omitted for ordinary synchronous turns. Set `persistChat: false` to suppress persistence of a newly created chat; that mode cannot be asynchronous. The response is a Server-Sent Events stream. `text` events contain incremental assistant output and `complete` contains the authoritative final result. Comment frames are heartbeats and `data: [DONE]` closes a successful stream. The caller's Sim API key selects and authorizes the local workspace but is never forwarded to Mothership. Workspace keys use the workspace billing account as their system actor while local tool authorization remains bound to the key owner; personal keys use their owner. Inline attachments are base64-only: paths and URLs are not accepted or resolved.",
+        "description": "Chat with the Mothership agent for a workspace. Personal API keys use their owner's current workspace permission, integrations, credentials, environment context, and memory, and their conversations are synchronized with the Sim Home chat history. Shared workspace keys retain normal workspace capabilities but do not inherit a human owner's personal integrations, secrets, environment, memory, or private chat history. Set `readOnly` to select the subtractive, secretless workspace-query policy. Omit `continuationToken` for a one-shot or first interactive turn, then send the latest opaque token returned by the stream to continue the same conversation. Tokens are bound to the workspace, authorization principal, credential type, and read-only mode, and expire on a rolling 24-hour window; this chat POST never accepts a raw chat ID. The response is a Server-Sent Events stream. `text` events contain incremental assistant output and `complete` contains the authoritative final result. Comment frames are heartbeats and `data: [DONE]` closes a successful stream. The caller's Sim API key selects and authorizes the local workspace but is never forwarded to Mothership. Workspace keys use the workspace billing account as their system actor while local tool authorization remains bound to the key owner; personal keys use their owner. Inline attachments are base64-only: paths and URLs are not accepted or resolved.",
         "tags": ["Chat"],
         "security": [
           {
@@ -1471,16 +1471,6 @@
                     "type": "boolean",
                     "default": false,
                     "description": "Use the secretless, read-only workspace-query policy. The default keeps normal workspace capabilities; shared workspace credentials still exclude personal integrations, secrets, environment, and persistent memory."
-                  },
-                  "async": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Keep an accepted persisted turn running after the caller disconnects and return its durable run ID in the session event. Requires a personal API key and `persistChat: true`; poll the chat-run endpoints for progress."
-                  },
-                  "persistChat": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Allow a new conversation to be persisted in the workspace chat list. Setting this to false suppresses new-chat persistence and cannot be combined with `async: true`; an existing persisted chat remains persisted when continued."
                   },
                   "attachments": {
                     "type": "array",
@@ -1647,7 +1637,6 @@
               "example": {
                 "workspaceId": "ws_abc123",
                 "prompt": "Summarize the attached notes and compare them with this workspace.",
-                "async": true,
                 "attachments": [
                   {
                     "name": "notes.md",
@@ -1679,7 +1668,7 @@
             "content": {
               "text/event-stream": {
                 "schema": { "type": "string" },
-                "example": "data: {\"type\":\"session\",\"continuationToken\":\"sim-v2-chat-v1.opaque.refreshed\",\"requestId\":\"req_123\",\"chatId\":\"80a47295-040e-46f9-9ea8-ad78eff3bcab\",\"runId\":\"4bfa6f89-b746-43be-8246-bf1c69b58593\"}\n\ndata: {\"type\":\"text\",\"delta\":\"Two workflows...\"}\n\ndata: {\"type\":\"complete\",\"data\":{\"content\":\"Two workflows...\",\"continuationToken\":\"sim-v2-chat-v1.opaque.refreshed\",\"usage\":{\"prompt\":120,\"completion\":18,\"total\":138}}}\n\ndata: [DONE]\n\n"
+                "example": "data: {\"type\":\"session\",\"continuationToken\":\"sim-v2-chat-v1.opaque.refreshed\",\"requestId\":\"req_123\",\"chatId\":\"80a47295-040e-46f9-9ea8-ad78eff3bcab\"}\n\ndata: {\"type\":\"text\",\"delta\":\"Two workflows...\"}\n\ndata: {\"type\":\"complete\",\"data\":{\"content\":\"Two workflows...\",\"continuationToken\":\"sim-v2-chat-v1.opaque.refreshed\",\"usage\":{\"prompt\":120,\"completion\":18,\"total\":138}}}\n\ndata: [DONE]\n\n"
               }
             }
           },
@@ -1706,186 +1695,6 @@
           },
           "415": {
             "$ref": "#/components/responses/V2UnsupportedMediaType"
-          },
-          "429": {
-            "$ref": "#/components/responses/V2RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/V2ServiceUnavailable"
-          }
-        }
-      }
-    },
-    "/api/v2/chat/runs": {
-      "get": {
-        "operationId": "listChatRuns",
-        "summary": "List Sim Chat Runs",
-        "description": "List a bounded page of the authenticated user's root Mothership runs for one workspace, newest first. This private history surface requires a personal API key. It returns durable run state and safe chat metadata only; stream IDs, continuation tokens, model reasoning, tool payloads, and errors are never exposed. Pass `nextCursor` back as `cursor` to load another page.",
-        "tags": ["Chat"],
-        "security": [
-          {
-            "apiKey": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "schema": { "type": "string" },
-            "description": "Workspace whose owned Sim Chat runs should be listed."
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "active",
-                "paused_waiting_for_tool",
-                "resuming",
-                "complete",
-                "error",
-                "cancelled"
-              ]
-            },
-            "description": "Return only runs with this durable status."
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 30 },
-            "description": "Maximum runs to return."
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": { "type": "string", "minLength": 1 },
-            "description": "Opaque cursor returned by the previous page."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A bounded page of safe chat run summaries.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": ["data", "nextCursor"],
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": { "$ref": "#/components/schemas/V2ChatRunSummary" }
-                    },
-                    "nextCursor": { "type": ["string", "null"] }
-                  }
-                },
-                "example": {
-                  "data": [
-                    {
-                      "runId": "4bfa6f89-b746-43be-8246-bf1c69b58593",
-                      "chatId": "80a47295-040e-46f9-9ea8-ad78eff3bcab",
-                      "chatTitle": "Review release workflow",
-                      "status": "complete",
-                      "startedAt": "2026-08-08T18:29:00.000Z",
-                      "completedAt": "2026-08-08T18:30:00.000Z"
-                    }
-                  ],
-                  "nextCursor": null
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/V2BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/V2Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/V2Forbidden"
-          },
-          "429": {
-            "$ref": "#/components/responses/V2RateLimited"
-          }
-        }
-      }
-    },
-    "/api/v2/chat/runs/{runId}": {
-      "get": {
-        "operationId": "getChatRun",
-        "summary": "Get Sim Chat Run",
-        "description": "Poll one owned root Mothership run. In addition to durable status and chat metadata, the response contains accumulated root-assistant text and chronological display-safe activity updates when complete replay is available. A terminal run falls back to its persisted assistant response after replay expires. Raw argument/result objects, model reasoning, upstream errors, stream IDs, and continuation tokens are never returned; activity labels may summarize the same user-visible target or operation shown in Sim Home. Runs outside the user, workspace, live Mothership chat, or root-run scope all return the same 404.",
-        "tags": ["Chat"],
-        "security": [
-          {
-            "apiKey": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "runId",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string", "format": "uuid" },
-            "description": "Run ID returned by Ask Sim Chat or List Sim Chat Runs."
-          },
-          {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "schema": { "type": "string" },
-            "description": "Workspace the run and its chat must belong to."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A safe snapshot of the chat run.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": ["data"],
-                  "properties": {
-                    "data": { "$ref": "#/components/schemas/V2ChatRunDetail" }
-                  }
-                },
-                "example": {
-                  "data": {
-                    "runId": "4bfa6f89-b746-43be-8246-bf1c69b58593",
-                    "chatId": "80a47295-040e-46f9-9ea8-ad78eff3bcab",
-                    "chatTitle": "Review release workflow",
-                    "status": "active",
-                    "startedAt": "2026-08-08T18:29:00.000Z",
-                    "completedAt": null,
-                    "response": "I reviewed the release workflow.",
-                    "activities": [
-                      {
-                        "kind": "tool",
-                        "id": "tool-1",
-                        "label": "Read workflow",
-                        "state": "complete"
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/V2BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/V2Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/V2Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/V2NotFound"
           },
           "429": {
             "$ref": "#/components/responses/V2RateLimited"
@@ -2926,88 +2735,6 @@
                 "description": "When the resume execution completed."
               }
             }
-          }
-        }
-      },
-      "V2ChatRunSummary": {
-        "type": "object",
-        "required": ["runId", "chatId", "chatTitle", "status", "startedAt", "completedAt"],
-        "properties": {
-          "runId": { "type": "string", "format": "uuid" },
-          "chatId": { "type": "string", "format": "uuid" },
-          "chatTitle": { "type": ["string", "null"] },
-          "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "paused_waiting_for_tool",
-              "resuming",
-              "complete",
-              "error",
-              "cancelled"
-            ]
-          },
-          "startedAt": { "type": "string", "format": "date-time" },
-          "completedAt": { "type": ["string", "null"], "format": "date-time" }
-        }
-      },
-      "V2ChatRunActivity": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": ["kind", "id", "label", "state"],
-            "properties": {
-              "kind": { "type": "string", "enum": ["subagent", "tool"] },
-              "id": { "type": "string" },
-              "parentId": { "type": "string" },
-              "label": { "type": "string" },
-              "state": { "type": "string", "enum": ["running", "complete", "error"] }
-            }
-          },
-          {
-            "type": "object",
-            "required": ["kind", "parentId", "delta"],
-            "properties": {
-              "kind": { "type": "string", "const": "narration" },
-              "parentId": { "type": "string" },
-              "delta": { "type": "string" }
-            }
-          }
-        ]
-      },
-      "V2ChatRunDetail": {
-        "type": "object",
-        "required": [
-          "runId",
-          "chatId",
-          "chatTitle",
-          "status",
-          "startedAt",
-          "completedAt",
-          "response",
-          "activities"
-        ],
-        "properties": {
-          "runId": { "type": "string", "format": "uuid" },
-          "chatId": { "type": "string", "format": "uuid" },
-          "chatTitle": { "type": ["string", "null"] },
-          "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "paused_waiting_for_tool",
-              "resuming",
-              "complete",
-              "error",
-              "cancelled"
-            ]
-          },
-          "startedAt": { "type": "string", "format": "date-time" },
-          "completedAt": { "type": ["string", "null"], "format": "date-time" },
-          "response": { "type": "string" },
-          "activities": {
-            "type": "array",
-            "items": { "$ref": "#/components/schemas/V2ChatRunActivity" }
           }
         }
       },

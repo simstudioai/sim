@@ -1,4 +1,3 @@
-import { isValidUuid } from '@sim/utils/id'
 import {
   and,
   asc,
@@ -82,15 +81,6 @@ export function textKey<Row>(column: Column, read: (row: Row) => string): Keyset
     expr: column,
     encode: read,
     bind: (value) => (typeof value === 'string' ? sql`${value}` : null),
-  }
-}
-
-/** A UUID key whose caller-controlled cursor value is validated before SQL binding. */
-export function uuidKey<Row>(column: Column, read: (row: Row) => string): KeysetKey<Row> {
-  return {
-    expr: column,
-    encode: read,
-    bind: (value) => (typeof value === 'string' && isValidUuid(value) ? sql`${value}` : null),
   }
 }
 

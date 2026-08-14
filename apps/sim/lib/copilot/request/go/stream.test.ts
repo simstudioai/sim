@@ -38,13 +38,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
     }) ?? null,
 }))
 vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
-  /* `executeCopilotFileUseCase` reads `useCase.operation.id` to check the
-     operation is registered before running it, so a use-case mock without an
-     `operation` throws before `execute` is ever reached. */
-  listAllWorkspaceFiles: {
-    execute: listAllWorkspaceFilesMock,
-    operation: { id: 'files.list' },
-  },
+  listAllWorkspaceFiles: { execute: listAllWorkspaceFilesMock },
 }))
 
 vi.mock('@/lib/copilot/tools/server/files/file-preview', async () => {

@@ -18,7 +18,7 @@ npm install --global @simai/cli@dev     # dev
 ## Profiles
 
 Profiles work like the AWS CLI: one identity and one set of defaults per named
-profile, selected with `-p`, `--profile`, or `SIM_PROFILE`. This is what lets you keep
+profile, selected with `-P`, `--profile`, or `SIM_PROFILE`. This is what lets you keep
 production and a local dev stack side by side without re-authenticating.
 
 Non-secret settings live in `~/.sim/config`:
@@ -108,24 +108,14 @@ Settings → API keys.
 
 ## Commands
 
-Plural resource names are canonical, but most plural top-level resource groups
-also accept their singular form: for example, `sim table list`,
+Plural resource names are canonical, but every plural top-level resource group
+also accepts its singular form: for example, `sim table list`,
 `sim file get`, and `sim workflow get` are equivalent to their plural
-spellings. Chats deliberately keep separate names: `sim chat` is the terminal
-conversation, while `sim chats` manages saved chat resources.
+spellings.
 
 `knowledge` also accepts the shorter `kb` alias.
 
 ```bash
-sim chat [prompt...] [-f <path>...] [--read-only]
-sim chat ask [prompt...] [-f <path>...] [--read-only] [--chat <chatId>] [--async]
-sim chat follow <runId>
-sim chat runs list [--status <status>] [--limit <n>]
-sim chat runs get <runId>
-sim chats list [--search <text>] [--limit <n>]
-sim chats get <chatId> [--read-only]
-sim chats rename <chatId> --title <title>
-
 sim workflows ls [path] [--search <text>] [--limit <n>]
 sim workflows list [--folder <path>] [--deployed-only] [--limit <n>]
 sim workflows get <id>
@@ -192,8 +182,6 @@ sim billing logs [--period 7d] [--source sim-chat] [--limit <n>] [--all-workspac
 The `sim-chat` billing source combines Copilot and workspace chat usage.
 Organization audit logs require a personal API key. Commands with
 `--all-workspaces` otherwise default to the workspace in the active profile.
-Saved chat commands also require a personal API key and use that active
-workspace unless `--workspace` overrides it.
 
 `workflows runs get` is the lightweight status and polling resource.
 `--workflow` names the parent resource, while the run ID remains positional.
@@ -202,132 +190,6 @@ For a paused run, its status includes the context ID needed by `resume`.
 concise; add `--trace` for the expanded recursive trace with span inputs,
 outputs, errors, timing, and cost. JSON and YAML retain the complete structured
 response.
-
-### Ask Sim Chat
-
-`sim chat` opens a terminal conversation about the workspace saved by `sim
-login`. It streams answers with a compact working indicator, keeps the
-conversation across turns, and provides input history. In a real TTY, the
-transcript and current activity stay in the upper viewport while the
-free-form `❯` composer remains pinned at the bottom. Use the global
-`--workspace` flag to target another workspace the active key can access.
-Structured questions use a separate compact panel: Up/Down moves, Enter selects,
-Space toggles multi-select items, typing supplies a custom answer, and Esc returns
-to the ordinary composer. Suggested follow-up metadata is omitted.
-
-The composer stays editable while Sim is working. Press Enter with a follow-up
-to queue it and immediately steer the active turn (the TUI performs the web
-chat's queue-then-send-now handoff in one step); additional submitted prompts
-remain FIFO. Press Up on an empty composer to recall the newest queued prompt.
-Shift+Enter, Option/Meta+Enter, or a trailing `\` followed by Enter inserts a
-newline instead of submitting.
-
-Type `@` at the start of a token to tag a workspace workflow, table, file, or
-knowledge base. The latest 50 execution logs appear after those primary
-resources instead of expanding an unbounded logs tree. Past chats never enter
-the `@` list; use `/chats` to open their searchable picker. Type `/` to invoke a
-workspace skill or an enabled MCP server; read-only chat omits MCP servers,
-and CLI control commands remain in that menu at the start of the composer.
-These are structured tags, not decorative prompt text: Sim receives the
-selected resource id, and a tagged MCP server remains enabled for later turns
-in the same terminal conversation.
-
-```bash
-sim chat
-sim chat "Start by explaining this workspace"
-sim chat --file screenshot.png "What is failing here?"
-sim chat --read-only "Summarize this workspace without changing it"
-```
-
-Inside the chat, type or drop local paths to attach up to five images, PDFs, or
-UTF-8 text files. Paths are removed from the submitted prompt and the files are
-sent inline; a path-only turn sends just the attachments. Press Ctrl+V (or
-Cmd+V on macOS) to add a clipboard image or file without replacing draft text.
-`/chats` loads the chat history and opens a searchable picker. Selecting one
-restores its transcript and continues it with a fresh opaque token. The header
-shows the active chat title and keeps the `/chats` switch hint visible; a new
-chat's generated title appears there as soon as the server publishes it.
-`/rename <title>` retitles the active synced chat in both the terminal and Sim
-Home. `/new` clears the visible transcript and starts a new conversation,
-`/help` lists commands, and `/exit` or Ctrl+D exits. Ctrl+C clears idle input or
-cancels the active generation and returns to the prompt.
-
-Chats sent with the personal API key issued by `sim login` use the same history
-as Sim Home, so a CLI conversation appears in the web UI and a web conversation
-can be resumed in the terminal. Shared workspace keys intentionally do not
-expose their creator's private chat history. Profiles created by an older login
-flow may still contain a workspace-scoped key; run `sim login` again for that
-profile to replace it with a personal key and enable synchronized history and
-`/chats`.
-
-Chat uses the full Mothership toolset by default. Add `--read-only` in either
-interactive or one-shot mode when the conversation must be restricted to
-workspace-reading tools.
-
-`sim chat ask` is the non-interactive form. It never opens a prompt. With a
-personal API key, each ask creates or continues a saved chat, so the returned
-chat ID can be passed back with `--chat` and the conversation also appears in
-Sim Home. Without `--async`, table and text output keep the completed,
-terminal-safe answer as the only stdout payload, so it composes cleanly with
-shell tools; an interactive terminal shows the chat ID on stderr. JSON and YAML
-return both `content` and `chatId`. Bare `sim chat` requires a real terminal;
-pipelines and redirected output must use `chat ask`.
-
-```bash
-sim chat ask "Which workflows handle support tickets?"
-sim chat ask --chat <chatId> "Continue this conversation"
-cat incident.txt | sim chat ask "Which workflow is most likely involved?"
-sim chat ask < question.txt
-sim chat ask --file report.pdf "Summarize this in workspace context"
-```
-
-Pass `--chat <chatId>` to append one turn to an existing inactive
-chat, print its answer, and exit. The chat must belong to the active workspace,
-and synchronized history requires a personal API key.
-
-```bash
-chat_id=$(sim --output json chat ask "Inspect this workspace" | jq -r .chatId)
-sim chat ask --chat "$chat_id" "Now inspect the deployed workflows"
-```
-
-Add `--async` when the shell should regain control as soon as the run is
-accepted. The receipt contains the `runId`, `chatId`, and initial `active`
-status in the profile's normal output format. Async asks are saved chats, so
-they stay synchronized with Sim Home. `chat runs list` shows recent requests,
-and `chat runs get --output json` or `--output yaml` includes one run's
-accumulated response and activity.
-
-Use `chat follow` to observe a run until it reaches a terminal state. In human
-output it streams only response text that has appeared since the last poll;
-when stderr is a terminal, concise status and tool activity appear there.
-JSON and YAML wait and emit one final snapshot instead. Ctrl+C detaches the
-observer without cancelling the server-side run. A run ending in `error` or
-`cancelled` still emits its safe partial/final result and exits nonzero.
-
-```bash
-run_id=$(sim --output json chat ask --async "Audit this workspace" | jq -r .runId)
-sim chat follow "$run_id"
-sim chat runs get "$run_id"
-```
-
-When both a positional prompt and stdin are present, the positional prompt comes
-first and the piped content follows on the next line. Combined input is limited
-to 10 MiB of UTF-8 text.
-Files are sent inline by basename only: local paths never cross the API
-boundary. Images and PDFs are limited to 5 MiB each, text files to 200 KiB, and
-all attachments in a turn to 10 MiB total.
-
-On an auth-disabled self-hosted Sim deployment, configure the endpoint and
-workspace without logging in locally:
-
-```bash
-sim configure --set-endpoint http://localhost:3000 --set-workspace ws_local
-sim chat ask "What is in this workspace?"
-```
-
-That deployment must enable `V2_API=true` and set `COPILOT_API_KEY` server-side.
-A CLI API key, when one is present, authenticates only the public Sim request
-and is never reused as the deployment's Mothership key.
 
 `sim logs get` keeps the default human output concise. Use JSON or YAML to
 inspect its complete `executionData` and recursive `traceSpans` tree:

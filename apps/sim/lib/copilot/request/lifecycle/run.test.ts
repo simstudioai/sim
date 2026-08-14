@@ -1634,68 +1634,6 @@ describe('runCopilotLifecycle', () => {
     }
   })
 
-  /**
-   * Go blocks on a result for every checkpointed call. Throwing here used to end
-   * the whole turn, so one unrecorded result cost the user the entire response —
-   * and the only thing preventing it was a partial frame happening to register
-   * the call. Report the failure as that tool's result instead, so the model
-   * sees one failed call and can route around it.
-   */
-  it('reports a failed result instead of ending the turn when a checkpointed tool has none', async () => {
-    const billingAttribution = {
-      actorUserId: 'user-1',
-      workspaceId: 'ws-1',
-      billedAccountUserId: 'owner-1',
-      organizationId: 'org-1',
-      billingEntity: { type: 'organization' as const, id: 'org-1' },
-      billingPeriod: {
-        start: '2026-07-01T00:00:00.000Z',
-        end: '2026-08-01T00:00:00.000Z',
-      },
-      payerSubscription: null,
-    }
-    mockRunStreamLoop.mockImplementationOnce(
-      async (
-        _fetchUrl: string,
-        _fetchOptions: RequestInit,
-        context: StreamingContext
-      ): Promise<void> => {
-        // Registered but never resolved — no `result` ever recorded.
-        context.toolCalls.set('tool-1', {
-          id: 'tool-1',
-          name: 'workspace_file',
-          status: MothershipStreamV1ToolOutcome.error,
-        })
-        context.awaitingAsyncContinuation = {
-          checkpointId: 'ckpt-1',
-          pendingToolCallIds: ['tool-1'],
-        }
-      }
-    )
-    mockRunStreamLoop.mockResolvedValueOnce(undefined)
-
-    await expect(
-      runCopilotLifecycle(
-        { message: 'hello', messageId: 'message-1' },
-        {
-          userId: 'user-1',
-          workspaceId: 'ws-1',
-          chatId: 'chat-1',
-          executionId: 'execution-1',
-          runId: 'run-1',
-          simRequestId: 'request-1',
-          billingAttribution,
-        }
-      )
-    ).resolves.toBeDefined()
-
-    // The turn continued: a second leg ran, carrying the failed result back.
-    expect(mockRunStreamLoop).toHaveBeenCalledTimes(2)
-    const resumeBody = JSON.parse((mockRunStreamLoop.mock.calls[1]?.[1].body as string) ?? '{}')
-    const sent = JSON.stringify(resumeBody)
-    expect(sent).toContain('tool-1')
-  })
-
   it('fails closed instead of sending a secret-bearing tool name on resume', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'unsafe-tool', encryptedValue: 'ciphertext' },
@@ -1903,7 +1841,6 @@ describe('runCopilotLifecycle', () => {
     )
 
     expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
-    expect(mockUpdateRunStatus).toHaveBeenCalledWith('run-1', 'resuming')
     expect(requestBodies[1]).toEqual(
       expect.objectContaining({
         checkpointId: 'ckpt-1',

@@ -1490,17 +1490,6 @@ async function runCheckpointLoop(
       break
     }
 
-    if (isResume && options.runId) {
-      try {
-        await updateRunStatus(options.runId, 'resuming')
-      } catch (error) {
-        logger.warn('Failed to mark run as resuming', {
-          runId: options.runId,
-          error: toError(error).message,
-        })
-      }
-    }
-
     const loopOptions = {
       ...options,
       onEvent: async (event: StreamEvent) => {
@@ -1780,27 +1769,7 @@ async function runCheckpointLoop(
           toolStatus: tool?.status,
           hasPendingPromise: context.pendingToolPromises.has(toolCallId),
         })
-        /**
-         * Go is blocked on a result for every checkpointed call, so throwing
-         * here ends the turn outright and the user loses the whole response.
-         * Report the failure as that tool's result instead: the model sees one
-         * failed call and can retry or route around it, which is how every
-         * other tool failure already behaves. Reached only when a call was
-         * checkpointed without Sim ever recording a result for it.
-         */
-        const failedName = tool?.name ?? ''
-        results.push({
-          callId: toolCallId,
-          name: failedName,
-          data: getToolCallTerminalData({
-            id: toolCallId,
-            name: failedName,
-            status: MothershipStreamV1ToolOutcome.error,
-            error: `Tool call ${toolCallId} produced no result before resume`,
-          }),
-          success: false,
-        })
-        continue
+        throw new Error(`Cannot resume: missing result for pending tool call ${toolCallId}`)
       }
       const name = tool.name || ''
       if (!isResolvedSecretModelContentUnchanged(name, execContext.resolvedSecretTraceRegistry)) {

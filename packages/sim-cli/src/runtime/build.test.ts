@@ -108,91 +108,6 @@ describe('commands parsed through commander', () => {
     expect(program().commands.some((command) => command.name() === 'folders')).toBe(false)
   })
 
-  it('exposes saved chats through the generated resource commands', async () => {
-    expect(
-      commandAt('chats')
-        .commands.map((command) => command.name())
-        .sort()
-    ).toEqual(['get', 'list', 'rename'])
-
-    const listHelp = commandAt('chats', 'list').helpInformation()
-    expect(listHelp).toContain('--search <value>')
-    expect(listHelp).toContain('Filter chats by title')
-    expect(listHelp).toContain('--limit <n>')
-
-    const [listPath, listOptions] = await run([
-      'chats',
-      'list',
-      '--search',
-      'incident',
-      '--limit',
-      '5',
-    ])
-    expect(listPath).toBe('/api/v2/chats')
-    expect(listOptions.query).toMatchObject({
-      workspaceId: 'ws_local',
-      search: 'incident',
-      limit: 5,
-    })
-
-    const getHelp = commandAt('chats', 'get').helpInformation()
-    expect(getHelp).toContain('Bind the returned continuation token to read-only mode')
-    const [getPath, getOptions] = await run(['chats', 'get', 'chat_1', '--read-only'])
-    expect(getPath).toBe('/api/v2/chats/chat_1')
-    expect(getOptions.query).toEqual({ workspaceId: 'ws_local', readOnly: true })
-
-    const renameHelp = commandAt('chats', 'rename').helpInformation()
-    expect(renameHelp).toContain('--title <value>')
-    expect(renameHelp).toContain('New chat title')
-    const [renamePath, renameOptions] = await run([
-      'chats',
-      'rename',
-      'chat_1',
-      '--title',
-      'Incident review',
-    ])
-    expect(renamePath).toBe('/api/v2/chats/chat_1')
-    expect(renameOptions).toMatchObject({
-      method: 'PATCH',
-      body: { workspaceId: 'ws_local', title: 'Incident review' },
-    })
-  })
-
-  it('exposes pollable chat runs under the manual chat command group', async () => {
-    expect(
-      commandAt('chat', 'runs')
-        .commands.map((command) => command.name())
-        .sort()
-    ).toEqual(['get', 'list'])
-
-    const listHelp = commandAt('chat', 'runs', 'list').helpInformation()
-    expect(listHelp).toContain('--status <value>')
-    expect(listHelp).toContain('--limit <n>')
-    const [listPath, listOptions] = await run([
-      'chat',
-      'runs',
-      'list',
-      '--status',
-      'active',
-      '--limit',
-      '5',
-    ])
-    expect(listPath).toBe('/api/v2/chat/runs')
-    expect(listOptions.query).toMatchObject({
-      workspaceId: 'ws_local',
-      status: 'active',
-      limit: 5,
-    })
-    expect(listOptions.auth).toBe('optional')
-
-    const get = commandAt('chat', 'runs', 'get')
-    expect(get.description()).toContain('response and activity')
-    const [getPath, getOptions] = await run(['chat', 'runs', 'get', 'run_1'])
-    expect(getPath).toBe('/api/v2/chat/runs/run_1')
-    expect(getOptions.query).toEqual({ workspaceId: 'ws_local' })
-    expect(getOptions.auth).toBe('optional')
-  })
-
   it('describes generated resource and sub-resource groups', () => {
     expect(commandAt('tables').description()).toBe('Manage tables')
     expect(commandAt('tables', 'rows').description()).toBe('Manage table rows')
@@ -864,32 +779,6 @@ describe('single-resource rendering', () => {
     expect(JSON.parse(printed[0])).toEqual({ row: { id: 'r1' }, operation: 'inserted' })
   })
 
-  it('keeps chat implementation details out of human output', async () => {
-    const chat = {
-      id: 'chat_1',
-      title: 'Incident review',
-      messages: [
-        { id: 'message_1', role: 'user', content: 'Private prompt', timestamp: '2026-08-04' },
-        {
-          id: 'message_2',
-          role: 'assistant',
-          content: 'Private answer',
-          timestamp: '2026-08-04',
-        },
-      ],
-      continuationToken: 'opaque-token',
-      active: false,
-    }
-
-    const human = await lines(['chats', 'get', 'chat_1'], chat, 'text')
-    expect(human).toEqual(['id\tchat_1', 'title\tIncident review', 'messages\t2', 'active\tno'])
-    expect(human.join('\n')).not.toContain('opaque-token')
-    expect(human.join('\n')).not.toContain('Private prompt')
-
-    const machine = await lines(['chats', 'get', 'chat_1'], chat, 'json')
-    expect(JSON.parse(machine[0])).toEqual(chat)
-  })
-
   it('keeps sensitive run detail opt-in for human log output', async () => {
     const log = {
       runId: 'run_1',
@@ -984,23 +873,6 @@ describe('contract-selected list rendering', () => {
     })
 
     expect(printed).toEqual(['0.91\tpolicy.md\t2\tRefunds are available for 30 days.'])
-  })
-
-  it('formats saved chats like other resource lists', async () => {
-    const printed = await lines(
-      ['chats', 'list'],
-      [
-        {
-          id: 'chat_1',
-          title: 'Incident review',
-          updatedAt: '2026-08-04T12:34:56.789Z',
-          pinned: false,
-          active: true,
-        },
-      ]
-    )
-
-    expect(printed).toEqual(['chat_1\tIncident review\t2026-08-04 12:34:56\tno\tyes'])
   })
 
   it('renders row matches as rows', async () => {
