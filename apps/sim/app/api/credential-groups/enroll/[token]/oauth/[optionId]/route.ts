@@ -32,10 +32,7 @@ export const GET = withRouteHandler(
     const { token, optionId } = parsed.data.params
     const principal = await authenticateCredentialGroupEnrollment(token)
     if (!principal) {
-      return NextResponse.json(
-        { error: 'Not found' },
-        { status: 404, headers: { 'Cache-Control': 'no-store' } }
-      )
+      return createCredentialGroupEnrollmentRedirect(token, { oauth: 'unavailable' })
     }
 
     const enrollmentLimited = await enforceCredentialGroupEnrollmentOAuthRateLimit(

@@ -69,13 +69,16 @@ describe('credential group OAuth start route', () => {
     })
   })
 
-  it('returns the same 404 for an unavailable enrollment or option', async () => {
+  it('returns an unavailable enrollment to its public page', async () => {
     mocks.authenticate.mockResolvedValue(null)
 
     const response = await GET(request(), context)
 
-    expect(response.status).toBe(404)
-    await expect(response.json()).resolves.toEqual({ error: 'Not found' })
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe(
+      '/credential-groups/enroll/invitation-token?oauth=unavailable'
+    )
+    expect(response.headers.get('cache-control')).toBe('no-store')
     expect(mocks.startOAuth).not.toHaveBeenCalled()
   })
 
