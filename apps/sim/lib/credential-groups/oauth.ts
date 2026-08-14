@@ -202,8 +202,8 @@ async function persistGrant(
     const [updatedEnrollment] = await tx
       .update(credentialGroupEnrollment)
       .set({
-        status: 'in_progress',
-        completedAt: null,
+        status: enrollment.status === 'completed' ? 'completed' : 'in_progress',
+        ...(enrollment.status === 'completed' ? {} : { completedAt: null }),
         updatedAt: now,
       })
       .where(

@@ -21,6 +21,11 @@ vi.mock('@/lib/credential-groups/provider-registry', () => ({
   getCredentialGroupProviderAdapter: () => adapter,
 }))
 
+vi.mock('@/lib/credentials/managed-oauth', () => ({
+  decryptManagedOAuthTokenSet: vi.fn(),
+  encryptManagedOAuthTokenSet: vi.fn().mockResolvedValue('encrypted-token-set'),
+}))
+
 import { completeCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
 
 const POLICY = {
@@ -96,5 +101,45 @@ describe('credential group OAuth persistence', () => {
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('preserves completed enrollment state when an account reconnects', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'completed' }]).mockResolvedValueOnce([
+      {
+        id: 'credential-1',
+        providerSubjectId: 'google-subject-1',
+        encryptedOauthTokenSet: null,
+        refreshTokenExpiresAt: null,
+      },
+    ])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'credential-1' }])
+      .mockResolvedValueOnce([{ id: CONTEXT.enrollmentId }])
+
+    await completeCredentialGroupOAuth(
+      { ...CONTEXT, enrollmentStatus: 'completed' },
+      {
+        state: 'state-1',
+        provider: 'gmail',
+        nonceHash: 'nonce-hash',
+        enrollmentId: CONTEXT.enrollmentId,
+        credentialGroupId: CONTEXT.credentialGroupId,
+        optionId: CONTEXT.option.id,
+        authorizationAppId: POLICY.authorizationAppId,
+        scopeVersion: POLICY.scopeVersion,
+        requiredScopes: POLICY.requiredScopes,
+        redirectUri: 'https://sim.ai/api/credential-groups/oauth/gmail/callback',
+        codeVerifier: 'verifier',
+        invitationToken: 'invitation-token',
+        createdAt: Date.now(),
+      },
+      'authorization-code'
+    )
+
+    const enrollmentUpdate = dbChainMockFns.set.mock.calls[1]?.[0]
+    expect(enrollmentUpdate).toEqual(
+      expect.objectContaining({ status: 'completed', updatedAt: expect.any(Date) })
+    )
+    expect(enrollmentUpdate).not.toHaveProperty('completedAt')
   })
 })
