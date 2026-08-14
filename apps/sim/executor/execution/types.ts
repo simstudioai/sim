@@ -34,6 +34,16 @@ export interface ExecutionMetadata {
   startTime: string
   isClientSession?: boolean
   enforceCredentialAccess?: boolean
+  /**
+   * The run entered through the anonymous public-API path, so nobody in the
+   * workspace triggered it. Unlike a schedule, webhook, or workspace API key —
+   * all configured by someone here, which is why those still fall back to the
+   * workflow owner's personal variables — this endpoint is callable by anyone,
+   * and resolving one human's personal namespace for an anonymous caller is not
+   * something the owner opted into. Such runs use the workspace's own billing
+   * principal for both environment slices instead.
+   */
+  isPublicApiAccess?: boolean
   pendingBlocks?: string[]
   resumeFromSnapshot?: boolean
   resumeTerminalNoop?: boolean

@@ -77,6 +77,8 @@ export interface ExecuteWorkflowServiceParams {
   executionId?: string
   callChain?: string[]
   useAuthenticatedUserAsActor?: boolean
+  /** Anonymous public-API run (see {@link ExecutionMetadata.isPublicApiAccess}). */
+  isPublicApiAccess?: boolean
   /** Pre-fetched workflow row (already authorized by the caller). */
   workflowRecord?: WorkflowRecord
   upstreamBillingAttribution?: BillingAttributionSnapshot
@@ -201,6 +203,7 @@ export async function executeWorkflowService(
     requestId,
     callChain,
     useAuthenticatedUserAsActor = false,
+    isPublicApiAccess = false,
     workflowRecord,
     upstreamBillingAttribution,
     deploymentVersionId,
@@ -334,6 +337,8 @@ export async function executeWorkflowService(
         triggerType,
         executionId,
         callChain,
+        enforceCredentialAccess: useAuthenticatedUserAsActor,
+        isPublicApiAccess,
         executionTimeoutMs: preprocessResult.executionTimeout.async,
       })
       executionIdClaimCommitted = enqueue.retainExecutionClaim
@@ -427,7 +432,13 @@ export async function executeWorkflowService(
       const resolvedSelectedOutputs = resolveOutputIds(selectedOutputs, workflowBlocks)
       const streamWorkflow = {
         id: workflow.id,
-        userId: actorUserId,
+        /**
+         * The owner, not the actor: `executeWorkflow` reads this one field to set
+         * `workflowUserId`, which is the personal-environment fallback for runs with
+         * no identifiable caller. Passing the actor here made the streaming path
+         * resolve the actor where the JSON path resolves the owner.
+         */
+        userId: workflow.userId,
         workspaceId,
         isDeployed: workflow.isDeployed,
         variables: workflowVariables,
@@ -479,6 +490,8 @@ export async function executeWorkflowService(
               base64MaxBytes,
               abortSignal: streamAbortSignal,
               executionMode: 'stream',
+              enforceCredentialAccess: useAuthenticatedUserAsActor,
+              isPublicApiAccess,
               billingAttribution,
               largeValueKeys: [],
               fileKeys: [],
@@ -518,6 +531,7 @@ export async function executeWorkflowService(
       startTime: new Date().toISOString(),
       isClientSession: false,
       enforceCredentialAccess: useAuthenticatedUserAsActor,
+      isPublicApiAccess,
       largeValueExecutionIds: [executionId],
       largeValueKeys: [],
       fileKeys: [],
