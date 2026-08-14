@@ -48,12 +48,15 @@ const CREDENTIAL_GROUP_TABS = [
   { value: 'people', label: 'People' },
 ] as const
 
-function getEnrollmentStatus(
+export function getEnrollmentStatus(
   enrollment: CredentialGroupEnrollmentDetail,
   activeProviders: CredentialGroupProvider[]
 ) {
   if (enrollment.status === 'revoked') return { label: 'Revoked', invalid: false }
   if (enrollment.status === 'delivery_failed') return { label: 'Delivery failed', invalid: true }
+  if (enrollment.status !== 'completed' && enrollment.expired) {
+    return { label: 'Expired', invalid: true }
+  }
   const needsReauthorization = enrollment.connections.some(
     (connection) => connection.status === 'needs_reauth'
   )
@@ -70,7 +73,6 @@ function getEnrollmentStatus(
     return { label: 'Connected', invalid: false }
   }
   if (enrollment.status === 'completed') return { label: 'In progress', invalid: false }
-  if (enrollment.expired) return { label: 'Expired', invalid: true }
   if (enrollment.status === 'in_progress') return { label: 'In progress', invalid: false }
   return { label: 'Invited', invalid: false }
 }
