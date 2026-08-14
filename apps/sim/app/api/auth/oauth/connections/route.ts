@@ -97,6 +97,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         const accountSummary = {
           id: acc.id,
           name: displayName,
+          scopes,
         }
 
         if (existingConnection) {

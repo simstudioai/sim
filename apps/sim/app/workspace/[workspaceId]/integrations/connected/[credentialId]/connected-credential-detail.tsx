@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { resolveCredentialDisplay } from '@/lib/integrations'
+import { findGrantedResourceOrigin } from '@/lib/oauth/resource-url'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import {
   AddPeopleModal,
@@ -92,6 +93,16 @@ export function ConnectedCredentialDetail({
 
   const form = useCredentialDetailForm({ credential, isAdmin, backHref: integrationsHref })
 
+  /** Scopes granted to this credential's own account, not the provider's union. */
+  const accountScopes = useMemo(() => {
+    if (!credential?.accountId) return undefined
+    for (const service of oauthConnections) {
+      const account = service.accounts?.find((entry) => entry.id === credential.accountId)
+      if (account) return account.scopes
+    }
+    return undefined
+  }, [oauthConnections, credential?.accountId])
+
   const oauthServiceNameByProviderId = useMemo(
     () => new Map(oauthConnections.map((service) => [service.providerId, service.name])),
     [oauthConnections]
@@ -115,16 +126,23 @@ export function ConnectedCredentialDetail({
     if (!credential || credential.type !== 'oauth' || !credential.providerId || !workspaceId) return
     try {
       /**
-       * A reconnect must return to the environment the credential belongs to,
-       * and this surface has no way to supply it — `WorkspaceCredential` carries
-       * no granted scopes to read the origin back from. Checked before the draft
-       * is written so a refusal leaves nothing behind.
+       * A reconnect must return to the environment the credential already
+       * belongs to, so the origin is read back off the scopes granted to *this*
+       * account rather than asked for again. The account's own scopes are used,
+       * not the connection's union — two accounts on one provider are two
+       * different environments, and the union cannot tell them apart.
+       *
+       * Resolved before the draft is written so a failure leaves nothing behind.
        */
       const resourceConfig = getServiceConfigByProviderId(credential.providerId)?.resourceUrl
+      let resourceUrl: string | undefined
       if (resourceConfig) {
-        throw new Error(
-          `Reconnecting ${credential.displayName} needs its ${resourceConfig.title}. Disconnect it here, then connect the account again to enter one.`
-        )
+        resourceUrl = findGrantedResourceOrigin(accountScopes, resourceConfig)
+        if (!resourceUrl) {
+          throw new Error(
+            `This credential is not bound to an ${resourceConfig.title}. Disconnect it here, then connect the account again.`
+          )
+        }
       }
 
       await createDraft.mutateAsync({
@@ -151,6 +169,7 @@ export function ConnectedCredentialDetail({
       await connectOAuthService.mutateAsync({
         providerId: credential.providerId,
         callbackURL: window.location.href,
+        resourceUrl,
       })
     } catch (error: unknown) {
       toast.error("Couldn't start reconnect", {

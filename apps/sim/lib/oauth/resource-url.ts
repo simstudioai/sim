@@ -62,3 +62,25 @@ export function resolveResourceOrigin(
 
   return { ok: true, origin: parsed.origin }
 }
+
+/**
+ * Recovers the tenant origin a credential's token is an audience for, by finding
+ * the resource scope among the scopes actually granted.
+ *
+ * The origin is already recorded there by the connect flow, so it is read back
+ * rather than stored a second time or asked of the user again. This is also the
+ * completeness check for such a credential: a resource-scoped service whose
+ * granted scopes name no valid host holds a token no API will accept, which is
+ * otherwise invisible until a request returns 401.
+ */
+export function findGrantedResourceOrigin(
+  scopes: readonly string[] | undefined,
+  config: OAuthResourceUrlConfig
+): string | undefined {
+  for (const scope of scopes ?? []) {
+    if (!scope.endsWith(config.scopeSuffix)) continue
+    const resolved = resolveResourceOrigin(scope.slice(0, -config.scopeSuffix.length), config)
+    if (resolved.ok) return resolved.origin
+  }
+  return undefined
+}

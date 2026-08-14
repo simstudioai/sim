@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { resolveResourceOrigin } from '@/lib/oauth/resource-url'
+import { findGrantedResourceOrigin, resolveResourceOrigin } from '@/lib/oauth/resource-url'
 import type { OAuthResourceUrlConfig } from '@/lib/oauth/types'
 
 const config: OAuthResourceUrlConfig = {
@@ -57,5 +57,30 @@ describe('resolveResourceOrigin', () => {
   it('rejects an empty value rather than building a scope from nothing', () => {
     expect(resolveResourceOrigin('   ', config).ok).toBe(false)
     expect(resolveResourceOrigin(undefined, config).ok).toBe(false)
+  })
+})
+
+describe('findGrantedResourceOrigin', () => {
+  it('recovers the origin from the granted resource scope', () => {
+    const scopes = ['openid', 'offline_access', 'https://myorg.crm.dynamics.com/user_impersonation']
+    expect(findGrantedResourceOrigin(scopes, config)).toBe('https://myorg.crm.dynamics.com')
+  })
+
+  it('returns undefined when no scope names a resource, which marks a credential unusable', () => {
+    expect(findGrantedResourceOrigin(['openid', 'offline_access'], config)).toBeUndefined()
+    expect(findGrantedResourceOrigin([], config)).toBeUndefined()
+    expect(findGrantedResourceOrigin(undefined, config)).toBeUndefined()
+  })
+
+  it('ignores a resource scope whose host is not allowed', () => {
+    expect(
+      findGrantedResourceOrigin(['https://attacker.example/user_impersonation'], config)
+    ).toBeUndefined()
+  })
+
+  it('ignores a scope that merely contains the suffix mid-string', () => {
+    expect(
+      findGrantedResourceOrigin(['https://myorg.crm.dynamics.com/user_impersonation.other'], config)
+    ).toBeUndefined()
   })
 })

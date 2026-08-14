@@ -10,6 +10,13 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 export const oauthAccountSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
+  /**
+   * Scopes granted to this account specifically. The connection's own `scopes`
+   * is the union across its accounts, which cannot answer a per-credential
+   * question — for a service whose scope names a tenant host, two accounts on
+   * one provider are two different environments.
+   */
+  scopes: z.array(z.string()).optional(),
 })
 export type OAuthAccountSummary = z.output<typeof oauthAccountSummarySchema>
 
@@ -97,6 +104,12 @@ const oauthTokenResponseSchema = z.object({
   instanceUrl: z.string().optional(),
   /** Zoho Desk — the data-center-scoped Desk REST base for this credential. */
   apiDomain: z.string().optional(),
+  /**
+   * A service whose OAuth resource is the customer's own tenant host — the
+   * origin this credential's token is actually an audience for, recovered from
+   * its granted scope. Dataverse is the one such service today.
+   */
+  resourceUrl: z.string().optional(),
   cloudId: z.string().optional(),
   domain: z.string().optional(),
   authStyle: z.enum(['x-api-token']).optional(),
