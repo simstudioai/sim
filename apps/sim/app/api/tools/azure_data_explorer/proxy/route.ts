@@ -130,53 +130,80 @@ function columnNames(table: KustoTable): string[] {
   return (table.Columns ?? []).map((column) => column.ColumnName ?? '')
 }
 
+interface TableOfContents {
+  primaryOrdinal: number | null
+  statusOrdinal: number | null
+}
+
 /**
- * Picks the table holding the query's own results.
- *
- * A v1 query response carries several tables plus a trailing table of contents
- * that maps each ordinal to a kind; the first `QueryResult` ordinal is the
- * primary result. Management commands return a single table with no table of
- * contents, so the first table is the answer.
+ * Reads the trailing table of contents, which maps each ordinal in the response
+ * to a kind. It is the only thing that identifies which table holds the query's
+ * results and which holds its status — a management command has no table of
+ * contents, and returns `null` here.
  */
-function selectPrimaryTable(tables: KustoTable[]): KustoTable | null {
+function readTableOfContents(tables: KustoTable[]): TableOfContents | null {
   if (tables.length === 0) return null
 
   const contents = tables[tables.length - 1]
   const names = columnNames(contents)
   const ordinalIndex = names.indexOf('Ordinal')
   const kindIndex = names.indexOf('Kind')
+  if (ordinalIndex < 0 || kindIndex < 0) return null
 
-  if (ordinalIndex >= 0 && kindIndex >= 0) {
-    for (const row of contents.Rows ?? []) {
-      if (row[kindIndex] !== 'QueryResult') continue
-      const ordinal = Number(row[ordinalIndex])
-      if (Number.isInteger(ordinal) && tables[ordinal]) return tables[ordinal]
-    }
+  let primaryOrdinal: number | null = null
+  let statusOrdinal: number | null = null
+  for (const row of contents.Rows ?? []) {
+    const ordinal = Number(row[ordinalIndex])
+    if (!Number.isInteger(ordinal) || !tables[ordinal]) continue
+    if (row[kindIndex] === 'QueryResult' && primaryOrdinal === null) primaryOrdinal = ordinal
+    if (row[kindIndex] === 'QueryStatus' && statusOrdinal === null) statusOrdinal = ordinal
   }
+  return { primaryOrdinal, statusOrdinal }
+}
 
+/**
+ * Picks the table holding the query's own results — the first `QueryResult`
+ * ordinal the table of contents names. A management command returns a single
+ * table with no table of contents, so the first table is the answer.
+ */
+function selectPrimaryTable(
+  tables: KustoTable[],
+  contents: TableOfContents | null
+): KustoTable | null {
+  if (tables.length === 0) return null
+  if (contents?.primaryOrdinal !== null && contents !== null) {
+    return tables[contents.primaryOrdinal] ?? tables[0]
+  }
   return tables[0]
 }
 
 /**
  * Finds a partial query failure. Kusto answers 200 as soon as it starts
- * processing, then reports later failures through a QueryStatus table where a
+ * processing, then reports later failures through the QueryStatus table, where a
  * severity of 2 or lower means the request did not succeed.
+ *
+ * Only the table the table of contents names as `QueryStatus` is inspected.
+ * Scanning every table for `Severity`/`StatusDescription` columns would
+ * misread an ordinary log query that happens to select columns of those names
+ * as a failed request.
  */
-function findQueryFailure(tables: KustoTable[]): string | null {
-  for (const table of tables) {
-    const names = columnNames(table)
-    const severityIndex = names.indexOf('Severity')
-    const descriptionIndex = names.indexOf('StatusDescription')
-    if (severityIndex < 0 || descriptionIndex < 0) continue
+function findQueryFailure(tables: KustoTable[], contents: TableOfContents | null): string | null {
+  if (contents?.statusOrdinal == null) return null
+  const table = tables[contents.statusOrdinal]
+  if (!table) return null
 
-    for (const row of table.Rows ?? []) {
-      const severity = Number(row[severityIndex])
-      if (!Number.isFinite(severity) || severity > 2) continue
-      const description = row[descriptionIndex]
-      return typeof description === 'string' && description.length > 0
-        ? description
-        : 'Kusto reported a query failure'
-    }
+  const names = columnNames(table)
+  const severityIndex = names.indexOf('Severity')
+  const descriptionIndex = names.indexOf('StatusDescription')
+  if (severityIndex < 0 || descriptionIndex < 0) return null
+
+  for (const row of table.Rows ?? []) {
+    const severity = Number(row[severityIndex])
+    if (!Number.isFinite(severity) || severity > 2) continue
+    const description = row[descriptionIndex]
+    return typeof description === 'string' && description.length > 0
+      ? description
+      : 'Kusto reported a query failure'
   }
   return null
 }
@@ -339,7 +366,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       ? ((body as { Tables: KustoTable[] }).Tables ?? [])
       : []
 
-    const failure = findQueryFailure(tables)
+    const contents = readTableOfContents(tables)
+
+    const failure = findQueryFailure(tables, contents)
     if (failure) {
       logger.warn(`[${requestId}] Azure Data Explorer partial query failure: ${failure}`)
       return NextResponse.json(
@@ -350,7 +379,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({
       success: true,
-      output: projectTable(selectPrimaryTable(tables)),
+      output: projectTable(selectPrimaryTable(tables, contents)),
     })
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {

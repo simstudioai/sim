@@ -134,6 +134,29 @@ describe('POST /api/tools/azure_data_explorer/proxy', () => {
     expect(data.error).toBe('Query execution has exceeded')
   })
 
+  it('does not mistake a result column named Severity for a failed query', async () => {
+    const shadowed = queryResponse({
+      severity: 4,
+      statusDescription: 'Query completed successfully',
+    })
+    shadowed.Tables[1] = {
+      TableName: 'Table_1',
+      Columns: [
+        { ColumnName: 'Severity', DataType: 'Int32', ColumnType: 'int' },
+        { ColumnName: 'StatusDescription', DataType: 'String', ColumnType: 'string' },
+      ],
+      Rows: [[1, 'disk almost full']],
+    }
+    mockCluster(shadowed)
+
+    const response = await post(baseBody)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.output.records).toEqual([{ Severity: 1, StatusDescription: 'disk almost full' }])
+  })
+
   it('returns the first table for a management command, which has no table of contents', async () => {
     mockCluster({
       Tables: [
