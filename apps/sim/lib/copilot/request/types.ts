@@ -82,6 +82,8 @@ export interface ContentBlock {
   subagent?: string
   /** Orchestrator-chosen display name for a `subagent` start block. */
   subagentName?: string
+  /** The agent's latest <intent> tag. */
+  subagentIntent?: string
   /**
    * Deterministic agent-run identity. `spanId` is the stable per-invocation id
    * of the subagent that produced the block; `parentSpanId` links it to the run

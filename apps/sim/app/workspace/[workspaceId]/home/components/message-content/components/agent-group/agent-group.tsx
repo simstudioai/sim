@@ -21,6 +21,8 @@ export interface NestedAgentGroup {
   id: string
   agentName: string
   agentLabel: string
+  /** The agent's latest <intent> tag — the collapsed row's live status. */
+  intent?: string
   items: AgentGroupItem[]
   isDelegating: boolean
   isOpen: boolean
@@ -34,6 +36,8 @@ export type AgentGroupItem =
 interface AgentGroupProps {
   agentName: string
   agentLabel: string
+  /** The agent's latest <intent> tag — shown inline after the label. */
+  intent?: string
   items: AgentGroupItem[]
   isDelegating?: boolean
   isStreaming?: boolean
@@ -107,6 +111,7 @@ export function isAgentGroupResolved(items: AgentGroupItem[]): boolean {
 export function AgentGroup({
   agentName,
   agentLabel,
+  intent,
   items,
   isDelegating = false,
   isStreaming = false,
@@ -114,6 +119,7 @@ export function AgentGroup({
   isLaneOpen = false,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
+  const headerText = intent ? `${agentLabel} — ${intent}` : agentLabel
   const hasItems = items.length > 0
   const resolved = isAgentGroupResolved(items)
   const browserAgentAvailable = isBrowserAgentAvailable()
@@ -123,17 +129,12 @@ export function AgentGroup({
   const isWorking =
     !activeBrowserTakeover && ((isDelegating && !resolved) || (isStreaming && isLaneOpen))
 
-  // Expand while the turn is live and any of: the lane is open (the subagent is
-  // actively running), this is the current/latest section, or there is unresolved
-  // work. A finished group stays open until the NEXT section starts (it is no
-  // longer the latest), instead of collapsing the instant its own work resolves.
-  // Keying "still running" off the lane-open signal (not `resolved` alone) avoids
-  // a collapse/reopen flicker on parallel siblings: a subagent's tools all
-  // momentarily read "done" in the gap between its last search and its `respond`
-  // ("Gathering thoughts") tool, transiently flipping `resolved` true; the open
-  // lane bridges that gap so the row never collapses mid-run. The turn ending
-  // (isStreaming false) collapses everything; a manual toggle pins the choice.
-  const autoExpanded = isStreaming && (isCurrentSection || isLaneOpen || !resolved)
+  // Agent groups never auto-expand: the collapsed row IS the live view — the
+  // label plus the agent's latest <intent> tag, replaced inline as it works.
+  // Expanding is a deliberate user action (the toggle below); only an
+  // outstanding permission prompt or a browser hand-back forces the group
+  // open, because the turn cannot proceed while they wait off-screen.
+  const autoExpanded = false
   const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
   const [expandedTakeoverId, setExpandedTakeoverId] = useState<string | null>(null)
   // An outstanding permission prompt overrides a manual collapse: the turn
@@ -166,9 +167,9 @@ export function AgentGroup({
             <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
           </div>
           {isWorking ? (
-            <ShimmerText className='text-sm'>{agentLabel}</ShimmerText>
+            <ShimmerText className='text-sm'>{headerText}</ShimmerText>
           ) : (
-            <span className='text-[var(--text-body)] text-sm'>{agentLabel}</span>
+            <span className='text-[var(--text-body)] text-sm'>{headerText}</span>
           )}
           <ChevronDown
             className={cn(
@@ -183,9 +184,9 @@ export function AgentGroup({
             <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
           </div>
           {isWorking ? (
-            <ShimmerText className='text-sm'>{agentLabel}</ShimmerText>
+            <ShimmerText className='text-sm'>{headerText}</ShimmerText>
           ) : (
-            <span className='text-[var(--text-body)] text-sm'>{agentLabel}</span>
+            <span className='text-[var(--text-body)] text-sm'>{headerText}</span>
           )}
         </div>
       )}
@@ -216,6 +217,7 @@ export function AgentGroup({
                         <AgentGroup
                           agentName={item.group.agentName}
                           agentLabel={item.group.agentLabel}
+                          intent={item.group.intent}
                           items={item.group.items}
                           isDelegating={item.group.isDelegating}
                           isStreaming={isStreaming}

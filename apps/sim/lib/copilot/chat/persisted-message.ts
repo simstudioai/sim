@@ -55,6 +55,8 @@ export interface PersistedContentBlock {
   content?: string
   /** Orchestrator-chosen display name on a subagent start block. */
   name?: string
+  /** The agent's latest <intent> tag at persistence time. */
+  intent?: string
   toolCall?: PersistedToolCall
   timestamp?: number
   endedAt?: number
@@ -248,6 +250,7 @@ function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
         lifecycle: MothershipStreamV1SpanLifecycleEvent.start,
         content: block.content,
         ...(block.subagentName ? { name: block.subagentName } : {}),
+        ...(block.subagentIntent ? { intent: block.subagentIntent } : {}),
       }
     case 'subagent_text':
       return {
@@ -442,6 +445,8 @@ interface RawBlock {
   /** Orchestrator-chosen subagent display name (legacy blocks store it as `subagentName`). */
   name?: string
   subagentName?: string
+  intent?: string
+  subagentIntent?: string
   content?: string
   /** Go persists text blocks with key "text" instead of "content" */
   text?: string
@@ -510,6 +515,7 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
   }
   if (block.agent) result.agent = block.agent
   if (block.name) result.name = block.name
+  if (block.intent) result.intent = block.intent
   const blockContent = block.content ?? block.text
   if (blockContent !== undefined) result.content = blockContent
   if (block.channel) result.channel = block.channel as MothershipStreamV1TextChannel
@@ -592,6 +598,7 @@ function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
       lifecycle: MothershipStreamV1SpanLifecycleEvent.start,
       content: block.content,
       ...(block.subagentName ? { name: block.subagentName } : {}),
+      ...(block.subagentIntent ? { intent: block.subagentIntent } : {}),
     }
   }
 

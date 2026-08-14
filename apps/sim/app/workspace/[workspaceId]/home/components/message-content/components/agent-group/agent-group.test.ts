@@ -213,6 +213,13 @@ describe('AgentGroup browser takeover', () => {
     })
 
     expect(container.querySelector('.animate-stream-fade-in')).toBeNull()
+    // Groups never auto-expand: the answered question lives inside the
+    // collapsed log until the user opens it manually.
+    const headerToggle = container.querySelector('button[class*="group/agent"]')
+    expect(headerToggle).not.toBeNull()
+    act(() => {
+      headerToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
     const resumedLog = container.querySelector('[data-state="open"]')
     const answeredQuestion = container.querySelector('[data-takeover-answer="true"]')
     expect(answeredQuestion?.textContent).toContain(reason)

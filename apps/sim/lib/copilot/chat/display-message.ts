@@ -96,6 +96,7 @@ function toDisplayBlockBody(block: PersistedContentBlock): ContentBlock | undefi
         type: ContentBlockType.subagent,
         content: block.content,
         ...(block.name ? { subagentName: block.name } : {}),
+        ...(block.intent ? { subagentIntent: block.intent } : {}),
       }
     case MothershipStreamV1EventType.complete:
       if (block.status === MothershipStreamV1CompletionStatus.cancelled) {

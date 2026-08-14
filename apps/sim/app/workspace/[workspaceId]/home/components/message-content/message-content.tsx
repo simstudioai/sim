@@ -52,6 +52,8 @@ interface AgentGroupSegment {
   id: string
   agentName: string
   agentLabel: string
+  /** The agent's latest <intent> tag (parsed upstream from its text). */
+  intent?: string
   items: AgentGroupItem[]
   isDelegating: boolean
   isOpen: boolean
@@ -381,6 +383,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       if (dispatchToolName) absorbDispatchTool(dispatchToolName, block.parentSpanId)
       const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId)
       if (block.subagentName) g.agentLabel = block.subagentName
+      if (block.subagentIntent) g.intent = block.subagentIntent
       if (block.endedAt !== undefined) {
         // Persisted backend path: the lane was stamped closed (endedAt) without
         // a separate subagent_end block (the Sim backend stamps endedAt only;
@@ -625,6 +628,7 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       groupsByKey.delete(groupKey('mothership', undefined))
       const { group: g } = ensureGroup(key, block.parentToolCallId)
       if (block.subagentName) g.agentLabel = block.subagentName
+      if (block.subagentIntent) g.intent = block.subagentIntent
       if (inheritedDelegation) g.isDelegating = true
       g.isOpen = true
       activeGroupKey = resolveGroupKey(key, block.parentToolCallId)
@@ -956,6 +960,7 @@ function MessageContentInner({
                     key={segment.id}
                     agentName={segment.agentName}
                     agentLabel={segment.agentLabel}
+                    intent={segment.intent}
                     items={segment.items}
                     isDelegating={segment.isDelegating}
                     isStreaming={isStreaming}

@@ -260,6 +260,46 @@ describe('reduceEvent — subagent lifecycle', () => {
     expect(agent(m, 'S1').displayName).toBe('Pricing research')
   })
 
+  it('parses intent tags out of subagent text into the agent status', () => {
+    const textEv = (seq: number, text: string) =>
+      envelope(
+        seq,
+        'text',
+        { channel: 'assistant', text },
+        { lane: 'subagent', spanId: 'S1', parentSpanId: MAIN_SPAN, agentId: 'file' }
+      )
+    const m = apply([
+      spanStart(1, 'S1', 'file', 'tc-f'),
+      textEv(2, '<intent>Drafting chapter outline</intent>\nStarting on the outline now.'),
+    ])
+    expect(agent(m, 'S1').currentIntent).toBe('Drafting chapter outline')
+    const text = [...m.nodes.values()].find((n) => n.kind === 'text' && n.spanId === 'S1')
+    expect(text && text.kind === 'text' ? text.text : '').not.toContain('<intent>')
+    expect(text && text.kind === 'text' ? text.text : '').toContain('Starting on the outline')
+  })
+
+  it('handles an intent tag split across deltas and takes the latest tag', () => {
+    const textEv = (seq: number, text: string) =>
+      envelope(
+        seq,
+        'text',
+        { channel: 'assistant', text },
+        { lane: 'subagent', spanId: 'S1', parentSpanId: MAIN_SPAN, agentId: 'file' }
+      )
+    const m = apply([
+      spanStart(1, 'S1', 'file', 'tc-f'),
+      textEv(2, 'ok. <int'),
+      textEv(3, 'ent>Writing first chap'),
+      textEv(4, 'ter</intent>text after. <intent>Reviewing draft</intent>'),
+    ])
+    expect(agent(m, 'S1').currentIntent).toBe('Reviewing draft')
+    const text = [...m.nodes.values()].find((n) => n.kind === 'text' && n.spanId === 'S1')
+    const rendered = text && text.kind === 'text' ? text.text : ''
+    expect(rendered).toContain('ok. ')
+    expect(rendered).toContain('text after. ')
+    expect(rendered).not.toContain('intent>')
+  })
+
   it('settles an agent error when span end carries an error', () => {
     const m = apply([
       spanStart(1, 'S1', 'file', 'tc-file'),
