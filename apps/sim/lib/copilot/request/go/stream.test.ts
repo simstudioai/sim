@@ -936,4 +936,70 @@ describe('copilot go stream helpers', () => {
     expect(subagentBlock?.parentSpanId).toBe('S1')
     expect(subagentBlock?.parentToolCallId).toBe('tc-deploy-inner')
   })
+
+  it('backfills the display name when only the second subagent start carries it', async () => {
+    const scope = {
+      lane: 'subagent' as const,
+      agentId: 'research',
+      parentToolCallId: 'tc-research',
+      spanId: 'S3',
+      parentSpanId: 'S1',
+    }
+    vi.mocked(fetch).mockResolvedValueOnce(
+      createSseResponse([
+        // Dispatch-time start: fires before the trigger args stream, so no name.
+        createEvent({
+          streamId: 'stream-1',
+          cursor: '1',
+          seq: 1,
+          requestId: 'req-1',
+          type: MothershipStreamV1EventType.span,
+          scope,
+          payload: {
+            kind: 'subagent',
+            event: 'start',
+            agent: 'research',
+            data: { tool_call_id: 'tc-research' },
+          },
+        }),
+        // Phase-3 start re-announces the lane WITH the orchestrator-chosen name.
+        createEvent({
+          streamId: 'stream-1',
+          cursor: '2',
+          seq: 2,
+          requestId: 'req-1',
+          type: MothershipStreamV1EventType.span,
+          scope,
+          payload: {
+            kind: 'subagent',
+            event: 'start',
+            agent: 'research',
+            data: { tool_call_id: 'tc-research', name: 'Pricing research' },
+          },
+        }),
+        createEvent({
+          streamId: 'stream-1',
+          cursor: '3',
+          seq: 3,
+          requestId: 'req-1',
+          type: MothershipStreamV1EventType.complete,
+          payload: { status: MothershipStreamV1CompletionStatus.complete },
+        }),
+      ])
+    )
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+
+    await runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+      timeout: 1000,
+    })
+
+    const subagentBlocks = context.contentBlocks.filter((block) => block.type === 'subagent')
+    expect(subagentBlocks).toHaveLength(1)
+    expect(subagentBlocks[0]?.subagentName).toBe('Pricing research')
+  })
 })
