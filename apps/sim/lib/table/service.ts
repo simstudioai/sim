@@ -46,6 +46,7 @@ import {
   createExactEmptyTableRowSecretProvenance,
   mutateTableRowsWithSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
+import { assertValidSchema } from '@/lib/table/schema-invariants'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
@@ -547,6 +548,16 @@ export async function createTable(
 
   // Stamp stable ids so the table is id-keyed from its first row write.
   const schema = withGeneratedColumnIds(data.schema)
+
+  // The same invariants every later schema mutation enforces, run over what is
+  // about to be persisted. `validateTableSchema` above only checks columns in
+  // isolation, so a create could store a column naming a workflow group the
+  // schema does not declare — which no update path can clear, and which then
+  // fails every subsequent add-column and add-group with a 400. Imported lazily
+  // because `workflow-columns` transitively reaches the executable tool
+  // registry, which a static edge would pull into every page graph that renders
+  // a table.
+  assertValidSchema(schema, undefined)
 
   // Row limits are enforced per-write against the current plan (see assertRowCapacity); the stored
   // column is vestigial, so it just takes the caller's value (if any) or the default.

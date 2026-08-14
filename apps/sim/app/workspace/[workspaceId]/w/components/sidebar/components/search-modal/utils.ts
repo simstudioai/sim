@@ -166,9 +166,12 @@ export interface SearchModalProps {
   workflows?: WorkflowItem[]
   workspaces?: WorkspaceItem[]
   chats?: TaskItem[]
-  tables?: FolderedItem[]
-  files?: FileItem[]
-  knowledgeBases?: FolderedItem[]
+  /**
+   * Tables, files, and knowledge bases are NOT passed in: the content component reads them
+   * itself, so those three workspace-wide lists are queried only while the palette is open.
+   * The sidebar renders on every workspace route, so fetching them there registered the keys
+   * in the cache on routes that never show them.
+   */
   logs?: LogItem[]
   integrations?: IntegrationSearchItem[]
   connectedAccounts?: IntegrationSearchItem[]

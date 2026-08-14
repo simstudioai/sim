@@ -181,6 +181,7 @@ import { LinkedInBlock, LinkedInBlockMeta } from '@/blocks/blocks/linkedin'
 import { LinkupBlock, LinkupBlockMeta } from '@/blocks/blocks/linkup'
 import { LinqBlock, LinqBlockMeta } from '@/blocks/blocks/linq'
 import { LogfireBlock, LogfireBlockMeta } from '@/blocks/blocks/logfire'
+import { LogRocketBlock, LogRocketBlockMeta } from '@/blocks/blocks/logrocket'
 import { LogsBlock, LogsV2Block } from '@/blocks/blocks/logs'
 import { LoopsBlock, LoopsBlockMeta } from '@/blocks/blocks/loops'
 import { LumaBlock, LumaBlockMeta } from '@/blocks/blocks/luma'
@@ -217,6 +218,7 @@ import { MongoDBBlock, MongoDBBlockMeta } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
 import { MySQLBlock, MySQLBlockMeta } from '@/blocks/blocks/mysql'
 import { Neo4jBlock, Neo4jBlockMeta } from '@/blocks/blocks/neo4j'
+import { NetSuiteBlock, NetSuiteBlockMeta } from '@/blocks/blocks/netsuite'
 import { NeverBounceBlock, NeverBounceBlockMeta } from '@/blocks/blocks/neverbounce'
 import { NewRelicBlock, NewRelicBlockMeta } from '@/blocks/blocks/new_relic'
 import { NoteBlock } from '@/blocks/blocks/note'
@@ -517,6 +519,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   linkup: LinkupBlock,
   linq: LinqBlock,
   logfire: LogfireBlock,
+  logrocket: LogRocketBlock,
   logs: LogsBlock,
   logs_v2: LogsV2Block,
   loops: LoopsBlock,
@@ -543,6 +546,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   mothership: MothershipBlock,
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
+  netsuite: NetSuiteBlock,
   new_relic: NewRelicBlock,
   note: NoteBlock,
   notion: NotionBlock,
@@ -826,6 +830,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   linkup: LinkupBlockMeta,
   linq: LinqBlockMeta,
   logfire: LogfireBlockMeta,
+  logrocket: LogRocketBlockMeta,
   loops: LoopsBlockMeta,
   luma: LumaBlockMeta,
   mailchimp: MailchimpBlockMeta,
@@ -845,6 +850,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   mongodb: MongoDBBlockMeta,
   mysql: MySQLBlockMeta,
   neo4j: Neo4jBlockMeta,
+  netsuite: NetSuiteBlockMeta,
   neverbounce: NeverBounceBlockMeta,
   new_relic: NewRelicBlockMeta,
   notion: NotionBlockMeta,

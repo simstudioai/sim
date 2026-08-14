@@ -928,7 +928,10 @@ export function expectedUploadPartSize(session: UploadSessionRecord, partNumber:
     throw new UploadSessionError('conflict', 'PUT upload sessions do not have multipart parts')
   }
   if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > session.partCount) {
-    throw new UploadSessionError('validation', 'Invalid upload part number')
+    throw new UploadSessionError(
+      'validation',
+      `partNumber must be between 1 and ${session.partCount}`
+    )
   }
   if (partNumber < session.partCount) return session.partSize
   return session.fileSize - session.partSize * (session.partCount - 1)

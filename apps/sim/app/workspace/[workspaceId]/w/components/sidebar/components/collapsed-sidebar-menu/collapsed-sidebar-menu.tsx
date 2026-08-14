@@ -166,6 +166,22 @@ interface CollapsedWorkflowFlyoutItemProps {
   canRename?: boolean
 }
 
+/**
+ * Suppresses the Radix menu row's own pointer handlers, which focus the row on
+ * `pointermove` and hand focus back to the flyout content on `pointerleave`.
+ * A submenu closes on any focus that is not its trigger, so while this row's
+ * actions submenu is open those two handlers would close it the instant the
+ * cursor moved — the path a right-click takes, since it opens the submenu with
+ * the cursor still over the row rather than over the trigger. Radix composes
+ * consumer handlers ahead of its own and skips its own once the event is
+ * defaulted, so preventing default here holds focus still until the cursor
+ * reaches the submenu. Only applied to the row whose submenu is open: moving on
+ * to any other row still steals focus and closes it, as it should.
+ */
+const holdRowFocus = (e: React.PointerEvent) => {
+  if (e.pointerType === 'mouse') e.preventDefault()
+}
+
 const EDIT_ROW_CLASS = cn(
   chipVariants({ active: true, fullWidth: true }),
   'min-w-0 cursor-default select-none text-small'
@@ -340,6 +356,8 @@ export function CollapsedWorkflowFlyoutItem({
     <DropdownMenuItem
       asChild
       active={isCurrentRoute || actionsOpen}
+      onPointerMove={actionsOpen ? holdRowFocus : undefined}
+      onPointerLeave={actionsOpen ? holdRowFocus : undefined}
       action={
         hasActions ? (
           <DropdownMenuSub

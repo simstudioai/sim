@@ -1015,12 +1015,12 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
       })
     },
     onMutate: async ({ rowId, data }) => {
-      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      await queryClient.cancelQueries({ queryKey: tableKeys.infiniteRowsRoot(tableId) })
 
       const previousQueries = queryClient.getQueriesData<
         InfiniteData<TableRowsResponse, TableRowsPageParam>
       >({
-        queryKey: tableKeys.rowsRoot(tableId),
+        queryKey: tableKeys.infiniteRowsRoot(tableId),
       })
 
       const groups =
@@ -1105,12 +1105,12 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
       })
     },
     onMutate: async ({ updates }) => {
-      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      await queryClient.cancelQueries({ queryKey: tableKeys.infiniteRowsRoot(tableId) })
 
       const previousQueries = queryClient.getQueriesData<
         InfiniteData<TableRowsResponse, TableRowsPageParam>
       >({
-        queryKey: tableKeys.rowsRoot(tableId),
+        queryKey: tableKeys.infiniteRowsRoot(tableId),
       })
 
       const updateMap = new Map(updates.map((u) => [u.rowId, u.data]))

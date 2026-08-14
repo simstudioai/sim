@@ -1,4 +1,18 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
+
+export type CredentialAdminOperation<O extends WorkspaceOperation = WorkspaceOperation> = O & {
+  readonly minimumCredentialRole: 'admin'
+}
+
+/** Adds credential-admin policy to a workspace-scoped operation. */
+export function defineCredentialAdminOperation<const O extends WorkspaceOperation>(
+  operation: O
+): CredentialAdminOperation<O> {
+  if (operation.principalKinds.includes('workspace_api_key')) {
+    throw new Error(`Credential admin operation ${operation.id} requires a human principal`)
+  }
+  return Object.freeze({ ...operation, minimumCredentialRole: 'admin' as const })
+}
 
 export const credentialOperations = {
   listProviders: defineWorkspaceOperation({
@@ -25,12 +39,14 @@ export const credentialOperations = {
     workspaceApiKey: 'deny',
     principalKinds: ['personal_api_key'],
   }),
-  delete: defineWorkspaceOperation({
-    id: 'credentials.delete',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    principalKinds: ['personal_api_key'],
-  }),
+  delete: defineCredentialAdminOperation(
+    defineWorkspaceOperation({
+      id: 'credentials.delete',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      principalKinds: ['personal_api_key'],
+    })
+  ),
   launchConnection: defineWorkspaceOperation({
     id: 'credentials.connections.launch',
     minimumRole: 'write',

@@ -131,11 +131,23 @@ const CORS_RULES: readonly CorsRule[] = [
   },
 ]
 
-/** Single source of truth for /api/* CORS — resolved at request time, not baked at build. */
+/**
+ * Single source of truth for /api/* CORS — resolved at request time, not baked at build.
+ *
+ * The exposed-header list is applied to every policy, matched rule or fallback,
+ * because the headers it names are set by the same shared route machinery on
+ * every route. A rule opts out by spelling `exposeHeaders: undefined`; carrying
+ * the list per rule instead is how `/api/v2/workflows/{id}/execute` — the only
+ * route that emits `X-Run-Id`, and wildcard-origin precisely so browsers can
+ * call it — ended up unable to hand a browser the run id or a 429's
+ * `Retry-After`.
+ */
 export function resolveApiCorsPolicy(request: NextRequest): CorsPolicy {
   const { pathname } = request.nextUrl
   for (const rule of CORS_RULES) {
-    if (rule.match(pathname)) return rule.policy(request)
+    if (rule.match(pathname)) {
+      return { exposeHeaders: DEFAULT_API_EXPOSED_HEADERS, ...rule.policy(request) }
+    }
   }
   return {
     origin: getEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3001',

@@ -8,6 +8,8 @@ const { mocks } = vi.hoisted(() => ({
     loadContext: vi.fn(),
     resolvePermission: vi.fn(),
     getByTitle: vi.fn(),
+    getWorkspaceTool: vi.fn(),
+    updateWorkspaceTool: vi.fn(),
     upsert: vi.fn(),
     audit: vi.fn(),
   },
@@ -34,12 +36,12 @@ vi.mock('@/lib/workflows/custom-tools/operations', () => ({
   deleteCustomTool: vi.fn(),
   deleteWorkspaceCustomTool: vi.fn(),
   getCustomToolById: vi.fn(),
-  getWorkspaceCustomTool: vi.fn(),
+  getWorkspaceCustomTool: mocks.getWorkspaceTool,
   getWorkspaceCustomToolByTitle: mocks.getByTitle,
   listCustomTools: vi.fn(),
   listWorkspaceCustomTools: vi.fn(),
   updateCustomTool: vi.fn(),
-  updateWorkspaceCustomTool: vi.fn(),
+  updateWorkspaceCustomTool: mocks.updateWorkspaceTool,
   upsertCustomTools: mocks.upsert,
 }))
 
@@ -47,6 +49,7 @@ import { CUSTOM_TOOL_DELEGATION_AUDIENCE } from '@/lib/custom-tools/application/
 import {
   createWorkspaceCustomToolUseCase,
   saveWorkspaceCustomToolUseCase,
+  updateWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
 
 const workspace = {
@@ -183,5 +186,67 @@ describe('custom tool application use cases', () => {
     ).rejects.toMatchObject({ code: 'conflict' })
 
     expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
+  describe('public update against the shape the response publishes', () => {
+    const storableSchema = {
+      type: 'function',
+      function: {
+        name: 'lookup_order',
+        parameters: { type: 'object', properties: { id: { type: 'string' } } },
+      },
+    }
+    const session = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+
+    it('renames a tool whose stored schema can be published', async () => {
+      const stored = { ...tool, schema: storableSchema }
+      mocks.getWorkspaceTool.mockResolvedValueOnce(stored)
+      mocks.updateWorkspaceTool.mockResolvedValueOnce({ ...stored, title: 'renamed' })
+
+      const result = await updateWorkspaceCustomToolUseCase.execute({
+        principal: session,
+        input: { workspaceId: workspace.workspaceId, toolId: tool.id, title: 'renamed' },
+      })
+
+      expect(result.tool.title).toBe('renamed')
+      expect(mocks.updateWorkspaceTool).toHaveBeenCalledWith(
+        expect.objectContaining({ schema: storableSchema, code: tool.code })
+      )
+    })
+
+    it('refuses before committing when the stored schema cannot be published', async () => {
+      mocks.getWorkspaceTool.mockResolvedValueOnce({
+        ...tool,
+        schema: { function: storableSchema.function },
+      })
+
+      await expect(
+        updateWorkspaceCustomToolUseCase.execute({
+          principal: session,
+          input: { workspaceId: workspace.workspaceId, toolId: tool.id, title: 'renamed' },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+
+      expect(mocks.updateWorkspaceTool).not.toHaveBeenCalled()
+      expect(mocks.audit).not.toHaveBeenCalled()
+    })
+
+    it('refuses a supplied schema that cannot be published', async () => {
+      mocks.getWorkspaceTool.mockResolvedValueOnce({ ...tool, schema: storableSchema })
+
+      await expect(
+        updateWorkspaceCustomToolUseCase.execute({
+          principal: session,
+          input: {
+            workspaceId: workspace.workspaceId,
+            toolId: tool.id,
+            schema: { ...storableSchema, type: 'object' },
+          },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+
+      expect(mocks.updateWorkspaceTool).not.toHaveBeenCalled()
+      expect(mocks.audit).not.toHaveBeenCalled()
+    })
   })
 })

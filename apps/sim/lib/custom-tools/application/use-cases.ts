@@ -11,6 +11,7 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { customToolDelegationPolicy } from '@/lib/custom-tools/application/authorization'
 import { customToolOperations } from '@/lib/custom-tools/application/operations'
+import { assertStorableCustomToolSchema } from '@/lib/custom-tools/schema'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import {
   type CustomToolSortBy,
@@ -261,12 +262,21 @@ export const updateWorkspaceCustomToolUseCase = defineAuthorizedWorkspaceUseCase
   async execute({ input, context }) {
     const title = input.title ?? context.tool.title
     await ensureTitleAvailable(context, title)
+    const schema = input.schema ?? context.tool.schema
+    /**
+     * The merged schema, not only a supplied one: this surface parses the tool
+     * it returns, so an update that falls back to a stored schema the response
+     * cannot serialize used to commit and audit and only then fail — telling
+     * the caller the write failed after it had succeeded. Refusing before the
+     * write makes that error true.
+     */
+    assertStorableCustomToolSchema(schema)
     try {
       const tool = await updateWorkspaceCustomTool({
         workspaceId: context.workspaceId,
         toolId: context.tool.id,
         title,
-        schema: input.schema ?? context.tool.schema,
+        schema,
         code: input.code ?? context.tool.code,
       })
       if (!tool) throw new OrchestrationError('not_found', 'Custom tool not found')
@@ -303,6 +313,13 @@ export const updateAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
   async execute({ principal, input, context }) {
     const title = input.title ?? context.tool.title
     await ensureTitleAvailable(context, title)
+    /**
+     * Only a supplied schema, unlike the public update above: this surface does
+     * not parse what it returns, so an edit that merely keeps a legacy stored
+     * schema still succeeds, while a caller-supplied one is held to the shape
+     * the public API has to publish.
+     */
+    if (input.schema !== undefined) assertStorableCustomToolSchema(input.schema)
     try {
       const tool = await updateCustomTool({
         workspaceId: context.workspaceId,

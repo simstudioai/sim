@@ -2,7 +2,7 @@ import {
   v2CreateServiceAccountCredentialContract,
   v2ListCredentialsContract,
 } from '@/lib/api/contracts/v2/credentials'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   createV2ResourceConcealmentPolicy,
   defineV2JsonRoute,
@@ -29,7 +29,7 @@ function credentialCursorFilters(query: {
   providerId?: string
   search?: string
 }) {
-  return cursorScopeKey({
+  return cursorScopeKey(cursorRoute(v2ListCredentialsContract), {
     workspaceId: query.workspaceId,
     type: query.type,
     providerId: query.providerId,

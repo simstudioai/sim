@@ -48,11 +48,20 @@ export interface GetPublicLogResult {
  * folder means the caller's own tree is inconsistent; it is wrong for a
  * diagnostic log read, where the run may long outlive the folder it ran in and a
  * 500 would withhold the whole run over one unresolvable field.
+ *
+ * `workflowExists` is the join, not the folder: the log's `workflow_id` is set
+ * null when the workflow is deleted, so the left join yields a null `folderId`
+ * that is indistinguishable from a workflow sitting at the workspace root. Left
+ * unseparated, a run whose workflow is gone reports the root path next to
+ * `deleted: true` — a path the caller can hand back to `folderPaths` as a filter
+ * for a workflow that is no longer in any folder at all.
  */
 function publicLogFolderPath(
   pathById: ReadonlyMap<string, string>,
-  folderId: string | null
+  folderId: string | null,
+  workflowExists: boolean
 ): string | null {
+  if (!workflowExists) return null
   if (!folderId) return ROOT_FOLDER_PATH
   return pathById.get(folderId) ?? null
 }
@@ -90,7 +99,11 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
     }
     return {
       log: { ...log, workflowState: sanitizeExecutionSnapshotState(log.workflowState) },
-      workflowFolderPath: publicLogFolderPath(folderIndex.pathById, log.workflowFolderId),
+      workflowFolderPath: publicLogFolderPath(
+        folderIndex.pathById,
+        log.workflowFolderId,
+        log.workflowName !== null
+      ),
       executionData,
     }
   },

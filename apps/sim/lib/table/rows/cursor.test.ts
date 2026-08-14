@@ -194,6 +194,120 @@ describe('cursor↔filter binding', () => {
 })
 
 /**
+ * A predicate tree is sets all the way down: `all`/`any` compile to
+ * `and(...)`/`or(...)` and an `in`/`nin` operand to an OR fan-out / `IN (...)`.
+ * Reordering any of them selects the same rows, so a page-2 cursor must survive
+ * the reorder — while genuinely different predicates must still be refused,
+ * which is the failure mode that silently serves the wrong rows.
+ */
+describe('set-valued predicate positions bind by membership, not order', () => {
+  const A = { field: 'status', op: 'eq', value: 'active' } as const
+  const B = { field: 'wins', op: 'gte', value: 10 } as const
+
+  it('fingerprints reordered `all` clauses identically', () => {
+    expect(canonicalFilterKey({ predicate: { all: [A, B] } })).toBe(
+      canonicalFilterKey({ predicate: { all: [B, A] } })
+    )
+  })
+
+  it('fingerprints reordered `any` clauses identically', () => {
+    expect(canonicalFilterKey({ predicate: { any: [A, B] } })).toBe(
+      canonicalFilterKey({ predicate: { any: [B, A] } })
+    )
+  })
+
+  it('fingerprints a repeated clause like the single clause it selects', () => {
+    expect(canonicalFilterKey({ predicate: { all: [A, A, B] } })).toBe(
+      canonicalFilterKey({ predicate: { all: [A, B] } })
+    )
+  })
+
+  it('fingerprints reordered `in` operands identically', () => {
+    expect(
+      canonicalFilterKey({
+        predicate: { all: [{ field: 'owner', op: 'in', value: ['U1', 'U2'] }] },
+      })
+    ).toBe(
+      canonicalFilterKey({
+        predicate: { all: [{ field: 'owner', op: 'in', value: ['U2', 'U1'] }] },
+      })
+    )
+  })
+
+  it('fingerprints reordered `nin` operands identically', () => {
+    expect(
+      canonicalFilterKey({
+        predicate: { all: [{ field: 'owner', op: 'nin', value: ['U1', 'U2'] }] },
+      })
+    ).toBe(
+      canonicalFilterKey({
+        predicate: { all: [{ field: 'owner', op: 'nin', value: ['U2', 'U1'] }] },
+      })
+    )
+  })
+
+  it('applies the rule inside a nested group', () => {
+    expect(
+      canonicalFilterKey({
+        predicate: { all: [{ any: [A, B] }, { field: 'x', op: 'in', value: ['b', 'a'] }] },
+      })
+    ).toBe(
+      canonicalFilterKey({
+        predicate: { all: [{ field: 'x', op: 'in', value: ['a', 'b'] }, { any: [B, A] }] },
+      })
+    )
+  })
+
+  /**
+   * The dangerous half. Canonicalizing too far would collapse predicates that
+   * select different rows onto one stamp, and a cursor would then resume a page
+   * of the wrong sequence without any 400 at all.
+   */
+  it('keeps genuinely different predicates apart', () => {
+    const key = (predicate: TablePredicate) => canonicalFilterKey({ predicate })
+    const distinct = [
+      key({ all: [A, B] }),
+      key({ any: [A, B] }),
+      key({ all: [A] }),
+      key({ all: [{ field: 'status', op: 'ne', value: 'active' }] }),
+      key({ all: [{ field: 'owner', op: 'in', value: ['U1'] }] }),
+      key({ all: [{ field: 'owner', op: 'in', value: ['U1', 'U2'] }] }),
+      key({ all: [{ field: 'owner', op: 'nin', value: ['U1', 'U2'] }] }),
+      key({ all: [{ field: 'other', op: 'in', value: ['U1', 'U2'] }] }),
+      key({ all: [{ any: [A, B] }] }),
+    ]
+    expect(new Set(distinct).size).toBe(distinct.length)
+  })
+
+  /**
+   * An ordinary array operand is a sequence, not a set — `eq` matches a JSON
+   * array value by containment of that exact array, so reordering it changes
+   * which rows match and must change the stamp.
+   */
+  it('leaves a non-set operand array bound to its order', () => {
+    expect(
+      canonicalFilterKey({ predicate: { all: [{ field: 'tags', op: 'eq', value: ['a', 'b'] }] } })
+    ).not.toBe(
+      canonicalFilterKey({ predicate: { all: [{ field: 'tags', op: 'eq', value: ['b', 'a'] }] } })
+    )
+  })
+
+  it('accepts a cursor replayed under a reordered predicate, refuses a different one', () => {
+    const token = encodeCursor({
+      lastRow: { id: 'row_1', orderKey: null },
+      keysetValid: false,
+      nextOffset: 50,
+      predicate: { all: [A, B] },
+    })
+    const decoded = decodeCursor(token)
+    expect(() => assertCursorQueryBinding(decoded, { predicate: { all: [B, A] } })).not.toThrow()
+    expect(() => assertCursorQueryBinding(decoded, { predicate: { any: [B, A] } })).toThrow(
+      TableQueryValidationError
+    )
+  })
+})
+
+/**
  * The filter stamp is additive, and the payload version is deliberately not
  * bumped for it (see `CURSOR_VERSION`). These pin what a token minted by the
  * previous deploy does when it is replayed after this one.

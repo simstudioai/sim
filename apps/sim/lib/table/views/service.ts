@@ -177,9 +177,18 @@ function tolerantColumns(
  *
  * `filter` and `sort` are then validated: a predicate or sort naming no column
  * is one the query routes answer 400 for, so storing it would save a view that
- * can never load. Column LAYOUT is deliberately not validated — it auto-saves as
+ * can never load. Column LAYOUT is not validated by default — it auto-saves as
  * the user drags, and racing a concurrent column delete must self-heal through
  * {@link pruneViewConfig}, not fail the drag.
+ *
+ * `strictLayoutRefs` extends the same refusal to the LAYOUT keys, for the same
+ * caller that gets it on `filter` and `sort`: one request naming an unknown
+ * column twice answered 400 for the filter leaf and 200 for the hidden column,
+ * whose name was then stored in a blob no read ever shows (`pruneViewConfig`
+ * drops it) and would silently take effect if a column of that name were later
+ * created. It stays off for the first-party grid, whose layout auto-saves as the
+ * user drags and must self-heal past a concurrent column delete. A v2 caller
+ * cannot carry a dangling layout ref forward: the read it echoes is pruned.
  *
  * `carriedForward` names the references that are exempt from that refusal.
  * Deleting a column leaves every view that filtered on it dangling —
@@ -191,11 +200,20 @@ function tolerantColumns(
  * already held, so a reference the caller INTRODUCES is refused; a first-party
  * caller exempts its own refs too, which is the behavior the grid has always
  * had — see {@link CreateTableViewData.strictRefs}.
+ *
+ * The exemption is scoped to `filter` and `sort`, the only halves it exists for:
+ * the layout check runs against the LIVE columns, not the tolerant set. A
+ * carried-forward placeholder standing in for a deleted column named in the
+ * stored filter must not also make that name a valid target for a new layout
+ * ref, which `pruneViewConfig` would drop on the very next read — the same
+ * write-accepts / read-discards asymmetry `strictLayoutRefs` closes. Validating
+ * against `columns` makes the strict path accept exactly what a read keeps.
  */
 export function normalizeViewConfigForStorage(
   config: TableViewConfig,
   columns: ColumnDefinition[],
-  carriedForward: readonly string[] = []
+  carriedForward: readonly string[] = [],
+  strictLayoutRefs = false
 ): TableViewConfig {
   const stored = remapViewConfigColumnRefs(config, viewConfigRefMap(columns))
   const known = tolerantColumns(columns, carriedForward)
@@ -208,7 +226,36 @@ export function normalizeViewConfigForStorage(
     }
     throw error
   }
+  if (strictLayoutRefs) assertLayoutRefsResolve(stored, columns)
   return stored
+}
+
+/** The layout keys, paired with the references each one holds. */
+function layoutRefEntries(config: TableViewConfig): Array<[string, readonly string[]]> {
+  return [
+    ['columnOrder', config.columnOrder ?? []],
+    ['pinnedColumns', config.pinnedColumns ?? []],
+    ['hiddenColumns', config.hiddenColumns ?? []],
+    ['columnWidths', Object.keys(config.columnWidths ?? {})],
+  ]
+}
+
+/**
+ * Refuses a layout reference naming no column. Mirrors what the query
+ * validators do for `filter` and `sort`, including the message shape, so one
+ * config gets one answer whichever half the unknown name landed in.
+ */
+function assertLayoutRefsResolve(config: TableViewConfig, known: ColumnDefinition[]): void {
+  const live = new Set(known.map(getColumnId))
+  for (const [key, refs] of layoutRefEntries(config)) {
+    for (const ref of refs) {
+      if (!live.has(ref)) {
+        throw new TableViewValidationError(
+          `Unknown ${key} column "${ref}". It is not a column on this table.`
+        )
+      }
+    }
+  }
 }
 
 /**
@@ -371,9 +418,9 @@ export interface CreateTableViewData {
   userId: string
   columns: ColumnDefinition[]
   /**
-   * Whether to refuse a filter or sort reference naming no live column. Set by
-   * the `/api/v2` surface only, whose caller authored the config in this request
-   * and can be told which reference was wrong.
+   * Whether to refuse a filter, sort, or column-layout reference naming no live
+   * column. Set by the `/api/v2` surface only, whose caller authored the config
+   * in this request and can be told which reference was wrong.
    *
    * Absent — the first-party grid, which does not author these refs so much as
    * carry them: a view filtered on a since-deleted column keeps the dangling
@@ -405,7 +452,8 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
   const config = normalizeViewConfigForStorage(
     data.config,
     data.columns,
-    data.strictRefs ? [] : configColumnRefs(data.config)
+    data.strictRefs ? [] : configColumnRefs(data.config),
+    data.strictRefs === true
   )
 
   const row = await withTableViewsLock(data.tableId, async (trx) => {
@@ -500,11 +548,21 @@ export async function updateTableView(data: UpdateTableViewData): Promise<TableV
     const config =
       data.config === undefined
         ? undefined
-        : normalizeViewConfigForStorage(data.config, data.columns, carriedForward)
+        : normalizeViewConfigForStorage(
+            data.config,
+            data.columns,
+            carriedForward,
+            data.strictRefs === true
+          )
     const configPatch =
       data.configPatch === undefined
         ? undefined
-        : normalizeViewConfigForStorage(data.configPatch, data.columns, carriedForward)
+        : normalizeViewConfigForStorage(
+            data.configPatch,
+            data.columns,
+            carriedForward,
+            data.strictRefs === true
+          )
 
     const patch: Partial<typeof tableViews.$inferInsert> = { updatedAt: new Date() }
     if (data.name !== undefined) patch.name = normalizeName(data.name)

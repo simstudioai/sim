@@ -5,6 +5,10 @@ import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { getCredentialActorContext } from '@/lib/credentials/access'
+import {
+  type CredentialAuthorizationContext,
+  defineAuthorizedCredentialUseCase,
+} from '@/lib/credentials/application/authorized-credential-use-case'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import {
   listCredentialProviderCatalog,
@@ -126,12 +130,8 @@ export const createServiceAccountCredentialUseCase = defineAuthorizedWorkspaceUs
   },
 })
 
-interface CredentialApplicationContext {
-  workspaceId: string
-  workspaceOrganizationId: string | null
-  allowPersonalApiKeys: boolean
+interface CredentialApplicationContext extends CredentialAuthorizationContext {
   billedAccountUserId: string
-  credential: CredentialRow
 }
 
 export interface DeleteCredentialInput {
@@ -159,24 +159,11 @@ async function resolveCredentialContext(
   return { ...workspace, credential }
 }
 
-export const deleteCredentialUseCase = defineAuthorizedWorkspaceUseCase({
+export const deleteCredentialUseCase = defineAuthorizedCredentialUseCase({
   operation: credentialOperations.delete,
   resolveContext: async ({ input }: { input: DeleteCredentialInput }) =>
     resolveCredentialContext(input),
-  authorizationOptions: {},
-  async execute({ principal, input, context }): Promise<DeleteCredentialResult> {
-    const userId = principalUserId(principal)
-    const actor = await getCredentialActorContext(context.credential.id, userId)
-    if (!actor.credential || !actor.hasWorkspaceAccess) {
-      throw new OrchestrationError('not_found', 'Credential not found')
-    }
-    if (!actor.isAdmin) {
-      throw new ForbiddenOperationError(
-        'CREDENTIAL_ADMIN_ACCESS_REQUIRED',
-        'Credential admin permission required'
-      )
-    }
-
+  async execute({ input, context }): Promise<DeleteCredentialResult> {
     const deleted = await deleteConnectionCredential({
       credentialId: input.credentialId,
       workspaceId: context.workspaceId,

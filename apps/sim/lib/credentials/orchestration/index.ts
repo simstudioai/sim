@@ -145,6 +145,7 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   /** Client-credential service-account secret rotation (reconnect). */
   clientId?: string
   clientSecret?: string
+  certificateId?: string
   orgId?: string
   dataCenter?: string
   authMethod?: string
@@ -209,6 +210,7 @@ export async function performUpdateCredential(
       params.domain !== undefined ||
       params.clientId !== undefined ||
       params.clientSecret !== undefined ||
+      params.certificateId !== undefined ||
       params.orgId !== undefined ||
       params.dataCenter !== undefined ||
       params.authMethod !== undefined ||
@@ -259,6 +261,7 @@ export async function performUpdateCredential(
           serviceAccountJson: params.serviceAccountJson,
           clientId: params.clientId,
           clientSecret: params.clientSecret,
+          certificateId: params.certificateId,
           orgId: params.orgId,
           dataCenter: needsStoredDataCenter
             ? readStoredField(storedBlob, 'dataCenter')

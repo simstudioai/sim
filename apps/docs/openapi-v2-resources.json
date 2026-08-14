@@ -2264,22 +2264,22 @@
             "name": "workspaceId",
             "in": "query",
             "required": true,
-            "description": "Workspace in which the secret is available.",
+            "description": "Workspace the request is authorized against. A workspace secret is deleted from it; a personal secret is deleted for the caller in all of their workspaces.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Workspace in which the secret is available."
+              "description": "Workspace the request is authorized against. A workspace secret is deleted from it; a personal secret is deleted for the caller in all of their workspaces."
             }
           },
           {
             "name": "scope",
             "in": "query",
             "required": true,
-            "description": "Whether the secret belongs to the workspace or the caller.",
+            "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace.",
             "schema": {
               "type": "string",
               "enum": ["workspace", "personal"],
-              "description": "Whether the secret belongs to the workspace or the caller."
+              "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
             }
           }
         ],
@@ -2563,7 +2563,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
               }
             },
             "required": ["code", "message"],
@@ -2791,7 +2791,7 @@
             "description": "Whether the server tools are available to workflows."
           },
           "connectionStatus": {
-            "description": "Result of the most recent connection attempt. Registration and re-registration store a configuration without contacting the endpoint, so a server begins — and returns to — `disconnected` until a tool discovery runs.",
+            "description": "Result of the most recent connection attempt. Registration and re-registration establish no connection — the auth-type probe they may send does not count as one — so a server begins, and returns to, `disconnected` until a tool discovery runs.",
             "type": "string",
             "enum": ["connected", "disconnected", "error"]
           },
@@ -2993,8 +2993,7 @@
             "description": "Absolute HTTP or HTTPS endpoint URL without `{{ENV_VAR}}` references. It determines server identity and is immutable: delete and recreate the server to change endpoints."
           },
           "authType": {
-            "description": "Authentication method. Applied server-side as `headers` when omitted; registration never contacts the server, so an omitted value is never detected from it.",
-            "default": "headers",
+            "description": "Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method.",
             "type": "string",
             "enum": ["none", "headers", "oauth"]
           },
@@ -3180,8 +3179,7 @@
             "maxLength": 2048
           },
           "authType": {
-            "description": "Authentication method. Applied server-side as `headers` when omitted; registration never contacts the server, so an omitted value is never detected from it.",
-            "default": "headers",
+            "description": "Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method.",
             "type": "string",
             "enum": ["none", "headers", "oauth"]
           },
@@ -4817,6 +4815,12 @@
             "minLength": 1,
             "maxLength": 1024
           },
+          "certificateId": {
+            "description": "Provider certificate mapping identifier.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
           "orgId": {
             "description": "Provider organization ID.",
             "type": "string",
@@ -5007,7 +5011,7 @@
           "scope": {
             "type": "string",
             "enum": ["workspace", "personal"],
-            "description": "Whether the secret belongs to the workspace or the caller."
+            "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
           },
           "role": {
             "type": "string",
@@ -5103,12 +5107,12 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
-            "description": "Workspace in which the secret is available."
+            "description": "Workspace the request is authorized against. A workspace secret is written to it; a personal secret is written to the caller and is available in all of their workspaces."
           },
           "scope": {
             "type": "string",
             "enum": ["workspace", "personal"],
-            "description": "Whether the secret belongs to the workspace or the caller."
+            "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
           },
           "value": {
             "type": "string",
@@ -5143,7 +5147,7 @@
           "scope": {
             "type": "string",
             "enum": ["workspace", "personal"],
-            "description": "Whether the secret belongs to the workspace or the caller."
+            "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
           },
           "deleted": {
             "type": "boolean",

@@ -43,7 +43,10 @@ export function feedUrlForOrigin(origin: string): string | null {
  * host cannot get a bundle in front of the user's Download button.
  */
 const RELEASE_ASSET_ORIGIN = 'https://github.com'
-const RELEASE_ASSET_PATH = '/simstudioai/sim/releases/download/'
+const RELEASE_ASSET_PATHS = [
+  '/simstudioai/sim/releases/download/',
+  '/simstudioai/sim-desktop-releases/releases/download/',
+] as const
 
 /** Whether a manifest url is one of our own release assets. */
 function isReleaseAssetUrl(rawUrl: string): boolean {
@@ -53,7 +56,10 @@ function isReleaseAssetUrl(rawUrl: string): boolean {
     // Compared on the parsed origin and the parsed pathname, never by prefix on
     // the raw string: `https://github.com.evil.example/…` must not pass, and
     // `URL` has already normalized away any `..` segments by this point.
-    return url.origin === RELEASE_ASSET_ORIGIN && url.pathname.startsWith(RELEASE_ASSET_PATH)
+    return (
+      url.origin === RELEASE_ASSET_ORIGIN &&
+      RELEASE_ASSET_PATHS.some((path) => url.pathname.startsWith(path))
+    )
   } catch {
     return false
   }

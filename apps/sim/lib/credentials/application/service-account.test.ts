@@ -194,6 +194,63 @@ describe('credential service-account application operations', () => {
     expect(mocks.delete).not.toHaveBeenCalled()
   })
 
+  it('rejects workspace keys before canonical loading on disconnect', async () => {
+    await expect(
+      deleteCredentialUseCase.execute({
+        principal: {
+          kind: 'workspace_api_key',
+          workspaceId: WORKSPACE_ID,
+          keyId: 'key-1',
+        },
+        input: { workspaceId: WORKSPACE_ID, credentialId: credential.id },
+      })
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      detailCode: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED',
+    })
+    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    expect(mocks.getActor).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+
+  it('allows an explicit credential admin with workspace read access to disconnect', async () => {
+    mocks.resolvePermission.mockResolvedValue('read')
+
+    await expect(
+      deleteCredentialUseCase.execute({
+        principal,
+        input: { workspaceId: WORKSPACE_ID, credentialId: credential.id },
+      })
+    ).resolves.toEqual({ credential, deleted: true })
+    expect(mocks.delete).toHaveBeenCalledOnce()
+  })
+
+  it('applies credential admin policy during authorization-only checks', async () => {
+    await deleteCredentialUseCase.authorize?.({
+      principal,
+      input: { workspaceId: WORKSPACE_ID, credentialId: credential.id },
+    })
+
+    expect(mocks.getActor).toHaveBeenCalledWith(credential.id, principal.userId)
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+
+  it('enforces personal-key workspace policy before credential authorization', async () => {
+    mocks.loadWorkspace.mockResolvedValue({ ...workspace, allowPersonalApiKeys: false })
+
+    await expect(
+      deleteCredentialUseCase.execute({
+        principal,
+        input: { workspaceId: WORKSPACE_ID, credentialId: credential.id },
+      })
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      detailCode: 'PERSONAL_API_KEYS_DISABLED',
+    })
+    expect(mocks.getActor).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+
   it('disconnects an administered credential', async () => {
     const result = await deleteCredentialUseCase.execute({
       principal,

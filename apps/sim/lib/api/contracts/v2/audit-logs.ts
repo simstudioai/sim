@@ -78,7 +78,7 @@ export const v2ListAuditLogsQuerySchema = v1ListAuditLogsQuerySchema
   .extend({
     action: v1ListAuditLogsQuerySchema.shape.action.describe('Filter by exact action name.'),
     resourceType: v1ListAuditLogsQuerySchema.shape.resourceType.describe(
-      'Filter by exact resource type.'
+      'Filter by resource type. Accepts a comma-separated set; members are trimmed and deduplicated, and member order affects neither the result nor the cursor.'
     ),
     resourceId: v1ListAuditLogsQuerySchema.shape.resourceId.describe(
       'Filter by exact resource identifier.'

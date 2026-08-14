@@ -9,6 +9,7 @@ import {
 import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE,
   v1ChunkingConfigSchema,
   v1CreateKnowledgeBaseBodySchema,
   v1KnowledgeSearchBodySchema,
@@ -789,26 +790,51 @@ export const v2DeleteKnowledgeFolderContract = defineRouteContract({
 })
 
 export const v2KnowledgeSearchTagFilterSchema = v1SearchTagFilterSchema
-  .extend({
+  /** `safeExtend` so the base schema's `between` rule survives the redescribe. */
+  .safeExtend({
     tagName: v1SearchTagFilterSchema.shape.tagName
       .describe('Display name of the tag to filter.')
       .meta({ examples: ['category'] }),
     fieldType: v1SearchTagFilterSchema.shape.fieldType.describe('Tag field type.'),
     operator: v1SearchTagFilterSchema.shape.operator
-      .describe('Comparison operator; valid operators depend on the field type.')
+      .describe(
+        `Comparison operator; valid operators depend on the field type. Text tags accept ${KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE.text.join(', ')}; number and date tags accept ${KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE.number.join(', ')}; boolean tags accept ${KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE.boolean.join(', ')}. An operator the tag's field type does not implement is rejected, never ignored.`
+      )
       .meta({ examples: ['eq'] }),
     value: v1SearchTagFilterSchema.shape.value
       .describe('Tag value to compare against.')
       .meta({ examples: ['billing'] }),
     valueTo: v1SearchTagFilterSchema.shape.valueTo.describe(
-      'Upper bound for the `between` operator.'
+      'Upper bound for the `between` operator, and required whenever that operator is used.'
     ),
   })
+  /**
+   * Strict for the same reason the search body is: Zod strips what it does not
+   * declare, so a mis-cased `valueto` left a `between` filter with no upper
+   * bound and the document list answered 200 with the whole knowledge base. v1
+   * keeps its historical lenient parse.
+   */
+  .strict()
   .meta({
     id: 'V2KnowledgeSearchTagFilter',
     title: 'Knowledge search tag filter',
     description: 'A structured tag filter applied to knowledge search.',
   })
+
+/** Maximum tag filters accepted on one document-list or search request. */
+export const MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS = 10
+
+/**
+ * Maximum `query` length accepted by knowledge search.
+ *
+ * Every knowledge-base-eligible embedding model caps a single input at 8192
+ * tokens, and the embedding client silently truncates anything longer, so a
+ * caller paid for a billed search whose query was mostly discarded. The bound is
+ * that ceiling expressed in characters using the four-characters-per-token
+ * conversion the tokenizer's own fallback uses, which is generous enough that
+ * nothing that could have been embedded whole is rejected.
+ */
+export const MAX_V2_KNOWLEDGE_SEARCH_QUERY_LENGTH = 8192 * 4
 
 export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema
   .safeExtend({
@@ -818,17 +844,29 @@ export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema
     knowledgeBaseIds: v1KnowledgeSearchBodySchema.shape.knowledgeBaseIds
       .describe('One knowledge base identifier or an array of up to 20 identifiers.')
       .meta({ examples: [['7c9e6679-7425-40de-944b-e07fc1f90ae7']] }),
-    query: v1KnowledgeSearchBodySchema.shape.query
-      .describe('Natural-language query; required when tag filters are omitted.')
+    query: z
+      .string()
+      .max(
+        MAX_V2_KNOWLEDGE_SEARCH_QUERY_LENGTH,
+        `query cannot exceed ${MAX_V2_KNOWLEDGE_SEARCH_QUERY_LENGTH} characters`
+      )
+      .optional()
+      .describe(
+        `Natural-language query; required when tag filters are omitted. At most ${MAX_V2_KNOWLEDGE_SEARCH_QUERY_LENGTH} characters — longer text exceeds the embedding model's per-input token ceiling and would be truncated before the billed search ran.`
+      )
       .meta({ examples: ['How do I reset my password?'] }),
     topK: v1KnowledgeSearchBodySchema.shape.topK.describe(
       'Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.'
     ),
     tagFilters: z
       .array(v2KnowledgeSearchTagFilterSchema)
+      .max(
+        MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS,
+        `tagFilters cannot contain more than ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} filters`
+      )
       .optional()
       .describe(
-        'Structured tag filters. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{id}/tags`.'
+        `Structured tag filters, at most ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching \`GET /api/v2/knowledge/{id}/documents\`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with \`GET /api/v2/knowledge/{id}/tags\`.`
       ),
     searchMode: v1KnowledgeSearchBodySchema.shape.searchMode.describe(
       'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.'
@@ -883,9 +921,6 @@ export const v2SearchKnowledgeContract = defineRouteContract({
     schema: v2DataResponse(v2KnowledgeSearchDataSchema),
   },
 })
-
-/** Maximum tag filters accepted on one document-list request. */
-export const MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS = 10
 
 const v2KnowledgeDocumentTagFiltersSchema = z
   .array(v2KnowledgeSearchTagFilterSchema)
@@ -963,7 +998,7 @@ export const v2ListKnowledgeDocumentsQuerySchema = v1ListKnowledgeDocumentsQuery
       .string()
       .optional()
       .describe(
-        `A JSON-encoded array of at most ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} tag filters, using the same display-name shape as knowledge search: \`[{"tagName":"category","operator":"eq","value":"billing"}]\`. A name that is not defined in this knowledge base is rejected, never ignored.`
+        `A JSON-encoded array of at most ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} tag filters, using the same display-name shape as knowledge search: \`[{"tagName":"category","operator":"eq","value":"billing"}]\`. Every filter must hold, including two that name the same tag. A name that is not defined in this knowledge base is rejected, never ignored.`
       )
       .meta({ examples: ['[{"tagName":"category","operator":"eq","value":"billing"}]'] }),
   })

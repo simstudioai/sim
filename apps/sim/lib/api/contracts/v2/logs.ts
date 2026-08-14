@@ -239,6 +239,35 @@ function v2DurationBoundSchema(
 }
 
 /**
+ * Largest run cost, in USD, a caller may bound the search by.
+ *
+ * `cost_total` is an unconstrained `numeric`, so unlike the duration bounds
+ * there is no storage limit to borrow; this is a policy ceiling set far above
+ * any cost a single run can accrue. A bound past it cannot select anything the
+ * caller could not select with a smaller one, so it is a mistyped value rather
+ * than a filter.
+ */
+const V2_COST_USD_MAX = 1_000_000
+
+/**
+ * A cost bound, in the range its column can hold.
+ *
+ * Fractional values are kept — a run costs fractions of a cent — but a negative
+ * bound is rejected for the same reason a negative duration is: `cost_total` is
+ * never below zero, so `minCost=-1` is not a filter that matches everything, it
+ * is a caller mistake reported as a full result set.
+ */
+function v2CostBoundSchema(field: 'minCost' | 'maxCost', bound: 'Minimum' | 'Maximum') {
+  return z.coerce
+    .number()
+    .min(0, `${field} must not be negative`)
+    .max(V2_COST_USD_MAX, `${field} must be at most ${V2_COST_USD_MAX}`)
+    .describe(
+      `${bound} execution cost in USD, from 0 to ${V2_COST_USD_MAX}. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run.`
+    )
+}
+
+/**
  * A comma-separated filter list, with an empty entry rejected rather than dropped.
  *
  * `folderPaths` already refused `/,` while its two siblings on the same operation
@@ -265,9 +294,27 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       'workflowIds',
       'Comma-separated workflow identifiers to include. An empty entry is rejected.'
     ).optional(),
+    /**
+     * Not a closed enum, which is why an unrecognized member is not a 400.
+     * `workflow_execution_logs.trigger` holds the core trigger types *and* the
+     * webhook provider id a run arrived on — `executeWebhookJobInternal` passes
+     * `payload.provider` straight through as the trigger — so the live
+     * vocabulary is the union of the core set and every webhook provider that
+     * has ever fired, including spellings retired since (`microsoft-teams`
+     * alongside `microsoftteams`). Pinning an enum here would reject the
+     * historical values a diagnostic search exists to find, so the filter states
+     * that an unmatched member simply selects nothing rather than pretending to
+     * validate one.
+     *
+     * Matching is exact and case-sensitive because the column is: every value
+     * ever written is lowercase, so `API` and `ALL` name nothing. They are
+     * caller mistakes, but the boundary cannot tell them apart from an unknown
+     * provider id, and normalizing case here would silently repair one class of
+     * typo while leaving the rest — so the case rule is documented instead.
+     */
     triggers: v2CommaListSchema(
       'triggers',
-      'Comma-separated trigger types to include. An empty entry is rejected. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.'
+      'Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.'
     ).optional(),
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
     startDate: v2RunWindowBoundSchema('startDate').optional(),
@@ -275,8 +322,8 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
     runId: runIdSchema.describe('Exact run identifier to match.').optional(),
     minDurationMs: v2DurationBoundSchema('minDurationMs', 'Minimum').optional(),
     maxDurationMs: v2DurationBoundSchema('maxDurationMs', 'Maximum').optional(),
-    minCost: z.coerce.number().describe('Minimum execution cost in USD.').optional(),
-    maxCost: z.coerce.number().describe('Maximum execution cost in USD.').optional(),
+    minCost: v2CostBoundSchema('minCost', 'Minimum').optional(),
+    maxCost: v2CostBoundSchema('maxCost', 'Maximum').optional(),
     model: z.string().describe('AI model used during execution.').optional(),
     details: z
       .enum(['basic', 'full'])
@@ -358,6 +405,36 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       path: ['startDate'],
     }
   )
+  /**
+   * The cost and duration windows get the same treatment as the date window,
+   * for the same reason: an inverted pair can never match a run, so answering
+   * it with an empty page reports "those runs do not exist" for what is a
+   * caller mistake.
+   */
+  .superRefine((query, ctx) => {
+    if (
+      query.minCost !== undefined &&
+      query.maxCost !== undefined &&
+      query.minCost > query.maxCost
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'minCost must be less than or equal to maxCost',
+        path: ['minCost'],
+      })
+    }
+    if (
+      query.minDurationMs !== undefined &&
+      query.maxDurationMs !== undefined &&
+      query.minDurationMs > query.maxDurationMs
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'minDurationMs must be less than or equal to maxDurationMs',
+        path: ['minDurationMs'],
+      })
+    }
+  })
 
 export const v2ListLogsContract = defineRouteContract({
   method: 'GET',

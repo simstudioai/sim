@@ -11,6 +11,7 @@ import { V2_SEARCH_MAX_LENGTH } from '@/lib/api/contracts/v2/shared'
 import * as tableContracts from '@/lib/api/contracts/v2/tables'
 import {
   V2_TABLE_IMPORT_OPTIONS_MAX_BYTES,
+  v2AddWorkflowGroupBodySchema,
   v2ApiTableSchema,
   v2CreateTableBodySchema,
   v2CreateTableColumnBodySchema,
@@ -25,6 +26,7 @@ import {
   v2TableImportStatusSchema,
   v2TableUploadImportSourceSchema,
   v2UpdateTableColumnBodySchema,
+  v2UpdateWorkflowGroupBodySchema,
 } from '@/lib/api/contracts/v2/tables'
 import { getValidationErrorMessage } from '@/lib/api/server/validation'
 import { MAX_RUN_TARGET_ROW_IDS, TABLE_LIMITS } from '@/lib/table/constants'
@@ -57,6 +59,72 @@ describe('v2 table column contracts', () => {
         updates: { required: true },
       })
     ).toMatchObject({ success: true, data: { updates: { required: true } } })
+  })
+
+  /**
+   * v2 mints workflow group ids server-side and has no way to declare a group
+   * on the create body, so any id a caller supplied would name a group that
+   * does not exist. `createTable` does not check that, but every later schema
+   * mutation does — accepting the field made the created table's columns and
+   * groups permanently unaddable, with nothing on the update body able to clear
+   * it.
+   */
+  it('refuses a workflow group id on an initial column', () => {
+    const result = v2CreateTableBodySchema.safeParse({
+      workspaceId: WORKSPACE_ID,
+      name: 'contacts',
+      schema: {
+        columns: [{ name: 'email', type: 'string', workflowGroupId: 'wfg_does_not_exist' }],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    expect(issueCodes(result.error?.issues ?? [])).toContain('unrecognized_keys')
+  })
+
+  /**
+   * Same field, same reason, one level down: the group body's `.strict()` binds
+   * its own level, so an `outputColumns` entry that kept `workflowGroupId` was
+   * stripped, overwritten with the server-minted id, and answered 201.
+   */
+  it('refuses a workflow group id on a group output column', () => {
+    const result = v2AddWorkflowGroupBodySchema.safeParse({
+      workspaceId: WORKSPACE_ID,
+      group: {
+        type: 'enrichment',
+        enrichmentId: 'company-domain',
+        outputs: [{ blockId: '', path: 'domain', columnName: 'zz_y' }],
+      },
+      outputColumns: [{ name: 'zz_y', type: 'string', workflowGroupId: 'wfg_does_not_exist' }],
+    })
+
+    expect(result.success).toBe(false)
+    expect(issueCodes(result.error?.issues ?? [])).toContain('unrecognized_keys')
+  })
+
+  it('refuses a workflow group id on an added output column', () => {
+    const result = v2UpdateWorkflowGroupBodySchema.safeParse({
+      workspaceId: WORKSPACE_ID,
+      groupId: 'group-1',
+      newOutputColumns: [{ name: 'zz_z', type: 'string', workflowGroupId: 'wfg_does_not_exist' }],
+    })
+
+    expect(result.success).toBe(false)
+    expect(issueCodes(result.error?.issues ?? [])).toContain('unrecognized_keys')
+  })
+
+  it('accepts a group output column that leaves the group id to the server', () => {
+    expect(
+      v2AddWorkflowGroupBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        group: {
+          type: 'enrichment',
+          enrichmentId: 'company-domain',
+          outputs: [{ blockId: '', path: 'domain', columnName: 'zz_y' }],
+        },
+        outputColumns: [{ name: 'zz_y', type: 'string' }],
+      }).success
+    ).toBe(true)
   })
 
   it('keeps required in table responses for existing stored schemas', () => {

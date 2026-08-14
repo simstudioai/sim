@@ -21,6 +21,10 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
+vi.mock('@/executor/utils/credential-token', () => ({
+  fetchCredentialAccessToken: vi.fn().mockResolvedValue('mock-access-token'),
+}))
+
 vi.mock('@/lib/credentials/access', () => ({
   canUseCredential: (access: { hasWorkspaceAccess: boolean; member: unknown; isAdmin: boolean }) =>
     access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin),

@@ -255,6 +255,7 @@ describe('POST /api/v2/credentials', () => {
         displayName: 'Zoom account',
         clientId: 'client-id',
         clientSecret: 'client-secret',
+        certificateId: undefined,
         orgId: 'account-id',
       }),
     })
