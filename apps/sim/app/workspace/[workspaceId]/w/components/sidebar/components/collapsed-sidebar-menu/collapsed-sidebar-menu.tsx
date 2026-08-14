@@ -16,6 +16,7 @@ import { File, Folder, MoreHorizontal, Pencil, Plus, SquareArrowUpRight } from '
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
+import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { interleaveSiblings } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import type { WorkspaceFileFolderApi } from '@/hooks/queries/workspace-file-folders'
@@ -209,7 +210,7 @@ export function CollapsedSidebarMenu({
             <button
               type='button'
               aria-label={ariaLabel}
-              className={chipVariants({ fullWidth: true })}
+              className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
             >
               {icon}
             </button>
