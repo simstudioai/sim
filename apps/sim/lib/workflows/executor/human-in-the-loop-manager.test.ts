@@ -1019,6 +1019,7 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       status: 'cancelled',
       endedAt: expect.any(Date),
+      totalDurationMs: expect.anything(),
       executionDeadlineAt: null,
     })
     const casConditions = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0])

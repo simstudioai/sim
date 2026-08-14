@@ -194,7 +194,12 @@ export async function cancelWorkflowGroupExecution(
     if (workflowLogActive) {
       const [cancelledLog] = await tx
         .update(workflowExecutionLogs)
-        .set({ status: 'cancelled', endedAt: now, executionDeadlineAt: null })
+        .set({
+          status: 'cancelled',
+          endedAt: now,
+          totalDurationMs: elapsedDurationMsSql(now),
+          executionDeadlineAt: null,
+        })
         .where(
           and(
             eq(workflowExecutionLogs.workspaceId, options.workspaceId),

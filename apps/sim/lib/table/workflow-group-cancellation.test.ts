@@ -80,6 +80,7 @@ describe('cancelWorkflowGroupExecution', () => {
     expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
       status: 'cancelled',
       endedAt: expect.any(Date),
+      totalDurationMs: expect.anything(),
       executionDeadlineAt: null,
     })
     expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
