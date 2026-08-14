@@ -468,6 +468,9 @@ type CancelWorkflowRunResponseRef0 = {
   pausedCancelled: boolean
   reason?:
     | 'recorded'
+    | 'already_cancelled'
+    | 'already_completed'
+    | 'already_failed'
     | 'redis_unavailable'
     | 'redis_write_failed'
     | 'paused_event_publish_failed'
@@ -2451,6 +2454,7 @@ export type GetFileParams = {
 
 export type GetFileQuery = {
   workspaceId: string
+  scope?: 'active' | 'archived'
 }
 
 type GetFileResponseRef0 = {
@@ -6367,6 +6371,7 @@ export const V2_OPERATIONS = {
     summary: 'Get File Metadata',
     query: {
       workspaceId: { kind: 'string', required: true },
+      scope: { kind: 'enum', values: ['active', 'archived'] as const, default: 'active' },
     },
   },
   getFileShare: {
