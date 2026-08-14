@@ -1,7 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { adapter } = vi.hoisted(() => ({
@@ -54,6 +60,18 @@ const CONTEXT = {
   options: [],
 }
 
+const GROUP = {
+  status: 'active' as const,
+  options: [
+    {
+      ...CONTEXT.option,
+      authorizationAppId: POLICY.authorizationAppId,
+      requiredScopes: POLICY.requiredScopes,
+      scopeVersion: POLICY.scopeVersion,
+    },
+  ],
+}
+
 describe('credential group OAuth persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -104,7 +122,9 @@ describe('credential group OAuth persistence', () => {
   })
 
   it('preserves completed enrollment state when an account reconnects', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'completed' }]).mockResolvedValueOnce([
+    dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'completed' }])
+    queueTableRows(schemaMock.credentialGroup, [GROUP])
+    queueTableRows(schemaMock.credential, [
       {
         id: 'credential-1',
         providerSubjectId: 'google-subject-1',
@@ -141,5 +161,60 @@ describe('credential group OAuth persistence', () => {
       expect.objectContaining({ status: 'completed', updatedAt: expect.any(Date) })
     )
     expect(enrollmentUpdate).not.toHaveProperty('completedAt')
+  })
+
+  it('rejects an exchanged grant when the group policy changed before persistence', async () => {
+    const nextPolicy = {
+      ...POLICY,
+      requiredScopes: [...POLICY.requiredScopes, 'https://www.googleapis.com/auth/gmail.readonly'],
+      scopeVersion: 2,
+    }
+    adapter.getPolicy.mockResolvedValueOnce(POLICY).mockResolvedValueOnce(nextPolicy)
+    dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'completed' }])
+    queueTableRows(schemaMock.credentialGroup, [
+      {
+        ...GROUP,
+        options: [
+          {
+            ...GROUP.options[0],
+            requiredScopes: nextPolicy.requiredScopes,
+            scopeVersion: nextPolicy.scopeVersion,
+          },
+        ],
+      },
+    ])
+
+    await expect(
+      completeCredentialGroupOAuth(
+        { ...CONTEXT, enrollmentStatus: 'completed' },
+        {
+          state: 'state-1',
+          provider: 'gmail',
+          nonceHash: 'nonce-hash',
+          enrollmentId: CONTEXT.enrollmentId,
+          credentialGroupId: CONTEXT.credentialGroupId,
+          optionId: CONTEXT.option.id,
+          authorizationAppId: POLICY.authorizationAppId,
+          scopeVersion: POLICY.scopeVersion,
+          requiredScopes: POLICY.requiredScopes,
+          redirectUri: 'https://sim.ai/api/credential-groups/oauth/gmail/callback',
+          codeVerifier: 'verifier',
+          invitationToken: 'invitation-token',
+          createdAt: Date.now(),
+        },
+        'authorization-code'
+      )
+    ).rejects.toThrow('This credential option changed.')
+
+    expect(adapter.getPolicy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: 'option-1' }),
+      {
+        workspaceId: CONTEXT.workspaceId,
+        credentialGroupId: CONTEXT.credentialGroupId,
+        executor: dbChainMock.db,
+      }
+    )
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { credential, credentialGroupEnrollment } from '@sim/db/schema'
+import { credential, credentialGroup, credentialGroupEnrollment } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, ne, sql } from 'drizzle-orm'
 import {
@@ -32,6 +32,19 @@ function scopesEqual(left: string[], right: string[]): boolean {
   return (
     normalizedLeft.length === normalizedRight.length &&
     normalizedLeft.every((scope, index) => scope === normalizedRight[index])
+  )
+}
+
+function policiesEqual(
+  left: CredentialGroupProviderPolicy,
+  right: CredentialGroupProviderPolicy
+): boolean {
+  return (
+    left.provider === right.provider &&
+    left.providerId === right.providerId &&
+    left.authorizationAppId === right.authorizationAppId &&
+    left.scopeVersion === right.scopeVersion &&
+    scopesEqual(left.requiredScopes, right.requiredScopes)
   )
 }
 
@@ -112,6 +125,42 @@ async function persistGrant(
       .limit(1)
     if (!enrollment || enrollment.status === 'revoked') {
       throw new CredentialGroupOAuthError('This account invitation was revoked.', 409)
+    }
+
+    const [group] = await tx
+      .select({ status: credentialGroup.status, options: credentialGroup.options })
+      .from(credentialGroup)
+      .where(
+        and(
+          eq(credentialGroup.id, context.credentialGroupId),
+          eq(credentialGroup.workspaceId, context.workspaceId)
+        )
+      )
+      .limit(1)
+      .for('update')
+    const currentOption = group?.options.find((option) => option.id === context.option.id)
+    if (
+      !group ||
+      group.status !== 'active' ||
+      !currentOption ||
+      currentOption.status !== 'active' ||
+      currentOption.provider !== adapter.provider
+    ) {
+      throw new CredentialGroupOAuthError(
+        'This credential option changed. Reload the invitation and try again.',
+        409
+      )
+    }
+    const currentPolicy = await adapter.getPolicy(currentOption, {
+      workspaceId: context.workspaceId,
+      credentialGroupId: context.credentialGroupId,
+      executor: tx,
+    })
+    if (!policiesEqual(currentPolicy, policy)) {
+      throw new CredentialGroupOAuthError(
+        'This credential option changed. Reload the invitation and try again.',
+        409
+      )
     }
 
     const [existing] = await tx
