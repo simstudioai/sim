@@ -45,9 +45,14 @@ import {
   type WorkspaceCredential,
 } from '@/hooks/queries/credentials'
 import {
+  useConnectMicrosoftDataverseOAuthService,
+  useMicrosoftDataverseCredentialBinding,
+} from '@/hooks/queries/oauth/microsoft-dataverse-connections'
+import {
   useConnectOAuthService,
   useOAuthConnections,
 } from '@/hooks/queries/oauth/oauth-connections'
+import { useOAuthCredentialDetail } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
 const logger = createLogger('ConnectedCredentialDetail')
@@ -80,7 +85,19 @@ export function ConnectedCredentialDetail({
     () => credentials.find((c) => c.id === credentialId) ?? null,
     [credentials, credentialId]
   )
-
+  const isDataverseCredential =
+    credential?.type === 'oauth' && credential.providerId === 'microsoft-dataverse'
+  const dataverseCredentialQuery = useOAuthCredentialDetail(
+    isDataverseCredential ? credentialId : undefined,
+    undefined,
+    isDataverseCredential
+  )
+  const dataverseBinding = useMicrosoftDataverseCredentialBinding({
+    isPending: dataverseCredentialQuery.isPending,
+    providerId: credential?.type === 'oauth' ? (credential.providerId ?? undefined) : undefined,
+    scopes: dataverseCredentialQuery.data?.[0]?.scopes,
+  })
+  const connectMicrosoftDataverseOAuthService = useConnectMicrosoftDataverseOAuthService()
   const isAdmin = credential?.role === 'admin'
 
   const [showDeleteConfirmDialog, setShowDeleteConfirmDialog] = useState(false)
@@ -111,6 +128,21 @@ export function ConnectedCredentialDetail({
   const handleReconnectOAuth = async () => {
     if (!credential || credential.type !== 'oauth' || !credential.providerId || !workspaceId) return
     try {
+      if (
+        isDataverseCredential &&
+        dataverseCredentialQuery.isError &&
+        !dataverseCredentialQuery.data?.[0]
+      ) {
+        throw new Error(
+          'Could not verify this Dataverse credential’s environment binding. Please try again.'
+        )
+      }
+      if (dataverseBinding.state === 'invalid') {
+        throw new Error(
+          'This Dataverse credential has an invalid environment binding and cannot be reconnected in place.'
+        )
+      }
+
       const draft = await createDraft.mutateAsync({
         workspaceId,
         providerId: credential.providerId,
@@ -132,11 +164,19 @@ export function ConnectedCredentialDetail({
         requestedAt: Date.now(),
       })
 
-      await connectOAuthService.mutateAsync({
-        providerId: credential.providerId,
-        callbackURL: window.location.href,
-        draftId: draft.draftId,
-      })
+      if (dataverseBinding.state === 'bound' && dataverseBinding.environmentUrl) {
+        await connectMicrosoftDataverseOAuthService.mutateAsync({
+          callbackURL: window.location.href,
+          draftId: draft.draftId,
+          environmentUrl: dataverseBinding.environmentUrl,
+        })
+      } else {
+        await connectOAuthService.mutateAsync({
+          providerId: credential.providerId,
+          callbackURL: window.location.href,
+          draftId: draft.draftId,
+        })
+      }
     } catch (error: unknown) {
       toast.error("Couldn't start reconnect", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
@@ -180,7 +220,11 @@ export function ConnectedCredentialDetail({
                 ? () => setReconnectOpen(true)
                 : handleReconnectOAuth
             }
-            disabled={connectOAuthService.isPending}
+            disabled={
+              connectOAuthService.isPending ||
+              connectMicrosoftDataverseOAuthService.isPending ||
+              dataverseBinding.isPending
+            }
             leftIcon={display?.icon ?? undefined}
           >
             Reconnect

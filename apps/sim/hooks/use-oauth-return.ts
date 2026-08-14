@@ -23,6 +23,7 @@ import {
   setOAuthChatAttemptStatus,
 } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
+import { stripMicrosoftDataverseEnvironmentFromOAuthCallback } from '@/lib/oauth/microsoft-dataverse'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { requireWorkspaceCredentialListResponse } from '@/hooks/queries/utils/fetch-workspace-credentials'
@@ -107,6 +108,15 @@ function clearOAuthChatAttemptParam(): void {
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
+function clearDataverseOAuthEnvironmentParam(): void {
+  const current = window.location.href
+  const cleaned = stripMicrosoftDataverseEnvironmentFromOAuthCallback(current)
+  if (cleaned !== current) {
+    const url = new URL(cleaned)
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  }
+}
+
 const VERIFY_ATTEMPT_TRIES = 4
 const VERIFY_BACKOFF_BASE_MS = 400
 
@@ -178,6 +188,7 @@ export function useOAuthReturnRouter() {
   const chatAttemptHandledRef = useRef(false)
 
   useEffect(() => {
+    clearDataverseOAuthEnvironmentParam()
     let isChatAttemptReturn = false
     if (!chatAttemptHandledRef.current) {
       const attemptId = new URL(window.location.href).searchParams.get(OAUTH_CHAT_ATTEMPT_PARAM)
@@ -244,6 +255,7 @@ export function useOAuthReturnRouter() {
  */
 export function useOAuthReturnForWorkflow(workflowId: string) {
   useEffect(() => {
+    clearDataverseOAuthEnvironmentParam()
     const ctx = readOAuthReturnContext()
     if (!ctx || ctx.origin !== 'workflow') return
     if (ctx.workflowId !== workflowId) return
@@ -264,6 +276,7 @@ export function useOAuthReturnForWorkflow(workflowId: string) {
  */
 export function useOAuthReturnForKBConnectors(knowledgeBaseId: string) {
   useEffect(() => {
+    clearDataverseOAuthEnvironmentParam()
     const ctx = readOAuthReturnContext()
     if (!ctx || ctx.origin !== 'kb-connectors') return
     if (ctx.knowledgeBaseId !== knowledgeBaseId) return

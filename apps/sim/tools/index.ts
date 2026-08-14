@@ -106,6 +106,7 @@ import { getTool, validateRequiredParametersAfterMerge } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
 const logger = createLogger('Tools')
+const MICROSOFT_DYNAMICS_365_TOOL_PREFIX = 'microsoft_dynamics_365_'
 const PRIVATE_TOOL_METADATA_ERROR_MESSAGE = 'Internal tool response metadata could not be verified'
 const INTERNAL_DATABASE_ERROR_MESSAGE =
   'An internal error occurred while executing the tool. Please try again.'
@@ -1667,6 +1668,9 @@ async function executeToolImplementation(
 
     // Ensure context is preserved if it exists
     const contextParams = { ...params }
+    if (normalizedToolId.startsWith(MICROSOFT_DYNAMICS_365_TOOL_PREFIX)) {
+      contextParams.instanceUrl = undefined
+    }
     if (scope.billingAttribution) {
       contextParams._context = {
         ...(contextParams._context as Record<string, unknown> | undefined),

@@ -14490,6 +14490,66 @@
       "tags": ["microsoft-365", "data-warehouse", "cloud"]
     },
     {
+      "type": "microsoft_dynamics_365",
+      "slug": "microsoft-dynamics-365-crm",
+      "name": "Microsoft Dynamics 365 CRM",
+      "description": "Manage customers, sales pipelines, and support cases in Dynamics 365 CRM",
+      "longDescription": "Manage standard Microsoft Dynamics 365 CRM records through the Dataverse Web API. List, search, create, retrieve, and update accounts, contacts, leads, opportunities, and cases; assign records to users or teams; qualify leads; close opportunities; and resolve cases. Connect a separate Microsoft credential for each environment from this Dynamics integration page or from its workflow block; existing generic Dataverse credentials remain unchanged and are not automatically rebound. This version supports public-cloud Dynamics environments; national clouds require separate OAuth authorities. Dataverse Search must be enabled for search, and lifecycle actions require the corresponding Dynamics 365 app, security role, and record privileges.",
+      "bgColor": "#FFFFFF",
+      "iconName": "MicrosoftDataverseIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/microsoft_dynamics_365",
+      "operations": [
+        {
+          "name": "List Records",
+          "description": "Query and list records from a Microsoft Dataverse table. Supports OData query options for filtering, selecting columns, ordering, and pagination."
+        },
+        {
+          "name": "Get Record",
+          "description": "Retrieve a single record from a Microsoft Dataverse table by its ID. Supports $select and $expand OData query options."
+        },
+        {
+          "name": "Create Record",
+          "description": "Create a new record in a Microsoft Dataverse table. Requires the entity set name (plural table name) and record data as a JSON object."
+        },
+        {
+          "name": "Update Record",
+          "description": "Update an existing record in a Microsoft Dataverse table. Only send the columns you want to change."
+        },
+        {
+          "name": "Search Records",
+          "description": "Perform a full-text relevance search across Microsoft Dataverse tables. Requires Dataverse Search to be enabled on the environment. Supports simple and Lucene query syntax."
+        },
+        {
+          "name": "List Owners",
+          "description": "Query and list records from a Microsoft Dataverse table. Supports OData query options for filtering, selecting columns, ordering, and pagination."
+        },
+        {
+          "name": "Assign Record",
+          "description": "Update an existing record in a Microsoft Dataverse table. Only send the columns you want to change."
+        },
+        {
+          "name": "Qualify Lead",
+          "description": "Qualify a Dynamics 365 Sales lead and optionally create linked account, contact, and opportunity records."
+        },
+        {
+          "name": "Close Opportunity",
+          "description": "Close a Dynamics 365 Sales opportunity as won or lost."
+        },
+        {
+          "name": "Close Case",
+          "description": "Resolve and close a Dynamics 365 Customer Service case."
+        }
+      ],
+      "operationCount": 10,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "microsoft-dataverse",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["microsoft-365", "sales-engagement", "customer-support", "cloud"]
+    },
+    {
       "type": "microsoft_excel_v2",
       "slug": "microsoft-excel",
       "name": "Microsoft Excel",

@@ -2916,6 +2916,97 @@ describe('Internal Route Trust', () => {
     }
   })
 
+  it('accepts instanceUrl only from credential resolution for Dynamics CRM tools', async () => {
+    const environmentUrl = 'https://contoso.crm.dynamics.com'
+    const otherEnvironmentUrl = 'https://other.crm.dynamics.com'
+    const createAuthorityTool = (id: string) => ({
+      id,
+      name: 'Credential Origin Authority Test',
+      description: 'Verifies credential-derived provider origins',
+      version: '1.0.0',
+      oauth: { required: true, provider: 'microsoft-dataverse' },
+      params: {
+        accessToken: { type: 'string', required: true, visibility: 'hidden' },
+        instanceUrl: { type: 'string', required: true, visibility: 'hidden' },
+        environmentUrl: { type: 'string', required: true, visibility: 'user-only' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) => {
+          if (!params.instanceUrl) throw new Error('Credential is not bound to an environment')
+          if (params.instanceUrl !== params.environmentUrl) {
+            throw new Error('Credential belongs to a different environment')
+          }
+          return `${params.instanceUrl}/api/data/v9.2/accounts`
+        },
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          Authorization: `Bearer ${params.accessToken}`,
+        }),
+      },
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    })
+    const dynamicsToolId = 'microsoft_dynamics_365_test_origin_authority'
+    const ordinaryToolId = 'test_origin_authority'
+    ;(tools as Record<string, unknown>)[dynamicsToolId] = createAuthorityTool(dynamicsToolId)
+    ;(tools as Record<string, unknown>)[ordinaryToolId] = createAuthorityTool(ordinaryToolId)
+
+    const setTokenPayload = (payload: Record<string, unknown>) => {
+      global.fetch = Object.assign(
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify(payload), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        ),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
+    }
+
+    try {
+      setTokenPayload({ accessToken: 'legacy-token' })
+      const legacyResult = await executeTool(dynamicsToolId, {
+        credential: 'legacy-credential',
+        environmentUrl,
+        instanceUrl: environmentUrl,
+      })
+      expect(legacyResult).toMatchObject({
+        success: false,
+        error: expect.stringContaining('not bound to an environment'),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+
+      setTokenPayload({ accessToken: 'bound-token', instanceUrl: environmentUrl })
+      const boundResult = await executeTool(dynamicsToolId, {
+        credential: 'bound-credential',
+        environmentUrl,
+        instanceUrl: otherEnvironmentUrl,
+      })
+      expect(boundResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        `${environmentUrl}/api/data/v9.2/accounts`,
+        '93.184.216.34',
+        expect.anything()
+      )
+
+      mockSecureFetchWithPinnedIP.mockClear()
+      setTokenPayload({ accessToken: 'ordinary-token' })
+      const ordinaryResult = await executeTool(ordinaryToolId, {
+        credential: 'ordinary-credential',
+        environmentUrl,
+        instanceUrl: environmentUrl,
+      })
+      expect(ordinaryResult.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+        `${environmentUrl}/api/data/v9.2/accounts`,
+        '93.184.216.34',
+        expect.anything()
+      )
+    } finally {
+      Reflect.deleteProperty(tools, dynamicsToolId)
+      Reflect.deleteProperty(tools, ordinaryToolId)
+    }
+  })
+
   it('transports only active provenance selected for an internal model input', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       {

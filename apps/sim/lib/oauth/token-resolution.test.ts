@@ -136,6 +136,61 @@ describe('resolveCredentialToken', () => {
     expect(result).toEqual({ ok: false, status: 404, error: 'Credential not found' })
   })
 
+  it('projects the exact Dataverse environment bound in the stored scope', async () => {
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+      workspaceId: 'ws-1',
+      resolvedCredentialId: 'account-1',
+    })
+    mockGetCredential.mockResolvedValue({
+      providerId: 'microsoft-dataverse',
+      scope:
+        'openid https://contoso.crm.dynamics.com/.default offline_access __sim_dataverse_instance__:https://contoso.crm.dynamics.com',
+    })
+    mockRefreshTokenIfNeeded.mockResolvedValue({ accessToken: 'fresh', refreshed: false })
+
+    await expect(
+      resolveCredentialToken(INTERNAL_AUTH, {
+        requestId: 'req-1',
+        credentialId: 'cred-1',
+      })
+    ).resolves.toEqual({
+      ok: true,
+      token: {
+        accessToken: 'fresh',
+        instanceUrl: 'https://contoso.crm.dynamics.com',
+      },
+    })
+  })
+
+  it('preserves a legacy Dataverse credential without projecting an environment', async () => {
+    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+      ok: true,
+      requesterUserId: 'user-1',
+      credentialOwnerUserId: 'owner-1',
+      workspaceId: 'ws-1',
+      resolvedCredentialId: 'account-1',
+    })
+    mockGetCredential.mockResolvedValue({
+      providerId: 'microsoft-dataverse',
+      scope: 'https://dynamics.microsoft.com/user_impersonation',
+    })
+    mockRefreshTokenIfNeeded.mockResolvedValue({ accessToken: 'fresh', refreshed: false })
+
+    await expect(
+      resolveCredentialToken(INTERNAL_AUTH, {
+        requestId: 'req-1',
+        credentialId: 'cred-1',
+      })
+    ).resolves.toEqual({
+      ok: true,
+      token: { accessToken: 'fresh', idToken: undefined },
+    })
+    expect(mockRefreshTokenIfNeeded).toHaveBeenCalled()
+  })
+
   it('reports a failed refresh as 401 without recording access', async () => {
     mockAuthorizeCredentialUseForAuth.mockResolvedValue({
       ok: true,
