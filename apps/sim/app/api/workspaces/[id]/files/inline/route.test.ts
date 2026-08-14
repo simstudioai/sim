@@ -30,6 +30,7 @@ describe('GET /api/workspaces/[id]/files/inline', () => {
     mockReadInline.mockResolvedValue({
       file: { name: 'photo.png', type: 'image/png', size: PNG.length },
       stream: new Blob([new Uint8Array(PNG)]).stream(),
+      contentAddressed: false,
     })
   })
 
@@ -43,6 +44,7 @@ describe('GET /api/workspaces/[id]/files/inline', () => {
         input: { workspaceId: 'ws-1', fileId: 'wf_abc' },
       })
     )
+    // A file id names the FILE, whose bytes move under it on every edit — so it must revalidate.
     expect(res.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
     expect(res.headers.get('Content-Disposition')).toBe('inline; filename="photo.png"')
   })
@@ -56,6 +58,24 @@ describe('GET /api/workspaces/[id]/files/inline', () => {
       key: 'workspace/ws-1/photo.png',
       fileId: undefined,
     })
+  })
+
+  /**
+   * A storage key names one object and a content write never rewrites one, so these bytes can never
+   * change. Revalidating them meant re-downloading every embedded image on every open — a document is
+   * rendered by two editors (the read-only placeholder, then the live one) and each renders the image
+   * twice, so the image was fetched again on every one of those passes.
+   */
+  it('lets the browser keep an image whose URL names the object that was streamed', async () => {
+    mockReadInline.mockResolvedValue({
+      file: { name: 'photo.png', type: 'image/png', size: PNG.length },
+      stream: new Blob([new Uint8Array(PNG)]).stream(),
+      contentAddressed: true,
+    })
+
+    const res = await GET(req('key=workspace%2Fws-1%2Fphoto.png'), params)
+
+    expect(res.headers.get('Cache-Control')).toBe('private, max-age=31536000, immutable')
   })
 
   it('returns the concealed 404 response for an unauthorized or missing file', async () => {

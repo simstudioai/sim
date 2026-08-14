@@ -25,6 +25,12 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { POST } from '@/app/api/v2/workflows/[id]/rollback/route'
 
 describe('/api/v2/workflows/[id]/rollback route definition', () => {
+  /**
+   * Both the malformed-body 400 and the oversized-body 413 are v2 builder
+   * defaults, so neither belongs on the route. The envelope they produce is
+   * asserted once against the builder in
+   * `lib/api/server/routes/v2-error-envelope.test.ts`.
+   */
   it('keeps an omitted rollback body valid and delegates version selection to the use case', async () => {
     expect(v2RollbackWorkflowContract.body?.parse(undefined)).toEqual({})
     expect(POST).toMatchObject({
@@ -41,15 +47,7 @@ describe('/api/v2/workflows/[id]/rollback route definition', () => {
       })
     )
 
-    const invalidJsonResponse = Reflect.get(
-      Reflect.get(POST, 'parseOptions'),
-      'invalidJsonResponse'
-    )()
-    expect(invalidJsonResponse.status).toBe(400)
-    expect(await invalidJsonResponse.json()).toEqual({
-      error: { code: 'BAD_REQUEST', message: 'Request body must be valid JSON' },
-    })
-
+    expect(Reflect.get(Reflect.get(POST, 'parseOptions'), 'invalidJsonResponse')).toBeUndefined()
     expect(
       Reflect.get(Reflect.get(POST, 'parseOptions'), 'payloadTooLargeResponse')
     ).toBeUndefined()

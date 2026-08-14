@@ -34,11 +34,21 @@ vi.mock('@/lib/billing/storage', () => ({
   resolveStorageBillingContext: mockResolveBillingContext,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  generateWorkspaceFileKey: vi.fn(
-    (workspaceId: string, fileName: string) => `workspace/${workspaceId}/final-${fileName}`
-  ),
-}))
+/**
+ * Stands in for the workspace-files barrel, which pulls the whole file manager.
+ * The real `generateWorkspaceFileKey` and its name budget are measured in
+ * `contexts/workspace/workspace-file-manager.test.ts`, so the purposes that key
+ * through it are deliberately absent from the sidecar-bounds sweep below.
+ */
+vi.mock('@/lib/uploads/contexts/workspace', async () => {
+  const { buildStorageKeySegment } = await import('@/lib/uploads/core/storage-key')
+  return {
+    generateWorkspaceFileKey: vi.fn(
+      (workspaceId: string, fileName: string) =>
+        `workspace/${workspaceId}/${buildStorageKeySegment('final-', fileName)}`
+    ),
+  }
+})
 
 vi.mock('@/lib/uploads/upload-session/cleanup', () => ({
   maybeCleanupLocalUploadArtifacts: vi.fn().mockResolvedValue({ scanned: 0, removed: 0 }),
@@ -56,6 +66,8 @@ vi.mock('@/lib/uploads/upload-session/provider', () => ({
   uploadStorageProvider: vi.fn(() => 's3'),
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
 import {
   abortUploadSession,
   assertUploadSessionAuthBinding,
@@ -64,6 +76,7 @@ import {
   createUploadPartUrls,
   createUploadSession,
   createUploadSessionAuthBinding,
+  expectedUploadPartSize,
   getOwnedUploadSession,
   getPrincipalKnowledgeDocumentUploadSession,
   UPLOAD_SESSION_PART_SIZE,
@@ -136,6 +149,77 @@ describe('upload sessions', () => {
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
     })
   })
+
+  // Local storage stores an object's metadata sidecar beside it, under the
+  // object's own name, so the whole key + suffix must fit one path component.
+  // Three purposes built their key by hand and admitted a 255-character name
+  // straight into it: the session was created, its transfer URL issued, and
+  // every request against it then failed with an unclassifiable 500.
+  it.each([
+    ['knowledge_document', { knowledgeBaseId: 'kb-1' }],
+    ['table_import', {}],
+    ['profile_picture', {}],
+    ['workspace_logo', {}],
+    ['execution_attachment', { workflowId: 'workflow-1', executionId: 'execution-1' }],
+  ])('bounds the %s key so its local sidecar still fits', async (purpose, extra) => {
+    dbChainMockFns.returning.mockResolvedValue([uploadRow({ purpose })])
+
+    await createUploadSession({
+      id: 'upload-1',
+      workspaceId: WORKSPACE_ID,
+      userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      purpose: purpose as Parameters<typeof createUploadSession>[0]['purpose'],
+      fileName: `${'a'.repeat(251)}.txt`,
+      contentType: 'text/plain',
+      fileSize: 4,
+      localOrigin: 'http://localhost:3000',
+      ...extra,
+    } as Parameters<typeof createUploadSession>[0])
+
+    const { finalKey } = dbChainMockFns.values.mock.calls[0][0]
+    const lastComponent = finalKey.slice(finalKey.lastIndexOf('/') + 1)
+    expect(
+      Buffer.byteLength(`${lastComponent}${LOCAL_UPLOAD_METADATA_SUFFIX}`, 'utf-8')
+    ).toBeLessThanOrEqual(255)
+  })
+
+  /**
+   * A knowledge document the pipeline provably refuses is rejected on admission
+   * whichever route carries it: the direct upload use case rejects a zero-byte
+   * buffer, and the session path refuses the same file before it hands out a
+   * transfer URL for it. `workspace_file` is the deliberate exception — an empty
+   * file is a legitimate thing to keep in a workspace — so pinning both keeps
+   * the split a decision rather than an omission.
+   */
+  it.each([
+    ['knowledge_document', { knowledgeBaseId: 'kb-1' }, true],
+    ['workspace_file', {}, false],
+  ])(
+    'admits a zero-byte %s only where an empty file is legitimate',
+    async (purpose, extra, refused) => {
+      dbChainMockFns.returning.mockResolvedValue([uploadRow({ purpose })])
+
+      const create = createUploadSession({
+        id: 'upload-1',
+        workspaceId: WORKSPACE_ID,
+        userId: 'user-1',
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        purpose: purpose as Parameters<typeof createUploadSession>[0]['purpose'],
+        fileName: 'empty.txt',
+        contentType: 'text/plain',
+        fileSize: 0,
+        localOrigin: 'http://localhost:3000',
+        ...(extra as object),
+      } as Parameters<typeof createUploadSession>[0])
+
+      if (refused) {
+        await expect(create).rejects.toThrow('fileSize must be a positive integer')
+      } else {
+        await expect(create).resolves.toBeDefined()
+      }
+    }
+  )
 
   it('allocates distinct keys for same-named execution attachments', async () => {
     dbChainMockFns.returning
@@ -570,6 +654,32 @@ describe('upload sessions', () => {
         localOrigin: 'http://localhost:3000',
       })
     ).rejects.toMatchObject({ code: 'validation' })
+  })
+
+  /**
+   * The part-number path segment of a signed part URL is caller-editable, so
+   * the size lookup is a request boundary. It has to classify an out-of-range
+   * part as a validation failure for the data-plane route to answer 400 rather
+   * than falling through to its generic 500.
+   */
+  it('classifies an out-of-range part number as a validation failure', () => {
+    const multipart = sessionRecord({
+      method: 'multipart',
+      partSize: UPLOAD_SESSION_PART_SIZE,
+      partCount: 2,
+      fileSize: UPLOAD_SESSION_PART_SIZE + 1,
+    })
+
+    expect(expectedUploadPartSize(multipart, 1)).toBe(UPLOAD_SESSION_PART_SIZE)
+    expect(expectedUploadPartSize(multipart, 2)).toBe(1)
+    expect(() => expectedUploadPartSize(multipart, 3)).toThrow(OrchestrationError)
+    expect(() => expectedUploadPartSize(multipart, 3)).toThrow('partNumber must be between 1 and 2')
+    try {
+      expectedUploadPartSize(multipart, 3)
+      expect.unreachable('out-of-range part number must throw')
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'validation' })
+    }
   })
 
   it('loads ownership from PostgreSQL and rejects a mismatched token', async () => {

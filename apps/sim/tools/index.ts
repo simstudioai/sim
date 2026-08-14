@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { describeError, findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
   type GenerateInternalDelegationTokenInput,
@@ -16,6 +17,7 @@ import {
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { DEFAULT_EXECUTION_TIMEOUT_MS, getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getHostedKeyRateLimiter } from '@/lib/core/rate-limiter'
 import {
@@ -54,6 +56,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
+import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
@@ -92,6 +95,10 @@ const PRIVATE_MODEL_INPUT_DIRECT_EXECUTION_ERROR_MESSAGE =
   'Private model input provenance is not supported by direct execution'
 const PRIVATE_SECRET_PROVENANCE_DIRECT_EXECUTION_ERROR_MESSAGE =
   'Private secret provenance is not supported by direct execution'
+const INTERNAL_DATABASE_ERROR_MESSAGE =
+  'An internal error occurred while executing the tool. Please try again.'
+const PERMISSION_PREFLIGHT_MAX_ATTEMPTS = 3
+const PERMISSION_PREFLIGHT_RETRY_BACKOFF = { baseMs: 25, maxMs: 100 } as const
 
 function projectToolLogMetadata(
   metadata: Record<string, unknown>,
@@ -106,6 +113,53 @@ function projectToolLogMetadata(
   return projection.safe && isPlainRecord(projection.value)
     ? projection.value
     : { ...structuralFallback, redacted: true }
+}
+
+interface ToolPermissionPreflight {
+  userId: string
+  workspaceId: string
+  toolId: string
+  toolKind?: 'skill' | 'custom' | 'mcp'
+  ctx?: ExecutionContext
+  requestId: string
+  signal?: AbortSignal
+}
+
+async function assertToolPermissionsWithRetry({
+  requestId,
+  signal,
+  ...permission
+}: ToolPermissionPreflight): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    signal?.throwIfAborted()
+    try {
+      await assertPermissionsAllowed(permission)
+      return
+    } catch (error) {
+      signal?.throwIfAborted()
+      const isDatabaseQueryError = Boolean(
+        findCause(error, (cause): cause is DrizzleQueryError => cause instanceof DrizzleQueryError)
+      )
+      if (
+        attempt >= PERMISSION_PREFLIGHT_MAX_ATTEMPTS ||
+        !isDatabaseQueryError ||
+        !isRetryableInfrastructureError(error)
+      ) {
+        throw error
+      }
+
+      const delayMs = backoffWithJitter(attempt, null, PERMISSION_PREFLIGHT_RETRY_BACKOFF)
+      logger.warn(`[${requestId}] Retrying tool permission preflight after database error`, {
+        toolId: permission.toolId,
+        attempt,
+        maxAttempts: PERMISSION_PREFLIGHT_MAX_ATTEMPTS,
+        delayMs,
+        cause: describeError(error),
+      })
+      await sleep(delayMs)
+      signal?.throwIfAborted()
+    }
+  }
 }
 
 interface ToolExecutionScope {
@@ -1534,12 +1588,14 @@ async function executeToolImplementation(
     // Runs for ALL tools (not just kinded ones) so the per-tool `deniedTools`
     // denylist is enforced alongside the existing mcp/custom/skill gates.
     if (scope.userId && scope.workspaceId) {
-      await assertPermissionsAllowed({
+      await assertToolPermissionsWithRetry({
         userId: scope.userId,
         workspaceId: scope.workspaceId,
         toolId: normalizedToolId,
         toolKind,
         ctx: executionContext,
+        requestId,
+        signal: effectiveSignal,
       })
     }
 
@@ -1647,8 +1703,6 @@ async function executeToolImplementation(
         `[${requestId}] Tool ${toolId} needs access token for credential: ${contextParams.credential}`
       )
       try {
-        const baseUrl = getInternalApiBaseUrl()
-
         const workflowId = contextParams._context?.workflowId
         const userId = contextParams._context?.userId
 
@@ -1669,17 +1723,41 @@ async function executeToolImplementation(
           }
         }
 
+        /**
+         * The acting user asserted alongside an internal token. Only sent when the
+         * run enforces credential access, matching the `userId` query param the HTTP
+         * surface accepted — it never widens access, it only pins the assertion to
+         * the token subject.
+         */
+        const callerUserId =
+          userId && contextParams._context?.enforceCredentialAccess ? userId : undefined
+
+        const baseUrl = getInternalApiBaseUrl()
         logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
 
         const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
         if (workflowId) {
           tokenUrlObj.searchParams.set('workflowId', workflowId)
         }
-        if (userId && contextParams._context?.enforceCredentialAccess) {
-          tokenUrlObj.searchParams.set('userId', userId)
+        if (callerUserId) {
+          tokenUrlObj.searchParams.set('userId', callerUserId)
         }
 
-        // Always send Content-Type; add internal auth on server-side runs
+        /**
+         * Deliberately an HTTP hop rather than an in-process call to
+         * `resolveCredentialToken`, even though both run the same authorization rule.
+         *
+         * An OAuth refresh needs the provider's client id and secret
+         * (`requireOAuthClientCapability`, which THROWS when they are absent). Only the
+         * app container loads those, from `SIM_ENV_SECRET_ID`. Tool calls execute inside
+         * the Trigger.dev worker, whose environment does not carry them, so resolving
+         * in-process there turns every credential whose access token has expired into
+         * `Failed to refresh access token`. A still-valid token hides it — the refresh
+         * path is only reached once the token lapses.
+         *
+         * Moving this in-process requires the worker to hold the OAuth client config,
+         * not just a code change.
+         */
         const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
         if (typeof window === 'undefined') {
           try {
@@ -1690,6 +1768,7 @@ async function executeToolImplementation(
           }
         }
 
+        // boundary-raw-fetch: same-origin token route, authenticated by internal JWT on the server and the session cookie in the browser
         const response = await fetch(tokenUrlObj.toString(), {
           method: 'POST',
           headers: tokenHeaders,
@@ -1713,7 +1792,8 @@ async function executeToolImplementation(
           throw new Error(`Failed to obtain credential for ${toolLabel}: ${parsedError}`)
         }
 
-        const data = await response.json()
+        const data = (await response.json()) as CredentialTokenPayload
+
         contextParams.accessToken = data.accessToken
         if (data.idToken) {
           contextParams.idToken = data.idToken
@@ -2043,17 +2123,27 @@ async function executeToolImplementation(
     }
   } catch (error: any) {
     const normalizedError = toError(error)
+    const databaseQueryError = findCause(
+      error,
+      (cause): cause is DrizzleQueryError => cause instanceof DrizzleQueryError
+    )
+    const databaseErrorCause = databaseQueryError ? describeError(error) : undefined
     logger.error(
       `[${requestId}] Error executing tool ${toolId}:`,
       projectToolLogMetadata(
         {
-          error: normalizedError.message,
-          stack: error instanceof Error ? error.stack : undefined,
+          ...(databaseErrorCause
+            ? { cause: databaseErrorCause }
+            : {
+                error: normalizedError.message,
+                stack: error instanceof Error ? error.stack : undefined,
+              }),
         },
         resolvedSecretTraceRegistry,
         {
           errorName: normalizedError.name,
-          hasStack: Boolean(error instanceof Error && error.stack),
+          hasStack: !databaseErrorCause && Boolean(error instanceof Error && error.stack),
+          ...(databaseErrorCause ? { cause: databaseErrorCause } : {}),
         },
         structuralOnlyToolLogs
       )
@@ -2071,7 +2161,9 @@ async function executeToolImplementation(
     let errorDetails = {}
 
     if (error instanceof Error) {
-      errorMessage = error.message || `Error executing tool ${toolId}`
+      errorMessage = databaseQueryError
+        ? INTERNAL_DATABASE_ERROR_MESSAGE
+        : error.message || `Error executing tool ${toolId}`
       // HTTP errors are thrown as Error instances carrying `status`/`statusText`/
       // `data` (see createTransformedErrorFromErrorInfo). Surface them on the
       // output so callers can branch on the status (e.g. treat 404 as a clean

@@ -291,6 +291,7 @@ export const schemaMock = {
     errorNotificationsEnabled: 'errorNotificationsEnabled',
     snapToGridSize: 'snapToGridSize',
     showActionBar: 'showActionBar',
+    autoFocusOnClick: 'autoFocusOnClick',
     copilotEnabledModels: 'copilotEnabledModels',
     copilotAutoAllowedTools: 'copilotAutoAllowedTools',
     lastActiveWorkspaceId: 'lastActiveWorkspaceId',

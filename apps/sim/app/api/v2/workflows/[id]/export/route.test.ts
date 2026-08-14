@@ -29,4 +29,26 @@ describe('/api/v2/workflows/[id]/export route definition', () => {
       errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
     })
   })
+
+  /**
+   * Next aliases a missing `HEAD` export onto `GET`, and RFC 9110 §9.2.1 defines
+   * `HEAD` as safe. This `GET` is not: the use case projects a
+   * `WORKFLOW_EXPORTED` audit event, so an uptime monitor or link checker
+   * probing the documented URL would file an export that never handed anyone
+   * the workflow.
+   */
+  it('does not run the audited export for a HEAD probe', () => {
+    expect(GET).toMatchObject({ headSafe: false })
+  })
+
+  /**
+   * Not running the export is only half of it. The `HEAD` must still resolve the
+   * workflow and check access, or the probe answers 200 for an id the caller's
+   * `GET` would conceal as a 404 — an existence oracle over every workspace's
+   * workflow ids. The builder refuses at definition time to pair
+   * `headSafe: false` with a use case that cannot answer that on its own.
+   */
+  it('exposes an authorization phase the HEAD probe can run without exporting', () => {
+    expect(typeof exportWorkflow.authorize).toBe('function')
+  })
 })

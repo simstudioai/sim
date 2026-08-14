@@ -1,32 +1,25 @@
 /**
  * @vitest-environment node
  */
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(),
-  checkPreAuthRate: vi.fn(),
-  checkOperationRate: vi.fn(),
   listRuns: vi.fn(),
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mocks.checkPreAuthRate
-    checkRateLimitDirectOrThrow = mocks.checkOperationRate
-  },
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/workflows/application/list-workflow-runs', () => ({
   listWorkflowRuns: {
@@ -35,6 +28,7 @@ vi.mock('@/lib/workflows/application/list-workflow-runs', () => ({
   },
 }))
 
+import { REFILTERED_CURSOR_MESSAGE, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { NoWorkspaceAccessError, PersonalApiKeysDisabledError } from '@/lib/core/application'
 import { GET } from '@/app/api/v2/workflows/[id]/runs/route'
 
@@ -85,17 +79,10 @@ const EXECUTIONS = [
 describe('GET /api/v2/workflows/[id]/runs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(auth)
-    mocks.checkPreAuthRate.mockResolvedValue({
-      allowed: true,
-      remaining: 599,
-      resetAt: new Date('2026-08-05T01:00:00Z'),
-    })
-    mocks.checkOperationRate.mockResolvedValue({
-      allowed: true,
-      remaining: 99,
-      resetAt: new Date('2026-08-05T01:00:00Z'),
-    })
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.listRuns.mockResolvedValue({
       data: EXECUTIONS,
       nextCursor: null,
@@ -153,15 +140,71 @@ describe('GET /api/v2/workflows/[id]/runs', () => {
     expect(JSON.parse(Buffer.from(body.nextCursor, 'base64').toString())).toEqual({
       sort: 'startedAt:asc',
       keys: ['2026-08-05T00:01:00.000Z', 'row-1'],
+      filter: expect.any(String),
     })
+  })
+
+  /**
+   * Resuming a cursor under a different filter is a 400, not a page sequenced
+   * against rows the new filter excludes. The assertion above pins that a filter
+   * is stamped at all; this pins that the stamp is read back and enforced.
+   */
+  it('refuses a cursor minted under a different filter', async () => {
+    mocks.listRuns.mockResolvedValueOnce({
+      data: EXECUTIONS,
+      nextCursor: { startedAt: EXECUTIONS[1].startedAt, rowId: 'row-1' },
+      workflowId: 'workflow-1',
+      order: 'asc',
+    })
+
+    const { nextCursor } = await (await callGet('?order=asc&status=completed')).json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    mocks.listRuns.mockClear()
+    const replayed = await callGet(
+      `?order=asc&status=failed&cursor=${encodeURIComponent(nextCursor)}`
+    )
+
+    expect(replayed.status).toBe(400)
+    expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mocks.listRuns).not.toHaveBeenCalled()
+  })
+
+  /**
+   * This list orders by the single `order` param — its query schema is
+   * `.strict()` and declares no `sortBy` — so the sort-mismatch wording would
+   * answer one 400 with advice that earns a second.
+   */
+  it('names a cursor with unusable keys unreadable rather than blaming sortBy', async () => {
+    mocks.listRuns.mockResolvedValueOnce({
+      data: EXECUTIONS,
+      nextCursor: { startedAt: EXECUTIONS[1].startedAt, rowId: 'row-1' },
+      workflowId: 'workflow-1',
+      order: 'desc',
+    })
+
+    const { nextCursor } = await (await callGet()).json()
+    const payload = JSON.parse(Buffer.from(nextCursor, 'base64').toString())
+    const tampered = Buffer.from(
+      JSON.stringify({ ...payload, keys: ['not-a-date', 'row-1'] })
+    ).toString('base64')
+
+    mocks.listRuns.mockClear()
+    const response = await callGet(`?cursor=${encodeURIComponent(tampered)}`)
+
+    expect(response.status).toBe(400)
+    const { error } = await response.json()
+    expect(error.message).toBe(UNREADABLE_CURSOR_MESSAGE)
+    expect(error.message).not.toMatch(/sortBy/)
+    expect(mocks.listRuns).not.toHaveBeenCalled()
   })
 
   it('rejects an invalid cursor after API-key admission without calling the use case', async () => {
     const response = await callGet('?cursor=not-a-cursor')
 
     expect(response.status).toBe(400)
-    expect(mocks.authenticate).toHaveBeenCalledOnce()
-    expect(mocks.checkOperationRate).toHaveBeenCalledTimes(2)
+    expect(v2RouteMocks.authenticate).toHaveBeenCalledOnce()
+    expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
     expect(mocks.listRuns).not.toHaveBeenCalled()
   })
 
@@ -241,5 +284,14 @@ describe('GET /api/v2/workflows/[id]/runs', () => {
     expect(await response.json()).toEqual({
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
     })
+  })
+
+  it('rejects an unauthenticated request', async () => {
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await callGet()
+
+    expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

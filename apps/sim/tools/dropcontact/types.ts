@@ -4,9 +4,7 @@ export interface DropcontactBaseParams {
   apiKey: string
 }
 
-// ---------------------------------------------------------------------------
 // Shared output property constants
-// ---------------------------------------------------------------------------
 
 export const DROPCONTACT_EMAIL_ITEM_OUTPUT_PROPERTIES = {
   email: { type: 'string', description: 'Email address' },
@@ -26,9 +24,7 @@ export const DROPCONTACT_EMAILS_OUTPUT: OutputProperty = {
   },
 }
 
-// ---------------------------------------------------------------------------
 // Enrich Contact (single-contact async enrichment)
-// ---------------------------------------------------------------------------
 
 export interface DropcontactEnrichContactParams extends DropcontactBaseParams {
   /** Email address of the contact to enrich */

@@ -70,6 +70,21 @@ const policies: Array<{
     policy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
     notFoundMessage: 'Knowledge base not found',
   },
+  {
+    domain: 'knowledge base upload',
+    policy: v2KnowledgeErrorPolicies.concealKnowledgeBaseUploadAuthorization,
+    notFoundMessage: 'Knowledge base not found',
+  },
+  {
+    domain: 'knowledge base search',
+    policy: v2KnowledgeErrorPolicies.concealKnowledgeBaseUsageAuthorization,
+    notFoundMessage: 'Knowledge base not found',
+  },
+  {
+    domain: 'file upload',
+    policy: v2FileErrorPolicies.concealUploadAuthorization,
+    notFoundMessage: 'Upload session not found',
+  },
 ]
 
 const crossTenantAuthorizationErrors = [
@@ -97,6 +112,7 @@ describe.each(policies)('$domain resource concealment', ({ policy, notFoundMessa
       error: {
         code: 'FORBIDDEN',
         message: 'Personal API keys are not allowed for this workspace',
+        details: { code: 'PERSONAL_API_KEYS_DISABLED' },
       },
     })
   })
@@ -105,17 +121,48 @@ describe.each(policies)('$domain resource concealment', ({ policy, notFoundMessa
     const response = policy.render(new InsufficientWorkspacePermissionsError())
     expect(response?.status).toBe(403)
     await expect(response?.json()).resolves.toEqual({
-      error: { code: 'FORBIDDEN', message: 'Insufficient workspace permissions' },
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Insufficient workspace permissions',
+        details: { code: 'INSUFFICIENT_WORKSPACE_ROLE' },
+      },
     })
   })
 
+  /**
+   * The two denials above share one status and, for the role case, the exact
+   * message a caller with no access at all would see. `details.code` is the
+   * only thing that separates "raise this member's role" from "this workspace
+   * refuses personal keys", so it is asserted rather than matched loosely.
+   */
   it.each([
-    new WorkspaceApiKeyAuthorizationError(),
-    new PrincipalKindAuthorizationError('workspace_api_key', 'resources.read'),
-  ])('preserves same-workspace principal policy denial as forbidden: %s', async (error) => {
-    const response = policy.render(error)
+    [new WorkspaceApiKeyAuthorizationError(), 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED'],
+    [
+      new PrincipalKindAuthorizationError('workspace_api_key', 'resources.read'),
+      'PRINCIPAL_KIND_NOT_PERMITTED',
+    ],
+  ])(
+    'preserves same-workspace principal policy denial as forbidden with its cause: %s',
+    async (error, detailCode) => {
+      const response = policy.render(error)
+      expect(response?.status).toBe(403)
+      await expect(response?.json()).resolves.toMatchObject({
+        error: { code: 'FORBIDDEN', details: { code: detailCode } },
+      })
+    }
+  )
+
+  /**
+   * A cross-tenant refusal is concealed as 404, so it never reaches this
+   * branch — and it carries no `details.code` for the same reason, which is
+   * what stops the concealed case from being distinguishable if it ever did.
+   */
+  it('leaves a forbidden failure with no named cause without a details code', async () => {
+    const response = policy.render(new OrchestrationError('forbidden', 'Nope'))
     expect(response?.status).toBe(403)
-    await expect(response?.json()).resolves.toMatchObject({ error: { code: 'FORBIDDEN' } })
+    await expect(response?.json()).resolves.toEqual({
+      error: { code: 'FORBIDDEN', message: 'Nope' },
+    })
   })
 
   it('does not classify generic forbidden errors by message', async () => {

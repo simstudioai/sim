@@ -8,6 +8,7 @@ import {
   workflowEdges,
   workflowSubflows,
 } from '@sim/db'
+import { withUtcTimestamps } from '@sim/db/timestamps'
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
 import {
@@ -222,16 +223,20 @@ const connectionString =
 // Realtime process footprint = this socketDb pool + the shared @sim/db pool.
 const socketDb = drizzle(
   instrumentPoolClient(
-    postgres(connectionString, {
-      prepare: false,
-      // See `packages/db/db.ts` — skips the per-connection pg_type roundtrip.
-      fetch_types: false,
-      idle_timeout: 10,
-      connect_timeout: 20,
-      max: 10,
-      onnotice: () => {},
-      connection: { application_name: process.env.DB_APP_NAME ?? 'sim-realtime' },
-    }),
+    postgres(
+      connectionString,
+      // `withUtcTimestamps` — see `packages/db/timestamps.ts`.
+      withUtcTimestamps({
+        prepare: false,
+        // See `packages/db/db.ts` — skips the per-connection pg_type roundtrip.
+        fetch_types: false,
+        idle_timeout: 10,
+        connect_timeout: 20,
+        max: 10,
+        onnotice: () => {},
+        connection: { application_name: process.env.DB_APP_NAME ?? 'sim-realtime' },
+      })
+    ),
     'socketDb'
   ),
   { schema }

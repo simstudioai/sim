@@ -12,6 +12,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import {
   admitOptionalV2Request,
+  V2_PARSE_DEFAULTS,
   V2RouteInfrastructureError,
   v2ApiKeyAuth,
   v2RateLimits,
@@ -19,6 +20,7 @@ import {
 import type { V2ApiKeyPrincipal } from '@/lib/api/server/routes/v2-api-key-auth'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
+import type { ForbiddenDetailCode } from '@/lib/core/application'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -43,7 +45,7 @@ import {
   hasAgentStreamPolicy,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import { type V2ErrorCode, v2Data, v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
+import { type V2ErrorCode, v2Data, v2Error } from '@/app/api/v2/lib/response'
 import {
   PublicApiNotAllowedError,
   validatePublicApiAllowed,
@@ -82,6 +84,8 @@ function serviceFailureResponse(failure: ExecuteWorkflowServiceFailure) {
   return v2Error(code, isRunIdConflict ? 'Run ID has already been used' : failure.message, {
     status: failure.statusCode,
     headers,
+    /** An unconfirmed enqueue may already have started a run — reconcile on `runId`, never retry blind. */
+    omitRetryAfter: failure.code === 'ASYNC_ENQUEUE_AMBIGUOUS',
     details:
       detailCode || failure.executionId
         ? {
@@ -185,8 +189,8 @@ export const POST = withRouteHandler(
 
     try {
       const parsed = await parseRequest(v2ExecuteWorkflowContract, req, context, {
+        ...V2_PARSE_DEFAULTS,
         maxBodyBytes: 10 * 1024 * 1024,
-        validationErrorResponse: v2ValidationError,
       })
       if (!parsed.success) return parsed.response
       const body = parsed.data.body
@@ -270,7 +274,9 @@ export const POST = withRouteHandler(
             return v2Error('NOT_FOUND', 'Workflow not found')
           }
           if (workflowAuthorization.status === 403) {
-            return v2Error('FORBIDDEN', 'Insufficient workspace permissions')
+            return v2Error('FORBIDDEN', 'Insufficient workspace permissions', {
+              details: { code: 'INSUFFICIENT_WORKSPACE_ROLE' satisfies ForbiddenDetailCode },
+            })
           }
           throw new Error(
             `Unexpected workflow authorization status: ${workflowAuthorization.status}`
@@ -279,6 +285,7 @@ export const POST = withRouteHandler(
         result = await executeWorkflowService({
           workflowId,
           userId,
+          isPublicApiAccess,
           input: body.input ?? {},
           triggerType: 'api',
           requestId,

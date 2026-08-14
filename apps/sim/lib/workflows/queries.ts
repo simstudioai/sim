@@ -4,13 +4,13 @@ import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import type { WorkflowListItem } from '@/lib/api/contracts/workflows'
 import {
   type CursorKey,
-  encodeKeyset,
   type KeysetKey,
-  keysetAfter,
   keysetColumns,
+  keysetPage,
   type ListSortOrder,
   listOrderBy,
   numberKey,
+  resumeKeyset,
   searchFilter,
   textKey,
   timestampKey,
@@ -62,13 +62,6 @@ const WORKFLOW_SORTS = {
   ],
 } satisfies Record<WorkflowSortBy, readonly KeysetKey<WorkspaceWorkflowListRow>[]>
 
-export class InvalidWorkflowListCursorError extends Error {
-  constructor() {
-    super('Cursor does not match the requested workflow sort')
-    this.name = 'InvalidWorkflowListCursorError'
-  }
-}
-
 export interface ListWorkspaceWorkflowsInput {
   workspaceId: string
   folderId?: string | null
@@ -83,10 +76,7 @@ export interface ListWorkspaceWorkflowsInput {
 /** Cursor-paged active workflow query used by the public workflow adapter. */
 export async function listWorkspaceWorkflows(input: ListWorkspaceWorkflowsInput) {
   const keys = WORKFLOW_SORTS[input.sortBy]
-  const resumeAfter = input.cursorKeys
-    ? keysetAfter(keys, input.cursorKeys, input.sortOrder)
-    : undefined
-  if (resumeAfter === null) throw new InvalidWorkflowListCursorError()
+  const resumeAfter = resumeKeyset(keys, input.cursorKeys, input.sortOrder)
 
   const folderCondition: SQL | undefined =
     input.folderId === undefined
@@ -124,13 +114,7 @@ export async function listWorkspaceWorkflows(input: ListWorkspaceWorkflowsInput)
     .orderBy(...listOrderBy(keysetColumns(keys), input.sortOrder))
     .limit(input.limit + 1)
 
-  const hasMore = rows.length > input.limit
-  const data = rows.slice(0, input.limit)
-  const last = data.at(-1)
-  return {
-    data,
-    nextCursorKeys: hasMore && last ? encodeKeyset(keys, last) : null,
-  }
+  return keysetPage(keys, rows, input.limit)
 }
 
 /**

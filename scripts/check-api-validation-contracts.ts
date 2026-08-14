@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 1098,
-  zodRoutes: 1098,
+  totalRoutes: 1106,
+  zodRoutes: 1106,
   nonZodRoutes: 0,
 } as const
 
@@ -31,6 +31,11 @@ const BOUNDARY_POLICY_BASELINE = {
 } as const
 
 const INDIRECT_ZOD_ROUTES = new Set([
+  // Catch-all JSON 404 for unknown /api/v2 paths. It has no contract by
+  // construction: it exists precisely for requests that match no operation, so
+  // there is no input to validate and its only response is the fixed v2 error
+  // envelope.
+  'apps/sim/app/api/v2/[[...segments]]/route.ts',
   'apps/sim/app/api/demo-requests/route.ts',
   // Input-less session-bound GET: nothing to validate; response is
   // contract-typed via `satisfies InvitationDetails` in the route.

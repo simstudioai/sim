@@ -1,7 +1,10 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
-import { requireJsonRouteDefinition } from '@/lib/api/server/routes/definition'
+import {
+  methodMatchesContract,
+  requireJsonRouteDefinition,
+} from '@/lib/api/server/routes/definition'
 import type {
   JsonApiRouteContract,
   JsonNextRouteHandler,
@@ -9,11 +12,11 @@ import type {
 } from '@/lib/api/server/routes/types'
 import {
   admitV2Request,
+  V2_PARSE_DEFAULTS,
   type V2ErrorPolicy,
   type V2RateLimitPolicy,
   V2RouteInfrastructureError,
   type v2ApiKeyAuth,
-  v2PayloadTooLargeResponse,
 } from '@/lib/api/server/routes/v2-json-route'
 import {
   type ParsedRequest,
@@ -114,7 +117,7 @@ export function defineV2BodyLifecycleRoute<
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
-      if (request.method !== options.contract.method) {
+      if (!methodMatchesContract(request.method, options.contract.method)) {
         throw new Error(
           `Route received ${request.method} for ${options.contract.method} contract ${options.contract.path}`
         )
@@ -129,7 +132,7 @@ export function defineV2BodyLifecycleRoute<
       if (!routeAdmission.success) return routeAdmission.response
 
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
-        payloadTooLargeResponse: v2PayloadTooLargeResponse,
+        ...V2_PARSE_DEFAULTS,
         ...options.parseOptions,
         validationErrorResponse: v2ValidationError,
       })

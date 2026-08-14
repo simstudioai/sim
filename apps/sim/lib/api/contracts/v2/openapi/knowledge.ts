@@ -1,5 +1,6 @@
 import {
   v2AbortKnowledgeDocumentUploadContract,
+  v2BulkUpdateKnowledgeDocumentsContract,
   v2CompleteKnowledgeDocumentUploadContract,
   v2CreateKnowledgeBaseContract,
   v2CreateKnowledgeDocumentUploadContract,
@@ -13,9 +14,11 @@ import {
   v2ListKnowledgeBasesContract,
   v2ListKnowledgeDocumentsContract,
   v2ListKnowledgeFoldersContract,
+  v2ListKnowledgeTagsContract,
   v2RelocateKnowledgeFolderContract,
   v2SearchKnowledgeContract,
   v2UpdateKnowledgeBaseContract,
+  v2UpdateKnowledgeDocumentContract,
   v2UploadKnowledgeDocumentContract,
   v2UploadKnowledgeDocumentFormSchema,
 } from '@/lib/api/contracts/v2/knowledge'
@@ -24,6 +27,7 @@ import {
   ERROR_RESPONSES,
   type ErrorResponseId,
   FOLDER_TREE_TOO_LARGE,
+  FULL_SET_LIST,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
@@ -31,8 +35,9 @@ import {
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
-  VALIDATED_ERRORS,
+  WORKSPACE_API_KEY_DENIED,
   WORKSPACE_ERRORS,
+  withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   defineOpenApiDocument,
@@ -60,13 +65,13 @@ function knowledgeOperation(
   }
 }
 
-const routes = [
+const declaredRoutes = [
   defineOpenApiRoute(
     v2ListKnowledgeBasesContract,
     knowledgeOperation({
       operationId: 'listKnowledgeBases',
       summary: 'List Knowledge Bases',
-      description: `List knowledge bases in a workspace with folder filtering, search, sorting, and the canonical cursor envelope. The bounded workspace set is returned in one page with \`nextCursor\` always null; there is no second page to fetch. An unknown \`folderPath\` is a 404. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List knowledge bases in a workspace with folder filtering, search, sorting, and opaque cursor pagination. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of knowledge bases.' },
     }),
@@ -90,11 +95,12 @@ const routes = [
     knowledgeOperation({
       operationId: 'createKnowledgeBase',
       summary: 'Create Knowledge Base',
-      description: `Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown \`folderPath\` is a 404. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown \`folderPath\` is a \`404\`. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The created knowledge base.' },
     }),
     {
+      query: v2CreateKnowledgeBaseContract.query,
       body: documentedSchema(
         v2CreateKnowledgeBaseContract.body,
         'CreateKnowledgeBaseRequest',
@@ -116,7 +122,7 @@ const routes = [
       operationId: 'getKnowledgeBase',
       summary: 'Get Knowledge Base',
       description: `Retrieve a knowledge base by identifier. Inaccessible knowledge bases are reported as not found. ${FOLDER_TREE_TOO_LARGE}`,
-      errors: [...VALIDATED_ERRORS, 'NotFound', 'PayloadTooLarge'],
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The requested knowledge base.' },
     }),
     {
@@ -150,6 +156,7 @@ const routes = [
       success: { description: 'The updated knowledge base.' },
     }),
     {
+      query: v2UpdateKnowledgeBaseContract.query,
       params: documentedSchema(
         v2UpdateKnowledgeBaseContract.params,
         'UpdateKnowledgeBaseParams',
@@ -177,7 +184,7 @@ const routes = [
       operationId: 'deleteKnowledgeBase',
       summary: 'Delete Knowledge Base',
       description: 'Delete a knowledge base and its documents.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'Knowledge base deletion acknowledgement.' },
     }),
     {
@@ -207,11 +214,12 @@ const routes = [
       operationId: 'searchKnowledge',
       summary: 'Search Knowledge',
       description:
-        'Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. The request body is capped at 2 MiB; a larger body is a 413.',
+        'Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. A request body over 2 MiB is a `413`.',
       errors: [...WORKSPACE_ERRORS, 'UsageLimitExceeded', 'NotFound', 'PayloadTooLarge'],
       success: { description: 'Matching document chunks ordered by relevance.' },
     }),
     {
+      query: v2SearchKnowledgeContract.query,
       body: documentedSchema(
         v2SearchKnowledgeContract.body,
         'SearchKnowledgeRequest',
@@ -235,13 +243,43 @@ const routes = [
     }
   ),
   defineOpenApiRoute(
+    v2ListKnowledgeTagsContract,
+    knowledgeOperation({
+      operationId: 'listKnowledgeTags',
+      summary: 'List Tags',
+      description: `List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Filters and document reads use display names; document writes address slots. ${FULL_SET_LIST}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The knowledge base tag vocabulary.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ListKnowledgeTagsContract.params,
+        'ListKnowledgeTagsParams',
+        'List knowledge tags path parameters',
+        'Knowledge base whose tags should be listed.'
+      ),
+      query: documentedSchema(
+        v2ListKnowledgeTagsContract.query,
+        'ListKnowledgeTagsQuery',
+        'List knowledge tags query',
+        'Workspace scope for the knowledge base.'
+      ),
+      response: documentedSchema(
+        v2ListKnowledgeTagsContract.response.schema,
+        'V2KnowledgeTagListResponse',
+        'Knowledge tag list response',
+        'The full tag vocabulary of one knowledge base.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2ListKnowledgeDocumentsContract,
     knowledgeOperation({
       operationId: 'listKnowledgeDocuments',
       summary: 'List Documents',
       description:
-        'List documents in a knowledge base with filename search, state filtering, sorting, and opaque cursor pagination.',
-      errors: [...VALIDATED_ERRORS, 'NotFound'],
+        'List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Tag values are keyed by display name; resolve those to write slots with `GET /api/v2/knowledge/{id}/tags`.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'A page of knowledge documents.' },
     }),
     {
@@ -255,13 +293,51 @@ const routes = [
         v2ListKnowledgeDocumentsContract.query,
         'ListKnowledgeDocumentsQuery',
         'List knowledge documents query',
-        'Workspace, pagination, filtering, search, and sorting options.'
+        'Workspace, pagination, filtering, tag filtering, search, and sorting options.'
       ),
       response: documentedSchema(
         v2ListKnowledgeDocumentsContract.response.schema,
         'V2KnowledgeDocumentListResponse',
         'Knowledge document list response',
         'A cursor-paginated page of knowledge documents.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2BulkUpdateKnowledgeDocumentsContract,
+    knowledgeOperation({
+      operationId: 'bulkUpdateKnowledgeDocuments',
+      summary: 'Bulk Enable or Disable Documents',
+      description: `Enable or disable many documents in one request, either by identifier or, with \`selectAll\`, every document in the knowledge base. Bulk delete is not offered; delete documents one at a time with \`DELETE /api/v2/knowledge/{id}/documents/{documentId}\`. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'The number and identifiers of the documents that changed.' },
+    }),
+    {
+      query: v2BulkUpdateKnowledgeDocumentsContract.query,
+      params: documentedSchema(
+        v2BulkUpdateKnowledgeDocumentsContract.params,
+        'BulkUpdateKnowledgeDocumentsParams',
+        'Bulk knowledge document path parameters',
+        'Knowledge base whose documents should be updated.'
+      ),
+      body: documentedSchema(
+        v2BulkUpdateKnowledgeDocumentsContract.body,
+        'BulkUpdateKnowledgeDocumentsRequest',
+        'Bulk knowledge document request',
+        'Operation and the documents it applies to.',
+        [
+          {
+            workspaceId: WORKSPACE_ID,
+            operation: 'disable',
+            documentIds: ['b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12'],
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2BulkUpdateKnowledgeDocumentsContract.response.schema,
+        'V2BulkKnowledgeDocumentsResponse',
+        'Bulk knowledge document response',
+        'Outcome of a bulk enable or disable.'
       ),
     }
   ),
@@ -328,6 +404,7 @@ const routes = [
       success: { description: 'The created upload session and transfer instructions.' },
     }),
     {
+      query: v2CreateKnowledgeDocumentUploadContract.query,
       params: documentedSchema(
         v2CreateKnowledgeDocumentUploadContract.params,
         'CreateKnowledgeDocumentUploadParams',
@@ -362,7 +439,7 @@ const routes = [
       operationId: 'abortKnowledgeDocumentUpload',
       summary: 'Abort Document Upload',
       description: 'Abort an incomplete upload and discard provider-side multipart state.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The aborted upload session.' },
     }),
     {
@@ -398,7 +475,7 @@ const routes = [
       operationId: 'createKnowledgeDocumentUploadPartUrls',
       summary: 'Create Document Upload Part URLs',
       description: 'Issue short-lived signed PUT URLs for up to 100 multipart part numbers.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Signed URLs for the requested upload parts.' },
     }),
     {
@@ -478,7 +555,7 @@ const routes = [
       operationId: 'getKnowledgeDocument',
       summary: 'Get Document',
       description: 'Retrieve document detail, processing state, and connector provenance.',
-      errors: [...VALIDATED_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The requested knowledge document.' },
     }),
     {
@@ -503,13 +580,45 @@ const routes = [
     }
   ),
   defineOpenApiRoute(
+    v2UpdateKnowledgeDocumentContract,
+    knowledgeOperation({
+      operationId: 'updateKnowledgeDocument',
+      summary: 'Update Document',
+      description: `Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state is read-only. Resolve a tag display name to its slot with \`GET /api/v2/knowledge/{id}/tags\`. The returned document omits the connector provenance the detail read carries. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'The updated document, or the requeue acknowledgement.' },
+    }),
+    {
+      query: v2UpdateKnowledgeDocumentContract.query,
+      params: documentedSchema(
+        v2UpdateKnowledgeDocumentContract.params,
+        'UpdateKnowledgeDocumentParams',
+        'Update knowledge document path parameters',
+        'Knowledge base and document selected for update.'
+      ),
+      body: documentedSchema(
+        v2UpdateKnowledgeDocumentContract.body,
+        'UpdateKnowledgeDocumentRequest',
+        'Update knowledge document request',
+        'Filename, search state, tag slot values, or a processing retry.',
+        [{ workspaceId: WORKSPACE_ID, enabled: false, tag1: 'billing' }]
+      ),
+      response: documentedSchema(
+        v2UpdateKnowledgeDocumentContract.response.schema,
+        'V2UpdateKnowledgeDocumentResponse',
+        'Update knowledge document response',
+        'The updated document, or the processing requeue acknowledgement.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2DeleteKnowledgeDocumentContract,
     knowledgeOperation({
       operationId: 'deleteKnowledgeDocument',
       summary: 'Delete Document',
       description:
-        'Remove one document from a knowledge base. What that means depends on the document. A directly uploaded document is deleted outright along with its indexed chunks. A connector-backed document is instead excluded: its row survives, marked excluded and disabled so it stops being searchable and a later connector sync does not re-add it, and its embeddings are not deleted. Either way the document no longer appears in listings or search results.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+        'Remove one document from a knowledge base. An uploaded document is deleted outright with its indexed chunks. A connector-backed document is instead excluded — its row and embeddings survive, but it stops being searchable and a later sync does not re-add it. Either way it no longer appears in listings or search results.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'Knowledge document deletion acknowledgement.' },
     }),
     {
@@ -538,7 +647,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'listKnowledgeFolders',
       summary: 'List Folders',
-      description: `List folders in the knowledge-base folder tree with filtering and sorting. The bounded set is returned in one page with \`nextCursor\` always null; there is no second page to fetch. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List folders in the knowledge-base folder tree with filtering and sorting. ${FULL_SET_LIST} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of knowledge-base folders.' },
     }),
@@ -553,7 +662,7 @@ const routes = [
         v2ListKnowledgeFoldersContract.response.schema,
         'V2KnowledgeFolderListResponse',
         'Knowledge folder list response',
-        'A cursor-paginated page of knowledge-base folders.'
+        'The whole bounded set of knowledge-base folders, in one page.'
       ),
     }
   ),
@@ -567,6 +676,7 @@ const routes = [
       success: { description: 'The created knowledge-base folder.' },
     }),
     {
+      query: v2CreateKnowledgeFolderContract.query,
       body: documentedSchema(
         v2CreateKnowledgeFolderContract.body,
         'CreateKnowledgeFolderRequest',
@@ -592,6 +702,7 @@ const routes = [
       success: { description: 'The relocated knowledge-base folder.' },
     }),
     {
+      query: v2RelocateKnowledgeFolderContract.query,
       body: documentedSchema(
         v2RelocateKnowledgeFolderContract.body,
         'RelocateKnowledgeFolderRequest',
@@ -638,6 +749,8 @@ const routes = [
     }
   ),
 ] as const
+
+const routes = declaredRoutes.map(withRequestBodyErrors)
 
 export const knowledgeOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-knowledge.json',

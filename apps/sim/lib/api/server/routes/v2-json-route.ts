@@ -1,7 +1,10 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { recordRateLimitSnapshot } from '@/lib/api/server/rate-limit-context'
-import { requireJsonRouteDefinition } from '@/lib/api/server/routes/definition'
+import {
+  methodMatchesContract,
+  requireJsonRouteDefinition,
+} from '@/lib/api/server/routes/definition'
 import type {
   JsonApiRouteContract,
   JsonNextRouteHandler,
@@ -14,7 +17,7 @@ import {
   V2ApiKeyUnauthenticatedError,
 } from '@/lib/api/server/routes/v2-api-key-auth'
 import { type ParseRequestOptions, parseRequest } from '@/lib/api/server/validation'
-import type { ApplicationOperation } from '@/lib/core/application'
+import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import { getRateLimit, RateLimiter, type SubscriptionPlan } from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -22,6 +25,7 @@ import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   v2CaughtOrchestrationError,
   v2Error,
+  v2HeadNoEffect,
   v2HttpError,
   v2RateLimitError,
   v2ValidationError,
@@ -108,11 +112,98 @@ export const v2RateLimits = {
  * response sets. Declared here so a route only has to set `parseOptions.maxBodyBytes` to
  * get a correct 413; a route that supplies its own `payloadTooLargeResponse` still wins.
  */
-export const v2PayloadTooLargeResponse = () =>
-  v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large')
+const v2PayloadTooLargeResponse = () => v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large')
+
+/**
+ * Default `400` for a body that is absent or not valid JSON, for the same
+ * reason as {@link v2PayloadTooLargeResponse}: `parseRequest`'s fallback is a
+ * bare `{ "error": "Request body must be valid JSON" }` carrying no
+ * `error.code`, so a client reading `error.code` off every other v2 failure
+ * gets `undefined` exactly when its request was malformed. A default rather
+ * than a per-route opt-in, because an opt-in only holds where somebody
+ * remembered it. A route supplying its own `invalidJsonResponse` still wins.
+ */
+export const v2InvalidJsonResponse = () => v2Error('BAD_REQUEST', 'Request body must be valid JSON')
+
+/**
+ * The parse failures every v2 route renders the same way.
+ *
+ * The builders spread this, and so must the handful of raw `withRouteHandler`
+ * v2 routes that call `parseRequest` directly — they are exactly the routes a
+ * builder default cannot reach.
+ */
+export const V2_PARSE_DEFAULTS = {
+  payloadTooLargeResponse: v2PayloadTooLargeResponse,
+  invalidJsonResponse: v2InvalidJsonResponse,
+  validationErrorResponse: v2ValidationError,
+  /** See {@link blankQueryValueValidationError}. */
+  rejectBlankQueryValues: true,
+  /** See {@link duplicateQueryValueValidationError}. */
+  rejectDuplicateQueryValues: true,
+} as const
 
 export interface V2ErrorPolicy {
   render(error: unknown): NextResponse | null
+}
+
+/**
+ * Refuses at module load to build a `headSafe: false` route whose use case
+ * cannot answer the authorization question on its own — see the `headSafe`
+ * option below. A use case with no `authorize` leaves the builder nothing but
+ * admission to answer a `HEAD` from, so the gap is a boot failure rather than a
+ * silent 200.
+ */
+export function requireHeadAuthorizableUseCase(
+  contract: { method: string; path: string },
+  headSafe: boolean | undefined,
+  useCase: Pick<OperationUseCase<ApplicationOperation, unknown, unknown>, 'authorize'>
+): void {
+  if (headSafe !== false) return
+  if (typeof useCase.authorize === 'function') return
+  throw new Error(
+    `V2 route ${contract.method} ${contract.path} declares headSafe: false but its use case has no authorize(); a HEAD would have to answer from authentication alone and would leak the resource's existence.`
+  )
+}
+
+/**
+ * The bodiless answer a `HEAD` gets on a route whose `GET` is not safe.
+ *
+ * Authorization runs first and its failures render through the route's own error
+ * policy, so the status a caller sees is the status their `GET` would have
+ * produced — 400, 401, 403, 404, 429 — and only an authorized caller reaches the
+ * 200. What a `HEAD` never reaches is the use case's business phase, so the
+ * outbound connection, the row write, and the audit event stay unfired.
+ *
+ * A use case with no `authorize` throws here rather than being skipped, even
+ * though {@link requireHeadAuthorizableUseCase} already refuses such a route at
+ * module load: treating the phase as optional would silently degrade a missing
+ * one into exactly the bodiless 200 this function exists to stop.
+ */
+export async function v2HeadAuthorizationResponse(args: {
+  useCase: Pick<OperationUseCase<ApplicationOperation, unknown, unknown>, 'authorize'>
+  principal: V2ApiKeyAuthContext['principal']
+  input: unknown
+  request: NextRequest
+  errorPolicy: V2ErrorPolicy
+}): Promise<NextResponse> {
+  const { authorize } = args.useCase
+  if (typeof authorize !== 'function') {
+    throw new Error(
+      'HEAD on a route that is not head-safe reached a use case with no authorize(); answering 200 would leak the existence of a resource the GET never authorized.'
+    )
+  }
+  try {
+    await authorize({
+      principal: args.principal,
+      input: args.input,
+      request: args.request,
+    })
+  } catch (error) {
+    const response = args.errorPolicy.render(error)
+    if (response) return response
+    throw error
+  }
+  return v2HeadNoEffect()
 }
 
 export const v2OrchestrationErrorPolicy = {
@@ -195,6 +286,23 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
   auth: typeof v2ApiKeyAuth
   rateLimit: V2RateLimitPolicy
   errorPolicy: V2ErrorPolicy
+  /**
+   * Whether this route's `GET` is safe enough for Next's `HEAD`→`GET` aliasing
+   * to run it. Defaults to `true`, which is correct for a read.
+   *
+   * Set `false` when the `GET` opens an outbound connection or writes a row. A
+   * `HEAD` on such a route is admitted, parsed, and **authorized** exactly as
+   * the `GET` would be, then answered bodiless without running the use case's
+   * business phase — see {@link v2HeadNoEffect}.
+   *
+   * Stopping any earlier than authorization makes this an existence oracle:
+   * admission proves only that the caller holds *a* valid key, so a `HEAD`
+   * answered at that point returns 200 for a resource the very same caller's
+   * `GET` answers 403 or 404 for. A `headSafe: false` route therefore
+   * requires a use case exposing `authorize`, checked at definition time by
+   * {@link requireHeadAuthorizableUseCase}.
+   */
+  headSafe?: boolean
   parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
   beforeParse?(args: {
     request: NextRequest
@@ -220,10 +328,11 @@ export function defineV2JsonRoute<
     options.operation,
     options.useCase.operation
   )
+  requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
-      if (request.method !== options.contract.method) {
+      if (!methodMatchesContract(request.method, options.contract.method)) {
         throw new Error(
           `Route received ${request.method} for ${options.contract.method} contract ${options.contract.path}`
         )
@@ -250,11 +359,29 @@ export function defineV2JsonRoute<
       }
 
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
-        payloadTooLargeResponse: v2PayloadTooLargeResponse,
+        ...V2_PARSE_DEFAULTS,
         ...options.parseOptions,
         validationErrorResponse: v2ValidationError,
       })
       if (!parsed.success) return parsed.response
+
+      if (request.method === 'HEAD' && options.headSafe === false) {
+        let input: I
+        try {
+          input = options.mapInput(parsed.data)
+        } catch (error) {
+          const response = options.errorPolicy.render(error)
+          if (response) return response
+          throw error
+        }
+        return v2HeadAuthorizationResponse({
+          useCase: options.useCase,
+          principal: auth.principal,
+          input,
+          request,
+          errorPolicy: options.errorPolicy,
+        })
+      }
 
       try {
         const input = options.mapInput(parsed.data)
@@ -263,7 +390,7 @@ export function defineV2JsonRoute<
           input,
           request,
         })
-        const body = await options.present(result)
+        const body = await options.present(result, parsed.data)
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
           throw new Error('V2 JSON route response mode changed after initialization')

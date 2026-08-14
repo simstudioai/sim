@@ -3,10 +3,16 @@ import {
   activeDeploymentSummarySchema,
   deployedWorkflowStateSchema,
   deploymentOperationSummarySchema,
+  deploymentVersionNumberSchema,
   deploymentVersionParamsSchema,
   deploymentVersionSchema,
 } from '@/lib/api/contracts/deployments'
-import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  noInputSchema,
+  runIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   V1_IMPORT_DESCRIPTION_MAX_LENGTH,
@@ -17,6 +23,7 @@ import {
   v1WorkflowExportPayloadSchema,
 } from '@/lib/api/contracts/v1/workflows'
 import {
+  V2_FOLDER_FILTER_MISS,
   v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
@@ -25,7 +32,10 @@ import {
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
+  v2PaginationFields,
   v2RelocateFolderBodySchema,
+  v2RunOrderSchema,
+  v2RunWindowBoundSchema,
   v2SearchSchema,
   v2SortFields,
 } from '@/lib/api/contracts/v2/shared'
@@ -40,14 +50,7 @@ import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
 
-export const v2WorkflowRunIdSchema = z
-  .string()
-  .min(1, 'Invalid run ID')
-  .max(128, 'Run ID too long')
-  .regex(
-    /^[A-Za-z0-9._:-]+$/,
-    'Run ID can only contain letters, numbers, dots, underscores, colons, and hyphens'
-  )
+export const v2WorkflowRunIdSchema = runIdSchema
   .describe('Unique workflow run identifier.')
   .meta({ examples: ['run_8f14e45f-ceea-467f-a'] })
 
@@ -60,10 +63,10 @@ export const v2WorkflowRunIdSchema = z
  * double-executes (fresh id per attempt) or hard-fails (same id per attempt).
  */
 const X_RUN_ID_DESCRIPTION =
-  'Caller-supplied run identifier, available only to API-key callers. This is a one-shot uniqueness claim, NOT an idempotency key: the first request to use a value starts a run, and any later request reusing it fails with 409 and `error.details.code: "RUN_ID_CONFLICT"` instead of replaying the original result. To retry safely, generate a fresh value per attempt and reconcile duplicates yourself, or omit the header and let the server allocate the run identifier.'
+  'Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: "RUN_ID_CONFLICT"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.'
 
 const X_SIM_VIA_DESCRIPTION =
-  'Comma-separated workflow identifiers describing the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically when one workflow calls another; supply it yourself only when relaying an existing chain. A chain already at the maximum depth is rejected with 409 and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`, which is how runaway recursion between workflows is stopped.'
+  'Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.'
 
 export const v2ExecuteWorkflowHeadersSchema = z
   .object({
@@ -74,7 +77,7 @@ export const v2ExecuteWorkflowHeadersSchema = z
     id: 'ExecuteWorkflowHeaders',
     title: 'Execute workflow headers',
     description:
-      'Optional one-shot run-identifier claim and workflow call-chain marker for a workflow execution. Reusing an `X-Run-Id` returns 409 and `error.details.code: "RUN_ID_CONFLICT"`; it does not replay the earlier run. An `X-Sim-Via` chain at maximum depth returns 409 and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.',
+      'Optional one-shot run-identifier claim and workflow call-chain marker for a workflow execution.',
   })
 export type V2ExecuteWorkflowHeaders = z.input<typeof v2ExecuteWorkflowHeadersSchema>
 
@@ -130,22 +133,12 @@ export const v2ListWorkflowsQuerySchema = z
     workspaceId: workspaceIdSchema.describe('Workspace whose workflows should be listed.'),
     folderPath: v2FolderPathInputSchema
       .optional()
-      .describe('Restrict results to workflows in this folder path.'),
+      .describe(`Restrict results to workflows in this folder path. ${V2_FOLDER_FILTER_MISS}`),
     deployedOnly: booleanQueryFlagSchema
       .optional()
       .default(false)
       .describe('Return only workflows with an active deployment when true.'),
-    limit: z.coerce
-      .number()
-      .min(1)
-      .max(100)
-      .optional()
-      .default(50)
-      .describe('Maximum workflows to return per page.'),
-    cursor: z
-      .string()
-      .optional()
-      .describe('Opaque pagination cursor returned by a previous request.'),
+    ...v2PaginationFields({ description: 'Maximum workflows to return per page.' }),
     search: v2SearchSchema,
     ...v2SortFields(v2WorkflowSortFields, { sortBy: 'position', sortOrder: 'asc' }),
   })
@@ -179,11 +172,31 @@ export const v2WorkflowListItemSchema = z
       .nullable()
       .describe('ISO 8601 activation timestamp, or null when not deployed.')
       .meta({ format: 'date-time' }),
-    runCount: z.number().int().nonnegative().describe('Total recorded workflow runs.'),
+    /**
+     * A monotonic column on the workflow row, not an aggregate over the run
+     * list. `updateWorkflowRunCounts` is called from exactly one place —
+     * `executeWorkflowCore`'s post-execution hook, under
+     * `result.success && result.status !== 'paused'` — and nothing ever
+     * decrements it, so the two ways it disagrees with
+     * `GET /workflows/{id}/runs` point in opposite directions and both are
+     * reachable at once. The description is what makes that legible; the
+     * counter itself is left alone because its stored values already carry the
+     * narrow meaning and no backfill can recover runs whose logs retention has
+     * already deleted.
+     */
+    runCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe(
+        'Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{id}/runs`, in either direction.'
+      ),
     lastRunAt: z
       .string()
       .nullable()
-      .describe('ISO 8601 timestamp of the latest run, or null when never run.')
+      .describe(
+        'ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.'
+      )
       .meta({ format: 'date-time' }),
     createdAt: z
       .string()
@@ -294,6 +307,29 @@ export const v2DeploymentStateSchema = z
     description: 'Current workflow deployment state and lifecycle progress.',
   })
 
+/**
+ * Read-only deployment state. Extends the shared state with `needsRedeployment`,
+ * which the mutation responses cannot carry: it compares the live graph against
+ * the draft, and immediately after a deploy or rollback the two are equal by
+ * construction.
+ */
+export const v2WorkflowDeploymentSchema = v2DeploymentStateSchema
+  .extend({
+    needsRedeployment: z
+      .boolean()
+      .describe(
+        'Whether the editable draft has diverged from the live deployment version. False while a deployment attempt is still preparing or activating, and false when nothing is deployed.'
+      ),
+  })
+  .meta({
+    id: 'WorkflowDeployment',
+    title: 'Workflow deployment',
+    description:
+      'Current deployment state of a workflow, including draft-versus-live drift and the most recent deployment attempt.',
+  })
+
+export type V2WorkflowDeployment = z.output<typeof v2WorkflowDeploymentSchema>
+
 export const v2DeployWorkflowDataSchema = v2DeploymentStateSchema
   .extend({
     version: z
@@ -307,7 +343,7 @@ export const v2DeployWorkflowDataSchema = v2DeploymentStateSchema
     id: 'DeployResult',
     title: 'Deploy result',
     description:
-      'Deployment attempt accepted for processing. Activation is asynchronous; `latestDeploymentAttempt` on this response is the attempt handle. The request is NOT idempotent — every POST mints a new deployment version, so a retry after a timeout creates a second version rather than returning the first. `latestDeploymentAttempt` is returned only here: `GET /workflows/{id}` does not carry it, so poll activation with `isDeployed` and `deployedAt` on the workflow, or with `isActive` on `GET /workflows/{id}/versions`.',
+      'Deployment attempt accepted for processing. Activation is asynchronous, and `latestDeploymentAttempt` is the attempt handle — returned only here. Poll activation with `isDeployed` and `deployedAt` on the workflow, or `isActive` on `GET /workflows/{id}/versions`.',
   })
 export type V2DeployWorkflowData = z.output<typeof v2DeployWorkflowDataSchema>
 
@@ -344,6 +380,7 @@ export const v2ListWorkflowsContract = defineRouteContract({
 export const v2GetWorkflowContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
@@ -447,6 +484,7 @@ export type V2DeleteWorkflowData = z.output<typeof v2DeleteWorkflowDataSchema>
 export const v2CreateWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows',
+  query: noInputSchema,
   body: v2CreateWorkflowBodySchema,
   response: {
     mode: 'json',
@@ -458,6 +496,7 @@ export const v2CreateWorkflowContract = defineRouteContract({
 export const v2UpdateWorkflowContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/workflows/[id]',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   body: v2UpdateWorkflowBodySchema,
   response: {
@@ -469,6 +508,7 @@ export const v2UpdateWorkflowContract = defineRouteContract({
 export const v2DeleteWorkflowContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/workflows/[id]',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
@@ -506,12 +546,16 @@ export const v2ListWorkflowFoldersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/folders',
   query: v2ListFoldersQuerySchema,
-  response: { mode: 'json', schema: v2CursorListResponse(v2WorkflowFolderSchema) },
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2WorkflowFolderSchema, { paged: false }),
+  },
 })
 
 export const v2CreateWorkflowFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/folders',
+  query: noInputSchema,
   body: v2CreateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2WorkflowFolderSchema), status: 201 },
 })
@@ -519,6 +563,7 @@ export const v2CreateWorkflowFolderContract = defineRouteContract({
 export const v2RelocateWorkflowFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/workflows/folders',
+  query: noInputSchema,
   body: v2RelocateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2WorkflowFolderSchema) },
 })
@@ -574,25 +619,28 @@ export type V2WorkflowVersion = z.output<typeof v2WorkflowVersionSchema>
  */
 export const v2ListWorkflowVersionsQuerySchema = z
   .object({
-    limit: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .optional()
-      .default(50)
-      .describe('Maximum deployment versions to return per page.'),
-    cursor: z
-      .string()
-      .optional()
-      .describe('Opaque pagination cursor returned by a previous request.'),
+    ...v2PaginationFields({ description: 'Maximum deployment versions to return per page.' }),
   })
+  .strict()
   .meta({
     id: 'ListWorkflowVersionsQuery',
     title: 'List workflow versions query',
     description: 'Pagination for deployment versions of a workflow.',
   })
 export type V2ListWorkflowVersionsQuery = z.output<typeof v2ListWorkflowVersionsQuerySchema>
+
+/**
+ * Payload of the opaque cursor this list mints. A cursor is caller-controlled
+ * bytes, so its decoded `version` is validated exactly like a request field —
+ * it is compared against the `integer` column, where an out-of-range value
+ * overflows the comparison rather than matching nothing.
+ */
+export const v2WorkflowVersionCursorSchema = z
+  .object({
+    version: deploymentVersionNumberSchema.describe('Version at which the next page begins.'),
+  })
+  .strict()
+export type V2WorkflowVersionCursor = z.output<typeof v2WorkflowVersionCursorSchema>
 
 /**
  * A single version plus the workflow state it pins. `state` is the deployed
@@ -615,7 +663,7 @@ export const v2WorkflowVersionDetailSchema = z
       .describe('ISO 8601 timestamp when this version was created.')
       .meta({ format: 'date-time' }),
     state: deployedWorkflowStateSchema.describe(
-      'Deployed workflow graph snapshot pinned by this version. Credential-bearing values are redacted: `oauth-input`, `password: true`, and table sub-block values are null; sensitive nested tool parameters and every parameter without authoritative codec metadata are null.'
+      'Deployed workflow graph snapshot pinned by this version, with credential-bearing values redacted to null: `oauth-input`, `password: true`, table sub-block values, sensitive nested tool parameters, and any parameter without authoritative codec metadata.'
     ),
   })
   .meta({
@@ -639,6 +687,7 @@ export const v2ListWorkflowVersionsContract = defineRouteContract({
 export const v2GetWorkflowVersionContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]/versions/[version]',
+  query: noInputSchema,
   params: v2DeploymentVersionParamsSchema,
   response: {
     mode: 'json',
@@ -646,9 +695,21 @@ export const v2GetWorkflowVersionContract = defineRouteContract({
   },
 })
 
+export const v2GetWorkflowDeploymentContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[id]/deployment',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowDeploymentSchema),
+  },
+})
+
 export const v2DeployWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/deploy',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   body: v1DeployWorkflowBodySchema
     .extend({
@@ -659,6 +720,7 @@ export const v2DeployWorkflowContract = defineRouteContract({
         'Optional release note for the deployment version.'
       ),
     })
+    .strict()
     .optional()
     .default({})
     .meta({
@@ -678,6 +740,7 @@ export const v2DeployWorkflowContract = defineRouteContract({
 export const v2UndeployWorkflowContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/workflows/[id]/deploy',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
@@ -685,9 +748,18 @@ export const v2UndeployWorkflowContract = defineRouteContract({
   },
 })
 
+/**
+ * Rollback carries a single optional field, and omitting it is a legitimate
+ * request meaning "reactivate the version preceding the active one". A
+ * stripping body schema therefore cannot distinguish an intentional omission
+ * from a misspelled `version`, and silently performs the wrong rollback while
+ * answering `200`. `.strict()` is what makes the two distinguishable, so it is
+ * load-bearing here rather than hygiene.
+ */
 export const v2RollbackWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/rollback',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   body: v1RollbackWorkflowBodySchema
     .extend({
@@ -695,6 +767,7 @@ export const v2RollbackWorkflowContract = defineRouteContract({
         'Deployment version to reactivate. Omit to select the previous active version.'
       ),
     })
+    .strict()
     .optional()
     .default({})
     .meta({
@@ -714,6 +787,15 @@ export const v2RollbackWorkflowContract = defineRouteContract({
  * `@/executor/utils/errors` (duplicated literally: contracts are
  * client-importable and must not pull executor modules). APPEND-ONLY: callers
  * route on these instead of substring-matching messages.
+ *
+ * `OUTPUT_TOO_LARGE` was retired rather than kept for the append-only promise:
+ * an oversize run response is not an in-band failure and never reached
+ * classification, so the code was never emitted on any response. See
+ * `WorkflowExecutionErrorCode` for the full reasoning; the oversize case is an
+ * HTTP 413 carrying `workflow_response_too_large` in the error envelope.
+ *
+ * Block attribution is NOT uniform across the operations that carry this
+ * object — see `blockId` below.
  */
 export const v2ExecutionErrorSchema = z
   .object({
@@ -726,14 +808,41 @@ export const v2ExecutionErrorSchema = z
         'INVALID_INPUT',
         'BLOCK_EXECUTION_FAILED',
         'CHILD_WORKFLOW_FAILED',
-        'OUTPUT_TOO_LARGE',
         'EXECUTION_FAILED',
       ])
-      .describe('Stable machine-readable execution failure code.'),
-    /** Failing block, when attributable. Deliberately crosses the workspace boundary for shared/child workflows — the runId + block context is the reproducible handle a caller hands the workflow provider. */
-    blockId: z.string().optional().describe('Identifier of the failing block, when attributable.'),
-    blockName: z.string().optional().describe('Display name of the failing block.'),
-    blockType: z.string().optional().describe('Integration or block type that failed.'),
+      .describe(
+        'Stable machine-readable execution failure code. `BLOCK_EXECUTION_FAILED` and `CHILD_WORKFLOW_FAILED` are reported only where block attribution is available; elsewhere a block-level failure is reported as `EXECUTION_FAILED`.'
+      ),
+    /**
+     * Failing block, when attributable. Deliberately crosses the workspace boundary for shared/child workflows — the runId + block context is the reproducible handle a caller hands the workflow provider.
+     *
+     * Attribution is produced at execution time from the failing block's throw
+     * site, so it reaches the caller only on the synchronous execute response.
+     * The polled run resource and the resume response reclassify a persisted
+     * error *string* — the log row keeps no structured error — so these three
+     * fields are absent there and the code collapses to `EXECUTION_FAILED`.
+     * That is a known asymmetry, documented rather than silently promised:
+     * a caller that needs the failing block reads the run's trace spans, which
+     * do carry `blockId`, `name`, and `type`.
+     */
+    blockId: z
+      .string()
+      .optional()
+      .describe(
+        'Identifier of the failing block. Present on the synchronous execute response only; the polled run resource and the resume response cannot attribute a block.'
+      ),
+    blockName: z
+      .string()
+      .optional()
+      .describe(
+        'Display name of the failing block. Present on the synchronous execute response only.'
+      ),
+    blockType: z
+      .string()
+      .optional()
+      .describe(
+        'Integration or block type that failed. Present on the synchronous execute response only.'
+      ),
   })
   .meta({
     id: 'ExecutionError',
@@ -743,13 +852,16 @@ export const v2ExecutionErrorSchema = z
 export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
 
 /**
- * The mutually-exclusive execute option matrix, mirrored from the route's
- * post-parse checks in `app/api/v2/workflows/[id]/execute/route.ts`. Kept as one
+ * That the execute options constrain each other, said once. Kept as one
  * exported string so the request-body description and the OpenAPI operation
  * description cannot drift from each other.
+ *
+ * It deliberately does not enumerate the combinations the route rejects: a
+ * caller reads a constraint where it applies, so each lives on `async`,
+ * `stream`, `executionTimeoutSeconds`, `includeThinking`, or `includeToolCalls`.
  */
 export const EXECUTE_OPTION_CONSTRAINTS =
-  'Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require `stream: true`. (6) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.'
+  'Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.'
 
 /**
  * Strict public execute body. Async is body-selected (`async: true`) — v2 has
@@ -757,8 +869,9 @@ export const EXECUTE_OPTION_CONSTRAINTS =
  * (triggerType, draft state, deployment pinning) are NEVER wire fields; they
  * are typed options on the execution service.
  *
- * The six rejected option combinations are enumerated in
- * {@link EXECUTE_OPTION_CONSTRAINTS} and enforced by the route after parsing.
+ * The rejected option combinations are enforced by the route after parsing and
+ * described on the fields they constrain; {@link EXECUTE_OPTION_CONSTRAINTS}
+ * only tells a caller that the options constrain each other.
  */
 export const v2ExecuteWorkflowBodySchema = z
   .object({
@@ -786,7 +899,7 @@ export const v2ExecuteWorkflowBodySchema = z
       .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
       .optional()
       .describe(
-        "Requested server-side timeout for an asynchronous run, in seconds. This is an upper bound on the request, not the effective timeout: the run uses the smaller of this value and the account plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout with no warning. Rejected with 400 unless `async` is true."
+        "Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true."
       ),
     stream: z
       .boolean()
@@ -819,7 +932,7 @@ export const v2ExecuteWorkflowBodySchema = z
     includeFileBase64: z
       .boolean()
       .optional()
-      .describe('Inline eligible output files as base64 content.'),
+      .describe('Inline eligible output files as base64 content. Rejected when `async` is true.'),
     /** Caps inline base64 file hydration; bounded (v1 leaves it unbounded). */
     base64MaxBytes: z
       .number()
@@ -827,7 +940,9 @@ export const v2ExecuteWorkflowBodySchema = z
       .positive()
       .max(10 * 1024 * 1024)
       .optional()
-      .describe('Maximum total bytes of file content to inline as base64.'),
+      .describe(
+        'Maximum total bytes of file content to inline as base64. Rejected when `async` is true.'
+      ),
   })
   .strict()
   .meta({
@@ -875,7 +990,7 @@ export const v2ExecuteWorkflowDataSchema = z
     id: 'WorkflowRunResult',
     title: 'Workflow run result',
     description:
-      'Synchronous workflow run output and in-band execution status. Run failures are reported in band, not as HTTP errors — a synchronous run that exceeds its execution timeout returns HTTP 200 with `status: "failed"` and `error.code: "TIMEOUT"`, so always branch on `status` rather than on the HTTP status alone.',
+      'Synchronous workflow run output and in-band execution status. Run failures are reported in band, not as HTTP errors — a run that exceeds its execution timeout returns HTTP 200 with `status: "failed"` and `error.code: "TIMEOUT"`, so branch on `status`.',
   })
 export type V2ExecuteWorkflowData = z.output<typeof v2ExecuteWorkflowDataSchema>
 
@@ -906,6 +1021,7 @@ export const v2ExecuteWorkflowSuccessSchema = z
 export const v2ExecuteWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/execute',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   headers: v2ExecuteWorkflowHeadersSchema,
   body: v2ExecuteWorkflowBodySchema,
@@ -969,6 +1085,7 @@ export type V2ResumeWorkflowResponse = z.output<typeof v2ResumeWorkflowResponseS
 export const v2ResumeWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/runs/[runId]/resume',
+  query: noInputSchema,
   params: v2WorkflowRunParamsSchema,
   body: v2ResumeWorkflowBodySchema,
   response: {
@@ -983,7 +1100,7 @@ export const v2ResumeWorkflowContract = defineRouteContract({
 })
 
 const RUN_STATUS_DESCRIPTION =
-  'Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` means the run is not executing and is waiting to be resumed: either held at a human-in-the-loop pause point, or left paused because a resume attempt did not run to completion. The status alone does not say which. On the single-run response `paused.automaticResumeWaitingReason` distinguishes them: it is recorded whenever a resume attempt fails and cleared once a resume succeeds, so a null value means the run is waiting on human input. When the failure is not retryable or the automatic retries are exhausted, the reason is prefixed `Automatic resume requires manual intervention: `. Run-list items carry no `paused` object, so the two cases are indistinguishable there.'
+  "Current or terminal run status. `redacting` is transient, reported while a finished run's output is being scrubbed. `paused` means the run is waiting to be resumed — either held at a human-in-the-loop pause point, or left paused by a resume attempt that did not complete. Only the single-run response distinguishes the two, through `paused.automaticResumeWaitingReason`."
 
 /**
  * The list projection passes `workflow_execution_logs.status` through except where it
@@ -1028,29 +1145,9 @@ export const v2ListWorkflowRunsQuerySchema = z
       .min(1, 'trigger cannot be empty')
       .optional()
       .describe('Filter by trigger type.'),
-    startDate: z
-      .string()
-      .datetime()
-      .optional()
-      .describe('Include runs started at or after this ISO 8601 timestamp.'),
-    endDate: z
-      .string()
-      .datetime()
-      .optional()
-      .describe('Include runs started at or before this ISO 8601 timestamp.'),
-    limit: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .optional()
-      .default(50)
-      .describe('Maximum workflow runs to return per page.'),
-    cursor: z
-      .string()
-      .min(1, 'cursor cannot be empty')
-      .optional()
-      .describe('Opaque pagination cursor returned by a previous request.'),
+    startDate: v2RunWindowBoundSchema('startDate').optional(),
+    endDate: v2RunWindowBoundSchema('endDate').optional(),
+    ...v2PaginationFields({ description: 'Maximum workflow runs to return per page.' }),
     /**
      * Deliberate deviation from the v2 `sortBy` + `sortOrder` convention. Runs
      * have exactly one sortable column (start time), so there is no `sortBy` to
@@ -1058,14 +1155,11 @@ export const v2ListWorkflowRunsQuerySchema = z
      * aliasing the param would require a route change and would introduce a
      * second spelling with undefined precedence when both are sent — so the
      * deviation is documented rather than papered over.
+     *
+     * Shared with `GET /logs` so the two spell the enum the same way in the
+     * generated specs.
      */
-    order: z
-      .enum(['asc', 'desc'])
-      .optional()
-      .default('desc')
-      .describe(
-        'Sort direction by run start time. This operation deviates from the v2 `sortBy` + `sortOrder` convention: runs are sortable only by start time, so the direction is carried by this single `order` param and `sortBy`/`sortOrder` are not accepted.'
-      ),
+    order: v2RunOrderSchema('run'),
   })
   .strict()
   .refine(
@@ -1133,19 +1227,36 @@ export const v2ListWorkflowRunsContract = defineRouteContract({
 /**
  * The polled run resource. `queued` is backfilled from the async job
  * queue before the worker writes the durable log row — v1's jobs endpoint 404
- * window doesn't exist here. `error` is the same structured object the execute
- * response carries.
+ * window doesn't exist here. `error` is the same *shape* the execute response
+ * carries, but not the same content: this resource reclassifies the persisted
+ * error string, so it never attributes a block. See `v2ExecutionErrorSchema`.
  */
 export const v2WorkflowRunStatusSchema = z
   .object({
     runId: v2WorkflowRunIdSchema,
     workflowId: z.string().describe('Workflow that produced the run.'),
     status: v2WorkflowRunStatusValueSchema,
-    trigger: z.string().nullable().describe('Trigger type, or null before the run is recorded.'),
+    /**
+     * Kept nullable on the wire while never being null in practice: every
+     * projection this resource has — the queued job, the queued resume, and the
+     * durable log row — backfills both fields (`api` and the job's creation time
+     * when the run is not yet recorded), so no caller has observed a null here.
+     * The nullability is the schema's tolerance for a future projection, not a
+     * state a caller needs to branch on, which is why neither description
+     * promises a null that never arrives.
+     */
+    trigger: z
+      .string()
+      .nullable()
+      .describe(
+        'Trigger type that started the run. Backfilled as `api` for a run that is still queued, so it is populated from the first poll.'
+      ),
     startedAt: z
       .string()
       .nullable()
-      .describe('ISO 8601 start timestamp, or null while queued.')
+      .describe(
+        'ISO 8601 start timestamp. A queued run reports the time it was enqueued, so it is populated from the first poll.'
+      )
       .meta({ format: 'date-time' }),
     endedAt: z
       .string()
@@ -1166,7 +1277,9 @@ export const v2WorkflowRunStatusSchema = z
       .describe('Credit cost, or null when unavailable.'),
     error: v2ExecutionErrorSchema
       .nullable()
-      .describe('Structured execution failure, or null when none occurred.'),
+      .describe(
+        'Structured execution failure, or null when none occurred. Reclassified from the persisted error message, so `blockId`/`blockName`/`blockType` are absent and a block-level failure reports `EXECUTION_FAILED` here even when the same run reported `BLOCK_EXECUTION_FAILED` on its synchronous execute response.'
+      ),
     /** Populated only with `includeOutput=true` on completed runs. */
     output: z
       .unknown()
@@ -1176,7 +1289,9 @@ export const v2WorkflowRunStatusSchema = z
     blockOutputs: z
       .record(z.string(), z.unknown().describe('Output value produced by one workflow block.'))
       .nullable()
-      .describe('Selected block outputs when requested, otherwise null.'),
+      .describe(
+        'Outputs of the blocks named by `selectedOutputs`, or null when none were requested. Gated by `selectedOutputs` alone — `includeOutput` governs `output` only.'
+      ),
   })
   .meta({
     id: 'WorkflowRunStatus',
@@ -1191,13 +1306,30 @@ export const v2GetWorkflowRunContract = defineRouteContract({
   params: v2WorkflowRunParamsSchema,
   query: workflowExecutionStatusQuerySchema
     .extend({
-      includeOutput: workflowExecutionStatusQuerySchema.shape.includeOutput.describe(
-        'Include final and block outputs when true.'
-      ),
+      /**
+       * Declared with the shared boolean flag rather than reused from the
+       * internal shape, which spells it as a `'true'`/`'false'` string enum
+       * while every other v2 boolean query param is a real boolean. The shared
+       * schema still accepts both strings, so `?includeOutput=true` keeps
+       * working identically; it only widens what parses.
+       */
+      includeOutput: booleanQueryFlagSchema
+        .describe(
+          'Include the final workflow output when true. It does not gate `blockOutputs`, which `selectedOutputs` selects on its own.'
+        )
+        .optional()
+        .default(false),
+      /**
+       * Block *ids*, unlike the execute request's `selectedOutputs`, which also
+       * accepts `BlockName.path` and resolves it against the live workflow. This
+       * resource reads a recorded run and never loads the workflow's blocks, so
+       * a name has no id to resolve to and selects nothing.
+       */
       selectedOutputs: workflowExecutionStatusQuerySchema.shape.selectedOutputs.describe(
-        'Comma-separated block output references to include.'
+        'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.'
       ),
     })
+    .strict()
     .meta({
       id: 'GetWorkflowRunQuery',
       title: 'Get workflow run query',
@@ -1227,20 +1359,21 @@ export const v2CancelWorkflowRunDataSchema = z
     reason: cancelWorkflowExecutionReasonSchema
       .optional()
       .describe(
-        'Machine-readable cancellation outcome. Present on every cancellation, including full successes — it is not a partial-failure marker. `recorded` means cancellation was durably recorded (the normal success value). `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal could not be written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step when cancelling a paused human-in-the-loop run.'
+        'Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` is the success value. `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal was not written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step for a paused run.'
       ),
   })
   .meta({
     id: 'CancelWorkflowRunResult',
     title: 'Cancel workflow run result',
     description:
-      'Outcome of a workflow run cancellation request. Cancelling a run that has already reached a terminal state (completed, failed, or cancelled) succeeds with no effect rather than returning an error — treat this endpoint as best-effort and poll the run to observe the final state.',
+      'Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, so poll the run to observe its final state.',
   })
 export type V2CancelWorkflowRunData = z.output<typeof v2CancelWorkflowRunDataSchema>
 
 export const v2CancelWorkflowRunContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/runs/[runId]/cancel',
+  query: noInputSchema,
   params: v2WorkflowRunParamsSchema,
   response: {
     mode: 'json',
@@ -1374,6 +1507,7 @@ export const v2ImportWorkflowDataSchema = z
 export const v2ExportWorkflowContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]/export',
+  query: noInputSchema,
   params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
@@ -1384,6 +1518,7 @@ export const v2ExportWorkflowContract = defineRouteContract({
 export const v2ImportWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/import',
+  query: noInputSchema,
   body: v2ImportWorkflowBodySchema,
   response: {
     mode: 'json',

@@ -1,5 +1,8 @@
 import type { NextRequest } from 'next/server'
-import { requireBinaryRouteDefinition } from '@/lib/api/server/routes/definition'
+import {
+  methodMatchesContract,
+  requireBinaryRouteDefinition,
+} from '@/lib/api/server/routes/definition'
 import type {
   BinaryApiRouteContract,
   BinaryRouteDefinition,
@@ -8,16 +11,18 @@ import type {
 } from '@/lib/api/server/routes/types'
 import {
   admitV2Request,
+  requireHeadAuthorizableUseCase,
+  V2_PARSE_DEFAULTS,
   type V2ErrorPolicy,
   type V2RateLimitPolicy,
   V2RouteInfrastructureError,
   type v2ApiKeyAuth,
-  v2PayloadTooLargeResponse,
+  v2HeadAuthorizationResponse,
 } from '@/lib/api/server/routes/v2-json-route'
 import { parseRequest } from '@/lib/api/server/validation'
 import type { ApplicationOperation } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { v2Error, v2HttpError, v2ValidationError } from '@/app/api/v2/lib/response'
+import { v2Error, v2HeadNoEffect, v2HttpError } from '@/app/api/v2/lib/response'
 
 interface V2BinaryRouteOptions<
   C extends BinaryApiRouteContract,
@@ -28,6 +33,13 @@ interface V2BinaryRouteOptions<
   auth: typeof v2ApiKeyAuth
   rateLimit: V2RateLimitPolicy
   errorPolicy: V2ErrorPolicy
+  /**
+   * As on {@link defineV2JsonRoute}, whose `headSafe` option carries the
+   * rationale; the bodiless answer is {@link v2HeadNoEffect}. A binary `GET` is
+   * a download — the archetypal read that records that it happened — so it is
+   * the common case here rather than the exception.
+   */
+  headSafe?: boolean
 }
 
 export function defineV2BinaryRoute<
@@ -41,10 +53,11 @@ export function defineV2BinaryRoute<
     options.operation,
     options.useCase.operation
   )
+  requireHeadAuthorizableUseCase(options.contract, options.headSafe, options.useCase)
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request: NextRequest, context) => {
-      if (request.method !== options.contract.method) {
+      if (!methodMatchesContract(request.method, options.contract.method)) {
         throw new Error(
           `Route received ${request.method} for ${options.contract.method} contract ${options.contract.path}`
         )
@@ -59,10 +72,27 @@ export function defineV2BinaryRoute<
       if (!admission.success) return admission.response
 
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
-        payloadTooLargeResponse: v2PayloadTooLargeResponse,
-        validationErrorResponse: v2ValidationError,
+        ...V2_PARSE_DEFAULTS,
       })
       if (!parsed.success) return parsed.response
+
+      if (request.method === 'HEAD' && options.headSafe === false) {
+        let input: I
+        try {
+          input = options.mapInput(parsed.data)
+        } catch (error) {
+          const response = options.errorPolicy.render(error)
+          if (response) return response
+          throw error
+        }
+        return v2HeadAuthorizationResponse({
+          useCase: options.useCase,
+          principal: admission.auth.principal,
+          input,
+          request,
+          errorPolicy: options.errorPolicy,
+        })
+      }
 
       try {
         const result = await options.useCase.execute({

@@ -10,6 +10,7 @@ import {
   type MothershipSendMessageDetail,
 } from '@/lib/mothership/events'
 import { SearchModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/search-modal'
+import { getBlock } from '@/blocks/registry'
 
 const { mockPush, mockSearchState } = vi.hoisted(() => ({
   mockPush: vi.fn(),
@@ -69,6 +70,25 @@ vi.mock('@/hooks/use-permission-config', () => ({
       hideKnowledgeBaseTab: false,
     },
   }),
+}))
+
+/**
+ * The palette owns these reads now — it mounts only while open, so the queries exist only then.
+ * `mockTables` lets a test drive the Tables section the way the `tables` prop used to.
+ */
+const mockTables = vi.hoisted(() => ({ current: [] as unknown[] }))
+
+vi.mock('@/hooks/queries/tables', () => ({
+  useTablesList: () => ({ data: mockTables.current }),
+}))
+vi.mock('@/hooks/queries/workspace-files', () => ({
+  useWorkspaceFiles: () => ({ data: [] }),
+}))
+vi.mock('@/hooks/queries/kb/knowledge', () => ({
+  useKnowledgeBasesQuery: () => ({ data: [] }),
+}))
+vi.mock('@/hooks/queries/folders', () => ({
+  useFolderMap: () => ({ data: {} }),
 }))
 
 vi.mock('@/hooks/use-settings-navigation', () => ({
@@ -344,6 +364,74 @@ describe('SearchModal', () => {
     }
   })
 
+  it('keeps a block above its same-name trigger for the exact-name query', async () => {
+    const Icon = () => null
+    const original = { ...mockSearchState.data }
+    mockSearchState.data = {
+      ...mockSearchState.data,
+      tools: [
+        {
+          id: 'gmail',
+          name: 'Gmail',
+          icon: Icon,
+          bgColor: '#E8453C',
+          type: 'gmail',
+          searchValue: 'gmail gmail',
+        },
+      ],
+      triggers: [{ id: 'gmail', name: 'Gmail', icon: Icon, bgColor: '#E8453C', type: 'gmail' }],
+    }
+
+    try {
+      await act(async () => {
+        root.render(<SearchModal open onOpenChange={vi.fn()} pageContext='workflow' />)
+      })
+
+      await enterSearchQuery('gmail')
+      const rows = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]')).map(
+        (el) => el.textContent ?? ''
+      )
+      expect(rows[0]).toContain('Gmail')
+      expect(rows[0]).not.toContain('Gmail Trigger')
+      expect(rows[1]).toContain('Gmail Trigger')
+    } finally {
+      mockSearchState.data = original
+    }
+  })
+
+  it('ranks prefix-matched rows above actions that only contain the letter mid-word', async () => {
+    const Icon = () => null
+    const original = { ...mockSearchState.data }
+    mockSearchState.data = {
+      ...mockSearchState.data,
+      tools: [
+        {
+          id: 'hex',
+          name: 'Hex',
+          icon: Icon,
+          bgColor: '#111',
+          type: 'hex',
+          searchValue: 'hex hex',
+        },
+      ],
+    }
+
+    try {
+      await act(async () => {
+        root.render(<SearchModal open onOpenChange={vi.fn()} pageContext='workflow' />)
+      })
+
+      await enterSearchQuery('h')
+      const rows = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]')).map(
+        (el) => el.textContent ?? ''
+      )
+      expect(rows[0]).toContain('Hex')
+      expect(rows.findIndex((row) => row.includes('New chat'))).toBeGreaterThan(0)
+    } finally {
+      mockSearchState.data = original
+    }
+  })
+
   it('puts the workflow verb actions first for their bare-verb queries', async () => {
     const Icon = () => null
     const original = { ...mockSearchState.data }
@@ -517,11 +605,9 @@ describe('SearchModal', () => {
   })
 
   it('hoists a module page’s actions and its entity section directly under the Sim group', async () => {
-    const tables = [{ id: 'table-1', name: 'Leads', href: '/workspace/workspace-1/tables/table-1' }]
+    mockTables.current = [{ id: 'table-1', name: 'Leads', folderId: null }]
     await act(async () => {
-      root.render(
-        <SearchModal open onOpenChange={vi.fn()} pageContext='tables' canEdit tables={tables} />
-      )
+      root.render(<SearchModal open onOpenChange={vi.fn()} pageContext='tables' canEdit />)
     })
 
     const headings = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-group-heading]')).map(
@@ -578,6 +664,28 @@ describe('SearchModal', () => {
 
     expect(rows()[0]?.getAttribute('aria-selected')).toBe('true')
     expect(rows()[1]?.getAttribute('aria-selected')).toBe('false')
+  })
+
+  it('re-anchors selection to the first row after the re-ranked results commit', async () => {
+    const workflows = [
+      { id: 'workflow-1', name: 'Funnel', href: '/workspace/workspace-1/w/workflow-1' },
+      { id: 'workflow-2', name: 'Funnel two', href: '/workspace/workspace-1/w/workflow-2' },
+      { id: 'workflow-3', name: 'Function alpha', href: '/workspace/workspace-1/w/workflow-3' },
+    ]
+    await act(async () => {
+      root.render(<SearchModal open onOpenChange={vi.fn()} workflows={workflows} />)
+    })
+
+    const rows = () => Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]'))
+
+    await enterSearchQuery('fun')
+    expect(rows()[0]?.textContent).toContain('Funnel')
+    expect(rows()[0]?.getAttribute('aria-selected')).toBe('true')
+
+    await enterSearchQuery('func')
+    expect(rows()).toHaveLength(1)
+    expect(rows()[0]?.textContent).toContain('Function alpha')
+    expect(rows()[0]?.getAttribute('aria-selected')).toBe('true')
   })
 
   it('unmounts while closed and reopens with a blank query', async () => {
@@ -688,6 +796,53 @@ describe('SearchModal', () => {
       expect(document.body.textContent).not.toContain('Webhook Trigger Trigger')
     } finally {
       mockSearchState.data = original
+    }
+  })
+
+  it('accents a first-party trigger by its canvas role, not its catalog color', async () => {
+    const Icon = () => null
+    const original = { ...mockSearchState.data }
+    /*
+     * The palette reads the accent from the block's category, so the row's
+     * appearance is only meaningful against a registry that reports one — the
+     * shared mock omits it.
+     */
+    const mockedGetBlock = vi.mocked(getBlock)
+    const originalGetBlock = mockedGetBlock.getMockImplementation()
+    mockedGetBlock.mockImplementation(
+      (type: string) => ({ category: type === 'slack' ? 'tools' : 'triggers', icon: Icon }) as never
+    )
+    mockSearchState.data = {
+      ...mockSearchState.data,
+      triggers: [
+        {
+          id: 'generic_webhook',
+          name: 'Webhook Trigger',
+          icon: Icon,
+          bgColor: '#10B981',
+          type: 'generic_webhook',
+        },
+        {
+          id: 'slack',
+          name: 'Slack',
+          icon: Icon,
+          bgColor: '#611f69',
+          type: 'slack',
+        },
+      ],
+    }
+
+    try {
+      await act(async () => {
+        root.render(<SearchModal open onOpenChange={vi.fn()} pageContext='workflow' />)
+      })
+
+      expect(document.querySelector('[data-workflow-type-icon="generic_webhook"]')).not.toBeNull()
+      // A third-party trigger keeps its brand tile, exactly as the canvas paints it.
+      expect(document.querySelector('[data-workflow-type-icon="slack"]')).toBeNull()
+    } finally {
+      mockSearchState.data = original
+      if (originalGetBlock) mockedGetBlock.mockImplementation(originalGetBlock)
     }
   })
 

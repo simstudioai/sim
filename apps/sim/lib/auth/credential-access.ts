@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { account, credential, workflow as workflowTable } from '@sim/db/schema'
 import { and, asc, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { type AuthResult, AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import {
   type CredentialActorContext,
   canUseCredential,
@@ -59,11 +59,27 @@ export async function authorizeCredentialUse(
     callerUserId?: string
   }
 ): Promise<CredentialAccessResult> {
-  const { credentialId, workflowId, requireWorkflowIdForInternal = true, callerUserId } = params
-
   const auth = await checkSessionOrInternalAuth(request, {
-    requireWorkflowId: requireWorkflowIdForInternal,
+    requireWorkflowId: params.requireWorkflowIdForInternal ?? true,
   })
+  return authorizeCredentialUseForAuth(auth, params)
+}
+
+/**
+ * Credential authorization for an already-authenticated caller.
+ * {@link authorizeCredentialUse} is the HTTP wrapper; in-process callers build the same
+ * {@link AuthResult} directly, so both paths run one identical rule.
+ */
+export async function authorizeCredentialUseForAuth(
+  auth: AuthResult,
+  params: {
+    credentialId: string
+    workflowId?: string
+    callerUserId?: string
+  }
+): Promise<CredentialAccessResult> {
+  const { credentialId, workflowId, callerUserId } = params
+
   if (!auth.success || !auth.userId) {
     return { ok: false, error: auth.error || 'Authentication required' }
   }

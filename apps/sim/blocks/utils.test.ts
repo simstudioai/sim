@@ -69,6 +69,7 @@ vi.mock('@/lib/oauth/utils', () => ({
 
 import type { SubBlockConfig } from '@/blocks/types'
 import {
+  BUILT_IN_TOOL_TYPES,
   getApiKeyCondition,
   getDependsOnFields,
   getSubBlocksDependingOnChange,
@@ -76,6 +77,13 @@ import {
   parseOptionalJsonInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
+
+describe('BUILT_IN_TOOL_TYPES', () => {
+  it('classifies the current File block instead of the legacy File block', () => {
+    expect(BUILT_IN_TOOL_TYPES.has('file_v5')).toBe(true)
+    expect(BUILT_IN_TOOL_TYPES.has('file')).toBe(false)
+  })
+})
 
 const BASE_CLOUD_MODELS: Record<string, string> = {
   'gpt-4o': 'openai',

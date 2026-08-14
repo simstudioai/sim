@@ -24,7 +24,10 @@ vi.mock('@/lib/billing/application/get-billing-status', () => ({
   getBillingStatus: { operation: { id: 'billing.status.read' }, execute: mocks.execute },
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  PersonalApiKeysDisabledError,
+  WorkspaceApiKeyScopeAuthorizationError,
+} from '@/lib/core/application'
 import { GET } from '@/app/api/v2/billing/status/route'
 
 const auth = {
@@ -80,17 +83,47 @@ describe('GET /api/v2/billing/status', () => {
     expect(await response.json()).toEqual({ data: { ...result, credits: null, storage: null } })
   })
 
-  it('projects typed workspace-policy errors', async () => {
-    mocks.execute.mockRejectedValueOnce(
-      new OrchestrationError('forbidden', 'API key is not authorized for this workspace')
+  it.each(['workspaceID', 'workspace_id', 'workspace'])(
+    'rejects %s rather than silently answering for the account payer',
+    async (key) => {
+      const response = await GET(
+        new NextRequest(`http://localhost:3000/api/v2/billing/status?${key}=workspace-1`)
+      )
+
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchObject({ error: { code: 'BAD_REQUEST' } })
+      expect(mocks.execute).not.toHaveBeenCalled()
+    }
+  )
+
+  it('names the cause of an actionable workspace-policy refusal', async () => {
+    mocks.execute.mockRejectedValueOnce(new PersonalApiKeysDisabledError())
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/v2/billing/status?workspaceId=workspace-1')
     )
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'FORBIDDEN', details: { code: 'PERSONAL_API_KEYS_DISABLED' } },
+    })
+  })
+
+  /**
+   * A workspace key naming another workspace must not learn that the workspace
+   * exists, so this refusal is answered exactly as an unknown workspace id is.
+   */
+  it('conceals a cross-tenant workspace-key refusal as a not-found workspace', async () => {
+    mocks.execute.mockRejectedValueOnce(new WorkspaceApiKeyScopeAuthorizationError())
 
     const response = await GET(
       new NextRequest('http://localhost:3000/api/v2/billing/status?workspaceId=workspace-2')
     )
 
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({ error: { code: 'FORBIDDEN' } })
+    expect(response.status).toBe(404)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'NOT_FOUND', message: 'Workspace not found' },
+    })
   })
 
   it('hides unknown billing infrastructure errors', async () => {

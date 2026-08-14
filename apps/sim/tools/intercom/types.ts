@@ -14,9 +14,7 @@ const logger = createLogger('Intercom')
  * - https://developers.intercom.com/docs/references/rest-api/api.intercom.io/tickets/ticket
  */
 
-// ============================================================================
 // Location Output Properties
-// ============================================================================
 
 /**
  * Output definition for location object (nested in contact)
@@ -41,9 +39,7 @@ export const INTERCOM_LOCATION_OUTPUT: OutputProperty = {
   properties: INTERCOM_LOCATION_OUTPUT_PROPERTIES,
 }
 
-// ============================================================================
 // Social Profiles Output Properties
-// ============================================================================
 
 /**
  * Output definition for social profile object
@@ -76,9 +72,7 @@ export const INTERCOM_SOCIAL_PROFILES_OUTPUT: OutputProperty = {
   },
 }
 
-// ============================================================================
 // List Reference Output Properties (tags, notes, companies on contact)
-// ============================================================================
 
 /**
  * Output definition for list reference objects (used for tags, notes, companies on contacts)
@@ -100,9 +94,7 @@ export const INTERCOM_LIST_REFERENCE_OUTPUT: OutputProperty = {
   properties: INTERCOM_LIST_REFERENCE_OUTPUT_PROPERTIES,
 }
 
-// ============================================================================
 // Tag Output Properties
-// ============================================================================
 
 /**
  * Output definition for tag objects
@@ -134,9 +126,7 @@ export const INTERCOM_TAGS_ARRAY_OUTPUT: OutputProperty = {
   },
 }
 
-// ============================================================================
 // Admin Output Properties
-// ============================================================================
 
 /**
  * Output definition for admin avatar object
@@ -206,9 +196,7 @@ export const INTERCOM_ADMINS_ARRAY_OUTPUT: OutputProperty = {
   },
 }
 
-// ============================================================================
 // Contact Output Properties
-// ============================================================================
 
 /**
  * Core contact properties (common fields)
@@ -350,9 +338,7 @@ export const INTERCOM_CONTACTS_ARRAY_OUTPUT: OutputProperty = {
   },
 }
 
-// ============================================================================
 // Company Output Properties
-// ============================================================================
 
 /**
  * Output definition for company plan object
@@ -495,9 +481,7 @@ export const INTERCOM_COMPANIES_ARRAY_OUTPUT: OutputProperty = {
   },
 }
 
-// ============================================================================
 // Conversation Output Properties
-// ============================================================================
 
 /**
  * Output definition for conversation source object
@@ -872,9 +856,7 @@ export const INTERCOM_CONVERSATIONS_ARRAY_OUTPUT: OutputProperty = {
   },
 }
 
-// ============================================================================
 // Ticket Output Properties
-// ============================================================================
 
 /**
  * Output definition for ticket type object
@@ -977,9 +959,7 @@ export const INTERCOM_TICKET_OUTPUT: OutputProperty = {
   properties: INTERCOM_TICKET_OUTPUT_PROPERTIES,
 }
 
-// ============================================================================
 // Pagination Output Properties
-// ============================================================================
 
 /**
  * Output definition for pagination cursor

@@ -65,6 +65,7 @@ const HANDWRITTEN_INTEGRATION_DOCS = new Set([
   'hubspot-setup',
   'linear-service-account',
   'monday-service-account',
+  'netsuite-service-account',
   'notion-service-account',
   'pipedrive-service-account',
   'salesforce-service-account',

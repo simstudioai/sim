@@ -17,6 +17,11 @@ const mocks = vi.hoisted(() => ({
   getTagDefinitions: vi.fn(),
   recordEmbeddingUsage: vi.fn(),
   importProvenance: vi.fn(),
+  rerank: vi.fn(),
+}))
+
+vi.mock('@/lib/knowledge/reranker', () => ({
+  rerank: mocks.rerank,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -304,6 +309,91 @@ describe('knowledge search application use case', () => {
       results: expect.arrayContaining([
         expect.objectContaining({ id: 'embedding-1', documentId: 'document-1' }),
       ]),
+    })
+  })
+
+  describe('reranker outcome reporting', () => {
+    const rerankedSearch = (rerankerEnabled?: boolean, query: string | undefined = 'answer') =>
+      searchKnowledge.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: ['knowledge-1'],
+          ...(query === undefined ? {} : { query }),
+          topK: 5,
+          ...(rerankerEnabled === undefined ? {} : { rerankerEnabled }),
+          rerankerModel: 'rerank-v4.0-pro' as const,
+        },
+      })
+
+    it('reports applied when the reranker ordered the results', async () => {
+      mocks.rerank.mockResolvedValueOnce({
+        results: [{ item: { id: 'embedding-1' }, relevanceScore: 0.93 }],
+        isBYOK: false,
+      })
+
+      const result = await rerankedSearch(true)
+
+      expect(result.rerankerStatus).toBe('applied')
+      expect(result.results[0]).toMatchObject({ rerankerScore: 0.93 })
+    })
+
+    /**
+     * The reproduced defect: a deployment with no Cohere credential threw inside
+     * `rerank`, the use case swallowed it, and the caller got a 200 whose results
+     * were byte-identical to an unreranked search with nothing to distinguish them.
+     */
+    it('reports unavailable rather than silently falling back to vector ordering', async () => {
+      mocks.rerank.mockRejectedValueOnce(new Error('No Cohere API key configured.'))
+
+      const result = await rerankedSearch(true)
+
+      expect(result.rerankerStatus).toBe('unavailable')
+      expect(result.results[0]).not.toHaveProperty('rerankerScore')
+    })
+
+    /**
+     * A resolved call with an empty ordering leaves the caller in the same place a
+     * thrown one does — vector order, no `rerankerScore` — so it reports the same
+     * status. It is not "the reranker matched nothing": `rerank` sends a non-empty
+     * document list and asks for `top_n` of it, so an empty array means the
+     * response carried nothing usable rather than a legitimate empty ranking.
+     */
+    it('reports unavailable when the call resolves without a usable ordering', async () => {
+      mocks.rerank.mockResolvedValueOnce({ results: [], isBYOK: false })
+
+      const result = await rerankedSearch(true)
+
+      expect(result.rerankerStatus).toBe('unavailable')
+      expect(result.results[0]).not.toHaveProperty('rerankerScore')
+    })
+
+    it('reports skipped for a tag-only search, which has no query to rank against', async () => {
+      mocks.getTagDefinitions.mockResolvedValue([
+        { tagSlot: 'tag1', displayName: 'team', fieldType: 'text' },
+      ])
+
+      const result = await searchKnowledge.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          workspaceId: 'workspace-1',
+          knowledgeBaseIds: ['knowledge-1'],
+          topK: 5,
+          tagFilters: [{ tagName: 'team', operator: 'eq', value: 'docs' }],
+          rerankerEnabled: true,
+          rerankerModel: 'rerank-v4.0-pro' as const,
+        },
+      })
+
+      expect(result.rerankerStatus).toBe('skipped')
+      expect(mocks.rerank).not.toHaveBeenCalled()
+    })
+
+    it('reports not_requested when the caller did not ask for reranking', async () => {
+      const result = await rerankedSearch(undefined)
+
+      expect(result.rerankerStatus).toBe('not_requested')
+      expect(mocks.rerank).not.toHaveBeenCalled()
     })
   })
 

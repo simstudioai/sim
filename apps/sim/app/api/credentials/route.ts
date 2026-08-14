@@ -222,7 +222,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       types: type ? [type] : undefined,
       providerId,
     })
-    const credentials = visible.map(({ hasServiceAccountKey: _hasKey, ...rest }) => rest)
+    const credentials = visible.data.map(({ hasServiceAccountKey: _hasKey, ...rest }) => rest)
 
     return NextResponse.json({ credentials })
   } catch (error) {

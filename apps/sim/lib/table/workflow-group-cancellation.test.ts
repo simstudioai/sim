@@ -80,6 +80,7 @@ describe('cancelWorkflowGroupExecution', () => {
     expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
       status: 'cancelled',
       endedAt: expect.any(Date),
+      totalDurationMs: expect.anything(),
       executionDeadlineAt: null,
     })
     expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
@@ -218,9 +219,15 @@ describe('cancelWorkflowGroupExecution', () => {
     })
 
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    /**
+     * `totalDurationMs` is derived in-statement from the row's `started_at`, so
+     * a cancelled run carries the duration every other terminal write records
+     * and stays visible to the `/api/v2/logs` duration filters.
+     */
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       status: 'cancelled',
       endedAt: expect.any(Date),
+      totalDurationMs: expect.anything(),
       executionDeadlineAt: null,
     })
     const logUpdateValues = collectConditionValues(dbChainMockFns.where.mock.calls[2]?.[0])

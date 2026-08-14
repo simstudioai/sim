@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { readClientId } from '@/lib/api/client-id'
 import {
   type BatchInsertTableRowsBodyInput,
   batchUpdateTableRowsBodySchema,
@@ -26,7 +27,7 @@ import {
   validateRowSize,
 } from '@/lib/table'
 import { TableQueryValidationError } from '@/lib/table/errors'
-import { signalTableRowsChanged } from '@/lib/table/events'
+import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
 import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicateShape,
@@ -254,7 +255,9 @@ export const POST = withRouteHandler(
         table,
         requestId
       )
-      signalTableRowsChanged(tableId)
+      // Attributed unlike the batch path above: the acting tab's insert deliberately avoids
+      // invalidating the rows root to prevent flicker, which an unattributed echo would undo.
+      signalTableRowsChangedByActor(tableId, readClientId(request))
 
       const responseBody = {
         success: true,

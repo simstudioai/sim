@@ -6,9 +6,10 @@ import {
   knowledgeDocumentParamsSchema,
   nullableWireDateSchema,
 } from '@/lib/api/contracts/knowledge/shared'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE,
   v1ChunkingConfigSchema,
   v1CreateKnowledgeBaseBodySchema,
   v1KnowledgeSearchBodySchema,
@@ -17,6 +18,8 @@ import {
   v1SearchTagFilterSchema,
 } from '@/lib/api/contracts/v1/knowledge'
 import {
+  nameSortCollation,
+  V2_FOLDER_FILTER_MISS,
   v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
@@ -25,6 +28,7 @@ import {
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
+  v2PaginationFields,
   v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
@@ -38,6 +42,11 @@ import {
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
 import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
+import {
+  DEFAULT_RERANKER_MODEL,
+  rerankerModelSchema,
+  rerankerStatusSchema,
+} from '@/lib/knowledge/reranker-models'
 import { knowledgeDocumentUploadMetadataSchema } from '@/lib/knowledge/upload-metadata'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 
@@ -224,11 +233,57 @@ export const v2KnowledgeDocumentSummarySchema = v2KnowledgeDocumentCoreSchema
 export type V2KnowledgeDocumentSummary = z.output<typeof v2KnowledgeDocumentSummarySchema>
 
 /**
- * Document detail — the summary plus processing state and connector provenance.
- * Every field is always present (nullable), mirroring the v1 detail projection.
+ * Tag values carried on a document read, keyed by tag **display name**.
+ *
+ * The read and write surfaces address tags differently, deliberately:
+ *
+ * - **Reads are name-keyed.** This map, the `metadata` map on a search result,
+ *   and the `tagName` in a search or document-list tag filter all speak display
+ *   names, so everything a caller reads or filters by uses one vocabulary.
+ * - **Writes are slot-keyed** (`tag1`..`tag7` on upload and on document update),
+ *   because a slot is the addressable column and a display name is only unique
+ *   per knowledge base and may be renamed.
+ *
+ * `GET /api/v2/knowledge/{id}/tags` is the mapping between the two. A slot that
+ * holds a value but has no definition in the knowledge base appears under its
+ * raw slot name, matching how knowledge search projects the same columns.
+ */
+export const v2KnowledgeDocumentTagsSchema = z
+  .record(
+    z.string(),
+    z
+      .union([z.string(), z.number(), z.boolean(), z.null()])
+      .describe('Tag value; dates are ISO 8601 strings and an unset tag is null.')
+  )
+  .describe(
+    'Document tag values keyed by tag display name. Writes address the same tags by slot (`tag1`..`tag7`); resolve names to slots with GET /api/v2/knowledge/{id}/tags.'
+  )
+  .meta({ examples: [{ category: 'billing', priority: 2 }] })
+
+/**
+ * Document list item — the summary plus its tag values. Upload acknowledgements
+ * keep the plain summary: they echo a document the caller has just described,
+ * so there is no vocabulary to resolve for them.
+ */
+export const v2KnowledgeTaggedDocumentSchema = v2KnowledgeDocumentSummarySchema
+  .extend({
+    tags: v2KnowledgeDocumentTagsSchema,
+  })
+  .meta({
+    id: 'V2KnowledgeTaggedDocument',
+    title: 'Knowledge document list item',
+    description: 'Document summary with the document tag values keyed by display name.',
+  })
+export type V2KnowledgeTaggedDocument = z.output<typeof v2KnowledgeTaggedDocumentSchema>
+
+/**
+ * Document detail — the summary plus tag values, processing state and connector
+ * provenance. Every field is always present (nullable), mirroring the v1 detail
+ * projection.
  */
 export const v2KnowledgeDocumentSchema = v2KnowledgeDocumentSummarySchema
   .extend({
+    tags: v2KnowledgeDocumentTagsSchema,
     processingError: z
       .string()
       .nullable()
@@ -266,6 +321,10 @@ export type V2KnowledgeDocument = z.output<typeof v2KnowledgeDocumentSchema>
  */
 export const v2KnowledgeSearchResultSchema = z
   .object({
+    knowledgeBaseId: z
+      .string()
+      .describe('Knowledge base the matching chunk came from; a search may span up to 20.')
+      .meta({ examples: ['7c9e6679-7425-40de-944b-e07fc1f90ae7'] }),
     documentId: z
       .string()
       .describe('Identifier of the document containing the matching chunk.')
@@ -300,6 +359,13 @@ export const v2KnowledgeSearchResultSchema = z
       .number()
       .describe('Similarity score for vector search; tag-only matches use 1.')
       .meta({ examples: [0.8423] }),
+    rerankerScore: z
+      .number()
+      .optional()
+      .describe(
+        'Relevance score assigned by the reranker, present only on results a reranker ordered. Results are ordered by this score when it is present, which is why it can disagree with `similarity`.'
+      )
+      .meta({ examples: [0.9312] }),
   })
   .meta({
     id: 'V2KnowledgeSearchResult',
@@ -334,6 +400,18 @@ export const v2KnowledgeSearchDataSchema = z
       .nonnegative()
       .describe('Number of results returned.')
       .meta({ examples: [4] }),
+    /**
+     * Required, not optional. Reranking degrades to vector ordering on a provider
+     * failure or an unconfigured credential, and that fallback was previously
+     * indistinguishable from a reranker that ran — same 200, same order, no
+     * `rerankerScore` on any result. A field a caller has to remember to look for
+     * would reproduce the same gap for anyone who does not.
+     */
+    rerankerStatus: rerankerStatusSchema
+      .describe(
+        'What the reranker did on this search. `applied` means it ordered the results, which carry `rerankerScore`. `unavailable` means it was attempted but could not complete, so results are in vector order with no `rerankerScore` — the search still succeeded, and is worth retrying. `skipped` means there was nothing to rank. `not_requested` means `rerankerEnabled` was absent or false.'
+      )
+      .meta({ examples: ['applied'] }),
   })
   .meta({
     id: 'V2KnowledgeSearchData',
@@ -343,9 +421,11 @@ export const v2KnowledgeSearchDataSchema = z
 export type V2KnowledgeSearchData = z.output<typeof v2KnowledgeSearchDataSchema>
 
 /** Upload carries the workspace as a query param so auth runs before the multipart body is buffered. */
-export const v2UploadKnowledgeDocumentQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
-})
+export const v2UploadKnowledgeDocumentQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+  })
+  .strict()
 export type V2UploadKnowledgeDocumentQuery = z.output<typeof v2UploadKnowledgeDocumentQuerySchema>
 
 export const v2KnowledgeBaseParamsSchema = knowledgeBaseParamsSchema.extend({
@@ -501,9 +581,10 @@ export const v2ListKnowledgeBasesQuerySchema = z
     workspaceId: workspaceIdSchema.describe('Workspace whose knowledge bases should be listed.'),
     folderPath: v2FolderPathInputSchema
       .optional()
-      .describe('Restrict results to knowledge bases in this folder.'),
+      .describe(`Restrict results to knowledge bases in this folder. ${V2_FOLDER_FILTER_MISS}`),
     search: v2SearchSchema,
     ...v2SortFields(v2KnowledgeBaseSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
+    ...v2PaginationFields({ description: 'Maximum knowledge bases to return per page.' }),
   })
   .strict()
 
@@ -578,11 +659,12 @@ export const v2UpdateKnowledgeBaseBodySchema = z
   })
 
 /**
- * KB list. `getKnowledgeBases` returns the full workspace set (a small, bounded
- * per-workspace list), so today the cursor list is a single full page
- * (`nextCursor` always `null`). The canonical cursor envelope keeps the v2 list
- * surface uniform; real pagination can be added later behind the opaque cursor.
- * Search, folder filter, and sort all run in that query, not over its result.
+ * KB list, keyset-paginated over the active sort. Search, folder filter, and
+ * sort all run in the query, not over its result.
+ *
+ * Before pagination this list returned `nextCursor` while rejecting `limit` and
+ * `cursor` outright, so it advertised a pagination scheme no caller could
+ * drive.
  */
 export const v2ListKnowledgeBasesContract = defineRouteContract({
   method: 'GET',
@@ -597,6 +679,7 @@ export const v2ListKnowledgeBasesContract = defineRouteContract({
 export const v2CreateKnowledgeBaseContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge',
+  query: noInputSchema,
   body: v2CreateKnowledgeBaseBodySchema,
   response: {
     mode: 'json',
@@ -609,11 +692,13 @@ export const v2GetKnowledgeBaseContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/knowledge/[id]',
   params: v2KnowledgeBaseParamsSchema,
-  query: v1KnowledgeWorkspaceQuerySchema.extend({
-    workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
-      'Workspace that owns the knowledge base.'
-    ),
-  }),
+  query: v1KnowledgeWorkspaceQuerySchema
+    .extend({
+      workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
+        'Workspace that owns the knowledge base.'
+      ),
+    })
+    .strict(),
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeBaseSchema),
@@ -627,6 +712,7 @@ export const v2GetKnowledgeBaseContract = defineRouteContract({
 export const v2UpdateKnowledgeBaseContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/knowledge/[id]',
+  query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2UpdateKnowledgeBaseBodySchema,
   response: {
@@ -639,11 +725,13 @@ export const v2DeleteKnowledgeBaseContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/knowledge/[id]',
   params: v2KnowledgeBaseParamsSchema,
-  query: v1KnowledgeWorkspaceQuerySchema.extend({
-    workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
-      'Workspace that owns the knowledge base.'
-    ),
-  }),
+  query: v1KnowledgeWorkspaceQuerySchema
+    .extend({
+      workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
+        'Workspace that owns the knowledge base.'
+      ),
+    })
+    .strict(),
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeDeleteDataSchema),
@@ -675,12 +763,13 @@ export const v2ListKnowledgeFoldersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/knowledge/folders',
   query: v2ListFoldersQuerySchema,
-  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema) },
+  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema, { paged: false }) },
 })
 
 export const v2CreateKnowledgeFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge/folders',
+  query: noInputSchema,
   body: v2CreateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FolderSchema), status: 201 },
 })
@@ -688,6 +777,7 @@ export const v2CreateKnowledgeFolderContract = defineRouteContract({
 export const v2RelocateKnowledgeFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/knowledge/folders',
+  query: noInputSchema,
   body: v2RelocateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FolderSchema) },
 })
@@ -699,56 +789,132 @@ export const v2DeleteKnowledgeFolderContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2DeleteKnowledgeFolderDataSchema) },
 })
 
-const v2KnowledgeSearchTagFilterSchema = v1SearchTagFilterSchema
-  .extend({
+export const v2KnowledgeSearchTagFilterSchema = v1SearchTagFilterSchema
+  /** `safeExtend` so the base schema's `between` rule survives the redescribe. */
+  .safeExtend({
     tagName: v1SearchTagFilterSchema.shape.tagName
       .describe('Display name of the tag to filter.')
       .meta({ examples: ['category'] }),
     fieldType: v1SearchTagFilterSchema.shape.fieldType.describe('Tag field type.'),
     operator: v1SearchTagFilterSchema.shape.operator
-      .describe('Comparison operator; valid operators depend on the field type.')
+      .describe(
+        `Comparison operator; valid operators depend on the field type. Text tags accept ${KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE.text.join(', ')}; number and date tags accept ${KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE.number.join(', ')}; boolean tags accept ${KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE.boolean.join(', ')}. An operator the tag's field type does not implement is rejected, never ignored.`
+      )
       .meta({ examples: ['eq'] }),
     value: v1SearchTagFilterSchema.shape.value
       .describe('Tag value to compare against.')
       .meta({ examples: ['billing'] }),
     valueTo: v1SearchTagFilterSchema.shape.valueTo.describe(
-      'Upper bound for the `between` operator.'
+      'Upper bound for the `between` operator, and required whenever that operator is used.'
     ),
   })
+  /**
+   * Strict for the same reason the search body is: Zod strips what it does not
+   * declare, so a mis-cased `valueto` left a `between` filter with no upper
+   * bound and the document list answered 200 with the whole knowledge base. v1
+   * keeps its historical lenient parse.
+   */
+  .strict()
   .meta({
     id: 'V2KnowledgeSearchTagFilter',
     title: 'Knowledge search tag filter',
     description: 'A structured tag filter applied to knowledge search.',
   })
 
-export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema.safeExtend({
-  workspaceId: v1KnowledgeSearchBodySchema.shape.workspaceId.describe(
-    'Workspace that owns the knowledge bases.'
-  ),
-  knowledgeBaseIds: v1KnowledgeSearchBodySchema.shape.knowledgeBaseIds
-    .describe('One knowledge base identifier or an array of up to 20 identifiers.')
-    .meta({ examples: [['7c9e6679-7425-40de-944b-e07fc1f90ae7']] }),
-  query: v1KnowledgeSearchBodySchema.shape.query
-    .describe('Natural-language query; required when tag filters are omitted.')
-    .meta({ examples: ['How do I reset my password?'] }),
-  topK: v1KnowledgeSearchBodySchema.shape.topK.describe(
-    'Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.'
-  ),
-  tagFilters: z
-    .array(v2KnowledgeSearchTagFilterSchema)
-    .optional()
-    .describe(
-      'Structured tag filters. Supported across multiple knowledge bases, but each filtered tag must resolve to the same slot and field type in every knowledge base selected; a tag missing from one of them, or defined inconsistently across them, is rejected and those knowledge bases must be searched separately. With a single knowledge base, an unknown tag name is simply ignored.'
+/** Maximum tag filters accepted on one document-list or search request. */
+export const MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS = 10
+
+/**
+ * Maximum `query` length accepted by knowledge search.
+ *
+ * Every knowledge-base-eligible embedding model caps a single input at 8192
+ * tokens, and the embedding client silently truncates anything longer, so a
+ * caller paid for a billed search whose query was mostly discarded. The bound is
+ * that ceiling expressed in characters using the four-characters-per-token
+ * conversion the tokenizer's own fallback uses, which is generous enough that
+ * nothing that could have been embedded whole is rejected.
+ */
+export const MAX_V2_KNOWLEDGE_SEARCH_QUERY_LENGTH = 8192 * 4
+
+export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema
+  .safeExtend({
+    workspaceId: v1KnowledgeSearchBodySchema.shape.workspaceId.describe(
+      'Workspace that owns the knowledge bases.'
     ),
-  searchMode: v1KnowledgeSearchBodySchema.shape.searchMode.describe(
-    'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.'
-  ),
-})
+    knowledgeBaseIds: v1KnowledgeSearchBodySchema.shape.knowledgeBaseIds
+      .describe('One knowledge base identifier or an array of up to 20 identifiers.')
+      .meta({ examples: [['7c9e6679-7425-40de-944b-e07fc1f90ae7']] }),
+    query: z
+      .string()
+      .max(
+        MAX_V2_KNOWLEDGE_SEARCH_QUERY_LENGTH,
+        `query cannot exceed ${MAX_V2_KNOWLEDGE_SEARCH_QUERY_LENGTH} characters`
+      )
+      .optional()
+      .describe(
+        `Natural-language query; required when tag filters are omitted. At most ${MAX_V2_KNOWLEDGE_SEARCH_QUERY_LENGTH} characters — longer text exceeds the embedding model's per-input token ceiling and would be truncated before the billed search ran.`
+      )
+      .meta({ examples: ['How do I reset my password?'] }),
+    topK: v1KnowledgeSearchBodySchema.shape.topK.describe(
+      'Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.'
+    ),
+    tagFilters: z
+      .array(v2KnowledgeSearchTagFilterSchema)
+      .max(
+        MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS,
+        `tagFilters cannot contain more than ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} filters`
+      )
+      .optional()
+      .describe(
+        `Structured tag filters, at most ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching \`GET /api/v2/knowledge/{id}/documents\`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with \`GET /api/v2/knowledge/{id}/tags\`.`
+      ),
+    searchMode: v1KnowledgeSearchBodySchema.shape.searchMode.describe(
+      'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.'
+    ),
+    rerankerEnabled: z
+      .boolean()
+      .optional()
+      .describe(
+        'Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, and billed as an additional search unit. Reranking is best-effort — a provider failure falls back to vector ordering, so check `rerankerStatus` on the response.'
+      ),
+    /**
+     * Defaulted, matching the internal search contract this one otherwise
+     * mirrors. Without it, `rerankerEnabled: true` on its own satisfied the
+     * schema, failed the use case's `input.rerankerModel` guard, and returned a
+     * 200 in plain vector order — while still paying for the four-times-`topK`
+     * candidate retrieval that reranking widens. The old description, "required
+     * for reranking to run", documented the trap instead of removing it.
+     */
+    rerankerModel: rerankerModelSchema
+      .optional()
+      .default(DEFAULT_RERANKER_MODEL)
+      .describe(
+        `Reranking model to use when \`rerankerEnabled\` is true. Defaults to \`${DEFAULT_RERANKER_MODEL}\`.`
+      ),
+    rerankerInputCount: z
+      .number()
+      .int('rerankerInputCount must be a whole number')
+      .min(1, 'rerankerInputCount must be at least 1')
+      .max(100, 'rerankerInputCount cannot exceed 100')
+      .optional()
+      .describe(
+        'How many candidate chunks to retrieve before reranking. Defaults to four times `topK`, capped at 100. A larger pool costs more retrieval work but gives the reranker more to choose from.'
+      ),
+  })
+  /**
+   * Strict because the dropped keys are the billed ones. Zod strips what it
+   * does not declare, so a mis-cased `rerankerenabled` or `topk` returned 200
+   * with reranking off and `topK` silently back at its default — the caller was
+   * charged for a search it did not configure and had no signal that its
+   * parameters never arrived.
+   */
+  .strict()
 export type V2KnowledgeSearchBody = z.input<typeof v2KnowledgeSearchBodySchema>
 
 export const v2SearchKnowledgeContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge/search',
+  query: noInputSchema,
   body: v2KnowledgeSearchBodySchema,
   response: {
     mode: 'json',
@@ -756,10 +922,60 @@ export const v2SearchKnowledgeContract = defineRouteContract({
   },
 })
 
+const v2KnowledgeDocumentTagFiltersSchema = z
+  .array(v2KnowledgeSearchTagFilterSchema)
+  .max(
+    MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS,
+    `tagFilters cannot contain more than ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} filters`
+  )
+
+export type V2KnowledgeDocumentTagFilters = z.output<typeof v2KnowledgeDocumentTagFiltersSchema>
+
+export type ParsedV2KnowledgeTagFilters =
+  | { success: true; filters: V2KnowledgeDocumentTagFilters | undefined }
+  | { success: false; message: string }
+
 /**
- * Document list query: the v1 search/filter/sort/limit shape with `offset`
- * swapped for an opaque `cursor`. Total doc count is available as `docCount` on
- * the knowledge base.
+ * Decodes the JSON-encoded `tagFilters` query param.
+ *
+ * A query param cannot carry a structured array, so the filters travel as JSON
+ * text and are validated here rather than by the query schema. The result is a
+ * discriminated union so the caller renders a 400 — no input can escape as an
+ * unhandled parse failure.
+ */
+export function parseV2KnowledgeTagFiltersParam(
+  value: string | undefined
+): ParsedV2KnowledgeTagFilters {
+  if (value === undefined) return { success: true, filters: undefined }
+  let decoded: unknown
+  try {
+    decoded = JSON.parse(value)
+  } catch {
+    return { success: false, message: 'tagFilters must be a JSON-encoded array of tag filters' }
+  }
+  const parsed = v2KnowledgeDocumentTagFiltersSchema.safeParse(decoded)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    return {
+      success: false,
+      message: `tagFilters is not a valid tag filter array${
+        issue ? `: ${[...issue.path, issue.message].join(' ')}` : ''
+      }`,
+    }
+  }
+  return { success: true, filters: parsed.data }
+}
+
+/**
+ * Document list query: the v1 filter and sort shape, with `offset` swapped for
+ * an opaque `cursor` and with `limit`, `cursor`, and `search` taken from the
+ * shared v2 schemas rather than v1. Total doc count is available as `docCount`
+ * on the knowledge base.
+ *
+ * Sharing `search` is what closed the last gap: the v1 shape was an unbounded,
+ * empty-accepting string, so `?search=` answered 200 with the full page here
+ * while the sibling `GET /knowledge?search=` answered 400, and the term reached
+ * an unindexed filename `LIKE` scan with no length ceiling.
  */
 export const v2ListKnowledgeDocumentsQuerySchema = v1ListKnowledgeDocumentsQuerySchema
   .omit({ offset: true })
@@ -767,21 +983,26 @@ export const v2ListKnowledgeDocumentsQuerySchema = v1ListKnowledgeDocumentsQuery
     workspaceId: v1ListKnowledgeDocumentsQuerySchema.shape.workspaceId.describe(
       'Workspace that owns the knowledge base.'
     ),
-    limit: v1ListKnowledgeDocumentsQuerySchema.shape.limit.describe(
-      'Maximum documents to return, between 1 and 100.'
-    ),
-    search: v1ListKnowledgeDocumentsQuerySchema.shape.search.describe(
-      'Case-insensitive filename search.'
+    ...v2PaginationFields({ description: 'Maximum documents to return per page.' }),
+    search: v2SearchSchema.describe(
+      'Case-insensitive substring match against the document filename.'
     ),
     enabledFilter: v1ListKnowledgeDocumentsQuerySchema.shape.enabledFilter.describe(
       'Filter by whether documents are enabled for search.'
     ),
     sortBy: v1ListKnowledgeDocumentsQuerySchema.shape.sortBy.describe(
-      'Document field used to sort results.'
+      `Field used to sort the result. ${nameSortCollation('filename')}`
     ),
     sortOrder: v1ListKnowledgeDocumentsQuerySchema.shape.sortOrder.describe('Sort direction.'),
-    cursor: z.string().min(1).optional().describe('Opaque cursor returned by the previous page.'),
+    tagFilters: z
+      .string()
+      .optional()
+      .describe(
+        `A JSON-encoded array of at most ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} tag filters, using the same display-name shape as knowledge search: \`[{"tagName":"category","operator":"eq","value":"billing"}]\`. Every filter must hold, including two that name the same tag. A name that is not defined in this knowledge base is rejected, never ignored.`
+      )
+      .meta({ examples: ['[{"tagName":"category","operator":"eq","value":"billing"}]'] }),
   })
+  .strict()
 export type V2ListKnowledgeDocumentsQuery = z.output<typeof v2ListKnowledgeDocumentsQuerySchema>
 
 export const v2ListKnowledgeDocumentsContract = defineRouteContract({
@@ -791,7 +1012,7 @@ export const v2ListKnowledgeDocumentsContract = defineRouteContract({
   query: v2ListKnowledgeDocumentsQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2KnowledgeDocumentSummarySchema),
+    schema: v2CursorListResponse(v2KnowledgeTaggedDocumentSchema),
   },
 })
 
@@ -810,6 +1031,7 @@ export const v2UploadKnowledgeDocumentContract = defineRouteContract({
 export const v2CreateKnowledgeDocumentUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge/[id]/documents/uploads',
+  query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2CreateKnowledgeDocumentUploadBodySchema,
   response: {
@@ -851,14 +1073,348 @@ export const v2GetKnowledgeDocumentContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/knowledge/[id]/documents/[documentId]',
   params: v2KnowledgeDocumentParamsSchema,
-  query: v1KnowledgeWorkspaceQuerySchema.extend({
-    workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
-      'Workspace that owns the knowledge base.'
-    ),
-  }),
+  query: v1KnowledgeWorkspaceQuerySchema
+    .extend({
+      workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
+        'Workspace that owns the knowledge base.'
+      ),
+    })
+    .strict(),
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeDocumentSchema),
+  },
+})
+
+/**
+ * A tag definition — the mapping between the display name reads and filters use
+ * and the slot writes address.
+ */
+export const v2KnowledgeTagSchema = z
+  .object({
+    displayName: z
+      .string()
+      .describe('Display name used by tag filters and by tag values on document reads.')
+      .meta({ examples: ['category'] }),
+    tagSlot: z
+      .string()
+      .describe(
+        'Storage slot the tag occupies. Document writes set tag values by slot (`tag1`..`tag7`).'
+      )
+      .meta({ examples: ['tag1'] }),
+    fieldType: z
+      .string()
+      .describe('Value type stored in the slot; it determines the valid filter operators.')
+      .meta({ examples: ['text'] }),
+  })
+  .strict()
+  .meta({
+    id: 'V2KnowledgeTag',
+    title: 'Knowledge tag',
+    description: 'A tag defined on a knowledge base, and the slot it is stored in.',
+  })
+export type V2KnowledgeTag = z.output<typeof v2KnowledgeTagSchema>
+
+/**
+ * Tag vocabulary for one knowledge base. A full-set list: the number of tags is
+ * bounded by the fixed slot table, so the whole set is always one page and
+ * `nextCursor` is always null.
+ */
+export const v2ListKnowledgeTagsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/knowledge/[id]/tags',
+  params: v2KnowledgeBaseParamsSchema,
+  query: v1KnowledgeWorkspaceQuerySchema
+    .extend({
+      workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
+        'Workspace that owns the knowledge base.'
+      ),
+    })
+    .strict(),
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2KnowledgeTagSchema, { paged: false }),
+  },
+})
+
+const v2UpdateKnowledgeDocumentTagSlotSchema = z
+  .string()
+  .max(1000, 'Tag values cannot exceed 1000 characters')
+
+/**
+ * Number, date and boolean tag slots take their natural JSON type, mirroring
+ * how a document read projects them. The storage columns are typed
+ * (`double precision`, `timestamp`, `boolean`), so accepting a loose string
+ * here would push a malformed value onto a parser that answers `null` — the
+ * caller would get 200 and a silently cleared tag instead of a 400 naming the
+ * field.
+ */
+const v2UpdateKnowledgeDocumentNumberSlotSchema = z
+  .number()
+  .finite('Number tag values must be a finite number')
+
+const v2UpdateKnowledgeDocumentDateSlotSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date tag values must be formatted YYYY-MM-DD')
+  .refine((value) => {
+    const [year, month, day] = value.split('-').map(Number)
+    const date = new Date(year, month - 1, day)
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+  }, 'Date tag values must be a real calendar date')
+
+const v2UpdateKnowledgeDocumentBooleanSlotSchema = z.boolean()
+
+/** The typed tag slots, declared once so the body and its mutex refine agree. */
+const v2UpdateKnowledgeDocumentTagSlotFields = {
+  tag1: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 1.'),
+  tag2: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 2.'),
+  tag3: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 3.'),
+  tag4: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 4.'),
+  tag5: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 5.'),
+  tag6: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 6.'),
+  tag7: v2UpdateKnowledgeDocumentTagSlotSchema.optional().describe('New value for tag slot 7.'),
+  number1: v2UpdateKnowledgeDocumentNumberSlotSchema
+    .optional()
+    .describe('New value for number tag slot 1.'),
+  number2: v2UpdateKnowledgeDocumentNumberSlotSchema
+    .optional()
+    .describe('New value for number tag slot 2.'),
+  number3: v2UpdateKnowledgeDocumentNumberSlotSchema
+    .optional()
+    .describe('New value for number tag slot 3.'),
+  number4: v2UpdateKnowledgeDocumentNumberSlotSchema
+    .optional()
+    .describe('New value for number tag slot 4.'),
+  number5: v2UpdateKnowledgeDocumentNumberSlotSchema
+    .optional()
+    .describe('New value for number tag slot 5.'),
+  date1: v2UpdateKnowledgeDocumentDateSlotSchema
+    .optional()
+    .describe('New value for date tag slot 1, formatted YYYY-MM-DD.'),
+  date2: v2UpdateKnowledgeDocumentDateSlotSchema
+    .optional()
+    .describe('New value for date tag slot 2, formatted YYYY-MM-DD.'),
+  boolean1: v2UpdateKnowledgeDocumentBooleanSlotSchema
+    .optional()
+    .describe('New value for boolean tag slot 1.'),
+  boolean2: v2UpdateKnowledgeDocumentBooleanSlotSchema
+    .optional()
+    .describe('New value for boolean tag slot 2.'),
+  boolean3: v2UpdateKnowledgeDocumentBooleanSlotSchema
+    .optional()
+    .describe('New value for boolean tag slot 3.'),
+} as const
+
+/** Every writable tag slot, in the order `TAG_SLOT_CONFIG` declares them. */
+export const V2_WRITABLE_TAG_SLOTS = Object.keys(
+  v2UpdateKnowledgeDocumentTagSlotFields
+) as ReadonlyArray<keyof typeof v2UpdateKnowledgeDocumentTagSlotFields>
+
+/**
+ * Document update body.
+ *
+ * Only the fields a caller owns are accepted. Derived indexing state
+ * (`chunkCount`, `tokenCount`, `characterCount`, `processingStatus`,
+ * `processingError`) is deliberately absent: it is written by the processing
+ * pipeline, and letting a caller assert `processingStatus: "completed"` on a
+ * document that was never indexed would silently corrupt search results.
+ *
+ * `retryProcessing` requeues a failed or stuck document and is mutually
+ * exclusive with the field updates — the retry runs instead of them, so
+ * accepting both would silently drop half the request.
+ */
+export const v2UpdateKnowledgeDocumentBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+    filename: z
+      .string()
+      .trim()
+      .min(1, 'filename cannot be empty')
+      .max(255, 'filename is too long')
+      .optional()
+      .describe('New filename for the document.')
+      .meta({ examples: ['getting-started-v2.pdf'] }),
+    enabled: z
+      .boolean()
+      .optional()
+      .describe('Whether the document participates in search. Disabling keeps it indexed.'),
+    ...v2UpdateKnowledgeDocumentTagSlotFields,
+    retryProcessing: z
+      .literal(true)
+      .optional()
+      .describe(
+        'Requeue a failed or stuck document for processing. Send it alone — no other field may accompany it — and it answers with a queue acknowledgement rather than the document.'
+      ),
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    const mutatedFields = (['filename', 'enabled', ...V2_WRITABLE_TAG_SLOTS] as const).filter(
+      (field) => body[field] !== undefined
+    )
+    if (body.retryProcessing && mutatedFields.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['retryProcessing'],
+        message: `retryProcessing cannot be combined with ${mutatedFields.join(', ')}; send it on its own request`,
+      })
+      return
+    }
+    if (!body.retryProcessing && mutatedFields.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['filename'],
+        message: 'At least one of filename, enabled, tag1-tag7, or retryProcessing is required',
+      })
+    }
+  })
+export type V2UpdateKnowledgeDocumentBody = z.input<typeof v2UpdateKnowledgeDocumentBodySchema>
+
+/** Acknowledgement for a document requeued by `retryProcessing`. */
+export const v2KnowledgeDocumentProcessingSchema = z
+  .object({
+    id: z.string().describe('Identifier of the requeued document.'),
+    queued: z.literal(true).describe('Confirms that processing was requeued.'),
+    processingStatus: z
+      .string()
+      .describe('Processing state the document was moved to.')
+      .meta({ examples: ['pending'] }),
+    message: z.string().describe('Human-readable outcome of the requeue.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2KnowledgeDocumentProcessing',
+    title: 'Knowledge document processing acknowledgement',
+    description: 'Acknowledgement returned when a document is requeued for processing.',
+  })
+
+/**
+ * The update response is the updated document with its tag values, except for a
+ * `retryProcessing` request, which returns the requeue acknowledgement — the
+ * document's indexing state is not yet settled at that point, so returning it
+ * would be a snapshot of work in flight. The acknowledgement carries
+ * `queued: true`, which the document never does.
+ *
+ * The updated document omits the connector provenance the detail read carries:
+ * the update writes and returns the document row alone. Re-read with GET for the
+ * full detail.
+ */
+const v2UpdateKnowledgeDocumentDataSchema = z.union([
+  v2KnowledgeTaggedDocumentSchema,
+  v2KnowledgeDocumentProcessingSchema,
+])
+
+export const v2UpdateKnowledgeDocumentContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/knowledge/[id]/documents/[documentId]',
+  query: noInputSchema,
+  params: v2KnowledgeDocumentParamsSchema,
+  body: v2UpdateKnowledgeDocumentBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2UpdateKnowledgeDocumentDataSchema),
+  },
+})
+
+/** Maximum documents addressable by identifier in one bulk request. */
+export const MAX_V2_BULK_KNOWLEDGE_DOCUMENTS = 100
+
+/**
+ * Bulk document body.
+ *
+ * `enable` and `disable` only. A bulk `delete` is deliberately absent: the
+ * underlying bulk operation records no semantic audit, so a public bulk delete
+ * would remove a knowledge base's documents leaving no `DOCUMENT_DELETED`
+ * entries, while `DELETE /api/v2/knowledge/{id}/documents/{documentId}` audits
+ * every single deletion. Delete documents one request at a time.
+ */
+export const v2BulkKnowledgeDocumentsBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+    operation: z
+      .enum(['enable', 'disable'], {
+        error: 'operation: expected one of "enable" | "disable"',
+      })
+      .describe('Whether the selected documents become enabled or disabled for search.'),
+    documentIds: z
+      .array(z.string().min(1, 'documentIds entries cannot be empty'))
+      .min(1, 'documentIds cannot be empty')
+      .max(
+        MAX_V2_BULK_KNOWLEDGE_DOCUMENTS,
+        `documentIds cannot contain more than ${MAX_V2_BULK_KNOWLEDGE_DOCUMENTS} documents`
+      )
+      .optional()
+      .describe('Documents to update, by identifier.'),
+    selectAll: z
+      .literal(true)
+      .optional()
+      .describe(
+        'Update every document in the knowledge base instead of an explicit list, narrowed by `enabledFilter`.'
+      ),
+    enabledFilter: z
+      .enum(['all', 'enabled', 'disabled'])
+      .optional()
+      .describe('With `selectAll`, restrict the update to documents in this state.'),
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (body.selectAll && body.documentIds) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['documentIds'],
+        message: 'documentIds cannot be combined with selectAll',
+      })
+    }
+    if (!body.selectAll && !body.documentIds) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['documentIds'],
+        message: 'Either documentIds or selectAll is required',
+      })
+    }
+    if (body.enabledFilter && !body.selectAll) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['enabledFilter'],
+        message: 'enabledFilter applies only with selectAll',
+      })
+    }
+  })
+export type V2BulkKnowledgeDocumentsBody = z.input<typeof v2BulkKnowledgeDocumentsBodySchema>
+
+/** Bulk update outcome — one object, not a page. */
+export const v2BulkKnowledgeDocumentsDataSchema = z
+  .object({
+    operation: z.enum(['enable', 'disable']).describe('Operation that was applied.'),
+    updatedCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Number of documents the operation changed.')
+      .meta({ examples: [42] }),
+    documentIds: z
+      .array(z.string())
+      .optional()
+      .describe(
+        'Identifiers of the documents the operation changed. Present only for an explicit `documentIds` request, which is bounded to ' +
+          `${MAX_V2_BULK_KNOWLEDGE_DOCUMENTS} documents; a \`selectAll\` request omits it because the selection is unbounded, and reports \`updatedCount\` instead.`
+      ),
+  })
+  .strict()
+  .meta({
+    id: 'V2BulkKnowledgeDocumentsData',
+    title: 'Bulk knowledge document update data',
+    description: 'Outcome of a bulk enable or disable across knowledge documents.',
+  })
+
+export const v2BulkUpdateKnowledgeDocumentsContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/knowledge/[id]/documents',
+  query: noInputSchema,
+  params: v2KnowledgeBaseParamsSchema,
+  body: v2BulkKnowledgeDocumentsBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2BulkKnowledgeDocumentsDataSchema),
   },
 })
 
@@ -866,11 +1422,13 @@ export const v2DeleteKnowledgeDocumentContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/knowledge/[id]/documents/[documentId]',
   params: v2KnowledgeDocumentParamsSchema,
-  query: v1KnowledgeWorkspaceQuerySchema.extend({
-    workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
-      'Workspace that owns the knowledge base.'
-    ),
-  }),
+  query: v1KnowledgeWorkspaceQuerySchema
+    .extend({
+      workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
+        'Workspace that owns the knowledge base.'
+      ),
+    })
+    .strict(),
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeDeleteDataSchema),

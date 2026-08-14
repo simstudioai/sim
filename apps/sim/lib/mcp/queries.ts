@@ -1,7 +1,19 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
-import { and, type Column, eq, isNull } from 'drizzle-orm'
-import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-query'
+import { and, eq, isNull } from 'drizzle-orm'
+import {
+  type CursorKey,
+  type KeysetKey,
+  type KeysetPage,
+  keysetColumns,
+  keysetPage,
+  type ListSortOrder,
+  listOrderBy,
+  resumeKeyset,
+  searchFilter,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
 
 /**
  * Workspace-scoped MCP server reads. The lifecycle functions in
@@ -12,37 +24,65 @@ import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-qu
 export type McpServerRow = typeof mcpServers.$inferSelect
 export type McpServerSortBy = 'name' | 'createdAt' | 'updatedAt'
 
-/** Live (non-soft-deleted) MCP servers in a workspace, newest first. */
+const mcpServerId = textKey<McpServerRow>(mcpServers.id, (row) => row.id)
+
 /**
- * Orderings for the public list's sortable fields, made total over the contract
- * enum by `satisfies`. Each ends in `id` so servers sharing a name or a
- * timestamp still come back in a stable order.
+ * Keyset orderings for the public list's sortable fields, made total over the
+ * contract enum by `satisfies`. Each ends in `id` so servers sharing a name or a
+ * timestamp still come back in a stable order — which is also what makes the
+ * cursor resumable, since a non-unique final key can repeat or skip a row at a
+ * page boundary.
  */
 const MCP_SERVER_SORTS = {
-  name: [mcpServers.name, mcpServers.id],
-  createdAt: [mcpServers.createdAt, mcpServers.id],
-  updatedAt: [mcpServers.updatedAt, mcpServers.id],
-} satisfies Record<McpServerSortBy, readonly Column[]>
+  name: [textKey<McpServerRow>(mcpServers.name, (row) => row.name), mcpServerId],
+  createdAt: [
+    timestampKey<McpServerRow>(mcpServers.createdAt, (row) => row.createdAt),
+    mcpServerId,
+  ],
+  updatedAt: [
+    timestampKey<McpServerRow>(mcpServers.updatedAt, (row) => row.updatedAt),
+    mcpServerId,
+  ],
+} satisfies Record<McpServerSortBy, readonly KeysetKey<McpServerRow>[]>
 
+/**
+ * One keyset page of live (non-soft-deleted) MCP servers in a workspace.
+ *
+ * Nothing caps how many servers a workspace may register, so this read shipped
+ * as the one unbounded v2 list; the public page is now cut by the caller's
+ * `limit` like every other collection. `limit` stays optional because the
+ * copilot adapter reads the whole set — an absent `limit` applies no `LIMIT`
+ * clause and, per {@link keysetPage}, can never yield a cursor.
+ */
 export async function listWorkspaceMcpServers(params: {
   workspaceId: string
   /** Case-insensitive substring match on the server name. */
   search?: string
   sortBy?: McpServerSortBy
   sortOrder?: ListSortOrder
-}): Promise<McpServerRow[]> {
-  const { sortBy = 'createdAt', sortOrder = 'desc' } = params
-  return db
+  limit?: number
+  cursorKeys?: CursorKey[]
+}): Promise<KeysetPage<McpServerRow>> {
+  const { sortBy = 'createdAt', sortOrder = 'desc', limit } = params
+  const keys = MCP_SERVER_SORTS[sortBy]
+  const resumeAfter = resumeKeyset(keys, params.cursorKeys, sortOrder)
+
+  const ordered = db
     .select()
     .from(mcpServers)
     .where(
       and(
         eq(mcpServers.workspaceId, params.workspaceId),
         isNull(mcpServers.deletedAt),
-        searchFilter(mcpServers.name, params.search)
+        searchFilter(mcpServers.name, params.search),
+        resumeAfter
       )
     )
-    .orderBy(...listOrderBy(MCP_SERVER_SORTS[sortBy], sortOrder))
+    .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
+
+  const rows = await (limit === undefined ? ordered : ordered.limit(limit + 1))
+
+  return keysetPage(keys, rows, limit)
 }
 
 /** A single live MCP server, or null when it does not exist in this workspace. */

@@ -23,6 +23,7 @@ export {
   admitOptionalV2Request,
   admitV2Request,
   defineV2JsonRoute,
+  V2_PARSE_DEFAULTS,
   type V2ErrorPolicy,
   V2RouteInfrastructureError,
   v2ApiKeyAuth,

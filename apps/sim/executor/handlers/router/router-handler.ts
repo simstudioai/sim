@@ -1,11 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import {
-  addModelInputProvenanceToRequest,
-  createModelInputProvenanceRequestMetadata,
-  markModelInputProjected,
-  projectResolvedModelInput,
-} from '@/lib/execution/model-input-provenance'
+import { projectResolvedModelInput } from '@/lib/execution/model-input-provenance'
 import {
   type AutoRoutingResult,
   addAutoRoutingCost,
@@ -23,7 +17,7 @@ import {
   ROUTER,
 } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { buildAuthHeaders } from '@/executor/utils/http'
+import { executeBlockProviderRequest } from '@/executor/utils/provider-request'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
@@ -103,9 +97,6 @@ export class RouterBlockHandler implements BlockHandler {
     }
 
     try {
-      const url = new URL('/api/providers', getInternalApiBaseUrl())
-      if (ctx.userId) url.searchParams.set('userId', ctx.userId)
-
       const messages = [{ role: 'user', content: routerConfig.prompt }]
       const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
       const resolved = await this.resolveModel(
@@ -126,6 +117,7 @@ export class RouterBlockHandler implements BlockHandler {
           credentialId: routerConfig.vertexCredential,
           actingUserId: ctx.userId,
           workspaceId: ctx.workspaceId,
+          workflowId: ctx.workflowId,
           callerLabel: 'vertex-router',
         })
       }
@@ -147,35 +139,12 @@ export class RouterBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
       }
 
-      const headers = new Headers(await buildAuthHeaders(ctx.userId))
-      const modelInputMetadata = createModelInputProvenanceRequestMetadata(
-        modelInputProjection.registry,
-        promptModelInputPaths
-      )
-      const requestBody = addModelInputProvenanceToRequest(
-        { provider: providerId, ...providerRequest },
-        headers,
-        modelInputMetadata
-      )
-      if (modelInputMetadata) markModelInputProjected(headers)
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody),
+      const result = await executeBlockProviderRequest({
+        ctx,
+        providerId,
+        request: providerRequest,
+        resolvedSecretTraceRegistry: modelInputProjection.registry,
       })
-
-      if (!response.ok) {
-        let errorMessage = `Provider API request failed with status ${response.status}`
-        try {
-          const errorData = await response.json()
-          if (errorData.error) {
-            errorMessage = errorData.error
-          }
-        } catch (_e) {}
-        throw new Error(errorMessage)
-      }
-
-      const result = await response.json()
 
       const chosenBlockId = result.content.trim().toLowerCase()
       const chosenBlock = targetBlocks?.find((b) => b.id === chosenBlockId)
@@ -291,9 +260,6 @@ export class RouterBlockHandler implements BlockHandler {
     }
 
     try {
-      const url = new URL('/api/providers', getInternalApiBaseUrl())
-      if (ctx.userId) url.searchParams.set('userId', ctx.userId)
-
       const messages = [{ role: 'user', content: routerConfig.context }]
       const systemPrompt = generateRouterV2Prompt(routerConfig.context, modelRoutes)
       const resolved = await this.resolveModel(
@@ -314,6 +280,7 @@ export class RouterBlockHandler implements BlockHandler {
           credentialId: routerConfig.vertexCredential,
           actingUserId: ctx.userId,
           workspaceId: ctx.workspaceId,
+          workflowId: ctx.workflowId,
           callerLabel: 'vertex-router',
         })
       }
@@ -354,35 +321,12 @@ export class RouterBlockHandler implements BlockHandler {
         },
       }
 
-      const headers = new Headers(await buildAuthHeaders(ctx.userId))
-      const modelInputMetadata = createModelInputProvenanceRequestMetadata(
-        modelInputProjection.registry,
-        modelInputPaths
-      )
-      const requestBody = addModelInputProvenanceToRequest(
-        { provider: providerId, ...providerRequest },
-        headers,
-        modelInputMetadata
-      )
-      if (modelInputMetadata) markModelInputProjected(headers)
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody),
+      const result = await executeBlockProviderRequest({
+        ctx,
+        providerId,
+        request: providerRequest,
+        resolvedSecretTraceRegistry: modelInputProjection.registry,
       })
-
-      if (!response.ok) {
-        let errorMessage = `Provider API request failed with status ${response.status}`
-        try {
-          const errorData = await response.json()
-          if (errorData.error) {
-            errorMessage = errorData.error
-          }
-        } catch (_e) {}
-        throw new Error(errorMessage)
-      }
-
-      const result = await response.json()
 
       let chosenRouteId: string
       let reasoning = ''

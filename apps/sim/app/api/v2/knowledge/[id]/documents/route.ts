@@ -1,8 +1,11 @@
+import { omit } from '@sim/utils/object'
 import {
-  type V2KnowledgeDocumentSummary,
+  parseV2KnowledgeTagFiltersParam,
+  v2BulkUpdateKnowledgeDocumentsContract,
   v2ListKnowledgeDocumentsContract,
   v2UploadKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v2/knowledge'
+import { cursorRoute, cursorScopeKey, unorderedScopeOf } from '@/lib/api/cursor-binding'
 import {
   defineV2BodyLifecycleRoute,
   defineV2JsonRoute,
@@ -12,6 +15,7 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import {
+  isMultipartFieldValidationError,
   isPayloadSizeLimitError,
   MAX_MULTIPART_OVERHEAD_BYTES,
   readFileToBufferWithLimit,
@@ -20,6 +24,7 @@ import {
 import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import {
   admitKnowledgeDocumentUpload,
+  bulkUpdateKnowledgeDocuments,
   listKnowledgeDocuments,
   uploadKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
@@ -28,40 +33,40 @@ import { KnowledgeDocumentUnsupportedMediaTypeError } from '@/lib/knowledge/appl
 import { captureServerEvent } from '@/lib/posthog/server'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
-import { serializeDate } from '@/app/api/v1/knowledge/utils'
-import { decodeOffsetCursor, encodeCursor } from '@/app/api/v2/lib/response'
+import { toV2DocumentSummary, toV2TaggedDocument } from '@/app/api/v2/knowledge/utils'
+import { cursorSortKey, decodeOffsetCursor, encodeOffsetCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
 
-function toV2DocumentSummary(document: {
-  id: string
-  knowledgeBaseId: string
-  filename: string
-  fileSize: number
-  mimeType: string
-  processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
-  chunkCount: number
-  tokenCount: number
-  characterCount: number
-  enabled: boolean
-  uploadedAt: Date
-}): V2KnowledgeDocumentSummary {
-  return {
-    id: document.id,
-    knowledgeBaseId: document.knowledgeBaseId,
-    filename: document.filename,
-    fileSize: document.fileSize,
-    mimeType: document.mimeType,
-    processingStatus: document.processingStatus ?? 'pending',
-    chunkCount: document.chunkCount,
-    tokenCount: document.tokenCount,
-    characterCount: document.characterCount,
-    enabled: document.enabled,
-    createdAt: serializeDate(document.uploadedAt),
-  }
+/**
+ * Every param that changes which documents, in which order, this list returns.
+ *
+ * `tagFilters` binds through the contract's parser, not the raw query text: the
+ * schema defaults `operator` to `eq`, so `{tagName}` and `{tagName, operator}`
+ * are one filter to the query and must be one scope to the cursor. An
+ * unparseable value binds raw — that request is about to 400 anyway.
+ *
+ * `fieldType` is dropped: `resolveKnowledgeTagFilters` builds every structured
+ * filter with the stored definition's type and never reads the caller's, so
+ * stating it or omitting it selects the same documents. A scope part the query
+ * ignores refuses a cursor for a page that did not move.
+ */
+function documentCursorFilters(
+  knowledgeBaseId: string,
+  query: { workspaceId: string; enabledFilter?: string; search?: string; tagFilters?: string }
+) {
+  const parsed = parseV2KnowledgeTagFiltersParam(query.tagFilters)
+  return cursorScopeKey(cursorRoute(v2ListKnowledgeDocumentsContract, { id: knowledgeBaseId }), {
+    workspaceId: query.workspaceId,
+    enabledFilter: query.enabledFilter,
+    search: query.search,
+    tagFilters: parsed.success
+      ? unorderedScopeOf(parsed.filters?.map((filter) => omit(filter, ['fieldType'])))
+      : query.tagFilters,
+  })
 }
 
 /** GET /api/v2/knowledge/[id]/documents — List documents in a knowledge base. */
@@ -71,23 +76,84 @@ export const GET = defineV2JsonRoute({
   operation: knowledgeOperations.listDocuments,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
-  mapInput: ({ params, query }) => ({
-    knowledgeBaseId: params.id,
-    assertedWorkspaceId: query.workspaceId,
-    enabledFilter: query.enabledFilter,
-    search: query.search,
-    limit: query.limit,
-    offset: decodeOffsetCursor(query.cursor),
-    sortBy: query.sortBy,
-    sortOrder: query.sortOrder,
-  }),
+  mapInput: ({ params, query }) => {
+    const tagFilters = parseV2KnowledgeTagFiltersParam(query.tagFilters)
+    if (!tagFilters.success) {
+      throw new OrchestrationError('validation', tagFilters.message)
+    }
+    return {
+      knowledgeBaseId: params.id,
+      assertedWorkspaceId: query.workspaceId,
+      enabledFilter: query.enabledFilter,
+      search: query.search,
+      limit: query.limit,
+      offset: decodeOffsetCursor(
+        query.cursor,
+        cursorSortKey(query.sortBy, query.sortOrder),
+        documentCursorFilters(params.id, query)
+      ),
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
+      tagNameFilters: tagFilters.filters,
+    }
+  },
   useCase: listKnowledgeDocuments,
-  present: ({ documents, pagination }) => ({
-    data: documents.map(toV2DocumentSummary),
+  present: ({ documents, tagDefinitions, pagination }, { params, query }) => ({
+    data: documents.map((document) => toV2TaggedDocument(document, tagDefinitions)),
     nextCursor: pagination.hasMore
-      ? encodeCursor({ offset: pagination.offset + pagination.limit })
+      ? encodeOffsetCursor(
+          cursorSortKey(query.sortBy, query.sortOrder),
+          documentCursorFilters(params.id, query),
+          pagination.offset + pagination.limit
+        )
       : null,
   }),
+})
+
+/**
+ * PATCH /api/v2/knowledge/[id]/documents — Enable or disable many documents.
+ *
+ * Enable and disable only. Bulk delete is deliberately not offered: the bulk
+ * operation records no semantic audit, so a public bulk delete would empty a
+ * knowledge base leaving no `DOCUMENT_DELETED` entries, while the per-document
+ * DELETE audits every one.
+ */
+export const PATCH = defineV2JsonRoute({
+  contract: v2BulkUpdateKnowledgeDocumentsContract,
+  auth: v2ApiKeyAuth,
+  operation: knowledgeOperations.bulkDocuments,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
+  mapInput: ({ params, body }) => ({
+    knowledgeBaseId: params.id,
+    assertedWorkspaceId: body.workspaceId,
+    operation: body.operation,
+    documentIds: body.documentIds,
+    selectAll: body.selectAll,
+    enabledFilter: body.enabledFilter,
+  }),
+  useCase: bulkUpdateKnowledgeDocuments,
+  present: (result) => {
+    if (result.operation === 'delete') {
+      throw new Error('Bulk knowledge document delete is not exposed on the public API')
+    }
+    /**
+     * `documentIds` is echoed only for an explicit-list request, which the body
+     * bounds. A `selectAll` request has no such bound: a knowledge base with
+     * 100k documents would otherwise materialize and element-wise validate a
+     * multi-megabyte identifier array nobody asked for. That caller reads
+     * `updatedCount` and re-lists if it needs the identifiers.
+     */
+    return {
+      data: {
+        operation: result.operation,
+        updatedCount: result.successCount,
+        documentIds: result.selectAll
+          ? undefined
+          : result.updatedDocuments.map((document) => document.id),
+      },
+    }
+  },
 })
 
 /** POST /api/v2/knowledge/[id]/documents — Upload a document to a knowledge base. */
@@ -113,6 +179,9 @@ export const POST = defineV2BodyLifecycleRoute({
       })
     } catch (error) {
       if (isPayloadSizeLimitError(error)) throw error
+      if (isMultipartFieldValidationError(error)) {
+        throw new OrchestrationError('validation', error.message)
+      }
       throw new OrchestrationError('validation', 'Request body must be valid multipart form data')
     }
 

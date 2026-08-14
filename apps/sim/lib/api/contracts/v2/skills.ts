@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   skillContentSchema,
   skillDescriptionSchema,
@@ -9,6 +9,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
   v2DataResponse,
+  v2PaginationFields,
   v2SearchSchema,
   v2SortFields,
   v2TimestampSchema,
@@ -35,7 +36,11 @@ import {
 /** List item — everything but the skill body. */
 export const v2SkillSummarySchema = z
   .object({
-    id: z.string().describe('Unique skill identifier. Built-in skills use their name as the id.'),
+    id: z
+      .string()
+      .describe(
+        'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.'
+      ),
     name: z.string().describe('Kebab-case name that agents use to reference the skill.'),
     description: z.string().describe('One-line summary of when the skill applies.'),
     /** True for built-in template skills, which ship with Sim and cannot be written to. */
@@ -82,24 +87,29 @@ export type V2SkillDeleteData = z.output<typeof v2SkillDeleteDataSchema>
 
 export const v2SkillParamsSchema = z.object({
   id: nonEmptyIdSchema.describe(
-    'Skill to retrieve, update, or delete. Built-in skills use their name as the id.'
+    'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.'
   ),
 })
 export type V2SkillParams = z.output<typeof v2SkillParamsSchema>
 
-export const v2SkillWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the skill.'),
-})
+export const v2SkillWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the skill.'),
+  })
+  .strict()
 export type V2SkillWorkspaceQuery = z.output<typeof v2SkillWorkspaceQuerySchema>
 
 export const v2SkillSortFields = ['name', 'createdAt', 'updatedAt'] as const
 
 export type V2SkillSortBy = (typeof v2SkillSortFields)[number]
 
-export const v2ListSkillsQuerySchema = v2SkillWorkspaceQuerySchema.extend({
-  search: v2SearchSchema.describe('Case-insensitive substring match against the skill name.'),
-  ...v2SortFields(v2SkillSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
-})
+export const v2ListSkillsQuerySchema = v2SkillWorkspaceQuerySchema
+  .extend({
+    search: v2SearchSchema.describe('Case-insensitive substring match against the skill name.'),
+    ...v2SortFields(v2SkillSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+    ...v2PaginationFields({ description: 'Maximum skills to return per page.' }),
+  })
+  .strict()
 
 export type V2ListSkillsQuery = z.output<typeof v2ListSkillsQuerySchema>
 
@@ -143,9 +153,11 @@ export const v2UpdateSkillBodySchema = z
 export type V2UpdateSkillBody = z.input<typeof v2UpdateSkillBodySchema>
 
 /**
- * Skill list. The per-workspace set is small and bounded, so the full set is
- * returned as a single page (`nextCursor` is always `null`); the canonical
- * cursor envelope keeps the v2 list surface uniform.
+ * Skill list, paginated by an opaque offset cursor rather than the keyset the
+ * other v2 lists use: the list merges the code-only built-in skills — which
+ * have no DB row for a SQL cursor predicate to act on — with the workspace's
+ * rows and re-sorts the result in memory, so no keyset over `skill` columns can
+ * name a position inside that merged sequence.
  */
 export const v2ListSkillsContract = defineRouteContract({
   method: 'GET',
@@ -160,6 +172,7 @@ export const v2ListSkillsContract = defineRouteContract({
 export const v2CreateSkillContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/skills',
+  query: noInputSchema,
   body: v2CreateSkillBodySchema,
   response: {
     mode: 'json',
@@ -182,6 +195,7 @@ export const v2GetSkillContract = defineRouteContract({
 export const v2UpdateSkillContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/skills/[id]',
+  query: noInputSchema,
   params: v2SkillParamsSchema,
   body: v2UpdateSkillBodySchema,
   response: {

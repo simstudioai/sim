@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   customToolFunctionParametersSchema,
   customToolSchemaSchema,
@@ -8,6 +8,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
   v2DataResponse,
+  v2PaginationFields,
   v2SearchSchema,
   v2SortFields,
   v2TimestampSchema,
@@ -105,13 +106,15 @@ export const v2CustomToolDeleteDataSchema = z
 export type V2CustomToolDeleteData = z.output<typeof v2CustomToolDeleteDataSchema>
 
 export const v2CustomToolParamsSchema = z.object({
-  id: nonEmptyIdSchema.describe('Custom tool to retrieve, update, or delete.'),
+  id: nonEmptyIdSchema.describe('Unique custom tool identifier.'),
 })
 export type V2CustomToolParams = z.output<typeof v2CustomToolParamsSchema>
 
-export const v2CustomToolWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the custom tool.'),
-})
+export const v2CustomToolWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the custom tool.'),
+  })
+  .strict()
 export type V2CustomToolWorkspaceQuery = z.output<typeof v2CustomToolWorkspaceQuerySchema>
 
 /** A custom tool's natural name field is `title`, so that is what `search` matches. */
@@ -119,10 +122,13 @@ export const v2CustomToolSortFields = ['title', 'createdAt', 'updatedAt'] as con
 
 export type V2CustomToolSortBy = (typeof v2CustomToolSortFields)[number]
 
-export const v2ListCustomToolsQuerySchema = v2CustomToolWorkspaceQuerySchema.extend({
-  search: v2SearchSchema.describe('Case-insensitive substring match against the tool title.'),
-  ...v2SortFields(v2CustomToolSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
-})
+export const v2ListCustomToolsQuerySchema = v2CustomToolWorkspaceQuerySchema
+  .extend({
+    search: v2SearchSchema.describe('Case-insensitive substring match against the tool title.'),
+    ...v2SortFields(v2CustomToolSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+    ...v2PaginationFields({ description: 'Maximum custom tools to return per page.' }),
+  })
+  .strict()
 
 export type V2ListCustomToolsQuery = z.output<typeof v2ListCustomToolsQuerySchema>
 
@@ -159,9 +165,9 @@ export const v2UpdateCustomToolBodySchema = z
 export type V2UpdateCustomToolBody = z.input<typeof v2UpdateCustomToolBodySchema>
 
 /**
- * Custom tool list. The per-workspace set is small and bounded, so the full set
- * is returned as a single page (`nextCursor` is always `null`); the canonical
- * cursor envelope keeps the v2 list surface uniform.
+ * Custom tool list, keyset-paginated over the active sort. Nothing capped the
+ * per-workspace set, and each row carries its full `code` and `schema`, so the
+ * response grew without bound before pagination.
  */
 export const v2ListCustomToolsContract = defineRouteContract({
   method: 'GET',
@@ -176,6 +182,7 @@ export const v2ListCustomToolsContract = defineRouteContract({
 export const v2CreateCustomToolContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/custom-tools',
+  query: noInputSchema,
   body: v2CreateCustomToolBodySchema,
   response: {
     mode: 'json',
@@ -198,6 +205,7 @@ export const v2GetCustomToolContract = defineRouteContract({
 export const v2UpdateCustomToolContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/custom-tools/[id]',
+  query: noInputSchema,
   params: v2CustomToolParamsSchema,
   body: v2UpdateCustomToolBodySchema,
   response: {

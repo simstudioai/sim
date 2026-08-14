@@ -7,7 +7,7 @@ import {
   workflowExecutionLogs,
   workflowExecutionSnapshots,
 } from '@sim/db/schema'
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
 import { buildLogFilters, getOrderBy, type LogFilters } from '@/lib/logs/public-filters'
 
@@ -21,6 +21,16 @@ export function encodePublicLogCursor(cursor: PublicLogCursor): string {
   return Buffer.from(JSON.stringify(cursor)).toString('base64')
 }
 
+/**
+ * Reads the keyset this list resumes from, or `null` for a token that names no
+ * position.
+ *
+ * `id` is checked for content rather than only for type: it is one half of the
+ * `(startedAt, id)` tuple the query compares against, so an empty one is a
+ * position no row can sit after, and accepting it would answer a truncated page
+ * as though it were a complete one. It is the same looseness the wrapping
+ * envelope had — see `readScopedCursor` — one layer down.
+ */
 export function decodePublicLogCursor(
   cursor: string,
   expectedOrder: 'asc' | 'desc'
@@ -31,6 +41,7 @@ export function decodePublicLogCursor(
     if (
       typeof parsed.startedAt !== 'string' ||
       typeof parsed.id !== 'string' ||
+      parsed.id.length === 0 ||
       (order !== 'asc' && order !== 'desc') ||
       order !== expectedOrder
     ) {
@@ -55,6 +66,27 @@ export interface ListPublicWorkflowLogsInput {
 }
 
 /**
+ * The root/non-root predicate for a resolved folder scope.
+ *
+ * A scope carrying neither the root nor any folder id is a `folderPaths` filter
+ * that matched no active folder, and it must match no rows — hence the explicit
+ * unsatisfiable predicate. Building it by `or`-ing two optional halves instead
+ * would hand the empty case to `or(undefined, undefined)`, which is `undefined`
+ * in Drizzle: the filter drops out of the surrounding `and(...)` and the query
+ * returns the workspace's entire log set, the exact opposite of what was asked.
+ */
+function folderScopeCondition(scope: { includesRoot: boolean; folderIds: string[] }): SQL {
+  const parts = [
+    scope.includesRoot ? isNull(workflow.folderId) : undefined,
+    scope.folderIds.length > 0 ? inArray(workflow.folderId, scope.folderIds) : undefined,
+  ].filter((part): part is SQL => part !== undefined)
+
+  if (parts.length === 0) return sql`false`
+  if (parts.length === 1) return parts[0]
+  return or(...parts) ?? sql`false`
+}
+
+/**
  * Reads the workflow-execution log page shared by the v1 and v2 public
  * adapters. Folder path resolution remains an adapter concern; this query takes
  * the resulting ids and applies one coherent root/non-root predicate.
@@ -62,14 +94,7 @@ export interface ListPublicWorkflowLogsInput {
 export async function listPublicWorkflowLogs(input: ListPublicWorkflowLogsInput) {
   const filters = input.folderScope ? { ...input.filters, folderIds: undefined } : input.filters
   const conditions = buildLogFilters(filters)
-  const folderCondition = input.folderScope
-    ? or(
-        input.folderScope.includesRoot ? isNull(workflow.folderId) : undefined,
-        input.folderScope.folderIds.length > 0
-          ? inArray(workflow.folderId, input.folderScope.folderIds)
-          : undefined
-      )
-    : undefined
+  const folderCondition = input.folderScope ? folderScopeCondition(input.folderScope) : undefined
 
   const rows = await db
     .select({

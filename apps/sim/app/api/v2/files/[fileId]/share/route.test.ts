@@ -1,46 +1,26 @@
 /**
  * @vitest-environment node
  */
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
-  class MockV2ApiKeyUnauthenticatedError extends Error {
-    constructor(message = 'Invalid API key') {
-      super(message)
-      this.name = 'V2ApiKeyUnauthenticatedError'
-    }
-  }
-
-  return {
-    mocks: {
-      authenticate: vi.fn(),
-      preauthRate: vi.fn(),
-      operationRate: vi.fn(),
-      gate: vi.fn(),
-      getShare: vi.fn(),
-      updateShare: vi.fn(),
-    },
-    MockV2ApiKeyUnauthenticatedError,
-  }
-})
-
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
+const mocks = vi.hoisted(() => ({
+  getShare: vi.fn(),
+  updateShare: vi.fn(),
 }))
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  getRateLimit: vi.fn().mockReturnValue({
-    maxTokens: 100,
-    refillRate: 100,
-    refillIntervalMs: 60_000,
-  }),
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/api/server/rate-limit-context', () => ({
   recordRateLimitSnapshot: vi.fn(),
@@ -51,8 +31,6 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn().mockReturnValue('request-1'),
   getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
 }))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 
 vi.mock('@/lib/workspace-files/application/share-workspace-file', () => ({
   getWorkspaceFileShare: {
@@ -67,6 +45,7 @@ vi.mock('@/lib/workspace-files/application/share-workspace-file', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET, PATCH } from '@/app/api/v2/files/[fileId]/share/route'
+import { v2Error } from '@/app/api/v2/lib/response'
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -74,16 +53,16 @@ const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_I
 const AUTH = {
   principal: PRINCIPAL,
   rolloutUserId: 'owner-1',
-  rateLimitSubjectIds: ['workspace:workspace-1'] as const,
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
 }
-const RATE_LIMIT_OK = {
-  allowed: true,
+const RATE_LIMIT_DENIED = {
+  allowed: false,
   limit: 100,
-  remaining: 99,
+  remaining: 0,
   resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 0,
+  retryAfterMs: 1000,
 }
 const SHARE = {
   id: 'shr_1',
@@ -121,15 +100,15 @@ function callPatch(body: unknown) {
 describe('GET /api/v2/files/[fileId]/share', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.gate.mockResolvedValue(null)
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.gate.mockResolvedValue(null)
     mocks.getShare.mockResolvedValue({ share: SHARE })
   })
 
   it('authenticates and rate-limits before parsing or executing', async () => {
-    mocks.authenticate.mockRejectedValueOnce(
+    v2RouteMocks.authenticate.mockRejectedValueOnce(
       new MockV2ApiKeyUnauthenticatedError('API key required')
     )
 
@@ -137,12 +116,11 @@ describe('GET /api/v2/files/[fileId]/share', () => {
 
     expect(response.status).toBe(401)
     expect(mocks.getShare).not.toHaveBeenCalled()
-    expect(mocks.operationRate).not.toHaveBeenCalled()
+    expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
   })
 
   it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    mocks.gate.mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
+    v2RouteMocks.gate.mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
 
     const response = await callGet()
 
@@ -180,7 +158,7 @@ describe('GET /api/v2/files/[fileId]/share', () => {
   })
 
   it('returns the rate-limit response when denied', async () => {
-    mocks.operationRate.mockResolvedValueOnce({ ...RATE_LIMIT_OK, allowed: false, remaining: 0 })
+    v2RouteMocks.operationRate.mockResolvedValueOnce(RATE_LIMIT_DENIED)
 
     const response = await callGet()
 
@@ -193,10 +171,10 @@ describe('GET /api/v2/files/[fileId]/share', () => {
 describe('PATCH /api/v2/files/[fileId]/share', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.gate.mockResolvedValue(null)
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.gate.mockResolvedValue(null)
     mocks.updateShare.mockResolvedValue({ share: SHARE })
   })
 
@@ -261,7 +239,7 @@ describe('PATCH /api/v2/files/[fileId]/share', () => {
   })
 
   it('returns the rate-limit response when denied', async () => {
-    mocks.operationRate.mockResolvedValueOnce({ ...RATE_LIMIT_OK, allowed: false, remaining: 0 })
+    v2RouteMocks.operationRate.mockResolvedValueOnce(RATE_LIMIT_DENIED)
 
     const response = await callPatch({ workspaceId: WORKSPACE_ID, isActive: true })
 

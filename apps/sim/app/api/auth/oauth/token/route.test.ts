@@ -24,6 +24,7 @@ vi.mock('@/lib/oauth/credential-service', () => ({
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUse: mockAuthorizeCredentialUse,
+  authorizeCredentialUseForAuth: mockAuthorizeCredentialUse,
 }))
 
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
@@ -201,6 +202,36 @@ describe('OAuth Token API Routes', () => {
     })
 
     describe('service account path', () => {
+      it('threads the NetSuite SuiteTalk instance URL into the token response', async () => {
+        const instanceUrl = 'https://1234567.suitetalk.api.netsuite.com'
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+          accountId: '',
+          credentialId: 'netsuite-credential-id',
+          credentialType: 'service_account',
+          providerId: 'netsuite-service-account',
+          workspaceId: 'workspace-id',
+          usedCredentialTable: true,
+        })
+        mockAuthorizeCredentialUse.mockResolvedValueOnce({
+          ok: true,
+          authType: 'session',
+          requesterUserId: 'test-user-id',
+          workspaceId: 'workspace-id',
+        })
+        mockResolveServiceAccountToken.mockResolvedValueOnce({
+          accessToken: 'netsuite-token',
+          instanceUrl,
+        })
+
+        const response = await POST(
+          createMockRequest('POST', { credentialId: 'netsuite-credential-id' })
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(data).toMatchObject({ accessToken: 'netsuite-token', instanceUrl })
+      })
+
       it('should thread authStyle from the resolver into the response', async () => {
         authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
           accountId: '',

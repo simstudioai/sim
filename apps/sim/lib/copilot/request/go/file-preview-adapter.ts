@@ -66,6 +66,24 @@ function toPreviewTargetKind(kind: string | undefined): FilePreviewTargetKind | 
   return kind === 'new_file' || kind === 'file_id' ? kind : undefined
 }
 
+/**
+ * Binds the turn-scoped execution context to the tool call whose preview is
+ * being rendered. This adapter runs while the tool-call frame is still on the
+ * wire, before per-call dispatch builds a call-scoped context, so the turn
+ * context carries no `toolCallId` of its own — the frame is the only place that
+ * identity exists, and the file delegation requires one.
+ */
+function bindPreviewToolCall(context: ExecutionContext, toolCallId: string): ExecutionContext {
+  return { ...context, toolCallId }
+}
+
+/**
+ * Upgrades a model-supplied path target to the backing file id so the preview
+ * can seed itself from the existing content. Resolution is best effort, exactly
+ * like the preview base load: leaving the target as a path only costs an
+ * un-seeded preview until the tool result arrives with the real file id, so a
+ * failure here must never escape into the stream loop.
+ */
 async function resolvePreviewTarget(args: {
   context: ExecutionContext
   workspaceId?: string
@@ -74,24 +92,29 @@ async function resolvePreviewTarget(args: {
   if (args.target.kind !== 'path' || !args.workspaceId || !args.target.path) {
     return args.target
   }
-  if (!args.context.copilotToolExecution || !args.context.toolCallId) {
-    throw new Error('Workspace file preview requires a trusted Copilot execution context')
-  }
 
-  const { files } = await executeCopilotFileUseCase(args.context, listAllWorkspaceFiles, {
-    workspaceId: args.workspaceId,
-    scope: 'active',
-  })
-  const file = findWorkspaceFileRecord(files, args.target.path)
-  if (!file) {
+  try {
+    const { files } = await executeCopilotFileUseCase(args.context, listAllWorkspaceFiles, {
+      workspaceId: args.workspaceId,
+      scope: 'active',
+    })
+    const file = findWorkspaceFileRecord(files, args.target.path)
+    if (!file) {
+      return args.target
+    }
+
+    return {
+      kind: 'file_id',
+      fileId: file.id,
+      fileName: args.target.fileName ?? file.name,
+      path: args.target.path,
+    }
+  } catch (error) {
+    logger.warn('Failed to resolve workspace file preview target', {
+      toolCallId: args.context.toolCallId,
+      error: toError(error).message,
+    })
     return args.target
-  }
-
-  return {
-    kind: 'file_id',
-    fileId: file.id,
-    fileName: args.target.fileName ?? file.name,
-    path: args.target.path,
   }
 }
 
@@ -375,8 +398,9 @@ export async function processFilePreviewStreamEvent(input: {
     const parsedArgs = parseWorkspaceFileArgs(streamEvent.payload.arguments)
     if (toolCallId && parsedArgs) {
       const { operation, title, contentType, edit } = parsedArgs
+      const previewContext = bindPreviewToolCall(execContext, toolCallId)
       const target = await resolvePreviewTarget({
-        context: execContext,
+        context: previewContext,
         workspaceId: execContext.workspaceId,
         target: parsedArgs.target,
       })
@@ -405,7 +429,7 @@ export async function processFilePreviewStreamEvent(input: {
           (operation === 'append' || operation === 'patch')
         ) {
           previewBase = await loadWorkspaceFileTextForPreview(
-            execContext,
+            previewContext,
             execContext.workspaceId,
             fileId
           )
@@ -480,7 +504,7 @@ export async function processFilePreviewStreamEvent(input: {
         (intent.operation === 'append' || intent.operation === 'patch')
       ) {
         previewBase = await loadWorkspaceFileTextForPreview(
-          execContext,
+          bindPreviewToolCall(execContext, intent.toolCallId),
           execContext.workspaceId,
           result.fileId
         )

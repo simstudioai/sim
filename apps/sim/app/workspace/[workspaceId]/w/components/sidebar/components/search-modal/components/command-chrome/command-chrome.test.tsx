@@ -46,7 +46,7 @@ describe('CommandFadedList', () => {
     vi.unstubAllGlobals()
   })
 
-  it('fades the palette with the short single mask and the shared search surface', () => {
+  it('fades the palette with the short pixel-anchored mask and the shared search surface', () => {
     act(() => {
       root.render(
         <Command>
@@ -58,7 +58,7 @@ describe('CommandFadedList', () => {
 
     const list = container.querySelector('[cmdk-list]')
     const search = container.querySelector('[cmdk-input]')?.parentElement
-    expect(list?.className).toContain('transparent_8%,black_13%,black_97%')
+    expect(list?.className).toContain('transparent_36px,black_58px,black_calc(100%_-_13px)')
     expect(list?.className).not.toContain('scrollbar-track')
     expect(search?.className).toContain('var(--bg)')
   })

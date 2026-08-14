@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { folderIdSchema, workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  folderIdSchema,
+  noInputSchema,
+  workflowIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2FileSchema } from '@/lib/api/contracts/v2/files'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
@@ -198,9 +203,11 @@ export const localUploadPartParamsSchema = z.object({
   partNumber: z.coerce.number().int().min(1),
 })
 
-export const localUploadPartQuerySchema = z.object({
-  token: z.string().min(1, 'token is required'),
-})
+export const localUploadPartQuerySchema = z
+  .object({
+    token: z.string().min(1, 'token is required'),
+  })
+  .strict()
 
 export const localUploadPartContract = defineRouteContract({
   method: 'PUT',
@@ -213,6 +220,7 @@ export const localUploadPartContract = defineRouteContract({
 export const localPutUploadContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/uploads/[uploadId]',
+  query: noInputSchema,
   params: internalFileUploadParamsSchema,
   headers: v2UploadTokenHeadersSchema,
   response: { mode: 'empty', status: 204 },

@@ -27,6 +27,8 @@ vi.mock('@/lib/credentials/application/list-workspace-credentials', () => ({
   },
 }))
 
+import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
+import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET } from '@/app/api/v2/credentials/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
@@ -65,7 +67,12 @@ describe('GET /api/v2/credentials', () => {
     v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.execute.mockResolvedValue({ credentials: [credential] })
+    mocks.execute.mockResolvedValue({
+      credentials: [credential],
+      nextCursorKeys: null,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
   })
 
   it('authenticates and charges before validating workspace input', async () => {
@@ -93,8 +100,77 @@ describe('GET /api/v2/credentials', () => {
         search: undefined,
         sortBy: 'createdAt',
         sortOrder: 'desc',
+        limit: V2_DEFAULT_PAGE_SIZE,
+        cursor: undefined,
+        cursorKeys: undefined,
       },
       request,
+    })
+  })
+
+  /**
+   * Pins the binding end-to-end — the mint in `present` and the read in
+   * `mapInput` — because the contract-level sweep only checks a hand-maintained
+   * map of param names and stays green when a route drops the stamp entirely.
+   */
+  it('refuses a cursor minted under a different filter', async () => {
+    mocks.execute.mockResolvedValue({
+      credentials: [credential],
+      nextCursorKeys: ['2026-01-01T00:00:00.000Z', 'credential-1'],
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
+
+    const minted = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/credentials?workspaceId=${WORKSPACE_ID}&search=zoom`
+      )
+    )
+    const { nextCursor } = await minted.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    mocks.execute.mockClear()
+    const replayed = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/credentials?workspaceId=${WORKSPACE_ID}&search=slack&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(replayed.status).toBe(400)
+    expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('resumes a cursor replayed under the filters it was minted with', async () => {
+    mocks.execute.mockResolvedValue({
+      credentials: [credential],
+      nextCursorKeys: ['2026-01-01T00:00:00.000Z', 'credential-1'],
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
+
+    const minted = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/credentials?workspaceId=${WORKSPACE_ID}&search=zoom`
+      )
+    )
+    const { nextCursor } = await minted.json()
+
+    mocks.execute.mockClear()
+    const resumed = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/credentials?workspaceId=${WORKSPACE_ID}&search=zoom&cursor=${encodeURIComponent(nextCursor)}`
+      )
+    )
+
+    expect(resumed.status).toBe(200)
+    expect(mocks.execute).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: expect.objectContaining({
+        search: 'zoom',
+        cursorKeys: ['2026-01-01T00:00:00.000Z', 'credential-1'],
+      }),
+      request: expect.anything(),
     })
   })
 

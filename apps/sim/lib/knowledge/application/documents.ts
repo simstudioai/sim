@@ -56,10 +56,19 @@ import {
   performUploadKnowledgeDocuments,
 } from '@/lib/knowledge/orchestration/documents'
 import type { KnowledgeDocumentWriteSecretProvenance } from '@/lib/knowledge/secret-provenance'
+import {
+  type KnowledgeTagNameFilter,
+  resolveKnowledgeTagFilters,
+  toKnowledgeTagFilterConditions,
+} from '@/lib/knowledge/tags/filter-resolution'
+import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { StorageService } from '@/lib/uploads'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
-import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
+import {
+  EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE,
+  MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
+} from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 
 const logger = createLogger('KnowledgeDocumentApplication')
@@ -73,7 +82,14 @@ export interface ListKnowledgeDocumentsInput {
   offset?: number
   sortBy?: DocumentSortField
   sortOrder?: SortOrder
+  /** Slot-addressed filters, as first-party surfaces already build them. */
   tagFilters?: TagFilterCondition[]
+  /**
+   * Display-name-addressed filters, resolved to slots here against the
+   * knowledge base's own tag definitions. Public surfaces send these so that
+   * document filtering and search speak one tag vocabulary.
+   */
+  tagNameFilters?: KnowledgeTagNameFilter[]
 }
 
 export interface ReadKnowledgeDocumentInput {
@@ -193,6 +209,12 @@ export interface UpsertKnowledgeDocumentInput extends UploadKnowledgeDocumentAdm
   }): KnowledgeDocumentWriteSecretProvenance[] | undefined
 }
 
+/**
+ * Lists documents, resolving any display-named tag filters against the
+ * knowledge base's tag definitions. The definitions are returned with the page
+ * so a presenter can key each document's tag values by display name — the same
+ * projection knowledge search performs — without reading protected data itself.
+ */
 export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listDocuments,
   resolveContext: ({ input }: { input: ListKnowledgeDocumentsInput }) =>
@@ -206,6 +228,15 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
     if (!Number.isInteger(offset) || offset < 0) {
       throw new OrchestrationError('validation', 'Document offset must be a non-negative integer')
     }
+    const resolvedNameFilters = input.tagNameFilters?.length
+      ? await resolveKnowledgeTagFilters(input.tagNameFilters, [context.knowledgeBaseId])
+      : null
+    const tagFilters = [
+      ...(input.tagFilters ?? []),
+      ...(resolvedNameFilters
+        ? toKnowledgeTagFilterConditions(resolvedNameFilters.structuredFilters)
+        : []),
+    ]
     const result = await getDocuments(
       context.knowledgeBaseId,
       {
@@ -215,11 +246,17 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         offset,
         sortBy: input.sortBy,
         sortOrder: input.sortOrder,
-        tagFilters: input.tagFilters,
+        tagFilters: tagFilters.length > 0 ? tagFilters : undefined,
       },
       generateRequestId()
     )
-    return { ...result, workspaceId: context.workspaceId }
+    return {
+      ...result,
+      tagDefinitions:
+        resolvedNameFilters?.definitionsByKnowledgeBase.get(context.knowledgeBaseId) ??
+        (await getDocumentTagDefinitions(context.knowledgeBaseId)),
+      workspaceId: context.workspaceId,
+    }
   },
 })
 
@@ -228,7 +265,11 @@ export const readKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: ReadKnowledgeDocumentInput }) =>
     resolveActiveKnowledgeDocumentContext(input),
   async execute({ context }: { context: ActiveKnowledgeDocumentContext }) {
-    return { document: context.document, workspaceId: context.workspaceId }
+    return {
+      document: context.document,
+      tagDefinitions: await getDocumentTagDefinitions(context.knowledgeBaseId),
+      workspaceId: context.workspaceId,
+    }
   },
 })
 
@@ -265,6 +306,9 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     }
     if (input.file.fileSize !== input.file.buffer.byteLength) {
       throw new Error('Knowledge document upload size does not match its buffered bytes')
+    }
+    if (input.file.fileSize === 0) {
+      throw new OrchestrationError('validation', EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE)
     }
     const fileTypeError = validateFileType(input.file.filename, input.file.mimeType)
     if (fileTypeError) throw new OrchestrationError('validation', fileTypeError.message)
@@ -794,6 +838,7 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     return {
       kind: 'updated' as const,
       document: await updateDocument(context.documentId, updates, generateRequestId()),
+      tagDefinitions: await getDocumentTagDefinitions(context.knowledgeBaseId),
       updatedFields,
     }
   },
@@ -842,6 +887,13 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       operation: input.operation,
       successCount: result.successCount,
       updatedDocuments: result.updatedDocuments,
+      /**
+       * Reported so a surface can tell a bounded selection from an unbounded
+       * one: `documentIds` is capped by the request, `selectAll` is capped by
+       * nothing, and a presenter that echoes the identifiers either way returns
+       * a multi-megabyte array on a large knowledge base.
+       */
+      selectAll: input.selectAll === true,
     }
   },
 })

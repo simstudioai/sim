@@ -1,41 +1,28 @@
 /**
  * @vitest-environment node
  */
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
-  class MockV2ApiKeyUnauthenticatedError extends Error {}
-  return {
-    mocks: {
-      authenticate: vi.fn(),
-      preauthRate: vi.fn(),
-      operationRate: vi.fn(),
-      gate: vi.fn(),
-      listFolders: vi.fn(),
-      createFolder: vi.fn(),
-      updateFolder: vi.fn(),
-      deleteFolder: vi.fn(),
-    },
-    MockV2ApiKeyUnauthenticatedError,
-  }
-})
+const mocks = vi.hoisted(() => ({
+  listFolders: vi.fn(),
+  createFolder: vi.fn(),
+  updateFolder: vi.fn(),
+  deleteFolder: vi.fn(),
+}))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauthRate
-    checkRateLimitDirectOrThrow = mocks.operationRate
-  },
-  getRateLimit: vi.fn().mockReturnValue({
-    maxTokens: 100,
-    refillRate: 100,
-    refillIntervalMs: 60_000,
-  }),
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 vi.mock('@/lib/api/server/rate-limit-context', () => ({
   recordRateLimitSnapshot: vi.fn(),
   getRateLimitHeaders: vi.fn().mockReturnValue(null),
@@ -44,7 +31,6 @@ vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: vi.fn().mockReturnValue('request-1'),
   getClientIp: vi.fn().mockReturnValue('127.0.0.1'),
 }))
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   listWorkspaceFileFoldersOperation: {
     operation: { id: 'files.folders.list', minimumRole: 'read', workspaceApiKey: 'allow' },
@@ -75,16 +61,9 @@ const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_I
 const AUTH = {
   principal: PRINCIPAL,
   rolloutUserId: 'owner-1',
-  rateLimitSubjectIds: ['workspace:workspace-1'] as const,
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
-}
-const RATE_LIMIT_OK = {
-  allowed: true,
-  limit: 100,
-  remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 0,
 }
 const folder = {
   id: 'folder-1',
@@ -114,10 +93,10 @@ function request(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, body?
 describe('/api/v2/files/folders', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(AUTH)
-    mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.gate.mockResolvedValue(null)
+    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.listFolders.mockResolvedValue({ folders: [folder] })
     mocks.createFolder.mockResolvedValue({ folder })
     mocks.updateFolder.mockResolvedValue({ folder })
@@ -293,12 +272,38 @@ describe('/api/v2/files/folders', () => {
     expect((await response.json()).error.code).toBe('NOT_FOUND')
   })
 
+  it('rejects a percent-encoded NUL in a canonical path before the write reaches Postgres', async () => {
+    const created = await POST(
+      request('POST', '/api/v2/files/folders', {
+        workspaceId: WORKSPACE_ID,
+        path: '/apitest_%00x',
+      }),
+      context
+    )
+    const relocated = await PATCH(
+      request('PATCH', '/api/v2/files/folders', {
+        workspaceId: WORKSPACE_ID,
+        path: '/Reports',
+        destinationPath: '/apitest_%00b',
+      }),
+      context
+    )
+
+    expect(created.status).toBe(400)
+    expect((await created.json()).error.code).toBe('BAD_REQUEST')
+    expect(relocated.status).toBe(400)
+    expect((await relocated.json()).error.code).toBe('BAD_REQUEST')
+    expect(mocks.createFolder).not.toHaveBeenCalled()
+    expect(mocks.updateFolder).not.toHaveBeenCalled()
+  })
+
   it('authenticates before parsing folder input', async () => {
-    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
 
     const response = await POST(request('POST', '/api/v2/files/folders', {}), context)
 
     expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
     expect(mocks.createFolder).not.toHaveBeenCalled()
   })
 })

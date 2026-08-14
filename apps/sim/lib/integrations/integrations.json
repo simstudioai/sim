@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-11",
+  "updatedAt": "2026-08-13",
   "integrations": [
     {
       "type": "onepassword",
@@ -12046,6 +12046,49 @@
       "tags": ["monitoring", "error-tracking", "incident-management"]
     },
     {
+      "type": "logrocket",
+      "slug": "logrocket",
+      "name": "LogRocket",
+      "description": "Summarize sessions, manage users, and tag releases in LogRocket",
+      "longDescription": "Integrate LogRocket into your workflow to request AI session highlights for a user, poll for the result, list exported session files, read the audit log, create or update user profiles, and register releases so source maps decode their stack traces.",
+      "bgColor": "#764ABC",
+      "iconName": "LogRocketIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/logrocket",
+      "operations": [
+        {
+          "name": "Request Highlights",
+          "description": "Start a Galileo session highlights job for a user. Returns a request ID to poll with LogRocket's Get Highlights operation."
+        },
+        {
+          "name": "Get Highlights",
+          "description": "Retrieve the result of a Galileo session highlights request. Status is PENDING until generation finishes, then READY or FAILED."
+        },
+        {
+          "name": "List Exported Sessions",
+          "description": "List exported session files from the LogRocket Data Export API. Returns download URLs for JSON Lines exports, oldest first, plus a cursor for the next page."
+        },
+        {
+          "name": "Get Audit Logs",
+          "description": "Export audit log entries from LogRocket, recording who viewed sessions and what actions were taken. Paginated with a cursor."
+        },
+        {
+          "name": "Identify User",
+          "description": "Create or update a LogRocket user profile with demographic, financial, and engagement traits."
+        },
+        {
+          "name": "Create Release",
+          "description": "Register a release version in LogRocket so uploaded source maps can decode stack traces for it. Fails with a conflict if the version already exists."
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "error-tracking", "data-analytics"]
+    },
+    {
       "type": "loops",
       "slug": "loops",
       "name": "Loops",
@@ -13719,6 +13762,133 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "netsuite",
+      "slug": "oracle-netsuite",
+      "name": "Oracle NetSuite",
+      "description": "Manage NetSuite records, queries, datasets, batches, and async jobs",
+      "longDescription": "Connect a reusable Oracle NetSuite service-account credential to SuiteTalk REST Web Services. Read and write account-specific records, execute SuiteQL and SuiteAnalytics datasets, run asynchronous record batches, inspect metadata, and monitor async jobs.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/netsuite",
+      "operations": [
+        {
+          "name": "List/Search Records",
+          "description": "List one page of a NetSuite record collection, optionally filtered with a q expression."
+        },
+        {
+          "name": "Get Record",
+          "description": "Retrieve one NetSuite record by internal or external ID."
+        },
+        {
+          "name": "Create Record",
+          "description": "Create a NetSuite record using the account-specific record metadata schema."
+        },
+        {
+          "name": "Update Record",
+          "description": "Update fields on an existing NetSuite record with PATCH."
+        },
+        {
+          "name": "Upsert Record",
+          "description": "Create or update a NetSuite record by external ID with PUT."
+        },
+        {
+          "name": "Delete Record",
+          "description": "Delete one NetSuite record by internal or external ID."
+        },
+        {
+          "name": "Get Subresource",
+          "description": "Retrieve a record sublist, subrecord, referenced record, or nested subresource."
+        },
+        {
+          "name": "Get Record Form",
+          "description": "Return a prepopulated create form, or an edit form when a record ID is supplied."
+        },
+        {
+          "name": "Get Select Options",
+          "description": "Retrieve valid select values for one or more fields on a new or existing record."
+        },
+        {
+          "name": "Attach Record or File",
+          "description": "Attach a contact or file to another NetSuite record."
+        },
+        {
+          "name": "Detach Record or File",
+          "description": "Detach a contact or file from another NetSuite record."
+        },
+        {
+          "name": "Execute Record Action",
+          "description": "Execute a supported NetSuite record action such as approve, reject, or confirm."
+        },
+        {
+          "name": "Transform Record",
+          "description": "Transform a supported source record into another NetSuite record type."
+        },
+        {
+          "name": "Batch Get Records",
+          "description": "Submit an asynchronous request to retrieve up to 100 records of one type."
+        },
+        {
+          "name": "Batch Create Records",
+          "description": "Submit an asynchronous batch that creates up to 100 records of one type."
+        },
+        {
+          "name": "Batch Update Records",
+          "description": "Submit an asynchronous batch that updates up to 100 records of one type."
+        },
+        {
+          "name": "Batch Upsert Records",
+          "description": "Submit an asynchronous batch that creates or updates up to 100 records by external ID."
+        },
+        {
+          "name": "Batch Delete Records",
+          "description": "Submit an asynchronous request to delete up to 100 records of one type."
+        },
+        {
+          "name": "Execute SuiteQL",
+          "description": "Execute one page of a SuiteQL query through SuiteTalk REST web services."
+        },
+        {
+          "name": "List SuiteAnalytics Datasets",
+          "description": "List one page of SuiteAnalytics Workbook datasets available to the authenticated role."
+        },
+        {
+          "name": "Execute SuiteAnalytics Dataset",
+          "description": "Execute one page of a standard or custom SuiteAnalytics Workbook dataset."
+        },
+        {
+          "name": "List Record Types",
+          "description": "List record types exposed to the authenticated role by the REST metadata catalog."
+        },
+        {
+          "name": "Get Record Metadata",
+          "description": "Retrieve account-specific metadata for one NetSuite record type."
+        },
+        {
+          "name": "Get Async Status",
+          "description": "Retrieve job status, list job tasks, or retrieve one task status."
+        },
+        {
+          "name": "Get Async Operation Result",
+          "description": "Retrieve the provider response for one task within a completed asynchronous job."
+        },
+        {
+          "name": "Get Server Time",
+          "description": "Retrieve the current UTC time from the NetSuite server."
+        },
+        {
+          "name": "Get Governance Limits",
+          "description": "Retrieve REST web-services concurrency limits for the NetSuite account and integration; NetSuite requires an Administrator role."
+        }
+      ],
+      "operationCount": 27,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["automation", "data-analytics", "payments"]
     },
     {
       "type": "outlook",
@@ -21939,6 +22109,133 @@
       "category": "tools",
       "integrationType": "search",
       "tags": ["knowledge-base"]
+    },
+    {
+      "type": "windchill",
+      "slug": "windchill",
+      "name": "Windchill",
+      "description": "Manage documents, revisions, and content in PTC Windchill",
+      "longDescription": "Integrate PTC Windchill REST Services 2.7 document management into your workflow using Basic authentication. Read and update document metadata, perform version and lifecycle actions, and transfer primary content and attachments. Windchill OAuth deployments are not currently supported.",
+      "bgColor": "#FFFFFF",
+      "iconName": "WindchillIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/windchill",
+      "operations": [
+        {
+          "name": "List Documents",
+          "description": "List documents with an OData query, sorting, and pagination"
+        },
+        {
+          "name": "Get Document",
+          "description": "Get a WT.Document by OID"
+        },
+        {
+          "name": "Get Document Structure",
+          "description": "Retrieve recursive document usage links and their parent and child documents"
+        },
+        {
+          "name": "Get Valid State Transitions",
+          "description": "Get lifecycle states a document can transition to from its current state"
+        },
+        {
+          "name": "Get Primary Content",
+          "description": "Get primary-content metadata for a document"
+        },
+        {
+          "name": "List Attachments",
+          "description": "List attachment metadata for a document"
+        },
+        {
+          "name": "Create Document",
+          "description": "Create one WT.Document"
+        },
+        {
+          "name": "Create Documents",
+          "description": "Create several documents in one atomic Windchill request"
+        },
+        {
+          "name": "Update Document",
+          "description": "Update one document's editable attributes"
+        },
+        {
+          "name": "Update Common Properties",
+          "description": "Update a document's Name, Number, and other common properties"
+        },
+        {
+          "name": "Update Documents",
+          "description": "Update several documents' editable attributes in one atomic request"
+        },
+        {
+          "name": "Delete Document",
+          "description": "Delete one document"
+        },
+        {
+          "name": "Delete Documents",
+          "description": "Delete multiple documents atomically"
+        },
+        {
+          "name": "Check Out Document",
+          "description": "Check out one document"
+        },
+        {
+          "name": "Check Out Documents",
+          "description": "Check out multiple documents atomically"
+        },
+        {
+          "name": "Check In Document",
+          "description": "Check in one document"
+        },
+        {
+          "name": "Check In Documents",
+          "description": "Check in multiple documents atomically"
+        },
+        {
+          "name": "Undo Check Out Document",
+          "description": "Undo checkout for one document"
+        },
+        {
+          "name": "Undo Check Out Documents",
+          "description": "Undo checkout for multiple documents atomically"
+        },
+        {
+          "name": "Revise Document",
+          "description": "Create a new revision of one document"
+        },
+        {
+          "name": "Revise Documents",
+          "description": "Create new revisions of multiple documents atomically"
+        },
+        {
+          "name": "Set Lifecycle State",
+          "description": "Transition a document to a valid lifecycle state"
+        },
+        {
+          "name": "Update Document Security Labels",
+          "description": "Update installed security-label attributes for one or more documents"
+        },
+        {
+          "name": "Download Primary Content",
+          "description": "Download primary content into a canonical UserFile"
+        },
+        {
+          "name": "Upload Primary Content",
+          "description": "Upload a primary-content file to a document that has none"
+        },
+        {
+          "name": "Download Attachment",
+          "description": "Download a document attachment into a canonical UserFile"
+        },
+        {
+          "name": "Upload Attachments",
+          "description": "Upload one or more files as document attachments"
+        }
+      ],
+      "operationCount": 27,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["content-management", "document-processing"]
     },
     {
       "type": "wiza",

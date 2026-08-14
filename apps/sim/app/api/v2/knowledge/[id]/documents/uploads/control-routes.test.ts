@@ -58,7 +58,6 @@ vi.mock('@/app/api/v2/knowledge/[id]/documents/uploads/utils', () => ({
     error: null,
     document: null,
   }),
-  v2KnowledgeDocumentUploadError: vi.fn(() => null),
 }))
 
 import { POST as PARTS } from '@/app/api/v2/knowledge/[id]/documents/uploads/[uploadId]/parts/route'

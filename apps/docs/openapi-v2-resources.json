@@ -139,10 +139,10 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum members to return. Defaults to 50 and cannot exceed 100.",
+            "description": "Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
             "schema": {
               "default": 50,
-              "description": "Maximum members to return. Defaults to 50 and cannot exceed 100.",
+              "description": "Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100
@@ -152,9 +152,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the preceding page.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor returned by the preceding page.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -210,7 +210,7 @@
       "get": {
         "operationId": "listMcpServers",
         "summary": "List MCP Servers",
-        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{id}/tools` runs a discovery.",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -240,10 +240,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "createdAt",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -258,6 +258,30 @@
               "description": "Sort direction.",
               "type": "string",
               "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -309,7 +333,7 @@
       "post": {
         "operationId": "createMcpServer",
         "summary": "Create MCP Server",
-        "description": "Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only. `transport`, `timeout`, `retries`, and `enabled` are applied server-side when omitted; the effective values are in the response.",
+        "description": "Register an MCP server in a workspace. The endpoint URL is the server identity, so a URL already registered here is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{id}` instead. Registration never connects to the endpoint: the server comes back `disconnected` and stays unavailable until `GET /api/v2/mcp-servers/{id}/tools` succeeds.",
         "tags": ["MCP Servers"],
         "requestBody": {
           "required": true,
@@ -359,6 +383,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -382,11 +409,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "MCP server to retrieve, update, or delete.",
+            "description": "Unique MCP server identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "MCP server to retrieve, update, or delete."
+              "description": "Unique MCP server identifier."
             }
           },
           {
@@ -449,18 +476,18 @@
       "patch": {
         "operationId": "updateMcpServer",
         "summary": "Update MCP Server",
-        "description": "Update the supplied MCP server fields. The URL is immutable because it determines server identity; delete and recreate the server to change endpoints. Two fields do not follow the omitted-fields-are-retained rule. `headers` is replaced wholesale rather than merged: sending it drops every stored header it does not repeat, and the only way to keep a header is to resend it. Changing `oauthClientId`, or sending `oauthClientSecret` as null or a new value, revokes the stored OAuth grant and forces reauthorization; switching away from OAuth authentication revokes it too.",
+        "description": "Update the supplied MCP server fields. Omitted fields are retained, except where a field says otherwise. Any change that invalidates authentication revokes the stored OAuth grant, resets `connectionStatus` to `disconnected`, and clears `lastConnected` and `lastError`, so the server must be rediscovered.",
         "tags": ["MCP Servers"],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "MCP server to retrieve, update, or delete.",
+            "description": "Unique MCP server identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "MCP server to retrieve, update, or delete."
+              "description": "Unique MCP server identifier."
             }
           }
         ],
@@ -509,6 +536,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -530,11 +560,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "MCP server to retrieve, update, or delete.",
+            "description": "Unique MCP server identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "MCP server to retrieve, update, or delete."
+              "description": "Unique MCP server identifier."
             }
           },
           {
@@ -595,11 +625,100 @@
         }
       }
     },
+    "/api/v2/mcp-servers/{id}/tools": {
+      "get": {
+        "operationId": "listMcpServerTools",
+        "summary": "List MCP Server Tools",
+        "description": "Connect to a registered MCP server and return the tools it exposes. This read has side effects: it opens a live connection to the third-party server and writes `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh`. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. Discovery is bounded at 1,000 tools and 5 MB of tool payload per server. The bounded set is returned in one page; `nextCursor` is always null. An unreachable, slow, or cooling-down server is a `503`; a stored OAuth grant that no longer works is a `409` with `error.details.code` `MCP_SERVER_REAUTHORIZATION_REQUIRED`, which only a human reauthorizing in Sim can clear. A workspace API key is rejected with `403`; use a personal API key.",
+        "tags": ["MCP Servers"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique MCP server identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique MCP server identifier."
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace that owns the MCP server.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace that owns the MCP server."
+            }
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "description": "Bypass the short-lived per-workspace tool cache and reconnect under your own credentials. A cached result reflects whichever workspace member last ran discovery, so this is the only way to pick up a tool added since then; it costs a live round trip.",
+            "schema": {
+              "description": "Bypass the short-lived per-workspace tool cache and reconnect under your own credentials. A cached result reflects whichever workspace member last ran discovery, so this is the only way to pick up a tool added since then; it costs a live round trip.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tools exposed by the MCP server.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMcpServerToolsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/skills": {
       "get": {
         "operationId": "listSkills",
         "summary": "List Skills",
-        "description": "List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies and uses the standard cursor envelope with `nextCursor` always null, so there is no second page to fetch; fetch one skill to read its content.",
+        "description": "List workspace and built-in skills with opaque cursor pagination. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content.",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -629,10 +748,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "createdAt",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -647,6 +766,30 @@
               "description": "Sort direction.",
               "type": "string",
               "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum skills to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum skills to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -698,7 +841,7 @@
       "post": {
         "operationId": "createSkill",
         "summary": "Create Skill",
-        "description": "Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. Note that a workspace API key may create a skill but may not later update or delete it.",
+        "description": "Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Skills"],
         "requestBody": {
           "required": true,
@@ -748,6 +891,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -771,11 +917,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id.",
+            "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id."
+              "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
             }
           },
           {
@@ -838,18 +984,18 @@
       "patch": {
         "operationId": "updateSkill",
         "summary": "Update Skill",
-        "description": "Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Skills"],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id.",
+            "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id."
+              "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
             }
           }
         ],
@@ -901,6 +1047,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -915,18 +1064,18 @@
       "delete": {
         "operationId": "deleteSkill",
         "summary": "Delete Skill",
-        "description": "Delete a workspace skill. Built-in skills are read-only and cannot be deleted. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Delete a workspace skill. Built-in skills are read-only and cannot be deleted. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Skills"],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id.",
+            "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Skill to retrieve, update, or delete. Built-in skills use their name as the id."
+              "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
             }
           },
           {
@@ -991,7 +1140,7 @@
       "get": {
         "operationId": "listCustomTools",
         "summary": "List Custom Tools",
-        "description": "List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List code-backed custom tools defined in a workspace, with opaque cursor pagination. Legacy personal tools are excluded.",
         "tags": ["Custom Tools"],
         "parameters": [
           {
@@ -1039,6 +1188,30 @@
               "description": "Sort direction.",
               "type": "string",
               "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum custom tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum custom tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -1140,6 +1313,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1163,11 +1339,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Custom tool to retrieve, update, or delete.",
+            "description": "Unique custom tool identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Custom tool to retrieve, update, or delete."
+              "description": "Unique custom tool identifier."
             }
           },
           {
@@ -1237,11 +1413,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Custom tool to retrieve, update, or delete.",
+            "description": "Unique custom tool identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Custom tool to retrieve, update, or delete."
+              "description": "Unique custom tool identifier."
             }
           }
         ],
@@ -1293,6 +1469,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1314,11 +1493,11 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Custom tool to retrieve, update, or delete.",
+            "description": "Unique custom tool identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Custom tool to retrieve, update, or delete."
+              "description": "Unique custom tool identifier."
             }
           },
           {
@@ -1383,7 +1562,7 @@
       "get": {
         "operationId": "listCredentials",
         "summary": "List Credentials",
-        "description": "List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed. The bounded set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are not exposed.",
         "tags": ["Credentials"],
         "parameters": [
           {
@@ -1454,6 +1633,30 @@
               "type": "string",
               "enum": ["asc", "desc"]
             }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum credentials to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum credentials to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
+            }
           }
         ],
         "responses": {
@@ -1506,7 +1709,7 @@
       "get": {
         "operationId": "listSecrets",
         "summary": "List Secrets",
-        "description": "List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned. The bounded set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "List workspace and caller-owned personal secret metadata with opaque cursor pagination. Only names, scope, role, and timestamps are returned; secret values are never returned. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -1547,10 +1750,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "name",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -1565,6 +1768,30 @@
               "description": "Sort direction.",
               "type": "string",
               "enum": ["asc", "desc"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum secrets to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+            "schema": {
+              "default": 50,
+              "description": "Maximum secrets to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+            "schema": {
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -1618,7 +1845,7 @@
       "put": {
         "operationId": "setSecret",
         "summary": "Set Secret",
-        "description": "Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -1701,6 +1928,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1715,7 +1945,7 @@
       "delete": {
         "operationId": "deleteSecret",
         "summary": "Delete Secret",
-        "description": "Delete a workspace or caller-owned personal secret without reading or returning its stored value. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Delete a workspace or caller-owned personal secret without reading or returning its stored value. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -1735,22 +1965,22 @@
             "name": "workspaceId",
             "in": "query",
             "required": true,
-            "description": "Workspace in which the secret is available.",
+            "description": "Workspace the request is authorized against. A workspace secret is deleted from it; a personal secret is deleted for the caller in all of their workspaces.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Workspace in which the secret is available."
+              "description": "Workspace the request is authorized against. A workspace secret is deleted from it; a personal secret is deleted for the caller in all of their workspaces."
             }
           },
           {
             "name": "scope",
             "in": "query",
             "required": true,
-            "description": "Whether the secret belongs to the workspace or the caller.",
+            "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace.",
             "schema": {
               "type": "string",
               "enum": ["workspace", "personal"],
-              "description": "Whether the secret belongs to the workspace or the caller."
+              "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
             }
           }
         ],
@@ -1807,7 +2037,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
       }
     },
     "headers": {
@@ -1842,13 +2072,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying a rate-limited request.",
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying a rate-limited request."
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -1863,7 +2093,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "The request is invalid.",
+        "description": "The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.",
         "content": {
           "application/json": {
             "schema": {
@@ -1893,7 +2123,7 @@
         }
       },
       "Forbidden": {
-        "description": "The caller lacks access to the resource.",
+        "description": "The caller lacks the rights this operation requires. When the cause is one a caller can act on, `error.details.code` names it. A resource in a workspace the caller cannot reach at all answers `404` instead, so absence and denial are indistinguishable.",
         "content": {
           "application/json": {
             "schema": {
@@ -1923,7 +2153,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -1937,18 +2167,8 @@
           }
         }
       },
-      "Gone": {
-        "description": "The requested generated resource has expired.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
       "PayloadTooLarge": {
-        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -1993,7 +2213,7 @@
         }
       },
       "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced.",
+        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
         "content": {
           "application/json": {
             "schema": {
@@ -2013,7 +2233,12 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable.",
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
         "content": {
           "application/json": {
             "schema": {
@@ -2039,7 +2264,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Optional structured error details."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
               }
             },
             "required": ["code", "message"],
@@ -2168,7 +2393,7 @@
           },
           "isExternal": {
             "type": "boolean",
-            "description": "Whether the member belongs to a different organization than the workspace. True for an explicitly granted member whose own organization differs from the workspace's; false for the workspace owner and for a member sharing the workspace organization. Inherited organization-administrator access is always reported as false, so this is not a signal that access came from outside the explicit member list."
+            "description": "Whether the member belongs to a different organization than the workspace. True only for an explicitly granted member whose own organization differs; inherited organization-administrator access is always reported as false, so this does not detect every outside caller."
           },
           "joinedAt": {
             "type": "string",
@@ -2201,7 +2426,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2267,12 +2492,12 @@
             "description": "Whether the server tools are available to workflows."
           },
           "connectionStatus": {
-            "description": "Result of the most recent connection attempt.",
+            "description": "Result of the most recent connection attempt. Registration and re-registration establish no connection — the auth-type probe they may send does not count as one — so a server begins, and returns to, `disconnected` until a tool discovery runs.",
             "type": "string",
             "enum": ["connected", "disconnected", "error"]
           },
           "lastError": {
-            "description": "Message from the most recent failed connection, or null when absent.",
+            "description": "Message from the most recent failed connection, or null when absent. A re-registration clears it, since the configuration it described no longer applies.",
             "anyOf": [
               {
                 "type": "string"
@@ -2293,7 +2518,7 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "lastConnected": {
-            "description": "ISO 8601 timestamp of the most recent successful connection.",
+            "description": "ISO 8601 timestamp of the most recent successful connection. Absent until the server completes one; registering a server does not set it.",
             "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
@@ -2365,7 +2590,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2425,11 +2650,9 @@
               "timeout": 30000,
               "retries": 3,
               "enabled": true,
-              "connectionStatus": "connected",
+              "connectionStatus": "disconnected",
               "lastError": null,
-              "toolCount": 7,
-              "lastToolsRefresh": "2026-06-20T14:02:11.000Z",
-              "lastConnected": "2026-06-20T14:02:11.000Z",
+              "toolCount": 0,
               "createdAt": "2026-06-01T09:14:00.000Z",
               "updatedAt": "2026-06-20T14:02:11.000Z",
               "hasHeaders": true,
@@ -2468,15 +2691,15 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 2048,
-            "description": "Absolute HTTP or HTTPS endpoint URL without `{{ENV_VAR}}` references."
+            "description": "Absolute HTTP or HTTPS endpoint URL without `{{ENV_VAR}}` references. It determines server identity and is immutable: delete and recreate the server to change endpoints."
           },
           "authType": {
-            "description": "Authentication method. Sim detects it from the server when omitted.",
+            "description": "Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method.",
             "type": "string",
             "enum": ["none", "headers", "oauth"]
           },
           "headers": {
-            "description": "Write-only request headers sent to the server.",
+            "description": "Write-only request headers sent to the server. Replaced wholesale rather than merged on update: sending this field drops every stored header it does not repeat.",
             "writeOnly": true,
             "type": "object",
             "propertyNames": {
@@ -2508,7 +2731,7 @@
             "type": "boolean"
           },
           "oauthClientId": {
-            "description": "Pre-registered OAuth client identifier.",
+            "description": "Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization.",
             "anyOf": [
               {
                 "type": "string",
@@ -2520,7 +2743,7 @@
             ]
           },
           "oauthClientSecret": {
-            "description": "Write-only pre-registered OAuth client secret.",
+            "description": "Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication.",
             "writeOnly": true,
             "anyOf": [
               {
@@ -2657,12 +2880,12 @@
             "maxLength": 2048
           },
           "authType": {
-            "description": "Authentication method. Sim detects it from the server when omitted.",
+            "description": "Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method.",
             "type": "string",
             "enum": ["none", "headers", "oauth"]
           },
           "headers": {
-            "description": "Write-only request headers sent to the server.",
+            "description": "Write-only request headers sent to the server. Replaced wholesale rather than merged on update: sending this field drops every stored header it does not repeat.",
             "writeOnly": true,
             "type": "object",
             "propertyNames": {
@@ -2694,7 +2917,7 @@
             "type": "boolean"
           },
           "oauthClientId": {
-            "description": "Pre-registered OAuth client identifier.",
+            "description": "Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization.",
             "anyOf": [
               {
                 "type": "string",
@@ -2706,7 +2929,7 @@
             ]
           },
           "oauthClientSecret": {
-            "description": "Write-only pre-registered OAuth client secret.",
+            "description": "Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication.",
             "writeOnly": true,
             "anyOf": [
               {
@@ -2769,12 +2992,120 @@
           }
         ]
       },
+      "V2McpTool": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Tool name, as the MCP server reports it."
+          },
+          "description": {
+            "description": "Tool description reported by the server.",
+            "type": "string"
+          },
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "object",
+                "description": "JSON Schema type of the argument object. MCP requires `object`."
+              },
+              "properties": {
+                "description": "Argument schemas keyed by argument name.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "Server-defined JSON Schema for one tool argument."
+                }
+              },
+              "required": {
+                "description": "Names of the arguments the tool requires.",
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "Name of a required argument."
+                }
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": {
+              "description": "Additional JSON Schema keyword reported by the server."
+            },
+            "description": "JSON Schema for the tool's arguments, as reported by the server."
+          },
+          "serverId": {
+            "type": "string",
+            "description": "Identifier of the MCP server exposing the tool."
+          },
+          "serverName": {
+            "type": "string",
+            "description": "Display name of the MCP server exposing the tool."
+          }
+        },
+        "required": ["name", "inputSchema", "serverId", "serverName"],
+        "additionalProperties": false,
+        "title": "MCP tool",
+        "description": "A tool exposed by a registered MCP server."
+      },
+      "ListMcpServerToolsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2McpTool"
+            },
+            "description": "Items in the current page."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+          }
+        },
+        "required": ["data", "nextCursor"],
+        "additionalProperties": false,
+        "title": "List MCP server tools response",
+        "description": "Tools exposed by the MCP server.",
+        "examples": [
+          {
+            "data": [
+              {
+                "name": "search_docs",
+                "description": "Search the internal documentation",
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "description": "Search terms"
+                    }
+                  },
+                  "required": ["query"]
+                },
+                "serverId": "mcp-3f7a9c21",
+                "serverName": "Docs server"
+              }
+            ],
+            "nextCursor": null
+          }
+        ]
+      },
       "V2SkillSummary": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
-            "description": "Unique skill identifier. Built-in skills use their name as the id."
+            "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
           },
           "name": {
             "type": "string",
@@ -2825,7 +3156,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2853,7 +3184,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Unique skill identifier. Built-in skills use their name as the id."
+            "description": "Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`."
           },
           "name": {
             "type": "string",
@@ -3203,7 +3534,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3715,7 +4046,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3755,7 +4086,7 @@
           "scope": {
             "type": "string",
             "enum": ["workspace", "personal"],
-            "description": "Whether the secret belongs to the workspace or the caller."
+            "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
           },
           "role": {
             "type": "string",
@@ -3799,7 +4130,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3851,12 +4182,12 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
-            "description": "Workspace in which the secret is available."
+            "description": "Workspace the request is authorized against. A workspace secret is written to it; a personal secret is written to the caller and is available in all of their workspaces."
           },
           "scope": {
             "type": "string",
             "enum": ["workspace", "personal"],
-            "description": "Whether the secret belongs to the workspace or the caller."
+            "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
           },
           "value": {
             "type": "string",
@@ -3891,7 +4222,7 @@
           "scope": {
             "type": "string",
             "enum": ["workspace", "personal"],
-            "description": "Whether the secret belongs to the workspace or the caller."
+            "description": "Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace."
           },
           "deleted": {
             "type": "boolean",

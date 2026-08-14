@@ -2,10 +2,11 @@
  * @vitest-environment node
  */
 
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   failStaleDocumentProcessingClaim,
+  failUndispatchedDocumentProcessing,
   KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS,
   reclaimStaleDocumentProcessingClaim,
 } from '@/lib/knowledge/documents/processing-claim'
@@ -125,5 +126,59 @@ describe('failStaleDocumentProcessingClaim', () => {
     })
 
     expect(result.success).toBe(false)
+  })
+})
+
+describe('failUndispatchedDocumentProcessing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('fails the exact pending document', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }])
+
+    const failed = await failUndispatchedDocumentProcessing({
+      documentId: 'document-1',
+      knowledgeBaseId: 'knowledge-base-1',
+      error: 'Failed to start processing',
+      now: NOW,
+    })
+
+    expect(failed).toBe(true)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+      processingStatus: 'failed',
+      processingError: 'Failed to start processing',
+      processingCompletedAt: NOW,
+    })
+  })
+
+  /**
+   * The dispatch may have been accepted and only its acknowledgement lost, so a
+   * document a worker already claimed — or one already deleted — must survive
+   * this write untouched.
+   */
+  it('scopes the write to a pending, undeleted document', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const failed = await failUndispatchedDocumentProcessing({
+      documentId: 'document-1',
+      knowledgeBaseId: 'knowledge-base-1',
+      error: 'Failed to start processing',
+      now: NOW,
+    })
+
+    expect(failed).toBe(false)
+
+    const where = dbChainMockFns.where.mock.calls[0]?.[0]
+    expect(
+      hasMockCondition(
+        where,
+        (node) => node.type === 'eq' && node.left === 'processingStatus' && node.right === 'pending'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(where, (node) => node.type === 'isNull' && node.column === 'deletedAt')
+    ).toBe(true)
   })
 })

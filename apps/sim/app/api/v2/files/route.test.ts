@@ -1,17 +1,22 @@
 /**
  * @vitest-environment node
  */
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticateV2ApiKey: vi.fn(),
-  checkRateLimitDirect: vi.fn(),
-  checkRateLimitDirectOrThrow: vi.fn(),
   createFile: vi.fn(),
   queryFiles: vi.fn(),
   getUserEmailsByIds: vi.fn(),
-  gate: vi.fn(),
 }))
 
 vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
@@ -28,20 +33,9 @@ vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
   },
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mocks.checkRateLimitDirect
-    checkRateLimitDirectOrThrow = mocks.checkRateLimitDirectOrThrow
-  },
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/users/queries', () => ({
   getUserEmailsByIds: mocks.getUserEmailsByIds,
@@ -89,22 +83,13 @@ function createRequest(body: unknown): NextRequest {
 describe('/api/v2/files', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticateV2ApiKey.mockResolvedValue(auth)
-    mocks.gate.mockResolvedValue(null)
-    mocks.checkRateLimitDirect.mockResolvedValue({
-      allowed: true,
-      remaining: 599,
-      resetAt: new Date('2026-08-04T01:00:00.000Z'),
-    })
-    mocks.checkRateLimitDirectOrThrow.mockResolvedValue({
-      allowed: true,
-      remaining: 99,
-      resetAt: new Date('2026-08-04T01:00:00.000Z'),
-    })
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.queryFiles.mockResolvedValue({
       files: [FILE],
       nextKeys: undefined,
-      cursorSort: 'name:asc',
     })
     mocks.createFile.mockResolvedValue({ file: FILE })
     mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
@@ -114,9 +99,50 @@ describe('/api/v2/files', () => {
     const response = await GET(new NextRequest('http://localhost:3000/api/v2/files'))
 
     expect(response.status).toBe(400)
-    expect(mocks.authenticateV2ApiKey).toHaveBeenCalled()
-    expect(mocks.checkRateLimitDirectOrThrow).toHaveBeenCalledTimes(2)
+    expect(v2RouteMocks.authenticate).toHaveBeenCalled()
+    expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
     expect(mocks.queryFiles).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `?limit=` is not `limit` omitted. `Number('') === 0`, and this list clamps
+   * out-of-range values, so an unrejected blank reaches the query as `LIMIT 1`
+   * and returns a single row where the omitted param returns a hundred — a
+   * silently wrong page, not an error. Whitespace-only is the same value.
+   */
+  it.each(['limit=', 'limit=%20', 'sortBy=', 'cursor='])(
+    'rejects the blank query value %s instead of coercing it',
+    async (param) => {
+      const response = await GET(
+        new NextRequest(`http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}&${param}`)
+      )
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error.code).toBe('BAD_REQUEST')
+      expect(mocks.queryFiles).not.toHaveBeenCalled()
+    }
+  )
+
+  it('still applies the documented default when limit is omitted entirely', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}`)
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.queryFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ limit: 100 }) })
+    )
+  })
+
+  it('rejects an unauthenticated request', async () => {
+    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}`)
+    )
+
+    expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 
   it('lists through the shared use case and v2 presenter', async () => {
@@ -138,6 +164,7 @@ describe('/api/v2/files', () => {
           uploadedByEmail: 'ada@example.com',
           uploadedAt: '2026-08-04T00:00:00.000Z',
           updatedAt: '2026-08-05T00:00:00.000Z',
+          deletedAt: null,
         },
       ],
       nextCursor: null,
@@ -146,6 +173,7 @@ describe('/api/v2/files', () => {
       principal: auth.principal,
       input: expect.objectContaining({
         workspaceId: WORKSPACE_ID,
+        scope: 'active',
         sortBy: 'name',
         sortOrder: 'asc',
         limit: 100,
@@ -154,11 +182,39 @@ describe('/api/v2/files', () => {
     })
   })
 
+  it('pages the archived set and dates each soft delete when asked for it', async () => {
+    mocks.queryFiles.mockResolvedValueOnce({
+      files: [{ ...FILE, deletedAt: new Date('2026-08-06T00:00:00.000Z') }],
+      nextKeys: undefined,
+    })
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}&scope=archived`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data[0].deletedAt).toBe('2026-08-06T00:00:00.000Z')
+    expect(mocks.queryFiles).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: expect.objectContaining({ scope: 'archived' }),
+      request: expect.anything(),
+    })
+  })
+
+  it('rejects an unimplemented scope instead of silently listing the active set', async () => {
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}&scope=all`)
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.queryFiles).not.toHaveBeenCalled()
+  })
+
   it('preserves escaped slashes in the containing folder path', async () => {
     mocks.queryFiles.mockResolvedValueOnce({
       files: [{ ...FILE, folderId: 'folder-1', folderPath: 'Finance\\/Legal' }],
       nextKeys: undefined,
-      cursorSort: 'name:asc',
     })
     const response = await GET(
       new NextRequest(`http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}`)
@@ -166,6 +222,63 @@ describe('/api/v2/files', () => {
 
     expect(response.status).toBe(200)
     expect((await response.json()).data[0].folderPath).toBe('/Finance%2FLegal')
+  })
+
+  /**
+   * A keyset cursor stays *coherent* under a changed filter, which is what makes
+   * it dangerous: replaying it under a narrowed `search` returns a correctly
+   * ordered page of the new matches that happen to sort after the old position,
+   * and silently omits every match before it. The caller sees an opaque token
+   * and a short page, and reads that as "almost nothing matched".
+   */
+  it.each([
+    ['search', 'search=quarterly'],
+    ['scope', 'scope=archived'],
+    ['folderPath', 'folderPath=/Finance'],
+  ])('refuses a cursor replayed under a different %s', async (_filter, param) => {
+    mocks.queryFiles.mockResolvedValueOnce({ files: [FILE], nextKeys: ['notes.md', FILE.id] })
+    const firstPage = await (
+      await GET(new NextRequest(`http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}`))
+    ).json()
+    expect(firstPage.nextCursor).toEqual(expect.any(String))
+    mocks.queryFiles.mockClear()
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}&${param}&cursor=${encodeURIComponent(firstPage.nextCursor)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('requested filters') },
+    })
+    expect(mocks.queryFiles).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `limit` is not part of the binding: it selects how much of the sequence to
+   * return, not what the sequence is.
+   */
+  it('resumes a cursor under an unchanged filter and a changed page size', async () => {
+    mocks.queryFiles.mockResolvedValueOnce({ files: [FILE], nextKeys: ['notes.md', FILE.id] })
+    const firstPage = await (
+      await GET(new NextRequest(`http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}`))
+    ).json()
+    mocks.queryFiles.mockResolvedValueOnce({ files: [FILE], nextKeys: undefined })
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/files?workspaceId=${WORKSPACE_ID}&limit=5&cursor=${encodeURIComponent(firstPage.nextCursor)}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.queryFiles).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ limit: 5, after: ['notes.md', FILE.id] }),
+      })
+    )
   })
 
   it('rejects malformed cursors before the application service', async () => {
@@ -216,8 +329,8 @@ describe('/api/v2/files', () => {
     )
 
     expect(response.status).toBe(400)
-    expect(mocks.authenticateV2ApiKey).toHaveBeenCalled()
-    expect(mocks.checkRateLimitDirectOrThrow).toHaveBeenCalledTimes(2)
+    expect(v2RouteMocks.authenticate).toHaveBeenCalled()
+    expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
     expect(mocks.createFile).not.toHaveBeenCalled()
   })
 

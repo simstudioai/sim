@@ -17,6 +17,7 @@ import {
   listActiveFolderRows,
   listFoldersForWorkspace,
   loadActiveFolderPathIndex,
+  resolveFolderPathFilter,
   resolveRestoredFolderId,
   toFolderApi,
   wouldCreateFolderCycle,
@@ -315,6 +316,40 @@ describe('folder queries', () => {
         assertFolderCollectionHasRoom('ws-1', 'workflow', undefined, { additionalRows: 0 })
       ).resolves.toBeUndefined()
       expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    })
+  })
+
+  /**
+   * The one place the real helper is exercised. Every list use case that filters
+   * by `folderPath` mocks this module out and stands a reimplementation in for
+   * it, so a defect here — a miss widening to unfiltered, a root path that stops
+   * resolving — would leave all of those suites green while every filtered list
+   * answered with the wrong rows.
+   */
+  describe('resolveFolderPathFilter', () => {
+    const index = {
+      pathById: new Map([['f-1', 'Reports']]),
+      idByPath: new Map([['Reports', 'f-1']]),
+    }
+
+    it('treats an omitted path as no filter at all', () => {
+      expect(resolveFolderPathFilter(index, undefined)).toEqual({ kind: 'unfiltered' })
+    })
+
+    it('resolves the root path to the workspace root rather than to a folder id', () => {
+      expect(resolveFolderPathFilter(index, '/')).toEqual({ kind: 'folder', folderId: null })
+    })
+
+    it('resolves a named path to its folder id', () => {
+      expect(resolveFolderPathFilter(index, 'Reports')).toEqual({ kind: 'folder', folderId: 'f-1' })
+    })
+
+    /**
+     * A path naming no active folder narrows the list to nothing. Widening it to
+     * `unfiltered` would answer a scoped read with every row in the workspace.
+     */
+    it('narrows to nothing for a path that names no active folder', () => {
+      expect(resolveFolderPathFilter(index, 'Archive')).toEqual({ kind: 'noMatch' })
     })
   })
 

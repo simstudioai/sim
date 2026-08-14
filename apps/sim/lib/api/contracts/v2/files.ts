@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   isCanonicalBase64,
+  noInputSchema,
   workspaceFileIdSchema,
   workspaceFileNameSchema,
   workspaceIdSchema,
@@ -8,6 +9,7 @@ import {
 import { shareAuthTypeSchema, shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  V2_FOLDER_FILTER_MISS,
   v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
@@ -16,6 +18,7 @@ import {
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
+  v2PaginationFields,
   v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
@@ -58,13 +61,13 @@ export const v2FileSchema = z
       .number()
       .nonnegative()
       .describe(
-        'Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source rather than the rendered document, so this does not predict how many bytes `GET /files/{fileId}` returns — that endpoint serves the compiled artifact, which is typically much larger.'
+        'Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes `GET /files/{fileId}` returns.'
       )
       .meta({ examples: [1024] }),
     type: z
       .string()
       .describe(
-        'MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source, so this describes the source and not what `GET /files/{fileId}` serves — that endpoint returns the compiled artifact under the rendered document type.'
+        'MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type `GET /files/{fileId}` serves.'
       )
       .meta({ examples: ['text/csv'] }),
     key: z
@@ -89,6 +92,14 @@ export const v2FileSchema = z
       .string()
       .describe('ISO 8601 timestamp of the last content or metadata write.')
       .meta({ format: 'date-time', examples: ['2026-01-15T10:30:00Z'] }),
+    /** Non-null only for a file `DELETE` archived; see `scope` on the list. */
+    deletedAt: z
+      .string()
+      .nullable()
+      .describe(
+        'ISO 8601 timestamp when the file was archived by `DELETE /files/{fileId}`, or null while the file is active. Only `GET /files?scope=archived` returns files with a non-null value.'
+      )
+      .meta({ format: 'date-time', examples: ['2026-01-16T09:00:00Z'] }),
   })
   .meta({
     id: 'V2File',
@@ -162,9 +173,11 @@ export const v2CreateFileUploadBodySchema = z
   .strict()
 export type V2CreateFileUploadBody = z.input<typeof v2CreateFileUploadBodySchema>
 
-export const v2FileUploadWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the upload session.'),
-})
+export const v2FileUploadWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the upload session.'),
+  })
+  .strict()
 export type V2FileUploadWorkspaceQuery = z.output<typeof v2FileUploadWorkspaceQuerySchema>
 
 export const v2FileUploadSchema = z
@@ -244,7 +257,7 @@ export const v2CreateFileBodySchema = z
       .max(70_000_000, 'content is too large')
       .default('')
       .describe(
-        'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413. Use an upload session for anything larger.'
+        'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger.'
       ),
     encoding: z
       .enum(['utf-8', 'base64'])
@@ -270,6 +283,15 @@ export const v2FileSortFields = ['name', 'size', 'uploadedAt', 'updatedAt'] as c
 export type V2FileSortBy = (typeof v2FileSortFields)[number]
 
 /**
+ * Listing scopes, matching the internal surface. `all` is deliberately absent
+ * on both: it drops the `deleted_at` predicate, so it cannot use the partial
+ * index that serves the other two and degrades to a full workspace scan.
+ */
+export const v2FileScopeSchema = z.enum(['active', 'archived'])
+
+export type V2FileScope = z.output<typeof v2FileScopeSchema>
+
+/**
  * List query: workspace scope, the v2 search/sort convention, an optional
  * folder filter, and opaque keyset cursor pagination. `limit` clamps to
  * `[1, 1000]` (default 100) to bound the response.
@@ -284,25 +306,31 @@ export const v2ListFilesQuerySchema = z
     /** Restrict to one file folder. Omit to list the whole workspace. */
     folderPath: v2FolderPathInputSchema
       .optional()
-      .describe('Restrict results to files directly inside this folder.'),
+      .describe(`Restrict results to files directly inside this folder. ${V2_FOLDER_FILTER_MISS}`),
+    scope: v2FileScopeSchema
+      .default('active')
+      .describe(
+        'Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
+      ),
     search: v2SearchSchema.describe('Case-insensitive substring match against the file name.'),
     ...v2SortFields(v2FileSortFields, { sortBy: 'uploadedAt', sortOrder: 'asc' }),
-    limit: z.coerce
-      .number()
-      .optional()
-      .default(100)
-      .transform((v) => Math.min(Math.max(1, Math.trunc(v)), 1000))
-      .describe('Maximum files per page, clamped to 1–1000.'),
-    cursor: z.string().min(1).optional().describe('Opaque cursor returned by the previous page.'),
+    ...v2PaginationFields({
+      max: 1000,
+      fallback: 100,
+      outOfRange: 'clamp',
+      description: 'Maximum files per page.',
+    }),
   })
   .strict()
 
 export type V2ListFilesQuery = z.output<typeof v2ListFilesQuerySchema>
 
 /** Download/delete both target a single file within a workspace-scoped query. */
-export const v2FileWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
-})
+export const v2FileWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+  })
+  .strict()
 
 export type V2FileWorkspaceQuery = z.output<typeof v2FileWorkspaceQuerySchema>
 
@@ -312,6 +340,14 @@ export const v2RenameFileBodySchema = z
     name: workspaceFileNameSchema.describe('New file name, including its extension.'),
   })
   .strict()
+
+export const v2RestoreFileBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the archived file.'),
+  })
+  .strict()
+
+export type V2RestoreFileBody = z.input<typeof v2RestoreFileBodySchema>
 
 export type V2RenameFileBody = z.input<typeof v2RenameFileBodySchema>
 
@@ -398,12 +434,13 @@ export const v2ListFileFoldersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/files/folders',
   query: v2ListFoldersQuerySchema,
-  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema) },
+  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema, { paged: false }) },
 })
 
 export const v2CreateFileFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/folders',
+  query: noInputSchema,
   body: v2CreateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FolderSchema), status: 201 },
 })
@@ -411,6 +448,7 @@ export const v2CreateFileFolderContract = defineRouteContract({
 export const v2RelocateFileFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/files/folders',
+  query: noInputSchema,
   body: v2RelocateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FolderSchema) },
 })
@@ -439,19 +477,31 @@ export type V2NullableFileShare = z.output<typeof v2NullableFileShareSchema>
 export const v2UpsertFileShareBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
-    isActive: z.boolean().describe('Whether the share should resolve.'),
-    authType: shareAuthTypeSchema.optional().describe('How access to the share is gated.'),
+    isActive: z
+      .boolean()
+      .describe(
+        'Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use.'
+      ),
+    authType: shareAuthTypeSchema
+      .optional()
+      .describe(
+        'How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password.'
+      ),
     password: z
       .string()
       .min(1, 'password cannot be empty')
       .max(1024, 'password is too long')
       .optional()
-      .describe('Password for a password-gated share.'),
+      .describe(
+        'Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.'
+      ),
     allowedEmails: z
       .array(z.string().min(1, 'allowedEmails entries cannot be empty').max(320))
       .max(200, 'Too many allowed emails')
       .optional()
-      .describe('Allowed addresses or @domain patterns for email and SSO shares.'),
+      .describe(
+        'Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400.'
+      ),
   })
   .strict()
 
@@ -468,7 +518,7 @@ export const v2UpdateFileContentBodySchema = z
       .string()
       .max(70_000_000, 'content is too large')
       .describe(
-        'Complete replacement content for the file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413.'
+        'Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`.'
       ),
     encoding: z
       .enum(['utf-8', 'base64'])
@@ -501,6 +551,7 @@ export const v2ListFilesContract = defineRouteContract({
 export const v2CreateFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files',
+  query: noInputSchema,
   body: v2CreateFileBodySchema,
   response: {
     mode: 'json',
@@ -512,6 +563,7 @@ export const v2CreateFileContract = defineRouteContract({
 export const v2CreateFileUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/uploads',
+  query: noInputSchema,
   body: v2CreateFileUploadBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2CreateFileUploadDataSchema), status: 201 },
 })
@@ -568,6 +620,7 @@ export const v2GetFileContract = defineRouteContract({
 export const v2RenameFileContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/files/[fileId]',
+  query: noInputSchema,
   params: v2FileParamsSchema,
   body: v2RenameFileBodySchema,
   response: {
@@ -587,9 +640,22 @@ export const v2DeleteFileContract = defineRouteContract({
   },
 })
 
+export const v2RestoreFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/files/[fileId]/restore',
+  query: noInputSchema,
+  params: v2FileParamsSchema,
+  body: v2RestoreFileBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2FileSchema),
+  },
+})
+
 export const v2MoveFileItemsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/move',
+  query: noInputSchema,
   body: v2MoveFileItemsBodySchema,
   response: {
     mode: 'json',
@@ -600,6 +666,7 @@ export const v2MoveFileItemsContract = defineRouteContract({
 export const v2BulkDeleteFilesContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/bulk-delete',
+  query: noInputSchema,
   body: v2BulkDeleteFilesBodySchema,
   response: {
     mode: 'json',
@@ -631,6 +698,7 @@ export const v2GetFileShareContract = defineRouteContract({
 export const v2UpsertFileShareContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/files/[fileId]/share',
+  query: noInputSchema,
   params: v2FileParamsSchema,
   body: v2UpsertFileShareBodySchema,
   response: {
@@ -642,6 +710,7 @@ export const v2UpsertFileShareContract = defineRouteContract({
 export const v2UpdateFileContentContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/files/[fileId]/content',
+  query: noInputSchema,
   params: v2FileParamsSchema,
   body: v2UpdateFileContentBodySchema,
   response: {

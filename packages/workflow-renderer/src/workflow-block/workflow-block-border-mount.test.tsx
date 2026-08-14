@@ -13,6 +13,7 @@ import {
 import { createRoot, type Root } from 'react-dom/client'
 import { ReactFlowProvider } from 'reactflow'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { CONTAINER_DIMENSIONS } from '../dimensions'
 import {
   ERROR_SOURCE_HANDLE_POSITION,
   getCursorBranchSourceHandleId,
@@ -263,6 +264,62 @@ describe('WorkflowBlockBorder mount', () => {
     )
     const path = host.querySelector('svg path')
     expect(path?.getAttribute('d')?.length ?? 0).toBeGreaterThan(0)
+  })
+
+  /**
+   * The knob is a recolour of one stretch of the outline, so its commands have
+   * to BE the outline's commands. When the two were generated off different
+   * sample grids they disagreed by a fraction of a pixel at the shoulder tip,
+   * and the sliver of dark stroke the knob failed to cover read as a barb
+   * hanging off it.
+   *
+   * Only holds where a knob's own bulge is the tallest thing under it: a knob
+   * is painted from its own feature alone, while the silhouette takes the max
+   * over all of them, so two bulges tall enough to overlap genuinely part
+   * company. Every port layout the editor builds keeps them clear of one
+   * another.
+   */
+  const expectKnobsOnSilhouette = (host: HTMLElement) => {
+    const silhouette = host.querySelector('svg > path')?.getAttribute('d') ?? ''
+    const knobs = Array.from(host.querySelectorAll('svg > g[clip-path] path'))
+    expect(knobs.length).toBeGreaterThan(0)
+
+    for (const knob of knobs) {
+      const commands = (knob.getAttribute('d') ?? '').match(/C[^MLAC]+/g) ?? []
+      expect(commands.length).toBeGreaterThan(0)
+      for (const command of commands) {
+        expect(silhouette).toContain(command.trim())
+      }
+    }
+  }
+
+  it('paints every coloured knob on the silhouette’s own curve', () => {
+    const { host } = mount(
+      <div style={{ width: 250, height: 136 }}>
+        <WorkflowBlockBorder ports={ports} hasRing={false} ringStyles='' height={136} />
+      </div>
+    )
+    expectKnobsOnSilhouette(host)
+  })
+
+  it('keeps knobs on the curve when their resampled intervals merge', () => {
+    /* Two coloured ports close enough that `relativeIntervals` merges them
+       resample as one stretch, on a grid neither port's own bounds predict.
+       The odd tab length is the other half of the same trap: a knob measured
+       in whole pixels rather than against the interval it sits in lands half a
+       step off whenever the bulge does not divide evenly. */
+    const crowdedPorts: WorkflowBorderPort[] = [
+      { id: 'target', side: 'left', position: 'center', plateau: 33 },
+      { id: 'row-a', side: 'right', position: 60, plateau: 24, color: 'var(--brand-accent)' },
+      { id: 'row-b', side: 'right', position: 87.5, plateau: 24, color: 'var(--text-error)' },
+      { id: 'row-c', side: 'right', position: 140, plateau: 23, color: 'var(--warning)' },
+    ]
+    const { host } = mount(
+      <div style={{ width: 250, height: 260 }}>
+        <WorkflowBlockBorder ports={crowdedPorts} hasRing={false} ringStyles='' height={260} />
+      </div>
+    )
+    expectKnobsOnSilhouette(host)
   })
 
   it('paints a tall selector card across floating-point segment seams', () => {
@@ -903,7 +960,10 @@ describe('WorkflowBlockBorder mount', () => {
     )
 
     const header = host.querySelector('[data-subflow-header]')
-    expect(header).toHaveClass('h-[40px]')
+    /* Height comes from `CONTAINER_DIMENSIONS`, which the layout math also
+       measures against — asserting the rendered value rather than a utility
+       class keeps the two from drifting apart again. */
+    expect(header).toHaveStyle({ height: `${CONTAINER_DIMENSIONS.HEADER_HEIGHT}px` })
     expect(header).not.toHaveClass('border-b')
     expect(header).not.toHaveClass('bg-[var(--surface-2)]')
     expect(host.querySelector('[data-subflow-type-tag="loop"]')).toHaveTextContent('Loop')

@@ -35,8 +35,10 @@ vi.mock('@/app/api/v1/middleware', () => ({
 }))
 
 vi.mock('@/app/api/table/utils', () => ({
-  normalizeColumn: (column: unknown) => column,
   orchestrationErrorResponse: mocks.orchestrationErrorResponse,
+}))
+vi.mock('@/lib/table/wire', () => ({
+  normalizeColumn: (column: unknown) => column,
 }))
 
 vi.mock('@/lib/table', () => ({

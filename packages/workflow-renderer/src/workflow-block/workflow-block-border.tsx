@@ -150,6 +150,18 @@ interface WorkflowBlockBorderProps {
   cursorSwellEnabled?: boolean
   /** Limits pointer-following swells to specific card sides. */
   cursorSwellSides?: readonly WorkflowCardSide[]
+  /**
+   * Whether hovering this card may raise a swell to drag a connection OUT of
+   * it. False for cards that mount no source handle, so the swell never
+   * promises an edge the card cannot start.
+   */
+  canStartConnection?: boolean
+  /**
+   * Whether this card may raise a swell while a connection dragged from
+   * another card passes over it. False for cards that mount no target handle,
+   * so the swell never promises a drop the card cannot accept.
+   */
+  canReceiveConnection?: boolean
   radius?: number
   hasRing: boolean
   ringStyles: string
@@ -602,6 +614,18 @@ const findQuietStart = (intervals: ActiveInterval[], perimeterLength: number) =>
   return largestGap > 0 ? start : 0
 }
 
+/** Flat run resampled either side of a bulge, so its tail rejoins the edge. */
+const BULGE_INTERVAL_SLACK_PX = 4
+
+/**
+ * How far either side of a bulge's centre the outline is resampled — wider than
+ * the bulge itself, so the curve has flat perimeter to settle onto. It also
+ * fixes the sample grid a knob has to land on, which is why `visibleBulgeHalf`
+ * measures against it.
+ */
+const bulgeIntervalHalf = (plateau: number, shoulder: number) =>
+  plateau / 2 + shoulder + BULGE_INTERVAL_SLACK_PX
+
 const relativeIntervals = (features: BulgeFeature[], startS: number, perimeterLength: number) => {
   const intervals = features
     .filter(
@@ -614,7 +638,7 @@ const relativeIntervals = (features: BulgeFeature[], startS: number, perimeterLe
     )
     .map((feature) => {
       const center = modulo(feature.center - startS, perimeterLength)
-      const half = feature.plateau / 2 + feature.shoulder + 4
+      const half = bulgeIntervalHalf(feature.plateau, feature.shoulder)
       return { start: center - half, end: center + half }
     })
     .filter((interval) => interval.end > 0 && interval.start < perimeterLength)
@@ -671,19 +695,32 @@ const displacementAt = (
  * Where a bulge stops being drawn, by inverting the shoulder's easing at the
  * visibility threshold. The mathematical footprint (`plateau/2 + shoulder`)
  * overshoots this, because the tail is cut off once it flattens out.
+ *
+ * Pulled back to the silhouette's own sample points. `relativeIntervals`
+ * resamples a bulge over `bulgeIntervalHalf` either side of its centre, split
+ * into whole steps of about `SAMPLE_SPACING_PX` — so the crossing itself falls
+ * between two of them. A knob cut there sits on a grid of its own and drifts
+ * off the curve it is recolouring; see `buildSpanPath` for what that costs.
+ * Retreating to the last sample at or beyond the crossing keeps the knob on
+ * the silhouette's points whatever the bulge measures.
  */
 const visibleBulgeHalf = (plateau: number, shoulder: number, peak: number) => {
   const plateauHalf = plateau / 2
-  if (peak <= BULGE_VISIBLE_THRESHOLD_PX || shoulder <= 0) return plateauHalf
-  const target = 1 - BULGE_VISIBLE_THRESHOLD_PX / peak
-  let low = 0
-  let high = 1
-  for (let step = 0; step < 24; step++) {
-    const mid = (low + high) / 2
-    if (smootherstep(mid) < target) low = mid
-    else high = mid
+  let crossing = plateauHalf
+  if (peak > BULGE_VISIBLE_THRESHOLD_PX && shoulder > 0) {
+    const target = 1 - BULGE_VISIBLE_THRESHOLD_PX / peak
+    let low = 0
+    let high = 1
+    for (let step = 0; step < 24; step++) {
+      const mid = (low + high) / 2
+      if (smootherstep(mid) < target) low = mid
+      else high = mid
+    }
+    crossing = plateauHalf + high * shoulder
   }
-  return plateauHalf + high * shoulder
+  const intervalHalf = bulgeIntervalHalf(plateau, shoulder)
+  const step = (intervalHalf * 2) / Math.max(2, Math.ceil((intervalHalf * 2) / SAMPLE_SPACING_PX))
+  return intervalHalf - Math.floor((intervalHalf - crossing) / step) * step
 }
 
 const appendExactInterval = (
@@ -764,6 +801,7 @@ const appendActiveInterval = (
       `C${control1.x.toFixed(2)} ${control1.y.toFixed(2)} ${control2.x.toFixed(2)} ${control2.y.toFixed(2)} ${next.x.toFixed(2)} ${next.y.toFixed(2)}`
     )
   }
+  return points
 }
 
 /**
@@ -777,6 +815,16 @@ const appendActiveInterval = (
  * off its own knob, leaving a crescent of base colour showing inside it. Giving
  * the knob its own path removes the arc-length bookkeeping altogether: the
  * colour is drawn on the same points the silhouette was.
+ *
+ * Sampled a step wide on each side and then trimmed back to the span. Every
+ * control point is derived from the samples either side of it, so a span that
+ * stopped at its own ends would have to clamp its first and last to the bare
+ * perimeter tangent — and those two segments would bow differently from the
+ * outline they are painted over. The knob was then still flat where the
+ * silhouette had begun its descent, and the uncovered dark stroke read as a
+ * barb off the shoulder tip. Borrowing a sample beyond each end gives every
+ * emitted segment the neighbours the silhouette had, so the two agree command
+ * for command.
  */
 const buildSpanPath = (
   geometry: PerimeterGeometry,
@@ -787,18 +835,13 @@ const buildSpanPath = (
 ) => {
   const length = toS - fromS
   if (length <= 0) return ''
-  const located = pointAtArcLength(geometry, fromS)
-  const displacement = displacementAt(
-    modulo(fromS, geometry.length),
-    features,
-    geometry.length,
-    maximum
-  )
-  const originX = located.point.x + located.point.nx * displacement
-  const originY = located.point.y + located.point.ny * displacement
-  const commands = [`M${originX.toFixed(2)} ${originY.toFixed(2)}`]
-  appendActiveInterval(commands, geometry, features, maximum, fromS, { start: 0, end: length })
-  return commands.join(' ')
+  const commands: string[] = []
+  const points = appendActiveInterval(commands, geometry, features, maximum, fromS, {
+    start: -SAMPLE_SPACING_PX,
+    end: length + SAMPLE_SPACING_PX,
+  })
+  const origin = points[1]
+  return [`M${origin.x.toFixed(2)} ${origin.y.toFixed(2)}`, ...commands.slice(1, -1)].join(' ')
 }
 
 const buildPiecewisePath = (
@@ -848,6 +891,8 @@ export function WorkflowBlockBorder({
   ports,
   cursorSwellEnabled = true,
   cursorSwellSides,
+  canStartConnection = true,
+  canReceiveConnection = true,
   radius = 16,
   hasRing,
   ringStyles,
@@ -1404,6 +1449,13 @@ export function WorkflowBlockBorder({
         // Still over the node chrome (action tab / bridge) — keep listening so
         // returning to an edge immediately restores the swell.
         if (isPointerOverTrackingRoot(clientX, clientY)) {
+          /*
+           * Only the in-band path below recomputes the magnetized port, so
+           * leaving the band upward onto the action bar left the last knob
+           * pinned at hover amplitude — a port puffed out with the pointer
+           * nowhere near it.
+           */
+          hoveredPortRef.current = null
           cursorHoverAllowedRef.current = false
           cursorAmplitudeRef.current.target = 0
           startAnimation()
@@ -1537,7 +1589,7 @@ export function WorkflowBlockBorder({
 
     updatePointerTargetRef.current = updatePointerTarget
     resetPointerTrackingRef.current = stopPointerTracking
-    if (cursorSwellEnabled) {
+    if (cursorSwellEnabled && canStartConnection) {
       trackingRoot.addEventListener('pointerenter', onPointerEnter)
       trackingRoot.addEventListener('pointerleave', onPointerLeave)
       trackingRoot.addEventListener('pointerdown', onPointerDown, true)
@@ -1578,13 +1630,19 @@ export function WorkflowBlockBorder({
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current)
       frameRef.current = null
     }
-  }, [cursorSwellEnabled, cursorSwellSides])
+  }, [canStartConnection, cursorSwellEnabled, cursorSwellSides])
 
   useEffect(() => {
     if (!cursorSwellEnabled) {
       resetPointerTrackingRef.current()
       return
     }
+    /*
+     * Nothing to reset on this exit: the tracker is shared with this card's own
+     * hover, a separate capability, and clearing it would undo the layout
+     * effect's `:hover` bootstrap for a card that mounted under the pointer.
+     */
+    if (!canReceiveConnection) return
 
     /*
      * A connection drag captures the pointer on the origin card's handle, so
@@ -1644,7 +1702,7 @@ export function WorkflowBlockBorder({
       }
       resetPointerTrackingRef.current()
     }
-  }, [cursorSwellEnabled, getConnectionNodeId, nodeId])
+  }, [canReceiveConnection, cursorSwellEnabled, getConnectionNodeId, nodeId])
 
   const ring = resolveRing(ringStyles)
   const { d: path } = renderedPath

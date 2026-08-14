@@ -1,40 +1,27 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import {
+  createMockRequest,
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
-  class MockV2ApiKeyUnauthenticatedError extends Error {}
-  return {
-    MockV2ApiKeyUnauthenticatedError,
-    mocks: {
-      authenticate: vi.fn(),
-      cancel: vi.fn(),
-      capture: vi.fn(),
-      checkOperationRate: vi.fn(),
-      checkPreAuthRate: vi.fn(),
-      readRun: vi.fn(),
-    },
-  }
-})
-
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
+const mocks = vi.hoisted(() => ({
+  cancel: vi.fn(),
+  capture: vi.fn(),
+  readRun: vi.fn(),
 }))
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mocks.checkPreAuthRate
-    checkRateLimitDirectOrThrow = mocks.checkOperationRate
-  },
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 
@@ -98,6 +85,17 @@ const baseStatus = {
   blockOutputs: null,
 }
 
+/**
+ * Local denial fixture — the harness only publishes the allowed shapes, and the
+ * cancel adapter must surface `retryAfterMs` as a `Retry-After` header.
+ */
+const OPERATION_RATE_LIMIT_DENIED = {
+  allowed: false,
+  remaining: 0,
+  resetAt: new Date('2026-08-05T01:00:00Z'),
+  retryAfterMs: 5_000,
+} as const
+
 const successfulCancellation = {
   success: true,
   executionId: 'run-1',
@@ -113,17 +111,10 @@ const successfulCancellation = {
 describe('v2 run detail and cancel adapters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.authenticate.mockResolvedValue(auth)
-    mocks.checkPreAuthRate.mockResolvedValue({
-      allowed: true,
-      remaining: 599,
-      resetAt: new Date('2026-08-05T01:00:00Z'),
-    })
-    mocks.checkOperationRate.mockResolvedValue({
-      allowed: true,
-      remaining: 99,
-      resetAt: new Date('2026-08-05T01:00:00Z'),
-    })
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.readRun.mockResolvedValue(baseStatus)
     mocks.cancel.mockResolvedValue(successfulCancellation)
   })
@@ -223,13 +214,14 @@ describe('v2 run detail and cancel adapters', () => {
   })
 
   it('rejects missing API keys before reading the run', async () => {
-    mocks.authenticate.mockRejectedValueOnce(
+    v2RouteMocks.authenticate.mockRejectedValueOnce(
       new MockV2ApiKeyUnauthenticatedError('API key required')
     )
 
     const response = await callStatus()
 
     expect(response.status).toBe(401)
+    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
     expect(mocks.readRun).not.toHaveBeenCalled()
   })
 
@@ -249,8 +241,8 @@ describe('v2 run detail and cancel adapters', () => {
       input: { workflowId: 'workflow-1', runId: 'run-1' },
       request: expect.anything(),
     })
-    expect(mocks.checkOperationRate).toHaveBeenCalledTimes(2)
-    expect(mocks.checkOperationRate).toHaveBeenCalledWith(
+    expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
+    expect(v2RouteMocks.operationRate).toHaveBeenCalledWith(
       'v2:workflows.runs.cancel:api-key:key-1',
       expect.anything()
     )
@@ -258,18 +250,9 @@ describe('v2 run detail and cancel adapters', () => {
   })
 
   it('keeps cancellation request-rate admission separate from run control', async () => {
-    mocks.checkOperationRate
-      .mockResolvedValueOnce({
-        allowed: false,
-        remaining: 0,
-        resetAt: new Date('2026-08-05T01:00:00Z'),
-        retryAfterMs: 5_000,
-      })
-      .mockResolvedValueOnce({
-        allowed: true,
-        remaining: 99,
-        resetAt: new Date('2026-08-05T01:00:00Z'),
-      })
+    v2RouteMocks.operationRate
+      .mockResolvedValueOnce(OPERATION_RATE_LIMIT_DENIED)
+      .mockResolvedValueOnce(V2_OPERATION_RATE_LIMIT_ALLOWED)
 
     const response = await cancelPost(createMockRequest('POST', undefined, {}), {
       params: Promise.resolve({ id: 'workflow-1', runId: 'run-1' }),
@@ -296,7 +279,7 @@ describe('v2 run detail and cancel adapters', () => {
   })
 
   it('projects cancellation analytics only after a successful personal-key result', async () => {
-    mocks.authenticate.mockResolvedValueOnce({
+    v2RouteMocks.authenticate.mockResolvedValueOnce({
       ...auth,
       principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
       rolloutUserId: 'key-user',

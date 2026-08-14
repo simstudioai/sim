@@ -11,6 +11,24 @@ import { encodeFilenameForHeader, getSecureFileHeaders } from '@/app/api/files/u
 export const dynamic = 'force-dynamic'
 
 /**
+ * How long the browser may reuse an embedded image, decided by whether the URL names the exact object
+ * that was streamed (see {@link ReadWorkspaceInlineFileResult.contentAddressed}).
+ *
+ * A content write never rewrites a storage object, so a URL that names one addresses bytes that can
+ * never change and the browser needs no round trip — which is the difference between an embedded image
+ * reappearing instantly and being downloaded again. Every document render asks for the same image at
+ * least twice (ProseMirror's own DOM, then the React node view) and every editor mounts twice (the
+ * read-only placeholder, then the live editor), so revalidating each time meant re-fetching the whole
+ * image on every open and reload — measured at ~1 MB per open on a real document, with the image area
+ * blank until it landed. `private` keeps it out of shared caches: the bytes are authorized per user.
+ *
+ * Anything else — a request that names the FILE, whose bytes move under it, or one whose object was
+ * rotated away mid-request — keeps revalidating.
+ */
+const IMMUTABLE_CACHE_CONTROL = 'private, max-age=31536000, immutable'
+const REVALIDATE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
+
+/**
  * GET /api/workspaces/[id]/files/inline?key=<cloudKey>|fileId=<id>
  *
  * Serves an authenticated workspace-scoped image. Authentication and the
@@ -29,12 +47,12 @@ export const GET = defineInternalBinaryRoute({
     fileId: query.fileId,
   }),
   useCase: readWorkspaceInlineFile,
-  present: ({ file, stream }) => {
+  present: ({ file, stream, contentAddressed }) => {
     const secure = getSecureFileHeaders(file.name, file.type)
     const headers = new Headers({
       'Content-Type': secure.contentType,
       'Content-Disposition': `${secure.disposition}; ${encodeFilenameForHeader(file.name)}`,
-      'Cache-Control': 'private, no-cache, must-revalidate',
+      'Cache-Control': contentAddressed ? IMMUTABLE_CACHE_CONTROL : REVALIDATE_CACHE_CONTROL,
       'X-Content-Type-Options': 'nosniff',
     })
     if (secure.contentType === 'image/svg+xml') {

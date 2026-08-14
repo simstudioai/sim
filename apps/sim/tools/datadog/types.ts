@@ -21,9 +21,7 @@ interface DatadogBaseParams extends DatadogWriteOnlyParams {
   applicationKey: string
 }
 
-// ========================
 // METRICS TYPES
-// ========================
 
 export type MetricType = 'gauge' | 'rate' | 'count' | 'distribution'
 
@@ -115,9 +113,7 @@ interface GetMetricMetadataResponse extends ToolResponse {
   output: GetMetricMetadataOutput
 }
 
-// ========================
 // EVENTS TYPES
-// ========================
 
 export type EventAlertType =
   | 'error'
@@ -192,9 +188,7 @@ interface QueryEventsResponse extends ToolResponse {
   output: QueryEventsOutput
 }
 
-// ========================
 // MONITORS TYPES
-// ========================
 
 export type MonitorType =
   | 'metric alert'
@@ -356,9 +350,7 @@ interface UnmuteMonitorResponse extends ToolResponse {
   output: UnmuteMonitorOutput
 }
 
-// ========================
 // LOGS TYPES
-// ========================
 
 interface LogEntry {
   ddsource?: string
@@ -411,9 +403,7 @@ export interface QueryLogsResponse extends ToolResponse {
   output: QueryLogsOutput
 }
 
-// ========================
 // DOWNTIME TYPES
-// ========================
 
 export interface CreateDowntimeParams extends DatadogBaseParams {
   scope: string // Scope to apply downtime (e.g., "host:myhost" or "*")
@@ -480,9 +470,7 @@ export interface CancelDowntimeResponse extends ToolResponse {
   output: CancelDowntimeOutput
 }
 
-// ========================
 // SLO TYPES
-// ========================
 
 export type SloType = 'metric' | 'monitor' | 'time_slice'
 
@@ -560,9 +548,7 @@ interface GetSloHistoryResponse extends ToolResponse {
   output: GetSloHistoryOutput
 }
 
-// ========================
 // DASHBOARD TYPES
-// ========================
 
 export type DashboardLayoutType = 'ordered' | 'free'
 
@@ -639,9 +625,7 @@ interface ListDashboardsResponse extends ToolResponse {
   output: ListDashboardsOutput
 }
 
-// ========================
 // HOSTS TYPES
-// ========================
 
 interface ListHostsParams extends DatadogBaseParams {
   filter?: string // Filter hosts by name, alias, or tag
@@ -691,9 +675,7 @@ interface ListHostsResponse extends ToolResponse {
   output: ListHostsOutput
 }
 
-// ========================
 // INCIDENTS TYPES
-// ========================
 
 export type IncidentSeverity = 'SEV-1' | 'SEV-2' | 'SEV-3' | 'SEV-4' | 'SEV-5' | 'UNKNOWN'
 export type IncidentState = 'active' | 'stable' | 'resolved'

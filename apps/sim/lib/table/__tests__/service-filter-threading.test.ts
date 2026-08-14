@@ -26,6 +26,9 @@ vi.mock('@/lib/table/trigger', () => ({
   fireTableTrigger: vi.fn(),
 }))
 
+vi.mock('@/lib/table/workflow-group-deps', () => ({
+  stripGroupDeps: vi.fn(),
+}))
 vi.mock('@/lib/table/workflow-columns', () => ({
   assertValidSchema: vi.fn(),
   scheduleRunsForRows: vi.fn(),

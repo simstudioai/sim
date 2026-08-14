@@ -1,20 +1,18 @@
 import { v2CompleteKnowledgeDocumentUploadContract } from '@/lib/api/contracts/v2/knowledge'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { completeKnowledgeDocumentUpload } from '@/lib/knowledge/application/upload-sessions'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  toV2KnowledgeDocumentUpload,
-  v2KnowledgeDocumentUploadError,
-} from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
+import { toV2KnowledgeDocumentUpload } from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
 
 export const POST = defineV2JsonRoute({
   contract: v2CompleteKnowledgeDocumentUploadContract,
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.uploadComplete,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: { render: v2KnowledgeDocumentUploadError },
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseUploadAuthorization,
   mapInput: ({ params, query, headers }) => ({
     knowledgeBaseId: params.id,
     assertedWorkspaceId: query.workspaceId,

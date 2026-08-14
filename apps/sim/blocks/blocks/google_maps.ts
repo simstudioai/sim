@@ -124,7 +124,6 @@ export const GoogleMapsBlock: BlockConfig = {
       condition: { field: 'operation', value: 'speed_limits' },
     },
 
-    // ========== Geocode ==========
     {
       id: 'address',
       title: 'Address',

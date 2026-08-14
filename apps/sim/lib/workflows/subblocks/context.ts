@@ -37,6 +37,7 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
   'awsRegion',
   'logGroupName',
   'tableId',
+  'jobId',
   'orgId',
   'database',
   'schema',

@@ -15,6 +15,7 @@ export type ServiceAccountFieldId =
   | 'botToken'
   | 'clientId'
   | 'clientSecret'
+  | 'certificateId'
   | 'orgId'
   | 'dataCenter'
   | 'authMethod'

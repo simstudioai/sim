@@ -46,6 +46,7 @@ import { ToolSubBlockRenderer } from '@/app/workspace/[workspaceId]/w/[workflowI
 import { clearDependentToolParams } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
 import type { StoredTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/types'
 import {
+  isAgentToolBlock,
   isCustomToolAlreadySelected,
   isMcpToolAlreadySelected,
   isWorkflowAlreadySelected,
@@ -665,21 +666,7 @@ export const ToolInput = memo(function ToolInput({
 
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const toolBlocks = useMemo(() => {
-    const allToolBlocks = getAllBlocks().filter(
-      (block) =>
-        !block.hideFromToolbar &&
-        (block.category === 'tools' ||
-          block.type === 'api' ||
-          block.type === 'webhook_request' ||
-          block.type === 'workflow' ||
-          block.type === 'workflow_input' ||
-          block.type === 'knowledge' ||
-          block.type === 'function' ||
-          block.type === 'table') &&
-        block.type !== 'evaluator' &&
-        block.type !== 'mcp' &&
-        block.type !== 'file'
-    )
+    const allToolBlocks = getAllBlocks().filter(isAgentToolBlock)
     return filterBlocks(allToolBlocks)
   }, [filterBlocks, customBlockOverlayVersion])
 

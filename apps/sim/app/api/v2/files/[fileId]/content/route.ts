@@ -8,7 +8,6 @@ import {
 } from '@/lib/workspace-files/application/update-workspace-file-content'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { toV2File } from '@/app/api/v2/files/utils'
-import { v2Error } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -21,7 +20,6 @@ export const PUT = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   parseOptions: {
-    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
     maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
   },
   beforeParse: async ({ principal, params }) => {

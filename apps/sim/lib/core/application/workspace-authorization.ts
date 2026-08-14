@@ -5,6 +5,7 @@ import {
   permissionSatisfies,
   resolveEffectiveWorkspacePermission,
 } from '@sim/platform-authz/workspace'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import type {
   PrincipalForOperation,
   WorkspaceOperation,
@@ -28,13 +29,19 @@ export interface WorkspaceAuthorizationOptions<C extends WorkspaceAuthorizationC
   delegation?: WorkspaceDelegationPolicy<C>
 }
 
-export class InsufficientWorkspacePermissionsError extends OrchestrationError {
+export class InsufficientWorkspacePermissionsError extends ForbiddenOperationError {
   constructor() {
-    super('forbidden', 'Insufficient workspace permissions')
+    super('INSUFFICIENT_WORKSPACE_ROLE', 'Insufficient workspace permissions')
     this.name = 'InsufficientWorkspacePermissionsError'
   }
 }
 
+/**
+ * No reach into the workspace at all. Carries no `detailCode` on purpose: the v2
+ * surface conceals this as a `404`, and a code would restate the resource's
+ * existence that the concealment withholds. The message stays identical to
+ * {@link InsufficientWorkspacePermissionsError} for the same reason.
+ */
 export class NoWorkspaceAccessError extends OrchestrationError {
   constructor() {
     super('forbidden', 'Insufficient workspace permissions')
@@ -42,20 +49,24 @@ export class NoWorkspaceAccessError extends OrchestrationError {
   }
 }
 
-export class PersonalApiKeysDisabledError extends OrchestrationError {
+export class PersonalApiKeysDisabledError extends ForbiddenOperationError {
   constructor() {
-    super('forbidden', 'Personal API keys are not allowed for this workspace')
+    super('PERSONAL_API_KEYS_DISABLED', 'Personal API keys are not allowed for this workspace')
     this.name = 'PersonalApiKeysDisabledError'
   }
 }
 
-export class WorkspaceApiKeyAuthorizationError extends OrchestrationError {
+export class WorkspaceApiKeyAuthorizationError extends ForbiddenOperationError {
   constructor() {
-    super('forbidden', 'Workspace API key cannot perform this operation')
+    super(
+      'WORKSPACE_KEY_OPERATION_NOT_PERMITTED',
+      'Workspace API key cannot perform this operation'
+    )
     this.name = 'WorkspaceApiKeyAuthorizationError'
   }
 }
 
+/** Concealed as a `404`; see {@link NoWorkspaceAccessError} for why it has no code. */
 export class WorkspaceApiKeyScopeAuthorizationError extends OrchestrationError {
   constructor() {
     super('forbidden', 'Workspace API key cannot access this workspace')
@@ -63,6 +74,7 @@ export class WorkspaceApiKeyScopeAuthorizationError extends OrchestrationError {
   }
 }
 
+/** Concealed as a `404`; see {@link NoWorkspaceAccessError} for why it has no code. */
 export class DelegatedWorkspaceAuthorizationError extends OrchestrationError {
   constructor() {
     super('forbidden', 'Delegated workspace access is no longer valid')
@@ -70,13 +82,21 @@ export class DelegatedWorkspaceAuthorizationError extends OrchestrationError {
   }
 }
 
-export class PrincipalKindAuthorizationError extends OrchestrationError {
+export class PrincipalKindAuthorizationError extends ForbiddenOperationError {
   constructor(principalKind: Principal['kind'], operationId: string) {
-    super('forbidden', `Principal kind ${principalKind} cannot perform operation ${operationId}`)
+    super(
+      'PRINCIPAL_KIND_NOT_PERMITTED',
+      `Principal kind ${principalKind} cannot perform operation ${operationId}`
+    )
     this.name = 'PrincipalKindAuthorizationError'
   }
 }
 
+/**
+ * Only a delegated principal can raise this, and no delegated principal reaches
+ * `/api/v2` — the surface authenticates API keys only — so it carries no v2
+ * `detailCode`.
+ */
 export class DelegatedServiceAuthorizationError extends OrchestrationError {
   constructor(serviceId: DelegatedPrincipal['serviceId'], operationId: string) {
     super('forbidden', `Delegated service ${serviceId} cannot perform operation ${operationId}`)
@@ -89,6 +109,20 @@ export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
   operation: O
 ): asserts principal is PrincipalForOperation<O> {
   if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
+    /**
+     * A workspace key refused because the operation does not delegate to one is
+     * the case {@link WorkspaceApiKeyAuthorizationError} exists to name, and the
+     * one the `WORKSPACE_API_KEY_DENIED` OpenAPI sentence promises. It has to be
+     * separated here rather than left to `authorizeWorkspaceOperation`: an
+     * operation that denies workspace keys also omits `workspace_api_key` from
+     * `principalKinds` — `defineWorkspaceOperation` enforces that the two agree
+     * — so this guard always fires first and the later branch can never see such
+     * a principal. Reported as the generic kind refusal, a client branching on
+     * the published `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` never matched.
+     */
+    if (principal.kind === 'workspace_api_key' && operation.workspaceApiKey === 'deny') {
+      throw new WorkspaceApiKeyAuthorizationError()
+    }
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
   }
   if (principal.kind !== 'delegated') return

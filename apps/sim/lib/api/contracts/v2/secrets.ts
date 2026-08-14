@@ -1,10 +1,11 @@
 import { z } from 'zod'
 import { workspaceCredentialRoleSchema } from '@/lib/api/contracts/credentials'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
   v2DataResponse,
+  v2PaginationFields,
   v2SearchSchema,
   v2SortFields,
   v2TimestampSchema,
@@ -14,7 +15,9 @@ const SECRET_NAME_REGEX = /^[A-Za-z0-9_]+$/
 
 export const v2SecretScopeSchema = z
   .enum(['workspace', 'personal'])
-  .describe('Whether the secret belongs to the workspace or the caller.')
+  .describe(
+    'Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace.'
+  )
 export type V2SecretScope = z.output<typeof v2SecretScopeSchema>
 
 export const v2SecretNameSchema = z
@@ -57,12 +60,15 @@ export type V2SecretDeleteData = z.output<typeof v2SecretDeleteDataSchema>
 export const v2SecretSortFields = ['name', 'createdAt', 'updatedAt'] as const
 export type V2SecretSortBy = (typeof v2SecretSortFields)[number]
 
-export const v2ListSecretsQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace whose secret metadata should be listed.'),
-  scope: v2SecretScopeSchema.optional().describe('Restrict results to one ownership scope.'),
-  search: v2SearchSchema.describe('Case-insensitive substring match against the secret name.'),
-  ...v2SortFields(v2SecretSortFields, { sortBy: 'name', sortOrder: 'asc' }),
-})
+export const v2ListSecretsQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace whose secret metadata should be listed.'),
+    scope: v2SecretScopeSchema.optional().describe('Restrict results to one ownership scope.'),
+    search: v2SearchSchema.describe('Case-insensitive substring match against the secret name.'),
+    ...v2SortFields(v2SecretSortFields, { sortBy: 'name', sortOrder: 'asc' }),
+    ...v2PaginationFields({ description: 'Maximum secrets to return per page.' }),
+  })
+  .strict()
 export type V2ListSecretsQuery = z.output<typeof v2ListSecretsQuerySchema>
 
 export const v2SecretParamsSchema = z.object({
@@ -72,7 +78,9 @@ export type V2SecretParams = z.output<typeof v2SecretParamsSchema>
 
 export const v2SetSecretBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema.describe('Workspace in which the secret is available.'),
+    workspaceId: workspaceIdSchema.describe(
+      'Workspace the request is authorized against. A workspace secret is written to it; a personal secret is written to the caller and is available in all of their workspaces.'
+    ),
     scope: v2SecretScopeSchema,
     value: z
       .string()
@@ -84,13 +92,20 @@ export const v2SetSecretBodySchema = z
   .strict()
 export type V2SetSecretBody = z.input<typeof v2SetSecretBodySchema>
 
-export const v2DeleteSecretQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace in which the secret is available.'),
-  scope: v2SecretScopeSchema,
-})
+export const v2DeleteSecretQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe(
+      'Workspace the request is authorized against. A workspace secret is deleted from it; a personal secret is deleted for the caller in all of their workspaces.'
+    ),
+    scope: v2SecretScopeSchema,
+  })
+  .strict()
 export type V2DeleteSecretQuery = z.output<typeof v2DeleteSecretQuerySchema>
 
-/** Lists names and metadata only. There is deliberately no single-secret GET. */
+/**
+ * Lists names and metadata only, keyset-paginated over the active sort. There is
+ * deliberately no single-secret GET, and no response ever carries a value.
+ */
 export const v2ListSecretsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/secrets',
@@ -105,6 +120,7 @@ export const v2ListSecretsContract = defineRouteContract({
 export const v2SetSecretContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/secrets/[name]',
+  query: noInputSchema,
   params: v2SecretParamsSchema,
   body: v2SetSecretBodySchema,
   response: {

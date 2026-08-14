@@ -11,19 +11,24 @@ import {
   v2DeleteMcpServerContract,
   v2GetMcpServerContract,
   v2ListMcpServersContract,
+  v2ListMcpServerToolsContract,
   v2UpdateMcpServerContract,
 } from '@/lib/api/contracts/v2/mcp-servers'
 import {
   documentedSchema,
   ERROR_RESPONSES,
   type ErrorResponseId,
+  FULL_SET_LIST,
+  HEAD_MIRRORS_GET,
   RATE_LIMIT_HEADERS,
+  RESOURCE_CONFLICT_ERRORS,
+  RESOURCE_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
-  WORKSPACE_ERRORS,
+  withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   v2DeleteSecretContract,
@@ -88,6 +93,28 @@ const MCP_SERVER_EXAMPLE = {
   hasHeaders: true,
   headerNames: ['Authorization'],
   hasOauthClientSecret: false,
+} as const
+
+/**
+ * What registration actually returns, as distinct from {@link MCP_SERVER_EXAMPLE},
+ * which shows a server a discovery has already reached. Reusing the discovered
+ * example on the create response advertised a connection the call does not make.
+ */
+const MCP_SERVER_REGISTERED_EXAMPLE = (() => {
+  const { lastToolsRefresh: _refresh, lastConnected: _connected, ...rest } = MCP_SERVER_EXAMPLE
+  return { ...rest, connectionStatus: 'disconnected', toolCount: 0 } as const
+})()
+
+const MCP_TOOL_EXAMPLE = {
+  name: 'search_docs',
+  description: 'Search the internal documentation',
+  inputSchema: {
+    type: 'object',
+    properties: { query: { type: 'string', description: 'Search terms' } },
+    required: ['query'],
+  },
+  serverId: 'mcp-3f7a9c21',
+  serverName: 'Docs server',
 } as const
 
 const SKILL_SUMMARY_EXAMPLE = {
@@ -186,7 +213,7 @@ function resourceOperation(
   }
 }
 
-const routes = [
+const declaredRoutes = [
   defineOpenApiRoute(
     v2GetWorkspaceContract,
     resourceOperation('Workspaces', {
@@ -194,10 +221,11 @@ const routes = [
       summary: 'Get Workspace',
       description:
         'Return public metadata for one accessible workspace. Governance identities, billing identities, and internal membership identifiers are intentionally omitted.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'Public workspace metadata.' },
     }),
     {
+      query: v2GetWorkspaceContract.query,
       params: documentedSchema(
         v2GetWorkspaceContract.params,
         'GetWorkspaceParams',
@@ -220,7 +248,7 @@ const routes = [
       summary: 'List Workspace Members',
       description:
         "List the workspace's effective members ordered by email. Explicit workspace grants and inherited organization-administrator grants are merged; internal membership and billing identities are omitted.",
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'An email-ordered page of effective workspace members.' },
     }),
     {
@@ -251,8 +279,8 @@ const routes = [
       operationId: 'listMcpServers',
       summary: 'List MCP Servers',
       description:
-        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{id}/tools` runs a discovery.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'MCP servers registered in the workspace.' },
     }),
     {
@@ -260,7 +288,7 @@ const routes = [
         v2ListMcpServersContract.query,
         'ListMcpServersQuery',
         'List MCP servers query',
-        'Workspace, search, and sorting controls for MCP servers.'
+        'Workspace, search, sorting, and pagination controls for MCP servers.'
       ),
       response: documentedSchema(
         v2ListMcpServersContract.response.schema,
@@ -277,11 +305,12 @@ const routes = [
       operationId: 'createMcpServer',
       summary: 'Create MCP Server',
       description:
-        'Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only. `transport`, `timeout`, `retries`, and `enabled` are applied server-side when omitted; the effective values are in the response.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+        'Register an MCP server in a workspace. The endpoint URL is the server identity, so a URL already registered here is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{id}` instead. Registration never connects to the endpoint: the server comes back `disconnected` and stays unavailable until `GET /api/v2/mcp-servers/{id}/tools` succeeds.',
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The MCP server was registered.' },
     }),
     {
+      query: v2CreateMcpServerContract.query,
       body: documentedSchema(
         v2CreateMcpServerContract.body,
         'CreateMcpServerRequest',
@@ -302,7 +331,7 @@ const routes = [
         'CreateMcpServerResponse',
         'Create MCP server response',
         'The registered MCP server without write-only credentials.',
-        [{ data: MCP_SERVER_EXAMPLE }]
+        [{ data: MCP_SERVER_REGISTERED_EXAMPLE }]
       ),
     }
   ),
@@ -313,7 +342,7 @@ const routes = [
       summary: 'Get MCP Server',
       description:
         'Fetch one MCP server by identifier. Request-header values and OAuth client secrets are never returned.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The MCP server.' },
     }),
     {
@@ -344,11 +373,12 @@ const routes = [
       operationId: 'updateMcpServer',
       summary: 'Update MCP Server',
       description:
-        'Update the supplied MCP server fields. The URL is immutable because it determines server identity; delete and recreate the server to change endpoints. Two fields do not follow the omitted-fields-are-retained rule. `headers` is replaced wholesale rather than merged: sending it drops every stored header it does not repeat, and the only way to keep a header is to resend it. Changing `oauthClientId`, or sending `oauthClientSecret` as null or a new value, revokes the stored OAuth grant and forces reauthorization; switching away from OAuth authentication revokes it too.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+        'Update the supplied MCP server fields. Omitted fields are retained, except where a field says otherwise. Any change that invalidates authentication revokes the stored OAuth grant, resets `connectionStatus` to `disconnected`, and clears `lastConnected` and `lastError`, so the server must be rediscovered.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'The updated MCP server.' },
     }),
     {
+      query: v2UpdateMcpServerContract.query,
       params: documentedSchema(
         v2UpdateMcpServerContract.params,
         'UpdateMcpServerParams',
@@ -378,7 +408,7 @@ const routes = [
       summary: 'Delete MCP Server',
       description:
         "Remove an MCP server and revoke its OAuth tokens. Workflows retain blocks that referenced the server's tools, but those tools can no longer be called.",
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The MCP server was deleted.' },
     }),
     {
@@ -404,13 +434,44 @@ const routes = [
     }
   ),
   defineOpenApiRoute(
+    v2ListMcpServerToolsContract,
+    resourceOperation('MCP Servers', {
+      operationId: 'listMcpServerTools',
+      summary: 'List MCP Server Tools',
+      description: `Connect to a registered MCP server and return the tools it exposes. This read has side effects: it opens a live connection to the third-party server and writes \`connectionStatus\`, \`toolCount\`, \`lastError\`, and \`lastToolsRefresh\`. ${HEAD_MIRRORS_GET} Discovery is bounded at 1,000 tools and 5 MB of tool payload per server. ${FULL_SET_LIST} An unreachable, slow, or cooling-down server is a \`503\`; a stored OAuth grant that no longer works is a \`409\` with \`error.details.code\` \`MCP_SERVER_REAUTHORIZATION_REQUIRED\`, which only a human reauthorizing in Sim can clear. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Tools exposed by the MCP server.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ListMcpServerToolsContract.params,
+        'ListMcpServerToolsParams',
+        'List MCP server tools path parameters',
+        'MCP server whose tools should be listed.'
+      ),
+      query: documentedSchema(
+        v2ListMcpServerToolsContract.query,
+        'ListMcpServerToolsQuery',
+        'List MCP server tools query',
+        'Workspace scope and cache control for tool discovery.'
+      ),
+      response: documentedSchema(
+        v2ListMcpServerToolsContract.response.schema,
+        'ListMcpServerToolsResponse',
+        'List MCP server tools response',
+        'Tools exposed by the MCP server.',
+        [{ data: [MCP_TOOL_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2ListSkillsContract,
     resourceOperation('Skills', {
       operationId: 'listSkills',
       summary: 'List Skills',
       description:
-        'List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies and uses the standard cursor envelope with `nextCursor` always null, so there is no second page to fetch; fetch one skill to read its content.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+        'List workspace and built-in skills with opaque cursor pagination. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'Skills available in the workspace.' },
     }),
     {
@@ -434,12 +495,12 @@ const routes = [
     resourceOperation('Skills', {
       operationId: 'createSkill',
       summary: 'Create Skill',
-      description:
-        'Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. Note that a workspace API key may create a skill but may not later update or delete it.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      description: `Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The skill was created.' },
     }),
     {
+      query: v2CreateSkillContract.query,
       body: documentedSchema(
         v2CreateSkillContract.body,
         'CreateSkillRequest',
@@ -470,7 +531,7 @@ const routes = [
       summary: 'Get Skill',
       description:
         'Fetch one workspace or built-in skill, including its full content. Built-in skills are marked read-only.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The skill.' },
     }),
     {
@@ -501,10 +562,11 @@ const routes = [
       operationId: 'updateSkill',
       summary: 'Update Skill',
       description: `Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated skill.' },
     }),
     {
+      query: v2UpdateSkillContract.query,
       params: documentedSchema(
         v2UpdateSkillContract.params,
         'UpdateSkillParams',
@@ -533,7 +595,7 @@ const routes = [
       operationId: 'deleteSkill',
       summary: 'Delete Skill',
       description: `Delete a workspace skill. Built-in skills are read-only and cannot be deleted. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The skill was deleted.' },
     }),
     {
@@ -564,8 +626,8 @@ const routes = [
       operationId: 'listCustomTools',
       summary: 'List Custom Tools',
       description:
-        'List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+        'List code-backed custom tools defined in a workspace, with opaque cursor pagination. Legacy personal tools are excluded.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'Custom tools defined in the workspace.' },
     }),
     {
@@ -591,10 +653,11 @@ const routes = [
       summary: 'Create Custom Tool',
       description:
         'Create a code-backed custom tool in a workspace. Its title must be unique because tools resolve by title at call time.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The custom tool was created.' },
     }),
     {
+      query: v2CreateCustomToolContract.query,
       body: documentedSchema(
         v2CreateCustomToolContract.body,
         'CreateCustomToolRequest',
@@ -624,7 +687,7 @@ const routes = [
       operationId: 'getCustomTool',
       summary: 'Get Custom Tool',
       description: 'Fetch one custom tool by identifier, scoped to its workspace.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The custom tool.' },
     }),
     {
@@ -656,10 +719,11 @@ const routes = [
       summary: 'Update Custom Tool',
       description:
         'Update the supplied custom tool fields. Omitted fields retain their stored values, and titles must remain unique within the workspace.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated custom tool.' },
     }),
     {
+      query: v2UpdateCustomToolContract.query,
       params: documentedSchema(
         v2UpdateCustomToolContract.params,
         'UpdateCustomToolParams',
@@ -689,7 +753,7 @@ const routes = [
       summary: 'Delete Custom Tool',
       description:
         'Delete a custom tool. Agent blocks retain their configuration but can no longer call the deleted tool.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The custom tool was deleted.' },
     }),
     {
@@ -720,8 +784,8 @@ const routes = [
       operationId: 'listCredentials',
       summary: 'List Credentials',
       description:
-        'List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed. The bounded set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+        'List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are not exposed.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'Credentials visible to the caller.' },
     }),
     {
@@ -745,8 +809,8 @@ const routes = [
     resourceOperation('Secrets', {
       operationId: 'listSecrets',
       summary: 'List Secrets',
-      description: `List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned. The bounded set uses the standard cursor envelope with \`nextCursor\` always null; there is no second page to fetch. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      description: `List workspace and caller-owned personal secret metadata with opaque cursor pagination. Only names, scope, role, and timestamps are returned; secret values are never returned. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
       success: { description: 'Secret metadata visible to the caller.' },
     }),
     {
@@ -771,7 +835,7 @@ const routes = [
       operationId: 'setSecret',
       summary: 'Set Secret',
       description: `Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: {
         byStatus: {
           200: { description: 'The existing secret value was replaced.' },
@@ -780,6 +844,7 @@ const routes = [
       },
     }),
     {
+      query: v2SetSecretContract.query,
       params: documentedSchema(
         v2SetSecretContract.params,
         'SetSecretParams',
@@ -814,7 +879,7 @@ const routes = [
       operationId: 'deleteSecret',
       summary: 'Delete Secret',
       description: `Delete a workspace or caller-owned personal secret without reading or returning its stored value. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The secret was deleted.' },
     }),
     {
@@ -848,6 +913,8 @@ const routes = [
     }
   ),
 ] as const
+
+const routes = declaredRoutes.map(withRequestBodyErrors)
 
 export const resourcesOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-resources.json',

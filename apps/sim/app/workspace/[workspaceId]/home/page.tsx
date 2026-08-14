@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
-import { prefetchHomeLists } from '@/app/workspace/[workspaceId]/home/prefetch'
+import { prefetchHomeSurface } from '@/app/workspace/[workspaceId]/home/prefetch'
 import { resolveTableViewsEnabled } from '@/app/workspace/[workspaceId]/home/resolve-table-views-flag'
 import { Home } from './home'
 import { HomeFallback } from './home-fallback'
@@ -23,13 +23,13 @@ export default async function HomePage({ params }: { params: Promise<{ workspace
     redirect(`/workspace/${workspaceId}`)
   }
 
-  const queryClient = getQueryClient()
-  const listsPrefetch = prefetchHomeLists(queryClient, workspaceId)
-
   const session = await getSession()
   const userId = session?.user?.id
-  const tableViewsEnabled = await resolveTableViewsEnabled(workspaceId, userId)
-  await listsPrefetch
+  const queryClient = getQueryClient()
+  const [tableViewsEnabled] = await Promise.all([
+    resolveTableViewsEnabled(workspaceId, userId),
+    prefetchHomeSurface(queryClient, workspaceId, userId),
+  ])
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

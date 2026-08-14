@@ -336,6 +336,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
           shiftSourceBlockIds,
           horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
           verticalSpacing: DEFAULT_VERTICAL_SPACING,
+          previousBlocks: workflowState.blocks,
         })
       } catch (error) {
         logger.warn('Targeted autolayout failed, using default positions', {

@@ -442,6 +442,9 @@ export async function executeVfsRead(
             'This file result cannot be shared safely because its secret provenance is unavailable.',
         }
       }
+      if (fileContent.error !== undefined) {
+        return { success: false, error: fileContent.error }
+      }
       logger.debug('vfs_read resolved workspace file', {
         path,
         totalLines: fileContent.totalLines,

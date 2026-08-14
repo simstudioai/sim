@@ -570,22 +570,42 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toBe('# From server')
   })
 
-  it('seeds the document only once from the server across concurrent joiners of the same file', async () => {
+  it('seeds once across concurrent joiners, and every one of them waits for that seed', async () => {
     // Keep the first seed fetch IN FLIGHT so the doc is still unseeded when the second socket joins:
-    // that forces the dedup onto `serverSeedStarted` (the in-flight guard) rather than `isDocSeeded`.
+    // that forces the dedup onto the in-flight seed rather than `isDocSeeded`. Both joins must WAIT
+    // for it — a joiner answered before the seed would be handed an empty document and would then
+    // watch the content arrive as a live update.
     let resolveSeed: (v: { update: Uint8Array; version: number } | null) => void = () => {}
     mockFetchFileDocSeed.mockReturnValueOnce(new Promise((resolve) => (resolveSeed = resolve)))
     const { io } = createIo()
     const a = setup('socket-a', io)
     const b = setup('socket-b', io)
 
-    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
-    // Second join happened with the fetch still pending; only after this does the seed land.
-    expect(mockFetchFileDocSeed).toHaveBeenCalledTimes(1)
-    resolveSeed(seedResult('# From server'))
+    const joinA = a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    const joinB = b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
     await flushMicrotasks()
+
+    // The second join found the seed already in flight, so it does not start another one — and
+    // neither join has been answered yet.
     expect(mockFetchFileDocSeed).toHaveBeenCalledTimes(1)
+    expect(joinSuccessFileId(a.socket)).toBeUndefined()
+    expect(joinSuccessFileId(b.socket)).toBeUndefined()
+
+    resolveSeed(seedResult('# From server'))
+    await Promise.all([joinA, joinB])
+    expect(mockFetchFileDocSeed).toHaveBeenCalledTimes(1)
+
+    // The joiner that never triggered the fetch is served the seeded document all the same.
+    b.socket.emit.mockClear()
+    b.handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) => syncProtocol.writeSyncStep1(e, new Y.Doc()))
+    )
+    const reply = b.socket.emit.mock.calls.find(
+      ([event, payload]) => event === FILE_DOC_EVENTS.MESSAGE && payload instanceof Uint8Array
+    )
+    const clientDoc = new Y.Doc()
+    applySyncReply(reply?.[1] as Uint8Array, clientDoc)
+    expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toBe('# From server')
   })
 
   it('marks an empty/absent-file doc seeded so clients still reach readiness', async () => {
@@ -640,43 +660,58 @@ describe('setupWorkspaceFileDocHandlers', () => {
     expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toBe('# Recovered')
   })
 
-  it('does not seed a room that was dropped while the seed fetch was in flight', async () => {
-    let resolveSeed: (v: { update: Uint8Array; version: number } | null) => void = () => {}
-    mockFetchFileDocSeed.mockReturnValueOnce(new Promise((resolve) => (resolveSeed = resolve)))
-    const { io } = createIo()
-    const { handlers } = setup('socket-1', io)
-
-    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    // The only owner leaves → the room (and its doc) is destroyed while the fetch is still pending.
-    cleanupFileDocForSocket('socket-1', io, true)
-    // Resolving now must not touch the destroyed doc or throw (liveness re-check after the await).
-    resolveSeed(seedResult('# Too late'))
-    await expect(flushMicrotasks()).resolves.toBeUndefined()
-  })
-
-  it('still seeds when content was synced into the doc before the seed returned', async () => {
-    // Defensive: the guard is `isDocSeeded`, NOT doc-emptiness. In practice a fresh client never
-    // writes ahead of the seed (@tiptap/y-tiptap suppresses the empty-paragraph placeholder and real
-    // edits are readiness-gated), but even if some update landed content in the doc before the seed
-    // fetch resolved, the seed must still apply and set the flag — or the client's
-    // `synced && initialContentLoaded` gate would never open.
+  it('does not seed a room the joiner abandoned while the seed fetch was in flight', async () => {
     let resolveSeed: (v: { update: Uint8Array; version: number } | null) => void = () => {}
     mockFetchFileDocSeed.mockReturnValueOnce(new Promise((resolve) => (resolveSeed = resolve)))
     const { io } = createIo()
     const { socket, handlers } = setup('socket-1', io)
-    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
 
-    // The client syncs a placeholder update — content in the doc, but no seed flag.
-    const placeholder = new Y.Doc()
-    placeholder.getText(FILE_DOC_FIELD).insert(0, 'x')
-    handlers[FILE_DOC_EVENTS.MESSAGE](
-      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
-        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(placeholder))
-      )
-    )
-    resolveSeed(seedResult('# Seeded'))
+    const joining = handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await flushMicrotasks()
+    // The client leaves before the room finished assembling → the join aborts and drops the room it
+    // was preparing (nothing else owns it).
+    handlers[FILE_DOC_EVENTS.LEAVE]({ fileId: 'file-1' })
+    // Resolving now must not touch the destroyed doc or throw (liveness re-check after the await).
+    resolveSeed(seedResult('# Too late'))
+    await expect(joining).resolves.toBeUndefined()
+    expect(joinSuccessFileId(socket)).toBeUndefined()
+    expect(socket.join).not.toHaveBeenCalled()
+  })
+
+  it('attaches a client only once the document is whole — no empty sync, no frames before it', async () => {
+    // The room assembles itself into the same doc that fans updates out to its room, so a socket
+    // attached mid-assembly receives the document's history rather than the document. Nothing about
+    // the client exists in the room until the seed has landed: no membership, no sync, and any frame
+    // it sends meanwhile is not applied.
+    let resolveSeed: (v: { update: Uint8Array; version: number } | null) => void = () => {}
+    mockFetchFileDocSeed.mockReturnValueOnce(new Promise((resolve) => (resolveSeed = resolve)))
+    const { io } = createIo()
+    const { socket, handlers } = setup('socket-1', io)
+    const joining = handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
     await flushMicrotasks()
 
+    expect(socket.join).not.toHaveBeenCalled()
+    expect(joinSuccessFileId(socket)).toBeUndefined()
+    expect(
+      socket.emit.mock.calls.some(
+        ([event, payload]) => event === FILE_DOC_EVENTS.MESSAGE && payload instanceof Uint8Array
+      )
+    ).toBe(false)
+
+    // A document frame sent before the join was answered reaches an unbound socket and is dropped.
+    const early = new Y.Doc()
+    early.getText(FILE_DOC_FIELD).insert(0, 'too early')
+    handlers[FILE_DOC_EVENTS.MESSAGE](
+      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
+        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(early))
+      )
+    )
+
+    resolveSeed(seedResult('# Seeded'))
+    await joining
+    expect(joinSuccessFileId(socket)).toBe('file-1')
+
+    // The first thing the client is served is the finished document — content and seed flag together.
     socket.emit.mockClear()
     handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) => syncProtocol.writeSyncStep1(e, new Y.Doc()))
@@ -687,7 +722,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const clientDoc = new Y.Doc()
     applySyncReply(reply?.[1] as Uint8Array, clientDoc)
     expect(clientDoc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag)).toBe(true)
-    expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toContain('# Seeded')
+    expect(clientDoc.getText(FILE_DOC_FIELD).toString()).toBe('# Seeded')
   })
 
   it('merges a copilot edit into a seeded live room and relays it to editors', async () => {

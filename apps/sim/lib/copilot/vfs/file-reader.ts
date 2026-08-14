@@ -447,6 +447,8 @@ export interface FileReadResult {
   totalLines: number
   /** Set when `content` stands in for the file rather than being it — see `readPlaceholder`. */
   placeholder?: PlaceholderKind
+  /** Set when a dynamic read resolved the file but failed to produce its requested view. */
+  error?: string
   attachment?: {
     type: string
     name?: string

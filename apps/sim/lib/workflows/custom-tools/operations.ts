@@ -2,9 +2,21 @@ import { db } from '@sim/db'
 import { customTools } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
-import { and, type Column, desc, eq, isNull, or } from 'drizzle-orm'
-import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-query'
+import { and, desc, eq, isNull, or } from 'drizzle-orm'
+import {
+  type CursorKey,
+  type KeysetKey,
+  keysetColumns,
+  keysetPage,
+  type ListSortOrder,
+  listOrderBy,
+  resumeKeyset,
+  searchFilter,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { assertStorableCustomToolSchema } from '@/lib/custom-tools/schema'
 
 const logger = createLogger('CustomToolsOperations')
 
@@ -26,6 +38,14 @@ export async function upsertCustomTools(params: {
   requestId?: string
 }) {
   const { tools, workspaceId, userId, requestId = generateRequestId() } = params
+
+  /**
+   * Ahead of the transaction so a batch is rejected whole rather than landing
+   * the tools that preceded the unstorable one.
+   */
+  for (const tool of tools) {
+    assertStorableCustomToolSchema(tool.schema)
+  }
 
   return await db.transaction(async (tx) => {
     for (const tool of tools) {
@@ -131,6 +151,29 @@ export async function listCustomTools(params: { userId: string; workspaceId?: st
         .orderBy(desc(customTools.createdAt))
 }
 
+type CustomToolRow = typeof customTools.$inferSelect
+
+const customToolId = textKey<CustomToolRow>(customTools.id, (row) => row.id)
+
+/**
+ * Keyset orderings for the public list's sortable fields, made total over the
+ * contract enum by `satisfies`. Each ends in `id` so tools sharing a title or a
+ * timestamp still come back in a stable order — which is also what makes the
+ * cursor resumable, since a non-unique final key can repeat or skip a row at a
+ * page boundary.
+ */
+const CUSTOM_TOOL_SORTS = {
+  title: [textKey<CustomToolRow>(customTools.title, (row) => row.title), customToolId],
+  createdAt: [
+    timestampKey<CustomToolRow>(customTools.createdAt, (row) => row.createdAt),
+    customToolId,
+  ],
+  updatedAt: [
+    timestampKey<CustomToolRow>(customTools.updatedAt, (row) => row.updatedAt),
+    customToolId,
+  ],
+} satisfies Record<CustomToolSortBy, readonly KeysetKey<CustomToolRow>[]>
+
 /**
  * Workspace-scoped reads and deletes.
  *
@@ -139,35 +182,33 @@ export async function listCustomTools(params: { userId: string; workspaceId?: st
  * scoped in every direction, so it uses these instead — a caller holding a
  * workspace key must never reach another user's personal tool.
  */
-/**
- * Orderings for the public list's sortable fields, made total over the contract
- * enum by `satisfies`. Each ends in `id` so tools sharing a timestamp still come
- * back in a stable order.
- */
-const CUSTOM_TOOL_SORTS = {
-  title: [customTools.title, customTools.id],
-  createdAt: [customTools.createdAt, customTools.id],
-  updatedAt: [customTools.updatedAt, customTools.id],
-} satisfies Record<CustomToolSortBy, readonly Column[]>
-
 export async function listWorkspaceCustomTools(params: {
   workspaceId: string
   /** Case-insensitive substring match on the tool title. */
   search?: string
   sortBy?: CustomToolSortBy
   sortOrder?: ListSortOrder
+  limit: number
+  cursorKeys?: CursorKey[]
 }) {
-  const { sortBy = 'createdAt', sortOrder = 'desc' } = params
-  return db
+  const { sortBy = 'createdAt', sortOrder = 'desc', limit } = params
+  const keys = CUSTOM_TOOL_SORTS[sortBy]
+  const resumeAfter = resumeKeyset(keys, params.cursorKeys, sortOrder)
+
+  const rows = await db
     .select()
     .from(customTools)
     .where(
       and(
         eq(customTools.workspaceId, params.workspaceId),
-        searchFilter(customTools.title, params.search)
+        searchFilter(customTools.title, params.search),
+        resumeAfter
       )
     )
-    .orderBy(...listOrderBy(CUSTOM_TOOL_SORTS[sortBy], sortOrder))
+    .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
+    .limit(limit + 1)
+
+  return keysetPage(keys, rows, limit)
 }
 
 export async function getWorkspaceCustomTool(params: { workspaceId: string; toolId: string }) {

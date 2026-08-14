@@ -3,7 +3,7 @@
 // Maps block types to their icon component references
 
 import type { ComponentType, SVGProps } from 'react'
-import { Library } from '@sim/emcn/icons'
+import { Library, Rocket } from '@sim/emcn/icons'
 import {
   A2AIcon,
   AgentMailIcon,
@@ -136,6 +136,7 @@ import {
   LinkupIcon,
   LinqIcon,
   LogfireIcon,
+  LogRocketIcon,
   LoopsIcon,
   LumaIcon,
   MailchimpIcon,
@@ -155,6 +156,7 @@ import {
   MongoDBIcon,
   MySQLIcon,
   Neo4jIcon,
+  NetSuiteIcon,
   NeverBounceIcon,
   NewRelicIcon,
   NotionIcon,
@@ -205,7 +207,6 @@ import {
   ServiceNowIcon,
   SftpIcon,
   ShopifyIcon,
-  SimDeploymentsIcon,
   SimilarwebIcon,
   SimTriggerIcon,
   SixtyfourIcon,
@@ -245,6 +246,7 @@ import {
   WebhookIcon,
   WhatsAppIcon,
   WikipediaIcon,
+  WindchillIcon,
   WizaIcon,
   WordpressIcon,
   WorkdayIcon,
@@ -308,7 +310,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   datadog: DatadogIcon,
   datagma: DatagmaIcon,
   daytona: DaytonaIcon,
-  deployments: SimDeploymentsIcon,
+  deployments: Rocket,
   devin: DevinIcon,
   discord: DiscordIcon,
   docusign: DocuSignIcon,
@@ -413,6 +415,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   linkup: LinkupIcon,
   linq: LinqIcon,
   logfire: LogfireIcon,
+  logrocket: LogRocketIcon,
   logs: Library,
   logs_v2: Library,
   loops: LoopsIcon,
@@ -438,6 +441,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   mongodb: MongoDBIcon,
   mysql: MySQLIcon,
   neo4j: Neo4jIcon,
+  netsuite: NetSuiteIcon,
   neverbounce: NeverBounceIcon,
   new_relic: NewRelicIcon,
   notion: NotionIcon,
@@ -538,6 +542,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   webflow: WebflowIcon,
   whatsapp: WhatsAppIcon,
   wikipedia: WikipediaIcon,
+  windchill: WindchillIcon,
   wiza: WizaIcon,
   wordpress: WordpressIcon,
   workday: WorkdayIcon,
