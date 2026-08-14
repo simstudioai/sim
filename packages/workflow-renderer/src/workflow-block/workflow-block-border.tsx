@@ -150,6 +150,18 @@ interface WorkflowBlockBorderProps {
   cursorSwellEnabled?: boolean
   /** Limits pointer-following swells to specific card sides. */
   cursorSwellSides?: readonly WorkflowCardSide[]
+  /**
+   * Whether hovering this card may raise a swell to drag a connection OUT of
+   * it. False for cards that mount no source handle, so the swell never
+   * promises an edge the card cannot start.
+   */
+  canStartConnection?: boolean
+  /**
+   * Whether this card may raise a swell while a connection dragged from
+   * another card passes over it. False for cards that mount no target handle,
+   * so the swell never promises a drop the card cannot accept.
+   */
+  canReceiveConnection?: boolean
   radius?: number
   hasRing: boolean
   ringStyles: string
@@ -879,6 +891,8 @@ export function WorkflowBlockBorder({
   ports,
   cursorSwellEnabled = true,
   cursorSwellSides,
+  canStartConnection = true,
+  canReceiveConnection = true,
   radius = 16,
   hasRing,
   ringStyles,
@@ -1435,6 +1449,13 @@ export function WorkflowBlockBorder({
         // Still over the node chrome (action tab / bridge) — keep listening so
         // returning to an edge immediately restores the swell.
         if (isPointerOverTrackingRoot(clientX, clientY)) {
+          /*
+           * Drop the magnetized port too. Only the in-band path below
+           * recomputes it, so leaving the band upward onto the action bar left
+           * the last knob pinned at hover amplitude — the card kept a port
+           * puffed out with the pointer nowhere near it.
+           */
+          hoveredPortRef.current = null
           cursorHoverAllowedRef.current = false
           cursorAmplitudeRef.current.target = 0
           startAnimation()
@@ -1568,7 +1589,7 @@ export function WorkflowBlockBorder({
 
     updatePointerTargetRef.current = updatePointerTarget
     resetPointerTrackingRef.current = stopPointerTracking
-    if (cursorSwellEnabled) {
+    if (cursorSwellEnabled && canStartConnection) {
       trackingRoot.addEventListener('pointerenter', onPointerEnter)
       trackingRoot.addEventListener('pointerleave', onPointerLeave)
       trackingRoot.addEventListener('pointerdown', onPointerDown, true)
@@ -1609,10 +1630,10 @@ export function WorkflowBlockBorder({
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current)
       frameRef.current = null
     }
-  }, [cursorSwellEnabled, cursorSwellSides])
+  }, [canStartConnection, cursorSwellEnabled, cursorSwellSides])
 
   useEffect(() => {
-    if (!cursorSwellEnabled) {
+    if (!cursorSwellEnabled || !canReceiveConnection) {
       resetPointerTrackingRef.current()
       return
     }
@@ -1675,7 +1696,7 @@ export function WorkflowBlockBorder({
       }
       resetPointerTrackingRef.current()
     }
-  }, [cursorSwellEnabled, getConnectionNodeId, nodeId])
+  }, [canReceiveConnection, cursorSwellEnabled, getConnectionNodeId, nodeId])
 
   const ring = resolveRing(ringStyles)
   const { d: path } = renderedPath

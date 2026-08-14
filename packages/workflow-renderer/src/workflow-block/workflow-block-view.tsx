@@ -64,6 +64,12 @@ const TAB_LENGTH_HEADER_ONLY_PX = 10
 /** The error knob is deliberately the shortest of the connection knobs — it is
  *  a secondary output, and a full-length tab crowds the card's bottom corner. */
 const TAB_HEIGHT_RATIO = 0.5
+/**
+ * Cursor-swell sides for a card that takes no input. Matching the subflow
+ * start node, only the source edge may swell, so a trigger never raises a knob
+ * on the edge where every other card shows its input.
+ */
+const SOURCE_ONLY_CURSOR_SIDES = ['right'] as const
 const CARD_CORNER_RADIUS_PX = 16
 const CORNER_SLACK_PX = 4
 const ACTION_MENU_RIGHT_INSET_PX = 24
@@ -874,6 +880,9 @@ export function WorkflowBlockView({
           }
           isSelected={usesSelectedVisuals}
           height={blockHeight}
+          cursorSwellSides={shouldShowDefaultHandles ? undefined : SOURCE_ONLY_CURSOR_SIDES}
+          canStartConnection={supportsCursorHandle}
+          canReceiveConnection={shouldShowDefaultHandles}
           onCursorHandleChange={supportsCursorHandle ? onCursorHandleChange : undefined}
           onActionMenuReadyChange={setActionMenuSwellReady}
         />
