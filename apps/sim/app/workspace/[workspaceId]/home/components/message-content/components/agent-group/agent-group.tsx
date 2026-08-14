@@ -119,7 +119,18 @@ export function AgentGroup({
   isLaneOpen = false,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
-  const headerText = intent ? `${agentLabel} — ${intent}` : agentLabel
+  // Status line preference: the agent's own <intent> tag, else the latest
+  // tool's display title while the lane is live — so the collapsed card always
+  // narrates activity even for models that skip prose entirely.
+  const latestToolTitle = (() => {
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i]
+      if (it.type === 'tool') return it.data.displayTitle || String(it.data.toolName ?? '')
+    }
+    return undefined
+  })()
+  const status = intent ?? (isLaneOpen ? latestToolTitle : undefined)
+  const headerText = status ? `${agentLabel} — ${status}` : agentLabel
   const hasItems = items.length > 0
   const resolved = isAgentGroupResolved(items)
   const browserAgentAvailable = isBrowserAgentAvailable()
