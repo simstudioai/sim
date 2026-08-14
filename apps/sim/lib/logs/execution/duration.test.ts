@@ -68,11 +68,24 @@ describe('elapsedDurationMsSql', () => {
    * wall clock through a later cancel includes the time it sat waiting, so
    * overwriting would silently redefine what the column means for that run.
    */
-  it('keeps a duration the row already carries', () => {
+  it('keeps the duration a paused run already recorded', () => {
     const { sql } = render(new Date('2026-08-13T12:00:05.000Z'))
 
-    expect(sql).toContain('COALESCE(')
-    expect(sql.indexOf('COALESCE(')).toBeLessThan(sql.indexOf('LEAST('))
+    expect(sql).toContain(`"status" = 'pending' THEN COALESCE(`)
     expect(sql).toContain('"total_duration_ms"')
+  })
+
+  /**
+   * Resuming flips the row back to `running` and leaves the checkpoint value
+   * behind, so a resumed run carries a stale duration while it is accruing time
+   * again. Preserving it would freeze a cancelled run at its pre-resume reading.
+   */
+  it('recomputes for a running row rather than trusting a stale checkpoint', () => {
+    const { sql } = render(new Date('2026-08-13T12:00:05.000Z'))
+
+    const elseBranch = sql.slice(sql.indexOf('ELSE'))
+    expect(elseBranch).toContain('LEAST(')
+    expect(elseBranch).not.toContain('COALESCE(')
+    expect(elseBranch).not.toContain('"total_duration_ms"')
   })
 })

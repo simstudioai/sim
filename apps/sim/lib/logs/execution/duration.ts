@@ -29,15 +29,21 @@ import { type SQL, sql } from 'drizzle-orm'
  * duration is wrong in the last digit; a failed terminal write is wrong about
  * whether the run ended.
  *
- * A duration already on the row wins. This fills a gap; it does not restate an
- * answer someone else computed. The case that makes the difference is a paused
- * run: it records its *active* duration at the pause checkpoint, and elapsed
- * wall clock through a later cancel would silently redefine that to include the
- * time it sat waiting. On the paths where the column is still null — every
- * other cancellation — the coalesce is inert.
+ * A duration a *paused* run already recorded wins, and only that one. Pausing
+ * writes the run's active duration at the checkpoint, which elapsed wall clock
+ * through a later cancel would redefine to include the time it sat waiting.
+ *
+ * The status is what distinguishes it, not merely the column being populated:
+ * resuming flips the row back to `running` and leaves that checkpoint value
+ * behind, so a resumed run carries a stale duration while it is once again
+ * accruing time. Keeping it there would freeze a cancelled run at its
+ * pre-resume reading and disagree with the resume completion path, which
+ * measures wall clock. A `running` row therefore always recomputes; only a
+ * `pending` one — paused, and not accruing — keeps what it has.
  */
 const INT4_MAX_MS = 2_147_483_647
 
 export function elapsedDurationMsSql(endedAt: Date): SQL<number> {
-  return sql<number>`COALESCE(${workflowExecutionLogs.totalDurationMs}, LEAST(${INT4_MAX_MS}, GREATEST(1, ROUND(EXTRACT(EPOCH FROM (${endedAt.toISOString()}::timestamp - ${workflowExecutionLogs.startedAt})) * 1000)))::integer)`
+  const elapsed = sql`LEAST(${INT4_MAX_MS}, GREATEST(1, ROUND(EXTRACT(EPOCH FROM (${endedAt.toISOString()}::timestamp - ${workflowExecutionLogs.startedAt})) * 1000)))::integer`
+  return sql<number>`CASE WHEN ${workflowExecutionLogs.status} = 'pending' THEN COALESCE(${workflowExecutionLogs.totalDurationMs}, ${elapsed}) ELSE ${elapsed} END`
 }
