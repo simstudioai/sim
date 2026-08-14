@@ -1,3 +1,8 @@
+/**
+ * @vitest-environment node
+ */
+
+import { workflowExecutionLogs } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1696,7 +1701,7 @@ describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
       level: string
       status: string
       endedAt: Date
-      totalDurationMs: unknown
+      totalDurationMs: { strings: TemplateStringsArray; values: unknown[] }
       executionDeadlineAt: Date | null
       executionData: unknown
     }
@@ -1704,22 +1709,21 @@ describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
     expect(payload.status).toBe('failed')
     expect(payload.endedAt).toBeInstanceOf(Date)
     expect(payload.executionDeadlineAt).toBeNull()
-    expect(payload.totalDurationMs).toBeDefined()
-    expect(dbMocks.sql.param).toHaveBeenCalledWith(payload.endedAt, expect.anything())
-  })
 
-  /**
-   * A resumed run whose pause state fails to persist can still be `pending`, and
-   * the duration it banked at the checkpoint must survive the force-fail rather
-   * than be redefined to include the time it sat waiting.
-   */
-  it('leaves a paused run its checkpoint duration', async () => {
-    await LoggingSession.markExecutionAsFailed('exec-paused', 'boom', undefined, 'wf-1')
+    /**
+     * The duration is the derived SQL fragment, not a number the caller carried
+     * in — `elapsedDurationMsSql` measures against the row's own `started_at`
+     * and preserves what a paused row already banked.
+     */
+    expect(String(Array.from(payload.totalDurationMs.strings))).toContain("= 'pending' THEN ")
+    expect(payload.totalDurationMs.values).toContain(workflowExecutionLogs.totalDurationMs)
 
-    const durationGuards = dbMocks.sql.mock.calls
-      .map(([strings]) => String(Array.from(strings)))
-      .filter((query) => query.includes("= 'pending'"))
-    expect(durationGuards).toHaveLength(1)
+    /**
+     * The end instant is bound through `started_at`'s encoder specifically.
+     * `endedAt`'s encoder renders identically and would silently subtract the
+     * timestamp from itself — a duration of zero on every force-failed run.
+     */
+    expect(dbMocks.sql.param).toHaveBeenCalledWith(payload.endedAt, workflowExecutionLogs.startedAt)
   })
 
   it('clears Redis markers when marking failed (terminal boundary outside completeWorkflowExecution)', async () => {

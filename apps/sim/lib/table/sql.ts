@@ -404,48 +404,54 @@ function validateComparisonValue(
  */
 const CONTAINMENT_OPS = new Set<FilterOp>(['eq', 'ne', 'in', 'nin'])
 
-/** Renders an operand for an error message, bounded. */
-function describeOperand(value: JsonValue): string {
-  if (typeof value === 'string') return `string "${truncate(value, 64)}"`
-  return `${typeof value} ${truncate(JSON.stringify(value) ?? String(value), 64)}`
-}
+/**
+ * Column types whose containment operand is left byte-exact.
+ *
+ * `select` — its operands are option **names**, already resolved to stored ids
+ * upstream by `resolvePredicateSelectValues` / `resolveFilterSelectValues`, and
+ * its `coerce` returns an array for a multi-select: the wrong shape for a
+ * membership clause.
+ *
+ * `date` — its `coerce` is **not idempotent**. `normalizeDateCellValue` rebuilds
+ * the string without a fractional part, so `"2024-01-31T10:00:00.000Z"` — the
+ * form the write path stores — comes back as `"2024-01-31T10:00:00Z"` and no
+ * longer matches the stored bytes. `fieldPredicate` is not only used for
+ * user-facing filters: it also compiles the unique-constraint probes
+ * (`checkUniqueConstraintsDb`, `checkBatchUniqueConstraintsDb`) and the upsert
+ * conflict probe, whose operands were **already** coerced by `coerceRowToSchema`
+ * earlier in the same request. Re-coercing them there would make a unique `date`
+ * probe stop matching, letting a duplicate row through inside the write
+ * transaction with no error. Fixing the stored date format is a far larger
+ * change than a read-path alignment should carry.
+ */
+const CONTAINMENT_COERCION_EXCLUDED_TYPES = new Set<ColumnType>(['select', 'date'])
 
 /**
  * Reads an equality/membership operand the way the **write path** reads a cell,
- * so `eq` compares like against like.
+ * so `eq` compares like against like — best-effort, never fatal.
  *
  * The column type's own `coerce` is the single definition of "what this column
  * can hold": a write of `"8"` to a number column stores `8`, so a filter for
- * `"8"` must look for `8` or it reports zero rows for a row that exists. When
- * `coerce` refuses, the operand is one the column could never hold — the range
- * operators already answer that with a descriptive 400 rather than an empty
- * result set, and this is the same answer for the containment operators.
+ * `"8"` must look for `8` or it reports zero rows for a row that exists.
+ *
+ * When `coerce` refuses, the ORIGINAL operand is passed through unchanged and
+ * the clause compiles exactly as it always did — matching nothing, since JSONB
+ * containment is exact. Refusing loudly is not an option here: the v2 predicate
+ * grammar is not operand-type-checked at the boundary (leaf `value` is
+ * `z.unknown()`), so a throw would land not at submission but inside the
+ * background runners that compile the same predicate later — a filter-scoped
+ * cancel that can no longer compile would leave those cells uncancellable.
  *
  * `null` and `''` are passed through untouched. Neither is a typed operand:
  * `null` is a real containment query for a JSON-null cell, and `''` is the
- * cleared-cell sentinel the grid writes. Coercing or rejecting either would
- * change what an existing caller's filter means rather than fix it.
- *
- * `select` is excluded: its operands are option **names**, already resolved to
- * stored ids upstream by `resolvePredicateSelectValues` /
- * `resolveFilterSelectValues`, and its `coerce` returns an array for a
- * multi-select — the wrong shape for a membership clause.
+ * cleared-cell sentinel the grid writes. Coercing either would change what an
+ * existing caller's filter means rather than fix it. `select` and `date` are
+ * excluded wholesale — see `CONTAINMENT_COERCION_EXCLUDED_TYPES`.
  */
-function coerceContainmentOperand(
-  label: string,
-  column: ColumnDefinition,
-  op: FilterOp,
-  value: JsonValue
-): JsonValue {
+function coerceContainmentOperand(column: ColumnDefinition, value: JsonValue): JsonValue {
   if (value === null || value === '') return value
   const result = columnTypeOf(column).coerce(value, column)
-  if (!result.ok) {
-    throw new TableQueryValidationError(
-      `Operator "${op}" on column "${label}" (${column.type}) requires a ${column.type} value, got ${describeOperand(value)}.`,
-      'INVALID_FILTER'
-    )
-  }
-  return result.value
+  return result.ok ? (result.value as JsonValue) : value
 }
 
 /**
@@ -613,17 +619,23 @@ export function fieldPredicate(
     }
   }
 
-  // Equality/membership compiles to exact JSONB containment, so a wrongly-typed
-  // operand is not a narrower match — it is no match at all, reported as an
-  // empty 200. Read the operand through the column type first, exactly as a
-  // write would; `coerceContainmentOperand` throws when the column could never
-  // hold it. Skipped for a field with no schema entry (ad-hoc legacy keys),
-  // which has no declared type to read it with.
+  // Equality/membership compiles to exact JSONB containment, so an operand of
+  // the wrong JS type is not a narrower match — it is no match at all, reported
+  // as an empty 200 while the row it meant exists. Read the operand through the
+  // column type first, exactly as a write would. Best-effort only: an operand
+  // the type refuses passes through unchanged and the clause compiles as it
+  // always did. Skipped for a field with no schema entry (ad-hoc legacy keys),
+  // which has no declared type to read it with, and for the types in
+  // `CONTAINMENT_COERCION_EXCLUDED_TYPES`.
+  const coercesContainment =
+    column !== undefined &&
+    !CONTAINMENT_COERCION_EXCLUDED_TYPES.has(column.type) &&
+    CONTAINMENT_OPS.has(op)
   const containmentValue: JsonValue | undefined =
-    column && !isSelect && CONTAINMENT_OPS.has(op)
+    coercesContainment && column
       ? Array.isArray(value)
-        ? value.map((v) => coerceContainmentOperand(label, column, op, v as JsonValue))
-        : coerceContainmentOperand(label, column, op, value as JsonValue)
+        ? value.map((v) => coerceContainmentOperand(column, v as JsonValue))
+        : coerceContainmentOperand(column, value as JsonValue)
       : value
 
   switch (op) {

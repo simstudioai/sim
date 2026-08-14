@@ -174,6 +174,11 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
 
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
+    expect(mocks.readMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: false },
+      })
+    )
   })
 
   it('returns archived metadata when scope=archived opts into the archived set', async () => {
@@ -212,8 +217,17 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
 
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
+    /**
+     * `includeDeleted: true` is what makes this the *archived* read being
+     * concealed rather than the plain cross-workspace 404 the suite already
+     * pins: without it the request never reaches the archived set and the test
+     * proves only `NoWorkspaceAccessError → 404`.
+     */
     expect(mocks.readMetadata).toHaveBeenCalledWith(
-      expect.objectContaining({ principal: auth.principal })
+      expect.objectContaining({
+        principal: auth.principal,
+        input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: true },
+      })
     )
   })
 

@@ -55,6 +55,15 @@ describe('v2Error retry guidance', () => {
  * render here.
  */
 describe('v2 401 authentication challenge', () => {
+  /**
+   * Pinned exactly at the primary funnel rather than asserted as merely present.
+   * `toBeTruthy` accepts any string, so the scheme token, the realm, and the
+   * `header=` parameter that names the only channel v2 reads could all change
+   * without a test noticing. The reachability tests below stay loose on purpose
+   * — they pin that the header arrives down each path, not its value twice.
+   */
+  const EXPECTED_CHALLENGE = 'SimApiKey realm="Sim API", header="x-api-key"'
+
   const challenge = () =>
     v2Error('UNAUTHORIZED', 'API key required').headers.get('WWW-Authenticate')
 
@@ -62,7 +71,7 @@ describe('v2 401 authentication challenge', () => {
     const response = v2Error('UNAUTHORIZED', 'Invalid API key')
 
     expect(response.status).toBe(401)
-    expect(response.headers.get('WWW-Authenticate')).toBeTruthy()
+    expect(response.headers.get('WWW-Authenticate')).toBe(EXPECTED_CHALLENGE)
   })
 
   it('names the x-api-key header, the only channel v2 actually reads', () => {
@@ -106,5 +115,22 @@ describe('v2 401 authentication challenge', () => {
     for (const code of ['BAD_REQUEST', 'FORBIDDEN', 'NOT_FOUND', 'RATE_LIMITED'] as const) {
       expect(v2Error(code, 'nope').headers.get('WWW-Authenticate')).toBeNull()
     }
+  })
+
+  /**
+   * `options.headers` is spread *after* the challenge, so a caller-supplied
+   * `WWW-Authenticate` replaces the default rather than being ignored. That
+   * precedence is the whole reason the default is safe to install
+   * unconditionally on 401 — a route with a genuinely different challenge is
+   * not fighting it — but it also means an accidental override silently wins.
+   * Documented here so a reordering of the spread is a test failure either way.
+   */
+  it('lets a caller-supplied challenge override the default', () => {
+    const response = v2Error('UNAUTHORIZED', 'Invalid token', {
+      headers: { 'WWW-Authenticate': 'Bearer realm="mcp"' },
+    })
+
+    expect(response.status).toBe(401)
+    expect(response.headers.get('WWW-Authenticate')).toBe('Bearer realm="mcp"')
   })
 })

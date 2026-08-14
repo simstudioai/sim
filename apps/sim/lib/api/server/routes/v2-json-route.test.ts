@@ -516,15 +516,25 @@ describe('defineV2JsonRoute unreadable body classification', () => {
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
   })
 
+  /**
+   * A `string` body makes undici *derive* `content-type: text/plain;charset=UTF-8`,
+   * so omitting the header from `headers` is not enough to produce the
+   * absent-media-type request — the `null` case has to send pre-encoded bytes.
+   * The assertion is the guard that keeps that from silently drifting back:
+   * without it the two `contentType === null` cases secretly re-test `text/plain`
+   * and the `if (!header) return false` branch never runs.
+   */
   function bodyRequest(contentType: string | null, body: string): NextRequest {
-    return new NextRequest('http://localhost/api/v2/widgets', {
+    const request = new NextRequest('http://localhost/api/v2/widgets', {
       method: 'POST',
       headers: {
         'x-api-key': 'secret',
         ...(contentType === null ? {} : { 'content-type': contentType }),
       },
-      body,
+      body: contentType === null ? new TextEncoder().encode(body) : body,
     })
+    if (contentType === null) expect(request.headers.get('content-type')).toBeNull()
+    return request
   }
 
   it('answers 415 when an unreadable body declared a non-JSON media type', async () => {

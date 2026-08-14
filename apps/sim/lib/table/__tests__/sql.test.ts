@@ -1078,12 +1078,6 @@ describe('containment operators — operand is read through the column type', ()
       expect(out).toContain('"title":"8"')
     })
 
-    it('normalizes a date operand the same way the stored cell was normalized', () => {
-      const p: TablePredicate = { all: [{ field: 'due', op: 'eq', value: '  2024-01-31  ' }] }
-      const out = render(buildPredicateClause(p, TABLE, DATE))
-      expect(out).toContain('"due":"2024-01-31"')
-    })
-
     it('reads a formatted amount on a currency column', () => {
       const p: TablePredicate = { all: [{ field: 'price', op: 'eq', value: '$1,234.56' }] }
       const out = render(buildPredicateClause(p, TABLE, MONEY))
@@ -1093,50 +1087,109 @@ describe('containment operators — operand is read through the column type', ()
     it('applies to the legacy $-grammar too', () => {
       const out = render(buildFilterClause({ score: { $eq: '8' } }, TABLE, NUM))
       expect(out).toContain('"score":8')
-      expect(out).toContain('"score":8')
+      expect(out).not.toContain('"score":"8"')
     })
 
     it('applies to the legacy equality shorthand', () => {
-      expect(render(buildFilterClause({ score: '8' }, TABLE, NUM))).toContain('"score":8')
+      const out = render(buildFilterClause({ score: '8' }, TABLE, NUM))
+      expect(out).toContain('"score":8')
+      expect(out).not.toContain('"score":"8"')
     })
   })
 
-  describe('rejects an operand the column could never hold', () => {
+  /**
+   * Coercion is best-effort, never fatal. The v2 predicate grammar is not
+   * operand-type-checked at the boundary (leaf `value` is `z.unknown()`), so a
+   * throw here would land inside the background runners that compile the same
+   * predicate later — including a filter-scoped cancel, which would leave those
+   * cells uncancellable. An operand the column type refuses therefore compiles
+   * exactly as it did before: byte-exact, matching nothing.
+   */
+  describe('passes through an operand the column could never hold', () => {
     it.each(['eq', 'ne'] as const)('%s with an unparseable number', (op) => {
       const p = { all: [{ field: 'score', op, value: 'eight' }] } as TablePredicate
-      expect(() => buildPredicateClause(p, TABLE, NUM)).toThrow(
-        `Operator "${op}" on column "score" (number) requires a number value, got string "eight"`
-      )
+      const out = render(buildPredicateClause(p, TABLE, NUM))
+      expect(out).toContain('"score":"eight"')
     })
 
-    it.each(['in', 'nin'] as const)('%s naming a bad element', (op) => {
-      const p = { all: [{ field: 'score', op, value: [8, 'eight'] }] } as TablePredicate
-      expect(() => buildPredicateClause(p, TABLE, NUM)).toThrow(/requires a number value/)
+    it.each(['in', 'nin'] as const)('%s with a bad element', (op) => {
+      const p = { all: [{ field: 'score', op, value: ['eight'] }] } as TablePredicate
+      expect(render(buildPredicateClause(p, TABLE, NUM))).toContain('"score":"eight"')
     })
 
-    it('rejects a non-boolean on a boolean column', () => {
+    it.each(['in', 'nin'] as const)('%s mixing coercible and uncoercible members', (op) => {
+      const p = { all: [{ field: 'score', op, value: ['8', 'eight'] }] } as TablePredicate
+      let out = ''
+      expect(() => {
+        out = render(buildPredicateClause(p, TABLE, NUM))
+      }).not.toThrow()
+      expect(out).toContain('"score":8')
+      expect(out).toContain('"score":"eight"')
+    })
+
+    it('passes through a non-boolean on a boolean column', () => {
       const p: TablePredicate = { all: [{ field: 'flag', op: 'eq', value: 'yes' }] }
-      expect(() => buildPredicateClause(p, TABLE, BOOL)).toThrow(
-        'Operator "eq" on column "flag" (boolean) requires a boolean value, got string "yes"'
-      )
+      expect(render(buildPredicateClause(p, TABLE, BOOL))).toContain('"flag":"yes"')
     })
 
-    it('rejects an unparseable date', () => {
+    it('passes through an unparseable date', () => {
       const p: TablePredicate = { all: [{ field: 'due', op: 'eq', value: 'not-a-date' }] }
-      expect(() => buildPredicateClause(p, TABLE, DATE)).toThrow(/requires a date value/)
+      expect(render(buildPredicateClause(p, TABLE, DATE))).toContain('"due":"not-a-date"')
     })
 
-    it('rejects an object on a string column', () => {
+    it('passes through an object on a string column', () => {
       const p = {
         all: [{ field: 'title', op: 'eq', value: { a: 1 } }],
       } as unknown as TablePredicate
-      expect(() => buildPredicateClause(p, TABLE, STR)).toThrow(/requires a string value/)
+      expect(() => buildPredicateClause(p, TABLE, STR)).not.toThrow()
     })
 
-    it('rejects it on the legacy $-grammar too', () => {
-      expect(() => buildFilterClause({ score: { $eq: 'eight' } }, TABLE, NUM)).toThrow(
-        /requires a number value/
+    it('passes through on the legacy $-grammar too', () => {
+      expect(render(buildFilterClause({ score: { $eq: 'eight' } }, TABLE, NUM))).toContain(
+        '"score":"eight"'
       )
+    })
+  })
+
+  /**
+   * `date` is excluded from containment coercion because `date.coerce` is not
+   * idempotent — `normalizeDateCellValue` drops the sub-second part, so the
+   * `.000Z` form the write path stores would be rewritten to a string that no
+   * longer matches the stored bytes. The same leaf compiles the unique and
+   * upsert probes, whose operands were already coerced once upstream, so a
+   * rewrite there would silently admit duplicates inside the write transaction.
+   */
+  describe('never rewrites a date operand', () => {
+    it.each(['eq', 'ne'] as const)('%s keeps the stored .000Z form byte-exact', (op) => {
+      const p = {
+        all: [{ field: 'due', op, value: '2024-01-31T10:00:00.000Z' }],
+      } as TablePredicate
+      const out = render(buildPredicateClause(p, TABLE, DATE))
+      expect(out).toContain('"due":"2024-01-31T10:00:00.000Z"')
+      expect(out).not.toContain('"due":"2024-01-31T10:00:00Z"')
+    })
+
+    it.each(['in', 'nin'] as const)('%s keeps every member byte-exact', (op) => {
+      const p = {
+        all: [{ field: 'due', op, value: ['2024-01-31T10:00:00.000Z', '  2024-01-31  '] }],
+      } as TablePredicate
+      const out = render(buildPredicateClause(p, TABLE, DATE))
+      expect(out).toContain('"due":"2024-01-31T10:00:00.000Z"')
+      expect(out).toContain('"due":"  2024-01-31  "')
+    })
+
+    it('does not trim or normalize a loose date operand', () => {
+      const p: TablePredicate = { all: [{ field: 'due', op: 'eq', value: '  2024-01-31  ' }] }
+      const out = render(buildPredicateClause(p, TABLE, DATE))
+      expect(out).toContain('"due":"  2024-01-31  "')
+      expect(out).not.toContain('"due":"2024-01-31"')
+    })
+
+    it('keeps the legacy $-grammar byte-exact too', () => {
+      const out = render(
+        buildFilterClause({ due: { $eq: '2024-01-31T10:00:00.000Z' } }, TABLE, DATE)
+      )
+      expect(out).toContain('"due":"2024-01-31T10:00:00.000Z"')
     })
   })
 
@@ -1156,15 +1209,57 @@ describe('containment operators — operand is read through the column type', ()
       expect(render(buildPredicateClause(p, TABLE, NO_COLUMNS))).toContain('"adhoc":"8"')
     })
 
-    it('leaves a select column to its own name→id resolution', () => {
+    /**
+     * `select` is excluded from containment coercion wholesale, and an operand
+     * that is already a declared option id cannot show that: `select.coerce`
+     * resolves it to itself, so the clause is identical with or without the
+     * exclusion. What discriminates is an operand `select.coerce` would
+     * *rewrite* — an option **name**, which `resolveSelectCellValue` turns into
+     * the option id. Names are already resolved upstream by
+     * `resolvePredicateSelectValues`, so a second resolution here is a rewrite
+     * of an operand that was deliberately left alone.
+     */
+    describe('leaves a select column to its own name→id resolution', () => {
       const statusCol: ColumnDefinition = {
         id: 'col_status',
         name: 'status',
         type: 'select',
         options: [{ id: 'opt_open', name: 'Open' }],
       }
-      const p: TablePredicate = { all: [{ field: 'col_status', op: 'eq', value: 'opt_open' }] }
-      expect(render(buildPredicateClause(p, TABLE, [statusCol]))).toContain('"opt_open"')
+
+      it('keeps a declared option id', () => {
+        const p: TablePredicate = { all: [{ field: 'col_status', op: 'eq', value: 'opt_open' }] }
+        expect(render(buildPredicateClause(p, TABLE, [statusCol]))).toContain('"opt_open"')
+      })
+
+      it('does not re-resolve an option name into its id', () => {
+        const p: TablePredicate = { all: [{ field: 'col_status', op: 'eq', value: 'Open' }] }
+        const out = render(buildPredicateClause(p, TABLE, [statusCol]))
+        expect(out).toContain('"col_status":"Open"')
+        expect(out).not.toContain('"col_status":"opt_open"')
+      })
+
+      it('does not re-resolve names inside an $in list', () => {
+        const p: TablePredicate = {
+          all: [{ field: 'col_status', op: 'in', value: ['Open', 'opt_open'] }],
+        }
+        const out = render(buildPredicateClause(p, TABLE, [statusCol]))
+        expect(out).toContain('"col_status":"Open"')
+      })
+
+      /**
+       * A filter for an option deleted since the row was written must still
+       * compile — the row still stores the id, and the operand reaches the
+       * clause byte-exact rather than being dropped or refused.
+       */
+      it('keeps an option id no longer in options', () => {
+        const p: TablePredicate = { all: [{ field: 'col_status', op: 'eq', value: 'opt_ghost' }] }
+        let out = ''
+        expect(() => {
+          out = render(buildPredicateClause(p, TABLE, [statusCol]))
+        }).not.toThrow()
+        expect(out).toContain('"col_status":"opt_ghost"')
+      })
     })
   })
 })
@@ -1227,8 +1322,8 @@ describe('error messages name the caller-facing column, not the storage id', () 
     )
   })
 
-  it('names the column on a containment type mismatch', () => {
+  it('has no message to name on a containment type mismatch — it does not throw', () => {
     const p: TablePredicate = { all: [{ field: 'col_abc123', op: 'eq', value: 'seven' }] }
-    expectNamed(() => buildPredicateClause(p, TABLE, [num]), 'overall_score', 'col_abc123')
+    expect(() => buildPredicateClause(p, TABLE, [num])).not.toThrow()
   })
 })

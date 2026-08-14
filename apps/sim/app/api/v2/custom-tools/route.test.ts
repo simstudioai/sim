@@ -6,6 +6,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mocks, log, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
   class MockV2ApiKeyUnauthenticatedError extends Error {}
+  /**
+   * The same surface `createMockLogger` provides, because this stub *replaces*
+   * the global `@sim/logger` mock for this file. A narrower one is not merely
+   * incomplete — the first module in this route's graph to call `logger.trace`
+   * or `logger.child` would throw `TypeError` here and nowhere else, which reads
+   * as a route bug rather than a missing mock method. `child`/`withMetadata`
+   * return the same instance so a chained call still records on `log`.
+   */
+  const log: Record<string, unknown> = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    trace: vi.fn(),
+    fatal: vi.fn(),
+  }
+  log.child = vi.fn(() => log)
+  log.withMetadata = vi.fn(() => log)
   return {
     mocks: {
       authenticate: vi.fn(),
@@ -15,7 +33,16 @@ const { mocks, log, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
       list: vi.fn(),
       create: vi.fn(),
     },
-    log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    log: log as {
+      info: ReturnType<typeof vi.fn>
+      warn: ReturnType<typeof vi.fn>
+      error: ReturnType<typeof vi.fn>
+      debug: ReturnType<typeof vi.fn>
+      trace: ReturnType<typeof vi.fn>
+      fatal: ReturnType<typeof vi.fn>
+      child: ReturnType<typeof vi.fn>
+      withMetadata: ReturnType<typeof vi.fn>
+    },
     MockV2ApiKeyUnauthenticatedError,
   }
 })
@@ -308,24 +335,77 @@ describe('/api/v2/custom-tools', () => {
       expect(status).toBe(200)
       expect(body.data.map((t: { id: string }) => t.id)).toEqual(['tool-1'])
       for (const toolId of ['unparseable', 'no-parameters-type']) {
-        expect(log.warn).toHaveBeenCalledWith(
-          expect.stringContaining('Omitted'),
+        expect(log.error).toHaveBeenCalledWith(
+          expect.stringContaining('cannot be projected'),
           expect.objectContaining({ toolId, workspaceId: WORKSPACE_ID })
         )
       }
     })
 
-    it('still mints a next cursor when the page contained a skipped row', async () => {
-      mocks.list.mockResolvedValue({
-        tools: [malformed('unparseable', 'this is not json')],
-        nextCursorKeys: ['2026-01-01T00:00:00.000Z', 'unparseable'],
-      })
+    /**
+     * The repair guards must be unreachable for a row that already validates —
+     * otherwise the recovery path could rewrite rows it was never meant to
+     * touch. Pinned on a stored schema carrying an unrelated extension key, so
+     * a repair that rebuilt the object rather than leaving it alone would show
+     * up as a lost field rather than passing on a shallow shape check.
+     */
+    it('emits a valid row exactly as stored, with no repair applied', async () => {
+      const stored = {
+        ...TOOL_SCHEMA,
+        'x-vendor': { owner: 'billing' },
+        function: { ...TOOL_SCHEMA.function, description: 'Look up an order' },
+      }
+      mocks.list.mockResolvedValue({ tools: [{ ...tool, schema: stored }] })
 
       const { status, body } = await list()
 
       expect(status).toBe(200)
-      expect(body.data).toEqual([])
-      expect(body.nextCursor).toEqual(expect.any(String))
+      expect(body.data[0].schema).toEqual(stored)
+      expect(log.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('Repaired'),
+        expect.anything()
+      )
+      expect(log.error).not.toHaveBeenCalledWith(
+        expect.stringContaining('cannot be projected'),
+        expect.anything()
+      )
+    })
+
+    /**
+     * A page whose rows all skip returns `data: []` with a non-null
+     * `nextCursor`, so `nextCursor` — never page length — is this list's
+     * completeness signal. Pins that the documented client loop terminates and
+     * observes every projectable row across an all-skipped page.
+     */
+    it('lets a client following nextCursor terminate and see every projectable row', async () => {
+      const second = { ...tool, id: 'tool-2', title: 'refund_order' }
+      const pages = [
+        { tools: [tool, malformed('bad-1', 'this is not json')], nextCursorKeys: ['a', 'bad-1'] },
+        { tools: [malformed('bad-2', 'this is not json')], nextCursorKeys: ['b', 'bad-2'] },
+        { tools: [second] },
+      ]
+      mocks.list.mockImplementation(async ({ input }) =>
+        input.cursorKeys === undefined ? pages[0] : pages[input.cursorKeys[0] === 'a' ? 1 : 2]
+      )
+
+      const seen: string[] = []
+      const pageSizes: number[] = []
+      let cursor: string | null = null
+      do {
+        expect(pageSizes.length).toBeLessThan(pages.length)
+        const query = cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''
+        const response = await GET(
+          request('GET', `/api/v2/custom-tools?workspaceId=${WORKSPACE_ID}${query}`)
+        )
+        expect(response.status).toBe(200)
+        const body = await response.json()
+        for (const t of body.data) seen.push(t.id)
+        pageSizes.push(body.data.length)
+        cursor = body.nextCursor
+      } while (cursor !== null)
+
+      expect(pageSizes).toEqual([1, 0, 1])
+      expect(seen).toEqual(['tool-1', 'tool-2'])
     })
   })
 
