@@ -1,8 +1,11 @@
 import { db } from '@sim/db'
 import { credential, credentialGroupEnrollment } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, sql } from 'drizzle-orm'
-import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
+import { and, eq, ne, sql } from 'drizzle-orm'
+import {
+  type CredentialGroupOAuthContext,
+  lockCredentialGroupEnrollmentLifecycle,
+} from '@/lib/credential-groups/enrollments'
 import {
   type CredentialGroupOAuthAttempt,
   createCredentialGroupOAuthAttempt,
@@ -98,9 +101,19 @@ async function persistGrant(
   }
 
   await db.transaction(async (tx) => {
+    await lockCredentialGroupEnrollmentLifecycle(tx, context.enrollmentId)
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-oauth:${context.enrollmentId}:${context.option.id}`}, 0))`
     )
+    const [enrollment] = await tx
+      .select({ status: credentialGroupEnrollment.status })
+      .from(credentialGroupEnrollment)
+      .where(eq(credentialGroupEnrollment.id, context.enrollmentId))
+      .limit(1)
+    if (!enrollment || enrollment.status === 'revoked') {
+      throw new CredentialGroupOAuthError('This account invitation was revoked.', 409)
+    }
+
     const [existing] = await tx
       .select({
         id: credential.id,
@@ -193,9 +206,16 @@ async function persistGrant(
         completedAt: null,
         updatedAt: now,
       })
-      .where(eq(credentialGroupEnrollment.id, context.enrollmentId))
+      .where(
+        and(
+          eq(credentialGroupEnrollment.id, context.enrollmentId),
+          ne(credentialGroupEnrollment.status, 'revoked')
+        )
+      )
       .returning({ id: credentialGroupEnrollment.id })
-    if (!updatedEnrollment) throw new Error('Credential group enrollment update returned no row')
+    if (!updatedEnrollment) {
+      throw new CredentialGroupOAuthError('This account invitation was revoked.', 409)
+    }
   })
 }
 

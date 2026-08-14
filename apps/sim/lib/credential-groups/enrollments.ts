@@ -11,7 +11,7 @@ import {
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail, truncate } from '@sim/utils/string'
-import { and, count, desc, eq, inArray, lt, or } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import { renderCredentialGroupInvitationEmail } from '@/components/emails/render'
 import type {
   CredentialGroupEnrollment,
@@ -29,6 +29,7 @@ import {
   getCredentialGroupProviderFromProviderId,
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
+import type { DbOrTx } from '@/lib/db/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { getBrandConfig } from '@/ee/whitelabeling'
@@ -83,6 +84,17 @@ export interface CredentialGroupOAuthContext {
   enrollmentStatus: EnrollmentRow['status']
   option: CredentialGroupOptionConfig
   options: CredentialGroupOptionConfig[]
+}
+
+/** Serializes OAuth grant persistence and administrative revocation for one enrollment. */
+export async function lockCredentialGroupEnrollmentLifecycle(
+  executor: DbOrTx,
+  enrollmentId: string
+): Promise<void> {
+  if (!enrollmentId.trim()) throw new Error('Credential group enrollment ID is required')
+  await executor.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-enrollment:${enrollmentId}`}, 0))`
+  )
 }
 
 export class CredentialGroupEnrollmentError extends Error {
@@ -524,6 +536,7 @@ export async function revokeCredentialGroupEnrollment(
   if (!existing) throw new CredentialGroupEnrollmentError('Enrollment not found', 404)
 
   return db.transaction(async (tx) => {
+    await lockCredentialGroupEnrollmentLifecycle(tx, enrollmentId)
     const now = new Date()
     const [revoked] = await tx
       .update(credentialGroupEnrollment)

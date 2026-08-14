@@ -1,0 +1,100 @@
+/**
+ * @vitest-environment node
+ */
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { adapter } = vi.hoisted(() => ({
+  adapter: {
+    provider: 'gmail' as const,
+    requiresRefreshToken: true,
+    getPolicy: vi.fn(),
+    prepareAuthorization: vi.fn(),
+    exchangeAndVerify: vi.fn(),
+    hasRequiredScopes: vi.fn(),
+    refreshToken: vi.fn(),
+    isTerminalRefreshError: vi.fn(),
+  },
+}))
+
+vi.mock('@/lib/credential-groups/provider-registry', () => ({
+  getCredentialGroupProviderAdapter: () => adapter,
+}))
+
+import { completeCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
+
+const POLICY = {
+  provider: 'gmail' as const,
+  providerId: 'google-email',
+  authorizationAppId: 'google:client',
+  requiredScopes: ['openid', 'https://www.googleapis.com/auth/gmail.modify'],
+  scopeVersion: 1,
+}
+
+const CONTEXT = {
+  enrollmentId: 'enrollment-1',
+  credentialGroupId: 'group-1',
+  workspaceId: 'workspace-1',
+  workspaceName: 'Workspace',
+  workspaceOwnerId: 'owner-1',
+  email: 'person@example.com',
+  enrollmentStatus: 'in_progress' as const,
+  option: {
+    id: 'option-1',
+    provider: 'gmail' as const,
+    label: 'Gmail',
+    required: true,
+    status: 'active' as const,
+  },
+  options: [],
+}
+
+describe('credential group OAuth persistence', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    adapter.getPolicy.mockResolvedValue(POLICY)
+    adapter.exchangeAndVerify.mockResolvedValue({
+      providerId: POLICY.providerId,
+      providerSubjectId: 'google-subject-1',
+      providerTenantId: null,
+      displayName: 'person@example.com',
+      metadata: { email: 'person@example.com' },
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      grantedScopes: POLICY.requiredScopes,
+      accessTokenExpiresAt: new Date('2026-08-14T00:00:00Z'),
+      refreshTokenExpiresAt: null,
+    })
+  })
+
+  it('does not reactivate a credential after its enrollment is revoked', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ status: 'revoked' }])
+
+    await expect(
+      completeCredentialGroupOAuth(
+        CONTEXT,
+        {
+          state: 'state-1',
+          provider: 'gmail',
+          nonceHash: 'nonce-hash',
+          enrollmentId: CONTEXT.enrollmentId,
+          credentialGroupId: CONTEXT.credentialGroupId,
+          optionId: CONTEXT.option.id,
+          authorizationAppId: POLICY.authorizationAppId,
+          scopeVersion: POLICY.scopeVersion,
+          requiredScopes: POLICY.requiredScopes,
+          redirectUri: 'https://sim.ai/api/credential-groups/oauth/gmail/callback',
+          codeVerifier: 'verifier',
+          invitationToken: 'invitation-token',
+          createdAt: Date.now(),
+        },
+        'authorization-code'
+      )
+    ).rejects.toThrow('This account invitation was revoked.')
+
+    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+})
