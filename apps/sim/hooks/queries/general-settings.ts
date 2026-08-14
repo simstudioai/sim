@@ -126,8 +126,12 @@ export function useShowActionBar(): boolean {
 }
 
 /**
- * Whether the canvas camera animates to center a block when it is clicked or
- * reached with arrow-key navigation.
+ * Whether the canvas camera animates to center a block when it is clicked.
+ *
+ * Scoped to clicks only. Arrow-key navigation and block creation deliberately
+ * keep following the camera regardless — both move selection to a block that
+ * may be off-screen, so suppressing the move would leave the user with no way
+ * to tell where the selection went.
  */
 export function useAutoFocusOnClick(): boolean {
   const { data } = useGeneralSettings()
