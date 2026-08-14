@@ -1,7 +1,4 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   shopifyShopDomainSchema,
@@ -11,9 +8,7 @@ import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { processCredentialDraft } from '@/lib/credentials/draft-processor'
-import { safeAccountInsert } from '@/lib/oauth/credential-service'
-import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
+import { completeShopifyOAuthConnection } from '@/lib/oauth/shopify'
 
 const logger = createLogger('ShopifyStore')
 
@@ -48,85 +43,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_invalid_domain`)
     }
 
-    const shopResponse = await fetch(
-      `https://${shopDomain}/admin/api/${SHOPIFY_API_VERSION}/shop.json`,
-      {
-        headers: {
-          'X-Shopify-Access-Token': accessToken,
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    if (!shopResponse.ok) {
-      const errorText = await shopResponse.text()
-      logger.error('Invalid Shopify token', {
-        status: shopResponse.status,
-        error: errorText,
-      })
-      return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_invalid_token`)
-    }
-
-    const shopData = await shopResponse.json()
-    const shopInfo = shopData.shop
-    const stableAccountId = shopInfo.id?.toString() || shopDomain
-
-    const existing = await db.query.account.findFirst({
-      where: and(
-        eq(account.userId, session.user.id),
-        eq(account.providerId, 'shopify'),
-        eq(account.accountId, stableAccountId)
-      ),
-    })
-
-    const now = new Date()
-
-    const accountData = {
-      accessToken: accessToken,
-      accountId: stableAccountId,
-      scope: scope || '',
-      updatedAt: now,
-      idToken: shopDomain,
-    }
-
-    if (existing) {
-      await db.update(account).set(accountData).where(eq(account.id, existing.id))
-      logger.info('Updated existing Shopify account', { accountId: existing.id })
-    } else {
-      await safeAccountInsert(
-        {
-          id: `shopify_${session.user.id}_${Date.now()}`,
-          userId: session.user.id,
-          providerId: 'shopify',
-          accountId: accountData.accountId,
-          accessToken: accountData.accessToken,
-          scope: accountData.scope,
-          idToken: accountData.idToken,
-          createdAt: now,
-          updatedAt: now,
-        },
-        { provider: 'Shopify', identifier: shopDomain }
-      )
-    }
-
-    const persisted =
-      existing ??
-      (await db.query.account.findFirst({
-        where: and(
-          eq(account.userId, session.user.id),
-          eq(account.providerId, 'shopify'),
-          eq(account.accountId, stableAccountId)
-        ),
-      }))
-
-    if (!persisted) {
-      throw new Error(`Shopify OAuth account ${stableAccountId} was not persisted`)
-    }
-    await processCredentialDraft({
-      draftId,
+    await completeShopifyOAuthConnection({
+      accessToken,
+      shopDomain,
+      scope,
       userId: session.user.id,
-      providerId: 'shopify',
-      accountId: persisted.id,
+      draftId,
+      signal: request.signal,
     })
 
     const redirectUrl = returnUrl && isSameOrigin(returnUrl) ? returnUrl : `${baseUrl}/workspace`
