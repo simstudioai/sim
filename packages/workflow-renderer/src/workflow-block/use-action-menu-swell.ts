@@ -59,11 +59,15 @@ export function useActionMenuSwell({
   useEffect(() => {
     if (!enabled || suspendInteraction) return
 
-    const clearHoverLeave = () => {
+    const cancelHoverLeaveTimeout = () => {
       if (hoverLeaveTimeoutRef.current !== null) {
         window.clearTimeout(hoverLeaveTimeoutRef.current)
         hoverLeaveTimeoutRef.current = null
       }
+    }
+
+    const clearHoverLeave = () => {
+      cancelHoverLeaveTimeout()
       if (hoverMoveRef.current) {
         window.removeEventListener('pointermove', hoverMoveRef.current)
         hoverMoveRef.current = null
@@ -111,25 +115,14 @@ export function useActionMenuSwell({
       openHover()
     }
 
-    const scheduleHoverLeave = (event: PointerEvent) => {
-      if (isOtherNodeTarget(event.relatedTarget)) {
-        closeHoverImmediately()
-        return
-      }
-      if (hoverLeaveTimeoutRef.current !== null) {
-        window.clearTimeout(hoverLeaveTimeoutRef.current)
-      }
-      if (!hoverMoveRef.current) {
-        const onMove = (event: PointerEvent) => {
-          if (isOtherNodeTarget(event.target)) {
-            closeHoverImmediately()
-            return
-          }
-          if (isPointerOverActionMenu(event)) openHover()
-        }
-        hoverMoveRef.current = onMove
-        window.addEventListener('pointermove', onMove, { passive: true })
-      }
+    /**
+     * Arms the retract timer, unless one is already counting down. Never
+     * touches the tracking listener: once the pointer has left the node, that
+     * listener is the only thing still watching it, so tearing it down here
+     * would strand the menu open with nothing left to close it.
+     */
+    const armHoverLeave = () => {
+      if (hoverLeaveTimeoutRef.current !== null) return
       hoverLeaveTimeoutRef.current = window.setTimeout(() => {
         hoverLeaveTimeoutRef.current = null
         if (hoverMoveRef.current) {
@@ -138,6 +131,40 @@ export function useActionMenuSwell({
         }
         setIsHovered(false)
       }, ACTION_MENU_HOVER_LEAVE_DELAY_MS)
+    }
+
+    const scheduleHoverLeave = (event: PointerEvent) => {
+      if (isOtherNodeTarget(event.relatedTarget)) {
+        closeHoverImmediately()
+        return
+      }
+      if (!hoverMoveRef.current) {
+        /*
+         * The bar floats above the card, so the pointer crosses a gap to reach
+         * it and the card's own `pointerleave` fires on the way. This tracks
+         * the pointer across that gap: inside the bar's hover band the retract
+         * is cancelled, outside it is re-armed. Both directions matter — no
+         * further `pointerleave` can arrive once the pointer is off the node,
+         * so re-arming here is the only way the menu ever closes again.
+         */
+        const onMove = (moveEvent: PointerEvent) => {
+          if (isOtherNodeTarget(moveEvent.target)) {
+            closeHoverImmediately()
+            return
+          }
+          if (isPointerOverActionMenu(moveEvent)) {
+            cancelHoverLeaveTimeout()
+            setIsHovered(true)
+            setSwellOpen(true)
+            return
+          }
+          armHoverLeave()
+        }
+        hoverMoveRef.current = onMove
+        window.addEventListener('pointermove', onMove, { passive: true })
+      }
+      cancelHoverLeaveTimeout()
+      armHoverLeave()
     }
 
     /*

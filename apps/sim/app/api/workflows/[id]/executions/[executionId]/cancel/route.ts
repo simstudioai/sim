@@ -24,6 +24,7 @@ import {
 } from '@/lib/execution/cancellation'
 import { createExecutionEventWriter, readExecutionMetaState } from '@/lib/execution/event-buffer'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
+import { cancelledExecutionLogFields } from '@/lib/logs/execution/cancellation'
 import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
@@ -215,7 +216,7 @@ async function claimExecutionLogCancellation(args: {
   const now = new Date()
   const [cancelledExecution] = await db
     .update(workflowExecutionLogs)
-    .set({ status: 'cancelled', endedAt: now, executionDeadlineAt: null })
+    .set(cancelledExecutionLogFields(now))
     .where(
       and(
         eq(workflowExecutionLogs.executionId, args.executionId),

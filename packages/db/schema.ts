@@ -239,6 +239,27 @@ export const workflow = pgTable(
   'workflow',
   {
     id: text('id').primaryKey(),
+    /**
+     * Creator and owner. Legitimate as ownership: it anchors personal
+     * (workspace-less) workflows, cascades the workflow away with the account,
+     * and names the owner for webhook config and deploy-as-block resolution.
+     *
+     * @deprecated As an execution identity. Do not use it to decide who a run
+     * acts as, what it may read, or what it may authorize. The acting principal
+     * is `ExecutionMetadata.userId`, which the principal layer
+     * (`resolvePrincipalAttribution`) resolves to the caller for a session,
+     * personal API key, or delegated run, and to the workspace billing account
+     * for a workspace API key, schedule, or webhook.
+     *
+     * Exactly one execution use survives, carried as
+     * `ExecutionMetadata.workflowUserId`: the personal-environment fallback in
+     * `executeWorkflowCore`, for runs with no identifiable caller — workspace
+     * API keys, schedules, webhooks, and unauthenticated public-API calls. Those
+     * have nobody to resolve personal variables as, and a deployed workflow is
+     * routinely authored against its owner's personal keys, so dropping the
+     * fallback would break them. Workspace variables never fall back here; they
+     * always authorize against the actor.
+     */
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -419,6 +440,13 @@ export const workflowExecutionLogs = pgTable(
     /** Absolute deadline for the current active attempt; cleared while paused or terminal. */
     executionDeadlineAt: timestamp('execution_deadline_at'),
     endedAt: timestamp('ended_at'),
+    /**
+     * Wall clock from `started_at` for a terminal row; for a `pending` (paused)
+     * row, the active duration recorded at the checkpoint, which excludes the
+     * time the run sits waiting. Resuming leaves that checkpoint value in place
+     * while the row accrues time again, so a `running` row's value is stale
+     * until the next terminal write recomputes it.
+     */
     totalDurationMs: integer('total_duration_ms'),
 
     /**
@@ -713,6 +741,7 @@ export const settings = pgTable('settings', {
   // Canvas preferences
   snapToGridSize: integer('snap_to_grid_size').notNull().default(0), // 0 = off, 10-50 = grid size
   showActionBar: boolean('show_action_bar').notNull().default(true),
+  autoFocusOnClick: boolean('auto_focus_on_click').notNull().default(true),
 
   timezone: text('timezone'),
 

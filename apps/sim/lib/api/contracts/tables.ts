@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import {
+  booleanQueryFlagSchema,
   folderIdSchema,
   privateSecretProvenanceBundleSchema,
   requiredFieldSchema,
@@ -800,11 +801,21 @@ export const tableRowsQueryBaseSchema = z.object({
         .optional()
     )
     .default(0),
+  /**
+   * Absent, null, and empty all fall through to the `true` default, so a bare request still
+   * gets its count. Everything else goes to {@link booleanQueryFlagSchema}, which accepts a real
+   * boolean as well as the URL strings — `requestJson` parses this schema on the CLIENT before
+   * building the URL, so the value arrives as the caller's own type, and a string-only coercion
+   * silently read the grid's `includeTotal: param === 0` as `false` — leaving `totalCount` null on
+   * every table, and select-all falling back to the unfiltered row count.
+   *
+   * Unparseable values now reject rather than resolving to `false`, matching `limit` and `offset`
+   * in this same schema, which have always thrown on garbage.
+   */
   includeTotal: z
     .preprocess(
-      (value) =>
-        value === null || value === undefined || value === '' ? undefined : value === 'true',
-      z.boolean().optional()
+      (value) => (value === null || value === undefined || value === '' ? undefined : value),
+      booleanQueryFlagSchema.optional()
     )
     .default(true),
 })
@@ -1684,8 +1695,16 @@ export const updateWorkflowGroupBodySchema = z.object({
   deploymentMode: workflowGroupDeploymentModeSchema
     .optional()
     .describe('Replacement workflow execution mode.'),
-  /** Update the group's provenance. Omit to leave unchanged. */
-  type: workflowGroupTypeSchema.optional().describe('Replacement workflow-group producer type.'),
+  /**
+   * Echo of the group's provenance. A producer is fixed at creation: this body
+   * has no `enrichmentId` field, so it can never supply the coordinate a new
+   * type would need. A `type` that differs from the stored one is a 400.
+   */
+  type: workflowGroupTypeSchema
+    .optional()
+    .describe(
+      "Workflow-group producer type. Must match the group's stored type — a group's producer cannot be changed after creation."
+    ),
   /** Toggle the group's persisted auto-run flag. Omit to leave unchanged. */
   autoRun: z.boolean().optional().describe('Replacement automatic-run setting.'),
 })

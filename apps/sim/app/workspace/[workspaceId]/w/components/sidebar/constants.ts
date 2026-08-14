@@ -31,6 +31,34 @@ export const SIDEBAR_DIVIDER_PAD_ABOVE_CLASS = 'pb-2'
 export const SIDEBAR_DIVIDER_PAD_BELOW_CLASS = 'pt-2'
 
 /**
+ * Rail-chip geometry for the collapsed sidebar, gated by the `group/rail`
+ * marker on the sidebar `aside` (the hover-peek card drops `data-collapsed`,
+ * so peeked rows stay expanded). Collapses a full-width row to the natural
+ * icon-only chip — 32px, the chip's own `px-2` + 16px glyph, matching the
+ * header's Search/Collapse pills. Only the WIDTH is overridden: the rail is
+ * 48px precisely so that the plain 8px item gutter centers the chip
+ * ((48 − 32) / 2 = 8) and puts the glyph (24px in) on the rail's midline —
+ * the same 24px column the expanded rows use, so NOTHING moves on toggle.
+ * At the previous 51px rail those goals were mutually exclusive by 1.5px
+ * (rail midline 25.5 vs glyph column 24), which produced either a
+ * left-biased rail or a drift on toggle; keep the rail width and this chip
+ * width commensurate (rail = chip + 2 × gutter) if either ever changes.
+ * Collapsing, the width tweens down to 32px on the 175ms curve the rail
+ * closes on; expanding targets `auto` (not interpolable), so the chip snaps
+ * to the still-narrow rail's width and stretch-tracks it open. The duration
+ * is `!important` because the aside zeroes chip transition durations
+ * (`[&_.group.cursor-pointer]:duration-0`) for instant hover fills — colors
+ * are excluded from the property list here, so hover fills keep snapping.
+ */
+export const SIDEBAR_RAIL_CHIP_CLASS = [
+  'transition-[width]',
+  '![transition-duration:175ms]',
+  '[transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
+  'motion-reduce:!transition-none',
+  'group-data-[collapsed]/rail:w-[32px]',
+].join(' ')
+
+/**
  * Nested-selector variants for cmdk-based surfaces (e.g. the search modal).
  * Written as complete literal strings so Tailwind's JIT can detect them.
  */

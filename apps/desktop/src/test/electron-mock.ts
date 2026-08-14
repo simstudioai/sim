@@ -11,6 +11,8 @@ import { vi } from 'vitest'
 export const app = {
   name: 'Sim',
   isPackaged: false,
+  userAgentFallback:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Sim/1.0.0 Chrome/140.0.7339.207 Electron/43.1.1 Safari/537.36',
   getVersion: vi.fn(() => '1.0.0'),
   getName: vi.fn(() => 'Sim'),
   setName: vi.fn(),
@@ -152,6 +154,7 @@ function createWebContentsMock() {
     findInPage: vi.fn(() => 1),
     stopFindInPage: vi.fn(),
     setBackgroundThrottling: vi.fn(),
+    setUserAgent: vi.fn(),
     setIgnoreMenuShortcuts: vi.fn(),
     getZoomFactor: vi.fn(() => 1),
     setZoomFactor: vi.fn(),
@@ -185,6 +188,7 @@ function createWebContentsMock() {
     session: {
       setPermissionRequestHandler: vi.fn(),
       setPermissionCheckHandler: vi.fn(),
+      setUserAgent: vi.fn(),
       webRequest: { onBeforeRequest: vi.fn() },
       on: vi.fn(),
     },

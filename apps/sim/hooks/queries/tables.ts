@@ -140,7 +140,7 @@ type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
 
 export type TableRowsResponse = Pick<
   ContractJsonResponse<typeof listTableRowsContract>['data'],
-  'rows' | 'totalCount'
+  'rows' | 'totalCount' | 'nextCursor'
 >
 
 interface RowMutationContext {
@@ -195,8 +195,13 @@ async function fetchTableRows({
     },
     signal,
   })
-  const { rows, totalCount } = response.data
-  return { rows, totalCount }
+  const { rows, totalCount, nextCursor } = response.data
+  /**
+   * `nextCursor` is kept because it is the only authoritative end-of-table signal: the server
+   * sets it exactly when the drain proved an unreturned witness row, so it covers a page cut by
+   * the byte budget as well as one cut by `limit`. See {@link hasMoreTableRows}.
+   */
+  return { rows, totalCount, nextCursor }
 }
 
 function invalidateRowCount(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
@@ -1295,6 +1300,14 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
                   ...page,
                   rows: page.rows.filter((r) => keep.has(r.id)),
                   ...(page.totalCount != null ? { totalCount: keep.size } : {}),
+                  /**
+                   * The view is being emptied on purpose, so it has no next page — stated
+                   * explicitly because the server's cursor would otherwise say otherwise and
+                   * scrolling would pull back the very rows the job is deleting. Only the
+                   * row-count arithmetic used to carry this, which {@link hasMoreTableRows}
+                   * no longer consults once a cursor is present.
+                   */
+                  nextCursor: null,
                 })),
               }
             : old

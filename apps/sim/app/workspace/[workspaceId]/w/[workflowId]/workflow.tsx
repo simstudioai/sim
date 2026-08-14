@@ -113,7 +113,11 @@ import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useFolderMap } from '@/hooks/queries/folders'
-import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
+import {
+  useAutoConnect,
+  useAutoFocusOnClick,
+  useSnapToGridSize,
+} from '@/hooks/queries/general-settings'
 import {
   findLockedAncestorFolder,
   isFolderOrAncestorLocked,
@@ -403,6 +407,8 @@ const WorkflowContent = React.memo(
     const isAutoConnectEnabled = useAutoConnect()
     const autoConnectRef = useRef(isAutoConnectEnabled)
     autoConnectRef.current = isAutoConnectEnabled
+
+    const isAutoFocusOnClickEnabled = useAutoFocusOnClick()
 
     // Panel open states for context menu
     const isVariablesOpen = useVariablesModalStore((state) => state.isOpen)
@@ -4320,8 +4326,9 @@ const WorkflowContent = React.memo(
         /**
          * Focus the clicked block: animate the camera so the card centers in
          * the canvas frame. Plain clicks focus both regular cards and subflow
-         * containers; multi-select keeps the camera still.
-         * onNodeClick never fires after a drag.
+         * containers; multi-select keeps the camera still. Users who would
+         * rather keep their own framing turn auto-focus off in general
+         * settings. onNodeClick never fires after a drag.
          */
         if (
           !embedded &&
@@ -4330,11 +4337,27 @@ const WorkflowContent = React.memo(
             node.type === 'noteBlock' ||
             node.type === 'subflowNode')
         ) {
+          /**
+           * Marked whether or not the camera moves: with auto-focus on the
+           * click reframes the canvas, and with it off the click is the user
+           * deliberately keeping the framing they already have. Either way a
+           * later canvas re-init must not `fitView` over it.
+           */
           userFocusedWorkflowIdRef.current = activeWorkflowId ?? workflowIdParam
-          focusBlockInView(node)
+          if (isAutoFocusOnClickEnabled) {
+            focusBlockInView(node)
+          }
         }
       },
-      [activeWorkflowId, blocks, getNodes, embedded, focusBlockInView, workflowIdParam]
+      [
+        activeWorkflowId,
+        blocks,
+        getNodes,
+        embedded,
+        focusBlockInView,
+        isAutoFocusOnClickEnabled,
+        workflowIdParam,
+      ]
     )
 
     /**

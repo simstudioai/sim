@@ -28,9 +28,9 @@ export default async function CredentialConnectedPage({
           aria-hidden
         >
           {connected ? (
-            <CircleCheck className='size-6 text-[var(--text-success)]' />
+            <CircleCheck className='size-[20px] text-[var(--text-success)]' />
           ) : (
-            <CircleAlert className='size-6 text-[var(--text-error)]' />
+            <CircleAlert className='size-[20px] text-[var(--text-error)]' />
           )}
         </div>
         <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
