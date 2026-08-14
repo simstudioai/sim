@@ -16,7 +16,51 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { buildFallbackDeliveryFingerprint } from '@/lib/webhooks/providers/utils'
-import { ashbyErrorMessage } from '@/tools/ashby/utils'
+
+/**
+ * Kept local rather than imported from `@/tools/ashby/utils`, which has the same
+ * logic. The webhook providers are reachable from workspace page graphs, and the
+ * knowledge page graph currently sits exactly at the ceiling
+ * `check:tool-registry-boundary` allows - so neither an import edge into
+ * `@/tools/**` nor an extra module in this directory fits. Both copies derive
+ * from the same three documented Ashby error shapes and are covered
+ * independently by `tools/ashby/utils.test.ts` and `ashby.test.ts` here.
+ */
+/**
+ * Extract a human-readable error message from an Ashby error response. Ashby
+ * documents two shapes and uses three in practice:
+ *
+ * - `errorInfo: { code, message, requestId }`
+ * - `errors: ['webhook_not_found']` - plain strings
+ * - `errors: [{ message, parameter }]` - objects, which is the form a 403 for a
+ *   missing module permission arrives in, and which stringifies to
+ *   `[object Object]` unless the message is read explicitly
+ *
+ * A single response can carry more than one of these at once.
+ */
+function ashbyErrorMessage(data: unknown, fallback: string): string {
+  if (!data || typeof data !== 'object') return fallback
+  const d = data as Record<string, unknown>
+  const info = d.errorInfo as Record<string, unknown> | undefined
+  if (info && typeof info.message === 'string' && info.message) return info.message
+  if (Array.isArray(d.errors) && d.errors.length > 0) {
+    const messages = d.errors
+      .map((e) => {
+        if (typeof e === 'string') return e
+        if (e && typeof e === 'object') {
+          const entry = e as Record<string, unknown>
+          const message = typeof entry.message === 'string' ? entry.message : ''
+          const parameter = typeof entry.parameter === 'string' ? entry.parameter : ''
+          if (message && parameter) return `${message} (${parameter})`
+          if (message) return message
+        }
+        return ''
+      })
+      .filter(Boolean)
+    if (messages.length > 0) return messages.join('; ')
+  }
+  return fallback
+}
 
 const logger = createLogger('WebhookProvider:Ashby')
 
