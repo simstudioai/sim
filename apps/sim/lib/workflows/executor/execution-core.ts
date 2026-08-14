@@ -440,13 +440,20 @@ async function executeWorkflowCoreImpl(
      * so a session, personal API key, or delegated run reads its own personal
      * variables rather than borrowing the workflow owner's.
      *
+     * An anonymous public-API run reaches the actor by the opposite argument —
+     * there is no caller to read as, and no owner consented to lending their
+     * personal namespace to the whole internet — so it uses the workspace's own
+     * billing principal, which is already what its workspace variables resolve as.
+     *
      * The workflow owner remains the fallback for a workspace API key, schedule,
-     * or webhook. Nobody is running those, and a deployed workflow is routinely
-     * authored against its owner's personal keys.
+     * or webhook. Someone in the workspace configured each of those, and a
+     * deployed workflow is routinely authored against its owner's personal keys.
      */
     const personalEnvUserId =
       (metadata.isClientSession && metadata.sessionUserId) ||
-      (metadata.enforceCredentialAccess ? metadata.userId : undefined) ||
+      (metadata.enforceCredentialAccess || metadata.isPublicApiAccess
+        ? metadata.userId
+        : undefined) ||
       metadata.workflowUserId
 
     if (!personalEnvUserId) {

@@ -64,6 +64,8 @@ export interface ExecuteWorkflowOptions {
    * owner on the streaming path and as the caller everywhere else.
    */
   enforceCredentialAccess?: boolean
+  /** Anonymous public-API run (see {@link ExecutionMetadata.isPublicApiAccess}). */
+  isPublicApiAccess?: boolean
   /** Immutable actor/payer decision captured by preprocessing. */
   billingAttribution?: BillingAttributionSnapshot
   /** Server-issued run identity persisted with the execution log and snapshot. */
@@ -135,6 +137,7 @@ export async function executeWorkflow(
       startTime: new Date().toISOString(),
       isClientSession: false,
       enforceCredentialAccess: streamConfig?.enforceCredentialAccess ?? false,
+      isPublicApiAccess: streamConfig?.isPublicApiAccess ?? false,
       largeValueExecutionIds: Array.from(new Set([executionId])),
       largeValueKeys: streamConfig?.largeValueKeys,
       fileKeys: streamConfig?.fileKeys,

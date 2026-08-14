@@ -1699,6 +1699,49 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     })
   })
 
+  it('resolves both slices as the billing account for an anonymous public-API run', async () => {
+    const snapshot = {
+      ...createSnapshot(),
+      metadata: {
+        ...createSnapshot().metadata,
+        isClientSession: false,
+        sessionUserId: undefined,
+        enforceCredentialAccess: false,
+        isPublicApiAccess: true,
+        workflowUserId: 'workflow-owner',
+        userId: 'billing-account',
+      },
+    }
+
+    getPersonalAndWorkspaceEnvMock.mockImplementation(async (userId: string) => ({
+      personalEncrypted: { PERSONAL: `enc-personal-${userId}` },
+      workspaceEncrypted: {},
+      personalDecrypted: { PERSONAL: `personal-${userId}` },
+      workspaceDecrypted: {},
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+    }))
+    safeStartMock.mockResolvedValue(true)
+    executorExecuteMock.mockResolvedValue({
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: snapshot as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(getPersonalAndWorkspaceEnvMock).toHaveBeenCalledWith('billing-account', 'workspace-1')
+    expect(getPersonalAndWorkspaceEnvMock).not.toHaveBeenCalledWith('workflow-owner', 'workspace-1')
+    expect(executorConstructorMock.mock.calls[0]?.[0]?.envVarValues).toEqual({
+      PERSONAL: 'personal-billing-account',
+    })
+  })
+
   it('resolves both slices as the caller when the run has an identifiable one', async () => {
     const snapshot = {
       ...createSnapshot(),
