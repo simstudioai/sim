@@ -7,10 +7,14 @@ import { tableEventStreamQuerySchema, tableRowsQuerySchema } from '@/lib/api/con
 /**
  * `requestJson` parses the query through this schema on the CLIENT before building the URL, so
  * these values arrive as the caller's real types, not as URL strings. A string-only coercion
- * therefore read the grid's `includeTotal: param === 0` boolean as `false`, page 0 came back with
- * `totalCount: null`, and `hasMoreTableRows` — which treats a null total as "more may exist" —
- * reported `hasNextPage` forever. Every table then paid a wasted extra page fetch on mount and
- * before every row insert.
+ * therefore read the grid's `includeTotal: param === 0` boolean as `false`, and page 0 came back
+ * with `totalCount: null` on every table.
+ *
+ * What that broke is the **filtered** total: `rowTotal` was permanently null, so select-all and
+ * everything downstream of it (bulk delete, run scope, the selected-count label) silently fell
+ * back to the table's UNFILTERED `rowCount`. It also left `hasMoreTableRows` reading a null total
+ * as "more may exist" — though that half is now answered by `nextCursor` instead, so this schema
+ * is not what removes the wasted page fetch.
  */
 describe('tableRowsQuerySchema includeTotal', () => {
   it('accepts a real boolean, which is what the client passes', () => {

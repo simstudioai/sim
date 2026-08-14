@@ -75,9 +75,23 @@ describe('hasMoreTableRows', () => {
       expect(hasMoreTableRows(pages)).toBe(false)
     })
 
-    it('falls back to the count rules for pages cached before the cursor was threaded through', () => {
+    it('falls back to the count rules when a page carries no cursor', () => {
       expect(hasMoreTableRows([makePage(36, 100)])).toBe(true)
       expect(hasMoreTableRows([makePage(3, 3)])).toBe(false)
+    })
+
+    /**
+     * The async "select all" delete strips rows from the active view and pins `nextCursor: null`
+     * so scrolling cannot pull back the rows the background job is still deleting. Deselecting a
+     * few leaves kept rows on the last page, so the row-count arithmetic that used to suppress
+     * `hasNextPage` no longer fires — only the pinned cursor does.
+     */
+    it('stays terminated for a partially-emptied view whose pages pin a null cursor', () => {
+      const pages = [
+        { ...makePage(2, 2), nextCursor: null },
+        { ...makePage(1, null, 2), nextCursor: null },
+      ]
+      expect(hasMoreTableRows(pages)).toBe(false)
     })
   })
 })

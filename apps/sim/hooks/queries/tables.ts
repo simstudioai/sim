@@ -1300,6 +1300,14 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
                   ...page,
                   rows: page.rows.filter((r) => keep.has(r.id)),
                   ...(page.totalCount != null ? { totalCount: keep.size } : {}),
+                  /**
+                   * The view is being emptied on purpose, so it has no next page — stated
+                   * explicitly because the server's cursor would otherwise say otherwise and
+                   * scrolling would pull back the very rows the job is deleting. Only the
+                   * row-count arithmetic used to carry this, which {@link hasMoreTableRows}
+                   * no longer consults once a cursor is present.
+                   */
+                  nextCursor: null,
                 })),
               }
             : old

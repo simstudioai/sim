@@ -806,7 +806,11 @@ export const tableRowsQueryBaseSchema = z.object({
    * gets its count. Everything else goes to {@link booleanQueryFlagSchema}, which accepts a real
    * boolean as well as the URL strings — `requestJson` parses this schema on the CLIENT before
    * building the URL, so the value arrives as the caller's own type, and a string-only coercion
-   * silently read the grid's `includeTotal: param === 0` as `false`.
+   * silently read the grid's `includeTotal: param === 0` as `false` — leaving `totalCount` null on
+   * every table, and select-all falling back to the unfiltered row count.
+   *
+   * Unparseable values now reject rather than resolving to `false`, matching `limit` and `offset`
+   * in this same schema, which have always thrown on garbage.
    */
   includeTotal: z
     .preprocess(

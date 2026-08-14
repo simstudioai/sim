@@ -10,8 +10,10 @@ interface TableRowsPageLike {
   rows: ReadonlyArray<{ id: string; orderKey?: string }>
   totalCount: number | null
   /**
-   * Optional because pages cached before this field was threaded through predate it; those fall
-   * back to the count rules below.
+   * Optional only so this loose page shape stays usable by callers that do not have a server
+   * response to hand (tests, and the optimistic mappings). On the wire it is required — the
+   * contract declares it non-optional and `requestJson` validates the response — so a real page
+   * always carries it and the count fallback below is defensive, not a live path.
    */
   nextCursor?: string | null
 }
