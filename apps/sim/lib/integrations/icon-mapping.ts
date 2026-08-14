@@ -3,7 +3,7 @@
 // Maps block types to their icon component references for the integrations page
 
 import type { ComponentType, SVGProps } from 'react'
-import { Library, Rocket } from '@sim/emcn/icons'
+import { Library, Rocket, Table } from '@sim/emcn/icons'
 import {
   A2AIcon,
   AgentMailIcon,
@@ -223,7 +223,6 @@ import {
   StagehandIcon,
   StripeIcon,
   SupabaseIcon,
-  TableIcon,
   TailscaleIcon,
   TavilyIcon,
   TelegramIcon,
@@ -497,7 +496,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   sts: STSIcon,
   stt_v2: STTIcon,
   supabase: SupabaseIcon,
-  table: TableIcon,
+  table: Table,
   tailscale: TailscaleIcon,
   tavily: TavilyIcon,
   telegram: TelegramIcon,

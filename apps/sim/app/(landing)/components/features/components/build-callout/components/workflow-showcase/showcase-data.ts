@@ -1,11 +1,5 @@
-import {
-  AgentIcon,
-  AnthropicIcon,
-  GmailIcon,
-  LinearIcon,
-  SlackIcon,
-  TableIcon,
-} from '@/components/icons'
+import { Table as TableIcon } from '@sim/emcn/icons'
+import { AgentIcon, AnthropicIcon, GmailIcon, LinearIcon, SlackIcon } from '@/components/icons'
 import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
 /**
