@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { isValidHandoffState, parseLoopbackPort } from '@/app/desktop/auth/validation'
 import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 import { ConnectLauncher } from '@/app/desktop/connect/connect-launcher'
@@ -30,6 +31,21 @@ function InvalidRequest() {
     <DesktopHandoffShell
       title='Connection link incomplete'
       description='Return to the Sim desktop app and start the connection again.'
+    />
+  )
+}
+
+/**
+ * Shown for a service whose OAuth resource is the customer's own tenant host.
+ * The desktop hand-off carries only id-shaped values, so that host cannot reach
+ * this page, and linking without it mints a token with no API audience — an
+ * opaque 401 later rather than a visible failure now.
+ */
+function ResourceUrlUnsupported() {
+  return (
+    <DesktopHandoffShell
+      title='Connect this account from your browser'
+      description='This integration needs its environment URL, which the desktop app cannot pass along. Open Sim in your browser and connect it from Settings → Integrations.'
     />
   )
 }
@@ -98,6 +114,10 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   // draft — including reconnect rebinding when a credentialId rides along.
   // Modal-initiated connects have no workspaceId here (the desktop app already
   // created the draft) and use the plain link flow below.
+  if (getServiceConfigByProviderId(providerId)?.resourceUrl) {
+    return <ResourceUrlUnsupported />
+  }
+
   if (workspaceId) {
     const authorize = new URL('/api/auth/oauth2/authorize', getBaseUrl())
     authorize.searchParams.set('providerId', providerId)

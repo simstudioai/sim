@@ -12,6 +12,9 @@ import {
 import { client } from '@/lib/auth/auth-client'
 import { getDesktopBridge } from '@/lib/desktop'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
+import { resolveResourceOrigin } from '@/lib/oauth/resource-url'
+import type { OAuthResourceUrlConfig } from '@/lib/oauth/types'
+import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuthConnectionsQuery')
 
@@ -140,6 +143,34 @@ export function useOAuthConnections() {
 interface ConnectServiceParams {
   providerId: string
   callbackURL: string
+  /**
+   * Tenant host for a service whose OAuth resource is per-customer, as declared
+   * by {@link OAuthServiceConfig.resourceUrl}. Ignored by every other provider.
+   */
+  resourceUrl?: string
+}
+
+/**
+ * Builds the scope list for a service whose OAuth resource is per-tenant.
+ *
+ * Better Auth's link route *replaces* the provider's registered scopes with the
+ * ones in the request body, so this returns the full list — the static scopes
+ * plus the resource scope naming the validated origin.
+ *
+ * @throws {Error} when the URL is missing or is not one of the service's hosts.
+ *   Reaching here with a bad value means the modal's own check was bypassed, so
+ *   failing is right; the alternative is an opaque error from the provider.
+ */
+function resolveConnectScopes(
+  service: OAuthServiceConfig,
+  resourceConfig: OAuthResourceUrlConfig,
+  resourceUrl: string | undefined
+): string[] {
+  const resolved = resolveResourceOrigin(resourceUrl, resourceConfig)
+  if (!resolved.ok) {
+    throw new Error(resolved.error)
+  }
+  return [...service.scopes, `${resolved.origin}${resourceConfig.scopeSuffix}`]
 }
 
 /**
@@ -150,7 +181,9 @@ export function useConnectOAuthService() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ providerId, callbackURL }: ConnectServiceParams) => {
+    mutationFn: async ({ providerId, callbackURL, resourceUrl }: ConnectServiceParams) => {
+      const service = getServiceConfigByProviderId(providerId)
+      const resourceConfig = service?.resourceUrl
       if (providerId === 'trello') {
         const returnUrl = encodeURIComponent(callbackURL)
         window.location.href = `/api/auth/trello/authorize?returnUrl=${returnUrl}`
@@ -177,6 +210,19 @@ export function useConnectOAuthService() {
       // which refreshes caches and shows the connected toast.
       const desktopBridge = getDesktopBridge()
       if (desktopBridge?.beginOAuthConnect) {
+        /**
+         * The desktop hand-off carries only an id-shaped scope
+         * (`DesktopOAuthConnectScope`), validated against `ID_PATTERN` in the
+         * Electron main process, and ships as a separately released binary — so
+         * an installed shell would silently drop a tenant URL even after the
+         * bridge contract gained one. Fail with a route the user can actually
+         * take rather than starting a flow that cannot request the right scope.
+         */
+        if (resourceConfig) {
+          throw new Error(
+            `Connecting ${service?.name ?? providerId} is not supported in the desktop app yet — connect it from Sim in your browser.`
+          )
+        }
         const opened = await desktopBridge.beginOAuthConnect(providerId)
         if (!opened) {
           throw new Error('Could not open your browser to connect this account.')
@@ -187,6 +233,9 @@ export function useConnectOAuthService() {
       await client.oauth2.link({
         providerId,
         callbackURL,
+        ...(resourceConfig && service
+          ? { scopes: resolveConnectScopes(service, resourceConfig, resourceUrl) }
+          : {}),
       })
 
       return { success: true }

@@ -8,6 +8,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { createConnectDraft } from '@/lib/credentials/connect-draft'
+import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('OAuth2Authorize')
@@ -102,6 +103,21 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     requireConfiguredOAuthClient(providerId)
+
+    /**
+     * A service whose OAuth resource is the customer's own tenant host has no
+     * static resource scope, and this endpoint has no way to collect one — the
+     * desktop hand-off carries only id-shaped values. Linking anyway would mint
+     * a token with no Dataverse audience, which surfaces much later as an opaque
+     * 401 from the API rather than a problem with the connection.
+     */
+    if (getServiceConfigByProviderId(providerId)?.resourceUrl) {
+      logger.warn('Blocked OAuth2 authorize for a resource-scoped provider', {
+        providerId,
+        userId,
+      })
+      return NextResponse.redirect(`${baseUrl}/workspace?error=oauth_resource_url_required`)
+    }
 
     // Create the draft before initiating the link so it is guaranteed to exist
     // (and freshly clocked) when the OAuth callback's `account.create.after`

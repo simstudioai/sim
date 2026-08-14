@@ -97,6 +97,12 @@ const oauthTokenResponseSchema = z.object({
   instanceUrl: z.string().optional(),
   /** Zoho Desk — the data-center-scoped Desk REST base for this credential. */
   apiDomain: z.string().optional(),
+  /**
+   * A service whose OAuth resource is the customer's own tenant host — the
+   * origin this credential's token is actually an audience for, recovered from
+   * its granted scope. Dataverse is the one such service today.
+   */
+  resourceUrl: z.string().optional(),
   cloudId: z.string().optional(),
   domain: z.string().optional(),
   authStyle: z.enum(['x-api-token']).optional(),

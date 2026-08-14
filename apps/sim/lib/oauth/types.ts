@@ -188,6 +188,34 @@ export interface OAuthServiceConfig {
    * which does not hint that the environment was the problem.
    */
   providerIdPickerHint?: string
+  /**
+   * Set when the service's OAuth resource is the customer's own tenant host, so
+   * its scope cannot be declared statically alongside {@link scopes}. The
+   * connect flow collects the URL, validates it against
+   * {@link OAuthResourceUrlConfig.allowedHostSuffixes}, and appends
+   * `origin + scopeSuffix` to the requested scopes.
+   *
+   * Leave unset for every ordinary service — the presence of this field is what
+   * routes a connect attempt through the resource-aware path.
+   */
+  resourceUrl?: OAuthResourceUrlConfig
+}
+
+/**
+ * Describes a service whose OAuth resource is per-tenant. Data only, so the
+ * same declaration drives the connect modal's field, the client-side check, and
+ * the server-side check in the authorize route.
+ */
+export interface OAuthResourceUrlConfig {
+  /** Field label, also used to phrase validation errors. */
+  title: string
+  placeholder: string
+  /** One-line guidance under the field. */
+  hint?: string
+  /** Registrable domain suffixes the host must end with. */
+  allowedHostSuffixes: readonly string[]
+  /** Appended to the validated origin to form the resource scope. */
+  scopeSuffix: string
 }
 
 /**
@@ -202,6 +230,8 @@ export interface OAuthServiceMetadata {
   description: string
   baseProvider: string
   authType: OAuthAuthType
+  /** Mirrors {@link OAuthServiceConfig.resourceUrl} for server-side callers. */
+  resourceUrl?: OAuthResourceUrlConfig
 }
 
 export interface Credential {

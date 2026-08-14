@@ -13,7 +13,9 @@ import {
   resolveOAuthAccountId,
   resolveServiceAccountToken,
 } from '@/lib/oauth/credential-service'
+import { findGrantedResourceOrigin } from '@/lib/oauth/resource-url'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
+import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 
@@ -107,11 +109,22 @@ function buildOAuthTokenPayload(
     apiDomain = extractZohoDeskBaseFromScope(credential.scope)
   }
 
+  /**
+   * The tenant host a resource-scoped credential is bound to. Unlike the two
+   * above it is not smuggled into the scope column — the OAuth scope names the
+   * origin by construction, so the granted scope already carries it.
+   */
+  const resourceConfig = getServiceConfigByProviderId(credential.providerId)?.resourceUrl
+  const resourceUrl = resourceConfig
+    ? findGrantedResourceOrigin(credential.scope?.split(/[\s,]+/), resourceConfig)
+    : undefined
+
   return {
     accessToken,
     idToken: credential.idToken || undefined,
     ...(instanceUrl && { instanceUrl }),
     ...(apiDomain && { apiDomain }),
+    ...(resourceUrl && { resourceUrl }),
   }
 }
 
@@ -143,7 +156,30 @@ export async function completeOAuthCredentialToken(params: {
       })
     }
 
-    return { ok: true, token: buildOAuthTokenPayload(credential, accessToken) }
+    const token = buildOAuthTokenPayload(credential, accessToken)
+
+    /**
+     * A resource-scoped credential whose granted scopes name no valid host holds
+     * a token no API will accept. Refusing here names the problem; letting it
+     * through surfaces as an opaque 401 from the provider that reads like an
+     * expired token rather than a credential that was never scoped to an
+     * environment. Reconnect cannot repair it — the origin it would recover is
+     * the missing part — so the message points at the one path that works.
+     */
+    if (getServiceConfigByProviderId(credential.providerId)?.resourceUrl && !token.resourceUrl) {
+      logger.warn(`[${requestId}] Resource-scoped credential has no granted resource scope`, {
+        providerId: credential.providerId,
+      })
+      return {
+        ok: false,
+        status: 400,
+        error:
+          'This credential is not bound to an environment. Disconnect it and connect the account again.',
+        code: 'resource_scope_missing',
+      }
+    }
+
+    return { ok: true, token }
   } catch (error) {
     logger.error(`[${requestId}] Failed to refresh access token:`, error)
     return { ok: false, status: 401, error: 'Failed to refresh access token' }

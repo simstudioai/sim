@@ -25,6 +25,7 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
+import { resolveResourceOrigin } from '@/lib/oauth/resource-url'
 import { getScopeDescription, getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import { useCreateCredentialDraft, useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
@@ -157,6 +158,23 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
   const providerId = selectedProviderId ?? declaredProviderId
 
+  const resourceConfig = getServiceConfigByProviderId(providerId)?.resourceUrl
+  const [resourceUrl, setResourceUrl] = useState('')
+  const resolvedResource = resourceConfig
+    ? resolveResourceOrigin(resourceUrl, resourceConfig)
+    : undefined
+  /**
+   * Blocks submit outright: a draft credential is written before the provider
+   * hand-off, so letting a bad host through would orphan one. The message is
+   * withheld until the field has content, so an untouched required field is not
+   * pre-marked as an error.
+   */
+  const resourceIncomplete = Boolean(resolvedResource && !resolvedResource.ok)
+  const resourceError =
+    resourceUrl.trim() && resolvedResource && !resolvedResource.ok
+      ? resolvedResource.error
+      : undefined
+
   const [displayName, setDisplayName] = useState('')
   const [description, setDescription] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -226,6 +244,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     if (!open) {
       prefilled.current = false
       setSelectedProviderId(null)
+      setResourceUrl('')
       return
     }
     if (!isConnect || prefilled.current || credentialsLoading) return
@@ -319,6 +338,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       await connectOAuthService.mutateAsync({
         providerId,
         callbackURL: callbackURL.toString(),
+        resourceUrl,
       })
       handleClose()
     } catch (err: unknown) {
@@ -330,8 +350,8 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
 
   const isPending = (isConnect && createDraft.isPending) || connectOAuthService.isPending
   const isDisabled = isConnect
-    ? !displayName.trim() || isPending || Boolean(existingCredential)
-    : isPending
+    ? !displayName.trim() || isPending || Boolean(existingCredential) || resourceIncomplete
+    : isPending || resourceIncomplete
 
   const displayNameError =
     validationError ??
@@ -358,10 +378,27 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
             type='dropdown'
             title='Environment'
             value={providerId}
-            onChange={setSelectedProviderId}
+            onChange={(value) => {
+              setSelectedProviderId(value)
+              setResourceUrl('')
+            }}
             options={authServerOptions}
             align='start'
             hint={authServerHint}
+          />
+        )}
+
+        {resourceConfig && (
+          <ChipModalField
+            type='input'
+            title={resourceConfig.title}
+            value={resourceUrl}
+            onChange={setResourceUrl}
+            placeholder={resourceConfig.placeholder}
+            autoComplete='off'
+            required
+            hint={resourceConfig.hint}
+            error={resourceError}
           />
         )}
 

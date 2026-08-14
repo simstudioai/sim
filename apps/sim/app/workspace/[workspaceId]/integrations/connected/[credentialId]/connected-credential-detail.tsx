@@ -19,6 +19,8 @@ import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { resolveCredentialDisplay } from '@/lib/integrations'
+import { findGrantedResourceOrigin } from '@/lib/oauth/resource-url'
+import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
 import {
   AddPeopleModal,
   CredentialDetailHeading,
@@ -49,6 +51,7 @@ import {
   useDisconnectOAuthService,
   useOAuthConnections,
 } from '@/hooks/queries/oauth/oauth-connections'
+import { useOAuthCredentialDetail } from '@/hooks/queries/oauth/oauth-credentials'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 
 const logger = createLogger('ConnectedCredentialDetail')
@@ -91,6 +94,27 @@ export function ConnectedCredentialDetail({
 
   const form = useCredentialDetailForm({ credential, isAdmin, backHref: integrationsHref })
 
+  /**
+   * Scopes granted to this specific credential, read from the workspace-scoped
+   * credential detail rather than `useOAuthConnections` — the latter returns the
+   * *viewer's* connections, so an admin reconnecting a teammate's shared
+   * credential would find no account, and it resolves to a bare catalog on a
+   * failed fetch, which is indistinguishable from "no scopes granted".
+   */
+  const isResourceScoped = Boolean(
+    credential?.providerId && getServiceConfigByProviderId(credential.providerId)?.resourceUrl
+  )
+  const {
+    data: credentialDetail = [],
+    isPending: scopesLoading,
+    isError: scopesUnavailable,
+  } = useOAuthCredentialDetail(
+    isResourceScoped ? credentialId : undefined,
+    undefined,
+    isResourceScoped
+  )
+  const grantedScopes = credentialDetail[0]?.scopes
+
   const oauthServiceNameByProviderId = useMemo(
     () => new Map(oauthConnections.map((service) => [service.providerId, service.name])),
     [oauthConnections]
@@ -113,6 +137,29 @@ export function ConnectedCredentialDetail({
   const handleReconnectOAuth = async () => {
     if (!credential || credential.type !== 'oauth' || !credential.providerId || !workspaceId) return
     try {
+      /**
+       * A reconnect must return to the environment the credential already
+       * belongs to, so the origin is read back off this credential's own granted
+       * scopes rather than asked for again.
+       *
+       * Resolved before the draft is written so a failure leaves nothing behind.
+       */
+      const resourceConfig = getServiceConfigByProviderId(credential.providerId)?.resourceUrl
+      let resourceUrl: string | undefined
+      if (resourceConfig) {
+        if (scopesUnavailable) {
+          throw new Error(
+            `Couldn't read this credential's ${resourceConfig.title}. Try again in a moment.`
+          )
+        }
+        resourceUrl = findGrantedResourceOrigin(grantedScopes, resourceConfig)
+        if (!resourceUrl) {
+          throw new Error(
+            `This credential is not bound to an ${resourceConfig.title}. Disconnect it here, then connect the account again.`
+          )
+        }
+      }
+
       await createDraft.mutateAsync({
         workspaceId,
         providerId: credential.providerId,
@@ -137,6 +184,7 @@ export function ConnectedCredentialDetail({
       await connectOAuthService.mutateAsync({
         providerId: credential.providerId,
         callbackURL: window.location.href,
+        resourceUrl,
       })
     } catch (error: unknown) {
       toast.error("Couldn't start reconnect", {
@@ -196,7 +244,7 @@ export function ConnectedCredentialDetail({
                 ? () => setReconnectOpen(true)
                 : handleReconnectOAuth
             }
-            disabled={connectOAuthService.isPending}
+            disabled={connectOAuthService.isPending || (isResourceScoped && scopesLoading)}
             leftIcon={display?.icon ?? undefined}
           >
             Reconnect

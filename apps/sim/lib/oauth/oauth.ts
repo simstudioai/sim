@@ -71,6 +71,7 @@ import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { DATAVERSE_RESOURCE_URL } from '@/lib/oauth/dataverse'
 import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import {
   SALESFORCE_ADDITIONAL_PROVIDER_IDS,
@@ -348,13 +349,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-dataverse',
         icon: MicrosoftDataverseIcon,
         baseProviderIcon: MicrosoftIcon,
-        scopes: [
-          'openid',
-          'profile',
-          'email',
-          'https://dynamics.microsoft.com/user_impersonation',
-          'offline_access',
-        ],
+        /**
+         * Only the OIDC scopes are static. Dataverse's API resource is the
+         * customer's own environment host — the Dataverse first-party app
+         * publishes `*.crm.dynamics.com` and its regional siblings, never a
+         * tenant-agnostic URI — so the resource scope is built per connection
+         * from {@link resourceUrl} instead of being declared here.
+         */
+        scopes: ['openid', 'profile', 'email', 'offline_access'],
+        resourceUrl: DATAVERSE_RESOURCE_URL,
       },
       'microsoft-excel': {
         name: 'Microsoft Excel',
