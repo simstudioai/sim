@@ -945,6 +945,44 @@ describe('contract-selected list rendering', () => {
     expect(secrets[0]).toContain('STRIPE_API_KEY')
     expect(secrets[0]).toContain('workspace')
   })
+
+  /**
+   * A field path that misses renders as an em-dash rather than failing, so a
+   * renamed response key is invisible until someone reads the output. v2 nests
+   * the share under `share` and calls the flag `isActive`; the CLI briefly read
+   * a `sharing` wrapper and silently showed nothing for all four columns.
+   */
+  it('reads share fields from the v2 share object, not a sharing wrapper', async () => {
+    const described = (
+      await lines(['files', 'describe', 'file_1'], {
+        id: 'file_1',
+        name: 'notes.txt',
+        uploadedByEmail: 'ada@example.com',
+        share: {
+          isActive: true,
+          url: 'https://sim.ai/s/tok_1',
+          authType: 'email',
+          hasPassword: false,
+          allowedEmails: ['ada@example.com'],
+        },
+      })
+    ).join('\n')
+    expect(described).toContain('https://sim.ai/s/tok_1')
+    expect(described).toContain('email')
+    expect(described).toContain('ada@example.com')
+
+    const share = (
+      await lines(['files', 'share', 'get', 'file_1'], {
+        isActive: true,
+        url: 'https://sim.ai/s/tok_2',
+        authType: 'sso',
+        hasPassword: true,
+        allowedEmails: ['ada@example.com', 'grace@example.com'],
+      })
+    ).join('\n')
+    expect(share).toContain('https://sim.ai/s/tok_2')
+    expect(share).toContain('sso')
+  })
 })
 
 describe('pagination slot', () => {

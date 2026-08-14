@@ -469,10 +469,12 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'uploaded by', path: 'uploadedByEmail' },
       { header: 'uploaded', path: 'uploadedAt', format: 'timestamp' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
-      { header: 'shared', path: 'sharing.enabled', format: 'bool' },
-      { header: 'share URL', path: 'sharing.url' },
-      { header: 'share auth', path: 'sharing.authType' },
-      { header: 'allowed emails', path: 'sharing.allowedEmails', format: 'count' },
+      // v2 returns the share under `share` (null when unshared), and its flag
+      // is `isActive`.
+      { header: 'shared', path: 'share.isActive', format: 'bool' },
+      { header: 'share URL', path: 'share.url' },
+      { header: 'share auth', path: 'share.authType' },
+      { header: 'allowed emails', path: 'share.allowedEmails', format: 'count' },
     ],
   },
   moveFileItems: {
@@ -500,14 +502,17 @@ export const CLI_CONTRACT: CliContract = {
       encoding: { choices: ['utf-8', 'base64'], describe: 'Content encoding' },
     },
   },
+  // Both share commands return the share itself as `data`, which the runtime
+  // unwraps, so these fields sit at the top level rather than under a wrapper.
   getFileShare: {
     command: 'files share get',
     describe: 'Show a file’s share settings',
     fields: [
-      { header: 'shared', path: 'sharing.enabled', format: 'bool' },
-      { header: 'URL', path: 'sharing.url' },
-      { header: 'auth', path: 'sharing.authType' },
-      { header: 'allowed emails', path: 'sharing.allowedEmails', format: 'count' },
+      { header: 'shared', path: 'isActive', format: 'bool' },
+      { header: 'URL', path: 'url' },
+      { header: 'auth', path: 'authType' },
+      { header: 'password set', path: 'hasPassword', format: 'bool' },
+      { header: 'allowed emails', path: 'allowedEmails', format: 'count' },
     ],
   },
   // v2 folds share and unshare into one PATCH; `--is-active false` disables it,
@@ -519,10 +524,11 @@ export const CLI_CONTRACT: CliContract = {
       allowedEmails: { list: true },
     },
     fields: [
-      { header: 'shared', path: 'sharing.enabled', format: 'bool' },
-      { header: 'URL', path: 'sharing.url' },
-      { header: 'auth', path: 'sharing.authType' },
-      { header: 'allowed emails', path: 'sharing.allowedEmails', format: 'count' },
+      { header: 'shared', path: 'isActive', format: 'bool' },
+      { header: 'URL', path: 'url' },
+      { header: 'auth', path: 'authType' },
+      { header: 'password set', path: 'hasPassword', format: 'bool' },
+      { header: 'allowed emails', path: 'allowedEmails', format: 'count' },
     ],
   },
 
