@@ -29,6 +29,18 @@ type EditContentResult = {
   data?: Record<string, unknown>
 }
 
+const CONSUMED_FILE_INTENT_RETRY_GUIDANCE =
+  'The workspace_file intent was consumed; call workspace_file again before retrying edit_content.'
+
+function consumedFileIntentFailure(message: string): EditContentResult {
+  const normalizedMessage = message.trimEnd()
+  const separator = /[.!?]$/.test(normalizedMessage) ? ' ' : '. '
+  return {
+    success: false,
+    message: `${normalizedMessage}${separator}${CONSUMED_FILE_INTENT_RETRY_GUIDANCE}`,
+  }
+}
+
 export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentResult> = {
   name: 'edit_content',
   async execute(params: EditContentArgs, context?: ServerToolContext): Promise<EditContentResult> {
@@ -105,17 +117,16 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
         case 'patch': {
           const existing = intent.existingContent ?? ''
           if (!intent.edit) {
-            return { success: false, message: 'Patch intent missing edit metadata' }
+            return consumedFileIntentFailure('Patch intent missing edit metadata')
           }
 
           if (intent.edit.strategy === 'search_replace') {
             const search = intent.edit.search!
             const firstIdx = existing.indexOf(search)
             if (firstIdx === -1) {
-              return {
-                success: false,
-                message: `Patch failed: search string not found in file "${fileRecord.name}"`,
-              }
+              return consumedFileIntentFailure(
+                `Patch failed: search string not found in file "${fileRecord.name}"`
+              )
             }
             finalContent = intent.edit.replaceAll
               ? existing.split(search).join(content)
@@ -151,24 +162,26 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
 
             if (intent.edit.mode === 'replace_between') {
               if (!intent.edit.before_anchor || !intent.edit.after_anchor) {
-                return {
-                  success: false,
-                  message: 'replace_between requires before_anchor and after_anchor',
-                }
+                return consumedFileIntentFailure(
+                  'replace_between requires before_anchor and after_anchor'
+                )
               }
               const before = findAnchorLine(intent.edit.before_anchor)
-              if (before.error) return { success: false, message: `Patch failed: ${before.error}` }
+              if (before.error) {
+                return consumedFileIntentFailure(`Patch failed: ${before.error}`)
+              }
               const after = findAnchorLine(
                 intent.edit.after_anchor,
                 defaultOccurrence,
                 before.index
               )
-              if (after.error) return { success: false, message: `Patch failed: ${after.error}` }
+              if (after.error) {
+                return consumedFileIntentFailure(`Patch failed: ${after.error}`)
+              }
               if (after.index <= before.index) {
-                return {
-                  success: false,
-                  message: 'Patch failed: after_anchor must appear after before_anchor in the file',
-                }
+                return consumedFileIntentFailure(
+                  'Patch failed: after_anchor must appear after before_anchor in the file'
+                )
               }
               const newLines = [
                 ...lines.slice(0, before.index + 1),
@@ -178,10 +191,12 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
               finalContent = newLines.join('\n')
             } else if (intent.edit.mode === 'insert_after') {
               if (!intent.edit.anchor) {
-                return { success: false, message: 'insert_after requires anchor' }
+                return consumedFileIntentFailure('insert_after requires anchor')
               }
               const found = findAnchorLine(intent.edit.anchor)
-              if (found.error) return { success: false, message: `Patch failed: ${found.error}` }
+              if (found.error) {
+                return consumedFileIntentFailure(`Patch failed: ${found.error}`)
+              }
               const newLines = [
                 ...lines.slice(0, found.index + 1),
                 ...content.split('\n'),
@@ -190,36 +205,35 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
               finalContent = newLines.join('\n')
             } else if (intent.edit.mode === 'delete_between') {
               if (!intent.edit.start_anchor || !intent.edit.end_anchor) {
-                return {
-                  success: false,
-                  message: 'delete_between requires start_anchor and end_anchor',
-                }
+                return consumedFileIntentFailure(
+                  'delete_between requires start_anchor and end_anchor'
+                )
               }
               const start = findAnchorLine(intent.edit.start_anchor)
-              if (start.error) return { success: false, message: `Patch failed: ${start.error}` }
+              if (start.error) {
+                return consumedFileIntentFailure(`Patch failed: ${start.error}`)
+              }
               const end = findAnchorLine(intent.edit.end_anchor, defaultOccurrence, start.index)
-              if (end.error) return { success: false, message: `Patch failed: ${end.error}` }
+              if (end.error) {
+                return consumedFileIntentFailure(`Patch failed: ${end.error}`)
+              }
               if (end.index <= start.index) {
-                return {
-                  success: false,
-                  message: 'Patch failed: end_anchor must appear after start_anchor in the file',
-                }
+                return consumedFileIntentFailure(
+                  'Patch failed: end_anchor must appear after start_anchor in the file'
+                )
               }
               const newLines = [...lines.slice(0, start.index), ...lines.slice(end.index)]
               finalContent = newLines.join('\n')
             } else {
-              return {
-                success: false,
-                message: `Unknown anchored patch mode: "${intent.edit.mode}"`,
-              }
+              return consumedFileIntentFailure(`Unknown anchored patch mode: "${intent.edit.mode}"`)
             }
           } else {
-            return { success: false, message: `Unknown patch strategy: "${intent.edit.strategy}"` }
+            return consumedFileIntentFailure(`Unknown patch strategy: "${intent.edit.strategy}"`)
           }
           break
         }
         default:
-          return { success: false, message: `Unsupported operation in intent: ${operation}` }
+          return consumedFileIntentFailure(`Unsupported operation in intent: ${operation}`)
       }
 
       // Compile once via the right engine (or isolated-vm fallback) and resolve
@@ -235,7 +249,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
         fallbackMime: inferContentType(fileRecord.name, intent.contentType),
       })
       if (!compiled.ok) {
-        return { success: false, message: compiled.message }
+        return consumedFileIntentFailure(compiled.message)
       }
 
       const fileBuffer = Buffer.from(finalContent, 'utf-8')
@@ -290,10 +304,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
         error: errorMessage,
         userId: context.userId,
       })
-      return {
-        success: false,
-        message: safeMessage,
-      }
+      return consumedFileIntentFailure(safeMessage)
     }
   },
 }

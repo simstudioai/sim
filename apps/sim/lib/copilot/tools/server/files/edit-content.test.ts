@@ -124,4 +124,62 @@ describe('edit_content', () => {
       { fileId: 'pdf-1' }
     )
   })
+
+  it('tells the agent to create a new intent when an edit fails after consuming one', async () => {
+    consumeLatestFileIntentMock.mockResolvedValue({
+      operation: 'patch',
+      fileId: 'pdf-1',
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      fileRecord: { id: 'pdf-1', name: 'report.pdf' },
+      createdAt: Date.now(),
+    })
+
+    const result = await editContentServerTool.execute({ content: 'replacement' }, context)
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        'Patch intent missing edit metadata. The workspace_file intent was consumed; call workspace_file again before retrying edit_content.',
+    })
+  })
+
+  it('keeps the existing first-use guidance when no intent was consumed', async () => {
+    consumeLatestFileIntentMock.mockResolvedValue(undefined)
+
+    const result = await editContentServerTool.execute({ content: 'replacement' }, context)
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        'No workspace_file context found. Call workspace_file first, wait for it to succeed, then call edit_content in the next step. Do not emit edit_content in parallel or in the same batch as workspace_file.',
+    })
+  })
+
+  it('adds the recovery guidance when document compilation returns an error', async () => {
+    compileDocForWriteMock.mockResolvedValue({
+      ok: false,
+      message: 'PDF compilation failed',
+    })
+
+    const result = await editContentServerTool.execute({ content: 'source' }, context)
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        'PDF compilation failed. The workspace_file intent was consumed; call workspace_file again before retrying edit_content.',
+    })
+  })
+
+  it('adds the recovery guidance when editing throws after consuming an intent', async () => {
+    compileDocForWriteMock.mockRejectedValue(new Error('sandbox unavailable'))
+
+    const result = await editContentServerTool.execute({ content: 'source' }, context)
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        'Failed to edit file content. The workspace_file intent was consumed; call workspace_file again before retrying edit_content.',
+    })
+  })
 })
