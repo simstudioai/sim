@@ -6,8 +6,10 @@ import {
   validateAuthorizationCode,
 } from '@better-auth/core/oauth2'
 import { normalizeEmail } from '@sim/utils/string'
-import type { ConnectorProviderConfig } from '@/lib/auth/connectors/managed-oauth'
-import { getConnectorProviderConfig } from '@/lib/auth/connectors/providers'
+import {
+  type ConnectorProviderConfig,
+  getManagedOAuthConnectorProviderConfig,
+} from '@/lib/auth/connectors/managed-oauth'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { credentialGroupOAuthNonceMatches } from '@/lib/credential-groups/oauth-state'
@@ -116,8 +118,8 @@ function getCurrentProvider(
   provider: CredentialGroupStandardOAuthProvider
 ): CurrentStandardOAuthProvider {
   const service = getCredentialGroupProviderService(provider)
-  const connector = getConnectorProviderConfig(service.providerId)
-  if (!connector?.managedOAuth) {
+  const connector = getManagedOAuthConnectorProviderConfig(service.providerId)
+  if (!connector) {
     throw new CredentialGroupProviderConfigurationError(
       `Managed ${service.name} authorization is not configured`
     )
@@ -190,13 +192,17 @@ async function exchangeAuthorizationCode(params: {
   return applyDefaultAccessTokenExpiry(tokens, connector.accessTokenExpiresIn)
 }
 
+/**
+ * Reuses the native connector's OAuth client, endpoints, scopes, and exchange hooks while
+ * persisting the result through public enrollment instead of a signed-in Sim account.
+ */
 export function createStandardOAuthCredentialGroupProviderAdapter(
   provider: CredentialGroupStandardOAuthProvider
 ): CredentialGroupProviderAdapter {
   return {
     provider,
     get requiresRefreshToken() {
-      return getCurrentProvider(provider).connector.managedOAuth!.requiresRefreshToken
+      return getCurrentProvider(provider).connector.managedOAuth.requiresRefreshToken
     },
     async getPolicy() {
       return getCurrentProvider(provider).policy
@@ -204,7 +210,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
     async prepareAuthorization(context, policy) {
       const current = getCurrentProvider(provider)
       assertCurrentPolicy(policy, current.policy)
-      const managed = current.connector.managedOAuth!
+      const managed = current.connector.managedOAuth
       const endpoints = await resolveOAuthEndpoints(
         current.connector,
         getCredentialGroupProviderService(provider).name
@@ -252,7 +258,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
       if (attempt.redirectUri !== redirectUri) {
         throw new CredentialGroupOAuthError('Authorization state is invalid or expired.', 400)
       }
-      const managed = current.connector.managedOAuth!
+      const managed = current.connector.managedOAuth
       if (managed.pkce && !attempt.codeVerifier) {
         throw new CredentialGroupOAuthError('Authorization state is invalid or expired.', 400)
       }
@@ -332,7 +338,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
       }
     },
     hasRequiredScopes(grantedScopes, requiredScopes) {
-      return getCurrentProvider(provider).connector.managedOAuth!.hasRequiredScopes(
+      return getCurrentProvider(provider).connector.managedOAuth.hasRequiredScopes(
         grantedScopes,
         requiredScopes
       )
@@ -341,7 +347,7 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
       return refreshOAuthToken(getCurrentProvider(provider).policy.providerId, refreshToken)
     },
     isTerminalRefreshError(errorCode) {
-      return getCurrentProvider(provider).connector.managedOAuth!.isTerminalRefreshError(errorCode)
+      return getCurrentProvider(provider).connector.managedOAuth.isTerminalRefreshError(errorCode)
     },
   }
 }

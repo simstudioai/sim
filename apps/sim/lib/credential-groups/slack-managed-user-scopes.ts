@@ -1,3 +1,7 @@
+/**
+ * User-token policy requested and verified by Credential Group Slack OAuth.
+ * This is independent of the custom bot manifest and its configuration UI.
+ */
 export const SLACK_MANAGED_USER_SCOPES = [
   'channels:history',
   'channels:read',

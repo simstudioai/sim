@@ -6,8 +6,6 @@ export * from './auth'
 export * from './billing'
 // Shared components
 export * from './components'
-// Credential group emails
-export * from './credential-groups'
 // Invitation emails
 export * from './invitations'
 // Operational notification emails

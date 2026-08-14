@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import type { OAuth2Tokens } from '@better-auth/core/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { OAuth2Client, type TokenPayload } from 'google-auth-library'
+import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 
 const GOOGLE_OPENID_SCOPE = 'openid'
 const GOOGLE_EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email'
@@ -38,7 +39,7 @@ export interface ManagedOAuthConnectorConfig {
 }
 
 export interface ConnectorProviderConfig extends GenericOAuthConfig {
-  managedOAuth?: ManagedOAuthConnectorConfig
+  managedOAuth: ManagedOAuthConnectorConfig
 }
 
 function canonicalGoogleScope(scope: string): string {
@@ -114,5 +115,19 @@ export function createGoogleManagedOAuthConnector(providerId: string): ManagedOA
     isTerminalRefreshError(errorCode) {
       return errorCode === 'invalid_grant'
     },
+  }
+}
+
+export function getManagedOAuthConnectorProviderConfig(
+  providerId: string
+): ConnectorProviderConfig | undefined {
+  if (providerId !== 'google-email' && providerId !== 'google-calendar') return undefined
+  const connector = buildConnectorProviders().find(
+    (candidate) => candidate.providerId === providerId
+  )
+  if (!connector) return undefined
+  return {
+    ...connector,
+    managedOAuth: createGoogleManagedOAuthConnector(providerId),
   }
 }

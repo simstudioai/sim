@@ -6,10 +6,6 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { syntheticConnectorEmail } from '@/lib/auth/connector-email'
-import {
-  type ConnectorProviderConfig,
-  createGoogleManagedOAuthConnector,
-} from '@/lib/auth/connectors/managed-oauth'
 import { env } from '@/lib/core/config/env'
 import { inspectConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import {
@@ -151,8 +147,8 @@ function salesforceConnector(providerId: string, loginHost: string): GenericOAut
  * matching its union) and every `getUserInfo` parameter becomes implicitly
  * `any`.
  */
-export function buildConnectorProviders(): ConnectorProviderConfig[] {
-  const providers: ConnectorProviderConfig[] = [
+export function buildConnectorProviders(): GenericOAuthConfig[] {
+  const providers: GenericOAuthConfig[] = [
     {
       providerId: 'google-email',
       clientId: env.GOOGLE_CLIENT_ID as string,
@@ -162,7 +158,6 @@ export function buildConnectorProviders(): ConnectorProviderConfig[] {
       scopes: getCanonicalScopesForProvider('google-email'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-email`,
-      managedOAuth: createGoogleManagedOAuthConnector('google-email'),
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -199,7 +194,6 @@ export function buildConnectorProviders(): ConnectorProviderConfig[] {
       scopes: getCanonicalScopesForProvider('google-calendar'),
       prompt: 'consent',
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-calendar`,
-      managedOAuth: createGoogleManagedOAuthConnector('google-calendar'),
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
@@ -2432,10 +2426,4 @@ export function buildConnectorProviders(): ConnectorProviderConfig[] {
   return providers.filter(
     ({ providerId }) => inspectConfiguredOAuthClient(providerId).state === 'ready'
   )
-}
-
-export function getConnectorProviderConfig(
-  providerId: string
-): ConnectorProviderConfig | undefined {
-  return buildConnectorProviders().find((provider) => provider.providerId === providerId)
 }

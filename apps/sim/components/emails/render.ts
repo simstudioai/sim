@@ -19,7 +19,6 @@ import {
   UsageLimitReachedEmail,
   UsageThresholdEmail,
 } from '@/components/emails/billing'
-import { CredentialGroupInvitationEmail } from '@/components/emails/credential-groups'
 import {
   BatchInvitationEmail,
   InvitationEmail,
@@ -251,16 +250,6 @@ export async function renderWorkspaceInvitationEmail(
       invitationLink,
     })
   )
-}
-
-export async function renderCredentialGroupInvitationEmail(params: {
-  recipientEmail: string
-  inviterName: string
-  workspaceName: string
-  credentialGroupName: string
-  invitationLink: string
-}): Promise<string> {
-  return await render(CredentialGroupInvitationEmail(params))
 }
 
 export async function renderWorkspaceAddedEmail(

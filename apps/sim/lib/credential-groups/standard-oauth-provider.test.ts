@@ -15,8 +15,8 @@ vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: () => 'https://sim.example.com',
 }))
 
-vi.mock('@/lib/auth/connectors/providers', () => ({
-  getConnectorProviderConfig: (providerId: string) =>
+vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
+  getManagedOAuthConnectorProviderConfig: (providerId: string) =>
     providerId === 'google-calendar'
       ? {
           providerId,
