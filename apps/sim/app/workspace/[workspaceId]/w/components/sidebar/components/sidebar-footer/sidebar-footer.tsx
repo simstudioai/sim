@@ -24,7 +24,10 @@ import { getDesktopUpdates } from '@/lib/desktop'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { SIDEBAR_ITEM_GAP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import {
+  SIDEBAR_ITEM_GAP_CLASS,
+  SIDEBAR_RAIL_CHIP_CLASS,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useUserProfile } from '@/hooks/queries/user-profile'
 import { useWorkspaceInvitePolicy } from '@/hooks/use-workspace-invite-policy'
@@ -237,11 +240,11 @@ export function SidebarFooter({
           <button
             type='button'
             data-item-id='profile'
-            className={
-              isCollapsed
-                ? cn(chipVariants({ fullWidth: true }), 'min-w-0')
-                : cn(chipVariants(), 'max-w-full')
-            }
+            className={cn(
+              chipVariants({ fullWidth: isCollapsed }),
+              isCollapsed ? 'min-w-0' : 'max-w-full',
+              SIDEBAR_RAIL_CHIP_CLASS
+            )}
           >
             {avatar}
             {profile ? (
@@ -293,7 +296,7 @@ export function SidebarFooter({
                than the rail, and a shrinking chip would be squeezed onto the avatar.
                Holding its size pushes it past the edge, where the aside's clip hides
                it until there is room. */
-            className='flex-shrink-0'
+            className={cn('flex-shrink-0', SIDEBAR_RAIL_CHIP_CLASS)}
           />
         </DropdownMenuTrigger>
       </SidebarTooltip>
