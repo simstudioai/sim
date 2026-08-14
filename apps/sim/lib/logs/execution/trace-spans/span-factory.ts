@@ -33,9 +33,10 @@ function nonEmptyString(value: unknown): string | undefined {
 /**
  * Returns the canonical error message for a failed agent tool call.
  *
- * Providers expose failures through several normalized shapes. The nested
- * fallback intentionally requires Sim's complete error envelope so ordinary
- * successful tool data with an `error` field is not misclassified.
+ * Providers expose failures through several normalized shapes. A nested
+ * `success: false` is explicit; the generic nested fallback requires Sim's
+ * complete error envelope so successful tool data with an `error` field is
+ * not misclassified.
  */
 function getToolCallErrorMessage(
   toolCall: BlockToolCall | undefined,
@@ -48,6 +49,7 @@ function getToolCallErrorMessage(
   const hasExplicitFailure =
     toolCall?.success === false ||
     toolCall?.status === 'error' ||
+    result?.success === false ||
     topLevelError !== undefined ||
     segmentError !== undefined
   const hasStandardSimError =

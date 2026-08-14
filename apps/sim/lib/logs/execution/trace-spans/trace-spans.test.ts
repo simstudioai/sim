@@ -341,7 +341,23 @@ describe('buildTraceSpans', () => {
     expect(toolCall.output).toEqual({ analysis: 'completed' })
   })
 
-  it.concurrent('handles tool calls with errors in timeSegments', () => {
+  it.concurrent.each([
+    {
+      toolResult: {
+        error: true,
+        message: 'Tool execution failed',
+        tool: 'custom_failing_tool',
+      },
+      expectedMessage: 'Tool execution failed',
+    },
+    {
+      toolResult: {
+        success: false,
+        error: 'MCP server connection failed',
+      },
+      expectedMessage: 'MCP server connection failed',
+    },
+  ])('handles tool calls with errors in timeSegments', ({ toolResult, expectedMessage }) => {
     const mockExecutionResult: ExecutionResult = {
       success: true,
       output: { content: 'Final output' },
@@ -392,11 +408,7 @@ describe('buildTraceSpans', () => {
                 {
                   name: 'failing_tool',
                   arguments: { input: 'test' },
-                  result: {
-                    error: true,
-                    message: 'Tool execution failed',
-                    tool: 'custom_failing_tool',
-                  },
+                  result: toolResult,
                   duration: 1000,
                   startTime: '2024-01-01T10:00:01.000Z',
                   endTime: '2024-01-01T10:00:02.000Z',
@@ -425,13 +437,9 @@ describe('buildTraceSpans', () => {
     expect(toolSegment.type).toBe('tool')
     expect(toolSegment.status).toBe('error')
     expect(toolSegment.errorHandled).toBe(true)
-    expect(toolSegment.errorMessage).toBe('Tool execution failed')
+    expect(toolSegment.errorMessage).toBe(expectedMessage)
     expect(toolSegment.input).toEqual({ input: 'test' })
-    expect(toolSegment.output).toEqual({
-      error: true,
-      message: 'Tool execution failed',
-      tool: 'custom_failing_tool',
-    })
+    expect(toolSegment.output).toEqual(toolResult)
   })
 
   it.concurrent('handles blocks without tool calls', () => {
