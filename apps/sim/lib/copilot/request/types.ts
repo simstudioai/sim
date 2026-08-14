@@ -82,8 +82,6 @@ export interface ContentBlock {
   subagent?: string
   /** Orchestrator-chosen display name for a `subagent` start block. */
   subagentName?: string
-  /** The agent's latest <intent> tag. */
-  subagentIntent?: string
   /**
    * Deterministic agent-run identity. `spanId` is the stable per-invocation id
    * of the subagent that produced the block; `parentSpanId` links it to the run
@@ -150,8 +148,6 @@ export interface StreamingContext {
    * block. Per-lane keying keeps each subagent's reasoning intact.
    */
   subagentThinkingBlocks: Map<string, ContentBlock>
-  /** Per-lane carry for an <intent> tag split across streamed chunks. */
-  subagentIntentCarry?: Record<string, string>
   isInThinkingBlock: boolean
   subAgentContent: Record<string, string>
   subAgentToolCalls: Record<string, ToolCallState[]>

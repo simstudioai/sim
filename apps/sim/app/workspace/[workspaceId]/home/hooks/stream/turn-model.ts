@@ -87,10 +87,6 @@ export interface AgentNode extends NodeBase {
   triggerToolCallId?: string
   /** Orchestrator-chosen display name for this delegation (falls back to the agent label). */
   displayName?: string
-  /** The agent's latest <intent> tag — the collapsed card's live status line. */
-  currentIntent?: string
-  /** Streaming carry for an intent tag split across text deltas (never serialized). */
-  intentCarry?: string
   status: NodeStatus
   /** Wire seq at which the run terminated (span end), for ordering the close marker. */
   endSeq?: number
@@ -301,57 +297,6 @@ function breakLane(model: TurnModel, spanId: string, atMs?: number): void {
   closeOpenText(model, spanId, 'thinking', atMs)
 }
 
-const INTENT_OPEN = '<intent>'
-const INTENT_CLOSE = '</intent>'
-/** A tag that never closes within this many chars flushes back as plain text. */
-const INTENT_CARRY_MAX = 240
-
-/** Length of the longest buf suffix that could still grow into `token`. */
-function partialSuffixLen(buf: string, token: string): number {
-  const max = Math.min(buf.length, token.length - 1)
-  for (let len = max; len > 0; len--) {
-    if (token.startsWith(buf.slice(buf.length - len))) return len
-  }
-  return 0
-}
-
-/**
- * Streams a subagent's assistant text through the <intent> protocol: complete
- * tags update the owning agent's currentIntent and are removed from the prose;
- * a tag split across deltas is carried until its close arrives. The returned
- * string is what the transcript should render.
- */
-function filterIntentText(owner: AgentNode, incoming: string): string {
-  let buf = (owner.intentCarry ?? '') + incoming
-  owner.intentCarry = ''
-  let out = ''
-  while (buf) {
-    const openIdx = buf.indexOf(INTENT_OPEN)
-    if (openIdx === -1) {
-      const keep = partialSuffixLen(buf, INTENT_OPEN)
-      out += keep ? buf.slice(0, buf.length - keep) : buf
-      if (keep) owner.intentCarry = buf.slice(buf.length - keep)
-      break
-    }
-    out += buf.slice(0, openIdx)
-    const rest = buf.slice(openIdx)
-    const closeIdx = rest.indexOf(INTENT_CLOSE, INTENT_OPEN.length)
-    if (closeIdx === -1) {
-      if (rest.length > INTENT_CARRY_MAX) {
-        out += rest
-      } else {
-        owner.intentCarry = rest
-      }
-      break
-    }
-    const intent = rest.slice(INTENT_OPEN.length, closeIdx).trim()
-    if (intent) owner.currentIntent = intent
-    buf = rest.slice(closeIdx + INTENT_CLOSE.length)
-    if (buf.startsWith('\n')) buf = buf.slice(1)
-  }
-  return out
-}
-
 function appendText(
   model: TurnModel,
   spanId: string,
@@ -517,15 +462,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
     case MothershipStreamV1EventType.text: {
       const payload = envelope.payload
       ensureSubagentLane(model, spanId, scope, seq, tsMs)
-      let text = payload.text
-      if (spanId !== MAIN_SPAN && (payload.channel as TextChannel) === 'assistant') {
-        const ownerId = model.agentBySpanId.get(spanId)
-        const owner = ownerId ? model.nodes.get(ownerId) : undefined
-        if (owner && owner.kind === 'agent') {
-          text = filterIntentText(owner, text)
-        }
-      }
-      appendText(model, spanId, payload.channel as TextChannel, text, seq, tsMs)
+      appendText(model, spanId, payload.channel as TextChannel, payload.text, seq, tsMs)
       break
     }
     case MothershipStreamV1EventType.tool: {
@@ -629,7 +566,6 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         scope?.parentToolCallId ?? asString(data?.tool_call_id) ?? asString(data?.toolCallId)
       const agentId = asString(payload.agent) ?? scope?.agentId ?? ''
       const displayName = asString(data?.name)
-      const restoredIntent = asString(data?.intent)
       const resolvedSpanId =
         scope?.spanId ?? (triggerToolCallId ? `span:${triggerToolCallId}` : `span:${seq}`)
       const parentSpanId = scope?.parentSpanId ?? MAIN_SPAN
@@ -649,7 +585,6 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           // while this start's payload.agent is the authoritative lane owner.
           if (agentId && existing.agentId !== agentId) existing.agentId = agentId
           if (displayName) existing.displayName = displayName
-          if (restoredIntent && !existing.currentIntent) existing.currentIntent = restoredIntent
           if (!existing.triggerToolCallId && triggerToolCallId) {
             existing.triggerToolCallId = triggerToolCallId
           }
@@ -672,7 +607,6 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           ...(tsMs !== undefined ? { startedAtMs: tsMs } : {}),
           ...(triggerToolCallId ? { triggerToolCallId } : {}),
           ...(displayName ? { displayName } : {}),
-          ...(restoredIntent ? { currentIntent: restoredIntent } : {}),
         }
         model.nodes.set(node.id, node)
         model.order.push(node.id)

@@ -116,8 +116,6 @@ export interface ContentBlock {
   subagent?: string
   /** Orchestrator-chosen display name for a `subagent` start block (shown instead of the generic agent label). */
   subagentName?: string
-  /** The agent's latest <intent> tag at serialization time — the collapsed card's status line. */
-  subagentIntent?: string
   toolCall?: ToolCallInfo
   options?: OptionItem[]
   timestamp?: number

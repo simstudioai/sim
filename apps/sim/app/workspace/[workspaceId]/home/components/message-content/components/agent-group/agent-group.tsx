@@ -21,8 +21,6 @@ export interface NestedAgentGroup {
   id: string
   agentName: string
   agentLabel: string
-  /** The agent's latest <intent> tag — the collapsed row's live status. */
-  intent?: string
   items: AgentGroupItem[]
   isDelegating: boolean
   isOpen: boolean
@@ -36,8 +34,6 @@ export type AgentGroupItem =
 interface AgentGroupProps {
   agentName: string
   agentLabel: string
-  /** The agent's latest <intent> tag — shown inline after the label. */
-  intent?: string
   items: AgentGroupItem[]
   isDelegating?: boolean
   isStreaming?: boolean
@@ -111,7 +107,6 @@ export function isAgentGroupResolved(items: AgentGroupItem[]): boolean {
 export function AgentGroup({
   agentName,
   agentLabel,
-  intent,
   items,
   isDelegating = false,
   isStreaming = false,
@@ -119,10 +114,30 @@ export function AgentGroup({
   isLaneOpen = false,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
-  // The status line is the agent's own <intent> narration — no tool-title
-  // fallback: the task-message protocol reminder makes every agent open with
-  // an intent tag, so a bare label means the run has not produced one yet.
-  const headerText = intent ? `${agentLabel} — ${intent}` : agentLabel
+  // Collapsed status line: the latest tool call, always in its RUNNING
+  // phrasing — it never flips to the completed rewrite (that lives in the
+  // expanded log). With parallel tools, the most recently started
+  // still-running one wins, with a +N for its running siblings; between
+  // rounds the last tool's title stays frozen; a closed lane shows the bare
+  // name.
+  const status = (() => {
+    if (!isLaneOpen) return undefined
+    let running: string | undefined
+    let runningCount = 0
+    let lastAny: string | undefined
+    for (const it of items) {
+      if (it.type !== 'tool') continue
+      const title = it.data.displayTitle || String(it.data.toolName ?? '')
+      lastAny = title
+      if (it.data.status === ToolCallStatus.executing) {
+        running = title
+        runningCount += 1
+      }
+    }
+    if (running) return runningCount > 1 ? `${running} +${runningCount - 1}` : running
+    return lastAny
+  })()
+  const headerText = status ? `${agentLabel} — ${status}` : agentLabel
   const hasItems = items.length > 0
   const resolved = isAgentGroupResolved(items)
   const browserAgentAvailable = isBrowserAgentAvailable()
@@ -220,7 +235,6 @@ export function AgentGroup({
                         <AgentGroup
                           agentName={item.group.agentName}
                           agentLabel={item.group.agentLabel}
-                          intent={item.group.intent}
                           items={item.group.items}
                           isDelegating={item.group.isDelegating}
                           isStreaming={isStreaming}
