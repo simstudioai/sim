@@ -127,13 +127,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    let managedOAuthPrincipal: WorkflowExecutionDelegatedPrincipal | null = null
-    const managedOAuthDelegation = parsed.data.headers?.[MANAGED_OAUTH_DELEGATION_HEADER]
-    if (managedOAuthDelegation && credentialId) {
+    const resolved = credentialId ? await resolveOAuthAccountId(credentialId) : null
+    if (resolved?.credentialType === 'managed_oauth' && resolved.credentialId) {
+      const managedOAuthDelegation = parsed.data.headers?.[MANAGED_OAUTH_DELEGATION_HEADER]
+      if (!managedOAuthDelegation) {
+        return NextResponse.json(
+          {
+            code: 'MANAGED_CREDENTIAL_DELEGATION_REQUIRED',
+            error: 'Managed credentials can only be used by an authenticated workflow execution',
+          },
+          { status: 403 }
+        )
+      }
+
+      let managedOAuthPrincipal: WorkflowExecutionDelegatedPrincipal
       try {
         managedOAuthPrincipal = await authenticateManagedOAuthDelegation(
           managedOAuthDelegation,
-          credentialId
+          resolved.credentialId
         )
       } catch (error) {
         if (!(error instanceof InvalidManagedOAuthDelegationError)) throw error
@@ -145,10 +156,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           { status: 401 }
         )
       }
-    }
-
-    const resolved = credentialId ? await resolveOAuthAccountId(credentialId) : null
-    if (resolved?.credentialType === 'managed_oauth' && resolved.credentialId) {
       if (!toolId) {
         return NextResponse.json(
           {
@@ -184,16 +191,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             error: 'This tool is not configured to use managed credentials',
           },
           { status: 500 }
-        )
-      }
-
-      if (!managedOAuthPrincipal) {
-        return NextResponse.json(
-          {
-            code: 'MANAGED_CREDENTIAL_DELEGATION_REQUIRED',
-            error: 'Managed credentials can only be used by an authenticated workflow execution',
-          },
-          { status: 403 }
         )
       }
 

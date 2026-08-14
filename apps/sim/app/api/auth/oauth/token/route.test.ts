@@ -128,6 +128,38 @@ describe('OAuth Token API Routes', () => {
       expect(authOAuthUtilsMockFns.mockGetCredential).toHaveBeenCalled()
     })
 
+    it('does not authenticate managed delegation for an ordinary OAuth credential', async () => {
+      mockAuthorizeCredentialUse.mockResolvedValueOnce({
+        ok: true,
+        authType: 'internal_jwt',
+        requesterUserId: 'workflow-owner-id',
+        credentialOwnerUserId: 'workflow-owner-id',
+      })
+      authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce({
+        id: 'credential-id',
+        accessToken: 'test-token',
+        refreshToken: 'refresh-token',
+        accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+        providerId: 'google',
+      })
+      authOAuthUtilsMockFns.mockRefreshTokenIfNeeded.mockResolvedValueOnce({
+        accessToken: 'fresh-token',
+        refreshed: false,
+      })
+
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          { credentialId: 'credential-id', workflowId: 'workflow-id' },
+          { 'x-sim-managed-oauth-delegation': 'Bearer stale-delegation' }
+        )
+      )
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({ accessToken: 'fresh-token' })
+      expect(mockAuthenticateManagedOAuthDelegation).not.toHaveBeenCalled()
+    })
+
     it('should handle missing credentialId', async () => {
       const req = createMockRequest('POST', {})
 
