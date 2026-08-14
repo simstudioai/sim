@@ -1,4 +1,3 @@
-import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import {
   type CredentialGroupOptionConfig,
@@ -8,6 +7,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail, truncate } from '@sim/utils/string'
@@ -55,6 +55,11 @@ interface InvitationContext {
   groupName: string
 }
 
+interface SendInvitationOptions {
+  expectedEnrollmentId?: string
+  revokedEnrollment: 'reactivate' | 'reject'
+}
+
 export interface PublicCredentialGroupEnrollment {
   inviterName: string
   workspaceName: string
@@ -97,6 +102,19 @@ export async function lockCredentialGroupEnrollmentLifecycle(
   )
 }
 
+/** Serializes invitation issuance before an enrollment row is known or locked. */
+async function lockCredentialGroupInvitationTarget(
+  executor: DbOrTx,
+  groupId: string,
+  email: string
+): Promise<void> {
+  if (!groupId.trim()) throw new Error('Credential group ID is required')
+  if (!email.trim()) throw new Error('Credential group enrollment email is required')
+  await executor.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-invitation:${groupId}:${email}`}, 0))`
+  )
+}
+
 export class CredentialGroupEnrollmentError extends Error {
   constructor(
     message: string,
@@ -108,7 +126,7 @@ export class CredentialGroupEnrollmentError extends Error {
 }
 
 function hashInvitationToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex')
+  return sha256Hex(token)
 }
 
 function metadataString(metadata: object | null, key: string): string | null {
@@ -209,20 +227,53 @@ async function sendInvitation(
   context: InvitationContext,
   userId: string,
   inviterName: string,
-  email: string
+  email: string,
+  options: SendInvitationOptions
 ): Promise<CredentialGroupEnrollment> {
   const now = new Date()
   const token = generateId()
   const tokenHash = hashInvitationToken(token)
   const expiresAt = new Date(now.getTime() + INVITATION_TTL_MS)
 
-  const [issued] = await db
-    .insert(credentialGroupEnrollment)
-    .values({
-      id: generateId(),
-      credentialGroupId: context.groupId,
-      email,
-      status: 'invited',
+  const issued = await db.transaction(async (tx) => {
+    await lockCredentialGroupInvitationTarget(tx, context.groupId, email)
+    const [existing] = await tx
+      .select()
+      .from(credentialGroupEnrollment)
+      .where(
+        and(
+          eq(credentialGroupEnrollment.credentialGroupId, context.groupId),
+          eq(credentialGroupEnrollment.email, email)
+        )
+      )
+      .limit(1)
+
+    let current = existing
+    if (existing) {
+      await lockCredentialGroupEnrollmentLifecycle(tx, existing.id)
+      const [locked] = await tx
+        .select()
+        .from(credentialGroupEnrollment)
+        .where(
+          and(
+            eq(credentialGroupEnrollment.id, existing.id),
+            eq(credentialGroupEnrollment.credentialGroupId, context.groupId),
+            eq(credentialGroupEnrollment.email, email)
+          )
+        )
+        .limit(1)
+      current = locked
+    }
+
+    if (options.expectedEnrollmentId && current?.id !== options.expectedEnrollmentId) {
+      throw new CredentialGroupEnrollmentError('Enrollment not found', 404)
+    }
+    if (current?.status === 'revoked' && options.revokedEnrollment === 'reject') {
+      throw new CredentialGroupEnrollmentError('Revoked enrollment cannot be resent', 409)
+    }
+
+    const mutableValues = {
+      status: 'invited' as const,
       invitationTokenHash: tokenHash,
       invitationExpiresAt: expiresAt,
       invitedAt: now,
@@ -231,26 +282,27 @@ async function sendInvitation(
       revokedAt: null,
       lastDeliveryError: null,
       createdBy: userId,
-      createdAt: now,
       updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: [credentialGroupEnrollment.credentialGroupId, credentialGroupEnrollment.email],
-      set: {
-        status: 'invited',
-        invitationTokenHash: tokenHash,
-        invitationExpiresAt: expiresAt,
-        invitedAt: now,
-        sentAt: null,
-        completedAt: null,
-        revokedAt: null,
-        lastDeliveryError: null,
-        createdBy: userId,
-        updatedAt: now,
-      },
-    })
-    .returning()
-  if (!issued) throw new Error('Credential group enrollment upsert returned no row')
+    }
+    const [next] = current
+      ? await tx
+          .update(credentialGroupEnrollment)
+          .set(mutableValues)
+          .where(eq(credentialGroupEnrollment.id, current.id))
+          .returning()
+      : await tx
+          .insert(credentialGroupEnrollment)
+          .values({
+            id: generateId(),
+            credentialGroupId: context.groupId,
+            email,
+            ...mutableValues,
+            createdAt: now,
+          })
+          .returning()
+    if (!next) throw new Error('Credential group enrollment write returned no row')
+    return next
+  })
 
   const invitationLink = `${getBaseUrl()}/credential-groups/enroll/${token}`
   const html = await renderCredentialGroupInvitationEmail({
@@ -269,7 +321,7 @@ async function sendInvitation(
   })
 
   if (!result.success) {
-    await db
+    const [failed] = await db
       .update(credentialGroupEnrollment)
       .set({
         status: 'delivery_failed',
@@ -279,9 +331,17 @@ async function sendInvitation(
       .where(
         and(
           eq(credentialGroupEnrollment.id, issued.id),
-          eq(credentialGroupEnrollment.invitationTokenHash, tokenHash)
+          eq(credentialGroupEnrollment.invitationTokenHash, tokenHash),
+          eq(credentialGroupEnrollment.status, 'invited')
         )
       )
+      .returning({ id: credentialGroupEnrollment.id })
+    if (!failed) {
+      throw new CredentialGroupEnrollmentError(
+        'Invitation was superseded by another enrollment action',
+        409
+      )
+    }
     throw new CredentialGroupEnrollmentError(result.message, 502)
   }
 
@@ -291,7 +351,8 @@ async function sendInvitation(
     .where(
       and(
         eq(credentialGroupEnrollment.id, issued.id),
-        eq(credentialGroupEnrollment.invitationTokenHash, tokenHash)
+        eq(credentialGroupEnrollment.invitationTokenHash, tokenHash),
+        eq(credentialGroupEnrollment.status, 'invited')
       )
     )
     .returning()
@@ -449,7 +510,9 @@ export async function inviteCredentialGroupEnrollments(
     const chunkResults = await Promise.all(
       chunk.map(async (email) => {
         try {
-          const enrollment = await sendInvitation(context, userId, inviterName, email)
+          const enrollment = await sendInvitation(context, userId, inviterName, email, {
+            revokedEnrollment: 'reactivate',
+          })
           return { email, success: true as const, enrollment }
         } catch (error) {
           return {
@@ -486,7 +549,9 @@ export async function inviteCredentialGroupEnrollment(
   email: string
 ): Promise<CredentialGroupEnrollment> {
   const context = await getInvitationContext(workspaceId, groupId)
-  return sendInvitation(context, userId, inviterName, normalizeEmail(email))
+  return sendInvitation(context, userId, inviterName, normalizeEmail(email), {
+    revokedEnrollment: 'reactivate',
+  })
 }
 
 export async function resendCredentialGroupEnrollment(
@@ -510,10 +575,10 @@ export async function resendCredentialGroupEnrollment(
     )
     .limit(1)
   if (!row) throw new CredentialGroupEnrollmentError('Enrollment not found', 404)
-  if (row.enrollment.status === 'revoked') {
-    throw new CredentialGroupEnrollmentError('Revoked enrollment cannot be resent', 409)
-  }
-  return sendInvitation(context, userId, inviterName, row.enrollment.email)
+  return sendInvitation(context, userId, inviterName, row.enrollment.email, {
+    expectedEnrollmentId: enrollmentId,
+    revokedEnrollment: 'reject',
+  })
 }
 
 export async function revokeCredentialGroupEnrollment(
@@ -522,7 +587,7 @@ export async function revokeCredentialGroupEnrollment(
   enrollmentId: string
 ): Promise<CredentialGroupEnrollment> {
   const [existing] = await db
-    .select({ enrollmentId: credentialGroupEnrollment.id })
+    .select({ email: credentialGroupEnrollment.email })
     .from(credentialGroupEnrollment)
     .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
     .where(
@@ -536,6 +601,7 @@ export async function revokeCredentialGroupEnrollment(
   if (!existing) throw new CredentialGroupEnrollmentError('Enrollment not found', 404)
 
   return db.transaction(async (tx) => {
+    await lockCredentialGroupInvitationTarget(tx, groupId, existing.email)
     await lockCredentialGroupEnrollmentLifecycle(tx, enrollmentId)
     const now = new Date()
     const [revoked] = await tx

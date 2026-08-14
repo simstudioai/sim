@@ -10,8 +10,12 @@ vi.mock('@/components/emails/render', () => ({
 
 vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: vi.fn() }))
 
-import { listCredentialGroupEnrollments } from '@/lib/credential-groups/enrollments'
+import {
+  listCredentialGroupEnrollments,
+  resendCredentialGroupEnrollment,
+} from '@/lib/credential-groups/enrollments'
 import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/providers'
+import { sendEmail } from '@/lib/messaging/email/mailer'
 
 const MAX_CONNECTION_SUMMARIES = CREDENTIAL_GROUP_PROVIDER_IDS.length * 3
 
@@ -107,5 +111,38 @@ describe('listCredentialGroupEnrollments', () => {
       'Credential group enrollment limit must be between 1 and 100'
     )
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+})
+
+describe('resendCredentialGroupEnrollment', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('does not reactivate an enrollment revoked while resend waits for its lifecycle lock', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          workspaceId: 'workspace-1',
+          workspaceName: 'Workspace',
+          groupId: 'group-1',
+          groupName: 'Group',
+          groupStatus: 'active',
+          options: [{ id: 'option-1', status: 'active' }],
+        },
+      ])
+      .mockResolvedValueOnce([{ enrollment: { ...ENROLLMENT, status: 'invited' } }])
+      .mockResolvedValueOnce([{ ...ENROLLMENT, status: 'invited' }])
+      .mockResolvedValueOnce([{ ...ENROLLMENT, status: 'revoked' }])
+
+    await expect(
+      resendCredentialGroupEnrollment('workspace-1', 'group-1', ENROLLMENT.id, 'user-1', 'Inviter')
+    ).rejects.toThrow('Revoked enrollment cannot be resent')
+
+    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(sendEmail).not.toHaveBeenCalled()
   })
 })
