@@ -1806,11 +1806,24 @@ export class WorkspaceVFS {
           })
         }
 
+        // deployment.json exists for EVERY workflow: "is it deployed?" is a
+        // question with an answer either way, and a not-found error here was a
+        // recurring red herring — agents probing an undeployed workflow read a
+        // failure instead of the fact. Versions stay gated: they genuinely
+        // don't exist before the first deploy.
+        this.registerLazy(`${prefix}deployment.json`, async () => {
+          if (!versionedWorkflowIds.has(wf.id)) {
+            return JSON.stringify({
+              deployed: false,
+              note: 'This workflow has never been deployed.',
+            })
+          }
+          const deploymentData = await this.loadDeployments(wf.id)
+          return deploymentData
+            ? serializeDeployments(deploymentData)
+            : JSON.stringify({ deployed: false, note: 'This workflow has never been deployed.' })
+        })
         if (versionedWorkflowIds.has(wf.id)) {
-          this.registerLazy(`${prefix}deployment.json`, async () => {
-            const deploymentData = await this.loadDeployments(wf.id)
-            return deploymentData ? serializeDeployments(deploymentData) : null
-          })
           this.registerLazy(`${prefix}versions.json`, async () => {
             const deploymentData = await this.loadDeployments(wf.id)
             return deploymentData?.versions && deploymentData.versions.length > 0

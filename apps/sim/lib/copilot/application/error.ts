@@ -20,6 +20,27 @@ export function messageForCopilotApplicationError(
   if (classified && classified.code !== 'internal') {
     return classified.message
   }
-  trace.getActiveSpan()?.recordException(toError(error))
+  trace.getActiveSpan()?.recordException(flattenErrorChain(error))
   return fallback
+}
+
+/**
+ * Wrapper errors (Drizzle's "Failed query: <sql>") bury the actionable cause —
+ * the Postgres constraint/violation — in `cause`. Join the chain so the span
+ * exception carries the part an investigator actually needs.
+ */
+function flattenErrorChain(error: unknown): Error {
+  const primary = toError(error)
+  const parts = [primary.message]
+  let cursor: unknown = primary.cause
+  let depth = 0
+  while (cursor && depth < 4) {
+    parts.push(toError(cursor).message)
+    cursor = toError(cursor).cause
+    depth += 1
+  }
+  if (parts.length === 1) return primary
+  const flattened = new Error(parts.join(' ← '))
+  flattened.stack = primary.stack
+  return flattened
 }
