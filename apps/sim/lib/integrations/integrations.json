@@ -15279,6 +15279,125 @@
       "tags": ["image-generation"]
     },
     {
+      "type": "rabbitmq",
+      "slug": "rabbitmq",
+      "name": "RabbitMQ",
+      "description": "Publish and read messages and manage queues in RabbitMQ",
+      "longDescription": "Connect agents to a RabbitMQ broker through its Management HTTP API. Publish messages to exchanges, read messages off queues, declare queues, exchanges, bindings, and policies, and inspect broker health, queue depth, consumers, connections, and cluster nodes. Works with self-hosted brokers and managed offerings such as CloudAMQP as long as the management plugin is reachable.",
+      "bgColor": "#FFFFFF",
+      "iconName": "RabbitmqIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/rabbitmq",
+      "operations": [
+        {
+          "name": "Publish Message",
+          "description": "Publish a message to a RabbitMQ exchange with a routing key. Reports whether the message was routed to at least one queue."
+        },
+        {
+          "name": "Get Messages",
+          "description": "Retrieve messages from a RabbitMQ queue. Defaults to requeueing the messages so they stay available to real consumers."
+        },
+        {
+          "name": "List Queues",
+          "description": "List queues in a RabbitMQ virtual host with their depth, consumer count, and configuration."
+        },
+        {
+          "name": "Get Queue",
+          "description": "Read a single RabbitMQ queue, including its depth, consumer count, and declaration settings."
+        },
+        {
+          "name": "Create Queue",
+          "description": "Declare a RabbitMQ queue. Declaring a queue that already exists with the same settings succeeds without changing it."
+        },
+        {
+          "name": "Delete Queue",
+          "description": "Delete a RabbitMQ queue and every message still in it. Can be guarded so the delete only happens when the queue is unused or empty."
+        },
+        {
+          "name": "Purge Queue",
+          "description": "Discard every ready message in a RabbitMQ queue while leaving the queue itself in place."
+        },
+        {
+          "name": "List Exchanges",
+          "description": "List exchanges in a RabbitMQ virtual host with their type and declaration settings."
+        },
+        {
+          "name": "Get Exchange",
+          "description": "Read a single RabbitMQ exchange and the settings it was declared with."
+        },
+        {
+          "name": "Create Exchange",
+          "description": "Declare a RabbitMQ exchange. Declaring an exchange that already exists with the same settings succeeds without changing it."
+        },
+        {
+          "name": "Delete Exchange",
+          "description": "Delete a RabbitMQ exchange and every binding attached to it. Publishers targeting it will fail afterwards."
+        },
+        {
+          "name": "List Queue Bindings",
+          "description": "List the bindings that route messages into a RabbitMQ queue, including the implicit default-exchange binding."
+        },
+        {
+          "name": "List Exchange Bindings",
+          "description": "List everything an exchange routes to, so you can see which routing keys reach which queues."
+        },
+        {
+          "name": "Create Binding",
+          "description": "Bind a queue or another exchange to a RabbitMQ exchange so messages matching a routing key are routed to it."
+        },
+        {
+          "name": "Delete Binding",
+          "description": "Remove a binding so an exchange stops routing its matching messages to that destination."
+        },
+        {
+          "name": "Get Overview",
+          "description": "Read broker-wide RabbitMQ status: version, cluster name, object totals, queue depth totals, and message rates."
+        },
+        {
+          "name": "Health Check",
+          "description": "Run one of the broker health checks and report whether it passed. A failing check is a normal result, not a tool error."
+        },
+        {
+          "name": "List Nodes",
+          "description": "List the cluster nodes with memory, disk, file-descriptor, and alarm state. A fired alarm blocks publishers broker-wide."
+        },
+        {
+          "name": "List Virtual Hosts",
+          "description": "List the virtual hosts on the broker with their message totals, so you can discover which scopes exist."
+        },
+        {
+          "name": "List Connections",
+          "description": "List client connections to the broker with their user, state, and channel count. Connections are cluster-wide, not scoped to one virtual host."
+        },
+        {
+          "name": "List Channels",
+          "description": "List open channels with their prefetch limit and unacknowledged message count, which is where stalled consumers show up. Channels are cluster-wide, not scoped to one virtual host."
+        },
+        {
+          "name": "List Consumers",
+          "description": "List the consumers subscribed in a virtual host. An empty result for a queue with a backlog means nothing is processing it."
+        },
+        {
+          "name": "List Policies",
+          "description": "List the policies in a virtual host. Policies are how dead-lettering, TTLs, and length limits get applied to matching queues and exchanges."
+        },
+        {
+          "name": "Create Policy",
+          "description": "Create or replace a RabbitMQ policy, applying settings such as dead-lettering, TTLs, or length limits to every queue or exchange whose name matches a pattern."
+        },
+        {
+          "name": "Delete Policy",
+          "description": "Delete a RabbitMQ policy. Every queue and exchange it matched immediately loses the settings it applied."
+        }
+      ],
+      "operationCount": 25,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["messaging", "automation"]
+    },
+    {
       "type": "railway",
       "slug": "railway",
       "name": "Railway",
