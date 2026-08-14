@@ -142,9 +142,15 @@ describe('getExecutionEnvironment', () => {
 
   it('resolves each slice against its own identity', async () => {
     grantAdminTo('actor-1')
-    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
-    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+    /**
+     * Queued rows are FIFO per table, and the actor resolves first: its access was
+     * already decided, so it skips the `checkWorkspaceAccess` await the personal
+     * resolution still performs. Only the actor is a workspace admin, so the owner's
+     * own workspace slice resolves empty and could not be the one that lands.
+     */
     queueTableRows(environment, [{ variables: { ACTOR_ONLY: 'actor-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
     queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
 
     const snapshot = await getExecutionEnvironment('owner-1', 'actor-1', 'workspace-1')
@@ -162,6 +168,18 @@ describe('getExecutionEnvironment', () => {
 
     expect(mockCheckWorkspaceAccess).toHaveBeenCalledOnce()
     expect(snapshot.personalDecrypted).toEqual({ PERSONAL_KEY: 'plain:personal-cipher' })
+    expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
+  })
+
+  it('drops the personal slice entirely when no personal identity is supplied', async () => {
+    grantAdminTo('billing-account')
+    queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
+    queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])
+
+    const snapshot = await getExecutionEnvironment(undefined, 'billing-account', 'workspace-1')
+
+    expect(snapshot.personalDecrypted).toEqual({})
+    expect(snapshot.personalEncrypted).toEqual({})
     expect(snapshot.workspaceDecrypted).toEqual({ WORKSPACE_KEY: 'plain:workspace-cipher' })
   })
 

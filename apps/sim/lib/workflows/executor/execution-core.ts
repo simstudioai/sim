@@ -440,23 +440,24 @@ async function executeWorkflowCoreImpl(
      * so a session, personal API key, or delegated run reads its own personal
      * variables rather than borrowing the workflow owner's.
      *
-     * An anonymous public-API run reaches the actor by the opposite argument —
-     * there is no caller to read as, and no owner consented to lending their
-     * personal namespace to the whole internet — so it uses the workspace's own
-     * billing principal, which is already what its workspace variables resolve as.
-     *
      * The workflow owner remains the fallback for a workspace API key, schedule,
      * or webhook. Someone in the workspace configured each of those, and a
      * deployed workflow is routinely authored against its owner's personal keys.
+     *
+     * An anonymous public-API run resolves no personal variables at all. Anyone
+     * can call that endpoint, so there is no caller to read as and no person whose
+     * private namespace it would be reasonable to lend — such a workflow runs on
+     * workspace secrets alone.
      */
-    const personalEnvUserId =
+    const identifiedCallerUserId =
       (metadata.isClientSession && metadata.sessionUserId) ||
-      (metadata.enforceCredentialAccess || metadata.isPublicApiAccess
-        ? metadata.userId
-        : undefined) ||
-      metadata.workflowUserId
+      (metadata.enforceCredentialAccess ? metadata.userId : undefined)
 
-    if (!personalEnvUserId) {
+    const personalEnvUserId = metadata.isPublicApiAccess
+      ? undefined
+      : identifiedCallerUserId || metadata.workflowUserId
+
+    if (!metadata.isPublicApiAccess && !personalEnvUserId) {
       throw new Error('Missing workflowUserId in execution metadata')
     }
 
@@ -464,10 +465,14 @@ async function executeWorkflowCoreImpl(
      * The actor already carries the identity each trigger kind should authorize
      * workspace secrets against: the caller for a session, personal API key, or
      * delegated principal, and the workspace billing account for a workspace API
-     * key, schedule, or webhook, where no caller is identifiable. Deriving it
-     * again here would only risk disagreeing with the principal layer.
+     * key, schedule, webhook, or anonymous public-API call, where no caller is
+     * identifiable. Deriving it again here would only risk disagreeing with the
+     * principal layer.
      */
     const workspaceEnvUserId = metadata.userId || personalEnvUserId
+    if (!workspaceEnvUserId) {
+      throw new Error('Missing execution actor in execution metadata')
+    }
 
     /**
      * Resolves the workflow state from the override, the draft tables, or the
@@ -563,7 +568,7 @@ async function executeWorkflowCoreImpl(
       restoredCheckpointVersion: restoredState?.resolvedSecretTraceCheckpointVersion,
       restoreTrusted,
       requireRestoredProvenance,
-      scope: { userId: personalEnvUserId, workspaceId: providedWorkspaceId },
+      scope: { userId: personalEnvUserId ?? workspaceEnvUserId, workspaceId: providedWorkspaceId },
     })
     if (restoredState && !restoreTrusted) {
       resolvedSecretTraceRegistry.markIncomplete('restored-provenance-untrusted')

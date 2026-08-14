@@ -385,6 +385,8 @@ type AsyncExecutionParams = {
   executionId: string
   copilotToolCallId?: string
   callChain?: string[]
+  enforceCredentialAccess?: boolean
+  isPublicApiAccess?: boolean
   executionTimeoutMs: number
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
@@ -1245,6 +1247,8 @@ async function handleExecutePost(
         executionId,
         copilotToolCallId,
         callChain,
+        enforceCredentialAccess: useAuthenticatedUserAsActor,
+        isPublicApiAccess,
         executionTimeoutMs: preprocessResult.executionTimeout.async,
         trustedInitialResolvedSecretTraceProvenance,
       })
@@ -1628,7 +1632,13 @@ async function handleExecutePost(
       const streamVariables = cachedWorkflowData?.variables ?? (workflow as any).variables
       const streamWorkflow = {
         id: workflow.id,
-        userId: actorUserId,
+        /**
+         * The owner, not the actor: `executeWorkflow` reads this one field to set
+         * `workflowUserId`, which is the personal-environment fallback for runs with
+         * no identifiable caller. Passing the actor here made the streaming path
+         * resolve the actor where the JSON path resolves the owner.
+         */
+        userId: workflow.userId,
         workspaceId,
         isDeployed: workflow.isDeployed,
         variables: streamVariables,

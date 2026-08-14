@@ -337,6 +337,8 @@ export async function executeWorkflowService(
         triggerType,
         executionId,
         callChain,
+        enforceCredentialAccess: useAuthenticatedUserAsActor,
+        isPublicApiAccess,
         executionTimeoutMs: preprocessResult.executionTimeout.async,
       })
       executionIdClaimCommitted = enqueue.retainExecutionClaim
@@ -430,7 +432,13 @@ export async function executeWorkflowService(
       const resolvedSelectedOutputs = resolveOutputIds(selectedOutputs, workflowBlocks)
       const streamWorkflow = {
         id: workflow.id,
-        userId: actorUserId,
+        /**
+         * The owner, not the actor: `executeWorkflow` reads this one field to set
+         * `workflowUserId`, which is the personal-environment fallback for runs with
+         * no identifiable caller. Passing the actor here made the streaming path
+         * resolve the actor where the JSON path resolves the owner.
+         */
+        userId: workflow.userId,
         workspaceId,
         isDeployed: workflow.isDeployed,
         variables: workflowVariables,

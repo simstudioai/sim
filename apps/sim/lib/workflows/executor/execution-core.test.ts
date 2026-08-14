@@ -1699,7 +1699,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     })
   })
 
-  it('resolves both slices as the billing account for an anonymous public-API run', async () => {
+  it('resolves no personal vars and workspace vars as the billing account on a public-API run', async () => {
     const snapshot = {
       ...createSnapshot(),
       metadata: {
@@ -1715,9 +1715,9 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
 
     getPersonalAndWorkspaceEnvMock.mockImplementation(async (userId: string) => ({
       personalEncrypted: { PERSONAL: `enc-personal-${userId}` },
-      workspaceEncrypted: {},
+      workspaceEncrypted: { WORKSPACE: `enc-workspace-${userId}` },
       personalDecrypted: { PERSONAL: `personal-${userId}` },
-      workspaceDecrypted: {},
+      workspaceDecrypted: { WORKSPACE: `workspace-${userId}` },
       personalOwners: {},
       conflicts: [],
       decryptionFailures: [],
@@ -1738,7 +1738,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     expect(getPersonalAndWorkspaceEnvMock).toHaveBeenCalledWith('billing-account', 'workspace-1')
     expect(getPersonalAndWorkspaceEnvMock).not.toHaveBeenCalledWith('workflow-owner', 'workspace-1')
     expect(executorConstructorMock.mock.calls[0]?.[0]?.envVarValues).toEqual({
-      PERSONAL: 'personal-billing-account',
+      WORKSPACE: 'workspace-billing-account',
     })
   })
 

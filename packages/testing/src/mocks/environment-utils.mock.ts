@@ -37,11 +37,25 @@ function emptyPersonalAndWorkspaceEnv(): {
  * to stub environment data.
  */
 async function delegateExecutionEnvironment(
-  personalUserId: string,
+  personalUserId: string | undefined,
   workspaceUserId: string,
   workspaceId?: string
 ) {
   const resolve = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
+  if (personalUserId === undefined) {
+    const workspaceOnly = await resolve(workspaceUserId, workspaceId)
+    return {
+      ...workspaceOnly,
+      personalEncrypted: {},
+      personalDecrypted: {},
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: (workspaceOnly.decryptionFailures ?? []).filter(
+        (k: string) => k in (workspaceOnly.workspaceEncrypted ?? {})
+      ),
+    }
+  }
+
   if (!workspaceId || workspaceUserId === personalUserId) {
     return resolve(personalUserId, workspaceId)
   }
@@ -50,10 +64,19 @@ async function delegateExecutionEnvironment(
     resolve(personalUserId, workspaceId),
     resolve(workspaceUserId, workspaceId),
   ])
+  const personalEncrypted = personal.personalEncrypted ?? {}
+  const workspaceEncrypted = actor.workspaceEncrypted ?? {}
   return {
     ...personal,
     workspaceEncrypted: actor.workspaceEncrypted,
     workspaceDecrypted: actor.workspaceDecrypted,
+    conflicts: Object.keys(personalEncrypted).filter((key) => key in workspaceEncrypted),
+    decryptionFailures: [
+      ...new Set([
+        ...(personal.decryptionFailures ?? []).filter((k: string) => k in personalEncrypted),
+        ...(actor.decryptionFailures ?? []).filter((k: string) => k in workspaceEncrypted),
+      ]),
+    ],
   }
 }
 
