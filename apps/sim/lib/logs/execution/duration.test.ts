@@ -62,4 +62,17 @@ describe('elapsedDurationMsSql', () => {
     expect(sql).toContain('LEAST(')
     expect(params).toContain(2_147_483_647)
   })
+
+  /**
+   * A paused run records its *active* duration at the pause checkpoint. Elapsed
+   * wall clock through a later cancel includes the time it sat waiting, so
+   * overwriting would silently redefine what the column means for that run.
+   */
+  it('keeps a duration the row already carries', () => {
+    const { sql } = render(new Date('2026-08-13T12:00:05.000Z'))
+
+    expect(sql).toContain('COALESCE(')
+    expect(sql.indexOf('COALESCE(')).toBeLessThan(sql.indexOf('LEAST('))
+    expect(sql).toContain('"total_duration_ms"')
+  })
 })

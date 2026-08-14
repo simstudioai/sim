@@ -28,9 +28,16 @@ import { type SQL, sql } from 'drizzle-orm'
  * fails its transaction and takes the whole cancellation with it. A saturated
  * duration is wrong in the last digit; a failed terminal write is wrong about
  * whether the run ended.
+ *
+ * A duration already on the row wins. This fills a gap; it does not restate an
+ * answer someone else computed. The case that makes the difference is a paused
+ * run: it records its *active* duration at the pause checkpoint, and elapsed
+ * wall clock through a later cancel would silently redefine that to include the
+ * time it sat waiting. On the paths where the column is still null — every
+ * other cancellation — the coalesce is inert.
  */
 const INT4_MAX_MS = 2_147_483_647
 
 export function elapsedDurationMsSql(endedAt: Date): SQL<number> {
-  return sql<number>`LEAST(${INT4_MAX_MS}, GREATEST(1, ROUND(EXTRACT(EPOCH FROM (${endedAt.toISOString()}::timestamp - ${workflowExecutionLogs.startedAt})) * 1000)))::integer`
+  return sql<number>`COALESCE(${workflowExecutionLogs.totalDurationMs}, LEAST(${INT4_MAX_MS}, GREATEST(1, ROUND(EXTRACT(EPOCH FROM (${endedAt.toISOString()}::timestamp - ${workflowExecutionLogs.startedAt})) * 1000)))::integer)`
 }
