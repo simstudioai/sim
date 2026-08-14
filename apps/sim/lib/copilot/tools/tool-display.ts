@@ -609,6 +609,15 @@ function waitTitle(args: ToolArgs): string {
   return formatWaitTitle(requestedWaitSeconds(args), stringArg(args, 'reason'))
 }
 
+/** Title for a wait_agents sleep, naming the agent(s) being collected. */
+function waitAgentsTitle(args: ToolArgs): string {
+  const raw = args?.agent_ids
+  const ids = Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : []
+  if (ids.length === 1) return `Waiting for ${ids[0]}`
+  if (ids.length > 1) return `Waiting for ${ids.length} agents`
+  return 'Waiting for agents'
+}
+
 /**
  * The title of a pause that is still running, counting down what is left.
  *
@@ -714,6 +723,14 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return openResourceTitle(args)
     case 'wait':
       return waitTitle(args)
+    case 'wait_agents':
+      return waitAgentsTitle(args)
+    case 'tail_agent':
+      return `Checking on ${stringArg(args, 'agent_id') || 'agent'}`
+    case 'steer_agent':
+      return `Steering ${stringArg(args, 'agent_id') || 'agent'}`
+    case 'interrupt_agent':
+      return `Stopping ${stringArg(args, 'agent_id') || 'agent'}`
     case 'terminal':
       return terminalTitle(args)
     // The surface used to be one tool per operation. Conversations recorded
@@ -1066,6 +1083,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Selecting: 'Selected',
   Setting: 'Set',
   Sharing: 'Shared',
+  Steering: 'Steered',
   Stopping: 'Stopped',
   Summarizing: 'Summarized',
   Switching: 'Switched',
