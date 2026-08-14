@@ -34,25 +34,28 @@ export const SIDEBAR_DIVIDER_PAD_BELOW_CLASS = 'pt-2'
  * Rail-chip geometry for the collapsed sidebar, gated by the `group/rail`
  * marker on the sidebar `aside` (the hover-peek card drops `data-collapsed`,
  * so peeked rows stay expanded). Collapses a full-width row to the natural
- * icon-only chip: 32px — the chip's own `px-2` + 16px glyph — matching the
- * header's Search/Collapse pills. Only the WIDTH is overridden, deliberately:
- * padding and margin stay untouched, so the chip's left edge (8px gutter) and
- * the glyph column (centered 24px in) hold exactly still on toggle and
- * through the morph — only the right edge slides. A true 30px square needs a
- * 1px margin + 7px padding, which visibly nudges the box or the glyph; 32×30
- * reads as square and nothing moves. Collapsing, the width tweens down to
- * 32px on the 175ms curve the rail closes on; expanding targets `auto` (not
- * interpolable), so the chip snaps to the still-narrow rail's width and
- * stretch-tracks it open. The duration is `!important` because the aside
- * zeroes chip transition durations (`[&_.group.cursor-pointer]:duration-0`)
- * for instant hover fills — colors are excluded from the property list here,
- * so hover fills keep snapping.
+ * icon-only chip — 32px, the chip's own `px-2` + 16px glyph, matching the
+ * header's Search/Collapse pills — and CENTERS it in the 51px rail:
+ * (51 − 32) / 2 = 9.5px per side, the 8px gutter + this 1.5px margin, which
+ * puts the glyph on the rail's midline. Padding stays untouched (the glyph is
+ * already centered within the chip). Centering costs a 1.5px drift from the
+ * expanded rows' glyph column (24px in); margin sits in the transition list
+ * so that drift glides on the rail's own curve rather than snapping — the
+ * glyph-stationary alternative left the rail visibly left-biased (8px vs
+ * 11px insets). Collapsing, width and margin tween on the 175ms curve the
+ * rail closes on; expanding targets `auto` width (not interpolable), so the
+ * chip snaps to the still-narrow rail's width and stretch-tracks it open
+ * while the margin tweens back. The duration is `!important` because the
+ * aside zeroes chip transition durations
+ * (`[&_.group.cursor-pointer]:duration-0`) for instant hover fills — colors
+ * are excluded from the property list here, so hover fills keep snapping.
  */
 export const SIDEBAR_RAIL_CHIP_CLASS = [
-  'transition-[width]',
+  'transition-[width,margin]',
   '![transition-duration:175ms]',
   '[transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
   'motion-reduce:!transition-none',
+  'group-data-[collapsed]/rail:ml-[1.5px]',
   'group-data-[collapsed]/rail:w-[32px]',
 ].join(' ')
 
