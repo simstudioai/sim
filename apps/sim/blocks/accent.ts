@@ -7,6 +7,13 @@ import { getBlock } from '@/blocks/registry'
 export const DEFAULT_BLOCK_TILE_COLOR = '#6B7280'
 
 /**
+ * Tile fill for a workflow variable. Not a block, but it is listed beside them
+ * — in the tag dropdown and the preview panel's reference sections — and those
+ * two had drifted to different colours for the same "V" tile.
+ */
+export const VARIABLE_TILE_COLOR = '#2F8BFF'
+
+/**
  * Subflow tiles. Loop and Parallel are canvas blocks with no registry config,
  * so every surface that lists them had to special-case the pair; they resolve
  * here instead.

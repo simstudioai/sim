@@ -43,6 +43,7 @@ import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/p
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
+import { DEFAULT_BLOCK_TILE_COLOR, VARIABLE_TILE_COLOR } from '@/blocks/accent'
 import { BlockTile } from '@/blocks/block-tile'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
@@ -436,9 +437,7 @@ function ConnectionsSection({
                 handleKeyboardActivation(event, () => setExpandedVariables(!expandedVariables))
               }
             >
-              <div className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#8B5CF6]'>
-                <span className='text-[9px] text-white'>V</span>
-              </div>
+              <BlockTile bgColor={VARIABLE_TILE_COLOR} fallbackLabel='V' size='sm' />
               <span
                 className={cn(
                   'truncate',
@@ -488,9 +487,7 @@ function ConnectionsSection({
                 handleKeyboardActivation(event, () => setExpandedEnvVars(!expandedEnvVars))
               }
             >
-              <div className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#6B7280]'>
-                <span className='text-[9px] text-white'>E</span>
-              </div>
+              <BlockTile bgColor={DEFAULT_BLOCK_TILE_COLOR} fallbackLabel='E' size='sm' />
               <span
                 className={cn(
                   'truncate',

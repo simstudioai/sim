@@ -5,6 +5,7 @@ import {
   RESOURCE_TILE_PLAIN,
 } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { getBlock } from '@/blocks'
+import { getBlockTileIcon } from '@/blocks/accent'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 
 /**
@@ -59,7 +60,15 @@ function resolveBrandTileBg(blockType: string): string | null {
 
 interface IntegrationTileProps {
   blockType: string
-  icon: ComponentType<{ className?: string }>
+  /**
+   * Overrides the block's registered mark. Only for a tile whose identity is
+   * not the block itself — a credential issued by a family service account
+   * wears the family's corporate mark. Everything else takes the registry's,
+   * so the tile cannot end up with its fill and its icon from two sources.
+   */
+  icon?: ComponentType<{ className?: string }>
+  /** Drawn when neither the override nor the registry supplies a mark. */
+  fallbackLabel?: string
   framed?: boolean
 }
 
@@ -68,16 +77,23 @@ interface IntegrationTileProps {
  * is a 36px tile used in list rows and headers; the framed variant adds an
  * outer 44px halo used inside the showcase grid.
  */
-export function IntegrationTile({ blockType, icon: Icon, framed = false }: IntegrationTileProps) {
+export function IntegrationTile({
+  blockType,
+  icon,
+  fallbackLabel,
+  framed = false,
+}: IntegrationTileProps) {
   const brandBg = resolveBrandTileBg(blockType)
+  const Icon = icon ?? getBlockTileIcon(blockType)
+  const contentClass = getTileIconColorClass(brandBg)
 
   if (!framed) {
     return (
       <div
-        className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}
+        className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN, !Icon && contentClass)}
         style={brandBg ? { background: brandBg } : undefined}
       >
-        <Icon className={getTileIconColorClass(brandBg)} />
+        {Icon ? <Icon className={contentClass} /> : fallbackLabel}
       </div>
     )
   }
@@ -85,10 +101,13 @@ export function IntegrationTile({ blockType, icon: Icon, framed = false }: Integ
   return (
     <div className='size-11 flex-shrink-0 rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-sm dark:bg-[var(--surface-5)]'>
       <div
-        className='flex size-full items-center justify-center rounded-[9px] border border-[var(--border-1)] bg-[var(--bg)]'
+        className={cn(
+          'flex size-full items-center justify-center rounded-[9px] border border-[var(--border-1)] bg-[var(--bg)]',
+          !Icon && contentClass
+        )}
         style={brandBg ? { background: brandBg } : undefined}
       >
-        <Icon className={cn('size-6', getTileIconColorClass(brandBg))} />
+        {Icon ? <Icon className={cn('size-6', contentClass)} /> : fallbackLabel}
       </div>
     </div>
   )

@@ -258,7 +258,6 @@ export function useAvailableResources(
           id: integration.blockType,
           name: integration.name,
           iconComponent: integration.icon,
-          bgColor: integration.bgColor,
         })),
       },
       {

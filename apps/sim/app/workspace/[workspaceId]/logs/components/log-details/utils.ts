@@ -7,6 +7,7 @@ import type { TraceSpan } from '@/lib/logs/types'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getBlock, getBlockByToolName } from '@/blocks'
+import { DEFAULT_BLOCK_TILE_COLOR } from '@/blocks/accent'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { normalizeToolId } from '@/tools/normalize'
 
@@ -23,8 +24,6 @@ function tryParseMcpToolName(toolId: string): string | null {
   const toolName = parts.slice(2).join('-')
   return toolName.length > 0 ? toolName : null
 }
-
-export const DEFAULT_BLOCK_COLOR = '#6b7280'
 
 export interface BlockIconAndColor {
   icon: React.ComponentType<{ className?: string }> | null
@@ -71,12 +70,12 @@ export function getBlockIconAndColor(
   if (lowerType === 'model' && provider) {
     const providerDef = PROVIDER_DEFINITIONS[provider]
     if (providerDef?.icon)
-      return { icon: providerDef.icon, bgColor: providerDef.color ?? DEFAULT_BLOCK_COLOR }
+      return { icon: providerDef.icon, bgColor: providerDef.color ?? DEFAULT_BLOCK_TILE_COLOR }
   }
   const blockType = lowerType === 'model' ? 'agent' : lowerType
   const blockConfig = getBlock(blockType)
   if (blockConfig) return { icon: blockConfig.icon, bgColor: blockConfig.bgColor }
-  return { icon: null, bgColor: DEFAULT_BLOCK_COLOR }
+  return { icon: null, bgColor: DEFAULT_BLOCK_TILE_COLOR }
 }
 
 /**
@@ -93,7 +92,9 @@ const MAX_YIQ_SUM = 255_000
  */
 export function adjustBgForContrast(bgColor: string): string {
   const brightness = perceivedBrightness(bgColor)
-  return brightness !== null && brightness < 30_000 / MAX_YIQ_SUM ? DEFAULT_BLOCK_COLOR : bgColor
+  return brightness !== null && brightness < 30_000 / MAX_YIQ_SUM
+    ? DEFAULT_BLOCK_TILE_COLOR
+    : bgColor
 }
 
 export function parseTime(value?: string | number | null): number {

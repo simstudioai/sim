@@ -33,6 +33,7 @@ import {
 import { useToolbarItemInteractions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/hooks'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
+import { DEFAULT_BLOCK_TILE_COLOR } from '@/blocks/accent'
 import { BlockTile } from '@/blocks/block-tile'
 import {
   buildCustomBlockConfig,
@@ -89,7 +90,7 @@ const ToolbarItem = memo(function ToolbarItem({
       const iconContainer = e.currentTarget.querySelector<HTMLElement>('[data-toolbar-item-icon]')
       onDragStart(e, item.type, isTriggerCapable, {
         name: item.name,
-        bgColor: item.bgColor ?? '#666666',
+        bgColor: item.bgColor ?? DEFAULT_BLOCK_TILE_COLOR,
         iconContainer,
       })
     },
