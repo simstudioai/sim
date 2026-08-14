@@ -610,12 +610,17 @@ function waitTitle(args: ToolArgs): string {
   return formatWaitTitle(requestedWaitSeconds(args), stringArg(args, 'reason'))
 }
 
-/** Title for a wait_agents sleep, naming the agent(s) being collected. */
+/** Title for a wait_agents sleep, naming the agent(s) being collected and honoring mode "any". */
 function waitAgentsTitle(args: ToolArgs): string {
   const raw = args?.agent_ids
   const ids = Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : []
+  const anyMode = stringArg(args, 'mode') === 'any'
   if (ids.length === 1) return `Waiting for ${ids[0]}`
-  if (ids.length > 1) return `Waiting for ${ids.length} agents`
+  if (ids.length > 1) {
+    return anyMode
+      ? `Waiting for the first of ${ids.length} agents`
+      : `Waiting for ${ids.length} agents`
+  }
   return 'Waiting for agents'
 }
 
