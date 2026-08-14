@@ -12,6 +12,7 @@ import { sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
 import {
   columnTypeById,
+  columnTypeOf,
   filterOperatorsFor,
   MULTI_SELECT_OPERATORS,
   SINGLE_SELECT_OPERATORS,
@@ -351,35 +352,100 @@ function validateOperator(operator: string): void {
 }
 
 /**
+ * The caller-facing name for a field in an error message.
+ *
+ * Filters reach the SQL builders **storage-keyed** — the boundaries translate
+ * column name → column id first — so interpolating the raw `field` reports a
+ * `col_…` id the caller never sent and cannot look up. The definition already in
+ * hand carries the display name; fall back to `field` for a system column
+ * (`createdAt`), an unknown key, or a legacy column whose id IS its name.
+ */
+function columnLabel(field: string, column: ColumnDefinition | undefined): string {
+  return column?.name ?? field
+}
+
+/**
  * Validates that a range-operator value matches its column's expected JS type
  * before it reaches Postgres. Surfaces an actionable, column-named error at the
  * SQL builder layer instead of a generic `invalid input syntax for type numeric`
  * from the database.
  */
 function validateComparisonValue(
-  field: string,
+  label: string,
   columnType: ColumnType | undefined,
   cast: 'numeric' | 'timestamptz',
   value: number | string
 ): void {
   if (cast === 'numeric' && typeof value !== 'number') {
-    const label = columnType ?? 'number'
+    const typeLabel = columnType ?? 'number'
     throw new TableQueryValidationError(
-      `Range operator on column "${field}" (${label}) requires a number, got ${typeof value}`
+      `Range operator on column "${label}" (${typeLabel}) requires a number, got ${typeof value}`
     )
   }
   if (cast === 'timestamptz') {
     if (typeof value !== 'string') {
       throw new TableQueryValidationError(
-        `Range operator on column "${field}" (date) requires a date string, got ${typeof value}`
+        `Range operator on column "${label}" (date) requires a date string, got ${typeof value}`
       )
     }
     if (normalizeDateCellValue(value) === null) {
       throw new TableQueryValidationError(
-        `Range operator on column "${field}" (date) requires a parseable date string, got "${truncate(value, 64)}"`
+        `Range operator on column "${label}" (date) requires a parseable date string, got "${truncate(value, 64)}"`
       )
     }
   }
+}
+
+/**
+ * Equality/membership operators. Their operand is compared by JSONB
+ * containment, which is exact and untyped: `{"score": 8} @> {"score": "8"}` is
+ * simply false, so a wrongly-typed operand never matches and the caller cannot
+ * tell that from a genuinely empty table.
+ */
+const CONTAINMENT_OPS = new Set<FilterOp>(['eq', 'ne', 'in', 'nin'])
+
+/** Renders an operand for an error message, bounded. */
+function describeOperand(value: JsonValue): string {
+  if (typeof value === 'string') return `string "${truncate(value, 64)}"`
+  return `${typeof value} ${truncate(JSON.stringify(value) ?? String(value), 64)}`
+}
+
+/**
+ * Reads an equality/membership operand the way the **write path** reads a cell,
+ * so `eq` compares like against like.
+ *
+ * The column type's own `coerce` is the single definition of "what this column
+ * can hold": a write of `"8"` to a number column stores `8`, so a filter for
+ * `"8"` must look for `8` or it reports zero rows for a row that exists. When
+ * `coerce` refuses, the operand is one the column could never hold — the range
+ * operators already answer that with a descriptive 400 rather than an empty
+ * result set, and this is the same answer for the containment operators.
+ *
+ * `null` and `''` are passed through untouched. Neither is a typed operand:
+ * `null` is a real containment query for a JSON-null cell, and `''` is the
+ * cleared-cell sentinel the grid writes. Coercing or rejecting either would
+ * change what an existing caller's filter means rather than fix it.
+ *
+ * `select` is excluded: its operands are option **names**, already resolved to
+ * stored ids upstream by `resolvePredicateSelectValues` /
+ * `resolveFilterSelectValues`, and its `coerce` returns an array for a
+ * multi-select — the wrong shape for a membership clause.
+ */
+function coerceContainmentOperand(
+  label: string,
+  column: ColumnDefinition,
+  op: FilterOp,
+  value: JsonValue
+): JsonValue {
+  if (value === null || value === '') return value
+  const result = columnTypeOf(column).coerce(value, column)
+  if (!result.ok) {
+    throw new TableQueryValidationError(
+      `Operator "${op}" on column "${label}" (${column.type}) requires a ${column.type} value, got ${describeOperand(value)}.`,
+      'INVALID_FILTER'
+    )
+  }
+  return result.value
 }
 
 /**
@@ -430,6 +496,7 @@ function buildFieldCondition(
   const columnType = column?.type
   const isSelect = columnType === 'select'
   const isMultiSelect = isSelect && column?.multiple === true
+  const label = columnLabel(field, column)
   // Types whose stored value is opaque (a select's option ids) restrict which
   // operators mean anything; `null` means the type accepts them all.
   const allowedOperators = column ? filterOperatorsFor(column) : null
@@ -442,13 +509,13 @@ function buildFieldCondition(
       validateOperator(op)
       if (allowedOperators && !allowedOperators.has(op)) {
         throw new TableQueryValidationError(
-          `Operator "${op}" is not supported on ${isMultiSelect ? 'multi-select' : columnType} column "${field}". Allowed: ${Array.from(allowedOperators).join(', ')}`
+          `Operator "${op}" is not supported on ${isMultiSelect ? 'multi-select' : columnType} column "${label}". Allowed: ${Array.from(allowedOperators).join(', ')}`
         )
       }
 
       if (op === '$empty') {
         // `$empty: true/false` maps onto the valueless v2 ops.
-        const filterOp: FilterOp = coerceEmptyFlag(field, value) ? 'isEmpty' : 'isNotEmpty'
+        const filterOp: FilterOp = coerceEmptyFlag(label, value) ? 'isEmpty' : 'isNotEmpty'
         const clause = fieldPredicate(tableName, field, filterOp, undefined, column)
         if (clause) conditions.push(clause)
         continue
@@ -511,6 +578,10 @@ export function fieldPredicate(
   }
 
   const columnType = column?.type
+  // Messages must name what the CALLER sent. `field` is the storage key by the
+  // time it reaches here (the boundaries translate name → id before building
+  // SQL), so a raw `field` reports a `col_…` the caller never supplied.
+  const label = columnLabel(field, column)
   const isSelect = columnType === 'select'
   // A multi-select cell holds an ARRAY of option ids, so equality against a
   // scalar can never be true; the question is membership. Gating and clause
@@ -522,7 +593,7 @@ export function fieldPredicate(
     const allowed = isMultiSelect ? MULTI_SELECT_OPS : SINGLE_SELECT_OPS
     if (!allowed.has(op)) {
       throw new TableQueryValidationError(
-        `Operator "${op}" is not supported on ${isMultiSelect ? 'multi-select' : 'select'} column "${field}". Allowed: ${Array.from(allowed).join(', ')}`
+        `Operator "${op}" is not supported on ${isMultiSelect ? 'multi-select' : 'select'} column "${label}". Allowed: ${Array.from(allowed).join(', ')}`
       )
     }
   }
@@ -542,45 +613,60 @@ export function fieldPredicate(
     }
   }
 
+  // Equality/membership compiles to exact JSONB containment, so a wrongly-typed
+  // operand is not a narrower match — it is no match at all, reported as an
+  // empty 200. Read the operand through the column type first, exactly as a
+  // write would; `coerceContainmentOperand` throws when the column could never
+  // hold it. Skipped for a field with no schema entry (ad-hoc legacy keys),
+  // which has no declared type to read it with.
+  const containmentValue: JsonValue | undefined =
+    column && !isSelect && CONTAINMENT_OPS.has(op)
+      ? Array.isArray(value)
+        ? value.map((v) => coerceContainmentOperand(label, column, op, v as JsonValue))
+        : coerceContainmentOperand(label, column, op, value as JsonValue)
+      : value
+
   switch (op) {
     case 'eq':
-      return buildContainmentClause(tableName, field, value as JsonValue)
+      return buildContainmentClause(tableName, field, containmentValue as JsonValue)
 
     case 'ne':
-      return sql`NOT (${buildContainmentClause(tableName, field, value as JsonValue)})`
+      return sql`NOT (${buildContainmentClause(tableName, field, containmentValue as JsonValue)})`
 
     case 'gt':
-      return buildComparisonClause(tableName, field, '>', value as number | string, columnType)
+      return buildComparisonClause(tableName, field, column, '>', value as number | string)
     case 'gte':
-      return buildComparisonClause(tableName, field, '>=', value as number | string, columnType)
+      return buildComparisonClause(tableName, field, column, '>=', value as number | string)
     case 'lt':
-      return buildComparisonClause(tableName, field, '<', value as number | string, columnType)
+      return buildComparisonClause(tableName, field, column, '<', value as number | string)
     case 'lte':
-      return buildComparisonClause(tableName, field, '<=', value as number | string, columnType)
+      return buildComparisonClause(tableName, field, column, '<=', value as number | string)
 
     case 'in': {
-      if (!Array.isArray(value) || value.length === 0) return undefined
-      if (value.length === 1) return buildContainmentClause(tableName, field, value[0])
-      const inConditions = value.map((v) => buildContainmentClause(tableName, field, v))
+      const values = containmentValue
+      if (!Array.isArray(values) || values.length === 0) return undefined
+      if (values.length === 1) return buildContainmentClause(tableName, field, values[0])
+      const inConditions = values.map((v) => buildContainmentClause(tableName, field, v))
       return sql`(${sql.join(inConditions, sql.raw(' OR '))})`
     }
 
     case 'nin': {
-      if (!Array.isArray(value) || value.length === 0) return undefined
-      const ninConditions = value.map(
+      const values = containmentValue
+      if (!Array.isArray(values) || values.length === 0) return undefined
+      const ninConditions = values.map(
         (v) => sql`NOT (${buildContainmentClause(tableName, field, v)})`
       )
       return sql`(${sql.join(ninConditions, sql.raw(' AND '))})`
     }
 
     case 'contains':
-      return buildLikeClause(tableName, field, value as string, 'contains')
+      return buildLikeClause(tableName, field, label, value as string, 'contains')
     case 'ncontains':
-      return buildLikeClause(tableName, field, value as string, 'contains', { negate: true })
+      return buildLikeClause(tableName, field, label, value as string, 'contains', { negate: true })
     case 'startsWith':
-      return buildLikeClause(tableName, field, value as string, 'startsWith')
+      return buildLikeClause(tableName, field, label, value as string, 'startsWith')
     case 'endsWith':
-      return buildLikeClause(tableName, field, value as string, 'endsWith')
+      return buildLikeClause(tableName, field, label, value as string, 'endsWith')
 
     case 'like':
       return buildPatternClause(tableName, field, value as string, { caseInsensitive: false })
@@ -813,15 +899,17 @@ function buildArrayMembershipClause(tableName: string, field: string, value: Jso
 function buildComparisonClause(
   tableName: string,
   field: string,
+  column: ColumnDefinition | undefined,
   operator: '>' | '>=' | '<' | '<=',
-  value: number | string,
-  columnType: ColumnType | undefined
+  value: number | string
 ): SQL {
   const escapedField = field.replace(/'/g, "''")
+  const label = columnLabel(field, column)
+  const columnType = column?.type
 
   if (columnType === 'boolean' || columnType === 'json') {
     throw new TableQueryValidationError(
-      `Range operator on column "${field}" (${columnType}) is not supported — ${columnType} values have no ordering.`
+      `Range operator on column "${label}" (${columnType}) is not supported — ${columnType} values have no ordering.`
     )
   }
 
@@ -831,7 +919,7 @@ function buildComparisonClause(
   }
 
   const cast = jsonbCastForType(columnType) ?? 'numeric'
-  validateComparisonValue(field, columnType, cast, value)
+  validateComparisonValue(label, columnType, cast, value)
   const cell = sql.raw(`(${tableName}.data->>'${escapedField}')::${cast}`)
   return cast === 'timestamptz'
     ? sql`${cell} ${sql.raw(operator)} ${value}::timestamptz`
@@ -884,6 +972,7 @@ function buildPatternClause(
 function buildLikeClause(
   tableName: string,
   field: string,
+  label: string,
   value: string,
   position: 'contains' | 'startsWith' | 'endsWith',
   options?: { negate?: boolean }
@@ -898,7 +987,7 @@ function buildLikeClause(
   if (text.length === 0) {
     const opName = position === 'contains' && options?.negate ? 'ncontains' : position
     throw new TableQueryValidationError(
-      `$${opName} on column "${field}" requires a non-empty value`
+      `$${opName} on column "${label}" requires a non-empty value`
     )
   }
   const escaped = escapeLikePattern(text)
@@ -920,12 +1009,12 @@ function buildLikeClause(
  * else throws rather than silently inverting the check — a 400 with a clear
  * message beats returning the opposite row set.
  */
-function coerceEmptyFlag(field: string, value: unknown): boolean {
+function coerceEmptyFlag(label: string, value: unknown): boolean {
   if (typeof value === 'boolean') return value
   if (value === 'true') return true
   if (value === 'false') return false
   throw new TableQueryValidationError(
-    `$empty on column "${field}" requires a boolean, got ${typeof value}`
+    `$empty on column "${label}" requires a boolean, got ${typeof value}`
   )
 }
 

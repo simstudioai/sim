@@ -18,6 +18,7 @@ const {
   mockReleaseExecutionSlot,
   mockUpdateSet,
   mockResolveWorkflowExecutionOwnership,
+  mockSelectExecutionLogRows,
 } = vi.hoisted(() => ({
   mockAbortManualExecution: vi.fn(),
   mockBeginPausedCancellation: vi.fn(),
@@ -33,10 +34,18 @@ const {
   mockReleaseExecutionSlot: vi.fn(),
   mockUpdateSet: vi.fn(),
   mockResolveWorkflowExecutionOwnership: vi.fn(),
+  mockSelectExecutionLogRows: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
   db: {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: () => Promise.resolve(mockSelectExecutionLogRows()),
+        }),
+      }),
+    }),
     update: () => ({
       set: (values: unknown) => {
         mockUpdateSet(values)
@@ -113,6 +122,7 @@ describe('cancelWorkflowExecution', () => {
       belongsToWorkflow: true,
       workflowGroupWorkspaceId: null,
     })
+    mockSelectExecutionLogRows.mockReturnValue([{ status: 'running' }])
     mockBeginPausedCancellation.mockResolvedValue(false)
     mockGetPausedCancellationStatus.mockResolvedValue(null)
     mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
@@ -126,6 +136,53 @@ describe('cancelWorkflowExecution', () => {
       getJob: vi.fn().mockResolvedValue(null),
       cancelJob: vi.fn(),
     })
+  })
+
+  it('reports a durable write when an active run is cancelled', async () => {
+    const result = await cancelWorkflowExecution(INPUT)
+
+    expect(result).toMatchObject({ success: true, durablyRecorded: true, reason: 'recorded' })
+  })
+
+  /**
+   * A cancel against a run that already reached a terminal state changes
+   * nothing: the log claim's `status = 'running'` predicate matches no row and
+   * no terminal metadata moves. Reporting `recorded`/`durablyRecorded: true`
+   * there tells a caller a durable write happened when none did, so the outcome
+   * names the state that was actually observed instead.
+   */
+  it.each([
+    ['cancelled', 'already_cancelled'],
+    ['completed', 'already_completed'],
+    ['failed', 'already_failed'],
+  ])('reports a run already %s as a no-op rather than a durable write', async (status, reason) => {
+    mockSelectExecutionLogRows.mockReturnValue([{ status }])
+
+    const result = await cancelWorkflowExecution(INPUT)
+
+    expect(result).toMatchObject({ success: true, durablyRecorded: false, reason })
+  })
+
+  it('still reports the failing step when a terminal run has paused work left over', async () => {
+    mockSelectExecutionLogRows.mockReturnValue([{ status: 'cancelled' }])
+    mockBeginPausedCancellation.mockResolvedValue(true)
+    mockCompletePausedCancellation.mockResolvedValue(false)
+
+    const result = await cancelWorkflowExecution(INPUT)
+
+    expect(result).toMatchObject({
+      success: false,
+      durablyRecorded: true,
+      reason: 'paused_database_cancel_failed',
+    })
+  })
+
+  it('reports an undifferentiated outcome when the run has no durable log row', async () => {
+    mockSelectExecutionLogRows.mockReturnValue([])
+
+    const result = await cancelWorkflowExecution(INPUT)
+
+    expect(result).toMatchObject({ success: true, durablyRecorded: true, reason: 'recorded' })
   })
 
   it('releases the plan concurrency reservation after a successful cancellation', async () => {

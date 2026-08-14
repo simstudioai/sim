@@ -1533,6 +1533,59 @@ describe('PauseResumeManager blocked resume readmission', () => {
   })
 })
 
+describe('PauseResumeManager terminal resume failure', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  async function markResumeFailed(): Promise<void> {
+    const managerInternals = PauseResumeManager as unknown as PauseResumeManagerInternals
+    await managerInternals.markResumeFailed({
+      resumeEntryId: 'resume-entry-1',
+      pausedExecutionId: 'paused-exec-1',
+      parentExecutionId: 'execution-1',
+      contextId: 'context-1',
+      failureReason: 'Resume execution failed',
+    })
+  }
+
+  it('terminalizes the parent log: end timestamp, derived duration, deadline cleared', async () => {
+    queueTableRows(workflowExecutionLogs, [{ status: 'running' }])
+    queueTableRows(pausedExecutions, [{ status: 'paused' }])
+
+    await markResumeFailed()
+
+    const logUpdate = dbChainMockFns.set.mock.calls.at(-1)?.[0] as {
+      status: string
+      endedAt: Date
+      totalDurationMs: unknown
+      executionDeadlineAt: Date | null
+    }
+    expect(logUpdate.status).toBe('failed')
+    expect(logUpdate.endedAt).toBeInstanceOf(Date)
+    expect(logUpdate.executionDeadlineAt).toBeNull()
+    expect(JSON.stringify(logUpdate.totalDurationMs)).toContain(logUpdate.endedAt.toISOString())
+  })
+
+  /**
+   * A resume that fails before the row flips back to `running` leaves it
+   * `pending` with the duration it banked at the checkpoint. Elapsed wall clock
+   * would redefine that to include the time the run sat waiting.
+   */
+  it('leaves a still-paused run its checkpoint duration', async () => {
+    queueTableRows(workflowExecutionLogs, [{ status: 'pending' }])
+    queueTableRows(pausedExecutions, [{ status: 'paused' }])
+
+    await markResumeFailed()
+
+    const logUpdate = dbChainMockFns.set.mock.calls.at(-1)?.[0] as {
+      totalDurationMs: { toSQL: () => { sql: string } }
+    }
+    expect(logUpdate.totalDurationMs.toSQL().sql).toContain("= 'pending'")
+  })
+})
+
 describe('PauseResumeManager completed resume transitions', () => {
   beforeEach(() => {
     vi.clearAllMocks()

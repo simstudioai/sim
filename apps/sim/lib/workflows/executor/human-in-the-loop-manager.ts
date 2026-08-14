@@ -33,7 +33,10 @@ import {
 } from '@/lib/execution/payloads/large-value-metadata'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
-import { cancelledExecutionLogFields } from '@/lib/logs/execution/cancellation'
+import {
+  cancelledExecutionLogFields,
+  terminalExecutionLogFields,
+} from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -2173,7 +2176,7 @@ export class PauseResumeManager {
 
       await tx
         .update(workflowExecutionLogs)
-        .set({ status: 'failed' })
+        .set(terminalExecutionLogFields('failed', now))
         .where(
           and(
             eq(workflowExecutionLogs.executionId, args.parentExecutionId),

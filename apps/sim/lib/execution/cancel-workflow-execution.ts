@@ -45,16 +45,68 @@ async function cancelActiveWorkflowJob(executionId: string): Promise<boolean> {
  * Cancellation outcome vocabulary produced by this service, and so the whole
  * vocabulary the public v2 endpoint can return. `recorded`/`redis_unavailable`/
  * `redis_write_failed` come from the Redis record step; the two `paused_*`
- * values from the paused-HITL path. The internal cancel route resolves further
- * outcomes on top of these — see `internalCancelWorkflowExecutionReasonSchema`
- * in `lib/api/contracts/workflows`.
+ * values from the paused-HITL path; the three `already_*` values report a run
+ * that was already terminal when the request arrived, where the cancel claim
+ * matched no row and nothing durable was written. The internal cancel route
+ * resolves further outcomes on top of these — see
+ * `internalCancelWorkflowExecutionReasonSchema` in `lib/api/contracts/workflows`.
  */
 export type CancelWorkflowExecutionReason =
   | 'recorded'
+  | 'already_cancelled'
+  | 'already_completed'
+  | 'already_failed'
   | 'redis_unavailable'
   | 'redis_write_failed'
   | 'paused_event_publish_failed'
   | 'paused_database_cancel_failed'
+
+/** Log statuses a cancel claim can never move, in the order they are reported. */
+const TERMINAL_NO_OP_REASONS = {
+  cancelled: 'already_cancelled',
+  completed: 'already_completed',
+  failed: 'already_failed',
+} as const satisfies Record<string, CancelWorkflowExecutionReason>
+
+type TerminalExecutionStatus = keyof typeof TERMINAL_NO_OP_REASONS
+
+function toTerminalExecutionStatus(status: string | undefined): TerminalExecutionStatus | null {
+  return status !== undefined && status in TERMINAL_NO_OP_REASONS
+    ? (status as TerminalExecutionStatus)
+    : null
+}
+
+/**
+ * Reads the durable status the run already carried, so the reported outcome can
+ * tell a real cancellation apart from a request against a run that had already
+ * finished. Purely observational — it gates no effect, and a read failure falls
+ * back to the undifferentiated report rather than blocking the cancel.
+ *
+ * Runs alongside `resolveWorkflowExecutionOwnership`, which reads the same row;
+ * folding the column into that helper would drop the extra round trip, but it
+ * lives outside this change's file boundary.
+ */
+async function readTerminalExecutionStatus(
+  executionId: string,
+  workflowId: string
+): Promise<TerminalExecutionStatus | null> {
+  try {
+    const [row] = await db
+      .select({ status: workflowExecutionLogs.status })
+      .from(workflowExecutionLogs)
+      .where(
+        and(
+          eq(workflowExecutionLogs.executionId, executionId),
+          eq(workflowExecutionLogs.workflowId, workflowId)
+        )
+      )
+      .limit(1)
+    return toTerminalExecutionStatus(row?.status)
+  } catch (error) {
+    logger.warn('Failed to read execution status before cancelling', { executionId, error })
+    return null
+  }
+}
 
 export interface CancelWorkflowExecutionResult {
   success: boolean
@@ -173,10 +225,10 @@ export async function cancelWorkflowExecution(
 ): Promise<CancelWorkflowExecutionResult> {
   const { executionId, workflowId, userId, workspaceId } = input
 
-  const { belongsToWorkflow, workflowGroupWorkspaceId } = await resolveWorkflowExecutionOwnership(
-    executionId,
-    workflowId
-  )
+  const [{ belongsToWorkflow, workflowGroupWorkspaceId }, priorTerminalStatus] = await Promise.all([
+    resolveWorkflowExecutionOwnership(executionId, workflowId),
+    readTerminalExecutionStatus(executionId, workflowId),
+  ])
   if (!belongsToWorkflow) throw new WorkflowExecutionNotFoundError()
 
   let pausedCancellationStarted = false
@@ -426,16 +478,34 @@ export async function cancelWorkflowExecution(
             ? 'recorded'
             : cancellation.reason
 
+  /**
+   * A run that was already terminal when the request arrived cannot be
+   * cancelled again: the claim's `status = 'running'` predicate matched no row
+   * and no terminal metadata moved, so `recorded`/`durablyRecorded: true` would
+   * claim a durable write that never happened. Every effect above still ran
+   * exactly as before — only the report changes. The request is still satisfied,
+   * because the run is not running, so `success` stays `true`.
+   *
+   * An already-`cancelled` run can still carry real paused-HITL reconciliation
+   * work, and when that step genuinely fails its reason must survive; only an
+   * otherwise-clean `recorded` is reinterpreted there.
+   */
+  const terminalNoOpReason =
+    priorTerminalStatus !== null &&
+    (priorTerminalStatus !== 'cancelled' || (reason === 'recorded' && !pausedCancelled))
+      ? TERMINAL_NO_OP_REASONS[priorTerminalStatus]
+      : null
+
   return {
-    success,
+    success: terminalNoOpReason ? true : success,
     executionId,
     redisAvailable:
       isPausedCancellationPath || pausedCancelled
         ? pausedCancellationPublished
         : cancellation.reason !== 'redis_unavailable',
-    durablyRecorded,
+    durablyRecorded: terminalNoOpReason ? false : durablyRecorded,
     locallyAborted,
     pausedCancelled,
-    reason,
+    reason: terminalNoOpReason ?? reason,
   }
 }

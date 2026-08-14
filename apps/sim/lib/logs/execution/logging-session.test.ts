@@ -4,7 +4,13 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const dbMocks = vi.hoisted(() => ({
   eq: vi.fn(),
   and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
-  sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
+  sql: Object.assign(
+    vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
+    {
+      /** `elapsedDurationMsSql` binds `ended_at` through the column's own mapper. */
+      param: vi.fn((value: unknown, encoder?: unknown) => ({ value, encoder })),
+    }
+  ),
 }))
 
 const {
@@ -1681,6 +1687,39 @@ describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
       .map(([strings]) => String(Array.from(strings)))
       .filter((query) => query.includes("!= 'cancelled'"))
     expect(statusGuards).toHaveLength(1)
+  })
+
+  it('terminalizes the row it force-fails: end timestamp, derived duration, deadline cleared', async () => {
+    await LoggingSession.markExecutionAsFailed('exec-terminal', 'boom', undefined, 'wf-1')
+
+    const payload = dbChainMockFns.set.mock.calls[0]?.[0] as {
+      level: string
+      status: string
+      endedAt: Date
+      totalDurationMs: unknown
+      executionDeadlineAt: Date | null
+      executionData: unknown
+    }
+    expect(payload.level).toBe('error')
+    expect(payload.status).toBe('failed')
+    expect(payload.endedAt).toBeInstanceOf(Date)
+    expect(payload.executionDeadlineAt).toBeNull()
+    expect(payload.totalDurationMs).toBeDefined()
+    expect(dbMocks.sql.param).toHaveBeenCalledWith(payload.endedAt, expect.anything())
+  })
+
+  /**
+   * A resumed run whose pause state fails to persist can still be `pending`, and
+   * the duration it banked at the checkpoint must survive the force-fail rather
+   * than be redefined to include the time it sat waiting.
+   */
+  it('leaves a paused run its checkpoint duration', async () => {
+    await LoggingSession.markExecutionAsFailed('exec-paused', 'boom', undefined, 'wf-1')
+
+    const durationGuards = dbMocks.sql.mock.calls
+      .map(([strings]) => String(Array.from(strings)))
+      .filter((query) => query.includes("= 'pending'"))
+    expect(durationGuards).toHaveLength(1)
   })
 
   it('clears Redis markers when marking failed (terminal boundary outside completeWorkflowExecution)', async () => {

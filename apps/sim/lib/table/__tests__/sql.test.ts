@@ -1038,3 +1038,197 @@ describe('legacy compiler rejects a v2 predicate (version-mismatch fail-fast)', 
     ).not.toThrow()
   })
 })
+
+/**
+ * Equality/membership compiles to exact JSONB containment, which is untyped:
+ * `{"score":8} @> {"score":"8"}` is simply FALSE. Before the operand was read
+ * through the column type, a wrongly-typed `eq`/`ne`/`in`/`nin` returned an
+ * empty 200 that a caller could not tell apart from a genuinely empty table —
+ * while the range operators on the same column answered with a descriptive 400.
+ */
+describe('containment operators — operand is read through the column type', () => {
+  const NUM: ColumnDefinition[] = [{ id: 'score', name: 'score', type: 'number' }]
+  const BOOL: ColumnDefinition[] = [{ id: 'flag', name: 'flag', type: 'boolean' }]
+  const STR: ColumnDefinition[] = [{ id: 'title', name: 'title', type: 'string' }]
+  const DATE: ColumnDefinition[] = [{ id: 'due', name: 'due', type: 'date' }]
+  const MONEY: ColumnDefinition[] = [{ id: 'price', name: 'price', type: 'currency' }]
+
+  describe('coerces an unambiguous operand the way a write would', () => {
+    it.each([
+      ['eq', { all: [{ field: 'score', op: 'eq', value: '8' }] }, '"score":8'],
+      ['ne', { all: [{ field: 'score', op: 'ne', value: '8' }] }, '"score":8'],
+      ['in', { all: [{ field: 'score', op: 'in', value: ['8'] }] }, '"score":8'],
+      ['nin', { all: [{ field: 'score', op: 'nin', value: ['8'] }] }, '"score":8'],
+    ] as Array<[string, TablePredicate, string]>)('%s on a number column', (_op, p, expected) => {
+      const out = render(buildPredicateClause(p, TABLE, NUM))
+      expect(out).toContain(expected)
+      expect(out).not.toContain('"score":"8"')
+    })
+
+    it('reads "false" as the boolean false', () => {
+      const p: TablePredicate = { all: [{ field: 'flag', op: 'eq', value: 'false' }] }
+      const out = render(buildPredicateClause(p, TABLE, BOOL))
+      expect(out).toContain('"flag":false')
+      expect(out).not.toContain('"flag":"false"')
+    })
+
+    it('reads a number as text on a string column', () => {
+      const p: TablePredicate = { all: [{ field: 'title', op: 'eq', value: 8 }] }
+      const out = render(buildPredicateClause(p, TABLE, STR))
+      expect(out).toContain('"title":"8"')
+    })
+
+    it('normalizes a date operand the same way the stored cell was normalized', () => {
+      const p: TablePredicate = { all: [{ field: 'due', op: 'eq', value: '  2024-01-31  ' }] }
+      const out = render(buildPredicateClause(p, TABLE, DATE))
+      expect(out).toContain('"due":"2024-01-31"')
+    })
+
+    it('reads a formatted amount on a currency column', () => {
+      const p: TablePredicate = { all: [{ field: 'price', op: 'eq', value: '$1,234.56' }] }
+      const out = render(buildPredicateClause(p, TABLE, MONEY))
+      expect(out).toContain('"price":1234.56')
+    })
+
+    it('applies to the legacy $-grammar too', () => {
+      const out = render(buildFilterClause({ score: { $eq: '8' } }, TABLE, NUM))
+      expect(out).toContain('"score":8')
+      expect(out).toContain('"score":8')
+    })
+
+    it('applies to the legacy equality shorthand', () => {
+      expect(render(buildFilterClause({ score: '8' }, TABLE, NUM))).toContain('"score":8')
+    })
+  })
+
+  describe('rejects an operand the column could never hold', () => {
+    it.each(['eq', 'ne'] as const)('%s with an unparseable number', (op) => {
+      const p = { all: [{ field: 'score', op, value: 'eight' }] } as TablePredicate
+      expect(() => buildPredicateClause(p, TABLE, NUM)).toThrow(
+        `Operator "${op}" on column "score" (number) requires a number value, got string "eight"`
+      )
+    })
+
+    it.each(['in', 'nin'] as const)('%s naming a bad element', (op) => {
+      const p = { all: [{ field: 'score', op, value: [8, 'eight'] }] } as TablePredicate
+      expect(() => buildPredicateClause(p, TABLE, NUM)).toThrow(/requires a number value/)
+    })
+
+    it('rejects a non-boolean on a boolean column', () => {
+      const p: TablePredicate = { all: [{ field: 'flag', op: 'eq', value: 'yes' }] }
+      expect(() => buildPredicateClause(p, TABLE, BOOL)).toThrow(
+        'Operator "eq" on column "flag" (boolean) requires a boolean value, got string "yes"'
+      )
+    })
+
+    it('rejects an unparseable date', () => {
+      const p: TablePredicate = { all: [{ field: 'due', op: 'eq', value: 'not-a-date' }] }
+      expect(() => buildPredicateClause(p, TABLE, DATE)).toThrow(/requires a date value/)
+    })
+
+    it('rejects an object on a string column', () => {
+      const p = {
+        all: [{ field: 'title', op: 'eq', value: { a: 1 } }],
+      } as unknown as TablePredicate
+      expect(() => buildPredicateClause(p, TABLE, STR)).toThrow(/requires a string value/)
+    })
+
+    it('rejects it on the legacy $-grammar too', () => {
+      expect(() => buildFilterClause({ score: { $eq: 'eight' } }, TABLE, NUM)).toThrow(
+        /requires a number value/
+      )
+    })
+  })
+
+  describe('leaves the operands that are not type assertions alone', () => {
+    it('keeps null — a real containment query for a JSON-null cell', () => {
+      const p: TablePredicate = { all: [{ field: 'score', op: 'eq', value: null }] }
+      expect(render(buildPredicateClause(p, TABLE, NUM))).toContain('"score":null')
+    })
+
+    it('keeps the empty string — the cleared-cell sentinel', () => {
+      const p: TablePredicate = { all: [{ field: 'score', op: 'eq', value: '' }] }
+      expect(render(buildPredicateClause(p, TABLE, NUM))).toContain('"score":""')
+    })
+
+    it('leaves a field with no schema entry untouched', () => {
+      const p: TablePredicate = { all: [{ field: 'adhoc', op: 'eq', value: '8' }] }
+      expect(render(buildPredicateClause(p, TABLE, NO_COLUMNS))).toContain('"adhoc":"8"')
+    })
+
+    it('leaves a select column to its own name→id resolution', () => {
+      const statusCol: ColumnDefinition = {
+        id: 'col_status',
+        name: 'status',
+        type: 'select',
+        options: [{ id: 'opt_open', name: 'Open' }],
+      }
+      const p: TablePredicate = { all: [{ field: 'col_status', op: 'eq', value: 'opt_open' }] }
+      expect(render(buildPredicateClause(p, TABLE, [statusCol]))).toContain('"opt_open"')
+    })
+  })
+})
+
+/**
+ * Filters reach the SQL builders storage-keyed — the boundaries translate
+ * column name → column id first — so a message interpolating the raw field
+ * reported a `col_…` id the caller never sent and cannot look up.
+ */
+describe('error messages name the caller-facing column, not the storage id', () => {
+  const multi: ColumnDefinition = {
+    id: 'col_934cea93275d46448b0d6c001554e146',
+    name: 'untitled_2',
+    type: 'select',
+    multiple: true,
+    options: [{ id: 'opt_a', name: 'Alpha' }],
+  }
+  const num: ColumnDefinition = { id: 'col_abc123', name: 'overall_score', type: 'number' }
+  const bool: ColumnDefinition = { id: 'col_def456', name: 'untitled', type: 'boolean' }
+  const str: ColumnDefinition = { id: 'col_ghi789', name: 'headline', type: 'string' }
+
+  function expectNamed(fn: () => unknown, name: string, id: string) {
+    expect(fn).toThrow(new RegExp(`"${name}"`))
+    expect(fn).not.toThrow(new RegExp(id))
+  }
+
+  it('names the column on an unsupported select operator (v2 grammar)', () => {
+    const p: TablePredicate = { all: [{ field: multi.id as string, op: 'eq', value: 'c' }] }
+    expectNamed(() => buildPredicateClause(p, TABLE, [multi]), 'untitled_2', 'col_934cea')
+  })
+
+  it('names the column on an unsupported select operator (legacy grammar)', () => {
+    expectNamed(
+      () => buildFilterClause({ [multi.id as string]: { $eq: 'c' } }, TABLE, [multi]),
+      'untitled_2',
+      'col_934cea'
+    )
+  })
+
+  it('names the column on a range-operator type mismatch', () => {
+    const p: TablePredicate = { all: [{ field: 'col_abc123', op: 'gt', value: '7' }] }
+    expectNamed(() => buildPredicateClause(p, TABLE, [num]), 'overall_score', 'col_abc123')
+  })
+
+  it('names the column on an unorderable range operator', () => {
+    const p: TablePredicate = { all: [{ field: 'col_def456', op: 'gt', value: 1 }] }
+    expectNamed(() => buildPredicateClause(p, TABLE, [bool]), 'untitled', 'col_def456')
+  })
+
+  it('names the column on an empty pattern operand', () => {
+    const p: TablePredicate = { all: [{ field: 'col_ghi789', op: 'contains', value: '' }] }
+    expectNamed(() => buildPredicateClause(p, TABLE, [str]), 'headline', 'col_ghi789')
+  })
+
+  it('names the column on a bad $empty flag', () => {
+    expectNamed(
+      () => buildFilterClause({ col_ghi789: { $empty: 1 } } as unknown as Filter, TABLE, [str]),
+      'headline',
+      'col_ghi789'
+    )
+  })
+
+  it('names the column on a containment type mismatch', () => {
+    const p: TablePredicate = { all: [{ field: 'col_abc123', op: 'eq', value: 'seven' }] }
+    expectNamed(() => buildPredicateClause(p, TABLE, [num]), 'overall_score', 'col_abc123')
+  })
+})
