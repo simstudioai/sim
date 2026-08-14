@@ -5,8 +5,8 @@ import { NextResponse } from 'next/server'
 import { startCredentialGroupOAuthContract } from '@/lib/api/contracts/credential-groups'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getCredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
-import { startCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
+import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
+import { startPublicCredentialGroupOAuth } from '@/lib/credential-groups/application/public-enrollment'
 import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
 import {
   enforceCredentialGroupEnrollmentOAuthRateLimit,
@@ -30,8 +30,8 @@ export const GET = withRouteHandler(
     const parsed = await parseRequest(startCredentialGroupOAuthContract, request, context)
     if (!parsed.success) return parsed.response
     const { token, optionId } = parsed.data.params
-    const enrollment = await getCredentialGroupOAuthContext(token, optionId)
-    if (!enrollment) {
+    const principal = await authenticateCredentialGroupEnrollment(token)
+    if (!principal) {
       return NextResponse.json(
         { error: 'Not found' },
         { status: 404, headers: { 'Cache-Control': 'no-store' } }
@@ -39,12 +39,16 @@ export const GET = withRouteHandler(
     }
 
     const enrollmentLimited = await enforceCredentialGroupEnrollmentOAuthRateLimit(
-      enrollment.enrollmentId
+      principal.enrollmentId
     )
     if (enrollmentLimited) return enrollmentLimited
 
     try {
-      const authorizationUrl = await startCredentialGroupOAuth(enrollment, token)
+      const { authorizationUrl } = await startPublicCredentialGroupOAuth.execute({
+        principal,
+        input: { invitationToken: token, optionId },
+        request,
+      })
       const response = NextResponse.redirect(authorizationUrl)
       response.headers.set('Cache-Control', 'no-store')
       response.headers.set('Referrer-Policy', 'no-referrer')

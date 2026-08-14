@@ -2,57 +2,42 @@
  * @vitest-environment node
  */
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAuthorizeCredentialGroupSettings,
-  mockEnforceInvitationRateLimit,
-  mockGetSession,
-  mockInviteEnrollments,
-} = vi.hoisted(() => ({
-  mockAuthorizeCredentialGroupSettings: vi.fn(),
-  mockEnforceInvitationRateLimit: vi.fn(),
-  mockGetSession: vi.fn(),
-  mockInviteEnrollments: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  execute: vi.fn(),
+  getSession: vi.fn(),
+  rateLimit: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
+vi.mock('@/lib/auth', () => ({ getSession: mocks.getSession }))
 
-vi.mock('@/lib/credential-groups/access', () => {
-  class CredentialGroupAccessError extends Error {
+vi.mock('@/lib/credential-groups/application/manage-enrollments', () => ({
+  inviteCredentialGroupEnrollmentsSettings: {
+    operation: { id: 'credential_groups.invites.send_batch' },
+    execute: mocks.execute,
+  },
+}))
+
+vi.mock('@/lib/credential-groups/rate-limit', () => {
+  class CredentialGroupInvitationRateLimitError extends Error {
+    readonly statusCode = 429
+
     constructor(
-      message: string,
-      readonly status: 403 | 404
+      readonly retryAfterSeconds: number,
+      readonly resetAt: Date
     ) {
-      super(message)
+      super('Rate limit exceeded')
     }
   }
   return {
-    authorizeCredentialGroupSettings: mockAuthorizeCredentialGroupSettings,
-    CredentialGroupAccessError,
+    CredentialGroupInvitationRateLimitError,
+    enforceCredentialGroupInvitationRouteRateLimit: mocks.rateLimit,
   }
 })
 
-vi.mock('@/lib/credential-groups/enrollments', () => {
-  class CredentialGroupEnrollmentError extends Error {
-    constructor(
-      message: string,
-      readonly status: 404 | 409 | 502
-    ) {
-      super(message)
-    }
-  }
-  return {
-    inviteCredentialGroupEnrollments: mockInviteEnrollments,
-    CredentialGroupEnrollmentError,
-  }
-})
-
-vi.mock('@/lib/credential-groups/rate-limit', () => ({
-  enforceCredentialGroupInvitationRateLimit: mockEnforceInvitationRateLimit,
-}))
-
+import { CredentialGroupInvitationRateLimitError } from '@/lib/credential-groups/rate-limit'
 import { POST } from '@/app/api/workspaces/[id]/credential-groups/[groupId]/enrollments/route'
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
@@ -73,51 +58,47 @@ function createRequest(body: unknown): NextRequest {
 describe('credential group enrollment invitation route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({
-      user: { id: 'user-1', name: 'Taylor', email: 'taylor@example.com' },
+    mocks.getSession.mockResolvedValue({
+      user: { id: 'user-1' },
+      session: { id: 'session-1' },
     })
-    mockAuthorizeCredentialGroupSettings.mockResolvedValue({})
-    mockEnforceInvitationRateLimit.mockResolvedValue(null)
-    mockInviteEnrollments.mockResolvedValue({
-      results: [
-        {
-          email: 'alex@example.com',
-          success: false,
-          error: 'Delivery failed',
-        },
-      ],
+    mocks.rateLimit.mockResolvedValue(undefined)
+    mocks.execute.mockResolvedValue({
+      results: [{ email: 'alex@example.com', success: false, error: 'Delivery failed' }],
       sentCount: 0,
       failedCount: 1,
     })
   })
 
   it('authenticates before parsing the batch', async () => {
-    mockGetSession.mockResolvedValue(null)
+    mocks.getSession.mockResolvedValue(null)
 
     const response = await POST(createRequest({}), context)
 
     expect(response.status).toBe(401)
-    expect(mockAuthorizeCredentialGroupSettings).not.toHaveBeenCalled()
-    expect(mockInviteEnrollments).not.toHaveBeenCalled()
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 
-  it('sends the entire validated batch through the enrollment service', async () => {
+  it('sends the entire validated batch through one application command', async () => {
     const body = { emails: ['alex@example.com', 'sam@example.com'] }
+    const request = createRequest(body)
 
-    const response = await POST(createRequest(body), context)
+    const response = await POST(request, context)
 
     expect(response.status).toBe(200)
-    expect(mockInviteEnrollments).toHaveBeenCalledWith(
-      WORKSPACE_ID,
-      GROUP_ID,
-      'user-1',
-      'Taylor',
-      body
-    )
+    expect(mocks.execute).toHaveBeenCalledWith({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        assertedWorkspaceId: WORKSPACE_ID,
+        credentialGroupId: GROUP_ID,
+        emails: body.emails,
+      },
+      request,
+    })
     expect(await response.json()).toMatchObject({ sentCount: 0, failedCount: 1 })
   })
 
-  it('rejects a batch larger than 100 before invoking delivery', async () => {
+  it('rejects a batch larger than 100 before admission or delivery', async () => {
     const response = await POST(
       createRequest({
         emails: Array.from({ length: 101 }, (_, index) => `user-${index}@example.com`),
@@ -126,18 +107,20 @@ describe('credential group enrollment invitation route', () => {
     )
 
     expect(response.status).toBe(400)
-    expect(mockInviteEnrollments).not.toHaveBeenCalled()
+    expect(mocks.rateLimit).not.toHaveBeenCalled()
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 
   it('applies the shared workspace invitation rate limit', async () => {
-    mockEnforceInvitationRateLimit.mockResolvedValue(
-      NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
+    mocks.rateLimit.mockRejectedValue(
+      new CredentialGroupInvitationRateLimitError(30, new Date('2026-08-14T12:00:00Z'))
     )
 
     const response = await POST(createRequest({ emails: ['alex@example.com'] }), context)
 
     expect(response.status).toBe(429)
-    expect(mockEnforceInvitationRateLimit).toHaveBeenCalledWith(WORKSPACE_ID)
-    expect(mockInviteEnrollments).not.toHaveBeenCalled()
+    expect(mocks.rateLimit).toHaveBeenCalledWith(WORKSPACE_ID)
+    expect(response.headers.get('retry-after')).toBe('30')
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 })

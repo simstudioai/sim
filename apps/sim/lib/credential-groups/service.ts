@@ -7,17 +7,17 @@ import {
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, desc, eq, inArray } from 'drizzle-orm'
-import type {
-  CreateCredentialGroupBody,
-  CredentialGroup,
-  CredentialGroupOptionInput,
-  UpdateCredentialGroupBody,
-} from '@/lib/api/contracts/credential-groups'
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import { decryptCredentialGroupProviderConfiguration } from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import { isCredentialGroupProvider } from '@/lib/credential-groups/providers'
 import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
+import type {
+  CreateCredentialGroupInput,
+  CredentialGroupOptionInput,
+  CredentialGroupRecord,
+  UpdateCredentialGroupInput,
+} from '@/lib/credential-groups/types'
 import type { DbOrTx } from '@/lib/db/types'
 
 function scopesEqual(left: string[], right: string[]): boolean {
@@ -55,7 +55,7 @@ async function buildOption(
 async function updateOptions(
   workspaceId: string,
   credentialGroupId: string,
-  inputs: NonNullable<UpdateCredentialGroupBody['options']>,
+  inputs: NonNullable<UpdateCredentialGroupInput['options']>,
   existingOptions: CredentialGroupOptionConfig[],
   executor: DbOrTx
 ): Promise<CredentialGroupOptionConfig[]> {
@@ -90,7 +90,7 @@ async function updateOptions(
 
 async function toCredentialGroup(
   row: typeof credentialGroup.$inferSelect
-): Promise<CredentialGroup> {
+): Promise<CredentialGroupRecord> {
   const providerConfiguration = await decryptCredentialGroupProviderConfiguration(
     row.encryptedProviderConfiguration
   )
@@ -138,7 +138,7 @@ async function toCredentialGroup(
   }
 }
 
-export async function listCredentialGroups(workspaceId: string): Promise<CredentialGroup[]> {
+export async function listCredentialGroups(workspaceId: string): Promise<CredentialGroupRecord[]> {
   const rows = await db
     .select()
     .from(credentialGroup)
@@ -150,7 +150,7 @@ export async function listCredentialGroups(workspaceId: string): Promise<Credent
 export async function getCredentialGroup(
   workspaceId: string,
   groupId: string
-): Promise<CredentialGroup | null> {
+): Promise<CredentialGroupRecord | null> {
   const [row] = await db
     .select()
     .from(credentialGroup)
@@ -162,8 +162,8 @@ export async function getCredentialGroup(
 export async function createCredentialGroup(
   workspaceId: string,
   userId: string,
-  body: CreateCredentialGroupBody
-): Promise<CredentialGroup> {
+  body: CreateCredentialGroupInput
+): Promise<CredentialGroupRecord> {
   const now = new Date()
   const options = await Promise.all(body.options.map((option) => buildOption(workspaceId, option)))
   const [created] = await db
@@ -200,8 +200,8 @@ export async function deleteCredentialGroup(
 export async function updateCredentialGroup(
   workspaceId: string,
   groupId: string,
-  body: UpdateCredentialGroupBody
-): Promise<CredentialGroup | null> {
+  body: UpdateCredentialGroupInput
+): Promise<CredentialGroupRecord | null> {
   return db.transaction(async (tx) => {
     const [existing] = await tx
       .select()

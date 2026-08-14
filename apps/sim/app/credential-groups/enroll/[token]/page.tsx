@@ -2,7 +2,9 @@ import { type ReactNode, Suspense } from 'react'
 import { Chip, ToastProvider } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
-import { getPublicCredentialGroupEnrollment } from '@/lib/credential-groups/enrollments'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
+import { readPublicCredentialGroupEnrollment } from '@/lib/credential-groups/application/public-enrollment'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
 import { SupportFooter } from '@/app/(auth)/components'
@@ -92,8 +94,16 @@ export default async function CredentialGroupEnrollmentPage({
   const { token } = await params
   if (!token || token.length > 128) return <UnavailableInvitation />
 
-  const enrollment = await getPublicCredentialGroupEnrollment(token)
-  if (!enrollment) return <UnavailableInvitation />
+  const principal = await authenticateCredentialGroupEnrollment(token)
+  if (!principal) return <UnavailableInvitation />
+  const enrollmentResult = await readPublicCredentialGroupEnrollment
+    .execute({ principal, input: {} })
+    .catch((error: unknown) => {
+      if (asOrchestrationError(error)?.code === 'not_found') return null
+      throw error
+    })
+  if (!enrollmentResult) return <UnavailableInvitation />
+  const { enrollment } = enrollmentResult
 
   const resolvedSearchParams = await searchParams
   const oauthStatus = getSearchParam(resolvedSearchParams, 'oauth')

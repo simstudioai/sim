@@ -4,31 +4,39 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockConsumeAttempt, mockGetContext, mockCompleteOAuth, mockRateLimit } = vi.hoisted(() => ({
-  mockConsumeAttempt: vi.fn(),
-  mockGetContext: vi.fn(),
-  mockCompleteOAuth: vi.fn(),
-  mockRateLimit: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  authenticate: vi.fn(),
+  completeOAuth: vi.fn(),
+  consumeAttempt: vi.fn(),
+  rateLimit: vi.fn(),
+}))
+
+vi.mock('@/lib/credential-groups/application/enrollment-auth', () => ({
+  authenticateCredentialGroupEnrollment: mocks.authenticate,
+}))
+
+vi.mock('@/lib/credential-groups/application/public-enrollment', () => ({
+  completePublicCredentialGroupOAuth: { execute: mocks.completeOAuth },
 }))
 
 vi.mock('@/lib/credential-groups/oauth-state', () => ({
-  consumeCredentialGroupOAuthAttempt: mockConsumeAttempt,
-}))
-
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  getCredentialGroupOAuthContext: mockGetContext,
-}))
-
-vi.mock('@/lib/credential-groups/oauth', () => ({
-  completeCredentialGroupOAuth: mockCompleteOAuth,
+  consumeCredentialGroupOAuthAttempt: mocks.consumeAttempt,
 }))
 
 vi.mock('@/lib/credential-groups/rate-limit', () => ({
-  enforcePublicCredentialGroupIpRateLimit: mockRateLimit,
+  enforcePublicCredentialGroupIpRateLimit: mocks.rateLimit,
 }))
 
 import { GET } from '@/app/api/credential-groups/oauth/[provider]/callback/route'
 
+const principal = {
+  kind: 'credential_group_enrollment',
+  workspaceId: 'workspace-1',
+  credentialGroupId: 'group-1',
+  enrollmentId: 'enrollment-1',
+  email: 'alex@example.com',
+  invitationTokenHash: 'hash-1',
+} as const
 const attempt = {
   provider: 'gmail',
   invitationToken: 'invitation-token',
@@ -45,21 +53,22 @@ function request(query: string) {
 describe('credential group OAuth callback', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockRateLimit.mockResolvedValue(null)
-    mockConsumeAttempt.mockResolvedValue(attempt)
-    mockGetContext.mockResolvedValue({ enrollmentId: 'enrollment-1' })
-    mockCompleteOAuth.mockResolvedValue(undefined)
+    mocks.rateLimit.mockResolvedValue(null)
+    mocks.consumeAttempt.mockResolvedValue(attempt)
+    mocks.authenticate.mockResolvedValue(principal)
+    mocks.completeOAuth.mockResolvedValue({ connectedOptionId: 'option-1' })
   })
 
-  it('consumes provider-bound state and returns after a successful exchange', async () => {
-    const response = await GET(request('state=state-1&code=code-1'), context)
+  it('consumes provider-bound state and enters the application operation', async () => {
+    const callbackRequest = request('state=state-1&code=code-1')
+    const response = await GET(callbackRequest, context)
 
-    expect(mockConsumeAttempt).toHaveBeenCalledWith('state-1')
-    expect(mockCompleteOAuth).toHaveBeenCalledWith(
-      { enrollmentId: 'enrollment-1' },
-      attempt,
-      'code-1'
-    )
+    expect(mocks.consumeAttempt).toHaveBeenCalledWith('state-1')
+    expect(mocks.completeOAuth).toHaveBeenCalledWith({
+      principal,
+      input: { attempt, code: 'code-1' },
+      request: callbackRequest,
+    })
     expect(response.status).toBe(307)
     expect(response.headers.get('location')).toBe(
       '/credential-groups/enroll/invitation-token?connected=option-1'
@@ -73,19 +82,19 @@ describe('credential group OAuth callback', () => {
     expect(response.headers.get('location')).toBe(
       '/credential-groups/enroll/invitation-token?oauth=denied'
     )
-    expect(mockGetContext).not.toHaveBeenCalled()
-    expect(mockCompleteOAuth).not.toHaveBeenCalled()
+    expect(mocks.authenticate).not.toHaveBeenCalled()
+    expect(mocks.completeOAuth).not.toHaveBeenCalled()
   })
 
   it('rejects replayed, expired, or cross-provider state', async () => {
-    mockConsumeAttempt.mockResolvedValue(null)
+    mocks.consumeAttempt.mockResolvedValue(null)
 
     const replayedResponse = await GET(request('state=state-1&code=code-1'), context)
     expect(replayedResponse.status).toBe(400)
 
-    mockConsumeAttempt.mockResolvedValue({ ...attempt, provider: 'slack' })
+    mocks.consumeAttempt.mockResolvedValue({ ...attempt, provider: 'slack' })
     const mismatchedResponse = await GET(request('state=state-2&code=code-2'), context)
     expect(mismatchedResponse.status).toBe(400)
-    expect(mockCompleteOAuth).not.toHaveBeenCalled()
+    expect(mocks.completeOAuth).not.toHaveBeenCalled()
   })
 })

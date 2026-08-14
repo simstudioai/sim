@@ -14,12 +14,6 @@ import { normalizeEmail, truncate } from '@sim/utils/string'
 import { and, count, desc, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import { renderCredentialGroupInvitationEmail } from '@/components/emails/render'
 import { getCredentialGroupInvitationSubject } from '@/components/emails/subjects'
-import type {
-  CredentialGroupEnrollment,
-  CredentialGroupEnrollmentConnection,
-  CredentialGroupEnrollmentDetail,
-  InviteCredentialGroupEnrollmentsBody,
-} from '@/lib/api/contracts/credential-groups'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
@@ -30,6 +24,12 @@ import {
   getCredentialGroupProviderFromProviderId,
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'
+import type {
+  CredentialGroupEnrollmentConnection,
+  CredentialGroupEnrollmentDetail,
+  CredentialGroupEnrollmentRecord,
+  InviteCredentialGroupEnrollmentsInput,
+} from '@/lib/credential-groups/types'
 import type { DbOrTx } from '@/lib/db/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
@@ -76,7 +76,7 @@ export interface PublicCredentialGroupEnrollment {
       }>
     }
   >
-  status: CredentialGroupEnrollment['status']
+  status: CredentialGroupEnrollmentRecord['status']
 }
 
 export interface CredentialGroupOAuthContext {
@@ -89,6 +89,14 @@ export interface CredentialGroupOAuthContext {
   enrollmentStatus: EnrollmentRow['status']
   option: CredentialGroupOptionConfig
   options: CredentialGroupOptionConfig[]
+}
+
+export interface PublicCredentialGroupEnrollmentIdentity {
+  enrollmentId: string
+  credentialGroupId: string
+  workspaceId: string
+  email: string
+  invitationTokenHash: string
 }
 
 /** Serializes OAuth grant persistence and administrative revocation for one enrollment. */
@@ -134,7 +142,11 @@ function metadataString(metadata: object | null, key: string): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
-async function resolvePublicEnrollmentRow(token: string) {
+async function resolvePublicEnrollmentRowByIdentity(
+  identity: Pick<PublicCredentialGroupEnrollmentIdentity, 'invitationTokenHash'> & {
+    enrollmentId?: string
+  }
+) {
   const [row] = await db
     .select({
       enrollment: credentialGroupEnrollment,
@@ -151,7 +163,12 @@ async function resolvePublicEnrollmentRow(token: string) {
     .innerJoin(credentialGroup, eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId))
     .innerJoin(workspace, eq(workspace.id, credentialGroup.workspaceId))
     .leftJoin(user, eq(user.id, credentialGroupEnrollment.createdBy))
-    .where(eq(credentialGroupEnrollment.invitationTokenHash, hashInvitationToken(token)))
+    .where(
+      and(
+        eq(credentialGroupEnrollment.invitationTokenHash, identity.invitationTokenHash),
+        identity.enrollmentId ? eq(credentialGroupEnrollment.id, identity.enrollmentId) : undefined
+      )
+    )
     .limit(1)
 
   if (!row || row.groupStatus !== 'active') return null
@@ -164,7 +181,44 @@ async function resolvePublicEnrollmentRow(token: string) {
   return row
 }
 
-function toCredentialGroupEnrollment(row: EnrollmentRow): CredentialGroupEnrollment {
+function identityForPublicEnrollmentRow(
+  row: NonNullable<Awaited<ReturnType<typeof resolvePublicEnrollmentRowByIdentity>>>
+): PublicCredentialGroupEnrollmentIdentity {
+  return {
+    enrollmentId: row.enrollment.id,
+    credentialGroupId: row.groupId,
+    workspaceId: row.workspaceId,
+    email: row.enrollment.email,
+    invitationTokenHash: row.enrollment.invitationTokenHash,
+  }
+}
+
+/** Authenticates a public invitation token without exposing the bearer value downstream. */
+export async function authenticatePublicCredentialGroupEnrollment(
+  token: string
+): Promise<PublicCredentialGroupEnrollmentIdentity | null> {
+  const row = await resolvePublicEnrollmentRowByIdentity({
+    invitationTokenHash: hashInvitationToken(token),
+  })
+  return row ? identityForPublicEnrollmentRow(row) : null
+}
+
+async function resolveAuthorizedPublicEnrollmentRow(
+  identity: PublicCredentialGroupEnrollmentIdentity
+) {
+  const row = await resolvePublicEnrollmentRowByIdentity(identity)
+  if (
+    !row ||
+    row.groupId !== identity.credentialGroupId ||
+    row.workspaceId !== identity.workspaceId ||
+    row.enrollment.email !== identity.email
+  ) {
+    return null
+  }
+  return row
+}
+
+function toCredentialGroupEnrollment(row: EnrollmentRow): CredentialGroupEnrollmentRecord {
   return {
     id: row.id,
     credentialGroupId: row.credentialGroupId,
@@ -229,7 +283,7 @@ async function sendInvitation(
   inviterName: string,
   email: string,
   options: SendInvitationOptions
-): Promise<CredentialGroupEnrollment> {
+): Promise<CredentialGroupEnrollmentRecord> {
   const now = new Date()
   const token = generateId()
   const tokenHash = hashInvitationToken(token)
@@ -498,12 +552,12 @@ export async function inviteCredentialGroupEnrollments(
   groupId: string,
   userId: string,
   inviterName: string,
-  body: InviteCredentialGroupEnrollmentsBody
+  body: InviteCredentialGroupEnrollmentsInput
 ) {
   const context = await getInvitationContext(workspaceId, groupId)
   const emails = [...new Set(body.emails.map(normalizeEmail))]
   const results: Array<
-    | { email: string; success: true; enrollment: CredentialGroupEnrollment }
+    | { email: string; success: true; enrollment: CredentialGroupEnrollmentRecord }
     | { email: string; success: false; error: string }
   > = []
 
@@ -549,7 +603,7 @@ export async function inviteCredentialGroupEnrollment(
   userId: string,
   inviterName: string,
   email: string
-): Promise<CredentialGroupEnrollment> {
+): Promise<CredentialGroupEnrollmentRecord> {
   const context = await getInvitationContext(workspaceId, groupId)
   return sendInvitation(context, userId, inviterName, normalizeEmail(email), {
     revokedEnrollment: 'reactivate',
@@ -562,7 +616,7 @@ export async function resendCredentialGroupEnrollment(
   enrollmentId: string,
   userId: string,
   inviterName: string
-): Promise<CredentialGroupEnrollment> {
+): Promise<CredentialGroupEnrollmentRecord> {
   const context = await getInvitationContext(workspaceId, groupId)
   const [row] = await db
     .select({ enrollment: credentialGroupEnrollment })
@@ -587,7 +641,7 @@ export async function revokeCredentialGroupEnrollment(
   workspaceId: string,
   groupId: string,
   enrollmentId: string
-): Promise<CredentialGroupEnrollment> {
+): Promise<CredentialGroupEnrollmentRecord> {
   const [existing] = await db
     .select({ email: credentialGroupEnrollment.email })
     .from(credentialGroupEnrollment)
@@ -634,14 +688,23 @@ export async function revokeCredentialGroupEnrollment(
 export async function getPublicCredentialGroupEnrollment(
   token: string
 ): Promise<PublicCredentialGroupEnrollment | null> {
-  const row = await resolvePublicEnrollmentRow(token)
+  const row = await resolvePublicEnrollmentRowByIdentity({
+    invitationTokenHash: hashInvitationToken(token),
+  })
+  return row ? buildPublicCredentialGroupEnrollment(row) : null
+}
+
+export async function getAuthorizedPublicCredentialGroupEnrollment(
+  identity: PublicCredentialGroupEnrollmentIdentity
+): Promise<PublicCredentialGroupEnrollment | null> {
+  const row = await resolveAuthorizedPublicEnrollmentRow(identity)
   if (!row) return null
 
   return buildPublicCredentialGroupEnrollment(row)
 }
 
 async function buildPublicCredentialGroupEnrollment(
-  row: NonNullable<Awaited<ReturnType<typeof resolvePublicEnrollmentRow>>>
+  row: NonNullable<Awaited<ReturnType<typeof resolvePublicEnrollmentRowByIdentity>>>
 ): Promise<PublicCredentialGroupEnrollment> {
   const connectionRows = await db
     .select({
@@ -719,8 +782,25 @@ async function buildPublicCredentialGroupEnrollment(
 
 /** Finalizes an enrollment only after every active credential option has one usable connection. */
 export async function completeCredentialGroupEnrollment(token: string): Promise<boolean | null> {
-  const row = await resolvePublicEnrollmentRow(token)
+  const row = await resolvePublicEnrollmentRowByIdentity({
+    invitationTokenHash: hashInvitationToken(token),
+  })
   if (!row) return null
+  return completeResolvedCredentialGroupEnrollment(row, identityForPublicEnrollmentRow(row))
+}
+
+export async function completeAuthorizedCredentialGroupEnrollment(
+  identity: PublicCredentialGroupEnrollmentIdentity
+): Promise<boolean | null> {
+  const row = await resolveAuthorizedPublicEnrollmentRow(identity)
+  if (!row) return null
+  return completeResolvedCredentialGroupEnrollment(row, identity)
+}
+
+async function completeResolvedCredentialGroupEnrollment(
+  row: NonNullable<Awaited<ReturnType<typeof resolvePublicEnrollmentRowByIdentity>>>,
+  identity: PublicCredentialGroupEnrollmentIdentity
+): Promise<boolean | null> {
   const enrollment = await buildPublicCredentialGroupEnrollment(row)
   const activeOptions = enrollment.options.filter((option) => option.status === 'active')
   const allConnected =
@@ -731,7 +811,6 @@ export async function completeCredentialGroupEnrollment(token: string): Promise<
   if (!allConnected) return false
 
   const now = new Date()
-  const invitationTokenHash = hashInvitationToken(token)
   return db.transaction(async (tx) => {
     await lockCredentialGroupEnrollmentLifecycle(tx, row.enrollment.id)
     const [current] = await tx
@@ -747,7 +826,7 @@ export async function completeCredentialGroupEnrollment(token: string): Promise<
       !current ||
       current.status === 'revoked' ||
       current.status === 'delivery_failed' ||
-      current.invitationTokenHash !== invitationTokenHash ||
+      current.invitationTokenHash !== identity.invitationTokenHash ||
       current.invitationExpiresAt.getTime() <= now.getTime()
     ) {
       return null
@@ -773,10 +852,30 @@ export async function getCredentialGroupOAuthContext(
   token: string,
   optionId: string
 ): Promise<CredentialGroupOAuthContext | null> {
-  const row = await resolvePublicEnrollmentRow(token)
+  const row = await resolvePublicEnrollmentRowByIdentity({
+    invitationTokenHash: hashInvitationToken(token),
+  })
   if (!row) return null
   const option = row.options.find((candidate) => candidate.id === optionId)
   if (!option || option.status !== 'active') return null
+  return credentialGroupOAuthContextFromRow(row, option)
+}
+
+export async function getAuthorizedCredentialGroupOAuthContext(
+  identity: PublicCredentialGroupEnrollmentIdentity,
+  optionId: string
+): Promise<CredentialGroupOAuthContext | null> {
+  const row = await resolveAuthorizedPublicEnrollmentRow(identity)
+  if (!row) return null
+  const option = row.options.find((candidate) => candidate.id === optionId)
+  if (!option || option.status !== 'active') return null
+  return credentialGroupOAuthContextFromRow(row, option)
+}
+
+function credentialGroupOAuthContextFromRow(
+  row: NonNullable<Awaited<ReturnType<typeof resolvePublicEnrollmentRowByIdentity>>>,
+  option: CredentialGroupOptionConfig
+): CredentialGroupOAuthContext {
   return {
     enrollmentId: row.enrollment.id,
     credentialGroupId: row.groupId,

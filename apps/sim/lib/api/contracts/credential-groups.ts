@@ -306,6 +306,7 @@ export const createCredentialGroupContract = defineRouteContract({
   body: createCredentialGroupBodySchema,
   response: {
     mode: 'json',
+    status: 201,
     schema: z.object({ credentialGroup: credentialGroupSchema }),
   },
 })

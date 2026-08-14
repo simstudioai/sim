@@ -1,51 +1,27 @@
-import { createLogger } from '@sim/logger'
-import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
 import { revokeCredentialGroupEnrollmentContract } from '@/lib/api/contracts/credential-groups'
-import { parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  authorizeCredentialGroupSettings,
-  CredentialGroupAccessError,
-} from '@/lib/credential-groups/access'
-import {
-  CredentialGroupEnrollmentError,
-  revokeCredentialGroupEnrollment,
-} from '@/lib/credential-groups/enrollments'
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { revokeCredentialGroupEnrollmentSettings } from '@/lib/credential-groups/application/manage-enrollments'
+import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
+import { createCredentialGroupInternalErrorPolicy } from '@/app/api/workspaces/[id]/credential-groups/error-policy'
 
-const logger = createLogger('CredentialGroupEnrollmentAPI')
-
-type RouteContext = { params: Promise<{ id: string; groupId: string; enrollmentId: string }> }
-
-export const DELETE = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const parsed = await parseRequest(revokeCredentialGroupEnrollmentContract, request, context)
-  if (!parsed.success) return parsed.response
-
-  try {
-    await authorizeCredentialGroupSettings(parsed.data.params.id, session.user.id)
-    const credentialGroupEnrollment = await revokeCredentialGroupEnrollment(
-      parsed.data.params.id,
-      parsed.data.params.groupId,
-      parsed.data.params.enrollmentId
-    )
-    return NextResponse.json({ credentialGroupEnrollment })
-  } catch (error) {
-    if (
-      error instanceof CredentialGroupAccessError ||
-      error instanceof CredentialGroupEnrollmentError
-    ) {
-      return NextResponse.json({ error: error.message }, { status: error.status })
-    }
-    logger.error('Failed to revoke credential group enrollment', error)
-    return NextResponse.json(
-      { error: 'Failed to revoke credential group enrollment' },
-      { status: 500 }
-    )
-  }
+export const DELETE = defineInternalJsonRoute({
+  contract: revokeCredentialGroupEnrollmentContract,
+  auth: internalSessionAuth,
+  operation: credentialGroupOperations.revokeEnrollment,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal Credential Group revocation behavior',
+  }),
+  errorPolicy: createCredentialGroupInternalErrorPolicy(
+    'Failed to revoke credential group enrollment'
+  ),
+  mapInput: ({ params }) => ({
+    assertedWorkspaceId: params.id,
+    credentialGroupId: params.groupId,
+    enrollmentId: params.enrollmentId,
+  }),
+  useCase: revokeCredentialGroupEnrollmentSettings,
 })

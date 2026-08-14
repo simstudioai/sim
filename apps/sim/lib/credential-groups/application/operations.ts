@@ -1,6 +1,54 @@
 import { defineWorkspaceOperation } from '@/lib/core/application'
 
 export const credentialGroupOperations = {
+  listSettings: defineWorkspaceOperation({
+    id: 'credential_groups.settings.list',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
+  create: defineWorkspaceOperation({
+    id: 'credential_groups.create',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
+  readSettings: defineWorkspaceOperation({
+    id: 'credential_groups.settings.read',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
+  update: defineWorkspaceOperation({
+    id: 'credential_groups.update',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
+  delete: defineWorkspaceOperation({
+    id: 'credential_groups.delete',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
+  inviteBatch: defineWorkspaceOperation({
+    id: 'credential_groups.invites.send_batch',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
+  resendEnrollment: defineWorkspaceOperation({
+    id: 'credential_groups.enrollments.resend',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
+  revokeEnrollment: defineWorkspaceOperation({
+    id: 'credential_groups.enrollments.revoke',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
   listCredentials: defineWorkspaceOperation({
     id: 'credential_groups.credentials.list',
     minimumRole: 'read',

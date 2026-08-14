@@ -5,8 +5,8 @@ import { NextResponse } from 'next/server'
 import { credentialGroupOAuthCallbackContract } from '@/lib/api/contracts/credential-groups'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getCredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
-import { completeCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
+import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
+import { completePublicCredentialGroupOAuth } from '@/lib/credential-groups/application/public-enrollment'
 import { consumeCredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
@@ -52,11 +52,8 @@ export const GET = withRouteHandler(
       return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth: 'failed' })
     }
 
-    const enrollment = await getCredentialGroupOAuthContext(
-      attempt.invitationToken,
-      attempt.optionId
-    )
-    if (!enrollment) {
+    const principal = await authenticateCredentialGroupEnrollment(attempt.invitationToken)
+    if (!principal) {
       return NextResponse.json(
         { error: 'Invitation is invalid or expired.' },
         { status: 404, headers: { 'Cache-Control': 'no-store' } }
@@ -64,7 +61,11 @@ export const GET = withRouteHandler(
     }
 
     try {
-      await completeCredentialGroupOAuth(enrollment, attempt, code)
+      await completePublicCredentialGroupOAuth.execute({
+        principal,
+        input: { attempt, code },
+        request,
+      })
       return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
         connected: attempt.optionId,
       })

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { RateLimitError, RateLimiter, type TokenBucketConfig } from '@/lib/core/rate-limiter'
-import { enforceWorkspaceRateLimit } from '@/lib/core/rate-limiter/route-helpers'
 import { getClientIp } from '@/lib/core/utils/request'
 
 const rateLimiter = new RateLimiter()
@@ -88,13 +87,31 @@ export async function enforceCredentialGroupEnrollmentOAuthRateLimit(
     : rateLimitResponse(result.retryAfterMs, PUBLIC_OAUTH_START_RATE_LIMIT.refillIntervalMs)
 }
 
-/** Shared workspace budget for batch invitations and one-off resends. */
-export function enforceCredentialGroupInvitationRateLimit(workspaceId: string) {
-  return enforceWorkspaceRateLimit(
-    'credential-group-invitations',
-    workspaceId,
-    CREDENTIAL_GROUP_INVITATION_RATE_LIMIT
+export class CredentialGroupInvitationRateLimitError extends RateLimitError {
+  constructor(
+    readonly retryAfterSeconds: number,
+    readonly resetAt: Date
+  ) {
+    super('Rate limit exceeded')
+    this.name = 'CredentialGroupInvitationRateLimitError'
+  }
+}
+
+/** Shared workspace admission for HTTP batch invitations and resends. */
+export async function enforceCredentialGroupInvitationRouteRateLimit(
+  workspaceId: string
+): Promise<void> {
+  const result = await rateLimiter.checkRateLimitDirect(
+    credentialGroupInvitationRateLimitKey(workspaceId),
+    CREDENTIAL_GROUP_INVITATION_RATE_LIMIT,
+    { failClosed: true }
   )
+  if (!result.allowed) {
+    throw new CredentialGroupInvitationRateLimitError(
+      Math.max(1, Math.ceil((result.resetAt.getTime() - Date.now()) / 1000)),
+      result.resetAt
+    )
+  }
 }
 
 /** Applies the shared invitation budget to non-HTTP workflow execution. */

@@ -1,78 +1,45 @@
-import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
 import {
   createCredentialGroupContract,
   listCredentialGroupsContract,
 } from '@/lib/api/contracts/credential-groups'
-import { parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  authorizeCredentialGroupSettings,
-  CredentialGroupAccessError,
-} from '@/lib/credential-groups/access'
-import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
-import { createCredentialGroup, listCredentialGroups } from '@/lib/credential-groups/service'
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import {
+  createCredentialGroupSettings,
+  listCredentialGroupSettings,
+} from '@/lib/credential-groups/application/manage-groups'
+import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
+import { createCredentialGroupInternalErrorPolicy } from '@/app/api/workspaces/[id]/credential-groups/error-policy'
 
-const logger = createLogger('CredentialGroupsAPI')
-
-type RouteContext = { params: Promise<{ id: string }> }
-
-function accessErrorResponse(error: CredentialGroupAccessError) {
-  return NextResponse.json({ error: error.message }, { status: error.status })
-}
-
-export const GET = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const parsed = await parseRequest(listCredentialGroupsContract, request, context)
-  if (!parsed.success) return parsed.response
-
-  try {
-    await authorizeCredentialGroupSettings(parsed.data.params.id, session.user.id)
-    const credentialGroups = await listCredentialGroups(parsed.data.params.id)
-    return NextResponse.json({ credentialGroups })
-  } catch (error) {
-    if (error instanceof CredentialGroupAccessError) return accessErrorResponse(error)
-    logger.error('Failed to list credential groups', error)
-    return NextResponse.json({ error: 'Failed to list credential groups' }, { status: 500 })
-  }
+export const GET = defineInternalJsonRoute({
+  contract: listCredentialGroupsContract,
+  auth: internalSessionAuth,
+  operation: credentialGroupOperations.listSettings,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal Credential Group list behavior',
+  }),
+  errorPolicy: createCredentialGroupInternalErrorPolicy(
+    'Failed to list credential groups',
+    'Workspace not found'
+  ),
+  mapInput: ({ params }) => ({ workspaceId: params.id }),
+  useCase: listCredentialGroupSettings,
 })
 
-export const POST = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const parsed = await parseRequest(createCredentialGroupContract, request, context)
-  if (!parsed.success) return parsed.response
-
-  try {
-    await authorizeCredentialGroupSettings(parsed.data.params.id, session.user.id)
-    const credentialGroup = await createCredentialGroup(
-      parsed.data.params.id,
-      session.user.id,
-      parsed.data.body
-    )
-    return NextResponse.json({ credentialGroup }, { status: 201 })
-  } catch (error) {
-    if (error instanceof CredentialGroupAccessError) return accessErrorResponse(error)
-    if (getPostgresErrorCode(error) === '23505') {
-      return NextResponse.json(
-        { error: 'A credential group with this name already exists' },
-        { status: 409 }
-      )
-    }
-    if (error instanceof CredentialGroupProviderConfigurationError) {
-      return NextResponse.json({ error: error.message }, { status: 503 })
-    }
-    logger.error('Failed to create credential group', error)
-    return NextResponse.json({ error: 'Failed to create credential group' }, { status: 500 })
-  }
+export const POST = defineInternalJsonRoute({
+  contract: createCredentialGroupContract,
+  auth: internalSessionAuth,
+  operation: credentialGroupOperations.create,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal Credential Group create behavior',
+  }),
+  errorPolicy: createCredentialGroupInternalErrorPolicy(
+    'Failed to create credential group',
+    'Workspace not found'
+  ),
+  mapInput: ({ params, body }) => ({ workspaceId: params.id, credentialGroup: body }),
+  useCase: createCredentialGroupSettings,
 })

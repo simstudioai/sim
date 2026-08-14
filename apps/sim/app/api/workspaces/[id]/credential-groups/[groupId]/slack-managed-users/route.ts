@@ -3,18 +3,20 @@ import {
   defineInternalJsonRoute,
   extendInternalErrorPolicy,
   internalErrorResponse,
-  internalOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import { startSlackCredentialGroupConfiguration } from '@/lib/credential-groups/application/slack-managed-users'
 import { SlackManagedUsersError } from '@/lib/credential-groups/slack-managed-users'
+import { createCredentialGroupInternalErrorPolicy } from '@/app/api/workspaces/[id]/credential-groups/error-policy'
 
-const errorPolicy = extendInternalErrorPolicy(internalOrchestrationErrorPolicy, (error) =>
-  error instanceof SlackManagedUsersError
-    ? internalErrorResponse(400, { error: error.message })
-    : null
+const errorPolicy = extendInternalErrorPolicy(
+  createCredentialGroupInternalErrorPolicy('Failed to configure Slack for Credential Group'),
+  (error) =>
+    error instanceof SlackManagedUsersError
+      ? internalErrorResponse(400, { error: error.message })
+      : null
 )
 
 export const POST = defineInternalJsonRoute({

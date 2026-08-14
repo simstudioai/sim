@@ -3,6 +3,7 @@ export type Principal =
   | PersonalApiKeyPrincipal
   | WorkspaceApiKeyPrincipal
   | DelegatedPrincipal
+  | CredentialGroupEnrollmentPrincipal
 
 export interface SessionPrincipal {
   kind: 'session'
@@ -41,6 +42,16 @@ export interface DelegatedPrincipal {
   }
 }
 
+/** Bearer identity established by a currently valid Credential Group invitation. */
+export interface CredentialGroupEnrollmentPrincipal {
+  kind: 'credential_group_enrollment'
+  workspaceId: string
+  credentialGroupId: string
+  enrollmentId: string
+  email: string
+  invitationTokenHash: string
+}
+
 export type DelegatedServiceId = DelegatedPrincipal['serviceId']
 
 export class PrincipalSubjectUserRequiredError extends Error {
@@ -59,6 +70,7 @@ export function requirePrincipalSubjectUserId(principal: Principal): string {
     case 'delegated':
       return principal.subjectUserId
     case 'workspace_api_key':
+    case 'credential_group_enrollment':
       throw new PrincipalSubjectUserRequiredError(principal.kind)
   }
 }
@@ -83,6 +95,13 @@ export type PrincipalActor =
       serviceId: DelegatedPrincipal['serviceId']
       subjectUserId: string
       delegationId: string
+    }
+  | {
+      kind: 'credential_group_enrollment'
+      workspaceId: string
+      credentialGroupId: string
+      enrollmentId: string
+      email: string
     }
 
 export interface PrincipalAttribution {
@@ -127,6 +146,14 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
         subjectUserId: principal.subjectUserId,
         delegationId: principal.delegationId,
       }
+    case 'credential_group_enrollment':
+      return {
+        kind: principal.kind,
+        workspaceId: principal.workspaceId,
+        credentialGroupId: principal.credentialGroupId,
+        enrollmentId: principal.enrollmentId,
+        email: principal.email,
+      }
   }
 }
 
@@ -142,6 +169,8 @@ export function resolvePrincipalAuditAttribution(principal: Principal): Principa
       return { actor, actorId: actor.subjectUserId }
     case 'workspace_api_key':
       return { actor, actorId: null, actorName: 'Workspace API key' }
+    case 'credential_group_enrollment':
+      return { actor, actorId: null, actorName: actor.email }
   }
 }
 
@@ -164,5 +193,7 @@ export function resolvePrincipalAttribution(
     }
     case 'delegated':
       return { actor, attributedUserId: actor.subjectUserId }
+    case 'credential_group_enrollment':
+      throw new PrincipalSubjectUserRequiredError(actor.kind)
   }
 }

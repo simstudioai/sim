@@ -12,6 +12,13 @@ export async function requireCredentialGroupsAvailable(workspaceId: string): Pro
   }
 }
 
+export async function requireCredentialGroupSettingsAvailable(workspaceId: string): Promise<void> {
+  const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(workspaceId)
+  if (!(await isCredentialGroupsAvailable(ownerBilling))) {
+    throw new OrchestrationError('not_found', 'Credential Groups are not available')
+  }
+}
+
 export async function resolveCredentialGroupWorkspaceContext(workspaceId: string) {
   const workspace = await loadActiveWorkspaceApplicationContext(workspaceId)
   if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
@@ -24,4 +31,15 @@ export async function resolveCredentialGroupContext(
   const group = await loadCredentialGroupCredentialListContext(credentialGroupId)
   if (!group) throw new OrchestrationError('not_found', 'Credential group not found')
   return { ...(await resolveCredentialGroupWorkspaceContext(group.workspaceId)), ...group }
+}
+
+export async function resolveCredentialGroupSettingsContext(
+  credentialGroupId: string,
+  assertedWorkspaceId: string
+): Promise<CredentialGroupApplicationContext> {
+  const context = await resolveCredentialGroupContext(credentialGroupId)
+  if (context.workspaceId !== assertedWorkspaceId) {
+    throw new OrchestrationError('not_found', 'Credential group not found')
+  }
+  return context
 }
