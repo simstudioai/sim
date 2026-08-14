@@ -3898,6 +3898,138 @@ export const ClaudeIcon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
+export function AzureDataExplorerIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const wedgeGradient = `adx_wedge_${id}`
+  const dashLongGradient = `adx_dash_long_${id}`
+  const dashTopGradient = `adx_dash_top_${id}`
+  const dashBottomGradient = `adx_dash_bottom_${id}`
+
+  return (
+    <svg
+      {...props}
+      width='18'
+      height='18'
+      viewBox='0 0 18 18'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        d='M1.47,1.47,16.53,16.53a.57.57,0,0,0,1-.4V1.07A.57.57,0,0,0,16.93.5H1.87A.57.57,0,0,0,1.47,1.47Z'
+        fill={`url(#${wedgeGradient})`}
+      />
+      <path d='M5.53,5.53l6.94,6.94,5-5V1.07A.57.57,0,0,0,16.93.5H10.56Z' fill='#50e6ff' />
+      <rect
+        x='-0.38'
+        y='12.85'
+        width='9.37'
+        height='1.7'
+        rx='0.27'
+        transform='translate(-8.43 7.06) rotate(-45)'
+        fill={`url(#${dashLongGradient})`}
+      />
+      <rect
+        x='0.12'
+        y='9.23'
+        width='5.99'
+        height='1.7'
+        rx='0.27'
+        transform='translate(-6.22 5.15) rotate(-45)'
+        fill={`url(#${dashTopGradient})`}
+      />
+      <rect
+        x='4.89'
+        y='14.04'
+        width='5.99'
+        height='1.7'
+        rx='0.27'
+        transform='translate(-8.22 9.93) rotate(-45)'
+        fill={`url(#${dashBottomGradient})`}
+      />
+      <rect
+        x='9.19'
+        y='4.75'
+        width='1.7'
+        height='1.7'
+        rx='0.38'
+        transform='translate(-1.02 8.74) rotate(-45)'
+        fill='#fff'
+      />
+      <rect
+        x='11.59'
+        y='2.35'
+        width='1.7'
+        height='1.7'
+        rx='0.38'
+        transform='translate(1.38 9.73) rotate(-45)'
+        fill='#fff'
+      />
+      <rect
+        x='11.59'
+        y='7.15'
+        width='1.7'
+        height='1.7'
+        rx='0.38'
+        transform='translate(-2.01 11.14) rotate(-45)'
+        fill='#fff'
+      />
+      <path
+        d='M13.91,5.33l.66-.66a.38.38,0,0,1,.54,0l.66.66a.38.38,0,0,1,0,.54l-.66.66a.38.38,0,0,1-.54,0l-.66-.66a.38.38,0,0,1,0-.54'
+        fill='#fff'
+      />
+      <defs>
+        <linearGradient
+          id={wedgeGradient}
+          x1='1.3'
+          y1='8.6'
+          x2='17.5'
+          y2='8.6'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='0.1' stopColor='#54aef0' />
+          <stop offset='1' stopColor='#1988d9' />
+        </linearGradient>
+        <linearGradient
+          id={dashLongGradient}
+          x1='0.5'
+          y1='13.7'
+          x2='8.11'
+          y2='13.7'
+          gradientTransform='translate(10.95 0.97) rotate(45)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='0' stopColor='#b3b2b3' />
+          <stop offset='1' stopColor='#979797' />
+        </linearGradient>
+        <linearGradient
+          id={dashTopGradient}
+          x1='0.5'
+          y1='10.08'
+          x2='5.72'
+          y2='10.08'
+          gradientTransform='translate(8.04 0.75) rotate(45)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='0' stopColor='#b3b2b3' />
+          <stop offset='1' stopColor='#979797' />
+        </linearGradient>
+        <linearGradient
+          id={dashBottomGradient}
+          x1='5.28'
+          y1='14.89'
+          x2='10.49'
+          y2='14.89'
+          gradientTransform='translate(12.84 -1.21) rotate(45)'
+          gradientUnits='userSpaceOnUse'
+        >
+          <stop offset='0' stopColor='#b3b2b3' />
+          <stop offset='1' stopColor='#979797' />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
 export function AzureIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   const gradient0 = `azure_paint0_${id}`
