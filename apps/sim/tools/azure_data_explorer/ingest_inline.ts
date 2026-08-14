@@ -134,7 +134,7 @@ export const azureDataExplorerIngestInlineTool: ToolConfig<
     extentIds: {
       type: 'array',
       description:
-        'Extent IDs created by the ingestion. A single empty ID means no data shard was generated',
+        'Extent IDs created by the ingestion — one per data shard. A single empty or zero-valued ID means no data shard was generated',
       items: { type: 'string' },
     },
   },

@@ -37,6 +37,44 @@ export function renderEntityName(name: string): string {
 const COMMAND_PROPERTY = /^[A-Za-z_][A-Za-z0-9_]*\s*=\s*(?:"[^"\\]*"|'[^'\\]*'|[A-Za-z0-9_.:+-]+)$/
 
 /**
+ * Splits a property list on the commas that separate properties, ignoring the
+ * ones inside a quoted value.
+ *
+ * A plain `split(',')` would break the documented cases where a value legally
+ * contains a comma — a `docstring` sentence, or a `tags` array with more than
+ * one entry.
+ */
+function splitProperties(input: string): string[] {
+  const parts: string[] = []
+  let current = ''
+  let quote: '"' | "'" | null = null
+
+  for (const char of input) {
+    if (quote) {
+      current += char
+      if (char === quote) quote = null
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      current += char
+      continue
+    }
+    if (char === ',') {
+      parts.push(current)
+      current = ''
+      continue
+    }
+    current += char
+  }
+
+  if (quote) throw new Error(`Unterminated ${quote} quote in property list: ${input}`)
+  parts.push(current)
+
+  return parts.map((part) => part.trim()).filter(Boolean)
+}
+
+/**
  * Builds the `with (...)` clause shared by the create and ingest commands.
  *
  * The clause is interpolated into a command string, so each property is checked
@@ -53,7 +91,7 @@ export function buildWithClause(input: string | undefined, example: string): str
     .trim()
   if (!inner) return ''
 
-  const properties = inner.split(',').map((property) => property.trim())
+  const properties = splitProperties(inner)
   for (const property of properties) {
     if (!COMMAND_PROPERTY.test(property)) {
       throw new Error(
@@ -207,13 +245,18 @@ export async function transformAzureDataExplorerResponse(response: Response) {
 /**
  * Adds a flat list of the strings in one documented column, so a `.show` or
  * `.ingest` command surfaces its identifiers alongside the full result table.
+ *
+ * Every string value is kept, including an empty one: `.ingest inline` reports
+ * "no data shards were generated" as a single record carrying an empty
+ * (zero-valued) extent ID, so dropping it would turn a no-op load into what
+ * looks like a missing column.
  */
 export function transformColumnListResponse<K extends string>(columnName: string, outputKey: K) {
   return async (response: Response) => {
     const output = await readProxyEnvelope(response)
     const values = output.records
       .map((record) => record[columnName])
-      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      .filter((value): value is string => typeof value === 'string')
     return {
       success: true as const,
       output: { ...output, [outputKey]: values } as AzureDataExplorerTable & Record<K, string[]>,

@@ -8,6 +8,7 @@ import {
   renderEntityName,
   renderIngestMode,
   renderOperationId,
+  transformColumnListResponse,
 } from '@/tools/azure_data_explorer/utils'
 
 describe('renderEntityName', () => {
@@ -52,6 +53,27 @@ describe('buildWithClause', () => {
     )
     expect(buildWithClause('creationTime=2024-01-01T00:00:00', 'format="json"')).toBe(
       ' with (creationTime=2024-01-01T00:00:00)'
+    )
+  })
+
+  it('keeps a comma that sits inside a quoted value', () => {
+    expect(buildWithClause('docstring="Raw logs, archived nightly"', 'format="json"')).toBe(
+      ' with (docstring="Raw logs, archived nightly")'
+    )
+    expect(buildWithClause(`tags="['daily','prod']"`, 'format="json"')).toBe(
+      ` with (tags="['daily','prod']")`
+    )
+  })
+
+  it('still separates properties on the commas between them', () => {
+    expect(
+      buildWithClause('docstring="Logs, raw", folder="Ingest", distributed=true', 'format="json"')
+    ).toBe(' with (docstring="Logs, raw", folder="Ingest", distributed=true)')
+  })
+
+  it('rejects an unterminated quote rather than swallowing the rest of the clause', () => {
+    expect(() => buildWithClause('docstring="never closed', 'format="json"')).toThrow(
+      /Unterminated " quote/
     )
   })
 
@@ -128,5 +150,51 @@ describe('renderOperationId', () => {
 
   it('rejects anything that could extend the command it lands in', () => {
     expect(() => renderOperationId('abc") | drop table X //')).toThrow(/Invalid operation ID/)
+  })
+})
+
+/** Minimal stand-in for the proxy's JSON envelope. */
+function proxyResponse(records: Array<Record<string, unknown>>): Response {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      success: true,
+      output: {
+        tableName: 'Table_0',
+        columns: [],
+        rows: [],
+        records,
+        rowCount: records.length,
+        totalRowCount: records.length,
+        truncated: false,
+      },
+    }),
+  } as unknown as Response
+}
+
+describe('transformColumnListResponse', () => {
+  it('collects the values of the named column', async () => {
+    const transform = transformColumnListResponse('TableName', 'tables')
+    const result = await transform(
+      proxyResponse([{ TableName: 'StormEvents' }, { TableName: 'Logs' }])
+    )
+
+    expect(result.output.tables).toEqual(['StormEvents', 'Logs'])
+  })
+
+  it("keeps an empty extent ID, which is how Kusto reports 'no data shard was written'", async () => {
+    const transform = transformColumnListResponse('ExtentId', 'extentIds')
+    const result = await transform(proxyResponse([{ ExtentId: '' }]))
+
+    expect(result.output.extentIds).toEqual([''])
+    expect(result.output.rowCount).toBe(1)
+  })
+
+  it('skips a null value rather than coercing it to a string', async () => {
+    const transform = transformColumnListResponse('TableName', 'tables')
+    const result = await transform(proxyResponse([{ TableName: null }, { TableName: 'Logs' }]))
+
+    expect(result.output.tables).toEqual(['Logs'])
   })
 })

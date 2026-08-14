@@ -329,7 +329,7 @@ Push rows directly into an Azure Data Explorer table with .ingest inline. Data i
 | `rowCount` | number | Rows carried in this result, after the row cap |
 | `totalRowCount` | number | Rows Kusto returned, before the row cap was applied |
 | `truncated` | boolean | Whether rows were dropped to stay within the row cap — narrow the query if true |
-| `extentIds` | array | Extent IDs created by the ingestion. A single empty ID means no data shard was generated |
+| `extentIds` | array | Extent IDs created by the ingestion — one per data shard. A single empty or zero-valued ID means no data shard was generated |
 
 ### Azure Data Explorer Ingest From Query
 
