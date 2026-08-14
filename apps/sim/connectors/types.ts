@@ -8,7 +8,18 @@ import type { SelectorKey } from '@/hooks/selectors/types'
  */
 export type ConnectorAuthConfig =
   | { mode: 'oauth'; provider: OAuthService; requiredScopes?: string[] }
-  | { mode: 'apiKey'; label?: string; placeholder?: string }
+  | {
+      mode: 'apiKey'
+      label?: string
+      placeholder?: string
+      /**
+       * When true, the key may be left blank — the source is reachable without
+       * authentication (e.g. a public documentation site). A blank key is
+       * stored as `null` rather than an encrypted empty string, and the
+       * connector receives an empty access token.
+       */
+      optional?: boolean
+    }
 
 /**
  * A single document fetched from an external source.

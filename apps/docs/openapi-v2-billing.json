@@ -47,7 +47,8 @@
             "schema": {
               "description": "Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.",
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 128
             }
           }
         ],
@@ -133,7 +134,8 @@
             "schema": {
               "description": "Restrict results to one workspace whose payer the caller can inspect.",
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 128
             }
           },
           {

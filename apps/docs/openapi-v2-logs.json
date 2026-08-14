@@ -47,6 +47,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose execution logs should be returned."
             }
           },

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { updateUserSettingsContract } from '@/lib/api/contracts'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
@@ -25,6 +25,33 @@ interface UseWorkspaceManagementProps {
   sessionUserId?: string
 }
 
+interface ResolveWorkspaceSwitchHrefParams {
+  pathname: string
+  currentWorkspaceId: string
+  targetWorkspaceId: string
+}
+
+/**
+ * Keeps the active settings section across workspace switches without carrying
+ * workspace-scoped detail IDs into the destination workspace.
+ */
+export function resolveWorkspaceSwitchHref({
+  pathname,
+  currentWorkspaceId,
+  targetWorkspaceId,
+}: ResolveWorkspaceSwitchHrefParams): string {
+  const targetWorkspaceHref = `/workspace/${targetWorkspaceId}`
+  const settingsPrefix = `/workspace/${currentWorkspaceId}/settings/`
+  if (!pathname.startsWith(settingsPrefix)) return targetWorkspaceHref
+
+  const [section] = pathname.slice(settingsPrefix.length).split('/')
+  if (!section) {
+    throw new Error(`Settings pathname is missing a section: ${pathname}`)
+  }
+
+  return `${targetWorkspaceHref}/settings/${section}`
+}
+
 /**
  * Manages workspace operations including fetching, switching, creating, deleting, and leaving workspaces.
  * Handles URL synchronization and recency-based ordering. Route access is
@@ -40,6 +67,7 @@ export function useWorkspaceManagement({
   sessionUserId,
 }: UseWorkspaceManagementProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const switchToWorkspace = useWorkflowRegistry((state) => state.switchToWorkspace)
 
   const { data: workspaces = [], isLoading: isWorkspacesLoading } = useWorkspacesQuery(
@@ -157,15 +185,21 @@ export function useWorkspaceManagement({
         return
       }
 
+      const href = resolveWorkspaceSwitchHref({
+        pathname,
+        currentWorkspaceId: workspaceIdRef.current,
+        targetWorkspaceId: workspace.id,
+      })
+
       try {
         switchToWorkspace(workspace.id)
-        routerRef.current?.push(`/workspace/${workspace.id}`)
+        routerRef.current.push(href)
         logger.info(`Switched to workspace: ${workspace.name} (${workspace.id})`)
       } catch (error) {
         logger.error('Error switching workspace:', error)
       }
     },
-    [switchToWorkspace]
+    [pathname, switchToWorkspace]
   )
 
   const handleCreateWorkspace = useCallback(

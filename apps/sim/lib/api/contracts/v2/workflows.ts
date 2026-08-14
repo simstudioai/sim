@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/contracts/deployments'
 import {
   booleanQueryFlagSchema,
+  missingFieldError,
   noInputSchema,
   runIdSchema,
   workspaceIdSchema,
@@ -398,7 +399,7 @@ export const v2CreateWorkflowBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace in which to create the workflow.'),
     name: z
-      .string()
+      .string({ error: missingFieldError('name is required') })
       .trim()
       .min(1, 'name is required')
       .max(255, 'name is too long')
@@ -1348,25 +1349,29 @@ export const v2CancelWorkflowRunDataSchema = z
     redisAvailable: z
       .boolean()
       .describe('Whether the distributed cancellation channel was available.'),
-    durablyRecorded: z.boolean().describe('Whether cancellation was recorded durably.'),
+    durablyRecorded: z
+      .boolean()
+      .describe(
+        'Whether this request durably recorded a cancellation. Always false for a run that was already terminal, where the request is satisfied but nothing was written.'
+      ),
     locallyAborted: z.boolean().describe('Whether an in-process execution was aborted.'),
     pausedCancelled: z.boolean().describe('Whether a paused execution was cancelled.'),
     /**
      * Always emitted by the cancellation service — it is not a partial-failure
-     * marker. `recorded` is the full-success value; the other four name the step
-     * that degraded.
+     * marker. `recorded` is the full-success value; the `already_*` values name
+     * a terminal no-op; the rest name the step that degraded.
      */
     reason: cancelWorkflowExecutionReasonSchema
       .optional()
       .describe(
-        'Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` is the success value. `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal was not written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step for a paused run.'
+        'Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` is the success value. `already_cancelled`, `already_completed`, and `already_failed` mean the run had already reached that terminal state, so nothing was cancelled and `durablyRecorded` is false. `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal was not written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step for a paused run.'
       ),
   })
   .meta({
     id: 'CancelWorkflowRunResult',
     title: 'Cancel workflow run result',
     description:
-      'Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, so poll the run to observe its final state.',
+      'Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, reported as `durablyRecorded: false` with an `already_*` reason naming the state observed.',
   })
 export type V2CancelWorkflowRunData = z.output<typeof v2CancelWorkflowRunDataSchema>
 

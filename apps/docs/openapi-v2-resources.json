@@ -67,6 +67,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace to retrieve."
             }
           }
@@ -132,6 +133,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace to retrieve."
             }
           },
@@ -221,6 +223,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the MCP server."
             }
           },
@@ -424,6 +427,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the MCP server."
             }
           }
@@ -575,6 +579,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the MCP server."
             }
           }
@@ -651,6 +656,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the MCP server."
             }
           },
@@ -729,6 +735,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the skill."
             }
           },
@@ -932,6 +939,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the skill."
             }
           }
@@ -1086,6 +1094,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the skill."
             }
           }
@@ -1151,6 +1160,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the custom tool."
             }
           },
@@ -1354,6 +1364,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the custom tool."
             }
           }
@@ -1508,6 +1519,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the custom tool."
             }
           }
@@ -1573,6 +1585,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose credentials should be listed."
             }
           },
@@ -2019,6 +2032,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose secret metadata should be listed."
             }
           },
@@ -2268,6 +2282,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace the request is authorized against. A workspace secret is deleted from it; a personal secret is deleted for the caller in all of their workspaces."
             }
           },
@@ -2590,6 +2605,7 @@
           "id": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "name": {
@@ -2967,6 +2983,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to register the server."
           },
           "name": {
@@ -3153,6 +3170,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the MCP server."
           },
           "name": {
@@ -3551,6 +3569,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to create the skill."
           },
           "name": {
@@ -3644,6 +3663,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the skill."
           },
           "name": {
@@ -3917,6 +3937,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to create the custom tool."
           },
           "title": {
@@ -4110,6 +4131,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the custom tool."
           },
           "title": {
@@ -5107,6 +5129,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace the request is authorized against. A workspace secret is written to it; a personal secret is written to the caller and is available in all of their workspaces."
           },
           "scope": {
