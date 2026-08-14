@@ -194,6 +194,56 @@ describe('ashbyHandler', () => {
     })
   })
 
+  describe('deleteSubscription', () => {
+    const realFetch = globalThis.fetch
+    afterEach(() => {
+      globalThis.fetch = realFetch
+    })
+
+    const ctx = (strict: boolean) =>
+      ({
+        requestId: 'req-1',
+        strict,
+        webhook: {
+          id: 'wh-1',
+          providerConfig: { apiKey: 'k', externalId: 'ext-1' },
+        },
+      }) as never
+
+    const respondWith = (body: unknown, status = 200) => {
+      globalThis.fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { 'content-type': 'application/json' },
+        })
+      ) as never
+    }
+
+    it('treats a 200 carrying success:false as a failed delete', async () => {
+      // Ashby returns what would be a 4XX as HTTP 200. Branching on
+      // response.ok alone reported the leak as a successful cleanup.
+      respondWith({ success: false, errors: [{ message: 'missing_endpoint_permission' }] })
+      await expect(ashbyHandler.deleteSubscription?.(ctx(true))).rejects.toThrow(
+        /missing_endpoint_permission/
+      )
+    })
+
+    it('stays non-fatal for a failed delete when not strict', async () => {
+      respondWith({ success: false, errors: [{ message: 'missing_endpoint_permission' }] })
+      await expect(ashbyHandler.deleteSubscription?.(ctx(false))).resolves.toBeUndefined()
+    })
+
+    it('treats an already-removed webhook as done even in strict mode', async () => {
+      respondWith({ success: false, errors: ['webhook_not_found'] })
+      await expect(ashbyHandler.deleteSubscription?.(ctx(true))).resolves.toBeUndefined()
+    })
+
+    it('accepts a successful delete', async () => {
+      respondWith({ success: true, results: { webhookId: 'ext-1' } })
+      await expect(ashbyHandler.deleteSubscription?.(ctx(true))).resolves.toBeUndefined()
+    })
+  })
+
   describe('extractIdempotencyId', () => {
     it('derives a stable key from application id + updatedAt', () => {
       const body = {

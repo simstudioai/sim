@@ -340,26 +340,39 @@ export const ashbyHandler: WebhookProviderHandler = {
         body: JSON.stringify({ webhookId: externalId }),
       })
 
-      if (ashbyResponse.ok) {
-        await ashbyResponse.body?.cancel()
+      const responseBody = (await ashbyResponse.json().catch(() => ({}))) as Record<string, unknown>
+
+      /**
+       * Ashby returns what would be a 4XX elsewhere as HTTP 200 with
+       * `success: false`, so the status alone cannot separate a completed
+       * delete from a rejected one. Branching on `ashbyResponse.ok` reported
+       * every rejection as a successful cleanup while Sim dropped its own row
+       * — and with no `webhook.list` endpoint, an orphan left behind that way
+       * cannot be enumerated afterwards.
+       *
+       * Unlike `createSubscription`, an absent `success` field is treated as
+       * success rather than failure: teardown runs on the undeploy path, and
+       * failing closed on an unparseable body would wedge cleanup on a
+       * response shape Ashby does not document.
+       */
+      const rejected = !ashbyResponse.ok || responseBody.success === false
+      const errorMessage = ashbyErrorMessage(responseBody, `HTTP ${ashbyResponse.status}`)
+
+      if (!rejected) {
         logger.info(
           `[${ctx.requestId}] Successfully deleted Ashby webhook subscription ${externalId}`
         )
-      } else if (ashbyResponse.status === 404) {
-        await ashbyResponse.body?.cancel()
+      } else if (ashbyResponse.status === 404 || /webhook_not_found/i.test(errorMessage)) {
         logger.info(
           `[${ctx.requestId}] Ashby webhook ${externalId} not found during deletion (already removed)`
         )
       } else {
-        const responseBody = await ashbyResponse.json().catch(() => ({}))
         logger.warn(
-          `[${ctx.requestId}] Failed to delete Ashby webhook (non-fatal): ${ashbyResponse.status}`,
-          { response: responseBody }
+          `[${ctx.requestId}] Failed to delete Ashby webhook (non-fatal): ${errorMessage}`,
+          { status: ashbyResponse.status, response: responseBody }
         )
         if (ctx.strict) {
-          throw new Error(
-            `Failed to delete Ashby webhook: ${ashbyErrorMessage(responseBody, `HTTP ${ashbyResponse.status}`)}`
-          )
+          throw new Error(`Failed to delete Ashby webhook: ${errorMessage}`)
         }
       }
     } catch (error) {
