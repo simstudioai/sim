@@ -67,6 +67,7 @@ const ORGANIZATION_SECTION_MAP: Partial<Record<SettingsSection, OrganizationSett
   'access-control': 'access-control',
   'audit-logs': 'audit-logs',
   sso: 'sso',
+  sessions: 'sessions',
   'data-retention': 'data-retention',
   'data-drains': 'data-drains',
   whitelabeling: 'whitelabeling',
@@ -77,6 +78,14 @@ function parseSection(section: string): SettingsSection | null {
   return allNavigationItems.some((item) => item.id === normalized)
     ? (normalized as SettingsSection)
     : null
+}
+
+/**
+ * Settings availability varies across workspaces, so a preserved section may
+ * need to land on the destination workspace's universally available page.
+ */
+function redirectToGeneralSettings(workspaceId: string): never {
+  redirect(`/workspace/${workspaceId}/settings/general`)
 }
 
 export async function generateMetadata({
@@ -131,20 +140,24 @@ export default async function WorkspaceSettingsSectionPage({
         sandboxes,
       },
     })
-    if (!navigation.some((item) => item.id === workspaceSection)) notFound()
+    if (!navigation.some((item) => item.id === workspaceSection)) {
+      redirectToGeneralSettings(workspaceId)
+    }
   }
 
   const organizationSection = ORGANIZATION_SECTION_MAP[parsed]
   if (organizationSection) {
     if (!isBillingEnabled && (parsed === 'billing' || parsed === 'organization')) {
-      redirect(`/workspace/${workspaceId}/settings/general`)
+      redirectToGeneralSettings(workspaceId)
     }
     if (!hostContext.hostOrganizationId) {
       if (parsed !== 'billing' || hostContext.workspace.billedAccountUserId !== session.user.id) {
-        notFound()
+        redirectToGeneralSettings(workspaceId)
       }
     } else {
-      if (!hostContext.viewer.isHostOrganizationAdmin) notFound()
+      if (!hostContext.viewer.isHostOrganizationAdmin) {
+        redirectToGeneralSettings(workspaceId)
+      }
       if (
         !(await canOpenOrganizationSettingsSection(
           hostContext.hostOrganizationId,
@@ -152,7 +165,7 @@ export default async function WorkspaceSettingsSectionPage({
           organizationSection
         ))
       ) {
-        notFound()
+        redirectToGeneralSettings(workspaceId)
       }
       const hasEnterprisePlan =
         organizationSection !== 'members' &&
@@ -164,7 +177,7 @@ export default async function WorkspaceSettingsSectionPage({
           getOrganizationSettingsFeatures(hasEnterprisePlan)
         )
       ) {
-        notFound()
+        redirectToGeneralSettings(workspaceId)
       }
     }
   }
