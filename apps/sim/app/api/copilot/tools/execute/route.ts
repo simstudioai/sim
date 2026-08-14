@@ -7,6 +7,8 @@ import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
+import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
+import type { ToolCallResult } from '@/lib/copilot/request/types'
 import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -75,6 +77,28 @@ export const POST = withRouteHandler((request: NextRequest) =>
             toolName,
             toolCallId,
             error: result.error,
+          })
+        }
+        if (result.success && chatId) {
+          // Persist created/deleted resources on the chat (file chips, table
+          // links) exactly like the resume driver does. No live event sink
+          // exists for an out-of-band route, so chips surface from the
+          // persisted chat resources rather than a mid-turn push.
+          const asToolResult = { success: result.success, output: result.output } as ToolCallResult
+          await handleResourceSideEffects(
+            toolName,
+            params,
+            asToolResult,
+            asToolResult,
+            chatId,
+            undefined,
+            () => false
+          ).catch((err) => {
+            logger.warn('In-band resource side effects failed', {
+              toolName,
+              toolCallId,
+              error: getErrorMessage(err),
+            })
           })
         }
         return NextResponse.json({
