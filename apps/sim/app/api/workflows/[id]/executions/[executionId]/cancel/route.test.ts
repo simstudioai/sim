@@ -1320,6 +1320,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(mockSet).toHaveBeenCalledWith({
       status: 'cancelled',
       endedAt: expect.any(Date),
+      totalDurationMs: expect.anything(),
       executionDeadlineAt: null,
     })
   })
@@ -1340,6 +1341,7 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     expect(mockSet).toHaveBeenCalledWith({
       status: 'cancelled',
       endedAt: expect.any(Date),
+      totalDurationMs: expect.anything(),
       executionDeadlineAt: null,
     })
   })
