@@ -36,8 +36,8 @@ function userInfoFor(oid: string) {
 
 describe('Microsoft Dataverse OAuth environment binding', () => {
   it.each([
-    ['https://contoso.crm.dynamics.com', 'https://contoso.crm.dynamics.com'],
-    [' https://contoso.crm4.dynamics.com/ ', 'https://contoso.crm4.dynamics.com'],
+    ['https://contoso.crm.dynamics.com', 'https://contoso.api.crm.dynamics.com'],
+    [' https://contoso.crm4.dynamics.com/ ', 'https://contoso.api.crm4.dynamics.com'],
     ['https://contoso.api.crm12.dynamics.com', 'https://contoso.api.crm12.dynamics.com'],
   ])('normalizes a documented public-cloud environment root', (input, expected) => {
     expect(normalizeMicrosoftDataverseEnvironmentUrl(input)).toBe(expected)
@@ -64,7 +64,7 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
       'openid',
       'profile',
       'email',
-      'https://contoso.crm4.dynamics.com/.default',
+      'https://contoso.api.crm4.dynamics.com/.default',
       'offline_access',
     ])
   })
@@ -80,11 +80,11 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
     )
 
     expect(new URL(absolute).searchParams.get('__sim_dataverse_environment')).toBe(
-      'https://contoso.crm4.dynamics.com'
+      'https://contoso.api.crm4.dynamics.com'
     )
     expect(
       new URL(relative, 'https://sim.test').searchParams.get('__sim_dataverse_environment')
-    ).toBe('https://contoso.crm4.dynamics.com')
+    ).toBe('https://contoso.api.crm4.dynamics.com')
     expect(stripMicrosoftDataverseEnvironmentFromOAuthCallback(absolute)).toBe(
       'https://sim.test/workspace?existing=1'
     )
@@ -253,13 +253,13 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
   it('extracts one trusted environment from space-, comma-, or array-delimited scopes', () => {
     const marker = getMicrosoftDataverseRequiredScope('https://contoso.crm4.dynamics.com')
     expect(extractMicrosoftDataverseEnvironmentUrl(`openid ${marker} offline_access`)).toBe(
-      'https://contoso.crm4.dynamics.com'
+      'https://contoso.api.crm4.dynamics.com'
     )
     expect(extractMicrosoftDataverseEnvironmentUrl(`openid,${marker},offline_access`)).toBe(
-      'https://contoso.crm4.dynamics.com'
+      'https://contoso.api.crm4.dynamics.com'
     )
     expect(extractMicrosoftDataverseEnvironmentUrl(['openid', marker])).toBe(
-      'https://contoso.crm4.dynamics.com'
+      'https://contoso.api.crm4.dynamics.com'
     )
   })
 
@@ -327,8 +327,8 @@ describe('Microsoft Dataverse OAuth environment binding', () => {
 
     expect(dev.id.replace(UUID_SUFFIX_RE, '')).toBe(devReconnect.id.replace(UUID_SUFFIX_RE, ''))
     expect(dev.id.replace(UUID_SUFFIX_RE, '')).not.toBe(prod.id.replace(UUID_SUFFIX_RE, ''))
-    expect(dev.id).toContain(':dev.crm.dynamics.com-')
-    expect(prod.id).toContain(':prod.crm.dynamics.com-')
+    expect(dev.id).toContain(':dev.api.crm.dynamics.com-')
+    expect(prod.id).toContain(':prod.api.crm.dynamics.com-')
   })
 
   it('rejects callback tokens without an environment audience', () => {

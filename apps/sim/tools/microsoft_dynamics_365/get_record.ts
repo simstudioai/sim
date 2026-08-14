@@ -85,6 +85,7 @@ export const microsoftDynamics365GetRecordTool: ToolConfig<
       return `${baseUrl}/api/data/v9.2/${entitySetName}(${recordId})${query}`
     },
     method: 'GET',
+    stripAuthOnRedirect: true,
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'OData-MaxVersion': '4.0',

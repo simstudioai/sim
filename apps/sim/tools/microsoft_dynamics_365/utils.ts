@@ -8,7 +8,7 @@ const INT32_MIN = -2_147_483_648
 const INT32_MAX = 2_147_483_647
 const DATAVERSE_ORGANIZATION_LABEL = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?'
 const DATAVERSE_PUBLIC_HOST_PATTERN = new RegExp(
-  `^(${DATAVERSE_ORGANIZATION_LABEL})(?:\\.api)?\\.crm\\d*\\.dynamics\\.com$`
+  `^(${DATAVERSE_ORGANIZATION_LABEL})(?:\\.api)?\\.(crm\\d*)\\.dynamics\\.com$`
 )
 const RESERVED_DATAVERSE_ORGANIZATION_LABELS = new Set(['disco', 'globaldisco'])
 
@@ -61,7 +61,7 @@ export function getDynamics365BaseUrl(environmentUrl: string, instanceUrl: strin
   return requestedEnvironment
 }
 
-function normalizeDynamics365EnvironmentUrl(environmentUrl: unknown): string {
+export function normalizeDynamics365EnvironmentUrl(environmentUrl: unknown): string {
   if (typeof environmentUrl !== 'string' || environmentUrl.trim().length === 0) {
     throw new Error('Dataverse environment URL must be a non-empty HTTPS URL')
   }
@@ -75,8 +75,10 @@ function normalizeDynamics365EnvironmentUrl(environmentUrl: unknown): string {
 
   const hostMatch = url.hostname.match(DATAVERSE_PUBLIC_HOST_PATTERN)
   const organizationLabel = hostMatch?.[1]
+  const regionLabel = hostMatch?.[2]
   const hasTrustedHost =
     organizationLabel !== undefined &&
+    regionLabel !== undefined &&
     !RESERVED_DATAVERSE_ORGANIZATION_LABELS.has(organizationLabel)
 
   if (
@@ -94,7 +96,7 @@ function normalizeDynamics365EnvironmentUrl(environmentUrl: unknown): string {
     )
   }
 
-  return url.origin
+  return `https://${organizationLabel}.api.${regionLabel}.dynamics.com`
 }
 
 export function normalizeDynamics365ListEntitySetName(value: unknown): string {

@@ -160,7 +160,8 @@ describe('resolveCredentialToken', () => {
       ok: true,
       token: {
         accessToken: 'fresh',
-        instanceUrl: 'https://contoso.crm.dynamics.com',
+        idToken: undefined,
+        instanceUrl: 'https://contoso.api.crm.dynamics.com',
       },
     })
   })
