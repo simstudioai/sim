@@ -5,10 +5,10 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, gt, isNull, lt } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defaultCredentialDisplayName } from '@/lib/credentials/display-name'
+import { CREDENTIAL_DRAFT_TTL_MS } from '@/lib/credentials/draft-constants'
 import { credentialProviderMatchesService, getAllOAuthServices } from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuthConnectDraft')
-const DRAFT_TTL_MS = 15 * 60 * 1000
 
 export type ConnectDraft = typeof pendingCredentialDraft.$inferSelect
 
@@ -63,7 +63,7 @@ export async function createConnectDraft(params: {
   }
 
   const now = new Date()
-  const expiresAt = new Date(now.getTime() + DRAFT_TTL_MS)
+  const expiresAt = new Date(now.getTime() + CREDENTIAL_DRAFT_TTL_MS)
   await db
     .delete(pendingCredentialDraft)
     .where(

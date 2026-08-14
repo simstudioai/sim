@@ -10,6 +10,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createCredentialConnection } from '@/lib/credentials/application/create-credential-connection'
+import { CREDENTIAL_DRAFT_TTL_SECONDS } from '@/lib/credentials/draft-constants'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 
 const logger = createLogger('InstagramAuthorize')
@@ -20,7 +21,6 @@ const INSTAGRAM_STATE_COOKIE = 'instagram_oauth_state'
 const INSTAGRAM_RETURN_URL_COOKIE = 'instagram_return_url'
 const INSTAGRAM_CREDENTIAL_DRAFT_COOKIE = 'instagram_credential_draft_id'
 const INSTAGRAM_STATE_COOKIE_PATH = '/api/auth'
-const INSTAGRAM_STATE_COOKIE_MAX_AGE_SECONDS = 60 * 10
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -81,7 +81,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: INSTAGRAM_STATE_COOKIE_MAX_AGE_SECONDS,
+      maxAge: CREDENTIAL_DRAFT_TTL_SECONDS,
       path: INSTAGRAM_STATE_COOKIE_PATH,
     })
     if (credentialDraftId) {
@@ -89,7 +89,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: INSTAGRAM_STATE_COOKIE_MAX_AGE_SECONDS,
+        maxAge: CREDENTIAL_DRAFT_TTL_SECONDS,
         path: INSTAGRAM_STATE_COOKIE_PATH,
       })
     } else {
@@ -104,7 +104,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: INSTAGRAM_STATE_COOKIE_MAX_AGE_SECONDS,
+        maxAge: CREDENTIAL_DRAFT_TTL_SECONDS,
         path: INSTAGRAM_STATE_COOKIE_PATH,
       })
     }

@@ -20,7 +20,10 @@ vi.mock('@/lib/credentials/draft-hooks', () => ({
   handleReconnectCredential: mockHandleReconnectCredential,
 }))
 
-import { processCredentialDraft } from '@/lib/credentials/draft-processor'
+import {
+  parseCredentialDraftIdFromCallbackUrl,
+  processCredentialDraft,
+} from '@/lib/credentials/draft-processor'
 
 function credentialDraft(id: string, workspaceId: string) {
   return {
@@ -101,5 +104,22 @@ describe('processCredentialDraft', () => {
     expect(mockHandleCreateCredentialFromDraft).not.toHaveBeenCalled()
     expect(mockHandleReconnectCredential).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  })
+})
+
+describe('parseCredentialDraftIdFromCallbackUrl', () => {
+  it('extracts the exact draft id from a valid callback URL', () => {
+    expect(
+      parseCredentialDraftIdFromCallbackUrl(
+        'https://sim.test/oauth/credential-connected?credentialDraftId=draft-1'
+      )
+    ).toBe('draft-1')
+  })
+
+  it('fails closed for malformed or non-string callback state', () => {
+    expect(() => parseCredentialDraftIdFromCallbackUrl({})).toThrow(
+      'OAuth state callback URL must be a string'
+    )
+    expect(() => parseCredentialDraftIdFromCallbackUrl('not a URL')).toThrow()
   })
 })

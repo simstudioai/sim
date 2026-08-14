@@ -1,9 +1,9 @@
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { generateId } from '@sim/utils/id'
+import { CREDENTIAL_DRAFT_TTL_MS } from '@/lib/credentials/draft-constants'
 
 const SHOPIFY_OAUTH_STATE_VERSION = 1
-const SHOPIFY_OAUTH_STATE_TTL_MS = 10 * 60 * 1000
 
 interface ShopifyOAuthStatePayload {
   v: typeof SHOPIFY_OAUTH_STATE_VERSION
@@ -94,7 +94,7 @@ export function parseShopifyOAuthState(params: ParseShopifyOAuthStateParams): {
   }
 
   const now = params.now?.getTime() ?? Date.now()
-  if (decoded.issuedAt > now || now - decoded.issuedAt > SHOPIFY_OAUTH_STATE_TTL_MS) {
+  if (decoded.issuedAt > now || now - decoded.issuedAt > CREDENTIAL_DRAFT_TTL_MS) {
     throw new Error('Shopify OAuth state is expired')
   }
 

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { CREDENTIAL_DRAFT_TTL_MS } from '@/lib/credentials/draft-constants'
 import { createShopifyOAuthState, parseShopifyOAuthState } from '@/lib/oauth/shopify-state'
 
 const CLIENT_SECRET = 'shopify-client-secret'
@@ -73,8 +74,11 @@ describe('Shopify OAuth state', () => {
       clientSecret: CLIENT_SECRET,
     })
 
-    expect(() => parse(state, { now: new Date(issuedAt.getTime() + 10 * 60 * 1000 + 1) })).toThrow(
-      'Shopify OAuth state is expired'
+    expect(parse(state, { now: new Date(issuedAt.getTime() + CREDENTIAL_DRAFT_TTL_MS) })).toEqual(
+      {}
     )
+    expect(() =>
+      parse(state, { now: new Date(issuedAt.getTime() + CREDENTIAL_DRAFT_TTL_MS + 1) })
+    ).toThrow('Shopify OAuth state is expired')
   })
 })

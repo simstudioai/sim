@@ -8,6 +8,7 @@ import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { CREDENTIAL_DRAFT_TTL_SECONDS } from '@/lib/credentials/draft-constants'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 
 const logger = createLogger('TrelloAuthorize')
@@ -18,7 +19,6 @@ const TRELLO_STATE_COOKIE = 'trello_oauth_state'
 const TRELLO_RETURN_URL_COOKIE = 'trello_return_url'
 const TRELLO_CREDENTIAL_DRAFT_COOKIE = 'trello_credential_draft_id'
 const TRELLO_STATE_COOKIE_PATH = '/api/auth/trello'
-const TRELLO_STATE_COOKIE_MAX_AGE_SECONDS = 60 * 10
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -58,7 +58,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: TRELLO_STATE_COOKIE_MAX_AGE_SECONDS,
+      maxAge: CREDENTIAL_DRAFT_TTL_SECONDS,
       path: TRELLO_STATE_COOKIE_PATH,
     })
     if (draftId) {
@@ -66,7 +66,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: TRELLO_STATE_COOKIE_MAX_AGE_SECONDS,
+        maxAge: CREDENTIAL_DRAFT_TTL_SECONDS,
         path: TRELLO_STATE_COOKIE_PATH,
       })
     } else {
@@ -80,7 +80,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: TRELLO_STATE_COOKIE_MAX_AGE_SECONDS,
+        maxAge: CREDENTIAL_DRAFT_TTL_SECONDS,
         path: TRELLO_STATE_COOKIE_PATH,
       })
     } else {

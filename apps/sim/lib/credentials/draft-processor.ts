@@ -11,6 +11,15 @@ const logger = createLogger('CredentialDraftProcessor')
 
 export const OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM = 'credentialDraftId'
 
+/** Extracts a draft binding from Better Auth state and rejects malformed callback state. */
+export function parseCredentialDraftIdFromCallbackUrl(callbackUrl: unknown): string | undefined {
+  if (callbackUrl === undefined) return undefined
+  if (typeof callbackUrl !== 'string') {
+    throw new Error('OAuth state callback URL must be a string')
+  }
+  return new URL(callbackUrl).searchParams.get(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM) ?? undefined
+}
+
 interface ProcessCredentialDraftParams {
   draftId?: string
   userId: string

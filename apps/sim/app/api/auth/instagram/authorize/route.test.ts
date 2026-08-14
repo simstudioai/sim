@@ -77,6 +77,7 @@ describe('Instagram authorize route', () => {
     expect(response.headers.get('set-cookie')).toContain(
       'instagram_credential_draft_id=draft-created'
     )
+    expect(response.headers.get('set-cookie')).toContain('Max-Age=900')
     expect(mocks.createCredentialConnection).toHaveBeenCalledWith({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       input: { workspaceId: 'workspace-1', providerId: 'instagram' },

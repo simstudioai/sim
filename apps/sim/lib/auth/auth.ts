@@ -97,7 +97,7 @@ import {
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
 import {
-  OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM,
+  parseCredentialDraftIdFromCallbackUrl,
   processCredentialDraft,
 } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -529,14 +529,17 @@ export const auth = betterAuth({
           let credentialDraftId: string | undefined
           try {
             const oauthState = await getOAuthState()
-            const rawCallbackUrl = oauthState?.callbackURL
-            if (rawCallbackUrl !== undefined && typeof rawCallbackUrl !== 'string') {
-              throw new Error('OAuth state callback URL must be a string')
-            }
-            credentialDraftId = rawCallbackUrl
-              ? (new URL(rawCallbackUrl).searchParams.get(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM) ??
-                undefined)
-              : undefined
+            credentialDraftId = parseCredentialDraftIdFromCallbackUrl(oauthState?.callbackURL)
+          } catch (error) {
+            logger.error('[account.create.after] Failed to read OAuth credential draft state', {
+              userId: account.userId,
+              providerId: account.providerId,
+              error,
+            })
+            throw error
+          }
+
+          try {
             await processCredentialDraft({
               draftId: credentialDraftId,
               userId: account.userId,
