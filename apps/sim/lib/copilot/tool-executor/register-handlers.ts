@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import {
+  ConnectSlackBot,
   Cp as CpTool,
   CreateWorkflow,
   CreateWorkspaceMcpServer,
@@ -74,6 +75,7 @@ import {
 } from '../tools/handlers/deployment/manage'
 import { executeFunctionExecute } from '../tools/handlers/function-execute'
 import { executeListIntegrationTools } from '../tools/handlers/integration-tools'
+import { executeConnectSlackBot } from '../tools/handlers/management/connect-slack-bot'
 import { executeManageCredential } from '../tools/handlers/management/manage-credential'
 import { executeManageCustomTool } from '../tools/handlers/management/manage-custom-tool'
 import { executeManageMcpTool } from '../tools/handlers/management/manage-mcp-tool'
@@ -185,6 +187,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [ManageSandbox.id]: h(executeManageSandbox),
     [ManageSkill.id]: h(executeManageSkill),
     [ManageCredential.id]: h(executeManageCredential),
+    [ConnectSlackBot.id]: h(executeConnectSlackBot),
     [OauthGetAuthLink.id]: h(executeOAuthGetAuthLink),
     // Rolling-deploy compatibility for calls/checkpoints created before OAuth
     // moved into terminal credential cards. New agents no longer receive this

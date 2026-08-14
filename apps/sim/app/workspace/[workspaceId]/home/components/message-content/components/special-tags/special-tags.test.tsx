@@ -1359,4 +1359,19 @@ describe('recoverTrailingBareOptions', () => {
     const { segments } = parseSpecialTags(`Pick one <options>${bareOptions}</options>`, false)
     expect(segments.filter((segment) => segment.type === 'options')).toHaveLength(1)
   })
+
+  it('recovers an options payload wrapped in the singular <option> near-miss tag', () => {
+    const body =
+      '{"1": {"title": "Demo wait — sleep until an agent finishes", "description": "wait_agents demo"}, "2": {"title": "Demo steer — redirect a running agent mid-task", "description": "steer_agent demo"}, "3": {"title": "Demo stop — interrupt a running agent", "description": "interrupt_agent demo"}}'
+    const { segments } = parseSpecialTags(
+      `Next up is usually **wait**, **steer**, or **stop**.\n\n<option>${body}</option>`,
+      false
+    )
+    const last = segments[segments.length - 1]
+    expect(last.type).toBe('options')
+    if (last.type === 'options') {
+      expect(Object.keys(last.data)).toEqual(['1', '2', '3'])
+      expect(last.data['1']?.title).toBe('Demo wait — sleep until an agent finishes')
+    }
+  })
 })

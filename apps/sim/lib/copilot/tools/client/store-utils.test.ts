@@ -40,13 +40,41 @@ describe('resolveToolDisplay', () => {
       resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
         path: 'workflows/My Workflow/meta.json',
       })?.text
-    ).toBe('Read My Workflow')
+    ).toBe('Read metadata for My Workflow')
 
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
         path: 'workflows/Folder 1/RET XYZ/state.json',
       })?.text
     ).toBe('Read RET XYZ')
+  })
+
+  it('labels resource artifact reads distinctly instead of repeating the resource name', () => {
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'workflows/Elder v2/The Elder/state.json',
+      })?.text
+    ).toBe('Read The Elder')
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'workflows/Elder v2/The Elder/deployment.json',
+      })?.text
+    ).toBe('Read deployment status for The Elder')
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.error, {
+        path: 'workflows/Elder v2/The Elder/lint.json',
+      })?.text
+    ).toBe('Attempted to read lint results for The Elder')
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'tables/CRM/Leads/views.json',
+      })?.text
+    ).toBe('Read views of Leads')
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'knowledgebases/Contracts/documents.json',
+      })?.text
+    ).toBe('Read documents in Contracts')
   })
 
   it('decodes percent-encoded VFS path segments for display', () => {
@@ -60,7 +88,7 @@ describe('resolveToolDisplay', () => {
       resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
         path: 'workflows/My%20Workflow/meta.json',
       })?.text
-    ).toBe('Read My Workflow')
+    ).toBe('Read metadata for My Workflow')
 
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.executing, {

@@ -107,11 +107,39 @@ function describeReadTarget(path: string | undefined): string | undefined {
   }
 
   if (resourceType === 'workflow') {
-    return stripExtension(getLeafResourceSegment(segments))
+    return describeResourceArtifactTarget(segments)
   }
 
-  const resourceName = segments[1] || segments[segments.length - 1]
-  return stripExtension(resourceName)
+  return describeResourceArtifactTarget(segments)
+}
+
+/**
+ * Resource-scoped artifact files, labeled the same prefix way as
+ * FILE_FACET_LABELS. `state.json` is the empty facet — reading a workflow means
+ * reading its state — so "Read The Elder", "Read metadata for The Elder", and
+ * "Read deployment status for The Elder" render as three distinct rows instead
+ * of three identical "Read The Elder" lines.
+ */
+const RESOURCE_ARTIFACT_LABELS: Record<string, string> = {
+  'state.json': '',
+  'meta.json': 'metadata for',
+  'lint.json': 'lint results for',
+  'deployment.json': 'deployment status for',
+  'versions.json': 'versions of',
+  'executions.json': 'runs of',
+  'views.json': 'views of',
+  'documents.json': 'documents in',
+  'connectors.json': 'connectors of',
+}
+
+function describeResourceArtifactTarget(segments: string[]): string {
+  const lastSegment = segments[segments.length - 1] || ''
+  const resourceName = stripExtension(getLeafResourceSegment(segments))
+  const artifactLabel = RESOURCE_ARTIFACT_LABELS[lastSegment]
+  if (artifactLabel !== undefined && segments.length > 1) {
+    return artifactLabel ? `${artifactLabel} ${resourceName}` : resourceName
+  }
+  return resourceName
 }
 
 // A workspace file is addressed as a directory of facets in the VFS

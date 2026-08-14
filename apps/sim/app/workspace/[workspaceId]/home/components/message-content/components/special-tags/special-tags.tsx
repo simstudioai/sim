@@ -1459,11 +1459,20 @@ export function parseSpecialTags(content: string, isStreaming: boolean): ParsedS
  * already parsed. Never applied mid-stream: a partial JSON tail must not
  * flicker between prose and a card.
  */
+const NEAR_MISS_OPTIONS_WRAPPER = /<option>\s*(\{[\s\S]*\})\s*<\/option>\s*$/
+
 function recoverTrailingBareOptions(segments: ContentSegment[]): void {
   const last = segments[segments.length - 1]
   if (!last || last.type !== 'text') return
   if (segments.some((segment) => segment.type === 'options')) return
-  const text = last.content
+  let text = last.content
+  // A near-miss wrapper — the singular `<option>` tag observed in the wild —
+  // is neither a parseable tag nor bare JSON (the trailing `</option>` fails
+  // the brace gate below). Unwrap it and let the strict shape check decide.
+  const nearMiss = NEAR_MISS_OPTIONS_WRAPPER.exec(text)
+  if (nearMiss) {
+    text = `${text.slice(0, nearMiss.index)}${nearMiss[1]}`
+  }
   if (!text.trimEnd().endsWith('}')) return
   // The payload nests objects, so the START brace is the first one from which
   // the remainder parses — probe brace positions left to right (bounded).

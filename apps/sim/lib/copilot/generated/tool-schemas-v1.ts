@@ -1580,6 +1580,34 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  connect_slack_bot: {
+    parameters: {
+      type: 'object',
+      properties: {
+        botTokenEnvVar: {
+          type: 'string',
+          description:
+            'NAME of the environment variable holding the bot token (xoxb-..., OAuth & Permissions → Bot User OAuth Token). Pass the variable name, never the token value.',
+        },
+        description: {
+          type: 'string',
+          description: 'Optional description shown on the credential.',
+        },
+        displayName: {
+          type: 'string',
+          description:
+            'Display name for the credential, shown in the credential picker (e.g. "Elder Bot"). Must be unique in the workspace.',
+        },
+        signingSecretEnvVar: {
+          type: 'string',
+          description:
+            "NAME of the environment variable holding the Slack app's signing secret (Basic Information → App Credentials). Pass the variable name, never the secret value.",
+        },
+      },
+      required: ['displayName', 'signingSecretEnvVar', 'botTokenEnvVar'],
+    },
+    resultSchema: undefined,
+  },
   cp: {
     parameters: {
       type: 'object',
