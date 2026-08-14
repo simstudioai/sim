@@ -101,6 +101,16 @@ vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
 
 import { cancelWorkflowExecution } from '@/lib/execution/cancel-workflow-execution'
 
+/**
+ * The durable writes a workflow-group transition reports back. The transaction
+ * updates the workflow log only, the cell sidecar only, or both, so a single
+ * `kind` cannot answer whether this request wrote anything.
+ */
+const NO_WRITES = { workflowLogTerminalized: false, sidecarCancelled: false } as const
+const LOG_WRITE = { workflowLogTerminalized: true, sidecarCancelled: false } as const
+const SIDECAR_WRITE = { workflowLogTerminalized: false, sidecarCancelled: true } as const
+const BOTH_WRITES = { workflowLogTerminalized: true, sidecarCancelled: true } as const
+
 const INPUT = {
   executionId: 'execution-1',
   workflowId: 'workflow-1',
@@ -303,6 +313,7 @@ describe('cancelWorkflowExecution', () => {
       tableId: 'table-1',
       rowId: 'row-1',
       groupId: 'group-1',
+      writes: BOTH_WRITES,
     }
     mockCancelWorkflowGroupExecution.mockResolvedValue(cancelled)
 
@@ -337,6 +348,7 @@ describe('cancelWorkflowExecution', () => {
       tableId: 'table-1',
       rowId: 'row-1',
       groupId: 'group-1',
+      writes: SIDECAR_WRITE,
     }
     mockCancelWorkflowGroupExecution.mockResolvedValue(cancelled)
 
@@ -356,7 +368,10 @@ describe('cancelWorkflowExecution', () => {
       workflowGroupWorkspaceId: 'workspace-1',
       priorStatus: 'running',
     })
-    mockCancelWorkflowGroupExecution.mockResolvedValue({ kind: 'cancelled_without_sidecar' })
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'cancelled_without_sidecar',
+      writes: LOG_WRITE,
+    })
 
     const result = await cancelWorkflowExecution(INPUT)
 
@@ -380,6 +395,7 @@ describe('cancelWorkflowExecution', () => {
       tableId: 'table-1',
       rowId: 'row-1',
       groupId: 'group-1',
+      writes: NO_WRITES,
     })
 
     const result = await cancelWorkflowExecution(INPUT)
@@ -389,6 +405,71 @@ describe('cancelWorkflowExecution', () => {
       durablyRecorded: false,
       reason: 'already_cancelled',
     })
+  })
+
+  /**
+   * The same `already_cancelled` kind covers a transition that left the sidecar
+   * alone but still terminalized an active workflow log. That log write is
+   * durable, so the outcome must stay `recorded` and must not re-read a state
+   * this request itself wrote.
+   */
+  it('reports a durable write when a group run only repaired its workflow log', async () => {
+    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
+      belongsToWorkflow: true,
+      workflowGroupWorkspaceId: 'workspace-1',
+      priorStatus: 'running',
+    })
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'already_cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+      writes: LOG_WRITE,
+    })
+
+    const result = await cancelWorkflowExecution(INPUT)
+
+    expect(result).toMatchObject({ success: true, durablyRecorded: true, reason: 'recorded' })
+    expect(mockResolveWorkflowExecutionOwnership).toHaveBeenCalledOnce()
+  })
+
+  /**
+   * The lost race the sidecar-bearing kind used to hide: a concurrent cancel
+   * terminalized both records between the entry snapshot and this transaction,
+   * which then found the sidecar already `cancelled` and the log already
+   * `cancelled` and wrote nothing. A non-terminal entry snapshot cannot catch
+   * that, so the transition's own report of having written nothing is what
+   * forces the re-read — otherwise the request would claim a durable write and
+   * fire the v2 cancel analytics gate on a no-op.
+   */
+  it('reports a group run that lost the race with its sidecar already cancelled as a no-op', async () => {
+    mockResolveWorkflowExecutionOwnership
+      .mockResolvedValueOnce({
+        belongsToWorkflow: true,
+        workflowGroupWorkspaceId: 'workspace-1',
+        priorStatus: 'running',
+      })
+      .mockResolvedValueOnce({
+        belongsToWorkflow: true,
+        workflowGroupWorkspaceId: 'workspace-1',
+        priorStatus: 'cancelled',
+      })
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'already_cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+      writes: NO_WRITES,
+    })
+
+    const result = await cancelWorkflowExecution(INPUT)
+
+    expect(result).toMatchObject({
+      success: true,
+      durablyRecorded: false,
+      reason: 'already_cancelled',
+    })
+    expect(mockResolveWorkflowExecutionOwnership).toHaveBeenCalledTimes(2)
   })
 
   /**
@@ -410,6 +491,7 @@ describe('cancelWorkflowExecution', () => {
       })
     mockCancelWorkflowGroupExecution.mockResolvedValue({
       kind: 'already_cancelled_without_sidecar',
+      writes: NO_WRITES,
     })
 
     const result = await cancelWorkflowExecution(INPUT)
@@ -423,8 +505,14 @@ describe('cancelWorkflowExecution', () => {
   })
 
   it.each([
-    [{ kind: 'conflict' as const, status: 'completed' }, 'cannot be cancelled while completed'],
-    [{ kind: 'not_workflow_group' as const }, 'no longer the active table execution'],
+    [
+      { kind: 'conflict' as const, status: 'completed', writes: NO_WRITES },
+      'cannot be cancelled while completed',
+    ],
+    [
+      { kind: 'not_workflow_group' as const, writes: NO_WRITES },
+      'no longer the active table execution',
+    ],
   ])(
     'releases the reservation before reporting a refused workflow-group cell claim as a conflict',
     async (outcome, message) => {
@@ -444,8 +532,8 @@ describe('cancelWorkflowExecution', () => {
   )
 
   it.each([
-    [{ kind: 'conflict' as const, status: 'completed' }],
-    [{ kind: 'not_workflow_group' as const }],
+    [{ kind: 'conflict' as const, status: 'completed', writes: NO_WRITES }],
+    [{ kind: 'not_workflow_group' as const, writes: NO_WRITES }],
   ])(
     'keeps the reservation held when a refused claim follows a paused cancellation',
     async (outcome) => {
@@ -462,8 +550,8 @@ describe('cancelWorkflowExecution', () => {
   )
 
   it.each([
-    [{ kind: 'conflict' as const, status: 'completed' }],
-    [{ kind: 'not_workflow_group' as const }],
+    [{ kind: 'conflict' as const, status: 'completed', writes: NO_WRITES }],
+    [{ kind: 'not_workflow_group' as const, writes: NO_WRITES }],
   ])(
     'keeps the reservation held when a refused claim follows a failed cancellation',
     async (outcome) => {

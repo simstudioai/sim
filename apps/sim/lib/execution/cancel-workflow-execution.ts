@@ -18,7 +18,7 @@ import {
   cancelWorkflowGroupExecution,
   type PublishableWorkflowGroupCancellation,
   publishWorkflowGroupCancellationEvent,
-  type WorkflowGroupExecutionCancellationResult,
+  type WorkflowGroupCancellationWrites,
 } from '@/lib/table/workflow-group-cancellation'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
 import { resolveWorkflowExecutionOwnership } from '@/lib/workflows/executor/execution-queries'
@@ -85,28 +85,24 @@ function toTerminalExecutionStatus(
  * path that can terminalize the run — the direct log claim and the
  * workflow-group transition — answers in this one vocabulary, so the report can
  * ask a single question: did this request durably write?
+ *
+ * Only the direct claim ever answers `unknown`, and only when it could not run
+ * or its statement failed. The workflow-group transition always knows: it
+ * reports the writes it performed.
  */
 type TerminalWriteOutcome = 'applied' | 'no_row' | 'unknown'
 
 /**
- * What a returned workflow-group transition durably wrote. `cancelled` claims
- * the cell sidecar and `cancelled_without_sidecar` terminalizes the workflow log
- * itself, so both are writes this request performed — including the reconciling
- * cancel of a sidecar left in `error` behind an already-`cancelled` log.
- * `already_cancelled_without_sidecar` found the log already `cancelled` and
- * touched nothing. `already_cancelled` left the sidecar alone but may still have
- * terminalized an active workflow log, which the result does not distinguish, so
- * it cannot claim either way. `conflict` and `not_workflow_group` never reach
- * the report — both throw above — and are mapped only to keep this map total.
+ * Reads a workflow-group transition's durability off the writes it reported
+ * rather than off its `kind`. Terminalizing the workflow log and cancelling the
+ * cell sidecar are each a durable write this request performed, and a single
+ * `kind` covers both a transition that did one of them and one that did
+ * neither: `already_cancelled` leaves a sidecar that was already `cancelled`
+ * alone, but may still have terminalized an active workflow log.
  */
-const WORKFLOW_GROUP_TERMINAL_WRITES = {
-  cancelled: 'applied',
-  cancelled_without_sidecar: 'applied',
-  already_cancelled: 'unknown',
-  already_cancelled_without_sidecar: 'no_row',
-  conflict: 'unknown',
-  not_workflow_group: 'unknown',
-} as const satisfies Record<WorkflowGroupExecutionCancellationResult['kind'], TerminalWriteOutcome>
+function toTerminalWriteOutcome(writes: WorkflowGroupCancellationWrites): TerminalWriteOutcome {
+  return writes.workflowLogTerminalized || writes.sidecarCancelled ? 'applied' : 'no_row'
+}
 
 /**
  * Names the terminal state the cancel could not move, or `null` when it did
@@ -474,7 +470,7 @@ export async function cancelWorkflowExecution(
    */
   let terminalWrite: TerminalWriteOutcome = 'unknown'
   if (groupCancellation !== null) {
-    terminalWrite = WORKFLOW_GROUP_TERMINAL_WRITES[groupCancellation.kind]
+    terminalWrite = toTerminalWriteOutcome(groupCancellation.writes)
   } else if (
     (cancellation.durablyRecorded || queuedJobCancelled || locallyAborted) &&
     !pausedCancelled
