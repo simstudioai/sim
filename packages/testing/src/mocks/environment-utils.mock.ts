@@ -30,12 +30,40 @@ function emptyPersonalAndWorkspaceEnv(): {
  * environmentUtilsMockFns.mockGetEffectiveDecryptedEnv.mockResolvedValue({ API_KEY: 'k' })
  * ```
  */
+/**
+ * Mirrors the real resolver: one lookup when both identities match, two when the
+ * execution actor differs from the identity owning the personal variables.
+ * Delegating keeps `mockGetPersonalAndWorkspaceEnv` the single place a test has
+ * to stub environment data.
+ */
+async function delegateExecutionEnvironment(
+  personalUserId: string,
+  workspaceUserId: string,
+  workspaceId?: string
+) {
+  const resolve = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
+  if (!workspaceId || workspaceUserId === personalUserId) {
+    return resolve(personalUserId, workspaceId)
+  }
+
+  const [personal, actor] = await Promise.all([
+    resolve(personalUserId, workspaceId),
+    resolve(workspaceUserId, workspaceId),
+  ])
+  return {
+    ...personal,
+    workspaceEncrypted: actor.workspaceEncrypted,
+    workspaceDecrypted: actor.workspaceDecrypted,
+  }
+}
+
 export const environmentUtilsMockFns = {
   mockInvalidateEffectiveDecryptedEnvCache: vi.fn(),
   mockGetEnvironmentVariableKeys: vi.fn().mockResolvedValue({ variableNames: [], count: 0 }),
   mockGetPersonalAndWorkspaceEnv: vi
     .fn()
     .mockImplementation(async () => emptyPersonalAndWorkspaceEnv()),
+  mockGetExecutionEnvironment: vi.fn().mockImplementation(delegateExecutionEnvironment),
   mockGetEffectiveEnvironmentSnapshot: vi
     .fn()
     .mockImplementation(async () => emptyPersonalAndWorkspaceEnv()),
@@ -55,6 +83,9 @@ export function resetEnvironmentUtilsMock(): void {
   environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
     .mockReset()
     .mockImplementation(async () => emptyPersonalAndWorkspaceEnv())
+  environmentUtilsMockFns.mockGetExecutionEnvironment
+    .mockReset()
+    .mockImplementation(delegateExecutionEnvironment)
   environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
     .mockReset()
     .mockImplementation(async () => emptyPersonalAndWorkspaceEnv())
@@ -79,6 +110,7 @@ export const environmentUtilsMock = {
     environmentUtilsMockFns.mockInvalidateEffectiveDecryptedEnvCache,
   getEnvironmentVariableKeys: environmentUtilsMockFns.mockGetEnvironmentVariableKeys,
   getPersonalAndWorkspaceEnv: environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv,
+  getExecutionEnvironment: environmentUtilsMockFns.mockGetExecutionEnvironment,
   getEffectiveEnvironmentSnapshot: environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot,
   upsertPersonalEnvVars: environmentUtilsMockFns.mockUpsertPersonalEnvVars,
   upsertWorkspaceEnvVars: environmentUtilsMockFns.mockUpsertWorkspaceEnvVars,

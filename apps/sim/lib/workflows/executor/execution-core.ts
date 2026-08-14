@@ -18,7 +18,7 @@ import {
   getTimeoutErrorMessage,
   isTimeoutAbortReason,
 } from '@/lib/core/execution-limits'
-import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { getExecutionEnvironment } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
@@ -433,14 +433,34 @@ async function executeWorkflowCoreImpl(
   }
 
   try {
+    /**
+     * Personal variables belong to whoever is running, whenever that is knowable.
+     * `enforceCredentialAccess` is the principal layer's own answer to "is there
+     * an identifiable caller": it is set from `principal.kind !== 'workspace_api_key'`,
+     * so a session, personal API key, or delegated run reads its own personal
+     * variables rather than borrowing the workflow owner's.
+     *
+     * The workflow owner remains the fallback for a workspace API key, schedule,
+     * or webhook. Nobody is running those, and a deployed workflow is routinely
+     * authored against its owner's personal keys.
+     */
     const personalEnvUserId =
-      metadata.isClientSession && metadata.sessionUserId
-        ? metadata.sessionUserId
-        : metadata.workflowUserId
+      (metadata.isClientSession && metadata.sessionUserId) ||
+      (metadata.enforceCredentialAccess ? metadata.userId : undefined) ||
+      metadata.workflowUserId
 
     if (!personalEnvUserId) {
       throw new Error('Missing workflowUserId in execution metadata')
     }
+
+    /**
+     * The actor already carries the identity each trigger kind should authorize
+     * workspace secrets against: the caller for a session, personal API key, or
+     * delegated principal, and the workspace billing account for a workspace API
+     * key, schedule, or webhook, where no caller is identifiable. Deriving it
+     * again here would only risk disagreeing with the principal layer.
+     */
+    const workspaceEnvUserId = metadata.userId || personalEnvUserId
 
     /**
      * Resolves the workflow state from the override, the draft tables, or the
@@ -495,7 +515,7 @@ async function executeWorkflowCoreImpl(
 
     const [workflowState, env] = await Promise.all([
       loadWorkflowState(),
-      getPersonalAndWorkspaceEnv(personalEnvUserId, providedWorkspaceId),
+      getExecutionEnvironment(personalEnvUserId, workspaceEnvUserId, providedWorkspaceId),
     ])
 
     const { blocks, loops, parallels } = workflowState

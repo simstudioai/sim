@@ -479,6 +479,7 @@ export async function executeWorkflowService(
               base64MaxBytes,
               abortSignal: streamAbortSignal,
               executionMode: 'stream',
+              enforceCredentialAccess: useAuthenticatedUserAsActor,
               billingAttribution,
               largeValueKeys: [],
               fileKeys: [],

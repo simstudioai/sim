@@ -1698,6 +1698,7 @@ async function handleExecutePost(
               base64MaxBytes,
               abortSignal,
               executionMode: 'stream',
+              enforceCredentialAccess: useAuthenticatedUserAsActor,
               billingAttribution,
               largeValueKeys,
               fileKeys,
