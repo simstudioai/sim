@@ -60,11 +60,13 @@ vi.mock('@/lib/billing/core/subscription', () => ({
 }))
 
 vi.mock('@/lib/core/config/env', () => ({
+  env: {},
   getEnv: vi.fn(),
   isTruthy: vi.fn(() => false),
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => ({
+  isAppConfigEnabled: false,
   isBillingEnabled: true,
   isHosted: true,
 }))
