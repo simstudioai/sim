@@ -14,7 +14,8 @@ import {
 } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
 import type { ToolCallResult } from '@/lib/copilot/request/types'
-import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
+import { ensureHandlersRegistered } from '@/lib/copilot/tool-executor'
+import { executeTool } from '@/lib/copilot/tool-executor/executor'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -128,8 +129,12 @@ export const POST = withRouteHandler((request: NextRequest) =>
       }
 
       try {
-        const handler = createServerToolHandler(toolName)
-        const result = await handler(params, {
+        // The relay's comprehensive dispatcher: registry handlers (VFS
+        // glob/read/grep, function execute, ...) plus the server tool router
+        // fallback — the plain server-tool adapter alone rejects VFS tools
+        // with "Unknown server tool".
+        ensureHandlersRegistered()
+        const result = await executeTool(toolName, params, {
           userId,
           workflowId: workflowId ?? '',
           workspaceId,
