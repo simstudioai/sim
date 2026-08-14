@@ -255,7 +255,6 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Sites.Read.All': 'Read Sharepoint sites',
   'Sites.ReadWrite.All': 'Read and write Sharepoint sites',
   'Sites.Manage.All': 'Manage Sharepoint sites',
-  'https://dynamics.microsoft.com/user_impersonation': 'Access Microsoft Dataverse on your behalf',
   'User.Read.All': 'Read all user profiles',
   'User.ReadWrite.All': 'Read and write all user profiles',
   'GroupMember.ReadWrite.All': 'Read and write all group memberships',
@@ -485,6 +484,7 @@ export function getAllOAuthServices(): OAuthServiceMetadata[] {
         description: service.description,
         baseProvider: baseProviderId,
         authType: service.authType ?? 'oauth',
+        resourceUrl: service.resourceUrl,
       })
     }
   }

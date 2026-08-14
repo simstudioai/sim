@@ -37,6 +37,9 @@ vi.mock('@/lib/credentials/access', () => ({
 
 vi.mock('@/lib/oauth/utils', () => ({
   getAllOAuthServices: vi.fn(() => [{ providerId: 'google-email', name: 'Gmail' }]),
+  // Ordinary providers declare no `resourceUrl`, so the resource-scoped guard
+  // never fires for them and the authorize flow proceeds as before.
+  getServiceConfigByProviderId: vi.fn(() => ({ providerId: 'google-email', name: 'Gmail' })),
   // Real implementation: a credential id matches its service's OAuth id, an
   // alternate authorization server, or the family's service-account id.
   credentialProviderMatchesService: (

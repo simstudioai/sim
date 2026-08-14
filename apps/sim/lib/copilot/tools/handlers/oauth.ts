@@ -206,6 +206,19 @@ async function generateOAuthLink(
         ? `${baseUrl}/workspace/${workspaceId}/chat/${chatId}`
         : `${baseUrl}/workspace/${workspaceId}`
 
+  /**
+   * A service whose OAuth resource is the customer's own tenant host needs that
+   * URL before the authorization request is built, and this tool has nowhere to
+   * take one from — its schema is generated from the Mothership catalog. An
+   * authorize link without it would request the wrong resource and fail at the
+   * provider.
+   */
+  if (matched.resourceUrl) {
+    throw new Error(
+      `${serviceName} needs its environment URL to connect, which this tool cannot supply. Ask the user to connect ${serviceName} from Settings → Integrations.`
+    )
+  }
+
   if (providerId === 'trello') {
     const authorizeUrl = new URL(`${baseUrl}/api/auth/trello/authorize`)
     authorizeUrl.searchParams.set('returnUrl', callbackURL)
