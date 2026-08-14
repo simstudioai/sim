@@ -16,10 +16,15 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
  * Apex hosts match as well as subdomains, because the documented token
  * audiences (`https://api.kusto.windows.net`,
  * `https://kusto.fabric.microsoft.com`) sit at the apex.
+ *
+ * Every entry is a domain Microsoft documents: the Kusto connection-string
+ * reference for `kusto.windows.net`, the national-cloud endpoint tables for the
+ * two sovereign domains, and the Fabric KQL-database REST reference for
+ * `kusto.fabric.microsoft.com` (both its `queryServiceUri` and
+ * `ingestionServiceUri` sit under it). Do not add a host without one.
  */
 const KUSTO_CLOUDS = [
   { hostSuffix: 'kusto.windows.net', authority: 'https://login.microsoftonline.com' },
-  { hostSuffix: 'kustomfa.windows.net', authority: 'https://login.microsoftonline.com' },
   { hostSuffix: 'kusto.fabric.microsoft.com', authority: 'https://login.microsoftonline.com' },
   { hostSuffix: 'kusto.usgovcloudapi.net', authority: 'https://login.microsoftonline.us' },
   { hostSuffix: 'kusto.chinacloudapi.cn', authority: 'https://login.partner.microsoftonline.cn' },
