@@ -1,6 +1,7 @@
 'use client'
 
-import { AgentIcon, ConditionalIcon, ScheduleIcon, SlackIcon, TableIcon } from '@/components/icons'
+import { Table as TableIcon } from '@sim/emcn/icons'
+import { AgentIcon, ConditionalIcon, ScheduleIcon, SlackIcon } from '@/components/icons'
 import { EnterprisePlatformLoop } from '@/app/(landing)/enterprise/components/enterprise-platform-loop'
 import type { EnterpriseLoopContent } from '@/app/(landing)/enterprise/components/enterprise-platform-loop/stage-data'
 

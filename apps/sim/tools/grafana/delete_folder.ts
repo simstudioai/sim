@@ -66,14 +66,24 @@ export const deleteFolderTool: ToolConfig<GrafanaDeleteFolderParams, GrafanaDele
       return {
         success: true,
         output: {
-          uid: params?.folderUid?.trim() ?? '',
-          message: (data.message as string) ?? 'Folder deleted',
+          id: (data.id as number) ?? null,
+          uid: params?.folderUid?.trim() ?? null,
+          message: (data.message as string) ?? null,
         },
       }
     },
 
     outputs: {
-      uid: { type: 'string', description: 'The UID of the deleted folder' },
-      message: { type: 'string', description: 'Confirmation message' },
+      id: {
+        type: 'number',
+        description: 'Numeric id of the deleted folder, as returned by Grafana',
+        nullable: true,
+      },
+      uid: {
+        type: 'string',
+        description: 'The UID that was deleted, echoed from the request',
+        nullable: true,
+      },
+      message: { type: 'string', description: "Grafana's confirmation message", nullable: true },
     },
   }
