@@ -3082,6 +3082,24 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  interrupt_agent: {
+    parameters: {
+      type: 'object',
+      properties: {
+        agent_id: {
+          type: 'string',
+          description: 'The agent id to interrupt.',
+        },
+        reason: {
+          type: 'string',
+          description:
+            "Why you are stopping it, in a few words. Recorded in the agent's final status.",
+        },
+      },
+      required: ['agent_id'],
+    },
+    resultSchema: undefined,
+  },
   knowledge: {
     parameters: {
       properties: {
@@ -5210,6 +5228,24 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
+  steer_agent: {
+    parameters: {
+      type: 'object',
+      properties: {
+        agent_id: {
+          type: 'string',
+          description: 'The agent id to steer.',
+        },
+        content: {
+          type: 'string',
+          description:
+            'The instruction to deliver, phrased as you would brief a teammate mid-task.',
+        },
+      },
+      required: ['agent_id', 'content'],
+    },
+    resultSchema: undefined,
+  },
   table: {
     parameters: {
       properties: {
@@ -5878,6 +5914,24 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       required: ['success', 'message'],
     },
   },
+  tail_agent: {
+    parameters: {
+      type: 'object',
+      properties: {
+        agent_id: {
+          type: 'string',
+          description: 'The agent id to inspect.',
+        },
+        max_chars: {
+          type: 'number',
+          description:
+            'Max characters of activity to return. Default 4000; unread activity beyond the budget stays queued for your next tail.',
+        },
+      },
+      required: ['agent_id'],
+    },
+    resultSchema: undefined,
+  },
   terminal: {
     parameters: {
       type: 'object',
@@ -6436,6 +6490,33 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['seconds'],
+    },
+    resultSchema: undefined,
+  },
+  wait_agents: {
+    parameters: {
+      type: 'object',
+      properties: {
+        agent_ids: {
+          type: 'array',
+          description: 'The agent ids to wait on, as returned by their async launches.',
+          items: {
+            type: 'string',
+          },
+        },
+        mode: {
+          type: 'string',
+          description:
+            '"all" (default) wakes when every listed agent finishes; "any" wakes on the first.',
+          enum: ['all', 'any'],
+        },
+        timeout_seconds: {
+          type: 'number',
+          description:
+            'Max seconds to sleep before waking anyway. Default 120, capped at 600. On timeout you get current statuses and can wait again.',
+        },
+      },
+      required: ['agent_ids'],
     },
     resultSchema: undefined,
   },

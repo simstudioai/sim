@@ -63,6 +63,7 @@ export interface ToolCatalogEntry {
     | 'get_workflow_run_options'
     | 'glob'
     | 'grep'
+    | 'interrupt_agent'
     | 'knowledge'
     | 'list_deployment_versions'
     | 'list_integration_tools'
@@ -111,6 +112,7 @@ export interface ToolCatalogEntry {
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'share_file'
+    | 'steer_agent'
     | 'table'
     | 'table_automations'
     | 'table_columns'
@@ -118,11 +120,13 @@ export interface ToolCatalogEntry {
     | 'table_manage'
     | 'table_rows'
     | 'table_views'
+    | 'tail_agent'
     | 'terminal'
     | 'update_deployment_version'
     | 'update_workspace_mcp_server'
     | 'user_table'
     | 'wait'
+    | 'wait_agents'
     | 'web_crawl'
     | 'web_fetch'
     | 'web_scrape'
@@ -187,6 +191,7 @@ export interface ToolCatalogEntry {
     | 'get_workflow_run_options'
     | 'glob'
     | 'grep'
+    | 'interrupt_agent'
     | 'knowledge'
     | 'list_deployment_versions'
     | 'list_integration_tools'
@@ -235,6 +240,7 @@ export interface ToolCatalogEntry {
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'share_file'
+    | 'steer_agent'
     | 'table'
     | 'table_automations'
     | 'table_columns'
@@ -242,11 +248,13 @@ export interface ToolCatalogEntry {
     | 'table_manage'
     | 'table_rows'
     | 'table_views'
+    | 'tail_agent'
     | 'terminal'
     | 'update_deployment_version'
     | 'update_workspace_mcp_server'
     | 'user_table'
     | 'wait'
+    | 'wait_agents'
     | 'web_crawl'
     | 'web_fetch'
     | 'web_scrape'
@@ -3131,6 +3139,25 @@ export const Grep: ToolCatalogEntry = {
   },
 }
 
+export const InterruptAgent: ToolCatalogEntry = {
+  id: 'interrupt_agent',
+  name: 'interrupt_agent',
+  route: 'go',
+  mode: 'sync',
+  parameters: {
+    type: 'object',
+    properties: {
+      agent_id: { type: 'string', description: 'The agent id to interrupt.' },
+      reason: {
+        type: 'string',
+        description:
+          "Why you are stopping it, in a few words. Recorded in the agent's final status.",
+      },
+    },
+    required: ['agent_id'],
+  },
+}
+
 export const Knowledge: ToolCatalogEntry = {
   id: 'knowledge',
   name: 'knowledge',
@@ -5293,6 +5320,24 @@ export const ShareFile: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
+export const SteerAgent: ToolCatalogEntry = {
+  id: 'steer_agent',
+  name: 'steer_agent',
+  route: 'go',
+  mode: 'sync',
+  parameters: {
+    type: 'object',
+    properties: {
+      agent_id: { type: 'string', description: 'The agent id to steer.' },
+      content: {
+        type: 'string',
+        description: 'The instruction to deliver, phrased as you would brief a teammate mid-task.',
+      },
+    },
+    required: ['agent_id', 'content'],
+  },
+}
+
 export const Table: ToolCatalogEntry = {
   id: 'table',
   name: 'table',
@@ -5879,6 +5924,25 @@ export const TableViews: ToolCatalogEntry = {
   },
 }
 
+export const TailAgent: ToolCatalogEntry = {
+  id: 'tail_agent',
+  name: 'tail_agent',
+  route: 'go',
+  mode: 'sync',
+  parameters: {
+    type: 'object',
+    properties: {
+      agent_id: { type: 'string', description: 'The agent id to inspect.' },
+      max_chars: {
+        type: 'number',
+        description:
+          'Max characters of activity to return. Default 4000; unread activity beyond the budget stays queued for your next tail.',
+      },
+    },
+    required: ['agent_id'],
+  },
+}
+
 export const Terminal: ToolCatalogEntry = {
   id: 'terminal',
   name: 'terminal',
@@ -6409,6 +6473,35 @@ export const Wait: ToolCatalogEntry = {
       seconds: { type: 'number', description: 'How long to pause, in seconds. Capped at 120.' },
     },
     required: ['seconds'],
+  },
+}
+
+export const WaitAgents: ToolCatalogEntry = {
+  id: 'wait_agents',
+  name: 'wait_agents',
+  route: 'go',
+  mode: 'sync',
+  parameters: {
+    type: 'object',
+    properties: {
+      agent_ids: {
+        type: 'array',
+        description: 'The agent ids to wait on, as returned by their async launches.',
+        items: { type: 'string' },
+      },
+      mode: {
+        type: 'string',
+        description:
+          '"all" (default) wakes when every listed agent finishes; "any" wakes on the first.',
+        enum: ['all', 'any'],
+      },
+      timeout_seconds: {
+        type: 'number',
+        description:
+          'Max seconds to sleep before waking anyway. Default 120, capped at 600. On timeout you get current statuses and can wait again.',
+      },
+    },
+    required: ['agent_ids'],
   },
 }
 
@@ -7038,6 +7131,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [GetWorkflowRunOptions.id]: GetWorkflowRunOptions,
   [Glob.id]: Glob,
   [Grep.id]: Grep,
+  [InterruptAgent.id]: InterruptAgent,
   [Knowledge.id]: Knowledge,
   [ListDeploymentVersions.id]: ListDeploymentVersions,
   [ListIntegrationTools.id]: ListIntegrationTools,
@@ -7086,6 +7180,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetEnvironmentVariables.id]: SetEnvironmentVariables,
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
   [ShareFile.id]: ShareFile,
+  [SteerAgent.id]: SteerAgent,
   [Table.id]: Table,
   [TableAutomations.id]: TableAutomations,
   [TableColumns.id]: TableColumns,
@@ -7093,11 +7188,13 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [TableManage.id]: TableManage,
   [TableRows.id]: TableRows,
   [TableViews.id]: TableViews,
+  [TailAgent.id]: TailAgent,
   [Terminal.id]: Terminal,
   [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,
   [UserTable.id]: UserTable,
   [Wait.id]: Wait,
+  [WaitAgents.id]: WaitAgents,
   [WebCrawl.id]: WebCrawl,
   [WebFetch.id]: WebFetch,
   [WebScrape.id]: WebScrape,
