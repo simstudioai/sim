@@ -3,6 +3,7 @@ import {
   MothershipStreamV1SpanPayloadKind,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { StreamHandler } from './types'
+import { addContentBlock } from './types'
 
 /**
  * Mirror Go-emitted span lifecycle events onto the Sim-side TraceCollector.
@@ -34,6 +35,46 @@ export const handleSpanEvent: StreamHandler = (event, context) => {
     // (e.g. two parallel `research` subagents) get distinct trace spans. Fall
     // back to agent:parentToolCallId for legacy events that predate span ids.
     const traceKey = event.scope?.spanId || `${scopeAgent}:${event.scope?.parentToolCallId || ''}`
+    // Persist the lane's lifecycle markers. Without a `subagent` start block,
+    // the transcript parser falls back to grouping lane content by agent NAME
+    // — so a respawned agent of the same type (a second concurrent `search`)
+    // silently merges into the first one's card and appears "missing" until
+    // that one resolves. Keyed and deduped by spanId, so every invocation —
+    // including same-type concurrent respawns — gets its own group.
+    const startData = payload.data as Record<string, unknown> | undefined
+    if (evt === MothershipStreamV1SpanLifecycleEvent.start) {
+      context.openSubagentSpans ??= new Set()
+      if (!context.openSubagentSpans.has(traceKey)) {
+        context.openSubagentSpans.add(traceKey)
+        addContentBlock(context, {
+          type: 'subagent',
+          content: scopeAgent,
+          ...(event.scope?.parentToolCallId
+            ? { parentToolCallId: event.scope.parentToolCallId }
+            : {}),
+          ...(event.scope?.spanId ? { spanId: event.scope.spanId } : {}),
+          ...(event.scope?.parentSpanId ? { parentSpanId: event.scope.parentSpanId } : {}),
+          ...(typeof startData?.name === 'string' && startData.name
+            ? { subagentName: startData.name }
+            : {}),
+        })
+      }
+    } else if (evt === MothershipStreamV1SpanLifecycleEvent.end) {
+      if (context.openSubagentSpans?.has(traceKey)) {
+        context.openSubagentSpans.delete(traceKey)
+        for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
+          const b = context.contentBlocks[i]
+          if (
+            b.type === 'subagent' &&
+            b.endedAt === undefined &&
+            (b.spanId || '') === (event.scope?.spanId || '')
+          ) {
+            b.endedAt = Date.now()
+            break
+          }
+        }
+      }
+    }
     if (evt === MothershipStreamV1SpanLifecycleEvent.start) {
       const span = context.trace.startSpan(`subagent:${scopeAgent}`, 'go.subagent', {
         agent: scopeAgent,

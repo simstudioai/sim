@@ -148,6 +148,8 @@ export interface StreamingContext {
    * block. Per-lane keying keeps each subagent's reasoning intact.
    */
   subagentThinkingBlocks: Map<string, ContentBlock>
+  /** Span ids whose lane start block has been persisted (dedupe across replays). */
+  openSubagentSpans?: Set<string>
   isInThinkingBlock: boolean
   subAgentContent: Record<string, string>
   subAgentToolCalls: Record<string, ToolCallState[]>
