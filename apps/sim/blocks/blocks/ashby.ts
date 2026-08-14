@@ -1149,15 +1149,20 @@ Output only the JSON array.`,
           result.values = parseCustomFieldValuesInput(params.fieldValues)
         }
         if (params.operation === 'change_application_source') {
-          // The Source ID subblock is hidden while the clear switch is on, but a
-          // value typed before the switch was flipped is still stored. Emitting
-          // it would send both intents and trip the tool's exclusivity guard, so
-          // the switch decides which one is sent.
+          // sourceId is always assigned, never conditionally, because the executor
+          // merges `{ ...inputs, ...transformedParams }` and a key this mapping
+          // leaves unset simply inherits whatever was in inputs. The create-path
+          // `sourceId` subblock leaks into exactly that gap: it is mode
+          // 'advanced', and the serializer includes an advanced subblock whenever
+          // its value is non-empty without ever evaluating its condition, so a
+          // value typed while on Create Application survives into this operation.
+          // Inheriting it would attribute a source nobody asked for, or collide
+          // with a clear request and fail with no visible cause.
           const unsetSource = params.unsetSource === 'true' || params.unsetSource === true
           const changeSourceId =
             typeof params.changeSourceId === 'string' ? params.changeSourceId.trim() : ''
+          result.sourceId = unsetSource || !changeSourceId ? undefined : changeSourceId
           if (unsetSource) result.unsetSource = true
-          else if (changeSourceId) result.sourceId = changeSourceId
         }
         return result
       },

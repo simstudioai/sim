@@ -190,13 +190,16 @@ describe('AshbyBlock', () => {
   })
 
   describe('change_application_source', () => {
-    it('does not emit a sourceId at all when the field is left blank', () => {
-      // Blank must not mean "clear": the tool rejects that unless unsetSource is
-      // set, so an accidentally empty field can no longer wipe attribution.
+    it('emits sourceId as undefined when the field is left blank', () => {
+      // The key must be PRESENT and undefined, not absent. The executor merges
+      // `{ ...inputs, ...transformedParams }`, so an absent key inherits whatever
+      // inputs held - which is exactly how a stale create-path sourceId used to
+      // leak in. Presence is what overrides it.
       const result = AshbyBlock.tools.config.params!(
         buildParams('change_application_source', { applicationId: 'app-1', changeSourceId: '' })
       )
-      expect(result).not.toHaveProperty('sourceId')
+      expect(result).toHaveProperty('sourceId')
+      expect(result.sourceId).toBeUndefined()
       expect(result).not.toHaveProperty('unsetSource')
     })
 
@@ -218,7 +221,50 @@ describe('AshbyBlock', () => {
         })
       )
       expect(result.unsetSource).toBe(true)
-      expect(result).not.toHaveProperty('sourceId')
+      expect(result).toHaveProperty('sourceId')
+      expect(result.sourceId).toBeUndefined()
+    })
+
+    it('never inherits a stale create-path source id through the executor merge', () => {
+      // The executor runs `{ ...inputs, ...transformedParams }`, so any key this
+      // mapping leaves unset inherits whatever inputs held. The shared
+      // create-path `sourceId` subblock reaches inputs even on this operation:
+      // it is mode 'advanced', and the serializer includes an advanced subblock
+      // on a non-empty value without evaluating its condition. Assert the merged
+      // result, not just the mapping, since that gap is where the bug lived.
+      const merge = (inputs: Record<string, unknown>) => ({
+        ...inputs,
+        ...AshbyBlock.tools.config.params!(inputs),
+      })
+
+      const cleared = merge(
+        buildParams('change_application_source', {
+          applicationId: 'app-1',
+          sourceId: 'stale-from-create-application',
+          changeSourceId: '',
+          unsetSource: 'true',
+        })
+      )
+      expect(cleared.sourceId).toBeUndefined()
+      expect(cleared.unsetSource).toBe(true)
+
+      const untouched = merge(
+        buildParams('change_application_source', {
+          applicationId: 'app-1',
+          sourceId: 'stale-from-create-application',
+          changeSourceId: '',
+        })
+      )
+      expect(untouched.sourceId).toBeUndefined()
+
+      const explicit = merge(
+        buildParams('change_application_source', {
+          applicationId: 'app-1',
+          sourceId: 'stale-from-create-application',
+          changeSourceId: 'src-intended',
+        })
+      )
+      expect(explicit.sourceId).toBe('src-intended')
     })
 
     it('hides the source id field while the clear switch is on', () => {
