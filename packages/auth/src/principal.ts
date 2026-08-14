@@ -36,6 +36,8 @@ export interface DelegatedPrincipal {
     tableId?: string
     chatId?: string
     executionId?: string
+    credentialId?: string
+    credentialGroupId?: string
   }
 }
 

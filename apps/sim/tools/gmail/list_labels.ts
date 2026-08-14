@@ -27,6 +27,7 @@ export const gmailListLabelsV2Tool: ToolConfig<GmailListLabelsParams, GmailListL
   oauth: {
     required: true,
     provider: 'google-email',
+    requiredScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
   },
 
   params: {

@@ -53,3 +53,26 @@ describe('buildSlackManifest - description', () => {
     )
   })
 })
+
+describe('buildSlackManifest - managed users', () => {
+  it('adds user OAuth configuration and its bot prerequisite', () => {
+    const manifest = buildSlackManifest(new Set(['action_send']), {
+      appName: 'Managed Slack',
+      webhookUrl: 'https://sim.ai/api/webhooks/slack/custom/credential-id',
+      managedUserAuthorization: {
+        redirectUrls: ['https://sim.ai/setup', 'https://sim.ai/connect'],
+        userScopes: ['im:history', 'users:read'],
+      },
+    })
+
+    expect(manifest).toMatchObject({
+      oauth_config: {
+        redirect_urls: ['https://sim.ai/setup', 'https://sim.ai/connect'],
+        scopes: {
+          bot: ['chat:write', 'users:read'],
+          user: ['im:history', 'users:read'],
+        },
+      },
+    })
+  })
+})

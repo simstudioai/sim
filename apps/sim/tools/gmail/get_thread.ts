@@ -35,6 +35,7 @@ export const gmailGetThreadV2Tool: ToolConfig<GmailGetThreadParams, GmailGetThre
   oauth: {
     required: true,
     provider: 'google-email',
+    requiredScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
   },
 
   params: {

@@ -10,6 +10,7 @@ export const gmailRemoveLabelTool: ToolConfig<GmailLabelParams, GmailToolRespons
   oauth: {
     required: true,
     provider: 'google-email',
+    requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
   },
 
   params: {

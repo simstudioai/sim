@@ -27,12 +27,19 @@ interface RouteContext {
 
 async function requireCredentialAdmin(credentialId: string, userId: string) {
   const [cred] = await db
-    .select({ id: credential.id, workspaceId: credential.workspaceId, type: credential.type })
+    .select({
+      id: credential.id,
+      workspaceId: credential.workspaceId,
+      type: credential.type,
+      providerId: credential.providerId,
+    })
     .from(credential)
     .where(eq(credential.id, credentialId))
     .limit(1)
 
-  if (!cred) return null
+  if (!cred || cred.type === 'managed_oauth') {
+    return null
+  }
 
   const perm = await getUserEntityPermissions(userId, 'workspace', cred.workspaceId)
   if (perm === null) return null
@@ -67,12 +74,17 @@ export const GET = withRouteHandler(async (_request: NextRequest, context: Route
     const { id: credentialId } = await context.params
 
     const [cred] = await db
-      .select({ id: credential.id, workspaceId: credential.workspaceId, type: credential.type })
+      .select({
+        id: credential.id,
+        workspaceId: credential.workspaceId,
+        type: credential.type,
+        providerId: credential.providerId,
+      })
       .from(credential)
       .where(eq(credential.id, credentialId))
       .limit(1)
 
-    if (!cred) {
+    if (!cred || cred.type === 'managed_oauth') {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 

@@ -19,6 +19,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
   oauth: {
     required: true,
     provider: 'google-email',
+    requiredScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
   },
 
   params: {

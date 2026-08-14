@@ -1,11 +1,22 @@
 import { AuditAction, AuditResourceType, auditUpdatedFields, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { credential, environment, webhook, workspaceEnvironment } from '@sim/db/schema'
+import {
+  credential,
+  credentialGroup,
+  environment,
+  webhook,
+  workspaceEnvironment,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { listSlackCredentialGroupConfigurationsForBot } from '@/lib/credential-groups/provider-configuration'
+import {
+  SlackManagedUsersError,
+  verifySlackCustomBotAppIdentity,
+} from '@/lib/credential-groups/slack-managed-users'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import {
@@ -169,6 +180,9 @@ export async function performUpdateCredential(
     if (!access.credential) {
       return { success: false, error: 'Credential not found', errorCode: 'not_found' }
     }
+    if (access.credential.type === 'managed_oauth') {
+      return { success: false, error: 'Credential not found', errorCode: 'not_found' }
+    }
     if (!access.hasWorkspaceAccess || !access.isAdmin) {
       return {
         success: false,
@@ -250,6 +264,41 @@ export async function performUpdateCredential(
           : null
 
       try {
+        const slackConfigurations =
+          providerId === SLACK_CUSTOM_BOT_PROVIDER_ID
+            ? await listSlackCredentialGroupConfigurationsForBot({
+                workspaceId: access.credential.workspaceId,
+                slackBotCredentialId: access.credential.id,
+              })
+            : []
+        if (slackConfigurations.length > 0) {
+          if (!params.botToken) {
+            throw new ServiceAccountSecretError(
+              'Bot token is required to reconnect a managed-user Slack app'
+            )
+          }
+          try {
+            const identity = await verifySlackCustomBotAppIdentity(params.botToken)
+            if (
+              slackConfigurations.some(
+                (configuration) =>
+                  identity.appId !== configuration.appId || identity.teamId !== configuration.teamId
+              )
+            ) {
+              throw new ServiceAccountSecretError(
+                'This bot token belongs to a different Slack app or workspace. Create a new custom bot credential for a different Slack app.'
+              )
+            }
+          } catch (error) {
+            if (error instanceof ServiceAccountSecretError) throw error
+            if (error instanceof SlackManagedUsersError) {
+              throw new ServiceAccountSecretError(error.message)
+            }
+            throw new ServiceAccountSecretError(
+              'Could not verify that the replacement bot token belongs to the configured Slack app'
+            )
+          }
+        }
         const secret = await verifyAndBuildServiceAccountSecret(providerId, {
           signingSecret: params.signingSecret,
           botToken: params.botToken,
@@ -387,6 +436,9 @@ export async function performDeleteCredential(
     if (!access.credential) {
       return { success: false, error: 'Credential not found', errorCode: 'not_found' }
     }
+    if (access.credential.type === 'managed_oauth') {
+      return { success: false, error: 'Credential not found', errorCode: 'not_found' }
+    }
     if (!access.hasWorkspaceAccess || !access.isAdmin) {
       return {
         success: false,
@@ -399,6 +451,31 @@ export async function performDeleteCredential(
         success: false,
         error: `Only ${params.allowedTypes.join(', ')} credentials can be managed with this tool.`,
         errorCode: 'validation',
+      }
+    }
+
+    if (access.credential.providerId === SLACK_CUSTOM_BOT_PROVIDER_ID) {
+      const [binding] = await db
+        .select({ id: credentialGroup.id })
+        .from(credentialGroup)
+        .where(
+          and(
+            eq(credentialGroup.workspaceId, access.credential.workspaceId),
+            sql`EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements(${credentialGroup.options}) AS option
+              WHERE option->>'slackBotCredentialId' = ${access.credential.id}
+                AND option->>'status' = 'active'
+            )`
+          )
+        )
+        .limit(1)
+      if (binding) {
+        return {
+          success: false,
+          error: 'Remove this custom Slack bot from its Credential Groups before deleting it.',
+          errorCode: 'conflict',
+        }
       }
     }
 

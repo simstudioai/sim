@@ -38,6 +38,7 @@ export const gmailUpdateLabelV2Tool: ToolConfig<GmailUpdateLabelParams, GmailUpd
     oauth: {
       required: true,
       provider: 'google-email',
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
     },
 
     params: {

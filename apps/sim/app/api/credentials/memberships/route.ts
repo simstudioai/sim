@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { credential, credentialMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { leaveCredentialQuerySchema } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage } from '@/lib/api/server'
@@ -31,7 +31,9 @@ export const GET = withRouteHandler(async () => {
       })
       .from(credentialMember)
       .innerJoin(credential, eq(credentialMember.credentialId, credential.id))
-      .where(eq(credentialMember.userId, session.user.id))
+      .where(
+        and(eq(credentialMember.userId, session.user.id), ne(credential.type, 'managed_oauth'))
+      )
 
     return NextResponse.json({ memberships }, { status: 200 })
   } catch (error) {

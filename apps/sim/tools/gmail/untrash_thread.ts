@@ -26,6 +26,7 @@ export const gmailUntrashThreadV2Tool: ToolConfig<
   oauth: {
     required: true,
     provider: 'google-email',
+    requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
   },
 
   params: {

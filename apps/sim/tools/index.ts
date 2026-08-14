@@ -4,6 +4,7 @@ import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
+import { MANAGED_OAUTH_DELEGATION_HEADER } from '@/lib/api/contracts/oauth-connections'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
   type GenerateInternalDelegationTokenInput,
@@ -1700,11 +1701,12 @@ async function executeToolImplementation(
         `[${requestId}] Tool ${toolId} needs access token for credential: ${contextParams.credential}`
       )
       try {
-        const workflowId = contextParams._context?.workflowId
-        const userId = contextParams._context?.userId
+        const workflowId = scope.workflowId
+        const userId = scope.userId
 
         const tokenPayload: OAuthTokenPayload = {
           credentialId: contextParams.credential as string,
+          toolId,
         }
         if (workflowId) {
           tokenPayload.workflowId = workflowId
@@ -1713,8 +1715,9 @@ async function executeToolImplementation(
           tokenPayload.impersonateEmail = contextParams.impersonateUserEmail as string
         }
         if (tool?.oauth?.provider) {
-          const { getCanonicalScopesForProvider } = await import('@/lib/oauth/utils')
-          const providerScopes = getCanonicalScopesForProvider(tool.oauth.provider)
+          const providerScopes =
+            tool.oauth.requiredScopes ??
+            (await import('@/lib/oauth/utils')).getCanonicalScopesForProvider(tool.oauth.provider)
           if (providerScopes.length > 0) {
             tokenPayload.scopes = providerScopes
           }
@@ -1762,6 +1765,21 @@ async function executeToolImplementation(
             tokenHeaders.Authorization = `Bearer ${internalToken}`
           } catch (_e) {
             // Swallow token generation errors; the request will fail and be reported upstream
+          }
+          const managedCredentialDelegation =
+            executionContext?.executorDelegationOrigin ??
+            (workflowId && userId
+              ? {
+                  subjectUserId: userId,
+                  workflowId,
+                  ...(scope.executionId ? { executionId: scope.executionId } : {}),
+                }
+              : undefined)
+          if (managedCredentialDelegation) {
+            const delegationHeaders = await buildExecutorDelegationHeaders(
+              managedCredentialDelegation
+            )
+            tokenHeaders[MANAGED_OAUTH_DELEGATION_HEADER] = delegationHeaders.Authorization
           }
         }
 

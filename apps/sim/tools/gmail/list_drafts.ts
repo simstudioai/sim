@@ -30,6 +30,7 @@ export const gmailListDraftsV2Tool: ToolConfig<GmailListDraftsParams, GmailListD
   oauth: {
     required: true,
     provider: 'google-email',
+    requiredScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
   },
 
   params: {

@@ -24,6 +24,7 @@ export const gmailTrashThreadV2Tool: ToolConfig<GmailTrashThreadParams, GmailTra
     oauth: {
       required: true,
       provider: 'google-email',
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
     },
 
     params: {
