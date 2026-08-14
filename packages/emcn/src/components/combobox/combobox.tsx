@@ -17,6 +17,7 @@ import {
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown, Loader, Search } from '../../icons'
 import { cn } from '../../lib/cn'
+import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
 import {
   DROPDOWN_MENU_ITEM_BASE_CLASSES,
   DROPDOWN_MENU_SURFACE_CLASSES,
@@ -869,8 +870,17 @@ const Combobox = memo(
                                     : 'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
                                   appearance !== 'chip' &&
                                     (size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm'),
-                                  'hover-hover:bg-[var(--surface-active)]',
-                                  (isHighlighted || isSelected) && 'bg-[var(--surface-active)]',
+                                  /*
+                                     No CSS `:hover` here — `isHighlighted` is the
+                                     single source of truth for the cursor, because
+                                     it is also what Enter commits. A `:hover` class
+                                     tracks the pointer continuously while
+                                     `highlightedIndex` only moves on `mouseenter`,
+                                     so after the list scrolls under a stationary
+                                     pointer the two disagree and the row that looks
+                                     selected is not the one Enter would choose.
+                                  */
+                                  (isHighlighted || isSelected) && chipActiveSurfaceClass,
                                   option.disabled && 'cursor-not-allowed opacity-50'
                                 )}
                               >
@@ -919,8 +929,10 @@ const Combobox = memo(
                               : 'relative flex cursor-pointer select-none items-center rounded-sm px-1.5 font-sans',
                             appearance !== 'chip' &&
                               (size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm'),
-                            'hover-hover:bg-[var(--surface-active)]',
-                            !multiSelectValues?.length && 'bg-[var(--surface-active)]'
+                            // Clears the highlight rather than taking it, so unlike option rows it hovers.
+                            !multiSelectValues?.length
+                              ? chipActiveSurfaceClass
+                              : chipHoverSurfaceClass
                           )}
                         >
                           <span
@@ -963,8 +975,8 @@ const Combobox = memo(
                                 : 'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
                               appearance !== 'chip' &&
                                 (size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm'),
-                              'hover-hover:bg-[var(--surface-active)]',
-                              (isHighlighted || isSelected) && 'bg-[var(--surface-active)]',
+                              // See above: `isHighlighted` alone, so paint matches what Enter commits.
+                              (isHighlighted || isSelected) && chipActiveSurfaceClass,
                               option.disabled && 'cursor-not-allowed opacity-50'
                             )}
                           >

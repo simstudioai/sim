@@ -31,6 +31,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/types'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { getBlock } from '@/blocks'
+import { BlockTile } from '@/blocks/block-tile'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { BlockConfig } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
@@ -163,6 +164,25 @@ const BLOCK_COLORS = {
   VARIABLE: '#2F8BFF',
   DEFAULT: '#2F55FF',
 } as const
+
+const TagIcon: React.FC<{
+  icon: string | React.ComponentType<{ className?: string }>
+  color: string
+}> = ({ icon, color }) => (
+  <div
+    className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded [&_img]:size-full'
+    style={{ background: color }}
+  >
+    {typeof icon === 'string' ? (
+      <span className={cn(getTileIconColorClass(color, true), 'font-bold text-micro')}>{icon}</span>
+    ) : (
+      (() => {
+        const IconComponent = icon
+        return <IconComponent className={cn(getTileIconColorClass(color, true), 'size-[9px]')} />
+      })()
+    )}
+  </div>
+)
 
 /**
  * Prefix constants for special tag types.
@@ -380,25 +400,6 @@ const buildNestedTagTree = (tags: string[], blockName: string): NestedTag[] => {
 
   return convertToNestedTags(root, '', blockName)
 }
-
-const TagIcon: React.FC<{
-  icon: string | React.ComponentType<{ className?: string }>
-  color: string
-}> = ({ icon, color }) => (
-  <div
-    className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded [&_img]:size-full'
-    style={{ background: color }}
-  >
-    {typeof icon === 'string' ? (
-      <span className={cn(getTileIconColorClass(color, true), 'font-bold text-micro')}>{icon}</span>
-    ) : (
-      (() => {
-        const IconComponent = icon
-        return <IconComponent className={cn(getTileIconColorClass(color, true), 'size-[9px]')} />
-      })()
-    )}
-  </div>
-)
 
 /**
  * Props for the recursive NestedTagRenderer component
@@ -846,7 +847,7 @@ const BlockRootTagItem: React.FC<{
       ) : (
         <WorkflowTypeTag
           type={blockType}
-          blockName={blockName}
+          typeLabel={blockName}
           Icon={tagIcon}
           iconBgColor={brandColor}
           isIntegration={isIntegration}
@@ -1735,7 +1736,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   <>
                     <PopoverSection rootOnly>
                       <div className='flex items-center gap-1.5'>
-                        <TagIcon icon='V' color={BLOCK_COLORS.VARIABLE} />
+                        <BlockTile bgColor={BLOCK_COLORS.VARIABLE} fallbackLabel='V' size='sm' />
                         Variables
                       </div>
                     </PopoverSection>

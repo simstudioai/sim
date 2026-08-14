@@ -33,6 +33,15 @@ function getPanelResizeTarget(): HTMLElement | null {
 }
 
 /**
+ * The toast stack also insets its right edge by `--panel-width`, but is
+ * portalled to `<body>` and so shares no ancestor with the panel. See
+ * `use-terminal-resize.ts` for why this is written alongside the primary.
+ */
+function getToastViewport(): (HTMLElement | null)[] {
+  return [document.querySelector<HTMLElement>('[data-toast-viewport]')]
+}
+
+/**
  * Handles panel drag-resize with zero React renders during the drag. The
  * `--panel-width` variable is written to `.workflow-canvas-shell` (a scoped style
  * recalc shared by the canvas and panel) rather than `:root`, and the final width
@@ -91,6 +100,7 @@ export function usePanelResize() {
     cursor: 'ew-resize',
     cssVar: '--panel-width',
     getTarget: getPanelResizeTarget,
+    getExtraTargets: getToastViewport,
     compute: computePanelWidth,
     commit: setPanelWidth,
   })

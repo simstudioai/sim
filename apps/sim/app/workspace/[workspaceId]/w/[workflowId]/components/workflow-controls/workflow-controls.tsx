@@ -162,7 +162,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
               className='size-[30px] rounded-lg p-0 hover-hover:bg-[var(--surface-5)]'
               onClick={handleFitToView}
             >
-              <SelectAll className='size-[16px]' />
+              <SelectAll className='size-[14px]' />
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
@@ -174,9 +174,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
       <Popover
         open={contextMenu !== null}
         onOpenChange={(open) => !open && setContextMenu(null)}
-        variant='secondary'
         size='sm'
-        colorScheme='inverted'
       >
         <PopoverAnchor
           style={{

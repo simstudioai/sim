@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ChipTag, cn, Loader, Tooltip, thinScrollbarClass } from '@sim/emcn'
 import { SquareArrowUpRight } from '@sim/emcn/icons'
 import { getWorkflowTypeAccent } from '@sim/workflow-renderer'
+import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
+import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
   buildCanonicalIndex,
   isCanonicalPair,
@@ -18,6 +20,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar'
 import {
   AvailableData,
+  RetrySettings,
   SubBlock,
   SubflowEditor,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
@@ -170,9 +173,23 @@ export function Editor() {
 
   const {
     collaborativeSetBlockCanonicalMode,
+    collaborativeSetBlockRetry,
     collaborativeUpdateBlockDescription,
     collaborativeUpdateBlockName,
   } = useCollaborativeWorkflow()
+
+  const supportsRetry = isRetryEligibleBlock({
+    blockType: currentBlock?.type,
+    category: blockConfig?.category,
+    triggerMode,
+  })
+  const handleChangeRetry = useCallback(
+    (retry: BlockRetryConfig) => {
+      if (!currentBlockId) return
+      collaborativeSetBlockRetry(currentBlockId, retry)
+    },
+    [currentBlockId, collaborativeSetBlockRetry]
+  )
 
   const [isRenaming, setIsRenaming] = useState(false)
   const [isEditingDescription, setIsEditingDescription] = useState(false)
@@ -546,65 +563,74 @@ export function Editor() {
                     This block has no subblocks
                   </div>
                 ) : (
-                  <BlockEditorSections blockType={currentBlock.type} subBlocks={subBlocks}>
-                    {(subBlock) => {
-                      const stableKey = getSubBlockStableKey(
-                        currentBlockId || '',
-                        subBlock,
-                        subBlockState
-                      )
-                      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
-                      const canonicalGroup = canonicalId
-                        ? canonicalIndex.groupsById[canonicalId]
-                        : undefined
-                      const isCanonicalSwap = isCanonicalPair(canonicalGroup)
-                      const canonicalMode =
-                        canonicalGroup && isCanonicalSwap
-                          ? resolveCanonicalMode(
-                              canonicalGroup,
-                              blockSubBlockValues,
-                              canonicalModeOverrides
-                            )
+                  <div className='flex flex-col gap-4'>
+                    <BlockEditorSections blockType={currentBlock.type} subBlocks={subBlocks}>
+                      {(subBlock) => {
+                        const stableKey = getSubBlockStableKey(
+                          currentBlockId || '',
+                          subBlock,
+                          subBlockState
+                        )
+                        const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+                        const canonicalGroup = canonicalId
+                          ? canonicalIndex.groupsById[canonicalId]
                           : undefined
+                        const isCanonicalSwap = isCanonicalPair(canonicalGroup)
+                        const canonicalMode =
+                          canonicalGroup && isCanonicalSwap
+                            ? resolveCanonicalMode(
+                                canonicalGroup,
+                                blockSubBlockValues,
+                                canonicalModeOverrides
+                              )
+                            : undefined
 
-                      return (
-                        <div key={stableKey} className='subblock-row'>
-                          <SubBlock
-                            blockId={currentBlockId}
-                            config={subBlock}
-                            isPreview={false}
-                            subBlockValues={subBlockState}
-                            disabled={!canEditBlock}
-                            allowExpandInPreview={false}
-                            isSearchHighlighted={
-                              activeSearchTarget?.blockId === currentBlockId &&
-                              (activeSearchTarget.subBlockId === subBlock.id ||
-                                activeSearchTarget.canonicalSubBlockId ===
-                                  (subBlock.canonicalParamId ?? subBlock.id))
-                            }
-                            canonicalToggle={
-                              isCanonicalSwap && canonicalMode && canonicalId
-                                ? {
-                                    mode: canonicalMode,
-                                    disabled: !canEditBlock,
-                                    onToggle: () => {
-                                      if (!currentBlockId) return
-                                      const nextMode =
-                                        canonicalMode === 'advanced' ? 'basic' : 'advanced'
-                                      collaborativeSetBlockCanonicalMode(
-                                        currentBlockId,
-                                        canonicalId,
-                                        nextMode
-                                      )
-                                    },
-                                  }
-                                : undefined
-                            }
-                          />
-                        </div>
-                      )
-                    }}
-                  </BlockEditorSections>
+                        return (
+                          <div key={stableKey} className='subblock-row'>
+                            <SubBlock
+                              blockId={currentBlockId}
+                              config={subBlock}
+                              isPreview={false}
+                              subBlockValues={subBlockState}
+                              disabled={!canEditBlock}
+                              allowExpandInPreview={false}
+                              isSearchHighlighted={
+                                activeSearchTarget?.blockId === currentBlockId &&
+                                (activeSearchTarget.subBlockId === subBlock.id ||
+                                  activeSearchTarget.canonicalSubBlockId ===
+                                    (subBlock.canonicalParamId ?? subBlock.id))
+                              }
+                              canonicalToggle={
+                                isCanonicalSwap && canonicalMode && canonicalId
+                                  ? {
+                                      mode: canonicalMode,
+                                      disabled: !canEditBlock,
+                                      onToggle: () => {
+                                        if (!currentBlockId) return
+                                        const nextMode =
+                                          canonicalMode === 'advanced' ? 'basic' : 'advanced'
+                                        collaborativeSetBlockCanonicalMode(
+                                          currentBlockId,
+                                          canonicalId,
+                                          nextMode
+                                        )
+                                      },
+                                    }
+                                  : undefined
+                              }
+                            />
+                          </div>
+                        )
+                      }}
+                    </BlockEditorSections>
+                    {supportsRetry && (
+                      <RetrySettings
+                        retry={currentBlock.retry}
+                        disabled={!canEditBlock}
+                        onChange={handleChangeRetry}
+                      />
+                    )}
+                  </div>
                 )}
               </div>
             </div>

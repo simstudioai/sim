@@ -128,7 +128,6 @@ function ConnectionItem({
     blockConfig?.icon ??
     (connection.type === 'loop' ? Repeat : connection.type === 'parallel' ? Split : Box)
   const reference = `<${normalizeName(connection.name)}>`
-
   return (
     <div className='mb-0.5 last:mb-0' ref={connectionRef}>
       <div
@@ -150,7 +149,7 @@ function ConnectionItem({
       >
         <WorkflowTypeTag
           type={connection.type}
-          blockName={connection.name}
+          typeLabel={connection.name}
           Icon={Icon}
           iconBgColor={blockConfig?.bgColor ?? ''}
           isIntegration={blockConfig?.category === 'tools'}

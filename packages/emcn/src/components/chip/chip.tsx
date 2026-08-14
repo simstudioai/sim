@@ -11,10 +11,12 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import Link, { type LinkProps } from 'next/link'
 import { cn } from '../../lib/cn'
 import {
+  chipActiveSurfaceClass,
   chipContentIconClass,
   chipContentLabelClass,
   chipFilledFillTokens,
   chipGeometryWithoutRadiusClass,
+  chipHoverSurfaceClass,
   chipPrimaryFillTokens,
 } from './chip-chrome'
 
@@ -27,16 +29,16 @@ import {
  * - `chipVariants({...})` → any other element (`<div role='button'>`, `<DropdownMenuTrigger asChild>` inner, etc.)
  *
  * @remarks
- * The implicit **default** variant is the bare pill — transparent, `--surface-active` on hover. Omit `variant`
+ * The implicit **default** variant is the bare pill — transparent, `--surface-hover` on hover. Omit `variant`
  * to get it (shadcn-style); never write `variant='default'`. Named variants:
- * `filled` (`--surface-5` light / `--surface-4` dark fill, `--surface-active` hover) — a borderless surface reserved for
+ * `filled` (`--surface-5` light / `--surface-4` dark fill, `--surface-hover` hover) — a borderless surface reserved for
  * chip FIELDS/TRIGGERS ({@link ChipInput}/{@link ChipDropdown}/{@link ChipSelect}/{@link ChipDatePicker}), **never `Chip`
  * itself**; those triggers add the `--border-1` outline themselves via `TRIGGER_BORDER_CLASS`;
  * `primary` (inverse surface), `destructive` (error-token surface), `border-shadow` (raised card-like surface),
  * `border` (the `border-shadow` shadow ring on a transparent surface — an outline drawn purely via box-shadow,
  * no CSS border, no fill).
- * `active` renders the default/filled chip in its selected state — `--surface-active` at rest, one surface darker
- * (`--surface-6`) on hover. `fullWidth` swaps `inline-flex` for block-level `flex`.
+ * `active` renders the default/filled chip in its selected state — `--surface-active`, held through hover.
+ * `fullWidth` swaps `inline-flex` for block-level `flex`.
  *
  * The chip carries NO outer margin — spacing between chips belongs to the parent, as a `gap`. It used to ship a
  * default `mx-0.5` "cluster margin" with a `flush` prop to switch it off, which meant a chip's visual box was not
@@ -44,10 +46,12 @@ import {
  * could never close past the margins. Do not reintroduce it.
  *
  * The default/filled hover lives in `active`-keyed compound variants (not the base variant string) so the
- * rest/hover classes are mutually exclusive — a chip renders exactly ONE `hover-hover:bg-*`. This keeps raw
+ * rest/hover classes are mutually exclusive — a chip renders AT MOST ONE `hover-hover:bg-*`. This keeps raw
  * `chipVariants({...})` consumers identical to `cn(chipVariants({...}))` ones; folding the non-active hover back
  * into the variant string would emit two conflicting hover classes that only `cn`'s tailwind-merge resolves,
  * silently diverging raw consumers (e.g. an active row that darkens with `Chip` but not with raw `chipVariants`).
+ * The two surfaces themselves, and why an active chip takes no hover class at all, are documented on
+ * {@link chipHoverSurfaceClass}.
  */
 const chipVariants = cva(
   `group cursor-pointer ${chipGeometryWithoutRadiusClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
@@ -61,8 +65,7 @@ const chipVariants = cva(
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
         'border-shadow':
           'bg-[var(--surface-2)] shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-3)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)] dark:hover-hover:bg-[var(--surface-4)]',
-        border:
-          'shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-active)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]',
+        border: `shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] ${chipHoverSurfaceClass} dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]`,
       },
       active: { true: '', false: '' },
       fullWidth: { true: 'flex', false: 'inline-flex' },
@@ -74,26 +77,8 @@ const chipVariants = cva(
       },
     },
     compoundVariants: [
-      {
-        variant: 'default',
-        active: false,
-        className: 'hover-hover:bg-[var(--surface-active)]',
-      },
-      {
-        variant: 'default',
-        active: true,
-        className: 'bg-[var(--surface-active)] hover-hover:bg-[var(--surface-6)]',
-      },
-      {
-        variant: 'filled',
-        active: false,
-        className: 'hover-hover:bg-[var(--surface-active)]',
-      },
-      {
-        variant: 'filled',
-        active: true,
-        className: 'bg-[var(--surface-active)] hover-hover:bg-[var(--surface-6)]',
-      },
+      { variant: ['default', 'filled'], active: false, className: chipHoverSurfaceClass },
+      { variant: ['default', 'filled'], active: true, className: chipActiveSurfaceClass },
     ],
     defaultVariants: {
       variant: 'default',
