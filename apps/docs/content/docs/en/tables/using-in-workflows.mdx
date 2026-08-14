@@ -125,7 +125,7 @@ After the run, the table holds the enriched rows. The next run queries them agai
 
 **Iterate row by row.** Wrap a Query → process → update cycle in a [Loop block](/workflows/blocks/loop) to handle one row at a time. This runs sequentially, slower than a batch update but useful when each row needs its own multi-step logic. Inside the loop the Agent reads the current row and an Update Row by ID writes its result.
 
-**Paginate large reads.** Query Rows returns at most 1000 rows. When `totalCount` exceeds your **Limit**, increase **Offset** on each pass (0, then 100, then 200) to walk through the whole table, typically inside a Loop.
+**Paginate large reads.** Query Rows returns at most 1000 rows, and a page can also end early once its rows reach the response size budget — so a page may come back shorter than your **Limit** even when more rows match. Advance **Offset** by the `rowCount` you actually received, not by the Limit you asked for, and keep going while `nextCursor` is set. Stop when `nextCursor` is null. Stepping by the Limit instead skips whatever a short page left behind.
 
 ## Inspecting reads and writes
 
