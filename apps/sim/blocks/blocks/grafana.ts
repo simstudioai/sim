@@ -1312,6 +1312,16 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     dataSourceUid: { type: 'string', description: 'Data source UID for health checks' },
   },
   outputs: {
+    annotationId: {
+      type: 'number',
+      description:
+        'The annotation that was updated, echoed from the request — Grafana answers a patch with only a message',
+    },
+    details: {
+      type: 'json',
+      description:
+        'Extra structured detail from a data source health check, when the plugin supplies any',
+    },
     results: {
       type: 'json',
       description: 'Raw data source query response, keyed by query refId',
