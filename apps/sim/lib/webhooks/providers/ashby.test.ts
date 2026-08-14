@@ -152,14 +152,12 @@ describe('ashbyHandler', () => {
     } as never
 
     const respondWith = (body: unknown, status = 200) => {
-      globalThis.fetch = vi
-        .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify(body), {
-            status,
-            headers: { 'content-type': 'application/json' },
-          })
-        ) as never
+      globalThis.fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { 'content-type': 'application/json' },
+        })
+      ) as never
     }
 
     it('surfaces the object-shaped errors array Ashby documents', async () => {
