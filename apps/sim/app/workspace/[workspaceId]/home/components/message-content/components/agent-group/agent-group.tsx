@@ -114,6 +114,7 @@ export function AgentGroup({
   isLaneOpen = false,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
+  const isMainAgent = agentName === 'mothership'
   // Collapsed status line: the latest tool call, always in its RUNNING
   // phrasing — it never flips to the completed rewrite (that lives in the
   // expanded log). With parallel tools, the most recently started
@@ -121,7 +122,7 @@ export function AgentGroup({
   // rounds the last tool's title stays frozen; a closed lane shows the bare
   // name.
   const status = (() => {
-    if (!isLaneOpen) return undefined
+    if (isMainAgent || !isLaneOpen) return undefined
     let running: string | undefined
     let runningCount = 0
     let lastAny: string | undefined
@@ -147,12 +148,13 @@ export function AgentGroup({
   const isWorking =
     !activeBrowserTakeover && ((isDelegating && !resolved) || (isStreaming && isLaneOpen))
 
-  // Agent groups never auto-expand: the collapsed row IS the live view — the
-  // label plus the agent's latest <intent> tag, replaced inline as it works.
-  // Expanding is a deliberate user action (the toggle below); only an
-  // outstanding permission prompt or a browser hand-back forces the group
-  // open, because the turn cannot proceed while they wait off-screen.
-  const autoExpanded = false
+  // SUBAGENT groups never auto-expand: the collapsed row IS the live view —
+  // label plus latest running tool title. Expanding is a deliberate user
+  // action; only a pending permission prompt or a browser hand-back forces
+  // one open. The MAIN lane ("Sim") is not a delegation card: its narration
+  // and tool calls are the turn itself, so it keeps the original live-expand
+  // behavior (open while streaming/current, settles when superseded).
+  const autoExpanded = isMainAgent && isStreaming && (isCurrentSection || isLaneOpen || !resolved)
   const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
   const [expandedTakeoverId, setExpandedTakeoverId] = useState<string | null>(null)
   // An outstanding permission prompt overrides a manual collapse: the turn
