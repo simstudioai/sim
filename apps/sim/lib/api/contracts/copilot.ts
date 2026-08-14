@@ -148,6 +148,20 @@ export const copilotChatSteerBodySchema = z.object({
 })
 export type CopilotChatSteerBody = z.input<typeof copilotChatSteerBodySchema>
 
+export const copilotToolExecuteInternalBodySchema = z.object({
+  toolCallId: z.string().min(1, 'toolCallId is required'),
+  toolName: z.string().min(1, 'toolName is required'),
+  params: z.record(z.string(), z.unknown()).default({}),
+  userId: z.string().min(1, 'userId is required'),
+  workflowId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  chatId: z.string().optional(),
+  messageId: z.string().optional(),
+  parentToolCallId: z.string().optional(),
+  userPermission: z.string().optional(),
+})
+export type CopilotToolExecuteInternalBody = z.input<typeof copilotToolExecuteInternalBodySchema>
+
 export const copilotChatGetQuerySchema = z
   .object({
     workflowId: z.string().optional(),
