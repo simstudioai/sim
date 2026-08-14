@@ -14,7 +14,7 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { toast } from '@sim/emcn'
+import { cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import type { SubflowNodeData } from '@sim/workflow-renderer'
@@ -61,7 +61,6 @@ import {
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { WorkflowSearchReplace } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/workflow-search-replace'
-import { WorkflowControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
 import {
   useAutoLayout,
   useCanvasContextMenu,
@@ -4125,6 +4124,14 @@ const WorkflowContent = React.memo(
       }
     }, [closeConnectionBlockSelector, pendingConnect])
 
+    const handleClosePanelEditor = useCallback(() => {
+      setSelectedEdges(new Map())
+      setDisplayNodes((currentNodes) =>
+        currentNodes.map((node) => (node.selected ? { ...node, selected: false } : node))
+      )
+      usePanelEditorStore.getState().clearCurrentBlock()
+    }, [])
+
     const handleCanvasPointerDownCapture = () => {
       if (pendingConnect) {
         hasPointerDownSinceSelectorOpenedRef.current = true
@@ -4741,7 +4748,14 @@ const WorkflowContent = React.memo(
     }, [blocksStructureHash, embedded, isWorkflowReady, scheduleEmbeddedFit])
 
     return (
-      <div className='flex h-full w-full overflow-hidden'>
+      <div className='relative flex h-full w-full overflow-hidden'>
+        {!embedded && (
+          <div
+            aria-hidden='true'
+            className='pointer-events-none absolute inset-x-0 top-0 z-10 h-[40px] border-[var(--border)] border-b bg-[var(--bg)]'
+          />
+        )}
+
         <div className='flex min-w-0 flex-1 flex-col'>
           <div
             ref={canvasContainerRef}
@@ -4749,10 +4763,18 @@ const WorkflowContent = React.memo(
             /* The in-flight line reads `--text-secondary`, not the `--workflow-edge`
                grey a resting edge uses: it has to stay legible over a subflow body
                as well as the canvas, and that grey is ~1.1:1 against one. */
-            className='relative flex-1 overflow-hidden [--connection-line-stroke:var(--text-secondary)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none'
+            className={cn(
+              'workflow-canvas-shell relative flex-1 overflow-hidden [--connection-line-stroke:var(--text-secondary)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none',
+              !embedded && 'pr-[var(--panel-width)]'
+            )}
           >
             {!isWorkflowReady && (
-              <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
+              <div
+                className={cn(
+                  'absolute top-0 bottom-0 left-0 z-[5] flex items-center justify-center bg-[var(--bg)]',
+                  embedded ? 'right-0' : 'right-[var(--panel-width)]'
+                )}
+              >
                 <div
                   className='size-[18px] animate-spin rounded-full'
                   style={{
@@ -4876,7 +4898,6 @@ const WorkflowContent = React.memo(
 
                 {!embedded && (
                   <>
-                    <WorkflowControls />
                     <Suspense fallback={null}>
                       <LazyChat />
                     </Suspense>
@@ -4951,6 +4972,8 @@ const WorkflowContent = React.memo(
               </>
             )}
 
+            {!embedded && <Panel onCloseEditor={handleClosePanelEditor} />}
+
             {!embedded && <WorkflowSearchReplace />}
 
             {!embedded && isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
@@ -4962,8 +4985,6 @@ const WorkflowContent = React.memo(
 
           <Terminal />
         </div>
-
-        {!embedded && <Panel />}
 
         {!embedded && oauthModal && (
           <ConnectOAuthModal

@@ -15,7 +15,7 @@ import {
   chipContentIconClass,
   chipContentLabelClass,
   chipFilledFillTokens,
-  chipGeometryClass,
+  chipGeometryWithoutRadiusClass,
   chipHoverSurfaceClass,
   chipPrimaryFillTokens,
 } from './chip-chrome'
@@ -54,7 +54,7 @@ import {
  * {@link chipHoverSurfaceClass}.
  */
 const chipVariants = cva(
-  `group cursor-pointer ${chipGeometryClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
+  `group cursor-pointer ${chipGeometryWithoutRadiusClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
   {
     variants: {
       variant: {
@@ -69,12 +69,23 @@ const chipVariants = cva(
       },
       active: { true: '', false: '' },
       fullWidth: { true: 'flex', false: 'inline-flex' },
+      groupPosition: {
+        standalone: 'rounded-lg',
+        first: 'rounded-l-lg rounded-r-none',
+        middle: 'rounded-none',
+        last: 'rounded-l-none rounded-r-lg',
+      },
     },
     compoundVariants: [
       { variant: ['default', 'filled'], active: false, className: chipHoverSurfaceClass },
       { variant: ['default', 'filled'], active: true, className: chipActiveSurfaceClass },
     ],
-    defaultVariants: { variant: 'default', active: false, fullWidth: false },
+    defaultVariants: {
+      variant: 'default',
+      active: false,
+      fullWidth: false,
+      groupPosition: 'standalone',
+    },
   }
 )
 
@@ -138,6 +149,7 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
     variant,
     active,
     fullWidth,
+    groupPosition,
     leftIcon,
     leftAdornment,
     rightIcon,
@@ -151,7 +163,7 @@ const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
     <button
       ref={ref}
       type={type ?? 'button'}
-      className={cn(chipVariants({ variant, active, fullWidth }), className)}
+      className={cn(chipVariants({ variant, active, fullWidth, groupPosition }), className)}
       {...props}
     >
       <ChipContent
@@ -175,13 +187,24 @@ interface ChipLinkProps
  * @example <ChipLink href='/integrations' active={isCurrent} leftIcon={ArrowLeft}>Integrations</ChipLink>
  */
 const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
-  { className, variant, active, fullWidth, leftIcon, leftAdornment, rightIcon, children, ...props },
+  {
+    className,
+    variant,
+    active,
+    fullWidth,
+    groupPosition,
+    leftIcon,
+    leftAdornment,
+    rightIcon,
+    children,
+    ...props
+  },
   ref
 ) {
   return (
     <Link
       ref={ref}
-      className={cn(chipVariants({ variant, active, fullWidth }), className)}
+      className={cn(chipVariants({ variant, active, fullWidth, groupPosition }), className)}
       {...props}
     >
       <ChipContent

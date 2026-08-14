@@ -633,6 +633,33 @@ async function handleBlockOperationTx(
       break
     }
 
+    case BLOCK_OPERATIONS.UPDATE_DESCRIPTION: {
+      if (!payload.id || payload.description === undefined) {
+        throw new Error('Missing required fields for update description operation')
+      }
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          data: sql`jsonb_set(
+            coalesce(${workflowBlocks.data}, '{}'::jsonb),
+            '{description}',
+            ${JSON.stringify(payload.description)}::jsonb,
+            true
+          )`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      logger.debug(`Updated block description: ${payload.id}`)
+      break
+    }
+
     case BLOCK_OPERATIONS.TOGGLE_ENABLED: {
       if (!payload.id) {
         throw new Error('Missing block ID for toggle enabled operation')

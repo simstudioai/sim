@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { Button, Combobox, type ComboboxOptionGroup } from '@sim/emcn'
+import { Button, ChipCombobox, type ComboboxOptionGroup } from '@sim/emcn'
 import { Key, SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
@@ -431,7 +431,7 @@ export function CredentialSelector({
 
   return (
     <div>
-      <Combobox
+      <ChipCombobox
         options={comboboxOptions}
         groups={comboboxGroups}
         value={displayValue}

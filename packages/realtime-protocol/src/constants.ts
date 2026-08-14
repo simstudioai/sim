@@ -1,6 +1,7 @@
 export const BLOCK_OPERATIONS = {
   UPDATE_POSITION: 'update-position',
   UPDATE_NAME: 'update-name',
+  UPDATE_DESCRIPTION: 'update-description',
   TOGGLE_ENABLED: 'toggle-enabled',
   UPDATE_PARENT: 'update-parent',
   UPDATE_ADVANCED_MODE: 'update-advanced-mode',

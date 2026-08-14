@@ -27,6 +27,10 @@ export interface ChipSwitchProps<T extends string = string> {
   value: T
   /** Invoked with the next selection when a segment is clicked. */
   onChange: (value: T) => void
+  /** Disables every segment in the switch. */
+  disabled?: boolean
+  /** Visual density. `compact` matches the canonical 30px chip and toolbar controls. */
+  size?: 'default' | 'compact'
   /** Optional accessible label for the radio group. */
   'aria-label'?: string
   /** Extra classes merged onto the outer container. */
@@ -54,6 +58,8 @@ export function ChipSwitch<T extends string>({
   options,
   value,
   onChange,
+  disabled = false,
+  size = 'default',
   'aria-label': ariaLabel,
   className,
 }: ChipSwitchProps<T>) {
@@ -61,8 +67,10 @@ export function ChipSwitch<T extends string>({
     <div
       role='radiogroup'
       aria-label={ariaLabel}
+      aria-disabled={disabled}
       className={cn(
-        'inline-flex items-center rounded-[10px] bg-[var(--surface-5)] p-[2px] dark:bg-[var(--surface-4)]',
+        'inline-flex items-center bg-[var(--surface-5)] p-[2px] dark:bg-[var(--surface-4)]',
+        size === 'compact' ? 'rounded-lg' : 'rounded-[10px]',
         className
       )}
     >
@@ -76,12 +84,14 @@ export function ChipSwitch<T extends string>({
             role='radio'
             aria-checked={isActive}
             data-state={isActive ? 'on' : 'off'}
+            disabled={disabled}
             onClick={() => onChange(option.value)}
             className={cn(
               chipVariants({
                 variant: isActive ? 'border-shadow' : 'default',
               }),
               'justify-center',
+              size === 'compact' && 'h-[26px] px-1.5',
               isActive
                 ? 'text-[var(--text-primary)] shadow-none hover-hover:bg-[var(--surface-2)] dark:bg-[var(--surface-6)] dark:shadow-none dark:hover-hover:bg-[var(--surface-6)]'
                 : 'text-[var(--text-muted)] hover-hover:bg-transparent hover-hover:text-[var(--text-primary)]'

@@ -56,6 +56,9 @@ import { createPortal } from 'react-dom'
 import { Check, ChevronLeft, ChevronRight, Search } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
+import { DROPDOWN_MENU_SURFACE_CLASSES } from '../dropdown-menu/dropdown-menu'
+import { ScrollEdgeFade, type ScrollEdgeFadeVariant } from '../scroll-edge-fade/scroll-edge-fade'
+import { thinScrollbarClass } from '../scrollbar/scrollbar'
 
 type PopoverSize = 'sm' | 'md'
 type PopoverColorScheme = 'default' | 'inverted'
@@ -85,11 +88,12 @@ const STYLES = {
   /** Color scheme variants */
   colorScheme: {
     default: {
-      text: 'text-[var(--text-body)] [&_svg]:text-[var(--text-icon)]',
+      text: 'text-[var(--text-body)] [&>svg]:text-[var(--text-icon)]',
       section: 'text-[var(--text-tertiary)]',
       search: 'text-[var(--text-muted)]',
       searchInput: 'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',
-      content: 'bg-[var(--surface-5)] text-foreground dark:bg-[var(--surface-3)]',
+      content:
+        'bg-[var(--surface-5)] text-foreground [--popover-surface:var(--surface-5)] dark:bg-[var(--surface-3)] dark:[--popover-surface:var(--surface-3)]',
       divider: 'border-[var(--border-1)]',
     },
     inverted: {
@@ -98,7 +102,8 @@ const STYLES = {
       search: 'text-[var(--text-muted-inverse)] dark:text-[var(--text-muted)]',
       searchInput:
         'text-white placeholder:text-[var(--text-muted-inverse)] dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-muted)]',
-      content: 'bg-[var(--surface-inverted)] text-white dark:text-foreground',
+      content:
+        'bg-[var(--surface-inverted)] text-white [--popover-surface:var(--surface-inverted)] dark:text-foreground',
       divider: 'border-[var(--border-inverted)]',
     },
   } satisfies Record<
@@ -389,6 +394,12 @@ interface PopoverContentProps
    */
   border?: boolean
   /**
+   * Uses the canonical theme-aware chip-dropdown surface instead of the
+   * standard contextual popover surface.
+   * @default 'default'
+   */
+  appearance?: 'default' | 'dropdown'
+  /**
    * Flip to avoid viewport collisions
    * @default true
    */
@@ -428,6 +439,7 @@ const PopoverContent = React.forwardRef<
       sideOffset,
       collisionPadding = 8,
       border = false,
+      appearance = 'default',
       avoidCollisions = true,
       showArrow = false,
       arrowClassName,
@@ -587,12 +599,19 @@ const PopoverContent = React.forwardRef<
         data-native-surface-overlay=''
         className={cn(
           'z-[var(--z-popover)] flex flex-col outline-none',
-          showArrow ? 'overflow-visible' : 'overflow-auto',
-          STYLES.colorScheme[colorScheme].content,
-          STYLES.content,
+          thinScrollbarClass,
+          showArrow
+            ? 'overflow-visible'
+            : 'overflow-auto [&:has([data-popover-scroll])]:overflow-hidden',
+          appearance === 'dropdown'
+            ? cn(DROPDOWN_MENU_SURFACE_CLASSES, '[--popover-surface:var(--bg)]')
+            : cn(
+                STYLES.colorScheme[colorScheme].content,
+                STYLES.content,
+                border && 'border border-[var(--border-1)]'
+              ),
           hasUserWidthConstraint &&
             '[&_.flex-1:not([data-popover-scroll])]:truncate [&_[data-popover-section]]:truncate',
-          border && 'border border-[var(--border-1)]',
           className
         )}
         style={{
@@ -611,7 +630,7 @@ const PopoverContent = React.forwardRef<
       >
         {showArrow ? (
           <div
-            className='flex flex-1 flex-col overflow-auto'
+            className={cn('flex flex-1 flex-col overflow-auto', thinScrollbarClass)}
             style={{ maxHeight: `${maxHeight || 400}px` }}
           >
             {children}
@@ -651,23 +670,125 @@ const PopoverContent = React.forwardRef<
 
 PopoverContent.displayName = 'PopoverContent'
 
-interface PopoverScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {}
+interface PopoverScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {
+  /** Progressive fade density. Compact is the canonical menu treatment. */
+  fadeVariant?: ScrollEdgeFadeVariant
+  /** Whether this viewport owns its bottom edge fade. */
+  bottomFade?: boolean
+  /** Whether the scroll viewport exposes its native scrollbar chrome. */
+  scrollbar?: 'thin' | 'hidden'
+}
 
 /**
- * Scrollable container for popover items.
+ * Scrollable container for popover items with overflow-safe sizing and subtle
+ * edge fades that reveal additional content without clipping rows.
  */
 const PopoverScrollArea = React.forwardRef<HTMLDivElement, PopoverScrollAreaProps>(
-  ({ className, ...props }, ref) => (
-    <div
-      className={cn(
-        'min-h-0 overflow-auto overscroll-contain',
-        '[&>div:has([data-popover-section]):not(:first-child)]:mt-1.5',
-        className
-      )}
-      ref={ref}
-      {...props}
-    />
-  )
+  (
+    {
+      className,
+      children,
+      fadeVariant = 'compact',
+      bottomFade = true,
+      scrollbar = 'thin',
+      onScroll,
+      ...props
+    },
+    ref
+  ) => {
+    const scrollRef = React.useRef<HTMLDivElement>(null)
+    const [edges, setEdges] = React.useState({ top: false, bottom: false })
+
+    const setScrollRef = React.useCallback(
+      (node: HTMLDivElement | null) => {
+        scrollRef.current = node
+        if (typeof ref === 'function') {
+          ref(node)
+        } else if (ref) {
+          ref.current = node
+        }
+      },
+      [ref]
+    )
+
+    const updateEdges = React.useCallback(() => {
+      const node = scrollRef.current
+      if (!node) return
+
+      const nextEdges = {
+        top: node.scrollTop > 1,
+        bottom: node.scrollTop + node.clientHeight < node.scrollHeight - 1,
+      }
+
+      setEdges((current) =>
+        current.top === nextEdges.top && current.bottom === nextEdges.bottom ? current : nextEdges
+      )
+    }, [])
+
+    React.useEffect(() => {
+      const node = scrollRef.current
+      if (!node) return
+
+      updateEdges()
+
+      const resizeObserver =
+        typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateEdges)
+      resizeObserver?.observe(node)
+
+      const mutationObserver =
+        typeof MutationObserver === 'undefined' ? null : new MutationObserver(updateEdges)
+      mutationObserver?.observe(node, { childList: true, subtree: true })
+
+      return () => {
+        resizeObserver?.disconnect()
+        mutationObserver?.disconnect()
+      }
+    }, [updateEdges])
+
+    const handleScroll = React.useCallback(
+      (event: React.UIEvent<HTMLDivElement>) => {
+        updateEdges()
+        onScroll?.(event)
+      },
+      [onScroll, updateEdges]
+    )
+
+    return (
+      <div className='-my-1.5 relative flex max-h-full min-h-0 flex-1 overflow-hidden [--scroll-edge-fade-surface:var(--popover-surface)]'>
+        <div
+          className={cn(
+            'min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain py-1.5',
+            scrollbar === 'thin'
+              ? thinScrollbarClass
+              : '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+            fadeVariant === 'compact' ? 'scroll-py-3' : 'scroll-py-12',
+            '[&>div:has([data-popover-section]):not(:first-child)]:mt-1.5',
+            className
+          )}
+          data-popover-scroll=''
+          ref={setScrollRef}
+          onScroll={handleScroll}
+          {...props}
+        >
+          {children}
+        </div>
+        <ScrollEdgeFade
+          position='top'
+          variant={fadeVariant}
+          visible={edges.top}
+          data-popover-scroll-fade='top'
+        />
+        {bottomFade && (
+          <ScrollEdgeFade
+            position='bottom'
+            variant={fadeVariant}
+            visible={edges.bottom}
+            data-popover-scroll-fade='bottom'
+          />
+        )}
+      </div>
+    )
+  }
 )
 
 PopoverScrollArea.displayName = 'PopoverScrollArea'

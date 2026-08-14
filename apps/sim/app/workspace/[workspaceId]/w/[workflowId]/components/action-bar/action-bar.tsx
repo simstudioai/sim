@@ -1,11 +1,14 @@
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useState } from 'react'
 import {
   Button,
+  Chip,
   cn,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Duplicate,
   PlayOutline,
@@ -13,7 +16,17 @@ import {
   Trash,
   toast,
 } from '@sim/emcn'
-import { Ban, Circle, Lock, LogOut, Palette, Square, Unlock } from '@sim/emcn/icons'
+import {
+  Ban,
+  BookOpen,
+  Circle,
+  Lock,
+  LogOut,
+  MoreHorizontal,
+  Palette,
+  Square,
+  Unlock,
+} from '@sim/emcn/icons'
 import {
   DEFAULT_NOTE_COLOR,
   isNoteColor,
@@ -170,7 +183,9 @@ interface ActionBarProps {
   /** Whether the action bar is disabled */
   disabled?: boolean
   /** Places the actions inside the workflow card's border swell. */
-  variant?: 'floating' | 'swell'
+  variant?: 'floating' | 'swell' | 'inline'
+  /** Limits an inline action bar to the run control or overflow menu. */
+  inlineActions?: 'run' | 'menu'
   /** Whether this block is currently executing. */
   isRunning?: boolean
   /** Whether any block in the current workflow is executing. */
@@ -179,6 +194,8 @@ interface ActionBarProps {
   onNoteColorChange?: (color: NoteColor) => void
   /** Keeps the note and its swell selected while the portalled color menu is open. */
   onNoteColorMenuOpen?: () => void
+  /** Opens documentation for the selected block from the inline editor menu. */
+  onOpenDocs?: () => void
 }
 
 /**
@@ -193,11 +210,13 @@ export const ActionBar = memo(
     blockType,
     disabled = false,
     variant = 'floating',
+    inlineActions = 'run',
     isRunning = false,
     isWorkflowRunning = false,
     noteColor = DEFAULT_NOTE_COLOR,
     onNoteColorChange,
     onNoteColorMenuOpen,
+    onOpenDocs,
   }: ActionBarProps) {
     const {
       collaborativeBatchAddBlocks,
@@ -258,6 +277,7 @@ export const ActionBar = memo(
     const isResponseBlock = blockType === 'response'
     const isNoteBlock = blockType === 'note'
     const isInsideSubflow = parentId && (parentType === 'loop' || parentType === 'parallel')
+    const cantEnable = !isEnabled && isParentDisabled
 
     const { dependenciesSatisfied } = getRunFromBlockDependencyState(blockId, edges, snapshot)
     const canRunFromBlock =
@@ -273,6 +293,7 @@ export const ActionBar = memo(
     const canStopWorkflow = isWorkflowRunning && !disabled
     const canRunBlock =
       !isWorkflowRunning && canRunFromBlock && !disabled && !isLocked && !isParentLocked
+    const [isInlineMenuOpen, setIsInlineMenuOpen] = useState(false)
     const isSwell = variant === 'swell'
     const firstActionId: ActionId = isNoteBlock
       ? 'color'
@@ -398,6 +419,111 @@ export const ActionBar = memo(
         return userPermissions.isOfflineMode ? 'Connection lost - please refresh' : 'Read-only mode'
       }
       return defaultMessage
+    }
+
+    if (variant === 'inline') {
+      if (inlineActions === 'menu') {
+        return (
+          <DropdownMenu onOpenChange={setIsInlineMenuOpen}>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Chip
+                    leftIcon={MoreHorizontal}
+                    className='size-[30px] justify-center p-0'
+                    aria-label='Block actions'
+                  />
+                </DropdownMenuTrigger>
+              </Tooltip.Trigger>
+              {!isInlineMenuOpen && <Tooltip.Content side='top'>Block actions</Tooltip.Content>}
+            </Tooltip.Root>
+            <DropdownMenuContent align='end' side='bottom'>
+              {!isNoteBlock && (
+                <DropdownMenuItem
+                  onSelect={() => collaborativeBatchToggleBlockEnabled([blockId])}
+                  disabled={
+                    isWorkflowRunning || disabled || isLocked || isParentLocked || cantEnable
+                  }
+                >
+                  {isEnabled ? <Circle /> : <Ban />}
+                  {isEnabled ? 'Disable' : 'Enable'}
+                </DropdownMenuItem>
+              )}
+              {userPermissions.canAdmin && (
+                <DropdownMenuItem
+                  onSelect={() => collaborativeBatchToggleLocked([blockId])}
+                  disabled={isWorkflowRunning || disabled || (isLocked && isParentLocked)}
+                >
+                  {isLocked ? <Unlock /> : <Lock />}
+                  {isLocked ? 'Unlock' : 'Lock'}
+                </DropdownMenuItem>
+              )}
+              {!isStartBlock && !isResponseBlock && (
+                <DropdownMenuItem
+                  onSelect={handleDuplicateBlock}
+                  disabled={isWorkflowRunning || disabled || isLocked || isParentLocked}
+                >
+                  <Duplicate />
+                  Duplicate
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onSelect={() => collaborativeBatchRemoveBlocks([blockId])}
+                disabled={isWorkflowRunning || disabled || isLocked || isParentLocked}
+              >
+                <Trash />
+                Delete
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={onOpenDocs} disabled={!onOpenDocs}>
+                <BookOpen />
+                Docs
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )
+      }
+
+      return (
+        <Tooltip.Root preferAbove>
+          <Tooltip.Trigger asChild>
+            <span className='inline-flex'>
+              <Chip
+                variant='border'
+                leftIcon={isWorkflowRunning ? undefined : PlayOutline}
+                leftAdornment={
+                  isWorkflowRunning ? (
+                    <Square className='size-[12px] shrink-0 fill-current' strokeWidth={0} />
+                  ) : undefined
+                }
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (canStopWorkflow) {
+                    handleCancelExecution()
+                    return
+                  }
+                  if (canRunBlock) handleRunFromBlockClick()
+                }}
+                disabled={!canStopWorkflow && !canRunBlock}
+                aria-label={isWorkflowRunning ? 'Stop workflow' : 'Run block'}
+              >
+                {isWorkflowRunning ? 'Stop' : 'Run block'}
+              </Chip>
+            </span>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='top'>
+            {isWorkflowRunning
+              ? getTooltipMessage('Stop')
+              : isLocked || isParentLocked
+                ? 'Block is locked'
+                : !isEnabled || isParentDisabled
+                  ? 'Block is disabled'
+                  : !dependenciesSatisfied
+                    ? 'Run previous blocks first'
+                    : getTooltipMessage('Run block')}
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )
     }
 
     return (
@@ -743,11 +869,13 @@ export const ActionBar = memo(
       prevProps.blockType === nextProps.blockType &&
       prevProps.disabled === nextProps.disabled &&
       prevProps.variant === nextProps.variant &&
+      prevProps.inlineActions === nextProps.inlineActions &&
       prevProps.isRunning === nextProps.isRunning &&
       prevProps.isWorkflowRunning === nextProps.isWorkflowRunning &&
       prevProps.noteColor === nextProps.noteColor &&
       prevProps.onNoteColorChange === nextProps.onNoteColorChange &&
-      prevProps.onNoteColorMenuOpen === nextProps.onNoteColorMenuOpen
+      prevProps.onNoteColorMenuOpen === nextProps.onNoteColorMenuOpen &&
+      prevProps.onOpenDocs === nextProps.onOpenDocs
     )
   }
 )

@@ -1,7 +1,7 @@
 /**
  * Available panel tabs
  */
-export type PanelTab = 'copilot' | 'editor' | 'toolbar'
+export type PanelTab = 'editor' | 'toolbar'
 
 /**
  * Panel state interface
@@ -9,8 +9,10 @@ export type PanelTab = 'copilot' | 'editor' | 'toolbar'
 export interface PanelState {
   panelWidth: number
   setPanelWidth: (width: number) => void
+  isOpen: boolean
   activeTab: PanelTab
   setActiveTab: (tab: PanelTab) => void
+  closePanel: () => void
   _hasHydrated: boolean
   setHasHydrated: (hasHydrated: boolean) => void
 }

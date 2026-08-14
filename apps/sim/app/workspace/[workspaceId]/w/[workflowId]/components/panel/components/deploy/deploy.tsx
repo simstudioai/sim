@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { Chip, Tooltip, toast } from '@sim/emcn'
+import { type MouseEvent, useState } from 'react'
+import { Chip, toast } from '@sim/emcn'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
-import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
+import { DeployPopover } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
   useDeployment,
@@ -21,7 +21,7 @@ interface DeployProps {
 }
 
 export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: DeployProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isDeployPopoverOpen, setIsDeployPopoverOpen] = useState(false)
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
   const isRegistryLoading = hydrationPhase === 'idle' || hydrationPhase === 'state-loading'
   const { hasBlocks } = useCurrentWorkflow()
@@ -62,17 +62,18 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
     isEmpty ||
     (!isDeployed && deployReadiness.isBlocked && !deployReadiness.isSyncing)
 
-  const onDeployClick = async () => {
+  const onDeployClick = async (event?: MouseEvent<HTMLButtonElement>) => {
     if (isRegistryLoading || isDisabled || !activeWorkflowId) return
 
-    if (isDeploymentSettling) {
-      setIsModalOpen(true)
+    if (isDeployed || isDeploymentSettling) {
+      if (!event) setIsDeployPopoverOpen(true)
       return
     }
 
+    event?.preventDefault()
     const result = await handleDeployClick()
     if (result.shouldOpenModal) {
-      setIsModalOpen(true)
+      setIsDeployPopoverOpen(true)
     }
   }
 
@@ -130,33 +131,21 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
   }
 
   return (
-    <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <span className='inline-flex'>
-            <Chip
-              variant='border'
-              onClick={onDeployClick}
-              disabled={isRegistryLoading || isDisabled}
-            >
-              {getButtonLabel()}
-            </Chip>
-          </span>
-        </Tooltip.Trigger>
-        <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
-      </Tooltip.Root>
-
-      <DeployModal
-        open={isModalOpen}
-        onOpenChange={setIsModalOpen}
-        workflowId={activeWorkflowId}
-        isDeployed={isDeployed}
-        needsRedeployment={changeDetected}
-        deployedState={deployedState}
-        isLoadingDeployedState={isLoadingDeployedState || isFetchingDeployedState}
-        deployReadiness={deployReadiness}
-        isDeploymentSettling={isDeploymentSettling}
-      />
-    </>
+    <DeployPopover
+      open={isDeployPopoverOpen}
+      onOpenChange={setIsDeployPopoverOpen}
+      workflowId={activeWorkflowId}
+      isDeployed={isDeployed}
+      needsRedeployment={changeDetected}
+      deployedState={deployedState}
+      isLoadingDeployedState={isLoadingDeployedState || isFetchingDeployedState}
+      deployReadiness={deployReadiness}
+      isDeploymentSettling={isDeploymentSettling}
+      trigger={
+        <Chip variant='border' onClick={onDeployClick} disabled={isRegistryLoading || isDisabled}>
+          {getButtonLabel()}
+        </Chip>
+      }
+    />
   )
 }

@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react'
-import { Combobox, FieldDivider, Label, Slider, Switch } from '@sim/emcn'
+import { ChipCombobox, Label, Slider } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { BooleanControl } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/boolean-control'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { LongInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/long-input/long-input'
 import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/short-input/short-input'
@@ -243,20 +244,13 @@ export function McpDynamicArgs({
     switch (inputType) {
       case 'switch':
         return (
-          <div key={`${paramName}-switch`} className='flex items-center gap-x-3'>
-            <Switch
-              id={`${paramName}-switch`}
-              checked={!!value}
-              onCheckedChange={(checked) => updateParameter(paramName, checked)}
-              disabled={disabled}
-            />
-            <Label
-              htmlFor={`${paramName}-switch`}
-              className='cursor-pointer font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
-            >
-              {formatParameterLabel(paramName)}
-            </Label>
-          </div>
+          <BooleanControl
+            key={`${paramName}-switch`}
+            value={Boolean(value)}
+            onChange={(checked) => updateParameter(paramName, checked)}
+            label={formatParameterLabel(paramName)}
+            disabled={disabled}
+          />
         )
 
       case 'dropdown': {
@@ -275,7 +269,7 @@ export function McpDynamicArgs({
 
         return (
           <div key={`${paramName}-dropdown`}>
-            <Combobox
+            <ChipCombobox
               options={dropdownOptions}
               value={value || ''}
               selectedValue={value || ''}
@@ -501,10 +495,9 @@ export function McpDynamicArgs({
       />
       <div>
         {toolSchema.properties &&
-          Object.entries(toolSchema.properties).map(([paramName, paramSchema], index, entries) => {
+          Object.entries(toolSchema.properties).map(([paramName, paramSchema]) => {
             const inputType = getInputType(paramSchema as any)
             const showLabel = inputType !== 'switch'
-            const showDivider = index < entries.length - 1
 
             return (
               <div key={paramName} className='subblock-row'>
@@ -521,7 +514,6 @@ export function McpDynamicArgs({
                   )}
                   {renderParameterInput(paramName, paramSchema as any)}
                 </div>
-                {showDivider && <FieldDivider subblockMarker />}
               </div>
             )
           })}

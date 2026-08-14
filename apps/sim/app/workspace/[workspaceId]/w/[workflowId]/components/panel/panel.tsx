@@ -1,56 +1,11 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  BubbleChatClose,
-  BubbleChatPreview,
-  Button,
-  Chip,
-  ChipConfirmModal,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  Duplicate,
-  Layout,
-  MoreHorizontal,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverScrollArea,
-  PopoverSection,
-  PopoverTrigger,
-  Trash,
-  toast,
-} from '@sim/emcn'
-import { BubbleChatDelay, Download, Lock, Plus, Unlock } from '@sim/emcn/icons'
-import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { useQueryClient } from '@tanstack/react-query'
-import { useParams, useRouter } from 'next/navigation'
-import { usePostHog } from 'posthog-js/react'
-import { useShallow } from 'zustand/react/shallow'
-import { VariableIcon } from '@/components/icons'
+import { memo, useCallback, useRef } from 'react'
+import { Chip, cn, toast } from '@sim/emcn'
+import { useParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'
-import { requestJson } from '@/lib/api/client/request'
-import {
-  createWorkflowCopilotChatContract,
-  deleteCopilotChatContract,
-} from '@/lib/api/contracts/copilot'
-import { getWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
 import { useSession } from '@/lib/auth/auth-client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
-import {
-  MOTHERSHIP_SEND_MESSAGE_EVENT,
-  type MothershipSendMessageDetail,
-} from '@/lib/mothership/events'
-import { captureEvent } from '@/lib/posthog/client'
-import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
-import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
-import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components'
-import { getWorkflowCopilotUseChatOptions, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
-import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -58,6 +13,8 @@ import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-uti
 import {
   Deploy,
   Editor,
+  EditorPanelActions,
+  PanelViewControls,
   Toolbar,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components'
 import {
@@ -65,132 +22,52 @@ import {
   useUsageLimits,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/variables/variables'
-import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-auto-layout'
-import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
-import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
-import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
-import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
-import { useCopilotChatSelection } from '@/hooks/queries/copilot-chat-selection'
 import {
-  type CopilotChatListItem,
-  copilotChatsKeys,
-  useCopilotChats,
-} from '@/hooks/queries/copilot-chats'
+  WorkflowControls,
+  WorkflowHistoryControls,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
+import { WorkflowOptionsMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-options-menu'
+import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
-import { useDuplicateWorkflowMutation, useWorkflowMap } from '@/hooks/queries/workflows'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { useChatStore } from '@/stores/chat/store'
-import type { ChatContext, PanelTab } from '@/stores/panel'
-import { usePanelStore } from '@/stores/panel'
-import { useVariablesModalStore } from '@/stores/variables/modal'
-import { useVariablesStore } from '@/stores/variables/store'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { captureBaselineSnapshot } from '@/stores/workflow-diff/utils'
-import { getWorkflowWithValues } from '@/stores/workflows'
+import { PANEL_WIDTH } from '@/stores/constants'
+import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const logger = createLogger('Panel')
-const EMPTY_COPILOT_CHATS: readonly CopilotChatListItem[] = []
+interface PanelProps {
+  onCloseEditor?: () => void
+}
+
 /**
- * Panel component with resizable width and tab navigation that persists across page refreshes.
+ * Workflow header and contextual right panel. Toolbar and Editor remain independently
+ * available so users can browse blocks without losing their current canvas selection.
  *
- * Uses a CSS-based approach to prevent hydration mismatches and flash on load:
- * 1. Width is controlled by CSS variable (--panel-width)
- * 2. Blocking script in layout.tsx sets CSS variable and data-panel-active-tab before React hydrates
- * 3. CSS rules control initial visibility based on data-panel-active-tab attribute
- * 4. React takes over visibility control after hydration completes
- * 5. Store updates CSS variable when width changes
- *
- * This ensures server and client render identical HTML, preventing hydration errors and visual flash.
- *
- * Note: All tabs are kept mounted but hidden to preserve component state during tab switches.
- * This prevents unnecessary remounting which would trigger data reloads and reset state.
- *
- * @returns Panel on the right side of the workflow
+ * @returns Structured workflow chrome around the canvas
  */
-export const Panel = memo(function Panel() {
-  const router = useRouter()
+export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  const posthog = usePostHog()
-  const posthogRef = useRef(posthog)
-
   const panelRef = useRef<HTMLElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const {
-    activeTab: storedActiveTab,
-    setActiveTab,
-    _hasHydrated,
-    setHasHydrated,
-  } = usePanelStore(
-    useShallow((state) => ({
-      activeTab: state.activeTab,
-      setActiveTab: state.setActiveTab,
-      _hasHydrated: state._hasHydrated,
-      setHasHydrated: state.setHasHydrated,
-    }))
-  )
+  const activeTab = usePanelStore((state) => state.activeTab)
+  const setActiveTab = usePanelStore((state) => state.setActiveTab)
+  const toolbarSearchInputRef = useRef<HTMLInputElement>(null)
   const toolbarRef = useRef<{
-    focusSearch: () => void
+    focusFirstItem: () => void
+    setSearchQuery: (query: string) => void
   } | null>(null)
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
 
-  // State
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [isAutoLayouting, setIsAutoLayouting] = useState(false)
-  const [isExporting, setIsExporting] = useState(false)
-  const [isDuplicating, setIsDuplicating] = useState(false)
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-
   // Hooks
   const userPermissions = useUserPermissionsContext()
-  const { config: permissionConfig } = usePermissionConfig()
 
-  /**
-   * The Chat tab is hidden when the deployment has Chat off, or when the user's
-   * permission group hides it. Tab bodies stay mounted and are toggled with
-   * `hidden`, so a persisted `activeTab: 'copilot'` would hide all three and
-   * paint an empty panel — resolve it to the toolbar instead.
-   */
-  const isCopilotTabAvailable = isChatEnabled && !permissionConfig.hideCopilot
-  const activeTab: PanelTab =
-    storedActiveTab === 'copilot' && !isCopilotTabAvailable ? 'toolbar' : storedActiveTab
-  const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
-  const duplicateWorkflowMutation = useDuplicateWorkflowMutation()
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const { handleAutoLayout: autoLayoutWithFitView } = useAutoLayout(activeWorkflowId || null)
-
-  // Check for locked blocks (disables auto-layout)
-  const hasLockedBlocks = useWorkflowStore((state) =>
-    Object.values(state.blocks).some((block) => block.locked)
-  )
-
-  const allBlocksLocked = useWorkflowStore((state) => {
-    const blockList = Object.values(state.blocks)
-    return blockList.length > 0 && blockList.every((block) => block.locked)
-  })
-
-  const hasBlocks = useWorkflowStore((state) => Object.keys(state.blocks).length > 0)
-
-  const { collaborativeBatchToggleLocked } = useCollaborativeWorkflow()
   const { navigateToSettings } = useSettingsNavigation()
-
-  // Delete workflow hook
-  const { isDeleting, handleDeleteWorkflow } = useDeleteWorkflow({
-    workspaceId,
-    workflowIds: activeWorkflowId || '',
-    isActive: true,
-    onSuccess: () => setIsDeleteModalOpen(false),
-  })
 
   // Usage limits hook
   const {
@@ -204,7 +81,7 @@ export const Panel = memo(function Panel() {
   const { handleRunWorkflow, handleCancelExecution, isExecuting } = useWorkflowExecution()
 
   // Panel resize hook
-  const { handlePointerDown } = usePanelResize()
+  const { handleKeyDown, handlePointerDown, maxPanelWidth, panelWidth } = usePanelResize()
 
   /**
    * Opens subscription settings modal
@@ -249,395 +126,34 @@ export const Panel = memo(function Panel() {
     handleRunWorkflow,
   ])
 
-  // Chat state
-  const { isChatOpen, setIsChatOpen } = useChatStore(
-    useShallow((state) => ({
-      isChatOpen: state.isChatOpen,
-      setIsChatOpen: state.setIsChatOpen,
-    }))
-  )
-  const { isOpen: isVariablesOpen, setIsOpen: setVariablesOpen } = useVariablesModalStore(
-    useShallow((state) => ({
-      isOpen: state.isOpen,
-      setIsOpen: state.setIsOpen,
-    }))
-  )
-
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
   const workflowLocked = isWorkflowEffectivelyLocked(currentWorkflow, folders)
-  const canMutateWorkflow = userPermissions.canEdit && !workflowLocked
-  const { isSnapshotView } = useCurrentWorkflow()
 
-  const { chatId: copilotChatId, setChatId: setCopilotChatId } = useCopilotChatSelection(
-    activeWorkflowId ?? undefined
-  )
-
-  const { data: copilotChatList = EMPTY_COPILOT_CHATS } = useCopilotChats(
-    isCopilotTabAvailable ? (activeWorkflowId ?? undefined) : undefined
-  )
-  const [isCopilotHistoryOpen, setIsCopilotHistoryOpen] = useState(false)
-
-  const copilotChatTitle = useMemo(
-    () =>
-      copilotChatId ? (copilotChatList.find((c) => c.id === copilotChatId)?.title ?? null) : null,
-    [copilotChatId, copilotChatList]
-  )
-
-  const queryClient = useQueryClient()
-  const loadCopilotChats = useCallback(() => {
-    if (!activeWorkflowId) return
-    queryClient.invalidateQueries({ queryKey: copilotChatsKeys.list(activeWorkflowId) })
-  }, [activeWorkflowId, queryClient])
-
-  // Auto-select most recent on first list arrival per workflow, and drop a
-  // selection that no longer matches anything in the current list (e.g. the
-  // chat was deleted in another tab).
-  const autoSelectAttemptedForRef = useRef<Set<string>>(new Set())
-  useEffect(() => {
-    // The list query is skipped when the tab is unavailable, so an empty list
-    // there means "not fetched", not "deleted elsewhere" — clearing on it would
-    // discard the selection and latch the ref against ever restoring it.
-    if (!activeWorkflowId || !isCopilotTabAvailable) return
-
-    if (copilotChatId && !copilotChatList.find((c) => c.id === copilotChatId)) {
-      setCopilotChatId(undefined)
-      return
-    }
-
-    if (copilotChatId) return
-    if (autoSelectAttemptedForRef.current.has(activeWorkflowId)) return
-    if (copilotChatList.length === 0) return
-    autoSelectAttemptedForRef.current.add(activeWorkflowId)
-    setCopilotChatId(copilotChatList[0].id)
-  }, [copilotChatList, copilotChatId, activeWorkflowId, isCopilotTabAvailable, setCopilotChatId])
-
-  useEffect(() => {
-    posthogRef.current = posthog
-  }, [posthog])
-
-  const handleCopilotSelectChat = useCallback(
-    (chat: { id: string; title: string | null }) => {
-      setCopilotChatId(chat.id)
-      setIsCopilotHistoryOpen(false)
-    },
-    [setCopilotChatId]
-  )
-
-  const handleCopilotDeleteChat = useCallback(
-    (chatId: string) => {
-      requestJson(deleteCopilotChatContract, { body: { chatId } })
-        .then(() => {
-          if (copilotChatId === chatId) {
-            setCopilotChatId(undefined)
-          }
-          loadCopilotChats()
-        })
-        .catch((err) => {
-          logger.error('Failed to delete copilot chat', { error: toError(err).message, chatId })
-        })
-    },
-    [copilotChatId, loadCopilotChats, setCopilotChatId]
-  )
-
-  const handleCopilotToolResult = useCallback(
-    (toolName: string, success: boolean, _output: unknown) => {
-      if (toolName !== 'edit_workflow' || !success) return
-      const workflowId = activeWorkflowId || useWorkflowRegistry.getState().activeWorkflowId
-      if (!workflowId) return
-
-      const baselineWorkflow = captureBaselineSnapshot(workflowId)
-
-      requestJson(getWorkflowNormalizedStateContract, { params: { id: workflowId } })
-        .then((freshState) => {
-          const diffStore = useWorkflowDiffStore.getState()
-          return diffStore.setProposedChanges(freshState as WorkflowState, undefined, {
-            baselineWorkflow,
-            skipPersist: true,
-          })
-        })
-        .catch((err) => {
-          logger.error('Failed to fetch/apply edit_workflow state', {
-            error: toError(err).message,
-            workflowId,
-          })
-        })
-    },
-    [activeWorkflowId]
-  )
-
-  const {
-    messages: copilotMessages,
-    isSending: copilotIsSending,
-    isReconnecting: copilotIsReconnecting,
-    sendMessage: copilotSendMessage,
-    stopGeneration: copilotStopGeneration,
-    resolvedChatId: copilotResolvedChatId,
-    messageQueue: copilotMessageQueue,
-    removeFromQueue: copilotRemoveFromQueue,
-    sendNow: copilotSendNow,
-    editQueuedMessage: copilotEditQueuedMessage,
-    cancelQueueEdit: copilotCancelQueueEdit,
-    editingQueuedId: copilotEditingQueuedId,
-    dispatchingHeadId: copilotDispatchingHeadId,
-  } = useChat(
-    workspaceId,
-    copilotChatId,
-    getWorkflowCopilotUseChatOptions({
-      workflowId: activeWorkflowId || undefined,
-      onTitleUpdate: loadCopilotChats,
-      onToolResult: handleCopilotToolResult,
-      onRequestStarted: ({ requestId, userMessageId }) => {
-        captureEvent(posthogRef.current, 'task_request_started', {
-          workspace_id: workspaceId,
-          view: 'copilot',
-          request_id: requestId,
-          user_message_id: userMessageId,
-        })
-      },
-    })
-  )
-
-  const handleCopilotNewChat = useCallback(() => {
-    if (!activeWorkflowId || !workspaceId) return
-    requestJson(createWorkflowCopilotChatContract, {
-      body: { workspaceId, workflowId: activeWorkflowId },
-    })
-      .then((data) => {
-        // Seed the new chat into the list cache before selecting it. Without this, the
-        // auto-select effect sees a selected id that isn't in the (still-stale) list and
-        // deselects it, which leaves the panel detached from the freshly created row.
-        queryClient.setQueryData<CopilotChatListItem[]>(
-          copilotChatsKeys.list(activeWorkflowId),
-          (prev) => [
-            {
-              id: data.id,
-              title: null,
-              workflowId: activeWorkflowId,
-              updatedAt: new Date().toISOString(),
-              activeStreamId: null,
-            },
-            ...(prev ?? []),
-          ]
-        )
-        setCopilotChatId(data.id)
-        loadCopilotChats()
-      })
-      .catch((err) => {
-        logger.error('Failed to create copilot chat', { error: toError(err).message })
-      })
-  }, [activeWorkflowId, workspaceId, loadCopilotChats, setCopilotChatId, queryClient])
-
-  const prevResolvedRef = useRef<string | undefined>(undefined)
-  useEffect(() => {
-    if (
-      copilotResolvedChatId &&
-      copilotResolvedChatId !== prevResolvedRef.current &&
-      !copilotChatId
-    ) {
-      prevResolvedRef.current = copilotResolvedChatId
-      setCopilotChatId(copilotResolvedChatId)
-      loadCopilotChats()
+  const handleCloseEditor = useCallback(() => {
+    if (onCloseEditor) {
+      onCloseEditor()
     } else {
-      prevResolvedRef.current = copilotResolvedChatId
+      usePanelEditorStore.getState().clearCurrentBlock()
     }
-  }, [copilotResolvedChatId, copilotChatId, loadCopilotChats, setCopilotChatId])
+  }, [onCloseEditor])
 
-  const wasCopilotSendingRef = useRef(false)
-  useEffect(() => {
-    if (wasCopilotSendingRef.current && !copilotIsSending) {
-      loadCopilotChats()
-    }
-    wasCopilotSendingRef.current = copilotIsSending
-  }, [copilotIsSending, loadCopilotChats])
+  const handleFocusToolbarSearch = useCallback(() => {
+    setActiveTab('toolbar')
+    requestAnimationFrame(() => toolbarSearchInputRef.current?.focus())
+  }, [setActiveTab])
 
-  const handleCopilotStopGeneration = useCallback(() => {
-    captureEvent(posthogRef.current, 'task_generation_aborted', {
-      workspace_id: workspaceId,
-      view: 'copilot',
-    })
-    copilotStopGeneration()
-  }, [copilotStopGeneration, workspaceId])
-
-  const handleCopilotSubmit = useCallback(
-    (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
-      const trimmed = text.trim()
-      if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
-      copilotSendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
-    },
-    [copilotSendMessage]
-  )
-
-  /**
-   * Mark hydration as complete on mount
-   * This allows React to take over visibility control from CSS
-   */
-  useEffect(() => {
-    setHasHydrated(true)
-  }, [setHasHydrated])
-
-  /**
-   * Only claims handoffs while the Chat tab can actually receive them. The
-   * handler's `preventDefault()` is what tells `sendMothershipMessage` a host
-   * consumed the message, so listening with the tab hidden would swallow it and
-   * skip the caller's own fallback.
-   */
-  useEffect(() => {
-    if (!isCopilotTabAvailable) return
-
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
-      if (!detail?.message) return
-      e.preventDefault()
-      setActiveTab('copilot')
-      copilotSendMessage(detail.message, detail.fileAttachments, detail.contexts, {
-        ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
-      })
-    }
-    window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
-    return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
-  }, [isCopilotTabAvailable, setActiveTab, copilotSendMessage])
-
-  useEffect(() => {
-    if (activeTab !== 'copilot') return
-    const id = window.setTimeout(() => {
-      const textarea = document.querySelector<HTMLTextAreaElement>(
-        "[data-tab-content='copilot'] textarea"
-      )
-      textarea?.focus()
-    }, 0)
-    return () => window.clearTimeout(id)
-  }, [activeTab])
-
-  /**
-   * Handles tab click events
-   */
-  const handleTabClick = (tab: PanelTab) => {
-    setActiveTab(tab)
-  }
-
-  /**
-   * Downloads a file with the given content
-   */
-  const downloadFile = useCallback((content: string, filename: string, mimeType: string) => {
-    try {
-      const blob = new Blob([content], { type: mimeType })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      logger.error('Failed to download file:', error)
-    }
+  const handleToolbarSearchChange = useCallback((query: string) => {
+    toolbarRef.current?.setSearchQuery(query)
   }, [])
 
-  /**
-   * Handles auto-layout of workflow blocks
-   */
-  const handleAutoLayout = useCallback(async () => {
-    if (isExecuting || !canMutateWorkflow || isAutoLayouting) {
-      return
-    }
+  const handleToolbarSearchNavigate = useCallback(() => {
+    toolbarRef.current?.focusFirstItem()
+  }, [])
 
-    setIsAutoLayouting(true)
-    try {
-      const result = await autoLayoutWithFitView()
-      if (!result.success && result.error) {
-        toast({ message: result.error })
-      }
-    } finally {
-      setIsAutoLayouting(false)
-    }
-  }, [isExecuting, canMutateWorkflow, isAutoLayouting, autoLayoutWithFitView])
-
-  /**
-   * Handles exporting workflow as JSON
-   */
-  const handleExportJson = useCallback(async () => {
-    if (!currentWorkflow || !activeWorkflowId) {
-      logger.warn('No active workflow to export')
-      return
-    }
-
-    setIsExporting(true)
-    try {
-      const workflow = getWorkflowWithValues(activeWorkflowId, workspaceId)
-
-      if (!workflow || !workflow.state) {
-        throw new Error('No workflow state found')
-      }
-
-      const workflowVariables = useVariablesStore
-        .getState()
-        .getVariablesByWorkflowId(activeWorkflowId)
-
-      const jsonContent = generateWorkflowJson(workflow.state, {
-        workflowId: activeWorkflowId,
-        name: currentWorkflow.name,
-        description: currentWorkflow.description,
-        variables: workflowVariables.map((v) => ({
-          id: v.id,
-          name: v.name,
-          type: v.type,
-          value: v.value,
-        })),
-      })
-
-      const filename = `${currentWorkflow.name.replace(/[^a-z0-9]/gi, '-')}.json`
-      downloadFile(jsonContent, filename, 'application/json')
-      logger.info('Workflow exported as JSON')
-    } catch (error) {
-      logger.error('Failed to export workflow as JSON:', error)
-    } finally {
-      setIsExporting(false)
-      setIsMenuOpen(false)
-    }
-  }, [currentWorkflow, activeWorkflowId, downloadFile])
-
-  /**
-   * Handles duplicating the current workflow
-   */
-  const handleDuplicateWorkflow = useCallback(async () => {
-    if (!activeWorkflowId || !userPermissions.canEdit || isDuplicating) {
-      return
-    }
-
-    const sourceWorkflow = workflows[activeWorkflowId]
-    if (!sourceWorkflow) return
-
-    setIsDuplicating(true)
-    try {
-      const result = await duplicateWorkflowMutation.mutateAsync({
-        workspaceId,
-        sourceId: activeWorkflowId,
-        name: `${sourceWorkflow.name} (Copy)`,
-        description: sourceWorkflow.description,
-        folderId: sourceWorkflow.folderId,
-      })
-      if (result?.id) {
-        router.push(`/workspace/${workspaceId}/w/${result.id}`)
-      }
-    } catch (error) {
-      logger.error('Error duplicating workflow:', error)
-    } finally {
-      setIsDuplicating(false)
-      setIsMenuOpen(false)
-    }
-  }, [activeWorkflowId, userPermissions.canEdit, isDuplicating, workflows, router, workspaceId])
-
-  /**
-   * Toggles the locked state of all blocks in the workflow
-   */
-  const handleToggleWorkflowLock = useCallback(() => {
-    const blocks = useWorkflowStore.getState().blocks
-    const allLocked = Object.values(blocks).every((b) => b.locked)
-    const ids = getWorkflowLockToggleIds(blocks, !allLocked)
-    if (ids.length > 0) collaborativeBatchToggleLocked(ids)
-    setIsMenuOpen(false)
-  }, [collaborativeBatchToggleLocked])
+  const handleEditorSelect = useCallback(() => {
+    toolbarSearchInputRef.current?.blur()
+    setActiveTab('editor')
+  }, [setActiveTab])
 
   // Compute run button state
   const canRun = userPermissions.canRead // Running only requires read permissions
@@ -670,10 +186,7 @@ export const Panel = memo(function Panel() {
       },
       {
         id: 'focus-toolbar-search',
-        handler: () => {
-          setActiveTab('toolbar')
-          toolbarRef.current?.focusSearch()
-        },
+        handler: handleFocusToolbarSearch,
         overrides: {
           allowInEditable: false,
         },
@@ -683,330 +196,111 @@ export const Panel = memo(function Panel() {
 
   return (
     <>
-      <aside
-        ref={panelRef}
-        className='panel-container relative shrink-0 overflow-hidden bg-[var(--bg)]'
-        aria-label='Workflow panel'
-      >
-        <div className='flex h-full flex-col border-[var(--border)] border-l pt-3.5'>
-          {/* Header */}
-          <div className='flex flex-shrink-0 items-center justify-between px-2'>
-            {/* More and Chat */}
-            <div className='flex gap-1.5'>
-              <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-                <DropdownMenuTrigger asChild>
-                  <Button className='size-[30px] rounded-[5px]'>
-                    <MoreHorizontal className='size-[14px]' />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align='start' side='bottom' sideOffset={8}>
-                  <DropdownMenuItem
-                    onSelect={handleAutoLayout}
-                    disabled={
-                      isExecuting || !canMutateWorkflow || isAutoLayouting || hasLockedBlocks
-                    }
-                    title={hasLockedBlocks ? 'Unlock blocks to use auto-layout' : undefined}
-                  >
-                    <Layout animate={isAutoLayouting} variant='clockwise' />
-                    Auto layout
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setVariablesOpen(!isVariablesOpen)}>
-                    <VariableIcon />
-                    Variables
-                  </DropdownMenuItem>
-                  {userPermissions.canAdmin && !isSnapshotView && (
-                    <DropdownMenuItem
-                      onSelect={handleToggleWorkflowLock}
-                      disabled={!hasBlocks || workflowLocked}
-                      title={
-                        workflowLocked
-                          ? 'Workflow is locked at the row or folder level — release it from the workflow notification or folder menu'
-                          : undefined
-                      }
-                    >
-                      {allBlocksLocked ? <Unlock /> : <Lock />}
-                      {allBlocksLocked ? 'Unlock workflow' : 'Lock workflow'}
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem
-                    onSelect={handleExportJson}
-                    disabled={!userPermissions.canEdit || isExporting || !currentWorkflow}
-                  >
-                    <Download />
-                    Export workflow
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={handleDuplicateWorkflow}
-                    disabled={!userPermissions.canEdit || isDuplicating}
-                  >
-                    <Duplicate />
-                    Duplicate workflow
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      setIsDeleteModalOpen(true)
-                    }}
-                    disabled={!canMutateWorkflow || Object.keys(workflows).length <= 1}
-                  >
-                    <Trash />
-                    Delete workflow
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                className='size-[30px] rounded-[5px]'
-                variant={isChatOpen ? 'active' : 'default'}
-                onClick={() => setIsChatOpen(!isChatOpen)}
-              >
-                {isChatOpen ? <BubbleChatClose /> : <BubbleChatPreview />}
-              </Button>
-            </div>
-
-            {/* Deploy and Run */}
-            <div className='flex gap-1.5'>
-              <Deploy
-                activeWorkflowId={activeWorkflowId}
-                userPermissions={userPermissions}
-                disabled={workflowLocked}
-              />
-              <Chip
-                variant={isExecuting ? undefined : 'primary'}
-                active={isExecuting}
-                onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
-                disabled={!isExecuting && isButtonDisabled}
-                aria-label={isExecuting ? 'Stop' : 'Run'}
-                leftAdornment={
-                  <span
-                    aria-hidden='true'
-                    className='inline-flex size-5 flex-shrink-0 items-center justify-center overflow-visible'
-                  >
-                    <ThinkingLoader
-                      variant={isExecuting ? undefined : 'play'}
-                      startVariant='play'
-                      startHoldMs={140}
-                      size={20}
-                      morphDurationMs={isExecuting ? 650 : 180}
-                      tone='inherit'
-                    />
-                  </span>
-                }
-              >
-                <span className='inline-grid'>
-                  <span aria-hidden='true' className='invisible col-start-1 row-start-1'>
-                    Stop
-                  </span>
-                  <span className='col-start-1 row-start-1'>{isExecuting ? 'Stop' : 'Run'}</span>
-                </span>
-              </Chip>
-            </div>
+      <header className='workflow-header pointer-events-none absolute top-0 right-[var(--panel-width)] left-0 z-30 flex h-[40px] items-stretch border-[var(--border)] border-b'>
+        <div className='pointer-events-auto flex min-w-0 flex-1 items-center gap-3 bg-[var(--bg)] px-3'>
+          <div className='flex min-w-0 flex-1 items-center gap-1'>
+            <h1 className='min-w-0 truncate text-[var(--text-body)] text-sm'>
+              {currentWorkflow?.name ?? 'Untitled workflow'}
+            </h1>
+            <WorkflowOptionsMenu isExecuting={isExecuting} />
           </div>
-
-          {/* Tabs */}
-          <div className='flex flex-shrink-0 items-center justify-between px-2 pt-3.5'>
-            <div className='flex gap-1'>
-              {isCopilotTabAvailable && (
-                <Button
-                  className={`h-[28px] truncate rounded-md border px-2 py-[5px] text-[12.5px] ${
-                    _hasHydrated && activeTab === 'copilot'
-                      ? 'border-[var(--border-1)]'
-                      : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
-                  }`}
-                  variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
-                  onClick={() => handleTabClick('copilot')}
-                  data-tab-button='copilot'
+          <WorkflowHistoryControls />
+          <WorkflowControls />
+          <div className='flex items-center gap-1.5'>
+            <Deploy
+              activeWorkflowId={activeWorkflowId}
+              userPermissions={userPermissions}
+              disabled={workflowLocked}
+            />
+            <Chip
+              variant={isExecuting ? undefined : 'primary'}
+              active={isExecuting}
+              onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
+              disabled={!isExecuting && isButtonDisabled}
+              aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
+              leftAdornment={
+                <span
+                  aria-hidden='true'
+                  className='inline-flex size-[14px] flex-shrink-0 items-center justify-center overflow-visible'
                 >
-                  Chat
-                </Button>
-              )}
-              <Button
-                className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
-                  _hasHydrated && activeTab === 'toolbar'
-                    ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
-                }`}
-                variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
-                onClick={() => handleTabClick('toolbar')}
-                data-tab-button='toolbar'
-              >
-                Toolbar
-              </Button>
-              <Button
-                className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
-                  _hasHydrated && activeTab === 'editor'
-                    ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
-                }`}
-                variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
-                onClick={() => handleTabClick('editor')}
-                data-tab-button='editor'
-              >
-                Editor
-              </Button>
-            </div>
-          </div>
-
-          {/* Tab Content - Keep all tabs mounted but hidden to preserve state */}
-          <div className='flex-1 overflow-hidden pt-3'>
-            {isCopilotTabAvailable && (
-              <div
-                className={
-                  _hasHydrated && activeTab === 'copilot'
-                    ? 'flex h-full flex-col'
-                    : _hasHydrated
-                      ? 'hidden'
-                      : 'flex h-full flex-col'
-                }
-                data-tab-content='copilot'
-              >
-                {/* Copilot Header */}
-                <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-2 border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
-                  <h2 className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-sm'>
-                    {copilotChatTitle || 'New Chat'}
-                  </h2>
-                  <div className='flex items-center gap-2'>
-                    <Button variant='ghost' className='p-0' onClick={handleCopilotNewChat}>
-                      <Plus className='size-[14px]' />
-                    </Button>
-                    <Popover
-                      open={isCopilotHistoryOpen}
-                      onOpenChange={(open) => {
-                        setIsCopilotHistoryOpen(open)
-                        if (open) loadCopilotChats()
-                      }}
-                    >
-                      <PopoverTrigger asChild>
-                        <Button variant='ghost' className='p-0'>
-                          <BubbleChatDelay className='size-[14px]' />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>
-                        {copilotChatList.length === 0 ? (
-                          <div className='px-1.5 py-4 text-center text-caption text-muted-foreground'>
-                            No chats yet
-                          </div>
-                        ) : (
-                          <PopoverScrollArea>
-                            <PopoverSection className='pt-0'>Recent</PopoverSection>
-                            <div className='flex flex-col gap-0.5'>
-                              {copilotChatList.map((chat) => (
-                                <div key={chat.id} className='group'>
-                                  <PopoverItem
-                                    active={copilotChatId === chat.id}
-                                    onClick={() => handleCopilotSelectChat(chat)}
-                                  >
-                                    <ConversationListItem
-                                      title={chat.title || 'New Chat'}
-                                      isActive={Boolean(chat.activeStreamId)}
-                                      titleClassName='text-small'
-                                      actions={
-                                        <div
-                                          className={`flex flex-shrink-0 items-center gap-1 ${copilotChatId !== chat.id ? 'opacity-0 transition-opacity group-hover:opacity-100' : ''}`}
-                                        >
-                                          <Button
-                                            variant='ghost'
-                                            className='size-[16px] p-0'
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              handleCopilotDeleteChat(chat.id)
-                                            }}
-                                            aria-label='Delete chat'
-                                          >
-                                            <Trash className='size-[10px]' />
-                                          </Button>
-                                        </div>
-                                      }
-                                    />
-                                  </PopoverItem>
-                                </div>
-                              ))}
-                            </div>
-                          </PopoverScrollArea>
-                        )}
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                <MothershipChat
-                  className='min-h-0 flex-1'
-                  messages={copilotMessages}
-                  isSending={copilotIsSending}
-                  isReconnecting={copilotIsReconnecting}
-                  onSubmit={handleCopilotSubmit}
-                  onStopGeneration={handleCopilotStopGeneration}
-                  messageQueue={copilotMessageQueue}
-                  editingQueuedId={copilotEditingQueuedId}
-                  dispatchingHeadId={copilotDispatchingHeadId}
-                  onRemoveQueuedMessage={copilotRemoveFromQueue}
-                  onSendQueuedMessage={copilotSendNow}
-                  onEditQueuedMessage={copilotEditQueuedMessage}
-                  onCancelQueueEdit={copilotCancelQueueEdit}
-                  userId={session?.user?.id}
-                  chatId={copilotResolvedChatId}
-                  layout='copilot-view'
-                />
-              </div>
-            )}
-            <div
-              className={
-                _hasHydrated && activeTab === 'editor'
-                  ? 'h-full'
-                  : _hasHydrated
-                    ? 'hidden'
-                    : 'h-full'
+                  <ThinkingLoader
+                    variant={isExecuting ? undefined : 'play'}
+                    startVariant='play'
+                    startHoldMs={140}
+                    size={14}
+                    morphDurationMs={isExecuting ? 650 : 180}
+                    tone='inherit'
+                  />
+                </span>
               }
-              data-tab-content='editor'
             >
-              <Editor />
-            </div>
-            <div
-              className={
-                _hasHydrated && activeTab === 'toolbar'
-                  ? 'h-full'
-                  : _hasHydrated
-                    ? 'hidden'
-                    : 'h-full'
-              }
-              data-tab-content='toolbar'
-            >
-              <Toolbar ref={toolbarRef} isActive={activeTab === 'toolbar'} />
-            </div>
+              {isExecuting ? 'Stop' : 'Run'}
+            </Chip>
           </div>
         </div>
+      </header>
 
-        {/* Resize Handle */}
-        <div
-          className='absolute top-0 bottom-0 left-[-4px] z-20 w-[8px] cursor-ew-resize'
-          onPointerDown={handlePointerDown}
-          role='separator'
-          aria-orientation='vertical'
-          aria-label='Resize panel'
-        />
-      </aside>
+      <div className='workflow-right-tools pointer-events-none absolute top-0 right-0 bottom-0 z-20 flex w-[var(--panel-width)] [container-type:size]'>
+        <aside
+          ref={panelRef}
+          className='panel-container pointer-events-auto relative flex h-full min-h-0 w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)]'
+          aria-label='Workflow panel'
+        >
+          <div className='flex h-full min-h-0 flex-col'>
+            <PanelViewControls
+              key={activeWorkflowId ?? 'workflow'}
+              activeTab={activeTab}
+              searchInputRef={toolbarSearchInputRef}
+              onSearchChange={handleToolbarSearchChange}
+              onSearchNavigate={handleToolbarSearchNavigate}
+              onToolbarSelect={handleFocusToolbarSearch}
+              onEditorSelect={handleEditorSelect}
+              editorActions={<EditorPanelActions onClose={handleCloseEditor} />}
+            />
 
-      {/* Delete Confirmation Modal */}
-      <ChipConfirmModal
-        open={isDeleteModalOpen}
-        onOpenChange={setIsDeleteModalOpen}
-        srTitle='Delete Workflow'
-        title='Delete Workflow'
-        text={[
-          'Are you sure you want to delete ',
-          { text: currentWorkflow?.name ?? 'this workflow', bold: true },
-          '? ',
-          {
-            text: 'All associated blocks, executions, and configuration will be removed.',
-            error: true,
-          },
-          ' You can restore it from Recently Deleted in Settings.',
-        ]}
-        confirm={{
-          label: 'Delete',
-          onClick: handleDeleteWorkflow,
-          pending: isDeleting,
-          pendingLabel: 'Deleting...',
-        }}
-      />
+            <div className='min-h-0 flex-1 overflow-hidden'>
+              <div
+                data-tab-content='toolbar'
+                className={cn(
+                  'h-full min-h-0',
+                  activeTab === 'toolbar' ? 'flex flex-col' : 'hidden'
+                )}
+              >
+                <Toolbar
+                  key={activeWorkflowId ?? 'workflow'}
+                  ref={toolbarRef}
+                  isActive={activeTab === 'toolbar'}
+                  onFocusSearch={handleFocusToolbarSearch}
+                />
+              </div>
+              <div
+                data-tab-content='editor'
+                className={cn(
+                  'h-full min-h-0 flex-col overflow-hidden',
+                  activeTab === 'editor' ? 'flex' : 'hidden'
+                )}
+              >
+                <Editor />
+              </div>
+            </div>
+          </div>
+
+          <div
+            data-panel-resize-handle=''
+            className="before:-translate-x-1/2 absolute top-0 bottom-0 left-[-4px] z-20 w-[8px] cursor-ew-resize before:absolute before:inset-y-0 before:left-1/2 before:w-[2px] before:bg-[var(--border)] before:opacity-0 before:transition-opacity before:duration-150 before:ease-out before:content-[''] hover-hover:before:opacity-100 focus-visible:outline-none focus-visible:before:opacity-100 active:before:opacity-100"
+            onPointerDown={handlePointerDown}
+            onKeyDown={handleKeyDown}
+            role='separator'
+            aria-orientation='vertical'
+            aria-label='Resize panel'
+            aria-valuemin={PANEL_WIDTH.MIN}
+            aria-valuemax={maxPanelWidth === null ? undefined : Math.round(maxPanelWidth)}
+            aria-valuenow={maxPanelWidth === null ? undefined : Math.round(panelWidth)}
+            aria-valuetext={maxPanelWidth === null ? undefined : `${Math.round(panelWidth)} pixels`}
+            tabIndex={0}
+          />
+        </aside>
+      </div>
 
       {/* Floating Variables Modal */}
       <Variables readOnly={workflowLocked} />

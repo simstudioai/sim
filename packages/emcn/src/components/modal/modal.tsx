@@ -43,6 +43,7 @@ import { usePathname } from 'next/navigation'
 import { X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
+import { thinScrollbarClass } from '../scrollbar/scrollbar'
 import { focusFirstTextInput, focusFirstTextInputIn } from './auto-focus'
 
 /**
@@ -857,7 +858,11 @@ ModalTabsContent.displayName = 'ModalTabsContent'
  */
 const ModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex-1 overflow-y-auto px-4 pt-3 pb-4', className)} {...props} />
+    <div
+      ref={ref}
+      className={cn('flex-1 overflow-y-auto px-4 pt-3 pb-4', thinScrollbarClass, className)}
+      {...props}
+    />
   )
 )
 

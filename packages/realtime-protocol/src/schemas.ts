@@ -40,6 +40,7 @@ export const BlockOperationSchema = z.object({
   operation: z.enum([
     BLOCK_OPERATIONS.UPDATE_POSITION,
     BLOCK_OPERATIONS.UPDATE_NAME,
+    BLOCK_OPERATIONS.UPDATE_DESCRIPTION,
     BLOCK_OPERATIONS.TOGGLE_ENABLED,
     BLOCK_OPERATIONS.UPDATE_PARENT,
     BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE,
@@ -54,6 +55,7 @@ export const BlockOperationSchema = z.object({
     id: z.string(),
     type: z.string().optional(),
     name: z.string().optional(),
+    description: z.string().optional(),
     position: PositionSchema.optional(),
     commit: z.boolean().optional(),
     data: z.record(z.string(), z.any()).optional(),

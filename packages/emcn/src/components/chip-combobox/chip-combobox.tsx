@@ -27,6 +27,7 @@ export function ChipCombobox({ className, ...props }: ComboboxProps) {
   return (
     <Combobox
       {...props}
+      appearance='chip'
       className={cn(
         'h-[30px] rounded-lg text-[var(--text-body)] dark:bg-[var(--surface-4)]',
         className

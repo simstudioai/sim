@@ -96,7 +96,12 @@ export {
 } from './code/code'
 export { CopyCodeButton } from './code/copy-code-button'
 export { highlight, languages } from './code/prism'
-export { CollapsibleCard, type CollapsibleCardProps } from './collapsible-card/collapsible-card'
+export {
+  CollapsibleCard,
+  type CollapsibleCardProps,
+  FieldCard,
+  type FieldCardProps,
+} from './collapsible-card/collapsible-card'
 export {
   Combobox,
   type ComboboxOption,
@@ -174,6 +179,12 @@ export {
 } from './popover/popover'
 export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export { ProgressItem } from './progress-item/progress-item'
+export {
+  ScrollEdgeFade,
+  type ScrollEdgeFadeProps,
+  type ScrollEdgeFadeVariant,
+} from './scroll-edge-fade/scroll-edge-fade'
+export { thinScrollbarClass } from './scrollbar/scrollbar'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
 export { Skeleton } from './skeleton/skeleton'

@@ -7,11 +7,11 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cn, Textarea } from '@sim/emcn'
+import { Button, cn } from '@sim/emcn'
 import { ChevronsUpDown, Wand } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { Button } from '@/components/ui/button'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { ReferenceTextarea } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/reference-text-control'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
@@ -220,14 +220,6 @@ export function LongInput({
     }
   }, [rows])
 
-  // Sync scroll position between textarea and overlay
-  const handleScroll = useCallback((e: React.UIEvent<HTMLTextAreaElement>) => {
-    if (overlayRef.current) {
-      overlayRef.current.scrollTop = e.currentTarget.scrollTop
-      overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
-    }
-  }, [])
-
   // Ensure overlay updates when content changes
   useEffect(() => {
     if (textareaRef.current && overlayRef.current) {
@@ -291,6 +283,8 @@ export function LongInput({
     [wandHook]
   )
 
+  const showWandButton = isWandEnabled && !isPreview && !wandHook.isStreaming && !hideInternalWand
+
   return (
     <>
       {/* Wand Prompt Bar - positioned above the textarea */}
@@ -325,91 +319,66 @@ export function LongInput({
             ;(ref as React.MutableRefObject<HTMLTextAreaElement | null>).current = el
           }
           return (
-            <div
-              ref={containerRef}
-              className='group relative w-full'
-              style={{ height: `${height}px` }}
-            >
-              <Textarea
-                ref={setRefs}
-                className={cn(
-                  'allow-scroll box-border min-h-full w-full resize-none text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50',
-                  wandHook.isStreaming && 'pointer-events-none cursor-not-allowed opacity-50'
-                )}
-                rows={rows ?? DEFAULT_ROWS}
-                placeholder={placeholder ?? ''}
-                value={value}
-                onChange={handleChange as (e: React.ChangeEvent<HTMLTextAreaElement>) => void}
-                onDrop={onDrop as (e: React.DragEvent<HTMLTextAreaElement>) => void}
-                onDragOver={onDragOver as (e: React.DragEvent<HTMLTextAreaElement>) => void}
-                onScroll={handleScroll}
-                onKeyDown={onKeyDown as (e: React.KeyboardEvent<HTMLTextAreaElement>) => void}
-                onFocus={onFocus}
-                disabled={isPreview || disabled}
-                style={{
-                  fontFamily: 'inherit',
-                  lineHeight: 'inherit',
-                  height: `${height}px`,
-                  wordBreak: 'break-word',
-                  whiteSpace: 'pre-wrap',
-                }}
-              />
-              <div
-                ref={overlayRef}
-                className={cn(
-                  'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-2 py-2 font-sans text-sm',
-                  (isPreview || disabled) && 'opacity-50',
-                  !(isPreview || disabled) && 'pointer-events-none'
-                )}
-                style={{
-                  fontFamily: 'inherit',
-                  lineHeight: 'inherit',
-                  width: '100%',
-                  height: `${height}px`,
-                }}
-              >
-                {formatDisplayText(value, {
-                  accessiblePrefixes,
-                  highlightAll: !accessiblePrefixes,
-                  workflowSearchHighlight,
-                })}
-              </div>
-
-              {/* Wand Button - only show if not hidden by parent */}
-              {isWandEnabled && !isPreview && !wandHook.isStreaming && !hideInternalWand && (
-                <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    onClick={
-                      wandHook.isPromptVisible
-                        ? wandHook.hidePromptInline
-                        : wandHook.showPromptInline
-                    }
-                    disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
-                    aria-label='Generate content with AI'
-                    className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
-                  >
-                    <Wand className='size-4' />
-                  </Button>
-                </div>
+            <ReferenceTextarea
+              ref={setRefs}
+              containerRef={containerRef}
+              containerStyle={{ height: `${height}px` }}
+              overlayRef={overlayRef}
+              overlayContent={formatDisplayText(value, {
+                accessiblePrefixes,
+                highlightAll: !accessiblePrefixes,
+                workflowSearchHighlight,
+              })}
+              overlayClassName={cn(showWandButton && 'pr-7')}
+              interactiveOverlay={isPreview || Boolean(disabled)}
+              className={cn(
+                'allow-scroll',
+                wandHook.isStreaming && 'pointer-events-none cursor-not-allowed opacity-50'
               )}
-
-              {/* Custom resize handle */}
-              {!wandHook.isStreaming && (
-                <div
-                  role='separator'
-                  aria-orientation='horizontal'
-                  className='absolute right-1 bottom-1 flex size-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
-                  onMouseDown={startResize}
-                  onDragStart={(e) => {
-                    e.preventDefault()
-                  }}
-                >
-                  <ChevronsUpDown className='size-3 text-[var(--text-muted)]' />
-                </div>
-              )}
-            </div>
+              rows={rows ?? DEFAULT_ROWS}
+              placeholder={placeholder ?? ''}
+              value={value}
+              onChange={handleChange as (e: React.ChangeEvent<HTMLTextAreaElement>) => void}
+              onDrop={onDrop as (e: React.DragEvent<HTMLTextAreaElement>) => void}
+              onDragOver={onDragOver as (e: React.DragEvent<HTMLTextAreaElement>) => void}
+              onKeyDown={onKeyDown as (e: React.KeyboardEvent<HTMLTextAreaElement>) => void}
+              onFocus={onFocus}
+              disabled={isPreview || disabled}
+              adornment={
+                <>
+                  {showWandButton ? (
+                    <div className='absolute top-2 right-2 z-10 flex items-center opacity-0 transition-opacity group-hover:opacity-100'>
+                      <Button
+                        variant='quiet'
+                        size='icon'
+                        onClick={
+                          wandHook.isPromptVisible
+                            ? wandHook.hidePromptInline
+                            : wandHook.showPromptInline
+                        }
+                        disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
+                        aria-label='Generate content with AI'
+                      >
+                        <Wand className='size-[14px]' />
+                      </Button>
+                    </div>
+                  ) : null}
+                  {!wandHook.isStreaming ? (
+                    <div
+                      role='separator'
+                      aria-orientation='horizontal'
+                      className='absolute right-1 bottom-1 flex size-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border)] bg-[var(--surface-5)] dark:bg-[var(--surface-4)]'
+                      onMouseDown={startResize}
+                      onDragStart={(e) => {
+                        e.preventDefault()
+                      }}
+                    >
+                      <ChevronsUpDown className='size-[14px] text-[var(--text-icon)]' />
+                    </div>
+                  ) : null}
+                </>
+              }
+            />
           )
         }}
       </SubBlockInputController>

@@ -43,6 +43,7 @@ export interface Position {
 }
 
 export interface BlockData {
+  description?: string
   parentId?: string
   extent?: 'parent'
   width?: number

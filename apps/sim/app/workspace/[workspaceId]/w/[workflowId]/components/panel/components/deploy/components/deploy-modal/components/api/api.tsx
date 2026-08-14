@@ -1,16 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import {
-  Button,
-  ButtonGroup,
-  ButtonGroupItem,
-  Code,
-  Combobox,
-  Label,
-  Skeleton,
-  Tooltip,
-} from '@sim/emcn'
+import { Chip, ChipDropdown, ChipSwitch, Code, Label, Skeleton, Tooltip } from '@sim/emcn'
 import { Check, Clipboard } from '@sim/emcn/icons'
 import {
   AGENT_STREAM_PROTOCOL_HEADER_LABEL,
@@ -54,6 +45,17 @@ const LANGUAGE_LABELS: Record<CodeLanguage, string> = {
   javascript: 'JavaScript',
   typescript: 'TypeScript',
 }
+
+const LANGUAGE_OPTIONS = (Object.keys(LANGUAGE_LABELS) as CodeLanguage[]).map((value) => ({
+  value,
+  label: LANGUAGE_LABELS[value],
+}))
+
+const ASYNC_EXAMPLE_OPTIONS = [
+  { label: 'Execute Job', value: 'execute' },
+  { label: 'Check Status', value: 'status' },
+  { label: 'Rate Limits', value: 'rate-limits' },
+] as const
 
 const LANGUAGE_SYNTAX: Record<CodeLanguage, 'python' | 'javascript' | 'json'> = {
   curl: 'javascript',
@@ -416,19 +418,6 @@ console.log(limits);`
     }
   }
 
-  const getAsyncExampleTitle = () => {
-    switch (asyncExampleType) {
-      case 'execute':
-        return 'Start Execution'
-      case 'status':
-        return 'Check Status'
-      case 'rate-limits':
-        return 'Usage Limits'
-      default:
-        return 'Start Execution'
-    }
-  }
-
   const handleCopy = (key: keyof CopiedState, value: string) => {
     navigator.clipboard.writeText(value)
     setCopied((prev) => ({ ...prev, [key]: true }))
@@ -460,13 +449,13 @@ console.log(limits);`
         <div className='mb-[6.5px] flex items-center justify-between'>
           <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>Language</Label>
         </div>
-        <ButtonGroup value={language} onValueChange={(val) => setLanguage(val as CodeLanguage)}>
-          {(Object.keys(LANGUAGE_LABELS) as CodeLanguage[]).map((lang) => (
-            <ButtonGroupItem key={lang} value={lang}>
-              {LANGUAGE_LABELS[lang]}
-            </ButtonGroupItem>
-          ))}
-        </ButtonGroup>
+        <ChipSwitch
+          value={language}
+          onChange={setLanguage}
+          options={LANGUAGE_OPTIONS}
+          aria-label='Code language'
+          size='compact'
+        />
       </div>
 
       <div>
@@ -474,14 +463,12 @@ console.log(limits);`
           <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>Run workflow</Label>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
+              <Chip
+                leftIcon={copied.sync ? Check : Clipboard}
                 onClick={() => handleCopy('sync', getSyncCommand())}
-                aria-label='Copy command'
-                className='!p-1.5 -my-1.5'
-              >
-                {copied.sync ? <Check className='size-3' /> : <Clipboard className='size-3' />}
-              </Button>
+                aria-label={copied.sync ? 'Command copied' : 'Copy command'}
+                className='-my-1.5'
+              />
             </Tooltip.Trigger>
             <Tooltip.Content>
               <span>{copied.sync ? 'Copied' : 'Copy'}</span>
@@ -504,14 +491,12 @@ console.log(limits);`
           <div className='flex items-center gap-1.5'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
+                <Chip
+                  leftIcon={copied.stream ? Check : Clipboard}
                   onClick={() => handleCopy('stream', getStreamCommand())}
-                  aria-label='Copy command'
-                  className='!p-1.5 -my-1.5'
-                >
-                  {copied.stream ? <Check className='size-3' /> : <Clipboard className='size-3' />}
-                </Button>
+                  aria-label={copied.stream ? 'Command copied' : 'Copy command'}
+                  className='-my-1.5'
+                />
               </Tooltip.Trigger>
               <Tooltip.Content>
                 <span>{copied.stream ? 'Copied' : 'Copy'}</span>
@@ -524,6 +509,8 @@ console.log(limits);`
               placeholder='Select outputs'
               valueMode='label'
               align='end'
+              size='md'
+              className='w-[140px]'
             />
           </div>
         </div>
@@ -544,31 +531,23 @@ console.log(limits);`
             <div className='flex items-center gap-1.5'>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
+                  <Chip
+                    leftIcon={copied.async ? Check : Clipboard}
                     onClick={() => handleCopy('async', getAsyncCommand())}
-                    aria-label='Copy command'
-                    className='!p-1.5 -my-1.5'
-                  >
-                    {copied.async ? <Check className='size-3' /> : <Clipboard className='size-3' />}
-                  </Button>
+                    aria-label={copied.async ? 'Command copied' : 'Copy command'}
+                    className='-my-1.5'
+                  />
                 </Tooltip.Trigger>
                 <Tooltip.Content>
                   <span>{copied.async ? 'Copied' : 'Copy'}</span>
                 </Tooltip.Content>
               </Tooltip.Root>
-              <Combobox
-                size='sm'
-                className='!w-fit !py-0.5 min-w-[100px] rounded-md px-[9px]'
-                options={[
-                  { label: 'Start Execution', value: 'execute' },
-                  { label: 'Check Status', value: 'status' },
-                  { label: 'Usage Limits', value: 'rate-limits' },
-                ]}
+              <ChipDropdown
+                className='w-[140px]'
+                options={ASYNC_EXAMPLE_OPTIONS}
                 value={asyncExampleType}
                 onChange={(value) => setAsyncExampleType(value as AsyncExampleType)}
                 align='end'
-                dropdownWidth={160}
               />
             </div>
           </div>

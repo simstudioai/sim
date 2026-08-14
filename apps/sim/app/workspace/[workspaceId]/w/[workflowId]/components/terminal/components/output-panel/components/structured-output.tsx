@@ -18,6 +18,7 @@ import {
   chipHoverSurfaceClass,
   cn,
   disclosureChevronClass,
+  thinScrollbarClass,
 } from '@sim/emcn'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
@@ -928,6 +929,7 @@ export const StructuredOutput = memo(function StructuredOutput({
   const containerClass = cn('flex flex-col pl-5', wrapText && 'overflow-x-hidden', className)
   const virtualizedContainerClass = cn(
     'overflow-y-auto',
+    thinScrollbarClass,
     wrapText ? 'overflow-x-hidden' : 'overflow-x-auto',
     className
   )

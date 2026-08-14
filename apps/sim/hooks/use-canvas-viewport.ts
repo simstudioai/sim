@@ -1,11 +1,13 @@
 import { useCallback, useMemo } from 'react'
 import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
 import type { Node, ReactFlowInstance } from 'reactflow'
+import { getVisiblePanelWidth, getVisibleWorkflowHeaderHeight } from '@/lib/core/utils/layout'
 
 interface VisibleBounds {
   width: number
   height: number
   offsetLeft: number
+  offsetTop: number
   offsetRight: number
   offsetBottom: number
 }
@@ -27,6 +29,7 @@ function getVisibleCanvasBounds(options?: CanvasViewportOptions): VisibleBounds 
       width: rect.width,
       height: rect.height,
       offsetLeft: 0,
+      offsetTop: 0,
       offsetRight: 0,
       offsetBottom: 0,
     }
@@ -36,13 +39,15 @@ function getVisibleCanvasBounds(options?: CanvasViewportOptions): VisibleBounds 
 
   const sidebarWidth = Number.parseInt(style.getPropertyValue('--sidebar-width') || '0', 10)
   const terminalHeight = Number.parseInt(style.getPropertyValue('--terminal-height') || '0', 10)
-  const panelWidth = Number.parseInt(style.getPropertyValue('--panel-width') || '0', 10)
+  const panelWidth = getVisiblePanelWidth()
+  const headerHeight = getVisibleWorkflowHeaderHeight()
 
   if (!flowContainer) {
     return {
       width: window.innerWidth - sidebarWidth - panelWidth,
-      height: window.innerHeight - terminalHeight,
+      height: window.innerHeight - terminalHeight - headerHeight,
       offsetLeft: sidebarWidth,
+      offsetTop: headerHeight,
       offsetRight: panelWidth,
       offsetBottom: terminalHeight,
     }
@@ -54,16 +59,18 @@ function getVisibleCanvasBounds(options?: CanvasViewportOptions): VisibleBounds 
   // This works regardless of whether the container extends under overlays
   const visibleLeft = Math.max(rect.left, sidebarWidth)
   const visibleRight = Math.min(rect.right, window.innerWidth - panelWidth)
+  const visibleTop = Math.min(rect.bottom, rect.top + headerHeight)
   const visibleBottom = Math.min(rect.bottom, window.innerHeight - terminalHeight)
 
   // Calculate visible dimensions and offsets relative to the container
   const visibleWidth = Math.max(0, visibleRight - visibleLeft)
-  const visibleHeight = Math.max(0, visibleBottom - rect.top)
+  const visibleHeight = Math.max(0, visibleBottom - visibleTop)
 
   return {
     width: visibleWidth,
     height: visibleHeight,
     offsetLeft: visibleLeft - rect.left,
+    offsetTop: visibleTop - rect.top,
     offsetRight: rect.right - visibleRight,
     offsetBottom: rect.bottom - visibleBottom,
   }
@@ -82,7 +89,7 @@ function getVisibleCanvasCenter(options?: CanvasViewportOptions): { x: number; y
 
   return {
     x: containerLeft + bounds.offsetLeft + bounds.width / 2,
-    y: containerTop + bounds.height / 2,
+    y: containerTop + bounds.offsetTop + bounds.height / 2,
   }
 }
 
@@ -178,7 +185,7 @@ export function useCanvasViewport(
       // Calculate viewport position to center content in visible area
       // Account for sidebar offset on the left
       const visibleCenterX = bounds.offsetLeft + bounds.width / 2
-      const visibleCenterY = bounds.height / 2
+      const visibleCenterY = bounds.offsetTop + bounds.height / 2
 
       const x = visibleCenterX - contentCenterX * zoom
       const y = visibleCenterY - contentCenterY * zoom
