@@ -41,18 +41,19 @@ export const rabbitmqDeleteQueueTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, ['queues', resolveVhost(params), params.queue], {
-        'if-unused': params.ifUnused ? 'true' : undefined,
-        'if-empty': params.ifEmpty ? 'true' : undefined,
+    url: ({ host, vhost, ifEmpty, ifUnused, queue }) =>
+      buildManagementUrl(host, ['queues', resolveVhost(vhost), queue], {
+        'if-unused': ifUnused ? 'true' : undefined,
+        'if-empty': ifEmpty ? 'true' : undefined,
       }),
     method: 'DELETE',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response, params) => {
     const queueName = params?.queue ?? ''
-    const vhost = params ? resolveVhost(params) : ''
+    const vhost = params ? resolveVhost(params.vhost) : ''
 
     if (!response.ok) {
       const error = await extractErrorMessage(response)

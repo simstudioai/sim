@@ -38,17 +38,18 @@ export const rabbitmqDeleteExchangeTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, ['exchanges', resolveVhost(params), params.exchange], {
-        'if-unused': params.ifUnused ? 'true' : undefined,
+    url: ({ host, vhost, exchange, ifUnused }) =>
+      buildManagementUrl(host, ['exchanges', resolveVhost(vhost), exchange], {
+        'if-unused': ifUnused ? 'true' : undefined,
       }),
     method: 'DELETE',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response, params) => {
     const exchangeName = params?.exchange ?? ''
-    const vhost = params ? resolveVhost(params) : ''
+    const vhost = params ? resolveVhost(params.vhost) : ''
 
     if (!response.ok) {
       const error = await extractErrorMessage(response)

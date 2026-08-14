@@ -34,10 +34,11 @@ export const rabbitmqListBindingsTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, ['queues', resolveVhost(params), params.queue, 'bindings']),
+    url: ({ host, vhost, queue }) =>
+      buildManagementUrl(host, ['queues', resolveVhost(vhost), queue, 'bindings']),
     method: 'GET',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response, params) => {

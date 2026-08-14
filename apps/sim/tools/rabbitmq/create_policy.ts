@@ -70,21 +70,22 @@ export const rabbitmqCreatePolicyTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, ['policies', resolveVhost(params), params.policyName]),
+    url: ({ host, vhost, policyName }) =>
+      buildManagementUrl(host, ['policies', resolveVhost(vhost), policyName]),
     method: 'PUT',
-    headers: (params) => buildAuthHeaders(params),
-    body: (params) => ({
-      pattern: params.pattern,
-      definition: parseJsonObjectParam(params.definition, 'definition') ?? {},
-      priority: params.priority ?? 0,
-      'apply-to': APPLY_TO.has(params.applyTo ?? '') ? params.applyTo : 'queues',
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
+    body: ({ applyTo, definition, pattern, priority }) => ({
+      pattern: pattern,
+      definition: parseJsonObjectParam(definition, 'definition') ?? {},
+      priority: priority ?? 0,
+      'apply-to': APPLY_TO.has(applyTo ?? '') ? applyTo : 'queues',
     }),
   },
 
   transformResponse: async (response, params) => {
     const policyName = params?.policyName ?? ''
-    const vhost = params ? resolveVhost(params) : ''
+    const vhost = params ? resolveVhost(params.vhost) : ''
 
     if (!response.ok) {
       const error = await extractErrorMessage(response)

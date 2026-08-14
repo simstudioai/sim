@@ -26,9 +26,10 @@ export const rabbitmqListPoliciesTool: ToolConfig<
   params: { ...RABBITMQ_CONNECTION_PARAMS },
 
   request: {
-    url: (params) => buildManagementUrl(params, ['policies', resolveVhost(params)]),
+    url: ({ host, vhost }) => buildManagementUrl(host, ['policies', resolveVhost(vhost)]),
     method: 'GET',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response) => {

@@ -28,9 +28,11 @@ export const rabbitmqGetQueueTool: ToolConfig<RabbitmqGetQueueParams, RabbitmqGe
   },
 
   request: {
-    url: (params) => buildManagementUrl(params, ['queues', resolveVhost(params), params.queue]),
+    url: ({ host, vhost, queue }) =>
+      buildManagementUrl(host, ['queues', resolveVhost(vhost), queue]),
     method: 'GET',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response) => {

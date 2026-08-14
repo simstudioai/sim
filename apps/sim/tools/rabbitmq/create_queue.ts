@@ -49,19 +49,21 @@ export const rabbitmqCreateQueueTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildManagementUrl(params, ['queues', resolveVhost(params), params.queue]),
+    url: ({ host, vhost, queue }) =>
+      buildManagementUrl(host, ['queues', resolveVhost(vhost), queue]),
     method: 'PUT',
-    headers: (params) => buildAuthHeaders(params),
-    body: (params) => ({
-      durable: params.durable !== false,
-      auto_delete: params.autoDelete === true,
-      arguments: parseJsonObjectParam(params.arguments, 'arguments') ?? {},
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
+    body: ({ arguments: queueArguments, autoDelete, durable }) => ({
+      durable: durable !== false,
+      auto_delete: autoDelete === true,
+      arguments: parseJsonObjectParam(queueArguments, 'arguments') ?? {},
     }),
   },
 
   transformResponse: async (response, params) => {
     const queueName = params?.queue ?? ''
-    const vhost = params ? resolveVhost(params) : ''
+    const vhost = params ? resolveVhost(params.vhost) : ''
 
     if (!response.ok) {
       const error = await extractErrorMessage(response)

@@ -27,12 +27,13 @@ export const rabbitmqListConsumersTool: ToolConfig<
   params: { ...RABBITMQ_CONNECTION_PARAMS },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, ['consumers', resolveVhost(params)], {
+    url: ({ host, vhost }) =>
+      buildManagementUrl(host, ['consumers', resolveVhost(vhost)], {
         columns: RABBITMQ_CONSUMER_COLUMNS,
       }),
     method: 'GET',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response) => {

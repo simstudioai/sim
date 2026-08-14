@@ -1,3 +1,4 @@
+import { isLoopbackIp } from '@sim/security/ssrf'
 import type {
   RabbitmqBinding,
   RabbitmqChannel,
@@ -17,7 +18,8 @@ export const RABBITMQ_CONNECTION_PARAMS = {
     type: 'string',
     required: true,
     visibility: 'user-only',
-    description: 'RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672',
+    description:
+      'RabbitMQ Management API base URL, e.g. https://rabbit.example.com:15672. Must use https unless the broker is on a loopback host.',
   },
   username: {
     type: 'string',
@@ -121,13 +123,6 @@ export const RABBITMQ_MESSAGE_OUTPUT_PROPERTIES = {
   properties: { type: 'json', description: 'AMQP basic properties, including headers' },
 } as const
 
-interface ConnectionParams {
-  host: string
-  username: string
-  password: string
-  vhost?: string
-}
-
 /**
  * Normalizes the user-supplied management host into an origin the API paths append to.
  * Tolerates a trailing slash and a trailing `/api` so both forms of the URL people copy
@@ -152,13 +147,24 @@ function normalizeHost(host: string): string {
     throw new Error(`Unsupported RabbitMQ host protocol "${parsed.protocol}". Use http or https.`)
   }
 
+  // Shared outbound validation only permits plain http to a loopback host, so a remote
+  // http:// endpoint would be refused at dispatch with a generic protocol error. Reject it
+  // here instead, where the message can name the field the operator has to change.
+  const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  const isLoopback = hostname === 'localhost' || isLoopbackIp(hostname)
+  if (parsed.protocol === 'http:' && !isLoopback) {
+    throw new Error(
+      `RabbitMQ host "${trimmed}" must use https. Plain http is only accepted for a loopback host.`
+    )
+  }
+
   return `${parsed.origin}${parsed.pathname.replace(/\/(api\/?)?$/, '')}`
 }
 
 /** Resolves the target virtual host, defaulting to the broker's default vhost `/`. */
-export function resolveVhost(params: ConnectionParams): string {
-  const vhost = params.vhost?.trim()
-  return vhost ? vhost : '/'
+export function resolveVhost(vhost: string | undefined): string {
+  const trimmed = vhost?.trim()
+  return trimmed ? trimmed : '/'
 }
 
 /**
@@ -179,12 +185,12 @@ export function clampPageSize(pageSize: number | undefined, fallback: number): n
  * whitespace does not turn into a 404.
  */
 export function buildManagementUrl(
-  params: ConnectionParams,
+  host: string,
   segments: string[],
   query?: Record<string, string | number | boolean | undefined>
 ): string {
   const path = segments.map((segment) => encodeURIComponent(segment.trim())).join('/')
-  const url = `${normalizeHost(params.host)}/api/${path}`
+  const url = `${normalizeHost(host)}/api/${path}`
 
   if (!query) return url
 
@@ -196,12 +202,12 @@ export function buildManagementUrl(
   return queryString ? `${url}?${queryString}` : url
 }
 
-export function buildAuthHeaders(params: ConnectionParams): Record<string, string> {
-  if (!params.username || !params.password) {
+export function buildAuthHeaders(username: string, password: string): Record<string, string> {
+  if (!username || !password) {
     throw new Error('RabbitMQ username and password are required')
   }
 
-  const credentials = Buffer.from(`${params.username}:${params.password}`).toString('base64')
+  const credentials = Buffer.from(`${username}:${password}`).toString('base64')
   return {
     Authorization: `Basic ${credentials}`,
     'Content-Type': 'application/json',

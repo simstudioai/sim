@@ -21,19 +21,36 @@ const ACK_MODES = new Set([
  * The broker applies no upper bound of its own to `count`, so a single call could pull an
  * unbounded number of messages of unbounded size into memory. Both dimensions are bounded here:
  * `count` caps how many messages come back, and `truncate` caps each payload broker-side so the
- * bytes are never transferred at all. The truncate default matches the management UI's own.
+ * oversized bytes are never transferred at all. The truncate default matches the management UI's own.
  */
 const MAX_MESSAGE_COUNT = 100
 const DEFAULT_TRUNCATE_BYTES = 50_000
+
+/**
+ * Payload budget for one call. The shared tool transport rejects any response body over 10MB,
+ * and `count * truncate` alone could exceed that — base64 payloads inflate a further 4/3 on top,
+ * before JSON escaping. Keeping the combined payload under this budget means a large `truncate`
+ * degrades to shorter payloads rather than failing the whole retrieval at the transport cap.
+ */
+const MAX_TOTAL_PAYLOAD_BYTES = 4_000_000
+const MAX_TRUNCATE_BYTES = 1_000_000
 
 function resolveCount(count: number | undefined): number {
   if (typeof count !== 'number' || !Number.isFinite(count)) return 1
   return Math.min(Math.max(Math.trunc(count), 1), MAX_MESSAGE_COUNT)
 }
 
-function resolveTruncate(truncate: number | undefined): number {
-  if (typeof truncate !== 'number' || !Number.isFinite(truncate)) return DEFAULT_TRUNCATE_BYTES
-  return Math.max(Math.trunc(truncate), 1)
+/**
+ * Resolves the per-message byte limit actually sent to the broker, bounded both per message and
+ * across the whole batch so the response always fits inside the shared transport cap.
+ */
+function resolveTruncate(truncate: number | undefined, count: number | undefined): number {
+  const requested =
+    typeof truncate === 'number' && Number.isFinite(truncate)
+      ? Math.max(Math.trunc(truncate), 1)
+      : DEFAULT_TRUNCATE_BYTES
+  const budgeted = Math.floor(MAX_TOTAL_PAYLOAD_BYTES / resolveCount(count))
+  return Math.max(Math.min(requested, MAX_TRUNCATE_BYTES, budgeted), 1)
 }
 
 export const rabbitmqGetMessagesTool: ToolConfig<
@@ -78,20 +95,21 @@ export const rabbitmqGetMessagesTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: `Truncate payloads longer than this many bytes. Defaults to ${DEFAULT_TRUNCATE_BYTES}; each message reports whether it was truncated`,
+      description: `Truncate payloads longer than this many bytes. Defaults to ${DEFAULT_TRUNCATE_BYTES} and is capped at ${MAX_TRUNCATE_BYTES}, and lowered further when a large count would push the response past the transport limit. Each message reports whether it was truncated`,
     },
   },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, ['queues', resolveVhost(params), params.queue, 'get']),
+    url: ({ host, vhost, queue }) =>
+      buildManagementUrl(host, ['queues', resolveVhost(vhost), queue, 'get']),
     method: 'POST',
-    headers: (params) => buildAuthHeaders(params),
-    body: (params) => ({
-      count: resolveCount(params.count),
-      ackmode: ACK_MODES.has(params.ackmode ?? '') ? params.ackmode : 'ack_requeue_true',
-      encoding: params.encoding === 'base64' ? 'base64' : 'auto',
-      truncate: resolveTruncate(params.truncate),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
+    body: ({ ackmode, count, encoding, truncate }) => ({
+      count: resolveCount(count),
+      ackmode: ACK_MODES.has(ackmode ?? '') ? ackmode : 'ack_requeue_true',
+      encoding: encoding === 'base64' ? 'base64' : 'auto',
+      truncate: resolveTruncate(truncate, count),
     }),
   },
 
@@ -104,7 +122,7 @@ export const rabbitmqGetMessagesTool: ToolConfig<
     }
 
     const data = await response.json()
-    const truncateLimit = resolveTruncate(params?.truncate)
+    const truncateLimit = resolveTruncate(params?.truncate, params?.count)
     const messages = Array.isArray(data)
       ? data.map((message) => projectMessage(message, truncateLimit))
       : []

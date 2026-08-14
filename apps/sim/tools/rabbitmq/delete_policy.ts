@@ -32,15 +32,16 @@ export const rabbitmqDeletePolicyTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, ['policies', resolveVhost(params), params.policyName]),
+    url: ({ host, vhost, policyName }) =>
+      buildManagementUrl(host, ['policies', resolveVhost(vhost), policyName]),
     method: 'DELETE',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response, params) => {
     const policyName = params?.policyName ?? ''
-    const vhost = params ? resolveVhost(params) : ''
+    const vhost = params ? resolveVhost(params.vhost) : ''
 
     if (!response.ok) {
       const error = await extractErrorMessage(response)

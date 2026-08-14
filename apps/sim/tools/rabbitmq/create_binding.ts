@@ -78,20 +78,21 @@ export const rabbitmqCreateBindingTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, [
+    url: ({ host, vhost, destinationType, exchange, queue }) =>
+      buildManagementUrl(host, [
         'bindings',
-        resolveVhost(params),
+        resolveVhost(vhost),
         'e',
-        params.exchange,
-        params.destinationType === 'exchange' ? 'e' : 'q',
-        params.queue,
+        exchange,
+        destinationType === 'exchange' ? 'e' : 'q',
+        queue,
       ]),
     method: 'POST',
-    headers: (params) => buildAuthHeaders(params),
-    body: (params) => ({
-      routing_key: params.routingKey ?? '',
-      arguments: parseJsonObjectParam(params.arguments, 'arguments') ?? {},
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
+    body: ({ arguments: bindingArguments, routingKey }) => ({
+      routing_key: routingKey ?? '',
+      arguments: parseJsonObjectParam(bindingArguments, 'arguments') ?? {},
     }),
   },
 

@@ -51,18 +51,19 @@ export const rabbitmqDeleteBindingTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, [
+    url: ({ host, vhost, destination, destinationType, exchange, propertiesKey }) =>
+      buildManagementUrl(host, [
         'bindings',
-        resolveVhost(params),
+        resolveVhost(vhost),
         'e',
-        params.exchange,
-        params.destinationType === 'exchange' ? 'e' : 'q',
-        params.destination,
-        params.propertiesKey,
+        exchange,
+        destinationType === 'exchange' ? 'e' : 'q',
+        destination,
+        propertiesKey,
       ]),
     method: 'DELETE',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response, params) => {

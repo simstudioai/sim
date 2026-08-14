@@ -68,22 +68,23 @@ export const rabbitmqCreateExchangeTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, ['exchanges', resolveVhost(params), params.exchange]),
+    url: ({ host, vhost, exchange }) =>
+      buildManagementUrl(host, ['exchanges', resolveVhost(vhost), exchange]),
     method: 'PUT',
-    headers: (params) => buildAuthHeaders(params),
-    body: (params) => ({
-      type: EXCHANGE_TYPES.has(params.exchangeType ?? '') ? params.exchangeType : 'direct',
-      durable: params.durable !== false,
-      auto_delete: params.autoDelete === true,
-      internal: params.internal === true,
-      arguments: parseJsonObjectParam(params.arguments, 'arguments') ?? {},
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
+    body: ({ arguments: exchangeArguments, autoDelete, durable, exchangeType, internal }) => ({
+      type: EXCHANGE_TYPES.has(exchangeType ?? '') ? exchangeType : 'direct',
+      durable: durable !== false,
+      auto_delete: autoDelete === true,
+      internal: internal === true,
+      arguments: parseJsonObjectParam(exchangeArguments, 'arguments') ?? {},
     }),
   },
 
   transformResponse: async (response, params) => {
     const exchangeName = params?.exchange ?? ''
-    const vhost = params ? resolveVhost(params) : ''
+    const vhost = params ? resolveVhost(params.vhost) : ''
 
     if (!response.ok) {
       const error = await extractErrorMessage(response)

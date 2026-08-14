@@ -66,18 +66,20 @@ export const rabbitmqPublishMessageTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, [
-        'exchanges',
-        resolveVhost(params),
-        params.exchange ?? '',
-        'publish',
-      ]),
+    url: ({ host, vhost, exchange }) =>
+      buildManagementUrl(host, ['exchanges', resolveVhost(vhost), exchange ?? '', 'publish']),
     method: 'POST',
-    headers: (params) => buildAuthHeaders(params),
-    body: (params) => {
-      const properties = parseJsonObjectParam(params.properties, 'properties') ?? {}
-      const headers = parseJsonObjectParam(params.headers, 'headers')
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
+    body: ({
+      headers: rawHeaders,
+      payload,
+      payloadEncoding,
+      properties: rawProperties,
+      routingKey,
+    }) => {
+      const properties = parseJsonObjectParam(rawProperties, 'properties') ?? {}
+      const headers = parseJsonObjectParam(rawHeaders, 'headers')
       if (headers) {
         // Only merge onto an existing headers object. Spreading a string or array here would
         // turn it into index-keyed junk on the published message.
@@ -91,9 +93,9 @@ export const rabbitmqPublishMessageTool: ToolConfig<
 
       return {
         properties,
-        routing_key: params.routingKey,
-        payload: params.payload,
-        payload_encoding: params.payloadEncoding === 'base64' ? 'base64' : 'string',
+        routing_key: routingKey,
+        payload: payload,
+        payload_encoding: payloadEncoding === 'base64' ? 'base64' : 'string',
       }
     },
   },

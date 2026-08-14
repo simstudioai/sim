@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import * as rabbitmqTools from '@/tools/rabbitmq'
 import { rabbitmqCreateBindingTool } from '@/tools/rabbitmq/create_binding'
 import { rabbitmqCreatePolicyTool } from '@/tools/rabbitmq/create_policy'
 import { rabbitmqDeleteBindingTool } from '@/tools/rabbitmq/delete_binding'
@@ -378,5 +379,61 @@ describe('rabbitmq_create_policy', () => {
         'apply-to'
       ]
     ).toBe('quorum_queues')
+  })
+})
+
+describe('rabbitmq credential exposure', () => {
+  it('strips the Basic auth header on every redirect, for every tool', () => {
+    const tools = Object.values(rabbitmqTools)
+    expect(tools.length).toBeGreaterThan(0)
+    for (const tool of tools) {
+      expect(`${tool.id}:${tool.request.stripAuthOnRedirect}`).toBe(`${tool.id}:true`)
+    }
+  })
+
+  it('refuses a remote plain-http host rather than leaving it to fail at dispatch', () => {
+    expect(() =>
+      url(rabbitmqGetQueueTool, { host: 'http://rabbit.example.com:15672', queue: 'q' })
+    ).toThrow(/must use https/)
+    expect(() => url(rabbitmqGetQueueTool, { host: 'http://10.0.0.5:15672', queue: 'q' })).toThrow(
+      /must use https/
+    )
+  })
+
+  it('still allows a loopback host over plain http for local brokers', () => {
+    expect(url(rabbitmqGetQueueTool, { host: 'http://localhost:15672', queue: 'q' })).toBe(
+      'http://localhost:15672/api/queues/%2F/q'
+    )
+    expect(url(rabbitmqGetQueueTool, { host: 'http://127.0.0.1:15672', queue: 'q' })).toBe(
+      'http://127.0.0.1:15672/api/queues/%2F/q'
+    )
+    expect(
+      url(rabbitmqGetQueueTool, { host: 'https://rabbit.example.com:15672', queue: 'q' })
+    ).toBe('https://rabbit.example.com:15672/api/queues/%2F/q')
+  })
+})
+
+describe('rabbitmq_get_messages response budget', () => {
+  const body = (params: Record<string, unknown>) =>
+    rabbitmqGetMessagesTool.request.body?.({ ...conn, ...params } as never) as Record<
+      string,
+      number
+    >
+
+  it('keeps the whole batch under the shared transport response cap', () => {
+    const TRANSPORT_CAP = 10 * 1024 * 1024
+    for (const count of [1, 10, 50, 100]) {
+      const sent = body({ queue: 'q', count, truncate: 100_000_000 })
+      // base64 inflates payloads by 4/3 before JSON escaping, so budget against the worst case.
+      expect(sent.count * sent.truncate * (4 / 3)).toBeLessThan(TRANSPORT_CAP)
+    }
+  })
+
+  it('caps a single oversized truncate request', () => {
+    expect(body({ queue: 'q', truncate: 100_000_000 }).truncate).toBe(1_000_000)
+  })
+
+  it('leaves a reasonable truncate untouched', () => {
+    expect(body({ queue: 'q', truncate: 20_000, count: 5 }).truncate).toBe(20_000)
   })
 })

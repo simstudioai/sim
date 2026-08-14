@@ -26,9 +26,10 @@ export const rabbitmqListVhostsTool: ToolConfig<
      * Deliberately sent without pagination parameters: unlike the other list endpoints, this one
      * responds with HTTP 500 when `page`/`page_size` are supplied.
      */
-    url: (params) => buildManagementUrl(params, ['vhosts']),
+    url: ({ host }) => buildManagementUrl(host, ['vhosts']),
     method: 'GET',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response) => {

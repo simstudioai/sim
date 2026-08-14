@@ -59,16 +59,17 @@ export const rabbitmqListQueuesTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, ['queues', resolveVhost(params)], {
-        page: params.page ?? 1,
-        page_size: clampPageSize(params.pageSize, DEFAULT_PAGE_SIZE),
-        name: params.name,
-        use_regex: params.useRegex ? 'true' : undefined,
+    url: ({ host, vhost, name, page, pageSize, useRegex }) =>
+      buildManagementUrl(host, ['queues', resolveVhost(vhost)], {
+        page: page ?? 1,
+        page_size: clampPageSize(pageSize, DEFAULT_PAGE_SIZE),
+        name: name,
+        use_regex: useRegex ? 'true' : undefined,
         columns: RABBITMQ_QUEUE_COLUMNS,
       }),
     method: 'GET',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response) => {

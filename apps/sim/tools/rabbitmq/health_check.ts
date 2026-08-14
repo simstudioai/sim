@@ -24,29 +24,34 @@ function resolveCheck(check: string | undefined): string {
 }
 
 /** Builds the trailing path segments for the checks that take arguments. */
-function checkSegments(params: RabbitmqHealthCheckParams): string[] {
-  const check = resolveCheck(params.check)
+function checkSegments({
+  check: requestedCheck,
+  port,
+  protocol,
+  within,
+  unit,
+}: Omit<RabbitmqHealthCheckParams, 'host' | 'username' | 'password' | 'vhost'>): string[] {
+  const check = resolveCheck(requestedCheck)
 
   if (check === 'port-listener') {
-    if (params.port === undefined) {
+    if (port === undefined) {
       throw new Error('port is required for the port-listener health check')
     }
-    return [check, String(params.port)]
+    return [check, String(port)]
   }
 
   if (check === 'protocol-listener') {
-    if (!params.protocol?.trim()) {
+    if (!protocol?.trim()) {
       throw new Error('protocol is required for the protocol-listener health check')
     }
-    return [check, params.protocol]
+    return [check, protocol]
   }
 
   if (check === 'certificate-expiration') {
-    if (params.within === undefined) {
+    if (within === undefined) {
       throw new Error('within is required for the certificate-expiration health check')
     }
-    const unit = EXPIRY_UNITS.has(params.unit ?? '') ? (params.unit as string) : 'months'
-    return [check, String(params.within), unit]
+    return [check, String(within), EXPIRY_UNITS.has(unit ?? '') ? (unit as string) : 'months']
   }
 
   return [check]
@@ -101,9 +106,11 @@ export const rabbitmqHealthCheckTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildManagementUrl(params, ['health', 'checks', ...checkSegments(params)]),
+    url: ({ host, ...rest }) =>
+      buildManagementUrl(host, ['health', 'checks', ...checkSegments(rest)]),
     method: 'GET',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   /**

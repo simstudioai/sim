@@ -58,16 +58,17 @@ export const rabbitmqListChannelsTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, ['channels'], {
-        page: params.page ?? 1,
-        page_size: clampPageSize(params.pageSize, DEFAULT_PAGE_SIZE),
-        name: params.name,
-        use_regex: params.useRegex ? 'true' : undefined,
+    url: ({ host, name, page, pageSize, useRegex }) =>
+      buildManagementUrl(host, ['channels'], {
+        page: page ?? 1,
+        page_size: clampPageSize(pageSize, DEFAULT_PAGE_SIZE),
+        name: name,
+        use_regex: useRegex ? 'true' : undefined,
         columns: RABBITMQ_CHANNEL_COLUMNS,
       }),
     method: 'GET',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response) => {

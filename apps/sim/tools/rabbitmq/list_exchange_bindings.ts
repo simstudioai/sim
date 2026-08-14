@@ -35,16 +35,17 @@ export const rabbitmqListExchangeBindingsTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      buildManagementUrl(params, [
+    url: ({ host, vhost, exchange }) =>
+      buildManagementUrl(host, [
         'exchanges',
-        resolveVhost(params),
-        params.exchange ?? '',
+        resolveVhost(vhost),
+        exchange ?? '',
         'bindings',
         'source',
       ]),
     method: 'GET',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response, params) => {

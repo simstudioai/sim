@@ -42,9 +42,10 @@ export const rabbitmqGetOverviewTool: ToolConfig<
   params: { ...RABBITMQ_CONNECTION_PARAMS },
 
   request: {
-    url: (params) => buildManagementUrl(params, ['overview']),
+    url: ({ host }) => buildManagementUrl(host, ['overview']),
     method: 'GET',
-    headers: (params) => buildAuthHeaders(params),
+    headers: ({ username, password }) => buildAuthHeaders(username, password),
+    stripAuthOnRedirect: true,
   },
 
   transformResponse: async (response) => {

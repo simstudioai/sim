@@ -21,9 +21,10 @@ export const rabbitmqListNodesTool: ToolConfig<RabbitmqListNodesParams, Rabbitmq
     params: { ...RABBITMQ_CONNECTION_PARAMS },
 
     request: {
-      url: (params) => buildManagementUrl(params, ['nodes'], { columns: RABBITMQ_NODE_COLUMNS }),
+      url: ({ host }) => buildManagementUrl(host, ['nodes'], { columns: RABBITMQ_NODE_COLUMNS }),
       method: 'GET',
-      headers: (params) => buildAuthHeaders(params),
+      headers: ({ username, password }) => buildAuthHeaders(username, password),
+      stripAuthOnRedirect: true,
     },
 
     transformResponse: async (response) => {

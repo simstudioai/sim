@@ -157,7 +157,8 @@ export const RabbitmqBlock: BlockConfig<RabbitmqResponse> = {
       title: 'Management URL',
       type: 'short-input',
       placeholder: 'https://rabbit.example.com:15672',
-      description: 'Base URL of the RabbitMQ management plugin, including scheme and port',
+      description:
+        'Base URL of the RabbitMQ management plugin, including scheme and port. Must use https unless the broker is on a loopback host',
       required: true,
     },
     {
