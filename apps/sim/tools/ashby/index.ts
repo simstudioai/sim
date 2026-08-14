@@ -1,8 +1,11 @@
 import { addCandidateTagTool } from '@/tools/ashby/add_candidate_tag'
+import { anonymizeCandidateTool } from '@/tools/ashby/anonymize_candidate'
+import { changeApplicationSourceTool } from '@/tools/ashby/change_application_source'
 import { changeApplicationStageTool } from '@/tools/ashby/change_application_stage'
 import { createApplicationTool } from '@/tools/ashby/create_application'
 import { createCandidateTool } from '@/tools/ashby/create_candidate'
 import { createNoteTool } from '@/tools/ashby/create_note'
+import { deleteApplicationTool } from '@/tools/ashby/delete_application'
 import { getApplicationTool } from '@/tools/ashby/get_application'
 import { getCandidateTool } from '@/tools/ashby/get_candidate'
 import { getJobTool } from '@/tools/ashby/get_job'
@@ -25,17 +28,22 @@ import { listSourcesTool } from '@/tools/ashby/list_sources'
 import { listUsersTool } from '@/tools/ashby/list_users'
 import { removeCandidateTagTool } from '@/tools/ashby/remove_candidate_tag'
 import { searchCandidatesTool } from '@/tools/ashby/search_candidates'
+import { setCustomFieldValueTool } from '@/tools/ashby/set_custom_field_value'
+import { setCustomFieldValuesTool } from '@/tools/ashby/set_custom_field_values'
 import { updateCandidateTool } from '@/tools/ashby/update_candidate'
 
 export const ashbyAddCandidateTagTool = addCandidateTagTool
+export const ashbyAnonymizeCandidateTool = anonymizeCandidateTool
+export const ashbyChangeApplicationSourceTool = changeApplicationSourceTool
 export const ashbyChangeApplicationStageTool = changeApplicationStageTool
 export const ashbyCreateApplicationTool = createApplicationTool
 export const ashbyCreateCandidateTool = createCandidateTool
 export const ashbyCreateNoteTool = createNoteTool
+export const ashbyDeleteApplicationTool = deleteApplicationTool
 export const ashbyGetApplicationTool = getApplicationTool
 export const ashbyGetCandidateTool = getCandidateTool
-export const ashbyGetJobTool = getJobTool
 export const ashbyGetJobPostingTool = getJobPostingTool
+export const ashbyGetJobTool = getJobTool
 export const ashbyGetOfferTool = getOfferTool
 export const ashbyListApplicationsTool = listApplicationsTool
 export const ashbyListArchiveReasonsTool = listArchiveReasonsTool
@@ -54,6 +62,8 @@ export const ashbyListSourcesTool = listSourcesTool
 export const ashbyListUsersTool = listUsersTool
 export const ashbyRemoveCandidateTagTool = removeCandidateTagTool
 export const ashbySearchCandidatesTool = searchCandidatesTool
+export const ashbySetCustomFieldValueTool = setCustomFieldValueTool
+export const ashbySetCustomFieldValuesTool = setCustomFieldValuesTool
 export const ashbyUpdateCandidateTool = updateCandidateTool
 
 export * from './types'
