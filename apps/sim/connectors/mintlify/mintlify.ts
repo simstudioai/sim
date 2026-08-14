@@ -88,9 +88,17 @@ function resolveMaxPages(value: unknown): number {
   return Math.min(Math.floor(parsed), MAX_PAGES_LIMIT)
 }
 
-/** Normalizes an optional path prefix filter to a leading-slash form, or `''`. */
+/**
+ * Normalizes an optional path prefix filter to a leading-slash, no-trailing-slash
+ * form, or `''`.
+ *
+ * The trailing slash has to go: {@link isUnderPath} accepts an exact match or
+ * `prefix + '/'`, so a raw `/guides/` would match neither `/guides` nor
+ * `/guides/intro` and the source would silently sync nothing.
+ */
 function resolvePathPrefix(value: unknown): string {
-  const prefix = typeof value === 'string' ? value.trim() : ''
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  const prefix = trimmed.replace(/\/+$/, '')
   if (!prefix) return ''
   return prefix.startsWith('/') ? prefix : `/${prefix}`
 }

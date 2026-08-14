@@ -274,9 +274,15 @@ async function fetchArticles(
       const query = new URLSearchParams({
         from: String(from),
         limit: String(limit),
-        // Stable ordering matters across pages: sorting on modifiedTime would
-        // reshuffle rows mid-walk as the portal is edited, silently skipping some.
-        sortBy: 'createdTime',
+        /**
+         * Newest first. Zoho treats a bare field as ascending and a `-` prefix as
+         * descending, so `createdTime` would fill the cap with the oldest records
+         * and leave recent tickets and articles permanently unreachable — the cap
+         * sets `listingCapped`, which stops that stale tail from ever reconciling
+         * away. Sorting on createdTime rather than modifiedTime keeps the order
+         * stable across pages; edits would otherwise reshuffle rows mid-walk.
+         */
+        sortBy: '-createdTime',
       })
       if (options.status && options.status !== 'all') query.set('status', options.status)
       if (options.categoryId) query.set('categoryId', options.categoryId)
@@ -300,7 +306,15 @@ async function fetchTickets(
       const query = new URLSearchParams({
         from: String(from),
         limit: String(limit),
-        sortBy: 'createdTime',
+        /**
+         * Newest first. Zoho treats a bare field as ascending and a `-` prefix as
+         * descending, so `createdTime` would fill the cap with the oldest records
+         * and leave recent tickets and articles permanently unreachable — the cap
+         * sets `listingCapped`, which stops that stale tail from ever reconciling
+         * away. Sorting on createdTime rather than modifiedTime keeps the order
+         * stable across pages; edits would otherwise reshuffle rows mid-walk.
+         */
+        sortBy: '-createdTime',
       })
       if (options.status) query.set('status', options.status)
       if (options.departmentIds.length > 0) {
