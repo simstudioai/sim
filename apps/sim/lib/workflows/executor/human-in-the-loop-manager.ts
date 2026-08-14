@@ -33,7 +33,7 @@ import {
 } from '@/lib/execution/payloads/large-value-metadata'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
-import { elapsedDurationMsSql } from '@/lib/logs/execution/duration'
+import { cancelledExecutionLogFields } from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -2616,12 +2616,7 @@ export class PauseResumeManager {
       if (!cancellationAlreadyTerminal) {
         const [cancelledExecution] = await tx
           .update(workflowExecutionLogs)
-          .set({
-            status: 'cancelled',
-            endedAt: now,
-            totalDurationMs: elapsedDurationMsSql(now),
-            executionDeadlineAt: null,
-          })
+          .set(cancelledExecutionLogFields(now))
           .where(
             and(
               eq(workflowExecutionLogs.executionId, executionId),

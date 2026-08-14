@@ -29,14 +29,16 @@ describe('elapsedDurationMsSql', () => {
   })
 
   /**
-   * `started_at` is `timestamp without time zone` holding a UTC wall clock. A
-   * driver-bound `Date` infers `timestamptz`, which would make the interval
-   * depend on the session zone; the explicit cast is what keeps it stable.
+   * `started_at` is `timestamp without time zone` holding a UTC wall clock. The
+   * end instant is bound through that column's mapper, which emits a UTC ISO
+   * string; the explicit cast drops the offset to the same naive reading rather
+   * than leaving the interval to depend on how Postgres resolves the operator.
    */
   it('binds the end instant as a zone-free timestamp', () => {
     const { sql, params } = render(new Date('2026-08-13T12:00:05.000Z'))
 
-    expect(sql).toContain('::timestamp')
+    expect(sql).toContain('::timestamp -')
+    expect(sql).not.toContain('::timestamptz')
     expect(params).toContain('2026-08-13T12:00:05.000Z')
     expect(params.some((param) => Array.isArray(param))).toBe(false)
   })
@@ -71,8 +73,7 @@ describe('elapsedDurationMsSql', () => {
   it('keeps the duration a paused run already recorded', () => {
     const { sql } = render(new Date('2026-08-13T12:00:05.000Z'))
 
-    expect(sql).toContain(`"status" = 'pending' THEN COALESCE(`)
-    expect(sql).toContain('"total_duration_ms"')
+    expect(sql).toContain(`"status" = 'pending' THEN "workflow_execution_logs"."total_duration_ms"`)
   })
 
   /**
@@ -83,9 +84,23 @@ describe('elapsedDurationMsSql', () => {
   it('recomputes for a running row rather than trusting a stale checkpoint', () => {
     const { sql } = render(new Date('2026-08-13T12:00:05.000Z'))
 
-    const elseBranch = sql.slice(sql.indexOf('ELSE'))
-    expect(elseBranch).toContain('LEAST(')
-    expect(elseBranch).not.toContain('COALESCE(')
-    expect(elseBranch).not.toContain('"total_duration_ms"')
+    const fallback = sql.slice(sql.indexOf('END,'))
+    expect(fallback).toContain('LEAST(')
+    expect(fallback).not.toContain('"total_duration_ms"')
+  })
+
+  /**
+   * The preserved-checkpoint rule and the elapsed fallback are one `COALESCE`
+   * over a valueless-`ELSE` `CASE`, not a `CASE` repeating the elapsed
+   * expression in both branches. `status` is `NOT NULL` and `started_at` is
+   * `NOT NULL`, so the `CASE` yields NULL exactly for a non-`pending` row or a
+   * `pending` row that never recorded one — the two cases that must fall
+   * through — and the fallback can never itself be NULL.
+   */
+  it('builds the elapsed expression once', () => {
+    const { sql, params } = render(new Date('2026-08-13T12:00:05.000Z'))
+
+    expect(sql.match(/LEAST\(/g)).toHaveLength(1)
+    expect(params).toHaveLength(2)
   })
 })

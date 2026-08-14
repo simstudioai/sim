@@ -1,6 +1,8 @@
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { type SQL, sql } from 'drizzle-orm'
 
+const INT4_MAX_MS = 2_147_483_647
+
 /**
  * Elapsed run time for a terminal write that does not go through
  * `completeWorkflowExecution`, expressed against the row's own `started_at`.
@@ -12,13 +14,19 @@ import { type SQL, sql } from 'drizzle-orm'
  * `GET /api/v2/logs` — a null there reads as "no duration recorded" and drops
  * the run out of every `minDurationMs`/`maxDurationMs` query.
  *
- * `ended_at` is bound as an explicit `timestamp` rather than a `Date`, because
- * `started_at` is `timestamp without time zone` holding a UTC wall clock: an
- * ISO string casts to the same naive reading, while a driver-bound `Date`
- * would infer `timestamptz` and make the interval depend on the session zone.
+ * `ended_at` is bound through `started_at`'s own column mapper and cast to
+ * `timestamp`, because that column is `timestamp without time zone` holding a
+ * UTC wall clock. The cast is what pins the reading: the mapper emits a UTC ISO
+ * instant, and casting it drops the offset to the same naive wall clock the
+ * column stores. Left uncast the interval would depend on Postgres resolving
+ * the subtraction to the `timestamp` overload rather than `timestamptz`, and
+ * getting that wrong yields a duration in the wrong zone rather than an error.
  *
- * Floored at 1ms to match `completeWorkflowExecution`, so a cancellation that
- * lands inside the same millisecond as the start still records that it ran.
+ * Floored at 1ms to match the `Math.max(1, durationMs)` the completion path
+ * applies, so a cancellation landing inside the same millisecond as the start
+ * still records that it ran. The floor doubles as the guard against a negative
+ * interval, which is otherwise reachable whenever the clock that stamped
+ * `started_at` runs ahead of the one cancelling.
  *
  * Saturated at the column's own ceiling rather than left to overflow. The
  * column is `integer`, so an untimed run cancelled after ~24.8 days would
@@ -41,9 +49,8 @@ import { type SQL, sql } from 'drizzle-orm'
  * measures wall clock. A `running` row therefore always recomputes; only a
  * `pending` one — paused, and not accruing — keeps what it has.
  */
-const INT4_MAX_MS = 2_147_483_647
-
 export function elapsedDurationMsSql(endedAt: Date): SQL<number> {
-  const elapsed = sql`LEAST(${INT4_MAX_MS}, GREATEST(1, ROUND(EXTRACT(EPOCH FROM (${endedAt.toISOString()}::timestamp - ${workflowExecutionLogs.startedAt})) * 1000)))::integer`
-  return sql<number>`CASE WHEN ${workflowExecutionLogs.status} = 'pending' THEN COALESCE(${workflowExecutionLogs.totalDurationMs}, ${elapsed}) ELSE ${elapsed} END`
+  const endedAtParam = sql.param(endedAt, workflowExecutionLogs.startedAt)
+  const elapsed = sql`LEAST(${INT4_MAX_MS}, GREATEST(1, ROUND(EXTRACT(EPOCH FROM (${endedAtParam}::timestamp - ${workflowExecutionLogs.startedAt})) * 1000)))::integer`
+  return sql<number>`COALESCE(CASE WHEN ${workflowExecutionLogs.status} = 'pending' THEN ${workflowExecutionLogs.totalDurationMs} END, ${elapsed})`
 }
