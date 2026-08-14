@@ -32,8 +32,6 @@ export async function createConnectDraft(params: {
   description?: string
   /** Whether an explicitly requested name distinguishes this new-connection intent. */
   displayNameDefinesIntent?: boolean
-  /** Replaces a pending intent for the same user, provider, and workspace. */
-  replaceExistingIntent?: boolean
 }): Promise<CreatedConnectDraft> {
   const { userId, workspaceId, providerId, credentialId } = params
 
@@ -97,16 +95,8 @@ export async function createConnectDraft(params: {
         pendingCredentialDraft.providerId,
         pendingCredentialDraft.workspaceId,
       ],
-      set: params.replaceExistingIntent
-        ? {
-            displayName,
-            description: params.description?.trim() || null,
-            credentialId: credentialId ?? null,
-            expiresAt,
-            createdAt: now,
-          }
-        : { expiresAt, createdAt: now },
-      ...(params.replaceExistingIntent ? {} : { setWhere: sameIntent }),
+      set: { expiresAt, createdAt: now },
+      setWhere: sameIntent,
     })
     .returning({ id: pendingCredentialDraft.id, expiresAt: pendingCredentialDraft.expiresAt })
 

@@ -1821,6 +1821,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace used to evaluate credential-provider availability and integration policy."
             }
           }
@@ -1967,6 +1968,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace expected to own the credential."
             }
           }
@@ -4760,6 +4762,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that will own the credential."
           },
           "type": {
@@ -4940,6 +4943,7 @@
               "workspaceId": {
                 "type": "string",
                 "minLength": 1,
+                "maxLength": 128,
                 "description": "Workspace that will own the credential."
               },
               "providerId": {
@@ -4964,6 +4968,7 @@
               "workspaceId": {
                 "type": "string",
                 "minLength": 1,
+                "maxLength": 128,
                 "description": "Workspace expected to own the credential."
               },
               "credentialId": {

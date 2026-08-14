@@ -96,8 +96,10 @@ import {
 } from '@/lib/core/config/env-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
-import { processCredentialDraft } from '@/lib/credentials/draft-processor'
-import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/oauth-draft-state'
+import {
+  OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM,
+  processCredentialDraft,
+} from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
