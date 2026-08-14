@@ -47,12 +47,18 @@ export const trelloTokenBodySchema = z.object({
   state: z.string().min(1, 'state is required'),
 })
 
+const oauthCredentialDraftIdSchema = z
+  .string()
+  .min(1, 'draftId is required')
+  .max(255, 'draftId must be at most 255 characters')
+
 export const trelloAuthorizeQuerySchema = z.object({
   returnUrl: z
     .string()
     .min(1, 'Return URL cannot be empty')
     .max(2048, 'Return URL is too long')
     .optional(),
+  draftId: oauthCredentialDraftIdSchema.optional(),
 })
 
 const trelloCallbackQuerySchema = z
@@ -129,6 +135,7 @@ export const oauthTokenPostContract = defineRouteContract({
 export const shopifyAuthorizeQuerySchema = z.object({
   shop: z.string().optional(),
   returnUrl: z.string().optional(),
+  draftId: oauthCredentialDraftIdSchema.optional(),
 })
 
 export const shopifyCallbackQuerySchema = z.object({
@@ -218,6 +225,7 @@ export const instagramAuthorizeQuerySchema = z.object({
     .max(MAX_OAUTH_RETURN_URL_LENGTH, 'Return URL is too long')
     .optional(),
   workspaceId: workspaceIdSchema.optional(),
+  draftId: oauthCredentialDraftIdSchema.optional(),
 })
 
 export const authorizeInstagramContract = defineRouteContract({
@@ -264,11 +272,7 @@ export const instagramCallbackContract = defineRouteContract({
 
 export const authorizeOAuth2QuerySchema = z
   .object({
-    draftId: z
-      .string()
-      .min(1, 'draftId is required')
-      .max(255, 'draftId must be at most 255 characters')
-      .optional(),
+    draftId: oauthCredentialDraftIdSchema.optional(),
     providerId: z.string().min(1, 'providerId is required').optional(),
     workspaceId: workspaceIdSchema.optional(),
     callbackURL: z.string().min(1).optional(),

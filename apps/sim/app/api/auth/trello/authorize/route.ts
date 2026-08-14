@@ -16,6 +16,7 @@ export const dynamic = 'force-dynamic'
 
 const TRELLO_STATE_COOKIE = 'trello_oauth_state'
 const TRELLO_RETURN_URL_COOKIE = 'trello_return_url'
+const TRELLO_CREDENTIAL_DRAFT_COOKIE = 'trello_credential_draft_id'
 const TRELLO_STATE_COOKIE_PATH = '/api/auth/trello'
 const TRELLO_STATE_COOKIE_MAX_AGE_SECONDS = 60 * 10
 
@@ -28,7 +29,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const parsed = await parseRequest(authorizeTrelloContract, request, {})
     if (!parsed.success) return parsed.response
-    const { returnUrl: requestedReturnUrl } = parsed.data.query
+    const { returnUrl: requestedReturnUrl, draftId } = parsed.data.query
 
     const apiKey = env.TRELLO_API_KEY
 
@@ -60,6 +61,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       maxAge: TRELLO_STATE_COOKIE_MAX_AGE_SECONDS,
       path: TRELLO_STATE_COOKIE_PATH,
     })
+    if (draftId) {
+      response.cookies.set(TRELLO_CREDENTIAL_DRAFT_COOKIE, draftId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: TRELLO_STATE_COOKIE_MAX_AGE_SECONDS,
+        path: TRELLO_STATE_COOKIE_PATH,
+      })
+    } else {
+      response.cookies.delete({
+        name: TRELLO_CREDENTIAL_DRAFT_COOKIE,
+        path: TRELLO_STATE_COOKIE_PATH,
+      })
+    }
     if (requestedReturnUrl && isSameOrigin(requestedReturnUrl)) {
       response.cookies.set(TRELLO_RETURN_URL_COOKIE, requestedReturnUrl, {
         httpOnly: true,

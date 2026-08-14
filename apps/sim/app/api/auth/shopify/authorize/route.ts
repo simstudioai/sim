@@ -32,13 +32,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const query = shopifyAuthorizeQuerySchema.parse({
       shop: request.nextUrl.searchParams.get('shop') || undefined,
       returnUrl: request.nextUrl.searchParams.get('returnUrl') || undefined,
+      draftId: request.nextUrl.searchParams.get('draftId') || undefined,
     })
-    const { shop: shopDomain, returnUrl } = query
+    const { shop: shopDomain, returnUrl, draftId } = query
 
     if (!shopDomain) {
       const safeReturnUrl =
         returnUrl && isSameOrigin(returnUrl) ? encodeURIComponent(returnUrl) : ''
       const returnUrlJsLiteral = JSON.stringify(safeReturnUrl)
+      const draftIdJsLiteral = JSON.stringify(draftId ?? '')
       return new NextResponse(
         `<!DOCTYPE html>
 <html>
@@ -127,6 +129,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     <script>
       const returnUrl = ${returnUrlJsLiteral};
+      const draftId = ${draftIdJsLiteral};
       function handleSubmit(e) {
         e.preventDefault();
         let shop = document.getElementById('shop').value.trim().toLowerCase();
@@ -140,6 +143,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         let url = window.location.pathname + '?shop=' + encodeURIComponent(shop);
         if (returnUrl) {
           url += '&returnUrl=' + returnUrl;
+        }
+        if (draftId) {
+          url += '&draftId=' + encodeURIComponent(draftId);
         }
         window.location.href = url;
       }
@@ -204,6 +210,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       maxAge: 60 * 10,
       path: '/',
     })
+
+    if (draftId) {
+      response.cookies.set('shopify_credential_draft_id', draftId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 10,
+        path: '/',
+      })
+    } else {
+      response.cookies.delete('shopify_credential_draft_id')
+    }
 
     if (returnUrl && isSameOrigin(returnUrl)) {
       response.cookies.set('shopify_return_url', returnUrl, {

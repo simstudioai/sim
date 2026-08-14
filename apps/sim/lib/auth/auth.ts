@@ -7,7 +7,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
+import { APIError, createAuthMiddleware, getOAuthState, getSessionFromCtx } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
 import {
   admin,
@@ -97,6 +97,7 @@ import {
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
+import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/oauth-draft-state'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -524,7 +525,17 @@ export const auth = betterAuth({
           }
 
           try {
+            const oauthState = await getOAuthState()
+            const rawCallbackUrl = oauthState?.callbackURL
+            if (rawCallbackUrl !== undefined && typeof rawCallbackUrl !== 'string') {
+              throw new Error('OAuth state callback URL must be a string')
+            }
+            const draftId = rawCallbackUrl
+              ? (new URL(rawCallbackUrl).searchParams.get(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM) ??
+                undefined)
+              : undefined
             await processCredentialDraft({
+              draftId,
               userId: account.userId,
               providerId: account.providerId,
               accountId: account.id,

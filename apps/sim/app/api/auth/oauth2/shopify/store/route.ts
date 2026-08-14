@@ -41,6 +41,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_missing_data`)
     }
     const { accessToken, shopDomain, scope, returnUrl } = parsedCookies.data
+    const draftId = request.cookies.get('shopify_credential_draft_id')?.value
 
     if (!shopifyShopDomainSchema.safeParse(shopDomain).success) {
       logger.error('Invalid shop domain format in cookie', { shopDomain })
@@ -121,6 +122,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (persisted) {
       try {
         await processCredentialDraft({
+          draftId,
           userId: session.user.id,
           providerId: 'shopify',
           accountId: persisted.id,
@@ -139,6 +141,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     response.cookies.delete('shopify_pending_shop')
     response.cookies.delete('shopify_pending_scope')
     response.cookies.delete('shopify_return_url')
+    response.cookies.delete('shopify_credential_draft_id')
 
     return response
   } catch (error) {

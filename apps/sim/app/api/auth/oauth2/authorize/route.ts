@@ -10,6 +10,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { launchCredentialConnection } from '@/lib/credentials/application/launch-credential-connection'
 import { createConnectDraft } from '@/lib/credentials/connect-draft'
+import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/oauth-draft-state'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('OAuth2Authorize')
@@ -36,6 +37,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   let { providerId, workspaceId, callbackURL: requestedCallback, credentialId } = parsed.data.query
 
   let fromConnectionDraft = false
+  let connectionDraftId: string | undefined
   if (draftId) {
     try {
       const sessionId = session.session?.id
@@ -52,6 +54,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       providerId = draft.providerId
       workspaceId = draft.workspaceId
       credentialId = draft.credentialId ?? undefined
+      connectionDraftId = draft.id
       fromConnectionDraft = true
     } catch (error) {
       if (!(error instanceof OrchestrationError)) throw error
@@ -86,22 +89,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
 
       if (credentialId) {
-        // Trello and Shopify authorize through their own custom flows that bypass
-        // this endpoint, so a reconnect draft written here would linger unconsumed
-        // and could later be picked up by their token-store callbacks, silently
-        // rebinding the credential. Mirror the copilot tool and reject reconnect.
-        if (providerId === 'trello' || providerId === 'shopify') {
-          logger.warn('Reconnect not supported for custom-flow provider', {
-            userId,
-            workspaceId,
-            providerId,
-            credentialId,
-          })
-          return NextResponse.redirect(
-            `${baseUrl}/workspace?error=credential_reconnect_unsupported`
-          )
-        }
-
         // Reconnect: the OAuth callback will rebind this credential to the fresh
         // account, so require the same credential-admin access as the draft POST
         // route — workspace write alone must not be enough to swap someone's tokens.
@@ -139,25 +126,34 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     requireConfiguredOAuthClient(providerId)
 
     if (!draftId) {
-      await createConnectDraft({
+      const draft = await createConnectDraft({
         userId,
         workspaceId,
         providerId,
         credentialId,
         displayName: reconnectDisplayName,
       })
+      connectionDraftId = draft.id
+    }
+
+    if (!connectionDraftId) {
+      throw new Error('OAuth authorization is missing its credential draft id')
     }
 
     if (providerId === 'trello' || providerId === 'instagram' || providerId === 'shopify') {
       const authorizeUrl = new URL(`/api/auth/${providerId}/authorize`, baseUrl)
       authorizeUrl.searchParams.set('returnUrl', callbackURL)
+      authorizeUrl.searchParams.set('draftId', connectionDraftId)
       return NextResponse.redirect(authorizeUrl)
     }
+
+    const stateCallbackUrl = new URL(callbackURL)
+    stateCallbackUrl.searchParams.set(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM, connectionDraftId)
 
     const linkResponse = await auth.api.oAuth2LinkAccount({
       body: {
         providerId,
-        callbackURL,
+        callbackURL: stateCallbackUrl.toString(),
         ...(fromConnectionDraft
           ? { errorCallbackURL: `${baseUrl}/oauth/credential-connected?result=failed` }
           : {}),

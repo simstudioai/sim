@@ -18,6 +18,7 @@ export const dynamic = 'force-dynamic'
 
 const INSTAGRAM_STATE_COOKIE = 'instagram_oauth_state'
 const INSTAGRAM_RETURN_URL_COOKIE = 'instagram_return_url'
+const INSTAGRAM_CREDENTIAL_DRAFT_COOKIE = 'instagram_credential_draft_id'
 const INSTAGRAM_STATE_COOKIE_PATH = '/api/auth'
 const INSTAGRAM_STATE_COOKIE_MAX_AGE_SECONDS = 60 * 10
 
@@ -34,18 +35,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const parsed = await parseRequest(authorizeInstagramContract, request, {})
     if (!parsed.success) return parsed.response
-    const { returnUrl, workspaceId } = parsed.data.query
+    const { returnUrl, workspaceId, draftId } = parsed.data.query
+    let credentialDraftId = draftId
 
     if (workspaceId) {
       const access = await checkWorkspaceAccess(workspaceId, session.user.id)
       if (!access.canWrite) {
         return NextResponse.json({ error: 'Workspace write access denied' }, { status: 403 })
       }
-      await createConnectDraft({
+      const draft = await createConnectDraft({
         userId: session.user.id,
         workspaceId,
         providerId: 'instagram',
       })
+      credentialDraftId = draft.id
     }
 
     const baseUrl = getBaseUrl()
@@ -68,6 +71,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       maxAge: INSTAGRAM_STATE_COOKIE_MAX_AGE_SECONDS,
       path: INSTAGRAM_STATE_COOKIE_PATH,
     })
+    if (credentialDraftId) {
+      response.cookies.set(INSTAGRAM_CREDENTIAL_DRAFT_COOKIE, credentialDraftId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: INSTAGRAM_STATE_COOKIE_MAX_AGE_SECONDS,
+        path: INSTAGRAM_STATE_COOKIE_PATH,
+      })
+    } else {
+      response.cookies.delete({
+        name: INSTAGRAM_CREDENTIAL_DRAFT_COOKIE,
+        path: INSTAGRAM_STATE_COOKIE_PATH,
+      })
+    }
 
     if (returnUrl && isSameOrigin(returnUrl)) {
       response.cookies.set(INSTAGRAM_RETURN_URL_COOKIE, returnUrl, {

@@ -165,7 +165,7 @@ describe('OAuth2 authorize route', () => {
         expect.objectContaining({
           body: {
             providerId: 'google-email',
-            callbackURL: `${BASE_URL}/oauth/credential-connected?result=connected`,
+            callbackURL: `${BASE_URL}/oauth/credential-connected?result=connected&credentialDraftId=draft-1`,
             errorCallbackURL: `${BASE_URL}/oauth/credential-connected?result=failed`,
           },
         })
@@ -191,7 +191,7 @@ describe('OAuth2 authorize route', () => {
       const response = await GET(authorizeRequest({ draftId: 'draft-1' }))
 
       expect(response.headers.get('location')).toBe(
-        `${BASE_URL}/api/auth/trello/authorize?returnUrl=https%3A%2F%2Fsim.test%2Foauth%2Fcredential-connected%3Fresult%3Dconnected`
+        `${BASE_URL}/api/auth/trello/authorize?returnUrl=https%3A%2F%2Fsim.test%2Foauth%2Fcredential-connected%3Fresult%3Dconnected&draftId=draft-1`
       )
       expect(mockOAuth2LinkAccount).not.toHaveBeenCalled()
     })
@@ -215,6 +215,13 @@ describe('OAuth2 authorize route', () => {
       )
       expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledWith(
         expect.objectContaining({ setWhere: expect.anything() })
+      )
+      expect(mockOAuth2LinkAccount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            callbackURL: `${BASE_URL}/workspace?credentialDraftId=draft-1`,
+          }),
+        })
       )
     })
 
@@ -325,18 +332,26 @@ describe('OAuth2 authorize route', () => {
       )
     })
 
-    it('rejects reconnect for custom-flow providers (trello/shopify) and writes no draft', async () => {
+    it('binds custom-provider reconnects to the exact draft', async () => {
+      setEnv({
+        TRELLO_API_KEY: 'trello-key',
+        SHOPIFY_CLIENT_ID: 'shopify-client',
+        SHOPIFY_CLIENT_SECRET: 'shopify-secret',
+      })
       for (const providerId of ['trello', 'shopify']) {
+        mockGetCredentialActorContext.mockResolvedValue(
+          oauthCredentialActor({ credential: { providerId } })
+        )
         const response = await GET(
           authorizeRequest({ providerId, workspaceId: WORKSPACE_ID, credentialId: CREDENTIAL_ID })
         )
 
         expect(response.headers.get('location')).toBe(
-          `${BASE_URL}/workspace?error=credential_reconnect_unsupported`
+          `${BASE_URL}/api/auth/${providerId}/authorize?returnUrl=https%3A%2F%2Fsim.test%2Fworkspace&draftId=draft-1`
         )
       }
-      expect(mockGetCredentialActorContext).not.toHaveBeenCalled()
-      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+      expect(mockGetCredentialActorContext).toHaveBeenCalledTimes(2)
+      expect(dbChainMockFns.values).toHaveBeenCalledTimes(2)
       expect(mockOAuth2LinkAccount).not.toHaveBeenCalled()
     })
 
