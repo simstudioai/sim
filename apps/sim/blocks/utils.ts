@@ -256,6 +256,11 @@ const SERIALIZATION_FALLBACK_PROVIDER: ProviderId = 'openai'
  * provider; anything else is left to `getProviderFromModel`, which defaults an
  * unrecognised id to `ollama` rather than failing serialization with an error the
  * user cannot act on.
+ *
+ * The remaining throw is a blacklisted provider or model, which is env-driven and
+ * can name the fallback itself — so recovery returns
+ * {@link SERIALIZATION_FALLBACK_PROVIDER} outright rather than resolving a second
+ * time through the function that just threw.
  */
 export function getSerializedModelProviderId(
   model: unknown,
@@ -267,11 +272,6 @@ export function getSerializedModelProviderId(
   try {
     return getProviderFromModel(candidate)
   } catch {
-    /*
-     * Not a second resolve: `getProviderFromModel` also throws for a blacklisted
-     * provider or model, so a deployment that blacklists the fallback would throw
-     * here too — the one case this helper exists to absorb.
-     */
     return SERIALIZATION_FALLBACK_PROVIDER
   }
 }
