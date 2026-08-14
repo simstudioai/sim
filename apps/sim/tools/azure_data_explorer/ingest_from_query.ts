@@ -90,7 +90,7 @@ export const azureDataExplorerIngestFromQueryTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        "Optional ingestion properties clause contents, e.g. distributed=true, tags=\"[''daily'']\"",
+        'Optional ingestion properties clause contents, e.g. distributed=true, tags=\'[\"daily\"]\'',
     },
   },
   request: {
