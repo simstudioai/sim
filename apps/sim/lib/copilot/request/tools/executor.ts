@@ -610,7 +610,8 @@ async function executeToolAndReportInner(
     if (abortRequested(context, execContext, options)) {
       const copilotResult = inspectToolResultForCopilot(
         result,
-        toolExecutionContext.resolvedSecretTraceRegistry
+        toolExecutionContext.resolvedSecretTraceRegistry,
+        toolCall.name
       ).result
       markToolCallCancelled('Request aborted during tool execution')
       markToolResultSeen(toolCall.id)
@@ -726,7 +727,8 @@ async function executeToolAndReportInner(
     }
     const projection = inspectToolResultForCopilot(
       result,
-      toolExecutionContext.resolvedSecretTraceRegistry
+      toolExecutionContext.resolvedSecretTraceRegistry,
+      toolCall.name
     )
     const copilotResult = projection.result
     mergeToolRegistry(projection.safe)
@@ -735,6 +737,16 @@ async function executeToolAndReportInner(
     toolSpan.attributes = {
       ...toolSpan.attributes,
       ...summarizeToolResultForSpan(copilotResult),
+      ...(projection.safe ? {} : { resultWithheld: true }),
+    }
+    if (!projection.safe) {
+      // A withheld SUCCESS otherwise leaves no trace anywhere: the span reads
+      // ok and the model just sees a bare `{success: true}` with no output.
+      logger.warn('Tool result withheld by egress projection', {
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        runtimeSucceeded: result.success,
+      })
     }
 
     setTerminalToolCallState(toolCall, {
@@ -861,7 +873,8 @@ async function executeToolAndReportInner(
     const thrownMessage = toError(error).message
     const projection = inspectToolResultForCopilot(
       { success: false, error: thrownMessage },
-      toolExecutionContext.resolvedSecretTraceRegistry
+      toolExecutionContext.resolvedSecretTraceRegistry,
+      toolCall.name
     )
     const copilotError = projection.result
     mergeToolRegistry(projection.safe)

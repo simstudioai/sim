@@ -483,6 +483,33 @@ describe('sse-handlers tool lifecycle', () => {
     )
   })
 
+  it('registers but never dispatches an inband-owned sim tool call', async () => {
+    // Go executes inband-owned calls itself via /api/copilot/tools/execute;
+    // dispatching here too ran the tool twice, racing on mutations.
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-inband',
+          toolName: ReadTool.id,
+          arguments: { path: 'files/a.md' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+          ui: { inbandOwned: true },
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: true }
+    )
+    await sleep(0)
+
+    expect(context.toolCalls.get('tool-inband')).toBeDefined()
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(context.pendingToolPromises.has('tool-inband')).toBe(false)
+  })
+
   it('preserves primitive tool outputs through async completion persistence', async () => {
     executeTool.mockResolvedValueOnce({ success: true, output: 'done' })
     const onEvent = vi.fn()
