@@ -59,7 +59,7 @@ export const saveCredentialDraft = defineAuthorizedWorkspaceUseCase({
       displayName: input.displayName,
       description: input.description,
       credentialId: input.credentialId,
-      displayNameDefinesIntent: true,
+      displayNameDefinesIntent: input.credentialId === undefined,
     })
     return { success: true as const }
   },

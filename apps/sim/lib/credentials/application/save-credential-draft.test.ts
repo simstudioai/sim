@@ -77,7 +77,7 @@ describe('saveCredentialDraft', () => {
         userId: 'user-1',
         workspaceId: 'workspace-1',
         credentialId: 'credential-1',
-        displayNameDefinesIntent: true,
+        displayNameDefinesIntent: false,
       })
     )
   })
