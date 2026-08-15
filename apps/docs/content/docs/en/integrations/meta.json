@@ -164,6 +164,7 @@
     "monday",
     "monday-service-account",
     "mongodb",
+    "mssql",
     "mysql",
     "neo4j",
     "netsuite",

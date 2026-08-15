@@ -1,0 +1,187 @@
+---
+title: Microsoft SQL Server
+description: Connect to Microsoft SQL Server database
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mssql"
+  color="#A4373A"
+/>
+
+## Usage Instructions
+
+Integrate Microsoft SQL Server into the workflow. Can query, insert, update, delete, execute raw T-SQL, and introspect schemas.
+
+
+
+## Actions
+
+### Microsoft SQL Server Query
+
+Execute a SELECT query on a Microsoft SQL Server database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Microsoft SQL Server hostname or IP address |
+| `port` | number | No | Server port \(default: 1433\). Ignored when a named instance is used |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
+| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
+| `instanceName` | string | No | Named instance to connect to. Requires the SQL Server Browser service |
+| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `query` | string | Yes | T-SQL SELECT query to execute |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows returned |
+
+### Microsoft SQL Server Insert
+
+Insert data into a Microsoft SQL Server table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Microsoft SQL Server hostname or IP address |
+| `port` | number | No | Server port \(default: 1433\). Ignored when a named instance is used |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
+| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
+| `instanceName` | string | No | Named instance to connect to. Requires the SQL Server Browser service |
+| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `table` | string | Yes | Table name to insert data into |
+| `data` | object | Yes | Data object to insert \(key-value pairs\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Rows returned by the statement \(empty for a plain INSERT\) |
+| `rowCount` | number | Number of rows inserted |
+
+### Microsoft SQL Server Update
+
+Update rows in a Microsoft SQL Server table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Microsoft SQL Server hostname or IP address |
+| `port` | number | No | Server port \(default: 1433\). Ignored when a named instance is used |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
+| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
+| `instanceName` | string | No | Named instance to connect to. Requires the SQL Server Browser service |
+| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `table` | string | Yes | Table name to update |
+| `data` | object | Yes | Data object with the columns to set \(key-value pairs\) |
+| `where` | string | Yes | WHERE condition identifying the rows to update |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Rows returned by the statement \(empty for a plain UPDATE\) |
+| `rowCount` | number | Number of rows updated |
+
+### Microsoft SQL Server Delete
+
+Delete rows from a Microsoft SQL Server table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Microsoft SQL Server hostname or IP address |
+| `port` | number | No | Server port \(default: 1433\). Ignored when a named instance is used |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
+| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
+| `instanceName` | string | No | Named instance to connect to. Requires the SQL Server Browser service |
+| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `table` | string | Yes | Table name to delete rows from |
+| `where` | string | Yes | WHERE condition identifying the rows to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Rows returned by the statement \(empty for a plain DELETE\) |
+| `rowCount` | number | Number of rows deleted |
+
+### Microsoft SQL Server Execute
+
+Execute a raw T-SQL statement on a Microsoft SQL Server database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Microsoft SQL Server hostname or IP address |
+| `port` | number | No | Server port \(default: 1433\). Ignored when a named instance is used |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
+| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
+| `instanceName` | string | No | Named instance to connect to. Requires the SQL Server Browser service |
+| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `query` | string | Yes | T-SQL statement to execute |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Rows returned by the statement, when it returns a result set |
+| `rowCount` | number | Number of rows returned or affected |
+
+### Microsoft SQL Server Introspect
+
+Introspect a Microsoft SQL Server schema to retrieve table structures, columns, keys, and indexes
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | Microsoft SQL Server hostname or IP address |
+| `port` | number | No | Server port \(default: 1433\). Ignored when a named instance is used |
+| `database` | string | Yes | Database name to connect to |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
+| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
+| `instanceName` | string | No | Named instance to connect to. Requires the SQL Server Browser service |
+| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `schema` | string | No | Schema to introspect \(default: dbo\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `tables` | array | Array of table schemas with columns, keys, and indexes |
+| `schemas` | array | List of available schemas in the database |
+
+

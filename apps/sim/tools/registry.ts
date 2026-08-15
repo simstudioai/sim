@@ -2844,6 +2844,14 @@ import {
   mongodbUpdateTool,
 } from '@/tools/mongodb'
 import {
+  mssqlDeleteTool,
+  mssqlExecuteTool,
+  mssqlInsertTool,
+  mssqlIntrospectTool,
+  mssqlQueryTool,
+  mssqlUpdateTool,
+} from '@/tools/mssql'
+import {
   mysqlDeleteTool,
   mysqlExecuteTool,
   mysqlInsertTool,
@@ -6956,6 +6964,12 @@ export const tools: Record<string, ToolConfig> = {
   mongodb_delete: mongodbDeleteTool,
   mongodb_execute: mongodbExecuteTool,
   mongodb_introspect: mongodbIntrospectTool,
+  mssql_query: mssqlQueryTool,
+  mssql_insert: mssqlInsertTool,
+  mssql_update: mssqlUpdateTool,
+  mssql_delete: mssqlDeleteTool,
+  mssql_execute: mssqlExecuteTool,
+  mssql_introspect: mssqlIntrospectTool,
   mysql_query: mysqlQueryTool,
   mysql_insert: mysqlInsertTool,
   mysql_update: mysqlUpdateTool,

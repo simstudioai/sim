@@ -4945,6 +4945,24 @@ export function ParallelIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * Placeholder mark for the Microsoft SQL Server block.
+ *
+ * TODO: replace with the real Microsoft SQL Server brand mark. Until then this
+ * is a generic database cylinder drawn with `fill='currentColor'` so it stays
+ * legible bare in both light and dark mode.
+ */
+export function MicrosoftSqlIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M12 2C7.58 2 4 3.34 4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5c0-1.66-3.58-3-8-3Zm0 2c3.87 0 6 1.11 6 1.5S15.87 7 12 7 6 5.89 6 5.5 8.13 4 12 4Zm6 15c0 .39-2.13 1.5-6 1.5S6 19.39 6 19v-2.28C7.44 17.53 9.6 18 12 18s4.56-.47 6-1.28V19Zm0-5c0 .39-2.13 1.5-6 1.5S6 14.39 6 14v-2.28C7.44 12.53 9.6 13 12 13s4.56-.47 6-1.28V14Zm0-5c0 .39-2.13 1.5-6 1.5S6 9.39 6 9V7.72C7.44 8.53 9.6 9 12 9s4.56-.47 6-1.28V9Z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}
+
 export function PostgresIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
