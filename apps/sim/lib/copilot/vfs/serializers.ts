@@ -313,7 +313,11 @@ export function serializeDocuments(
 
 /**
  * Serialize KB connectors for VFS knowledgebases/{name}/connectors.json.
- * Shows connector type, sync status, and schedule — NOT credentials or source config.
+ * Shows connector type, sync status, schedule, the credential REFERENCE
+ * (an opaque id — never key material; API keys stay encrypted and are never
+ * serialized), and the source config (repo/branch/channels). The last two are
+ * what make a connector cloneable: without them, recreating a working
+ * connector on a new KB meant guessing both the credential and the channels.
  */
 export function serializeConnectors(
   connectors: Array<{
@@ -322,6 +326,8 @@ export function serializeConnectors(
     status: string
     syncMode: string
     syncIntervalMinutes: number
+    credentialId?: string | null
+    sourceConfig?: unknown
     lastSyncAt: Date | null
     lastSyncError: string | null
     lastSyncDocCount: number | null
@@ -337,6 +343,8 @@ export function serializeConnectors(
       status: c.status,
       syncMode: c.syncMode,
       syncIntervalMinutes: c.syncIntervalMinutes,
+      credentialId: c.credentialId ?? undefined,
+      sourceConfig: c.sourceConfig ?? undefined,
       lastSyncAt: c.lastSyncAt?.toISOString(),
       lastSyncError: c.lastSyncError || undefined,
       lastSyncDocCount: c.lastSyncDocCount ?? undefined,

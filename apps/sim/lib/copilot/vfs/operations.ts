@@ -108,8 +108,10 @@ export interface ReadResult {
 
 /**
  * Micromatch options tuned to match the prior in-house glob: `bash: false` so a single `*`
- * never crosses path slashes (required for `files` + star + `meta.json` style paths). `nobrace`
- * and `noext` disable brace and extglob expansion like the old builder. Uses `micromatch` for
+ * never crosses path slashes (required for `files` + star + `meta.json` style paths). Brace
+ * expansion is ON — `workflows/{A,B}/**` and `*.{png,md}` are the natural way to batch a
+ * glob, and with `nobrace` they silently matched nothing, which reads as "no such files".
+ * `noext` still disables extglob expansion like the old builder. Uses `micromatch` for
  * well-tested `**` and edge cases instead of a custom `RegExp`.
  */
 /**
@@ -130,7 +132,6 @@ const VFS_GLOB_OPTIONS: micromatch.Options = {
   bash: false,
   dot: false,
   windows: false,
-  nobrace: true,
   noext: true,
 }
 

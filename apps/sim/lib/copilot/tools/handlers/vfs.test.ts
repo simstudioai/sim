@@ -103,7 +103,7 @@ describe('vfs handlers oversize policy', () => {
     expect(result.error).toContain('context window')
   })
 
-  it('fails oversized read results from VFS with grep guidance', async () => {
+  it('fails oversized read results from VFS with paging guidance', async () => {
     const vfs = makeVfs()
     vfs.readFileContent.mockResolvedValue(null)
     vfs.read.mockReturnValue({ content: OVERSIZED_INLINE_CONTENT, totalLines: 1 })
@@ -112,9 +112,56 @@ describe('vfs handlers oversize policy', () => {
     const result = await executeVfsRead({ path: 'workflows/My Workflow/state.json' }, GREP_CTX)
 
     expect(result.success).toBe(false)
-    expect(result.error).toContain('Use grep')
-    expect(result.error).toContain('offset/limit')
+    expect(result.error).toContain('Page it')
+    expect(result.error).toContain('grep')
     expect(result.error).toContain('context window')
+  })
+
+  it('pages an oversized workspace file when offset/limit are passed', async () => {
+    const vfs = makeVfs()
+    const lines = Array.from({ length: 5000 }, (_, i) => `line ${i} ${'y'.repeat(50)}`)
+    vfs.readFileContent.mockResolvedValue({
+      content: lines.join('\n'),
+      totalLines: lines.length,
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const whole = await executeVfsRead({ path: 'files/big.log/content' }, GREP_CTX)
+    expect(whole.success).toBe(false)
+    expect(whole.error).toContain('Page it')
+
+    const paged = await executeVfsRead(
+      { path: 'files/big.log/content', offset: 10, limit: 5 },
+      GREP_CTX
+    )
+    expect(paged.success).toBe(true)
+    expect((paged.output as { content: string }).content).toBe(lines.slice(10, 15).join('\n'))
+  })
+
+  it('tells the model to reduce limit when the requested window is still oversized', async () => {
+    const vfs = makeVfs()
+    vfs.readFileContent.mockResolvedValue({
+      content: Array.from({ length: 100 }, () => OVERSIZED_INLINE_CONTENT).join('\n'),
+      totalLines: 100,
+    })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead(
+      { path: 'files/big.log/content', offset: 0, limit: 50 },
+      GREP_CTX
+    )
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Reduce limit')
+  })
+
+  it('notes an empty file instead of returning bare empty content', async () => {
+    const vfs = makeVfs()
+    vfs.readFileContent.mockResolvedValue({ content: '', totalLines: 0 })
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsRead({ path: 'files/hi.txt/content' }, GREP_CTX)
+    expect(result.success).toBe(true)
+    expect((result.output as { note?: string }).note).toContain('empty')
   })
 
   it('fails file-backed oversized read placeholders with original message', async () => {
@@ -721,6 +768,26 @@ describe('vfs uploads are opt-in (like recently-deleted/)', () => {
     const broad = await executeVfsGlob({ pattern: '**' }, GREP_CTX_CHAT)
     expect(listChatUploads).not.toHaveBeenCalled()
     expect((broad.output as { files: string[] }).files).not.toContain('uploads/My%20Report.json')
+  })
+
+  it('explains an empty uploads glob instead of returning a bare []', async () => {
+    const vfs = makeVfs()
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+    listChatUploads.mockResolvedValue([])
+
+    const result = await executeVfsGlob({ pattern: 'uploads/*' }, GREP_CTX_CHAT)
+    expect(result.success).toBe(true)
+    expect((result.output as { files: string[]; note?: string }).files).toEqual([])
+    expect((result.output as { note?: string }).note).toContain('no uploads')
+  })
+
+  it('explains an empty user-local glob instead of returning a bare []', async () => {
+    const vfs = makeVfs()
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    const result = await executeVfsGlob({ pattern: 'user-local/**' }, GREP_CTX_CHAT)
+    expect(result.success).toBe(true)
+    expect((result.output as { note?: string }).note).toContain('user-local')
   })
 
   it('reads an upload directly, tolerating a spurious /content suffix', async () => {

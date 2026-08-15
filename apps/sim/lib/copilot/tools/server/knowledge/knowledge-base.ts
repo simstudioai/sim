@@ -19,6 +19,7 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { addWorkspaceFilesToKnowledgeBase } from '@/lib/knowledge/application/add-workspace-files'
 import { MAX_KNOWLEDGE_BATCH_ITEMS } from '@/lib/knowledge/application/batch-policy'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
@@ -52,6 +53,42 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('KnowledgeBaseServerTool')
+
+/**
+ * Resolves an environment-variable reference passed as a connector API key.
+ *
+ * Models reference workspace secrets the way workflows do — `{{SIM_GITHUB_PAT}}`
+ * (and, when improvising, `$SIM_GITHUB_PAT` or the bare name). Before this,
+ * the literal placeholder string was sent upstream as the bearer token and the
+ * provider answered 401 — an error that never named the real problem. A raw
+ * key that matches no reference form passes through untouched.
+ *
+ * Returns an error string when a reference names a variable that is not set,
+ * so the model learns the actual fix instead of retrying reference syntaxes.
+ */
+async function resolveConnectorApiKey(
+  context: ServerToolContext,
+  workspaceId: string,
+  apiKey: string | undefined
+): Promise<{ apiKey?: string; error?: string }> {
+  if (!apiKey) return { apiKey }
+  const braced = apiKey.match(/^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/)
+  const dollar = apiKey.match(/^\$([A-Za-z_][A-Za-z0-9_]*)$/)
+  const referencedName = braced?.[1] ?? dollar?.[1]
+  const env = await getEffectiveDecryptedEnv(context.userId, workspaceId)
+  const name = referencedName ?? (Object.hasOwn(env, apiKey) ? apiKey : undefined)
+  if (!name) return { apiKey }
+  const value = env[name]
+  if (value === undefined || value === '') {
+    return {
+      error: `Environment variable "${name}" is not set for this workspace or user, so it cannot be used as the connector API key. Set it first, pass a different {{ENV_VAR}} reference, or pass the raw key.`,
+    }
+  }
+  // Activate the resolved secret on the call's egress registry so any
+  // accidental echo of it (provider error bodies, logs) is redacted.
+  context.resolvedSecretTraceRegistry?.recordResolved(name, value)
+  return { apiKey: value }
+}
 
 function requireKnowledgeBillingAttribution(
   context: ServerToolContext,
@@ -291,6 +328,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               name: args.name,
               description: args.description,
               chunkingConfig: args.chunkingConfig,
+              folderPath: args.folderPath,
               source: 'agent',
             }
           )
@@ -929,6 +967,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             sourceConfig.disabledTagIds = args.disabledTagIds
           }
 
+          const resolvedKey = await resolveConnectorApiKey(context, workspaceId, args.apiKey)
+          if (resolvedKey.error) {
+            return { success: false, message: resolvedKey.error }
+          }
+
           assertNotAborted()
           const { connector, workspaceId: canonicalWorkspaceId } =
             await executeCopilotKnowledgeUseCase(context, createKnowledgeConnector, {
@@ -936,7 +979,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               assertedWorkspaceId: workspaceId,
               connectorType: args.connectorType,
               credentialId: args.credentialId,
-              apiKey: args.apiKey,
+              apiKey: resolvedKey.apiKey,
               sourceConfig,
               syncIntervalMinutes: args.syncIntervalMinutes ?? 1440,
               resolveBillingAttribution: async (billingWorkspaceId) =>

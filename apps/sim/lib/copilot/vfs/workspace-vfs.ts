@@ -100,6 +100,7 @@ import {
   isDocSandboxEnabled,
   isHosted,
 } from '@/lib/core/config/env-flags'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -1061,6 +1062,9 @@ export class WorkspaceVFS {
     if (!result) {
       throw new ops.WorkspaceFileGrepError(`Workspace file content not found for "${path}".`)
     }
+    if (result.value.placeholder === 'oversized') {
+      throw new ops.WorkspaceFileGrepError(`File is too large to search: ${result.value.content}`)
+    }
 
     return {
       value: ops.grepReadResult(leaf, result.value, pattern, contentPath, options),
@@ -1600,6 +1604,8 @@ export class WorkspaceVFS {
 
     const scope = deletedMatch ? 'archived' : 'active'
 
+    let sizeCappedRecord: WorkspaceFileRecord | undefined
+    let sizeCap = MAX_TEXT_READ_BYTES
     try {
       const { files } = await listAllWorkspaceFiles.execute({
         principal: this.requireFilePrincipal(),
@@ -1607,15 +1613,17 @@ export class WorkspaceVFS {
       })
       const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
+      sizeCappedRecord = record
+      sizeCap = isImageFileType(resolveEffectiveMimeType(record.type, record.name))
+        ? MAX_IMAGE_SOURCE_BYTES
+        : MAX_TEXT_READ_BYTES
       const { file, content } = await readWorkspaceFileContent.execute({
         principal: this.requireFilePrincipal(),
         input: {
           fileId: record.id,
           assertedWorkspaceId: this._workspaceId,
           includeDeleted: scope === 'archived',
-          maxBytes: isImageFileType(resolveEffectiveMimeType(record.type, record.name))
-            ? MAX_IMAGE_SOURCE_BYTES
-            : MAX_TEXT_READ_BYTES,
+          maxBytes: sizeCap,
         },
       })
       const result = await readFileRecord(file, content)
@@ -1627,6 +1635,15 @@ export class WorkspaceVFS {
           )
         : null
     } catch (err) {
+      // A cap breach is an answer, not a lookup failure: returning null here
+      // reported multi-MB files as "content not found". The oversized
+      // placeholder tells the model the file exists and why it can't be read.
+      if (isPayloadSizeLimitError(err) && sizeCappedRecord) {
+        return bindWorkspaceFileResult(
+          sizeCappedRecord,
+          readPlaceholder.fileTooLarge(sizeCappedRecord.name, sizeCappedRecord.size ?? 0, sizeCap)
+        )
+      }
       logger.warn('Failed to list workspace files for readFileContent', {
         workspaceId: this._workspaceId,
         path,

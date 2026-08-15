@@ -194,6 +194,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             name: args.name,
             description: args.description,
             schema: normalizeSchemaSelectColumns(args.schema as TableSchema),
+            folderPath: args.folderPath,
             workspaceId,
           })
 

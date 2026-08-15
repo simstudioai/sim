@@ -2267,8 +2267,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'What tool/skill/MCP action is needed.',
           type: 'string',
         },
+        sessionId: {
+          description:
+            'Reusable session ID returned by an earlier extensions call in this chat. Supply it only on a later user message that continues the same task, and at most once per user message. Omit it for a new or independent task.',
+          type: 'string',
+        },
+        title: {
+          description:
+            "Required private orchestration label (3–8 words) for this session's stable objective. Stored in the request-local, chat-scoped Subagent Registry supplied only to the main orchestrator; not shown to the extensions agent. When resuming with sessionId, copy the registry title unchanged.",
+          maxLength: 120,
+          type: 'string',
+        },
       },
-      required: ['request'],
+      required: ['request', 'title'],
       type: 'object',
     },
     resultSchema: undefined,
@@ -2463,7 +2474,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             "Optional brief instruction (one short sentence) to scope the task. The agent inherits the full conversation history — do NOT restate or rewrite conversation content, only add scoping the history doesn't convey.",
           type: 'string',
         },
+        sessionId: {
+          description:
+            'Reusable session ID returned by an earlier file call in this chat. Supply it only on a later user message that continues the same task, and at most once per user message — the agent resumes from its saved transcript and receives unseen parent conversation messages. Omit it for a new or independent task.',
+          type: 'string',
+        },
+        title: {
+          description:
+            "Required private orchestration label (3–8 words) for this session's stable objective. Stored in the request-local, chat-scoped Subagent Registry supplied only to the main orchestrator; not shown to the file agent. When resuming with sessionId, copy the registry title unchanged.",
+          maxLength: 120,
+          type: 'string',
+        },
       },
+      required: ['title'],
       type: 'object',
     },
     resultSchema: undefined,
@@ -3135,8 +3158,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'What knowledge base action is needed.',
           type: 'string',
         },
+        sessionId: {
+          description:
+            'Reusable session ID returned by an earlier knowledge call in this chat. Supply it only on a later user message that continues the same task, and at most once per user message. Omit it for a new or independent task.',
+          type: 'string',
+        },
+        title: {
+          description:
+            "Required private orchestration label (3–8 words) for this session's stable objective. Stored in the request-local, chat-scoped Subagent Registry supplied only to the main orchestrator; not shown to the knowledge agent. When resuming with sessionId, copy the registry title unchanged.",
+          maxLength: 120,
+          type: 'string',
+        },
       },
-      required: ['request'],
+      required: ['request', 'title'],
       type: 'object',
     },
     resultSchema: undefined,
@@ -3358,7 +3392,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             apiKey: {
               type: 'string',
               description:
-                'API key for API-key-based connectors (required when connector auth mode is apiKey)',
+                'API key for API-key-based connectors (required when connector auth mode is apiKey). Accepts an environment-variable reference — {{NAME}} — resolved server-side from workspace/user environment variables; a raw key also works.',
             },
             chunkingConfig: {
               type: 'object',
@@ -5281,8 +5315,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'What table action is needed.',
           type: 'string',
         },
+        sessionId: {
+          description:
+            'Reusable session ID returned by an earlier table call in this chat. Supply it only on a later user message that continues the same task, and at most once per user message. Omit it for a new or independent task.',
+          type: 'string',
+        },
+        title: {
+          description:
+            "Required private orchestration label (3–8 words) for this session's stable objective. Stored in the request-local, chat-scoped Subagent Registry supplied only to the main orchestrator; not shown to the table agent. When resuming with sessionId, copy the registry title unchanged.",
+          maxLength: 120,
+          type: 'string',
+        },
       },
-      required: ['request'],
+      required: ['request', 'title'],
       type: 'object',
     },
     resultSchema: undefined,

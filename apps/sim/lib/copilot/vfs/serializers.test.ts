@@ -13,6 +13,7 @@ import type { ToolConfig } from '@/tools/types'
 import {
   serializeApiKeyIntegrations,
   serializeBlockSchema,
+  serializeConnectors,
   serializeCredentials,
   serializeDeployments,
   serializeFileMeta,
@@ -526,5 +527,61 @@ describe('serializeCredentials — type distinguishes reconnect flow', () => {
       serializeCredentials([{ providerId: 'OPENAI_API_KEY', scope: 'workspace', createdAt: now }])
     )
     expect(json[0].type).toBeUndefined()
+  })
+})
+
+describe('serializeConnectors — cloneable references, never key material', () => {
+  const now = new Date('2026-08-14T00:00:00.000Z')
+
+  it('exposes credentialId and sourceConfig so a connector can be recreated', () => {
+    const json = JSON.parse(
+      serializeConnectors([
+        {
+          id: 'conn-1',
+          connectorType: 'slack',
+          status: 'active',
+          syncMode: 'incremental',
+          syncIntervalMinutes: 1440,
+          credentialId: 'cred-42',
+          sourceConfig: { channel: 'eng-help', maxMessages: '500' },
+          lastSyncAt: now,
+          lastSyncError: null,
+          lastSyncDocCount: 12,
+          nextSyncAt: null,
+          consecutiveFailures: 0,
+          createdAt: now,
+        },
+      ])
+    )
+    expect(json[0]).toMatchObject({
+      id: 'conn-1',
+      credentialId: 'cred-42',
+      sourceConfig: { channel: 'eng-help', maxMessages: '500' },
+    })
+    expect(JSON.stringify(json)).not.toContain('encryptedApiKey')
+  })
+
+  it('omits the credential reference when a connector has none (API-key connectors)', () => {
+    const json = JSON.parse(
+      serializeConnectors([
+        {
+          id: 'conn-2',
+          connectorType: 'github',
+          status: 'active',
+          syncMode: 'incremental',
+          syncIntervalMinutes: 1440,
+          credentialId: null,
+          sourceConfig: { repository: 'simstudioai/sim', branch: 'staging' },
+          lastSyncAt: null,
+          lastSyncError: null,
+          lastSyncDocCount: null,
+          nextSyncAt: null,
+          consecutiveFailures: 0,
+          createdAt: now,
+        },
+      ])
+    )
+    expect(json[0].credentialId).toBeUndefined()
+    expect(json[0].sourceConfig).toMatchObject({ repository: 'simstudioai/sim' })
   })
 })
