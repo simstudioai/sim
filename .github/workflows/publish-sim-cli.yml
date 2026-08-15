@@ -121,7 +121,7 @@ jobs:
         env:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
-          if bun pm view "@sim/cli@$VERSION" version > /dev/null 2>&1; then
+          if bun pm view "sim@$VERSION" version > /dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -140,10 +140,10 @@ jobs:
         env:
           VERSION: ${{ steps.release.outputs.version }}
           NPM_TAG: ${{ steps.release.outputs.tag }}
-        run: echo "Published @sim/cli@$VERSION with the '$NPM_TAG' tag."
+        run: echo "Published sim@$VERSION with the '$NPM_TAG' tag."
 
       - name: Summarize skipped release
         if: steps.version_check.outputs.exists == 'true'
         env:
           VERSION: ${{ steps.release.outputs.version }}
-        run: echo "Skipped @sim/cli@$VERSION because that version is already published."
+        run: echo "Skipped sim@$VERSION because that version is already published."
