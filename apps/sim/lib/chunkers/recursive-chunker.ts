@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { MAX_CHUNKING_SEPARATOR_LENGTH, MAX_CHUNKING_SEPARATORS } from '@/lib/chunkers/constants'
 import type { Chunk, RecursiveChunkerOptions } from '@/lib/chunkers/types'
 import {
   addOverlap,
@@ -62,8 +63,29 @@ export class RecursiveChunker {
     this.chunkSize = resolved.chunkSize
     this.chunkOverlap = resolved.chunkOverlap
 
-    if (options.separators && options.separators.length > 0) {
-      this.separators = options.separators
+    /**
+     * Bounded here as well as at the API boundary: a config persisted before the
+     * boundary bound existed would otherwise still cost one full document scan
+     * per separator, synchronously, on every document it processes.
+     *
+     * An over-long separator is dropped rather than truncated — a truncated
+     * separator matches where the configured one never did, silently re-cutting
+     * the document, whereas dropping it behaves like a separator that finds no
+     * match, which the split already handles.
+     */
+    const requested = options.separators ?? []
+    const usable = requested
+      .filter((separator) => separator.length <= MAX_CHUNKING_SEPARATOR_LENGTH)
+      .slice(0, MAX_CHUNKING_SEPARATORS)
+
+    if (usable.length < requested.length) {
+      logger.warn(
+        `Chunking config carries ${requested.length} separators; using ${usable.length} within the ${MAX_CHUNKING_SEPARATORS} × ${MAX_CHUNKING_SEPARATOR_LENGTH}-character bound`
+      )
+    }
+
+    if (usable.length > 0) {
+      this.separators = usable
     } else {
       const recipe = options.recipe ?? 'plain'
       this.separators = [...RECIPES[recipe]]
@@ -77,21 +99,34 @@ export class RecursiveChunker {
       return text.trim() ? [text] : []
     }
 
-    if (separatorIndex >= this.separators.length) {
+    /**
+     * Advance past separators that do not split this text. Iterating rather
+     * than recursing keeps stack depth independent of the separator count.
+     */
+    let index = separatorIndex
+    let separator = ''
+    let parts: string[] = []
+
+    while (index < this.separators.length) {
+      separator = this.separators[index]
+
+      if (separator === '') {
+        index = this.separators.length
+        break
+      }
+
+      parts = text.split(separator).filter((part) => part.trim())
+
+      if (parts.length > 1) {
+        break
+      }
+
+      index++
+    }
+
+    if (index >= this.separators.length) {
       const chunkSizeChars = tokensToChars(this.chunkSize)
       return splitAtWordBoundaries(text, chunkSizeChars)
-    }
-
-    const separator = this.separators[separatorIndex]
-
-    if (separator === '') {
-      return this.splitRecursively(text, this.separators.length)
-    }
-
-    const parts = text.split(separator).filter((part) => part.trim())
-
-    if (parts.length <= 1) {
-      return this.splitRecursively(text, separatorIndex + 1)
     }
 
     const chunks: string[] = []
@@ -108,7 +143,7 @@ export class RecursiveChunker {
         }
 
         if (estimateTokens(part) > this.chunkSize) {
-          const subChunks = this.splitRecursively(part, separatorIndex + 1)
+          const subChunks = this.splitRecursively(part, index + 1)
           for (const subChunk of subChunks) {
             chunks.push(subChunk)
           }

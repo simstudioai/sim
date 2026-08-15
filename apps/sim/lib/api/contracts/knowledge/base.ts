@@ -6,6 +6,7 @@ import {
   wireDateSchema,
 } from '@/lib/api/contracts/knowledge/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { MAX_CHUNKING_SEPARATOR_LENGTH, MAX_CHUNKING_SEPARATORS } from '@/lib/chunkers/constants'
 import type { StrategyOptions } from '@/lib/chunkers/types'
 import {
   DEFAULT_CHUNKING_CONFIG,
@@ -20,7 +21,13 @@ export const listKnowledgeBasesQuerySchema = z.object({
   scope: knowledgeScopeSchema.default('active'),
 })
 
-export const chunkingStrategyOptionsSchema = z
+/**
+ * Strategy options as they are stored. Reads stay tolerant of a `separators`
+ * list written before {@link chunkingStrategyOptionsSchema} bounded it, so an
+ * oversized legacy config lists instead of failing response validation. The
+ * chunker clamps such a list at construction, so nothing reprocesses unbounded.
+ */
+export const storedChunkingStrategyOptionsSchema = z
   .object({
     pattern: z
       .string()
@@ -39,6 +46,29 @@ export const chunkingStrategyOptionsSchema = z
       .boolean()
       .optional()
       .describe('Whether regex matches must form strict chunk boundaries.'),
+  })
+  .strict() satisfies z.ZodType<StrategyOptions>
+
+/**
+ * Strategy options accepted on writes. `separators` is bounded in both length
+ * and item size: the recursive chunker rescans the whole document once per
+ * separator, synchronously, so an unbounded list turns one persisted config
+ * into seconds of uninterruptible CPU on every later document upload.
+ */
+export const chunkingStrategyOptionsSchema = storedChunkingStrategyOptionsSchema
+  .extend({
+    separators: z
+      .array(
+        z
+          .string()
+          .max(
+            MAX_CHUNKING_SEPARATOR_LENGTH,
+            `Each separator must be ${MAX_CHUNKING_SEPARATOR_LENGTH} characters or less`
+          )
+      )
+      .max(MAX_CHUNKING_SEPARATORS, `At most ${MAX_CHUNKING_SEPARATORS} separators are allowed`)
+      .optional()
+      .describe('Ordered separators used to split content into chunks.'),
   })
   .strict() satisfies z.ZodType<StrategyOptions>
 
@@ -110,7 +140,7 @@ const knowledgeChunkingConfigSchema = z
     minSize: z.number(),
     overlap: z.number(),
     strategy: z.enum(['auto', 'text', 'regex', 'recursive', 'sentence', 'token']).optional(),
-    strategyOptions: chunkingStrategyOptionsSchema.optional(),
+    strategyOptions: storedChunkingStrategyOptionsSchema.optional(),
   })
   .passthrough()
 
