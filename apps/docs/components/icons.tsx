@@ -2032,6 +2032,31 @@ export function GoogleCalendarIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * TODO: placeholder mark. Google Workspace has no standalone Admin console
+ * brand asset in the press kit, so this draws a neutral directory glyph — a
+ * person over an org-chart tree — until the real brand mark is supplied.
+ * Monochrome by design: `currentColor` keeps it legible bare in both themes.
+ */
+export function GoogleWorkspaceAdminIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        d='M12 2.75a3.25 3.25 0 1 0 0 6.5 3.25 3.25 0 0 0 0-6.5Zm0 1.5a1.75 1.75 0 1 1 0 3.5 1.75 1.75 0 0 1 0-3.5Z'
+        fill='currentColor'
+      />
+      <path
+        d='M11.25 10.5v3.25H6.5a.75.75 0 0 0-.75.75v2h1.5v-1.25h4v1.25h1.5v-1.25h4v1.25h1.5v-2a.75.75 0 0 0-.75-.75h-4.75V10.5h-1.5Z'
+        fill='currentColor'
+      />
+      <path
+        d='M4.25 17.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Zm0 1.5a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5ZM12 17.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Zm0 1.5a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5ZM19.75 17.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Zm0 1.5a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5Z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}
+
 export function GoogleTasksIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 527.1 500' xmlns='http://www.w3.org/2000/svg'>

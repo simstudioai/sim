@@ -35,6 +35,7 @@ export const SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID: Readonly<
   'google-sheets': { providerId: 'google-service-account' },
   'google-tasks': { providerId: 'google-service-account' },
   'google-vault': { providerId: 'google-service-account' },
+  'google-workspace-admin': { providerId: 'google-service-account' },
   hubspot: { providerId: 'hubspot-service-account' },
   jira: { providerId: 'atlassian-service-account' },
   linear: { providerId: 'linear-service-account' },

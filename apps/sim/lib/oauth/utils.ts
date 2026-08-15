@@ -45,6 +45,26 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/admin.directory.group.readonly': 'View Google Workspace groups',
   'https://www.googleapis.com/auth/admin.directory.group.member.readonly':
     'View Google Workspace group memberships',
+  'https://www.googleapis.com/auth/admin.directory.user':
+    'Create, read, update, and delete Google Workspace users',
+  'https://www.googleapis.com/auth/admin.directory.user.alias':
+    'Manage Google Workspace user email aliases',
+  'https://www.googleapis.com/auth/admin.directory.user.security':
+    'Sign users out and revoke the application tokens they have issued',
+  'https://www.googleapis.com/auth/admin.directory.orgunit':
+    'Manage Google Workspace organizational units',
+  'https://www.googleapis.com/auth/admin.directory.rolemanagement':
+    'Manage Google Workspace admin roles and role assignments',
+  'https://www.googleapis.com/auth/admin.directory.device.mobile':
+    'View and manage enrolled mobile devices',
+  'https://www.googleapis.com/auth/admin.directory.device.mobile.action':
+    'Run administrative actions on enrolled mobile devices',
+  'https://www.googleapis.com/auth/admin.directory.device.chromeos':
+    'View and manage enrolled ChromeOS devices',
+  'https://www.googleapis.com/auth/admin.reports.audit.readonly':
+    'Read Google Workspace audit activity reports',
+  'https://www.googleapis.com/auth/admin.reports.usage.readonly':
+    'Read Google Workspace usage reports',
   'https://www.googleapis.com/auth/meetings.space.created':
     'Create and manage Google Meet meeting spaces',
   'https://www.googleapis.com/auth/meetings.space.readonly':
