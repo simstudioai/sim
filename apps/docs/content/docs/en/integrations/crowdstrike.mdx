@@ -1,6 +1,6 @@
 ---
 title: CrowdStrike
-description: Query CrowdStrike Identity Protection sensors and documented aggregates
+description: Investigate and respond to CrowdStrike Falcon alerts, hosts, IOCs, and vulnerabilities
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -11,25 +11,227 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[CrowdStrike](https://www.crowdstrike.com/) is a cybersecurity platform providing endpoint protection, threat intelligence, and identity security through its Falcon suite. This integration connects to the Falcon Identity Protection API to query sensor data.
+[CrowdStrike](https://www.crowdstrike.com/) is a cybersecurity platform providing endpoint protection, threat intelligence, and identity security through its Falcon suite. This integration authenticates with a Falcon API client ID and secret against a chosen cloud region and covers the Alerts, Hosts, Host Groups, IOC Management, Spotlight, Real Time Response, Case Management, and Identity Protection APIs.
 
 With this integration, you can:
 
-- **Search sensors**: Query CrowdStrike identity protection sensors by hostname, IP, or related fields using Falcon Query Language filters
-- **Fetch sensor details**: Retrieve documented sensor details, including protection status, policy assignments, and protocol configuration, for one or more device IDs
-- **Run sensor aggregates**: Execute documented JSON aggregate queries to summarize sensor data into buckets and metrics
+- **Triage alerts**: Search Falcon alerts with Falcon Query Language, pull full alert records by composite ID, and update status, assignment, tags, comments, and console visibility
+- **Respond on hosts**: Contain or lift containment on a host, and hide or unhide it from the Falcon console
+- **Manage host groups**: Search groups, read group details, and add or remove hosts from static groups
+- **Manage custom indicators**: Search, read, create, update, and delete indicators of compromise
+- **Review vulnerabilities**: Query Spotlight vulnerabilities and read CVE, host, application, and remediation details
+- **Run read-only Real Time Response**: Open a session, run a documented read-only command, poll for output, and close the session
+- **Read cases**: Search Case Management cases and read case details
+- **Query identity sensors**: Search Identity Protection sensors, fetch sensor details, and run aggregate queries
 
-In Sim, the CrowdStrike integration allows your agents to search identity protection sensors, look up detailed sensor records by device ID, and run aggregate queries against sensor data—all authenticated with a Falcon API client ID and secret against a specified cloud region. This lets agents surface device protection status, policy coverage, and protocol configuration (Kerberos, LDAP, NTLM, RDP, SMB) as part of security monitoring and reporting workflows.
+Each operation maps to a specific Falcon API scope — for example `Alerts: Read` and `Alerts: Write`, `Hosts: Write` for containment, `Host groups: Read`/`Write`, `IOC Management: Read`/`Write`, `Vulnerabilities: Read`, `Real time response: Read`, and `Cases: Read`. Containment and indicator deletion change live protection behavior, so scope the credential to only the operations your workflows need.
+
+Note that CrowdStrike decommissioned the legacy Detects API (September 30, 2025) and the CrowdScore Incidents API (March 9, 2026). This integration uses the current Alerts API and Case Management API in their place.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Usage Instructions
 
-Integrate CrowdStrike Identity Protection into workflows to search sensors, fetch documented sensor details by device ID, and run documented sensor aggregate queries.
+Integrate CrowdStrike Falcon into workflows to triage alerts, contain hosts, manage host groups and custom indicators of compromise, review Spotlight vulnerabilities, run read-only Real Time Response commands, read Case Management cases, and query Identity Protection sensors.
 
 
 
 ## Actions
+
+### CrowdStrike Create Indicators
+
+Create custom CrowdStrike Falcon indicators of compromise (POST /iocs/entities/indicators/v1). Each indicator can allow, detect, or block activity across the fleet, so a wrong value can suppress detections or break legitimate software. Requires the "IOC Management: Write" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `indicators` | json | Yes | JSON array of indicators to create. Documented per-indicator fields: type, value, action, severity, platforms \(array\), applied_globally \(boolean\), host_groups \(array\), description, source, tags \(array\), expiration \(ISO 8601\), mobile_action, metadata \(\{ filename \}\). Either applied_globally must be true or host_groups must be supplied. |
+| `comment` | string | No | Audit comment explaining why these indicators were created |
+| `retrodetects` | boolean | No | Whether to generate retroactive detections for the new indicators |
+| `ignoreWarnings` | boolean | No | Whether to create the indicators even when CrowdStrike returns warnings |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `indicators` | array | Created CrowdStrike indicator records |
+| `count` | number | Number of indicators created |
+
+### CrowdStrike Delete Indicators
+
+Permanently delete custom CrowdStrike Falcon indicators of compromise (DELETE /iocs/entities/indicators/v1). This cannot be undone, and deleting a blocking indicator removes that protection from every host. If a filter is supplied it takes precedence and the ID list is ignored, so a broad filter can delete far more than intended. Requires the "IOC Management: Write" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `indicatorIds` | json | No | JSON array of CrowdStrike IOC IDs to delete. Ignored when a filter is also supplied. |
+| `filter` | string | No | Falcon Query Language filter selecting indicators to delete in bulk. Takes precedence over the ID list. |
+| `comment` | string | No | Audit comment explaining why these indicators were deleted |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deletedIds` | array | IOC IDs CrowdStrike deleted |
+| `count` | number | Number of indicators deleted |
+
+### CrowdStrike Delete RTR Session
+
+Close an open CrowdStrike Falcon Real Time Response session (DELETE /real-time-response/entities/sessions/v1). Requires the "Real time response: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `sessionId` | string | Yes | RTR session ID to close |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sessionId` | string | RTR session ID that was closed |
+| `deleted` | boolean | Whether CrowdStrike accepted the session deletion |
+
+### CrowdStrike Execute RTR Command
+
+Run a read-only Real Time Response command inside an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). Documented read-only base commands: cat, cd, clear, csrutil (macOS), env, eventlog (Windows), filehash, getsid (Windows and macOS), help, history, ipconfig (Windows), ls, mount, netstat, ps, and reg (Windows). Commands that write to or modify the host require the Active Responder or Admin RTR endpoints, which this tool does not expose. Returns a cloud request ID; poll Get RTR Command Status for output. Requires the "Real time response: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `sessionId` | string | Yes | RTR session ID returned by Init RTR Session |
+| `baseCommand` | string | Yes | Read-only RTR base command: cat, cd, clear, csrutil, env, eventlog, filehash, getsid, help, history, ipconfig, ls, mount, netstat, ps, or reg |
+| `commandString` | string | Yes | Full command line to run, such as "ls C:\\Windows" or "reg query HKLM\\Software" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cloudRequestId` | string | Cloud request ID to poll for command output |
+| `sessionId` | string | RTR session the command ran in |
+| `queuedCommandOffline` | boolean | Whether the command was queued for an offline host |
+
+### CrowdStrike Get Alert Details
+
+Get full CrowdStrike Falcon alert records for one or more composite alert IDs (POST /alerts/entities/alerts/v2). Requires the "Alerts: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `compositeIds` | json | Yes | JSON array of CrowdStrike composite alert IDs |
+| `includeHidden` | boolean | No | Include previously hidden alerts \(CrowdStrike defaults this to true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alerts` | array | CrowdStrike alert records |
+| `count` | number | Number of alerts returned |
+
+### CrowdStrike Get Case Details
+
+Get CrowdStrike Falcon Case Management case records for one or more case IDs (POST /cases/entities/cases/v2). Requires the "Cases: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `caseIds` | json | Yes | JSON array of CrowdStrike case IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cases` | array | CrowdStrike Case Management case records |
+| `count` | number | Number of cases returned |
+
+### CrowdStrike Get Host Group Details
+
+Get CrowdStrike Falcon host group records for one or more group IDs (GET /devices/entities/host-groups/v1). Requires the "Host groups: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `hostGroupIds` | json | Yes | JSON array of CrowdStrike host group IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `hostGroups` | array | CrowdStrike host group records |
+| `count` | number | Number of host groups returned |
+
+### CrowdStrike Get Indicator Details
+
+Get custom CrowdStrike Falcon indicator of compromise (IOC) records for one or more IOC IDs (GET /iocs/entities/indicators/v1). Requires the "IOC Management: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `indicatorIds` | json | Yes | JSON array of CrowdStrike IOC IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `indicators` | array | CrowdStrike indicator of compromise records |
+| `count` | number | Number of indicators returned |
+
+### CrowdStrike Get RTR Command Status
+
+Get the status and output of a Real Time Response command by cloud request ID (GET /real-time-response/entities/command/v1). Long output is chunked across sequences, so increment the sequence ID to read the next chunk. Requires the "Real time response: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `cloudRequestId` | string | Yes | Cloud request ID returned by Execute RTR Command |
+| `sequenceId` | number | No | Output chunk to retrieve, starting at 0 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `complete` | boolean | Whether the command has finished running |
+| `stdout` | string | Standard output from the command |
+| `stderr` | string | Standard error from the command |
+| `baseCommand` | string | Base command that was run |
+| `sessionId` | string | RTR session the command ran in |
+| `taskId` | string | Task identifier for the command |
+| `sequenceId` | number | Output chunk sequence this response covers |
 
 ### CrowdStrike Get Sensor Aggregates
 
@@ -108,6 +310,200 @@ Get documented CrowdStrike Identity Protection sensor details for one or more de
 |   ↳ `offset` | number | Offset returned by CrowdStrike |
 |   ↳ `total` | number | Total records available |
 
+### CrowdStrike Get Vulnerability Details
+
+Get CrowdStrike Falcon Spotlight vulnerability records for one or more vulnerability IDs, including CVE, affected host, application, and remediation details (GET /spotlight/entities/vulnerabilities/v2). Requires the "Vulnerabilities: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `vulnerabilityIds` | json | Yes | JSON array of Spotlight vulnerability IDs \(maximum 400 per request\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `vulnerabilities` | array | CrowdStrike Spotlight vulnerability records |
+| `count` | number | Number of vulnerabilities returned |
+
+### CrowdStrike Init RTR Session
+
+Open a CrowdStrike Falcon Real Time Response session against a host so read-only commands can be run on it (POST /real-time-response/entities/sessions/v1). This connects a live remote shell to the endpoint. Requires the "Real time response: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `deviceId` | string | Yes | CrowdStrike host agent ID \(AID\) to open the session against |
+| `queueOffline` | boolean | No | Queue the session so it runs when an offline host comes back online |
+| `origin` | string | No | Optional session origin string recorded by CrowdStrike |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sessionId` | string | RTR session ID to use for subsequent commands |
+| `deviceId` | string | Host agent ID for the session |
+| `platform` | string | Platform of the connected host |
+| `pwd` | string | Working directory the session started in |
+| `offlineQueued` | boolean | Whether the session was queued for an offline host |
+| `existingAidSessions` | number | Number of sessions already open against this host |
+| `createdAt` | string | Session creation timestamp |
+
+### CrowdStrike Perform Host Action
+
+Take a containment or visibility action on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). "contain" network-isolates the host so it can only reach the Falcon cloud, cutting it off from the rest of the network; "lift_containment" restores normal network access; "hide_host" removes the host from the Falcon console host list and "unhide_host" restores it. Containment is immediately disruptive to the endpoint. Requires the "Hosts: Write" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `actionName` | string | Yes | Action to take: contain, lift_containment, hide_host, or unhide_host. "contain" network-isolates the host. |
+| `deviceIds` | json | Yes | JSON array of CrowdStrike host agent IDs \(AIDs\) to act on |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | number | Number of hosts the action was applied to |
+
+### CrowdStrike Perform Host Group Action
+
+Add hosts to or remove hosts from a CrowdStrike Falcon static host group (POST /devices/entities/host-group-actions/v1). Group membership drives policy assignment, so changing it changes which policies apply to those hosts. Requires the "Host groups: Write" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `actionName` | string | Yes | Action to take: add-hosts or remove-hosts |
+| `hostGroupId` | string | Yes | CrowdStrike host group ID to modify \(static groups only\) |
+| `deviceIds` | json | Yes | JSON array of CrowdStrike host agent IDs \(AIDs\) to add to or remove from the group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `hostGroups` | array | Host group records returned after the action |
+| `count` | number | Number of host group records returned |
+
+### CrowdStrike Query Alerts
+
+Search CrowdStrike Falcon alerts with a Falcon Query Language filter and return their composite IDs. Uses the current Alerts API (GET /alerts/queries/alerts/v2); the legacy Detects API is decommissioned. Requires the "Alerts: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `filter` | string | No | Falcon Query Language filter over alert fields |
+| `q` | string | No | Free-text search across all alert metadata |
+| `limit` | number | No | Maximum number of alert IDs to return \(max 10000\) |
+| `offset` | number | No | Pagination offset for the alert query |
+| `sort` | string | No | Sort expression such as "created_timestamp\|desc" |
+| `includeHidden` | boolean | No | Include previously hidden alerts \(CrowdStrike defaults this to true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alertIds` | array | Composite alert IDs matching the query, ready for Get Alert Details |
+| `count` | number | Number of alert IDs returned |
+| `pagination` | json | Pagination metadata \(limit, offset, total\) |
+|   ↳ `limit` | number | Page size used for the query |
+|   ↳ `offset` | number | Offset returned by CrowdStrike |
+|   ↳ `total` | number | Total records available |
+
+### CrowdStrike Query Cases
+
+Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management replaced the CrowdScore Incidents API, which CrowdStrike decommissioned. Requires the "Cases: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `filter` | string | No | Falcon Query Language filter. Exact-match fields include cid and id; wildcard fields include assigned_to_name and assigned_to_uuid; range fields include created_timestamp and updated_timestamp. |
+| `q` | string | No | Free-text search across all case metadata |
+| `limit` | number | No | Maximum number of case IDs to return \(max 10000, default 100\) |
+| `offset` | number | No | Pagination offset for the case query |
+| `sort` | string | No | Sort expression such as "created_timestamp\|desc" or "status\|asc" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `caseIds` | array | Case IDs matching the query |
+| `count` | number | Number of case IDs returned |
+
+### CrowdStrike Query Host Groups
+
+Search CrowdStrike Falcon host groups with a Falcon Query Language filter and return their IDs (GET /devices/queries/host-groups/v1). Requires the "Host groups: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `filter` | string | No | Falcon Query Language filter over host group fields |
+| `limit` | number | No | Maximum number of host group IDs to return \(1-5000\) |
+| `offset` | number | No | Pagination offset for the host group query |
+| `sort` | string | No | Sort expression such as "name.asc" or "modified_timestamp.desc" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `hostGroupIds` | array | Host group IDs matching the query |
+| `count` | number | Number of host group IDs returned |
+
+### CrowdStrike Query Indicators
+
+Search custom CrowdStrike Falcon indicators of compromise (IOCs) with a Falcon Query Language filter and return their IDs (GET /iocs/queries/indicators/v1). Requires the "IOC Management: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `filter` | string | No | Falcon Query Language filter over IOC fields |
+| `limit` | number | No | Maximum number of IOC IDs to return |
+| `offset` | number | No | Pagination offset. Mutually exclusive with the after cursor; use after beyond 10,000 IOCs. |
+| `after` | string | No | Pagination cursor from a previous response. Mutually exclusive with offset. |
+| `sort` | string | No | Sort expression. Supported fields include action, applied_globally, created_by, created_on, expiration, expired, modified_by, modified_on, severity_number, source, type, and value. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `indicatorIds` | array | IOC IDs matching the query |
+| `count` | number | Number of IOC IDs returned |
+| `pagination` | json | Pagination metadata \(limit, offset, total, after\) |
+|   ↳ `limit` | number | Page size used for the query |
+|   ↳ `offset` | number | Offset returned by CrowdStrike |
+|   ↳ `total` | number | Total records available |
+|   ↳ `after` | string | Cursor for the next page |
+
 ### CrowdStrike Query Sensors
 
 Search CrowdStrike identity protection sensors by hostname, IP, or related fields
@@ -153,5 +549,86 @@ Search CrowdStrike identity protection sensors by hostname, IP, or related field
 |   ↳ `limit` | number | Page size used for the query |
 |   ↳ `offset` | number | Offset returned by CrowdStrike |
 |   ↳ `total` | number | Total records available |
+
+### CrowdStrike Query Vulnerabilities
+
+Search CrowdStrike Falcon Spotlight vulnerabilities with a required Falcon Query Language filter and return their IDs (GET /spotlight/queries/vulnerabilities/v1). Requires the "Vulnerabilities: Read" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `filter` | string | Yes | Falcon Query Language filter \(required by Spotlight\). Filterable fields include status, aid, cid, last_seen_within, cve.id, cve.severity, cve.exprt_rating, cve.is_cisa_kev, cve.base_score, host_info.platform_name, host_info.groups, host_info.tags, host_info.internet_exposure, and suppression_info.is_suppressed. |
+| `limit` | number | No | Maximum number of vulnerability IDs to return \(1-400, default 100\) |
+| `after` | string | No | Pagination cursor from a previous response. Spotlight does not support offset. |
+| `sort` | string | No | Sort expression such as "updated_timestamp\|desc" or "closed_timestamp\|asc" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `vulnerabilityIds` | array | Spotlight vulnerability IDs matching the query |
+| `count` | number | Number of vulnerability IDs returned |
+| `pagination` | json | Cursor pagination metadata \(limit, total, after\) |
+|   ↳ `limit` | number | Page size used for the query |
+|   ↳ `total` | number | Total records available |
+|   ↳ `after` | string | Cursor for the next page |
+
+### CrowdStrike Update Alerts
+
+Update CrowdStrike Falcon alerts by composite ID: change status, assign or unassign an analyst, add or remove tags, append a comment, or toggle visibility (PATCH /alerts/entities/alerts/v3). This modifies live alerts in the Falcon console. Requires the "Alerts: Write" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `compositeIds` | json | Yes | JSON array of CrowdStrike composite alert IDs to update |
+| `updateStatus` | string | No | New alert status: new, in_progress, reopened, or closed |
+| `assignToUuid` | string | No | Assign the alert to this Falcon user UUID |
+| `assignToUserId` | string | No | Assign the alert to this Falcon user ID, such as user@example.com |
+| `assignToName` | string | No | Assign the alert to this Falcon username, such as John Doe |
+| `unassign` | boolean | No | Clear the assigned user UUID, user ID, and username from the alert |
+| `appendComment` | string | No | Comment to append to the alert in the Falcon console |
+| `addTag` | string | No | Tag to add to the alert |
+| `removeTag` | string | No | Tag to remove from the alert |
+| `showInUi` | boolean | No | Whether the alert is displayed in the Falcon console |
+| `actionParameters` | json | No | Raw JSON array of additional CrowdStrike action parameters, each shaped \{ "name": string, "value": string \} |
+| `includeHidden` | boolean | No | Include previously hidden alerts \(CrowdStrike defaults this to true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `updatedIds` | array | Composite alert IDs the update was submitted for |
+| `count` | number | Number of alerts the update was submitted for |
+
+### CrowdStrike Update Indicators
+
+Update existing custom CrowdStrike Falcon indicators of compromise by ID (PATCH /iocs/entities/indicators/v1). Changing an indicator action or scope changes prevention behavior across the fleet. Indicator type and value are immutable. Requires the "IOC Management: Write" API scope.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `indicators` | json | Yes | JSON array of indicators to update. Each entry requires id. Documented updatable fields: action, severity, description, source, tags \(array\), platforms \(array\), applied_globally \(boolean\), host_groups \(array\), expiration \(ISO 8601\), mobile_action, metadata \(\{ filename \}\). type and value cannot be changed. |
+| `comment` | string | No | Audit comment explaining why these indicators were updated |
+| `retrodetects` | boolean | No | Whether to generate retroactive detections for the updated indicators |
+| `ignoreWarnings` | boolean | No | Whether to apply the updates even when CrowdStrike returns warnings |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `indicators` | array | Updated CrowdStrike indicator records |
+| `count` | number | Number of indicators updated |
 
 
