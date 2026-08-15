@@ -8726,6 +8726,23 @@ export function BigQueryIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+/**
+ * TODO: placeholder mark. Replace with the official Splunk brand artwork once the
+ * licensed SVG is available. Drawn with `currentColor` so it stays legible bare in
+ * both light and dark mode.
+ */
+export function SplunkIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <path
+        fill='currentColor'
+        d='M6.4 3.2a1.2 1.2 0 0 0-.85 2.05L12.3 12l-6.75 6.75a1.2 1.2 0 1 0 1.7 1.7l7.6-7.6a1.2 1.2 0 0 0 0-1.7l-7.6-7.6a1.2 1.2 0 0 0-.85-.35Z'
+      />
+      <path fill='currentColor' d='M16.4 17.6h2.4a1.2 1.2 0 0 1 0 2.4h-2.4a1.2 1.2 0 0 1 0-2.4Z' />
+    </svg>
+  )
+}
+
 export function SnowflakeIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox='0 0 146.36 139.16' xmlns='http://www.w3.org/2000/svg' {...props}>

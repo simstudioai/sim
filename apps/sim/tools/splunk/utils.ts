@@ -1,0 +1,310 @@
+import type { SplunkBaseParams, SplunkMessage, SplunkSavedSearch } from '@/tools/splunk/types'
+import type { ToolConfig } from '@/tools/types'
+
+/** Connection + credential params every Splunk tool declares. */
+export const SPLUNK_CONNECTION_PARAMS: ToolConfig['params'] = {
+  baseUrl: {
+    type: 'string',
+    required: true,
+    visibility: 'user-only',
+    description:
+      'Splunk management URL including the management port (e.g. https://splunk.example.com:8089)',
+  },
+  authToken: {
+    type: 'string',
+    required: false,
+    visibility: 'user-only',
+    description: 'Splunk authentication token, sent as a bearer token. Preferred over a password.',
+  },
+  username: {
+    type: 'string',
+    required: false,
+    visibility: 'user-only',
+    description: 'Splunk username, used for basic authentication when no token is supplied',
+  },
+  password: {
+    type: 'string',
+    required: false,
+    visibility: 'user-only',
+    description: 'Splunk password, used for basic authentication when no token is supplied',
+  },
+  owner: {
+    type: 'string',
+    required: false,
+    visibility: 'user-only',
+    description:
+      'Namespace owner for /servicesNS requests (e.g. nobody, admin). Defaults to the authenticated user context.',
+  },
+  app: {
+    type: 'string',
+    required: false,
+    visibility: 'user-only',
+    description: 'Namespace app context for /servicesNS requests (e.g. search)',
+  },
+}
+
+/**
+ * Splunk defaults every REST response to XML. Every request Sim makes must pin
+ * `output_mode=json` or the transform layer receives XML it cannot parse.
+ */
+export const SPLUNK_JSON_OUTPUT_MODE = 'json'
+
+/** Normalize the user-supplied management URL (e.g. `https://splunk.example.com:8089`). */
+function normalizeBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '')
+  if (!trimmed) {
+    throw new Error('Splunk base URL is required (e.g. https://splunk.example.com:8089)')
+  }
+  return trimmed
+}
+
+/**
+ * Build the namespace prefix for a REST path. Splunk exposes every configuration
+ * endpoint both at `/services/...` (the authenticated user's default namespace) and
+ * at `/servicesNS/{owner}/{app}/...` when an explicit owner/app context is needed.
+ */
+function namespacePrefix(params: SplunkBaseParams): string {
+  const owner = params.owner?.trim()
+  const app = params.app?.trim()
+  if (!owner && !app) return '/services'
+  return `/servicesNS/${encodeURIComponent(owner || 'nobody')}/${encodeURIComponent(app || 'search')}`
+}
+
+/**
+ * Compose a fully qualified Splunk REST URL with `output_mode=json` always applied.
+ * `path` is namespace-relative and must start with a slash (e.g. `/search/jobs`).
+ */
+export function buildSplunkUrl(
+  params: SplunkBaseParams,
+  path: string,
+  query?: Record<string, string | number | boolean | undefined>
+): string {
+  const search = new URLSearchParams({ output_mode: SPLUNK_JSON_OUTPUT_MODE })
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value === undefined || value === '') continue
+    search.set(key, String(value))
+  }
+  return `${normalizeBaseUrl(params.baseUrl)}${namespacePrefix(params)}${path}?${search.toString()}`
+}
+
+/**
+ * Build auth headers. Splunk supports a bearer authentication token (8.x+) and
+ * RFC 1945 basic authentication; the token is preferred when both are supplied.
+ */
+export function buildSplunkHeaders(
+  params: SplunkBaseParams,
+  extra?: Record<string, string>
+): Record<string, string> {
+  const headers: Record<string, string> = { Accept: 'application/json', ...extra }
+
+  const token = params.authToken?.trim()
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+    return headers
+  }
+
+  const username = params.username?.trim()
+  const password = params.password
+  if (username && password) {
+    headers.Authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
+    return headers
+  }
+
+  throw new Error('Splunk requires either an authentication token or a username and password')
+}
+
+/** Headers for the form-encoded POST bodies every Splunk write endpoint expects. */
+export function buildSplunkFormHeaders(params: SplunkBaseParams): Record<string, string> {
+  return buildSplunkHeaders(params, { 'Content-Type': 'application/x-www-form-urlencoded' })
+}
+
+/** Serialize a form body, skipping empty values. Splunk expects booleans as 1/0. */
+export function buildSplunkFormBody(
+  fields: Record<string, string | number | boolean | undefined>
+): string {
+  const body = new URLSearchParams()
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined || value === '') continue
+    body.set(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value))
+  }
+  return body.toString()
+}
+
+/**
+ * Splunk SPL sent to `search/jobs` must begin with a search command. Users routinely
+ * type a bare `index=main error`, so prefix the implicit `search` command unless the
+ * string already starts with one (`search ...`, `| tstats ...`, `search ...`).
+ */
+export function normalizeSearchQuery(query: string): string {
+  const trimmed = query.trim()
+  if (trimmed.startsWith('|') || /^search\s/i.test(trimmed) || /^search$/i.test(trimmed)) {
+    return trimmed
+  }
+  return `search ${trimmed}`
+}
+
+interface SplunkAtomEntry {
+  name?: string
+  title?: string
+  id?: string
+  updated?: string
+  author?: string | { name?: string }
+  content?: Record<string, unknown>
+}
+
+/**
+ * Splunk renders collection responses in an Atom-derived envelope. With
+ * `output_mode=json` the entries live at `entry[]`; the XML-to-JSON translation
+ * used in parts of the reference nests the same array under `feed`. Read both.
+ */
+export function getSplunkEntries(data: unknown): SplunkAtomEntry[] {
+  const root = (data ?? {}) as { entry?: unknown; feed?: { entry?: unknown } }
+  const entries = Array.isArray(root.entry)
+    ? root.entry
+    : Array.isArray(root.feed?.entry)
+      ? root.feed.entry
+      : []
+  return entries as SplunkAtomEntry[]
+}
+
+/** The per-entry property dictionary, or an empty object when the entry has none. */
+export function getEntryContent(entry: SplunkAtomEntry | undefined): Record<string, unknown> {
+  return (entry?.content as Record<string, unknown>) ?? {}
+}
+
+/** Entry display name — `name` under `output_mode=json`, `title` in the Atom form. */
+export function getEntryName(entry: SplunkAtomEntry | undefined): string | null {
+  return entry?.name ?? entry?.title ?? null
+}
+
+/** Entry author — a bare string under `output_mode=json`, an object in the Atom form. */
+export function getEntryAuthor(entry: SplunkAtomEntry | undefined): string | null {
+  const author = entry?.author
+  if (typeof author === 'string') return author
+  return author?.name ?? null
+}
+
+export function asString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null
+}
+
+export function asNumber(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+/** Splunk serializes booleans as `0`/`1` (and occasionally as real booleans). */
+export function asBoolean(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') {
+    if (value === '1' || value.toLowerCase() === 'true') return true
+    if (value === '0' || value.toLowerCase() === 'false') return false
+  }
+  return null
+}
+
+/** Normalize the `messages` array Splunk attaches to results and control responses. */
+export function mapSplunkMessages(value: unknown): SplunkMessage[] {
+  if (!Array.isArray(value)) return []
+  return value.map((message) => {
+    const record = (message ?? {}) as Record<string, unknown>
+    return { type: asString(record.type), text: asString(record.text) }
+  })
+}
+
+/** Project one `saved/searches` Atom entry into the canonical saved-search shape. */
+export function mapSavedSearchEntry(entry: unknown): SplunkSavedSearch {
+  const atomEntry = entry as SplunkAtomEntry | undefined
+  const content = getEntryContent(atomEntry)
+  return {
+    name: getEntryName(atomEntry),
+    id: asString(atomEntry?.id),
+    author: getEntryAuthor(atomEntry),
+    updated: asString(atomEntry?.updated),
+    search: asString(content.search),
+    qualifiedSearch: asString(content.qualifiedSearch),
+    description: asString(content.description),
+    disabled: asBoolean(content.disabled),
+    isScheduled: asBoolean(content.is_scheduled),
+    isVisible: asBoolean(content.is_visible),
+    cronSchedule: asString(content.cron_schedule),
+    nextScheduledTime: asString(content.next_scheduled_time),
+    alertType: asString(content.alert_type),
+    dispatchEarliestTime: asString(content['dispatch.earliest_time']),
+    dispatchLatestTime: asString(content['dispatch.latest_time']),
+  }
+}
+
+/**
+ * Project the documented search-results envelope (`init_offset`, `messages`,
+ * `preview`, `results`) into Sim's output shape. Result rows are the search's own
+ * fields, so they are passed through as dynamic objects.
+ */
+export function mapSearchResultsPayload(data: unknown) {
+  const root = (data ?? {}) as {
+    results?: unknown
+    messages?: unknown
+    preview?: unknown
+    init_offset?: unknown
+  }
+  const results = Array.isArray(root.results) ? (root.results as Record<string, unknown>[]) : []
+  return {
+    results,
+    resultCount: results.length,
+    preview: asBoolean(root.preview),
+    initOffset: asNumber(root.init_offset),
+    messages: mapSplunkMessages(root.messages),
+  }
+}
+
+/** Shared output schema for the two tools that return search results. */
+export const SEARCH_RESULTS_OUTPUTS = {
+  results: {
+    type: 'array' as const,
+    description: 'Result rows. Each row holds the fields produced by the search.',
+    items: { type: 'object' as const },
+  },
+  resultCount: {
+    type: 'number' as const,
+    description: 'Number of result rows returned in this response',
+  },
+  preview: {
+    type: 'boolean' as const,
+    description: 'Whether these are preview results from a still-running job',
+    optional: true,
+  },
+  initOffset: {
+    type: 'number' as const,
+    description: 'Offset of the first returned row within the full result set',
+    optional: true,
+  },
+  messages: {
+    type: 'array' as const,
+    description: 'Search messages returned alongside the results',
+    items: {
+      type: 'object' as const,
+      properties: {
+        type: { type: 'string' as const, description: 'Message severity' },
+        text: { type: 'string' as const, description: 'Message text' },
+      },
+    },
+  },
+}
+
+/** Shared output schema for the `messages` envelope key. */
+export const SPLUNK_MESSAGES_OUTPUT = {
+  type: 'array' as const,
+  description: 'Informational, warning, and error messages returned with the response',
+  items: {
+    type: 'object' as const,
+    properties: {
+      type: { type: 'string' as const, description: 'Message severity (INFO, WARN, ERROR, DEBUG)' },
+      text: { type: 'string' as const, description: 'Message text' },
+    },
+  },
+}
