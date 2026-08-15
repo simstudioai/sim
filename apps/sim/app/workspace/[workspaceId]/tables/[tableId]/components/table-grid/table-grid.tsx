@@ -495,6 +495,9 @@ export function TableGrid({
   const pendingMatchRef = useRef<TableFindMatch | null>(null)
   /** Monotonic id for the in-flight match jump; see `goToMatch`. */
   const goToMatchSeqRef = useRef(0)
+  /** The match the cursor is on, by identity rather than position, so a
+   *  reordered result set can re-point at the same cell. */
+  const activeMatchRef = useRef<TableFindMatch | null>(null)
   /** Term the auto-reveal has already run for, so a background refetch of the
    *  same term doesn't re-jump the viewport. */
   const autoRevealedTermRef = useRef('')
@@ -1266,6 +1269,7 @@ export function TableGrid({
     goToMatchSeqRef.current++
     pendingMatchRef.current = null
     cursorIsOnMatchRef.current = false
+    activeMatchRef.current = null
     setIsJumping(false)
   }, [trimmedFindQuery, findOpen])
 
@@ -1288,8 +1292,31 @@ export function TableGrid({
     setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
     setSelectionFocus(null)
     cursorIsOnMatchRef.current = true
+    activeMatchRef.current = match
     setSelectionAnchor({ rowIndex, colIndex })
   }, [rows, displayColumns, pendingMatchTick])
+
+  /**
+   * Re-point the cursor at the match it is actually on after the set changes.
+   *
+   * The cursor is stored as an index, but the list underneath it is mutable: a
+   * row insert or delete elsewhere in the table reorders matches for the SAME
+   * term, and index 1 can silently become a different cell. Stepping from it
+   * would then revisit the cell the user is on, or skip its neighbour. Matching
+   * on (rowId, column) — the match's identity — keeps the cursor attached to the
+   * cell rather than the position.
+   *
+   * When the active match is gone entirely there is nothing to re-point at;
+   * `stepBaseIndex` clamps the now-possibly-out-of-range index instead.
+   */
+  useEffect(() => {
+    const active = activeMatchRef.current
+    if (!active || findMatches.length === 0) return
+    const index = findMatches.findIndex(
+      (m) => m.rowId === active.rowId && m.column === active.column
+    )
+    if (index !== -1 && index !== currentMatchIndexRef.current) setCurrentMatchIndex(index)
+  }, [findMatches])
 
   /**
    * A new TERM resets to its first match and reveals it.
@@ -1327,6 +1354,7 @@ export function TableGrid({
     autoRevealedTermRef.current = submittedQuery
     setCurrentMatchIndex(0)
     cursorIsOnMatchRef.current = false
+    activeMatchRef.current = null
     const first = findMatches[0]
     if (!first) return
     if (!rowsRef.current.some((r) => r.id === first.rowId)) return
@@ -1389,6 +1417,7 @@ export function TableGrid({
     goToMatchSeqRef.current++
     autoRevealedTermRef.current = ''
     cursorIsOnMatchRef.current = false
+    activeMatchRef.current = null
     setIsJumping(false)
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
