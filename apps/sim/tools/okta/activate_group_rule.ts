@@ -1,16 +1,19 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type { OktaDeleteGroupParams, OktaDeleteGroupResponse } from '@/tools/okta/types'
+import type { OktaActivateGroupRuleParams, OktaActivateGroupRuleResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('OktaDeleteGroup')
+const logger = createLogger('OktaActivateGroupRule')
 
-export const oktaDeleteGroupTool: ToolConfig<OktaDeleteGroupParams, OktaDeleteGroupResponse> = {
-  id: 'okta_delete_group',
-  name: 'Delete Group from Okta',
+export const oktaActivateGroupRuleTool: ToolConfig<
+  OktaActivateGroupRuleParams,
+  OktaActivateGroupRuleResponse
+> = {
+  id: 'okta_activate_group_rule',
+  name: 'Activate Group Rule in Okta',
   description:
-    'Delete a group from your Okta organization. Groups of OKTA_GROUP or APP_GROUP type can be removed.',
+    'Activate a group rule so Okta starts applying it, assigning every matching user to the target groups.',
   version: '1.0.0',
 
   params: {
@@ -26,41 +29,41 @@ export const oktaDeleteGroupTool: ToolConfig<OktaDeleteGroupParams, OktaDeleteGr
       visibility: 'user-only',
       description: 'Okta domain (e.g., dev-123456.okta.com)',
     },
-    groupId: {
+    groupRuleId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group ID to delete',
+      description: 'Group rule ID to activate',
     },
   },
 
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
+      return `https://${domain}/api/v1/groups/rules/${encodeURIComponent(params.groupRuleId.trim())}/lifecycle/activate`
     },
-    method: 'DELETE',
+    method: 'POST',
     headers: (params) => oktaHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response, params) => {
     if (!response.ok) {
-      await throwOktaError(response, logger, 'Failed to delete group from Okta')
+      await throwOktaError(response, logger, 'Failed to activate group rule in Okta')
     }
 
     return {
       success: true,
       output: {
-        groupId: params?.groupId ?? '',
-        deleted: true,
+        groupRuleId: params?.groupRuleId ?? '',
+        activated: true,
         success: true,
       },
     }
   },
 
   outputs: {
-    groupId: { type: 'string', description: 'Deleted group ID' },
-    deleted: { type: 'boolean', description: 'Whether the group was deleted' },
+    groupRuleId: { type: 'string', description: 'Activated group rule ID' },
+    activated: { type: 'boolean', description: 'Whether the rule was activated' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

@@ -1,16 +1,19 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type { OktaDeleteUserParams, OktaDeleteUserResponse } from '@/tools/okta/types'
+import type { OktaDeleteGroupRuleParams, OktaDeleteGroupRuleResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('OktaDeleteUser')
+const logger = createLogger('OktaDeleteGroupRule')
 
-export const oktaDeleteUserTool: ToolConfig<OktaDeleteUserParams, OktaDeleteUserResponse> = {
-  id: 'okta_delete_user',
-  name: 'Delete User from Okta',
+export const oktaDeleteGroupRuleTool: ToolConfig<
+  OktaDeleteGroupRuleParams,
+  OktaDeleteGroupRuleResponse
+> = {
+  id: 'okta_delete_group_rule',
+  name: 'Delete Group Rule in Okta',
   description:
-    'Permanently delete a user from your Okta organization. Can only be performed on DEPROVISIONED users. If the user is active, this will first deactivate them and a second call is needed to delete.',
+    'Permanently delete a group rule. Destructive and irreversible. Optionally also removes the users that this rule had assigned from those groups, which revokes any access those groups grant.',
   version: '1.0.0',
 
   params: {
@@ -26,25 +29,26 @@ export const oktaDeleteUserTool: ToolConfig<OktaDeleteUserParams, OktaDeleteUser
       visibility: 'user-only',
       description: 'Okta domain (e.g., dev-123456.okta.com)',
     },
-    userId: {
+    groupRuleId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'User ID to delete',
+      description: 'Group rule ID to delete',
     },
-    sendEmail: {
+    removeUsers: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Send deactivation email to admin (default: false)',
+      description:
+        'Also remove the users this rule assigned from the groups it targeted (default: false)',
     },
   },
 
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      const sendEmail = params.sendEmail === true
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}?sendEmail=${sendEmail}`
+      const base = `https://${domain}/api/v1/groups/rules/${encodeURIComponent(params.groupRuleId.trim())}`
+      return params.removeUsers === undefined ? base : `${base}?removeUsers=${params.removeUsers}`
     },
     method: 'DELETE',
     headers: (params) => oktaHeaders(params.apiKey),
@@ -52,13 +56,13 @@ export const oktaDeleteUserTool: ToolConfig<OktaDeleteUserParams, OktaDeleteUser
 
   transformResponse: async (response: Response, params) => {
     if (!response.ok) {
-      await throwOktaError(response, logger, 'Failed to delete user from Okta')
+      await throwOktaError(response, logger, 'Failed to delete group rule in Okta')
     }
 
     return {
       success: true,
       output: {
-        userId: params?.userId ?? '',
+        groupRuleId: params?.groupRuleId ?? '',
         deleted: true,
         success: true,
       },
@@ -66,8 +70,8 @@ export const oktaDeleteUserTool: ToolConfig<OktaDeleteUserParams, OktaDeleteUser
   },
 
   outputs: {
-    userId: { type: 'string', description: 'Deleted user ID' },
-    deleted: { type: 'boolean', description: 'Whether the user was deleted' },
+    groupRuleId: { type: 'string', description: 'Deleted group rule ID' },
+    deleted: { type: 'boolean', description: 'Whether the rule was deleted' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

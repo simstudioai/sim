@@ -1,21 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type {
-  OktaRemoveUserFromGroupParams,
-  OktaRemoveUserFromGroupResponse,
+  OktaRemoveGroupFromAppParams,
+  OktaRemoveGroupFromAppResponse,
 } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('OktaRemoveUserFromGroup')
+const logger = createLogger('OktaRemoveGroupFromApp')
 
-export const oktaRemoveUserFromGroupTool: ToolConfig<
-  OktaRemoveUserFromGroupParams,
-  OktaRemoveUserFromGroupResponse
+export const oktaRemoveGroupFromAppTool: ToolConfig<
+  OktaRemoveGroupFromAppParams,
+  OktaRemoveGroupFromAppResponse
 > = {
-  id: 'okta_remove_user_from_group',
-  name: 'Remove User from Group in Okta',
-  description: 'Remove a user from a group in your Okta organization',
+  id: 'okta_remove_group_from_app',
+  name: 'Remove Group from Application in Okta',
+  description:
+    'Unassign a group from an Okta application. Destructive: every member who had access only through this group loses access to the app.',
   version: '1.0.0',
 
   params: {
@@ -31,24 +32,24 @@ export const oktaRemoveUserFromGroupTool: ToolConfig<
       visibility: 'user-only',
       description: 'Okta domain (e.g., dev-123456.okta.com)',
     },
+    appId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Application ID to remove the group from',
+    },
     groupId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Group ID to remove the user from',
-    },
-    userId: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'User ID to remove from the group',
+      description: 'Group ID to unassign',
     },
   },
 
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}/users/${encodeURIComponent(params.userId.trim())}`
+      return `https://${domain}/api/v1/apps/${encodeURIComponent(params.appId.trim())}/groups/${encodeURIComponent(params.groupId.trim())}`
     },
     method: 'DELETE',
     headers: (params) => oktaHeaders(params.apiKey),
@@ -56,14 +57,14 @@ export const oktaRemoveUserFromGroupTool: ToolConfig<
 
   transformResponse: async (response: Response, params) => {
     if (!response.ok) {
-      await throwOktaError(response, logger, 'Failed to remove user from group in Okta')
+      await throwOktaError(response, logger, 'Failed to remove group from application in Okta')
     }
 
     return {
       success: true,
       output: {
+        appId: params?.appId ?? '',
         groupId: params?.groupId ?? '',
-        userId: params?.userId ?? '',
         removed: true,
         success: true,
       },
@@ -71,9 +72,9 @@ export const oktaRemoveUserFromGroupTool: ToolConfig<
   },
 
   outputs: {
-    groupId: { type: 'string', description: 'Group ID' },
-    userId: { type: 'string', description: 'User ID removed from the group' },
-    removed: { type: 'boolean', description: 'Whether the user was removed' },
+    appId: { type: 'string', description: 'Application ID' },
+    groupId: { type: 'string', description: 'Group unassigned from the application' },
+    removed: { type: 'boolean', description: 'Whether the group was unassigned' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

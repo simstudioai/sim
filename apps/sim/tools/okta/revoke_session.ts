@@ -1,17 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type { OktaUnsuspendUserParams, OktaUnsuspendUserResponse } from '@/tools/okta/types'
+import type { OktaRevokeSessionParams, OktaRevokeSessionResponse } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('OktaUnsuspendUser')
+const logger = createLogger('OktaRevokeSession')
 
-export const oktaUnsuspendUserTool: ToolConfig<OktaUnsuspendUserParams, OktaUnsuspendUserResponse> =
+export const oktaRevokeSessionTool: ToolConfig<OktaRevokeSessionParams, OktaRevokeSessionResponse> =
   {
-    id: 'okta_unsuspend_user',
-    name: 'Unsuspend User in Okta',
+    id: 'okta_revoke_session',
+    name: 'Revoke Session in Okta',
     description:
-      'Unsuspend a previously suspended user in your Okta organization. Returns the user to ACTIVE status.',
+      'Revoke a single Okta session by ID, ending that sign-in immediately. Destructive and irreversible: the affected user must sign in again on that device.',
     version: '1.0.0',
 
     params: {
@@ -27,41 +27,41 @@ export const oktaUnsuspendUserTool: ToolConfig<OktaUnsuspendUserParams, OktaUnsu
         visibility: 'user-only',
         description: 'Okta domain (e.g., dev-123456.okta.com)',
       },
-      userId: {
+      sessionId: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
-        description: 'User ID or login to unsuspend',
+        description: 'Session ID to revoke',
       },
     },
 
     request: {
       url: (params) => {
         const domain = validateOktaDomain(params.domain)
-        return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/unsuspend`
+        return `https://${domain}/api/v1/sessions/${encodeURIComponent(params.sessionId.trim())}`
       },
-      method: 'POST',
+      method: 'DELETE',
       headers: (params) => oktaHeaders(params.apiKey),
     },
 
     transformResponse: async (response: Response, params) => {
       if (!response.ok) {
-        await throwOktaError(response, logger, 'Failed to unsuspend user in Okta')
+        await throwOktaError(response, logger, 'Failed to revoke session in Okta')
       }
 
       return {
         success: true,
         output: {
-          userId: params?.userId ?? '',
-          unsuspended: true,
+          sessionId: params?.sessionId ?? '',
+          revoked: true,
           success: true,
         },
       }
     },
 
     outputs: {
-      userId: { type: 'string', description: 'Unsuspended user ID' },
-      unsuspended: { type: 'boolean', description: 'Whether the user was unsuspended' },
+      sessionId: { type: 'string', description: 'Revoked session ID' },
+      revoked: { type: 'boolean', description: 'Whether the session was revoked' },
       success: { type: 'boolean', description: 'Operation success status' },
     },
   }

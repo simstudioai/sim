@@ -1,19 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type { OktaDeactivateUserParams, OktaDeactivateUserResponse } from '@/tools/okta/types'
+import type {
+  OktaDeactivateGroupRuleParams,
+  OktaDeactivateGroupRuleResponse,
+} from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('OktaDeactivateUser')
+const logger = createLogger('OktaDeactivateGroupRule')
 
-export const oktaDeactivateUserTool: ToolConfig<
-  OktaDeactivateUserParams,
-  OktaDeactivateUserResponse
+export const oktaDeactivateGroupRuleTool: ToolConfig<
+  OktaDeactivateGroupRuleParams,
+  OktaDeactivateGroupRuleResponse
 > = {
-  id: 'okta_deactivate_user',
-  name: 'Deactivate User in Okta',
+  id: 'okta_deactivate_group_rule',
+  name: 'Deactivate Group Rule in Okta',
   description:
-    'Deactivate a user in your Okta organization. This transitions the user to DEPROVISIONED status.',
+    'Deactivate a group rule so Okta stops applying it. Existing memberships the rule created are left in place. A rule must be INACTIVE before it can be edited.',
   version: '1.0.0',
 
   params: {
@@ -29,25 +32,18 @@ export const oktaDeactivateUserTool: ToolConfig<
       visibility: 'user-only',
       description: 'Okta domain (e.g., dev-123456.okta.com)',
     },
-    userId: {
+    groupRuleId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'User ID or login to deactivate',
-    },
-    sendEmail: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Send deactivation email to admin (default: false)',
+      description: 'Group rule ID to deactivate',
     },
   },
 
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      const sendEmail = params.sendEmail === true
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/deactivate?sendEmail=${sendEmail}`
+      return `https://${domain}/api/v1/groups/rules/${encodeURIComponent(params.groupRuleId.trim())}/lifecycle/deactivate`
     },
     method: 'POST',
     headers: (params) => oktaHeaders(params.apiKey),
@@ -55,13 +51,13 @@ export const oktaDeactivateUserTool: ToolConfig<
 
   transformResponse: async (response: Response, params) => {
     if (!response.ok) {
-      await throwOktaError(response, logger, 'Failed to deactivate user in Okta')
+      await throwOktaError(response, logger, 'Failed to deactivate group rule in Okta')
     }
 
     return {
       success: true,
       output: {
-        userId: params?.userId ?? '',
+        groupRuleId: params?.groupRuleId ?? '',
         deactivated: true,
         success: true,
       },
@@ -69,8 +65,8 @@ export const oktaDeactivateUserTool: ToolConfig<
   },
 
   outputs: {
-    userId: { type: 'string', description: 'Deactivated user ID' },
-    deactivated: { type: 'boolean', description: 'Whether the user was deactivated' },
+    groupRuleId: { type: 'string', description: 'Deactivated group rule ID' },
+    deactivated: { type: 'boolean', description: 'Whether the rule was deactivated' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

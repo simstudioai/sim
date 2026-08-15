@@ -1,11 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type {
-  OktaApiError,
-  OktaListUsersParams,
-  OktaListUsersResponse,
-  OktaUser,
-} from '@/tools/okta/types'
+import type { OktaListUsersParams, OktaListUsersResponse, OktaUser } from '@/tools/okta/types'
+import { oktaHeaders, parseOktaPagination, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaListUsers')
@@ -42,11 +38,17 @@ export const oktaListUsersTool: ToolConfig<OktaListUsersParams, OktaListUsersRes
       visibility: 'user-or-llm',
       description: 'Okta filter expression (e.g., status eq "ACTIVE")',
     },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque pagination cursor returned as nextCursor by a previous call',
+    },
     limit: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of users to return (default: 200, max: 200)',
+      description: 'Maximum number of users to return per page (default: 200)',
     },
   },
 
@@ -57,6 +59,7 @@ export const oktaListUsersTool: ToolConfig<OktaListUsersParams, OktaListUsersRes
 
       if (params.search) queryParams.append('search', params.search)
       if (params.filter) queryParams.append('filter', params.filter)
+      if (params.after) queryParams.append('after', params.after)
       if (params.limit) queryParams.append('limit', params.limit.toString())
 
       const queryString = queryParams.toString()
@@ -65,25 +68,15 @@ export const oktaListUsersTool: ToolConfig<OktaListUsersParams, OktaListUsersRes
         : `https://${domain}/api/v1/users`
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `SSWS ${params.apiKey}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => oktaHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let error: OktaApiError = {}
-      try {
-        error = await response.json()
-      } catch {
-        // non-JSON error body
-      }
-      logger.error('Okta API request failed', { data: error, status: response.status })
-      throw new Error(error.errorSummary || 'Failed to list users from Okta')
+      await throwOktaError(response, logger, 'Failed to list users from Okta')
     }
 
+    const { nextCursor, hasMore } = parseOktaPagination(response)
     const data: OktaUser[] = await response.json()
 
     const users = data.map((user) => ({
@@ -108,6 +101,8 @@ export const oktaListUsersTool: ToolConfig<OktaListUsersParams, OktaListUsersRes
       output: {
         users,
         count: users.length,
+        nextCursor,
+        hasMore,
         success: true,
       },
     }
@@ -141,6 +136,12 @@ export const oktaListUsersTool: ToolConfig<OktaListUsersParams, OktaListUsersRes
       },
     },
     count: { type: 'number', description: 'Number of users returned' },
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for the next page, or null on the last page',
+      optional: true,
+    },
+    hasMore: { type: 'boolean', description: 'Whether more users are available' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

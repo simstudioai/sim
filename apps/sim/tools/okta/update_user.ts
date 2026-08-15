@@ -1,11 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type {
-  OktaApiError,
-  OktaUpdateUserParams,
-  OktaUpdateUserResponse,
-  OktaUser,
-} from '@/tools/okta/types'
+import type { OktaUpdateUserParams, OktaUpdateUserResponse, OktaUser } from '@/tools/okta/types'
+import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaUpdateUser')
@@ -85,11 +81,7 @@ export const oktaUpdateUserTool: ToolConfig<OktaUpdateUserParams, OktaUpdateUser
       return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}`
     },
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `SSWS ${params.apiKey}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => oktaHeaders(params.apiKey),
     body: (params) => {
       const profile: Record<string, string> = {}
 
@@ -107,14 +99,7 @@ export const oktaUpdateUserTool: ToolConfig<OktaUpdateUserParams, OktaUpdateUser
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let error: OktaApiError = {}
-      try {
-        error = await response.json()
-      } catch {
-        // non-JSON error body
-      }
-      logger.error('Okta API request failed', { data: error, status: response.status })
-      throw new Error(error.errorSummary || 'Failed to update user in Okta')
+      await throwOktaError(response, logger, 'Failed to update user in Okta')
     }
 
     const user: OktaUser = await response.json()
