@@ -133,12 +133,23 @@ const FormSchema = z
       path: ['regexPattern'],
     }
   )
-  .refine((data) => parseSeparators(data.customSeparators).length <= MAX_CHUNKING_SEPARATORS, {
-    message: `At most ${MAX_CHUNKING_SEPARATORS} separators are allowed`,
-    path: ['customSeparators'],
-  })
+  /**
+   * Gated on the strategy for the same reason the regex pattern is: the field only
+   * renders for `recursive` and only that strategy submits it, so an out-of-bound
+   * value left behind by a strategy switch must not block a submit that drops it.
+   */
   .refine(
     (data) =>
+      data.strategy !== 'recursive' ||
+      parseSeparators(data.customSeparators).length <= MAX_CHUNKING_SEPARATORS,
+    {
+      message: `At most ${MAX_CHUNKING_SEPARATORS} separators are allowed`,
+      path: ['customSeparators'],
+    }
+  )
+  .refine(
+    (data) =>
+      data.strategy !== 'recursive' ||
       parseSeparators(data.customSeparators).every(
         (separator) => separator.length <= MAX_CHUNKING_SEPARATOR_LENGTH
       ),

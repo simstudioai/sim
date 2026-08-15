@@ -3,8 +3,8 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { MAX_CHUNKING_SEPARATOR_LENGTH, MAX_CHUNKING_SEPARATORS } from './constants'
-import { RecursiveChunker } from './recursive-chunker'
+import { MAX_CHUNKING_SEPARATOR_LENGTH, MAX_CHUNKING_SEPARATORS } from '@/lib/chunkers/constants'
+import { RecursiveChunker } from '@/lib/chunkers/recursive-chunker'
 
 describe('RecursiveChunker', () => {
   describe('empty and whitespace input', () => {
