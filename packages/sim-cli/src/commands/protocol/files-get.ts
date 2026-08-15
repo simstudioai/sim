@@ -1,6 +1,6 @@
 import { once } from 'node:events'
 import { createWriteStream, type WriteStream } from 'node:fs'
-import { lstat, mkdtemp, open, readlink, rename, rm } from 'node:fs/promises'
+import { link, lstat, mkdtemp, readlink, rename, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { Readable, type Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -60,6 +60,15 @@ function combinedCleanupFailure(
   )
 }
 
+function unsupportedAtomicPublish(target: string, error: unknown): SimApiError | null {
+  const code = (error as NodeJS.ErrnoException).code
+  if (!['ENOSYS', 'ENOTSUP', 'EOPNOTSUPP', 'EPERM'].includes(code ?? '')) return null
+  return new SimApiError(
+    `Could not publish ${target} without overwrite protection because this filesystem does not support atomic hard links. Re-run with --force to publish the completed download with an atomic rename.`,
+    0
+  )
+}
+
 /** Streams a fetch body to disk while honoring write-stream backpressure. */
 export async function streamToFile(
   body: ReadableStream<Uint8Array>,
@@ -73,36 +82,28 @@ export async function streamToFile(
   }
 }
 
-async function saveNewFile(body: ReadableStream<Uint8Array>, target: string): Promise<void> {
-  let created = false
-
-  try {
-    const file = await open(target, 'wx')
-    created = true
-    await streamToFile(body, file.createWriteStream(), target)
-  } catch (error) {
-    const failure = normalizedWriteFailure(target, error)
-    if (!created) throw failure
-
-    try {
-      await rm(target, { force: true })
-    } catch (cleanupError) {
-      throw combinedCleanupFailure(failure, target, cleanupError)
-    }
-    throw failure
-  }
-}
-
-async function saveForcedFile(body: ReadableStream<Uint8Array>, target: string): Promise<void> {
+async function saveStagedFile(
+  body: ReadableStream<Uint8Array>,
+  target: string,
+  force: boolean
+): Promise<void> {
   let temporaryDirectory: string | null = null
   let failure: SimApiError | null = null
 
   try {
-    const publicationTarget = await forcedPublicationTarget(target)
+    const publicationTarget = force ? await forcedPublicationTarget(target) : target
     temporaryDirectory = await mkdtemp(join(dirname(publicationTarget), '.sim-download-'))
     const temporaryPath = join(temporaryDirectory, 'payload')
     await streamToFile(body, createWriteStream(temporaryPath, { flags: 'wx' }), target)
-    await rename(temporaryPath, publicationTarget)
+    if (force) {
+      await rename(temporaryPath, publicationTarget)
+    } else {
+      try {
+        await link(temporaryPath, publicationTarget)
+      } catch (error) {
+        throw unsupportedAtomicPublish(target, error) ?? error
+      }
+    }
   } catch (error) {
     failure = normalizedWriteFailure(target, error)
   }
@@ -122,14 +123,13 @@ async function saveForcedFile(body: ReadableStream<Uint8Array>, target: string):
   if (failure) throw failure
 }
 
-/** Saves without overwriting by default; forced writes publish only after the body is complete. */
+/** Publishes a complete staged body atomically, with overwrite requiring explicit force. */
 export async function saveToFile(
   body: ReadableStream<Uint8Array>,
   target: string,
   force: boolean
 ): Promise<void> {
-  if (force) return saveForcedFile(body, target)
-  return saveNewFile(body, target)
+  return saveStagedFile(body, target, force)
 }
 
 /** Streams a fetch body to stdout without closing the process-wide stream. */
