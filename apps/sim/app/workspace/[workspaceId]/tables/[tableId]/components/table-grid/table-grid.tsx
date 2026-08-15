@@ -1242,6 +1242,21 @@ export function TableGrid({
   }, [rows, displayColumns, pendingMatchTick])
 
   /**
+   * Any change of term strands a jump still paging toward the previous term's
+   * match. Declared above the auto-reveal so it runs first: without it that
+   * jump can finish, pass its own sequence check, and reveal a cell that no
+   * longer matches — most visibly when the new term's first hit isn't loaded,
+   * so nothing else moves the selection afterwards. Clearing and closing land
+   * here too, since both drive `submittedQuery` to `''`.
+   */
+  useEffect(() => {
+    goToMatchSeqRef.current++
+    pendingMatchRef.current = null
+    cursorIsOnMatchRef.current = false
+    setIsJumping(false)
+  }, [submittedQuery])
+
+  /**
    * A new TERM resets to its first match and reveals it.
    *
    * Keyed on the term, not on `findMatches` identity: the find query hangs off
@@ -1263,14 +1278,8 @@ export function TableGrid({
     if (submittedQuery.length === 0) {
       // Clearing the box has to un-latch, or retyping the same term — the
       // ordinary "did I typo that?" correction — would match the stale latch
-      // and neither reset the cursor nor reveal anything. It also cancels an
-      // in-flight jump, exactly as closing does: otherwise a Next still paging
-      // when the term is cleared lands on a match whose highlight is gone.
+      // and neither reset the cursor nor reveal anything.
       autoRevealedTermRef.current = ''
-      goToMatchSeqRef.current++
-      pendingMatchRef.current = null
-      cursorIsOnMatchRef.current = false
-      setIsJumping(false)
       return
     }
     // Wait for THIS term's own result set. `keepPreviousData` leaves
