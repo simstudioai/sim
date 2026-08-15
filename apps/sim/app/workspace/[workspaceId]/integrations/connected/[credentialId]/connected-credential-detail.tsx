@@ -46,7 +46,6 @@ import {
 } from '@/hooks/queries/credentials'
 import {
   useConnectOAuthService,
-  useDisconnectOAuthService,
   useOAuthConnections,
 } from '@/hooks/queries/oauth/oauth-connections'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
@@ -74,7 +73,6 @@ export function ConnectedCredentialDetail({
 
   const { data: oauthConnections = [] } = useOAuthConnections()
   const connectOAuthService = useConnectOAuthService()
-  const disconnectOAuthService = useDisconnectOAuthService()
   const createDraft = useCreateCredentialDraft()
   const deleteCredential = useDeleteWorkspaceCredential()
 
@@ -146,24 +144,18 @@ export function ConnectedCredentialDetail({
     }
   }
 
+  /**
+   * Every credential type disconnects through the workspace-scoped credential
+   * delete, which authorizes against credential admin — explicit members and
+   * derived workspace admins alike. The personal OAuth disconnect is scoped to
+   * the acting user's own `account` rows, so routing an admin through it
+   * silently matched nothing when the connection belonged to a teammate.
+   */
   const handleConfirmDelete = async () => {
     if (!credential) return
     try {
-      if (credential.type === 'service_account') {
-        await deleteCredential.mutateAsync(credential.id)
-      } else {
-        if (!credential.accountId || !credential.providerId) {
-          toast.error("Can't disconnect", {
-            description: 'Missing account information. Try reconnecting this credential first.',
-          })
-          return
-        }
-        await disconnectOAuthService.mutateAsync({
-          provider: credential.providerId.split('-')[0] || credential.providerId,
-          providerId: credential.providerId,
-          serviceId: credential.providerId,
-          accountId: credential.accountId,
-        })
+      await deleteCredential.mutateAsync(credential.id)
+      if (credential.type === 'oauth' && credential.providerId) {
         window.dispatchEvent(
           new CustomEvent('oauth-credentials-updated', {
             detail: { providerId: credential.providerId, workspaceId },
@@ -207,7 +199,7 @@ export function ConnectedCredentialDetail({
         </Chip>
         <Chip
           onClick={() => setShowDeleteConfirmDialog(true)}
-          disabled={disconnectOAuthService.isPending || deleteCredential.isPending}
+          disabled={deleteCredential.isPending}
         >
           Disconnect
         </Chip>
@@ -303,7 +295,7 @@ export function ConnectedCredentialDetail({
         confirm={{
           label: 'Disconnect',
           onClick: handleConfirmDelete,
-          pending: disconnectOAuthService.isPending || deleteCredential.isPending,
+          pending: deleteCredential.isPending,
           pendingLabel: 'Disconnecting...',
         }}
       />

@@ -24,7 +24,11 @@ import {
   getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { type CredentialDeleteReason, deleteConnectionCredential } from '@/lib/credentials/deletion'
+import {
+  type CredentialDeleteReason,
+  deleteConnectionCredential,
+  deleteOrphanedOAuthAccount,
+} from '@/lib/credentials/deletion'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import {
   deleteWorkspaceEnvCredentials,
@@ -554,11 +558,22 @@ export async function deleteCredentialRecord(
     return true
   }
 
-  return deleteConnectionCredential({
+  const deleted = await deleteConnectionCredential({
     credentialId: credentialRow.id,
     workspaceId: credentialRow.workspaceId,
     reason: params.reason,
   })
+
+  // An OAuth credential's secret source is its `account` row, so deleting the
+  // credential alone would leave the provider grant behind. Revoke it here
+  // rather than only on the personal disconnect path, so an admin removing a
+  // teammate's connection tears down the same state the owner's own disconnect
+  // would. Idempotent for the disconnect path, which sweeps accounts after.
+  if (deleted && credentialRow.type === 'oauth' && credentialRow.accountId) {
+    await deleteOrphanedOAuthAccount(credentialRow.accountId)
+  }
+
+  return deleted
 }
 
 /** Preserves the legacy callers while application adapters migrate to the manager above. */

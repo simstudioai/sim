@@ -159,8 +159,12 @@ export const deleteCredentialUseCase = defineAuthorizedCredentialUseCase({
       )
     }
     const reason = principal.kind === 'delegated' ? 'copilot_delete' : 'user_delete'
+    // Every type but `service_account` goes through the record manager so it also
+    // tears down the credential's secret source — for `oauth` that is the backing
+    // `account` row, which an admin deleting a teammate's connection must revoke
+    // too, not just the credential that pointed at it.
     const deleted =
-      context.credential.type === 'oauth' || context.credential.type === 'service_account'
+      context.credential.type === 'service_account'
         ? await deleteConnectionCredential({
             credentialId: context.credential.id,
             workspaceId: context.workspaceId,

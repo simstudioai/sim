@@ -270,6 +270,34 @@ describe('credential service-account application operations', () => {
     })
   })
 
+  it('disconnects an oauth credential through the record manager so its grant is revoked', async () => {
+    const oauthCredential = {
+      ...credential,
+      type: 'oauth',
+      providerId: 'google-email',
+      accountId: 'acct-1',
+    }
+    mocks.getCredential.mockResolvedValue(oauthCredential)
+    mocks.getActor.mockResolvedValue({
+      credential: oauthCredential,
+      member: { role: 'admin' },
+      hasWorkspaceAccess: true,
+      isAdmin: true,
+    })
+
+    const result = await deleteCredentialUseCase.execute({
+      principal,
+      input: { workspaceId: WORKSPACE_ID, credentialId: oauthCredential.id },
+    })
+
+    expect(result).toEqual({ credential: oauthCredential, deleted: true })
+    expect(mocks.deleteRecord).toHaveBeenCalledWith({
+      credential: oauthCredential,
+      reason: 'user_delete',
+    })
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+
   it('treats a concurrent disconnect as an idempotent success', async () => {
     mocks.delete.mockResolvedValue(false)
 

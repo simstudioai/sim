@@ -102,6 +102,35 @@ export async function deleteConnectionCredential(
 }
 
 /**
+ * Deletes the OAuth grant backing a credential once no credential references it
+ * any more, and reports whether it went. The `account` row is an OAuth
+ * credential's secret source, so leaving it behind keeps the provider grant
+ * alive after the credential it backed is gone.
+ *
+ * Scoped by `accountId` rather than by owner: the caller has already been
+ * authorized against the credential, and the grant may belong to a different
+ * user than the one deleting it (a workspace admin removing a teammate's
+ * connection). Returns false when another credential still uses the grant.
+ */
+export async function deleteOrphanedOAuthAccount(accountId: string): Promise<boolean> {
+  const [stillReferenced] = await db
+    .select({ id: schema.credential.id })
+    .from(schema.credential)
+    .where(eq(schema.credential.accountId, accountId))
+    .limit(1)
+  if (stillReferenced) return false
+
+  const deleted = await db
+    .delete(schema.account)
+    .where(eq(schema.account.id, accountId))
+    .returning({ id: schema.account.id })
+  if (deleted.length > 0) {
+    logger.info('Deleted orphaned OAuth account', { accountId })
+  }
+  return deleted.length > 0
+}
+
+/**
  * Clears stored references to a credential across mutable workspace state
  * (editor blocks, copilot checkpoints, knowledge connectors) and frozen
  * snapshots (deployed versions, paused executions). Frozen snapshots have
