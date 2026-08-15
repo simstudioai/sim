@@ -54,15 +54,17 @@ export const tableViewsServerTool: BaseServerTool<TableViewsArgs, TableViewsResu
       }
     }
 
-    const namedConfigFromArgs = (columns: TableSchema['columns']): TableViewConfig =>
-      viewConfigNamesToIds(
-        {
-          filter: (args.filter as TablePredicateInput | undefined) ?? null,
-          sort: (args.sort as SortSpec | undefined) ?? null,
-          hiddenColumns: args.hiddenColumns as string[] | undefined,
-        } as TableViewConfig,
-        columns
-      )
+    // Build the patch from only the keys the caller actually sent: the update
+    // path shallow-merges this into the stored config, so including an absent
+    // part as `null` silently wiped a view's saved sort when only the filter
+    // changed (and vice versa) — the doc promises "omit to keep".
+    const namedConfigFromArgs = (columns: TableSchema['columns']): TableViewConfig => {
+      const patch: Record<string, unknown> = {}
+      if (args.filter !== undefined) patch.filter = args.filter as TablePredicateInput | null
+      if (args.sort !== undefined) patch.sort = args.sort as SortSpec | null
+      if (args.hiddenColumns !== undefined) patch.hiddenColumns = args.hiddenColumns as string[]
+      return viewConfigNamesToIds(patch as TableViewConfig, columns)
+    }
 
     switch (operation) {
       case 'list_views': {

@@ -179,12 +179,26 @@ describe('getToolCompletedTitle', () => {
     expect(getToolCompletedTitle('Custom title from the model')).toBeUndefined()
   })
 
-  it('projects completed titles only for successful rows', () => {
+  it('projects a terminal tense for every settled row, present tense only while running', () => {
     expect(getToolStatusDisplayTitle('Comparing workflows', 'success')).toBe('Compared workflows')
     expect(getToolStatusDisplayTitle('Comparing workflows', 'executing')).toBe(
       'Comparing workflows'
     )
-    expect(getToolStatusDisplayTitle('Comparing workflows', 'error')).toBe('Comparing workflows')
+    // An errored row must not read as still running — the frozen present-tense
+    // title ("Searching for X" forever) was reported as a stuck tool call.
+    expect(getToolStatusDisplayTitle('Comparing workflows', 'error')).toBe(
+      'Failed comparing workflows'
+    )
+    expect(getToolStatusDisplayTitle('Searching for admin mentions', 'error')).toBe(
+      'Failed searching for admin mentions'
+    )
+    expect(getToolStatusDisplayTitle('Comparing workflows', 'cancelled')).toBe(
+      'Stopped comparing workflows'
+    )
+    // Non-gerund titles get a prefix rather than a bad rewrite.
+    expect(getToolStatusDisplayTitle('Read recent emails', 'error')).toBe(
+      'Failed: Read recent emails'
+    )
   })
 })
 

@@ -178,7 +178,11 @@ export async function performCreateKnowledgeConnector(
 
   const configValidation = await connectorConfig.validateConfig(accessToken, sourceConfig)
   if (!configValidation.valid) {
-    return fail(configValidation.error || 'Invalid source configuration', 'validation')
+    return fail(
+      configValidation.error ||
+        `The ${connectorType} connector rejected sourceConfig without a reason — re-check its required fields in knowledgebases/connectors/${connectorType}.json before retrying; the same config will fail again.`,
+      'validation'
+    )
   }
 
   if (connectorConfig.auth.mode === 'apiKey' && apiKey) {

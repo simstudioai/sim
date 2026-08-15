@@ -224,6 +224,8 @@ export function serializeRecentExecutions(
  * but never filters anything.
  */
 export interface KbTagDefinitionSummary {
+  /** The tagDefinitionId that update_tag / delete_tag / update_document.tagValues require. */
+  id: string
   tagName: string
   tagSlot: string
   fieldType: string
@@ -872,12 +874,17 @@ export interface DeploymentData {
     authType: string
     customizations: unknown
     isActive: boolean
+    allowedEmails?: unknown
+    outputConfigs?: unknown
+    includeThinking?: boolean | null
+    includeToolCalls?: boolean | null
   } | null
   mcp: Array<{
     serverId: string
     serverName: string
     toolId: string
     toolName: string
+    parameterDescriptionOverrides?: unknown
     toolDescription?: string | null
   }>
   versions?: Array<{
@@ -911,6 +918,9 @@ export function serializeDeployments(data: DeploymentData): string {
     : { isDeployed: false }
 
   if (data.chat) {
+    // allowedEmails/outputConfigs/includeThinking/includeToolCalls are the
+    // fields deploy_as_chat accepts on redeploy; exposing the current values is
+    // what lets a caller change one setting without blanking the others.
     result.chat = {
       id: data.chat.id,
       identifier: data.chat.identifier,
@@ -920,6 +930,10 @@ export function serializeDeployments(data: DeploymentData): string {
       authType: data.chat.authType,
       customizations: data.chat.customizations,
       isActive: data.chat.isActive,
+      allowedEmails: data.chat.allowedEmails ?? undefined,
+      outputConfigs: data.chat.outputConfigs ?? undefined,
+      includeThinking: data.chat.includeThinking ?? undefined,
+      includeToolCalls: data.chat.includeToolCalls ?? undefined,
     }
   }
 
@@ -930,6 +944,9 @@ export function serializeDeployments(data: DeploymentData): string {
       toolId: m.toolId,
       toolName: m.toolName,
       toolDescription: m.toolDescription || undefined,
+      // What deploy_as_mcp accepts as `parameters` on redeploy; omitting it
+      // there resets the overrides, so expose the current value.
+      parameterDescriptionOverrides: m.parameterDescriptionOverrides ?? undefined,
     }))
   }
 

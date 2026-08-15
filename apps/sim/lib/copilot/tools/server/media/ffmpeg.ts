@@ -83,7 +83,10 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
       return { success: false, message: 'Workspace ID is required' }
     }
     if (!VALID_OPERATIONS.includes(params.operation)) {
-      return { success: false, message: `Invalid operation "${params.operation}".` }
+      return {
+        success: false,
+        message: `Invalid operation "${params.operation}" (allowed: ${VALID_OPERATIONS.join(', ')}).`,
+      }
     }
 
     const inputPaths = params.inputs?.files?.map((f) => f.path) ?? []

@@ -350,12 +350,29 @@ async function resolveCopilotEnvReferences(
     return
   }
 
-  const pending: Array<{ paramId: string; value: string }> = []
+  // Models improvise reference syntax: after `{{NAME}}`, `$NAME` and the bare
+  // variable name are the common fallbacks — both previously went upstream as
+  // the literal credential and failed with an undiagnosable 401. `{{NAME}}`
+  // and `$NAME` are unambiguous references (a real key never starts with `$`),
+  // so a missing variable is a hard error. A bare name is a reference only
+  // when a variable by that exact name exists (`soft`): plenty of real API
+  // keys match the identifier pattern, and those must pass through verbatim.
+  const pending: Array<{ paramId: string; value: string; soft?: boolean }> = []
   for (const [paramId, paramDef] of Object.entries(tool.params || {})) {
     if (paramDef?.visibility !== 'user-only') continue
     const value = params[paramId]
-    if (typeof value === 'string' && value.startsWith('{{') && value.endsWith('}}')) {
+    if (typeof value !== 'string') continue
+    if (value.startsWith('{{') && value.endsWith('}}')) {
       pending.push({ paramId, value })
+      continue
+    }
+    const dollar = value.match(/^\$([A-Za-z_][A-Za-z0-9_]*)$/)
+    if (dollar) {
+      pending.push({ paramId, value: `{{${dollar[1]}}}` })
+      continue
+    }
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+      pending.push({ paramId, value: `{{${value}}}`, soft: true })
     }
   }
 
@@ -374,7 +391,7 @@ async function resolveCopilotEnvReferences(
     const { getEffectiveDecryptedEnv } = await import('@/lib/environment/utils')
     const envVars = await getEffectiveDecryptedEnv(scope.userId, scope.workspaceId)
 
-    for (const { paramId, value } of pending) {
+    for (const { paramId, value, soft } of pending) {
       const missingKeys: string[] = []
       const resolved = resolveEnvVarReferences(value, envVars, {
         allowEmbedded: false,
@@ -386,6 +403,9 @@ async function resolveCopilotEnvReferences(
         },
       })
       if (missingKeys.length > 0) {
+        // A bare name that matches no variable is treated as the literal
+        // credential it probably is; only explicit reference forms error.
+        if (soft) continue
         const scopeHint = scope.workspaceId
           ? ''
           : ' (no workspace context — only personal variables are available here)'

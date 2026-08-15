@@ -4,6 +4,7 @@ import {
   messageForCopilotWorkflowError,
 } from '@/lib/copilot/application/execute-workflow-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { resolveEnvReferenceSecretArg } from '@/lib/copilot/tools/server/env-reference'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -357,6 +358,19 @@ export async function executeDeployChat(
       }
     }
 
+    // "Use the password in {{CHAT_PW}}" arrives as the literal reference —
+    // resolve it, or the placeholder string becomes the chat's real password.
+    const resolvedPassword = await resolveEnvReferenceSecretArg({
+      userId: context.userId,
+      workspaceId: context.workspaceId,
+      value: params.password ?? undefined,
+      argName: 'password',
+      registry: context.resolvedSecretTraceRegistry,
+    })
+    if (resolvedPassword.error) {
+      return { success: false, error: resolvedPassword.error }
+    }
+
     const result = await executeCopilotWorkflowUseCase(context, deployWorkflowChat, {
       workflowId,
       assertedWorkspaceId: context.workspaceId,
@@ -371,7 +385,7 @@ export async function executeDeployChat(
         imageUrl: params.customizations?.imageUrl ?? params.customizations?.iconUrl,
       },
       authType: params.authType,
-      password: params.password,
+      password: resolvedPassword.value,
       allowedEmails: params.allowedEmails,
       outputConfigs: params.outputConfigs,
       includeThinking: params.includeThinking,

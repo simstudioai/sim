@@ -290,7 +290,11 @@ export async function executeVfsMkdir(
 
       if (top === 'tables' || top === 'knowledgebases') {
         outcomes.push(
-          folderedOutcomes.get(path) ?? { from: path, kind, error: 'Folder creation failed' }
+          folderedOutcomes.get(path) ?? {
+            from: path,
+            kind,
+            error: `No result came back for "${path}" — the parent path may not exist or the name may collide. Run glob on the parent to confirm, and do not repeat the identical call.`,
+          }
         )
         continue
       }
@@ -312,7 +316,7 @@ export async function executeVfsMkdir(
             fileOutcomes.get(path) ?? {
               from: path,
               kind: 'file_folder',
-              error: 'File folder creation failed',
+              error: `No result came back for "${path}" — the parent path may not exist or the name may collide. Run glob on the parent to confirm, and do not repeat the identical call.`,
             }
           )
         } else {
@@ -320,7 +324,7 @@ export async function executeVfsMkdir(
             workflowOutcomes.get(path) ?? {
               from: path,
               kind: 'workflow_folder',
-              error: 'Workflow folder creation failed',
+              error: `No result came back for "${path}" — the parent path may not exist or the name may collide. Run glob on the parent to confirm, and do not repeat the identical call.`,
             }
           )
         }
@@ -646,12 +650,16 @@ export async function executeVfsRm(
             workflowOutcomes.get(path) ?? {
               from: path,
               kind: 'workflow',
-              error: 'Workflow deletion failed',
+              error: `No result came back for deleting "${path}" — it may not exist or may already be deleted. Run glob("workflows/*") to confirm before retrying.`,
             }
           )
         } else if (classified.category === 'files') {
           outcomes.push(
-            fileOutcomes.get(path) ?? { from: path, kind: 'file', error: 'File deletion failed' }
+            fileOutcomes.get(path) ?? {
+              from: path,
+              kind: 'file',
+              error: `No result came back for deleting "${path}" — it may not exist or may already be deleted. Run glob("files/**") to confirm before retrying.`,
+            }
           )
         } else {
           outcomes.push(await removeOne(classified.category, path, context, workspaceId))

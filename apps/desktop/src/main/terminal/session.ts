@@ -851,7 +851,7 @@ export class TerminalSession {
       (pending) => ({
         command: pending.command,
         output:
-          'This opened a full-screen interactive program, which now holds the terminal until it exits. terminal_read renders its current screen, so you can watch it: if it is doing work the user is waiting on, keep polling with wait + terminal_read until it finishes, exactly as you would a long command. Type into it with terminal_input and stop it with terminal_kill. The user can also drive it in the panel. terminal_run reports BUSY until it exits.',
+          'This opened a full-screen interactive program, which now holds the terminal until it exits. terminal_read renders its current screen, so you can watch it: if it is doing work the user is waiting on, keep polling with wait + terminal_read until it finishes, exactly as you would a long command. Type into it with terminal_input and stop it with terminal_kill. If it is a pager (less, git log, man — the screen ends with ":" or "(END)"), nothing more is coming: exit it by sending terminal_input text "q"; terminal_kill delivers Ctrl-C, which a pager ignores. The user can also drive it in the panel. terminal_run reports BUSY until it exits.',
         status: 'interactive',
         exitCode: null,
         durationMs: Date.now() - pending.startedAt,

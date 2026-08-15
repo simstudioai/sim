@@ -348,7 +348,10 @@ export const microsoftTeamsConnector: ConnectorConfig = {
       for (const channelInput of channelInputs) {
         const channel = await resolveChannel(accessToken, teamId, channelInput)
         if (!channel) {
-          return { valid: false, error: `Channel not found: ${channelInput}` }
+          return {
+            valid: false,
+            error: `Channel not found: ${channelInput}. The connected account cannot see it — it may be in a different team/tenant, or a private channel the user is not a member of.`,
+          }
         }
 
         // Verify we can read messages by fetching a single message

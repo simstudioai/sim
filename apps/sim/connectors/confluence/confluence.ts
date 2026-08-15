@@ -493,7 +493,10 @@ export const confluenceConnector: ConnectorConfig = {
         VALIDATE_RETRY_OPTIONS
       )
       if (!response.ok) {
-        return { valid: false, error: `Failed to validate spaces: ${response.status}` }
+        return {
+          valid: false,
+          error: `Failed to list Confluence spaces: ${response.status} — 401/403 means the credential lacks space-read scope on this site; 404 means the domain is wrong.`,
+        }
       }
       const data = await response.json()
       const results = (data.results as Array<Record<string, unknown>> | undefined) ?? []
@@ -502,7 +505,7 @@ export const confluenceConnector: ConnectorConfig = {
       if (missing.length > 0) {
         return {
           valid: false,
-          error: `Space${missing.length > 1 ? 's' : ''} not found: ${missing.join(', ')}`,
+          error: `Space${missing.length > 1 ? 's' : ''} not found: ${missing.join(', ')} — the credential may not see them; they may be in another Atlassian site or restricted spaces the connected user is not a member of.`,
         }
       }
       return { valid: true }

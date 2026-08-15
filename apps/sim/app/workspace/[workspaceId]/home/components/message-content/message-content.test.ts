@@ -591,9 +591,9 @@ describe('completed tool titles', () => {
     expect(failures).toEqual([])
   })
 
-  it('keeps present tense while executing and on error', () => {
+  it('keeps present tense while executing; failed rows say so', () => {
     expect(firstToolTitle([queryLogsCall('executing')])).toBe('Querying logs')
-    expect(firstToolTitle([queryLogsCall('error')])).toBe('Querying logs')
+    expect(firstToolTitle([queryLogsCall('error')])).toBe('Failed querying logs')
   })
 })
 

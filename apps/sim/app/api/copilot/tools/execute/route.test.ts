@@ -18,8 +18,16 @@ vi.mock('@/lib/copilot/environment-context', () => ({
   prepareCopilotEnvironmentContext: mockPrepareEnvironmentContext,
 }))
 
-vi.mock('@/lib/copilot/tools/registry/server-tool-adapter', () => ({
-  createServerToolHandler: () => mockHandler,
+vi.mock('@/lib/copilot/tool-executor', () => ({
+  ensureHandlersRegistered: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/tool-executor/executor', () => ({
+  executeTool: (
+    _toolName: string,
+    params: Record<string, unknown>,
+    context: Record<string, unknown>
+  ) => mockHandler(params, context),
 }))
 
 vi.mock('@/lib/copilot/request/tools/resources', () => ({

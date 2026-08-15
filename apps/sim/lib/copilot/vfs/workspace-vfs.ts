@@ -1925,6 +1925,7 @@ export class WorkspaceVFS {
           documentCount: kb.docCount,
           connectorTypes: kb.connectorTypes,
           tagDefinitions: tagDefinitions.map((definition) => ({
+            id: definition.id,
             tagName: definition.displayName,
             tagSlot: definition.tagSlot,
             fieldType: definition.fieldType,
@@ -2152,6 +2153,10 @@ export class WorkspaceVFS {
           authType: chatTable.authType,
           customizations: chatTable.customizations,
           isActive: chatTable.isActive,
+          allowedEmails: chatTable.allowedEmails,
+          outputConfigs: chatTable.outputConfigs,
+          includeThinking: chatTable.includeThinking,
+          includeToolCalls: chatTable.includeToolCalls,
         })
         .from(chatTable)
         .where(and(eq(chatTable.workflowId, workflowId), isNull(chatTable.archivedAt))),
@@ -2162,6 +2167,7 @@ export class WorkspaceVFS {
           toolId: workflowMcpTool.id,
           toolName: workflowMcpTool.toolName,
           toolDescription: workflowMcpTool.toolDescription,
+          parameterDescriptionOverrides: workflowMcpTool.parameterDescriptionOverrides,
         })
         .from(workflowMcpTool)
         .innerJoin(workflowMcpServer, eq(workflowMcpTool.serverId, workflowMcpServer.id))

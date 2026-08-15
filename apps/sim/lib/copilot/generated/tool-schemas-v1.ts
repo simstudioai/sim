@@ -3405,7 +3405,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 },
                 minSize: {
                   type: 'number',
-                  description: 'Minimum chunk size (1-2000, default: 1)',
+                  description: 'Minimum chunk size (1-2000, default: 100)',
                   default: 1,
                 },
                 overlap: {
@@ -3539,7 +3539,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             topK: {
               type: 'number',
-              description: 'Number of results to return (1-50, default: 5)',
+              description: 'Number of results to return (1-100, default: 5)',
               default: 5,
             },
             workspaceId: {
@@ -3608,7 +3608,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             headers: {
               type: 'object',
-              description: 'Optional HTTP headers to send with requests (key-value pairs)',
+              description:
+                'Optional HTTP headers to send with requests (key-value pairs). Values accept {{ENV_VAR}} references, resolved per-user at connect time — prefer them over pasting raw tokens.',
             },
             name: {
               type: 'string',
@@ -4300,7 +4301,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             limit: {
               type: 'number',
               description:
-                'Maximum rows per page for query_rows (optional). Omit to fetch the ENTIRE matching result in one response — the call fails if the result exceeds the 5MB budget (narrow with a filter or set a limit). With a limit, a page may end early at the byte budget with more remaining; a non-null nextCursor in the result means more rows exist (continue with cursor).',
+                'Maximum rows per page for query_rows (optional, max 1000). Omitting it uses the 1000-row default page — the ENTIRE result is never returned in one call; a non-null nextCursor in the result means more rows exist (continue with cursor). A page may also end early at the byte budget with more remaining.',
             },
             order: {
               type: 'array',
@@ -4497,7 +4498,16 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         type: {
           type: 'string',
           description: 'The resource type to restore.',
-          enum: ['workflow', 'table', 'file', 'knowledgebase', 'folder', 'file_folder'],
+          enum: [
+            'workflow',
+            'table',
+            'file',
+            'knowledgebase',
+            'folder',
+            'file_folder',
+            'table_folder',
+            'knowledge_folder',
+          ],
         },
       },
       required: ['type', 'id'],

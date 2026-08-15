@@ -104,7 +104,9 @@ export const searchOnlineServerTool: BaseServerTool<OnlineSearchParams, SearchRe
     }
 
     if (!hasSerperApiKey) {
-      throw new Error('No search API keys available (EXA_API_KEY or SERPER_API_KEY required)')
+      throw new Error(
+        'Web search is not configured on this Sim deployment and cannot be enabled from a tool. Answer from the workspace instead (grep/glob/read, search_sim_docs) or tell the user web search is unavailable.'
+      )
     }
 
     const toolParams = {

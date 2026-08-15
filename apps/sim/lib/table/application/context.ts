@@ -27,7 +27,12 @@ export async function resolveActiveTableContext(input: {
     !table ||
     (input.assertedWorkspaceId !== undefined && table.workspaceId !== input.assertedWorkspaceId)
   ) {
-    throw new OrchestrationError('not_found', 'Table not found')
+    // One message for "no such table" and "table in another workspace" so
+    // existence never leaks across workspaces — but actionable either way.
+    throw new OrchestrationError(
+      'not_found',
+      `Table "${input.tableId}" not found in this workspace — it may not exist or may belong to a different workspace. Run glob("tables/*") to list the tables you can use here.`
+    )
   }
   const workspaceContext = await resolveTableWorkspaceContext(table.workspaceId)
   return { ...workspaceContext, tableId: table.id, table }

@@ -61,7 +61,11 @@ export const readTableViewUseCase = defineAuthorizedTableUseCase({
       (context.table.schema as TableSchema).columns,
       context.workspaceId
     )
-    if (!view) throw new OrchestrationError('not_found', 'View not found')
+    if (!view)
+      throw new OrchestrationError(
+        'not_found',
+        'View not found on this table — call table_views with operation "list_views" for valid view ids'
+      )
     return { view, table: context.table }
   },
 })
@@ -130,7 +134,11 @@ export const updateTableViewUseCase = defineAuthorizedTableUseCase({
         (context.table.schema as TableSchema).columns,
         context.workspaceId
       )
-      if (!existing) throw new OrchestrationError('not_found', 'View not found')
+      if (!existing)
+        throw new OrchestrationError(
+          'not_found',
+          'View not found on this table — call table_views with operation "list_views" for valid view ids'
+        )
       const view = await updateTableView({
         viewId: input.viewId,
         tableId: context.table.id,
@@ -141,7 +149,11 @@ export const updateTableViewUseCase = defineAuthorizedTableUseCase({
         isDefault: input.isDefault,
         columns: (context.table.schema as TableSchema).columns,
       })
-      if (!view) throw new OrchestrationError('not_found', 'View not found')
+      if (!view)
+        throw new OrchestrationError(
+          'not_found',
+          'View not found on this table — call table_views with operation "list_views" for valid view ids'
+        )
       return {
         view,
         table: context.table,
@@ -181,9 +193,17 @@ export const deleteTableViewUseCase = defineAuthorizedTableUseCase({
       (context.table.schema as TableSchema).columns,
       context.workspaceId
     )
-    if (!existing) throw new OrchestrationError('not_found', 'View not found')
+    if (!existing)
+      throw new OrchestrationError(
+        'not_found',
+        'View not found on this table — call table_views with operation "list_views" for valid view ids'
+      )
     const deleted = await deleteTableView(input.viewId, context.table.id, context.workspaceId)
-    if (!deleted) throw new OrchestrationError('not_found', 'View not found')
+    if (!deleted)
+      throw new OrchestrationError(
+        'not_found',
+        'View not found on this table — call table_views with operation "list_views" for valid view ids'
+      )
     return { viewId: input.viewId, viewName: existing.name, table: context.table }
   },
   projectAudit({ result }) {
