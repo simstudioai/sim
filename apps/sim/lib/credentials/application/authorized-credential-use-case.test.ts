@@ -3,7 +3,10 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineWorkspaceOperation } from '@/lib/core/application'
-import { defineAuthorizedCredentialUseCase } from '@/lib/credentials/application/authorized-credential-use-case'
+import {
+  CredentialAccessRequiredError,
+  defineAuthorizedCredentialUseCase,
+} from '@/lib/credentials/application/authorized-credential-use-case'
 import { defineCredentialOperation } from '@/lib/credentials/application/operations'
 
 const mocks = vi.hoisted(() => ({
@@ -83,6 +86,20 @@ describe('defineAuthorizedCredentialUseCase', () => {
       createUseCase(memberOperation).execute({ principal, input: undefined })
     ).resolves.toEqual({ ok: true })
     expect(mocks.execute).toHaveBeenCalledOnce()
+  })
+
+  it('denies member-level reads without credential membership', async () => {
+    mocks.getActor.mockResolvedValue({
+      credential,
+      member: null,
+      hasWorkspaceAccess: true,
+      isAdmin: false,
+    })
+
+    await expect(
+      createUseCase(memberOperation).execute({ principal, input: undefined })
+    ).rejects.toBeInstanceOf(CredentialAccessRequiredError)
+    expect(mocks.execute).not.toHaveBeenCalled()
   })
 
   it('requires credential admin independently of workspace read access', async () => {

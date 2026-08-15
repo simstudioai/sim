@@ -7,6 +7,7 @@ import { getValidationErrorMessage, validationErrorResponse } from '@/lib/api/se
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { CredentialAccessRequiredError } from '@/lib/credentials/application/authorized-credential-use-case'
 import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
 
 export const credentialValidationParseOptions = {
@@ -23,6 +24,14 @@ export const internalCredentialErrorPolicy = extendInternalErrorPolicy(
       code: error.providerErrorCode,
     })
   }
+)
+
+export const internalCredentialDetailErrorPolicy = extendInternalErrorPolicy(
+  internalCredentialErrorPolicy,
+  (error) =>
+    error instanceof CredentialAccessRequiredError
+      ? internalErrorResponse(403, { error: 'Forbidden' })
+      : null
 )
 
 export const internalCredentialMemberListErrorPolicy = extendInternalErrorPolicy(

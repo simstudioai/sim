@@ -17,6 +17,13 @@ export interface CredentialAuthorizationContext extends WorkspaceAuthorizationCo
   credentialAccess?: CredentialActorContext
 }
 
+export class CredentialAccessRequiredError extends OrchestrationError {
+  constructor() {
+    super('forbidden', 'Credential access required')
+    this.name = 'CredentialAccessRequiredError'
+  }
+}
+
 export function requireCredentialAccess(
   context: CredentialAuthorizationContext
 ): CredentialActorContext {
@@ -61,7 +68,7 @@ export function defineAuthorizedCredentialUseCase<
       switch (definition.operation.minimumCredentialRole) {
         case 'member':
           if (!actor.member && !actor.isAdmin) {
-            throw new OrchestrationError('forbidden', 'Credential access required')
+            throw new CredentialAccessRequiredError()
           }
           return
         case 'admin':
