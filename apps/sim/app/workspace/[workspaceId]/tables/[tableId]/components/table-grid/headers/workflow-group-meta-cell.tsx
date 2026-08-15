@@ -270,6 +270,7 @@ interface WorkflowGroupMetaCellProps {
   size: number
   startColIndex: number
   columnName: string
+  columnKey: string
   /** Underlying logical column — needed for the right-click options menu. */
   column?: DisplayColumn
   workflows?: WorkflowMetadata[]
@@ -323,6 +324,7 @@ export function WorkflowGroupMetaCell({
   size,
   startColIndex,
   columnName,
+  columnKey,
   column,
   workflows,
   isGroupSelected,
@@ -405,13 +407,13 @@ export function WorkflowGroupMetaCell({
   }
 
   function handleDragStart(e: React.DragEvent) {
-    if (readOnly || !onDragStart || !columnName) {
+    if (readOnly || !onDragStart) {
       e.preventDefault()
       return
     }
     didDragRef.current = true
     e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', columnName)
+    e.dataTransfer.setData('text/plain', columnKey)
 
     const ghost = document.createElement('div')
     ghost.textContent = name
@@ -422,17 +424,17 @@ export function WorkflowGroupMetaCell({
     e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
     requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
 
-    onDragStart(columnName)
+    onDragStart(columnKey)
   }
 
   function handleDragOver(e: React.DragEvent) {
-    if (!onDragOver || !columnName) return
+    if (!onDragOver) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const midX = rect.left + rect.width / 2
     const side = e.clientX < midX ? 'left' : 'right'
-    onDragOver(columnName, side)
+    onDragOver(columnKey, side)
   }
 
   function handleDragEnd() {
@@ -457,6 +459,8 @@ export function WorkflowGroupMetaCell({
   return (
     <th
       colSpan={size}
+      data-column-drag-target={columnKey}
+      data-column-drag-group={groupId}
       onClick={selectGroupAndOpenConfig}
       onContextMenu={handleContextMenu}
       draggable={isDraggable}

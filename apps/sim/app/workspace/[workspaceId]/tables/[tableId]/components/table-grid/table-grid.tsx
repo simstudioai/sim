@@ -78,6 +78,7 @@ import {
   drainTargetForChip,
   type ExecStatusMix,
   expandToDisplayColumns,
+  horizontalEdgeScrollVelocity,
   isCellInSelection,
   moveCell,
   ROW_SELECTION_ALL,
@@ -99,6 +100,8 @@ const EMPTY_FILTER_CONDITIONS: readonly Predicate[] = Object.freeze([])
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
 const ROW_HEIGHT_ESTIMATE = 35
+const COLUMN_DRAG_SCROLL_HOT_ZONE_PX = 48
+const COLUMN_DRAG_SCROLL_MAX_VELOCITY_PX = 14
 
 /**
  * Snapshot of grid selection state the wrapper needs to render `<TableActionBar>`.
@@ -532,6 +535,8 @@ export function TableGrid({
   const seededLayoutKeyRef = useRef<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const columnDragPointerXRef = useRef<number | null>(null)
+  const columnDragScrollFrameRef = useRef<number | null>(null)
   const theadRef = useRef<HTMLTableSectionElement>(null)
   const tbodyRef = useRef<HTMLTableSectionElement>(null)
   const isDraggingRef = useRef(false)
@@ -1763,54 +1768,176 @@ export function TableGrid({
     )
   }, [])
 
-  const handleColumnDragStart = useCallback((columnName: string) => {
-    setDragColumnName(columnName)
-    setSelectionAnchor(null)
-    setSelectionFocus(null)
-    setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
-    setIsColumnSelection(false)
+  const stopColumnDragAutoScroll = useCallback(() => {
+    columnDragPointerXRef.current = null
+    if (columnDragScrollFrameRef.current !== null) {
+      cancelAnimationFrame(columnDragScrollFrameRef.current)
+      columnDragScrollFrameRef.current = null
+    }
   }, [])
 
-  const handleColumnDragOver = useCallback((columnName: string, side: 'left' | 'right') => {
-    const dragged = dragColumnNameRef.current
-    const cols = schemaColumnsRef.current
-    const targetCol = cols.find((c) => getColumnId(c) === columnName)
-    const targetGid = targetCol?.workflowGroupId
+  const handleColumnDragLeave = useCallback(() => {
+    dropTargetColumnNameRef.current = null
+    setDropTargetColumnName(null)
+  }, [])
 
-    // Suppress drop targeting while hovering siblings of the dragged column's
-    // own group: reordering inside a group is meaningless (the group renders
-    // as a unit) and the chasing indicator just flickers.
-    if (dragged) {
+  const updateColumnDropTarget = useCallback(
+    (columnName: string, side: 'left' | 'right') => {
+      const dragged = dragColumnNameRef.current
+      if (!dragged) return
+
+      const cols = schemaColumnsRef.current
       const draggedGid = cols.find((c) => getColumnId(c) === dragged)?.workflowGroupId
-      if (draggedGid && draggedGid === targetGid) {
-        if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
+      const targetGid = cols.find((c) => getColumnId(c) === columnName)?.workflowGroupId
+      if (
+        (draggedGid && draggedGid === targetGid) ||
+        pinnedColumnsRef.current.includes(dragged) !== pinnedColumnsRef.current.includes(columnName)
+      ) {
+        handleColumnDragLeave()
         return
+      }
+
+      if (columnName === dropTargetColumnNameRef.current && side === dropSideRef.current) return
+      dropTargetColumnNameRef.current = columnName
+      dropSideRef.current = side
+      setDropTargetColumnName(columnName)
+      setDropSide(side)
+    },
+    [handleColumnDragLeave]
+  )
+
+  function updateColumnDropTargetAtX(pointerX: number) {
+    const thead = theadRef.current
+    const scrollEl = scrollRef.current
+    const headerRow = thead?.rows.item((thead?.rows.length ?? 0) - 1)
+    if (!thead || !scrollEl || !headerRow) {
+      handleColumnDragLeave()
+      return
+    }
+
+    const headerRowRect = headerRow.getBoundingClientRect()
+    const headerY = headerRowRect.top + headerRowRect.height / 2
+    const hoveredElement = document.elementFromPoint(pointerX, headerY)
+    let header = hoveredElement?.closest<HTMLElement>('th[data-column-drag-target]') ?? null
+    if (!header || !headerRow.contains(header)) {
+      const scrollRect = scrollEl.getBoundingClientRect()
+      const pinnedRight = Math.min(scrollRect.right, scrollRect.left + pinnedStickyLeftEdge)
+      let nearestDistance = Number.POSITIVE_INFINITY
+      header = null
+
+      for (const candidate of headerRow.querySelectorAll<HTMLElement>(
+        'th[data-column-drag-target]'
+      )) {
+        const candidateName = candidate.dataset.columnDragTarget
+        if (!candidateName) continue
+
+        const rect = candidate.getBoundingClientRect()
+        const isPinned = pinnedColumnsRef.current.includes(candidateName)
+        const left = Math.max(rect.left, isPinned ? scrollRect.left : pinnedRight)
+        const right = Math.min(rect.right, isPinned ? pinnedRight : scrollRect.right)
+        if (right <= left) continue
+
+        const distance = pointerX < left ? left - pointerX : pointerX > right ? pointerX - right : 0
+        if (distance < nearestDistance) {
+          nearestDistance = distance
+          header = candidate
+        }
       }
     }
 
-    // Reorder is restricted to within a single zone so a cross-zone drop
-    // indicator never appears for an insertion the grid would refuse.
-    if (dragged) {
-      const pinned = pinnedColumnsRef.current
-      if (pinned.includes(dragged) !== pinned.includes(columnName)) {
-        if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
-        return
+    if (!header) {
+      handleColumnDragLeave()
+      return
+    }
+
+    let columnName = header.dataset.columnDragTarget
+    if (!columnName) {
+      handleColumnDragLeave()
+      return
+    }
+
+    const targetGroupId = header.dataset.columnDragGroup
+    let { left, right } = header.getBoundingClientRect()
+    if (targetGroupId) {
+      const targetColumn = columnsRef.current.find((column) => column.key === columnName)
+      const groupStart = targetColumn
+        ? columnsRef.current[targetColumn.groupStartColIndex]
+        : undefined
+      if (!groupStart || groupStart.workflowGroupId !== targetGroupId) {
+        throw new Error(`Missing rendered start column for workflow group ${targetGroupId}`)
+      }
+      columnName = groupStart.key
+
+      const groupHeaders = thead.querySelectorAll<HTMLElement>('th[data-column-drag-group]')
+      for (const groupHeader of groupHeaders) {
+        if (groupHeader.dataset.columnDragGroup !== targetGroupId) continue
+        const rect = groupHeader.getBoundingClientRect()
+        left = Math.min(left, rect.left)
+        right = Math.max(right, rect.right)
       }
     }
 
-    // Workflow groups: skip per-`<th>` writes and let `handleScrollDragOver`
-    // do the bookkeeping. The scroll handler computes side from the group's
-    // full bounds, so it stays stable across sibling cursor moves; the per-th
-    // events would otherwise oscillate name + side as the cursor crosses each
-    // sibling's midpoint.
-    if (targetGid) return
+    updateColumnDropTarget(columnName, pointerX < left + (right - left) / 2 ? 'left' : 'right')
+  }
 
-    if (columnName === dropTargetColumnNameRef.current && side === dropSideRef.current) return
-    setDropTargetColumnName(columnName)
-    setDropSide(side)
-  }, [])
+  function startColumnDragAutoScroll(pointerX: number) {
+    columnDragPointerXRef.current = pointerX
+    if (columnDragScrollFrameRef.current !== null) return
+
+    const tick = () => {
+      columnDragScrollFrameRef.current = null
+      const scrollEl = scrollRef.current
+      const currentPointerX = columnDragPointerXRef.current
+      if (!scrollEl || currentPointerX === null || !dragColumnNameRef.current) return
+
+      const scrollRect = scrollEl.getBoundingClientRect()
+      const velocity = horizontalEdgeScrollVelocity({
+        pointerX: currentPointerX,
+        visibleLeft: scrollRect.left + pinnedStickyLeftEdge,
+        visibleRight: scrollRect.right,
+        hotZone: COLUMN_DRAG_SCROLL_HOT_ZONE_PX,
+        maxVelocity: COLUMN_DRAG_SCROLL_MAX_VELOCITY_PX,
+      })
+      if (velocity === 0) return
+
+      const previousScrollLeft = scrollEl.scrollLeft
+      scrollEl.scrollLeft += velocity
+      if (scrollEl.scrollLeft !== previousScrollLeft) {
+        updateColumnDropTargetAtX(currentPointerX)
+        columnDragScrollFrameRef.current = requestAnimationFrame(tick)
+      }
+    }
+
+    columnDragScrollFrameRef.current = requestAnimationFrame(tick)
+  }
+
+  useEffect(() => stopColumnDragAutoScroll, [stopColumnDragAutoScroll])
+
+  const handleColumnDragStart = useCallback(
+    (columnName: string) => {
+      stopColumnDragAutoScroll()
+      dragColumnNameRef.current = columnName
+      setDragColumnName(columnName)
+      setSelectionAnchor(null)
+      setSelectionFocus(null)
+      setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
+      setIsColumnSelection(false)
+    },
+    [stopColumnDragAutoScroll]
+  )
+
+  const handleColumnDragOver = useCallback(
+    (columnName: string, side: 'left' | 'right') => {
+      const cols = schemaColumnsRef.current
+      const targetCol = cols.find((c) => getColumnId(c) === columnName)
+      if (targetCol?.workflowGroupId) return
+      updateColumnDropTarget(columnName, side)
+    },
+    [updateColumnDropTarget]
+  )
 
   const handleColumnDragEnd = useCallback(() => {
+    stopColumnDragAutoScroll()
     const dragged = dragColumnNameRef.current
     if (!dragged) {
       setDragColumnName(null)
@@ -1945,64 +2072,27 @@ export function TableGrid({
     setDragColumnName(null)
     setDropTargetColumnName(null)
     setDropSide('left')
-  }, [])
-
-  const handleColumnDragLeave = useCallback(() => {
-    dropTargetColumnNameRef.current = null
-    setDropTargetColumnName(null)
-  }, [])
+  }, [stopColumnDragAutoScroll])
 
   function handleScrollDragOver(e: React.DragEvent) {
-    if (!dragColumnNameRef.current) return
+    const draggedName = dragColumnNameRef.current
+    if (!draggedName) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
 
     const scrollEl = scrollRef.current
     if (!scrollEl) return
-    const scrollRect = scrollEl.getBoundingClientRect()
-    const cursorX = e.clientX - scrollRect.left + scrollEl.scrollLeft
-
-    const cols = columnsRef.current
-    const draggedGid = cols.find((c) => c.key === dragColumnNameRef.current)?.workflowGroupId
-    let left = checkboxColWidth
-    let i = 0
-    while (i < cols.length) {
-      const col = cols[i]
-      // Treat fanned-out groups as monolithic drop targets; accumulate across siblings.
-      // Clamp `groupSize` to remaining columns: dragover fires constantly and can
-      // race a column removal where the cached `groupSize` outpaces `cols.length`.
-      const groupSize = Math.min(col.groupSize, cols.length - i)
-      let groupWidth = 0
-      for (let j = 0; j < groupSize; j++) {
-        groupWidth += columnWidthsRef.current[cols[i + j].key] ?? COL_WIDTH
-      }
-      if (cursorX < left + groupWidth) {
-        // Inside the dragged column's own group → no-op drop, no indicator.
-        if (draggedGid && col.workflowGroupId === draggedGid) {
-          if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
-          return
-        }
-        const pinned = pinnedColumnsRef.current
-        const draggedName = dragColumnNameRef.current
-        if (draggedName && pinned.includes(draggedName) !== pinned.includes(col.key)) {
-          if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
-          return
-        }
-        const midX = left + groupWidth / 2
-        const side = cursorX < midX ? 'left' : 'right'
-        if (col.key !== dropTargetColumnNameRef.current || side !== dropSideRef.current) {
-          setDropTargetColumnName(col.key)
-          setDropSide(side)
-        }
-        return
-      }
-      left += groupWidth
-      i += groupSize
+    if (pinnedColumnsRef.current.includes(draggedName)) {
+      stopColumnDragAutoScroll()
+    } else {
+      startColumnDragAutoScroll(e.clientX)
     }
+    updateColumnDropTargetAtX(e.clientX)
   }
 
   function handleScrollDrop(e: React.DragEvent) {
     e.preventDefault()
+    stopColumnDragAutoScroll()
   }
 
   useEffect(() => {
@@ -4275,7 +4365,12 @@ export function TableGrid({
                         <th className='sticky left-0 z-[12] border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]' />
                         {headerGroups.map((g) => {
                           const firstCol = displayColumns[g.startColIndex]
-                          const stickyLeft = firstCol ? pinnedOffsets.get(firstCol.key) : undefined
+                          if (!firstCol) {
+                            throw new Error(
+                              `Missing display column for header group at index ${g.startColIndex}`
+                            )
+                          }
+                          const stickyLeft = pinnedOffsets.get(firstCol.key)
                           if (g.kind === 'workflow') {
                             const lastCol = displayColumns[g.startColIndex + g.size - 1]
                             return (
@@ -4284,7 +4379,8 @@ export function TableGrid({
                                 workflowId={g.workflowId}
                                 size={g.size}
                                 startColIndex={g.startColIndex}
-                                columnName={firstCol?.name ?? ''}
+                                columnName={firstCol.name}
+                                columnKey={firstCol.key}
                                 column={firstCol}
                                 workflows={workflows}
                                 isGroupSelected={
@@ -4353,17 +4449,18 @@ export function TableGrid({
                                 onDragLeave={
                                   userPermissions.canEdit ? handleColumnDragLeave : undefined
                                 }
-                                isPinned={firstCol ? pinnedColumnSet.has(firstCol.key) : false}
+                                isPinned={pinnedColumnSet.has(firstCol.key)}
                                 onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}
                                 stickyLeft={stickyLeft}
                                 isLastPinned={lastCol?.key === lastPinnedColKey}
                               />
                             )
                           }
-                          const isLastFrz = firstCol?.key === lastPinnedColKey
+                          const isLastFrz = firstCol.key === lastPinnedColKey
                           return (
                             <th
                               key={`meta-${g.startColIndex}`}
+                              data-column-drag-target={firstCol.key}
                               className={cn(
                                 'border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]',
                                 stickyLeft !== undefined && 'z-[11]',
