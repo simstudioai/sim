@@ -69,7 +69,6 @@ describe('unified settings navigation', () => {
     expect(idsForSection('workspace')).toEqual([
       'teammates',
       'secrets',
-      'credential-groups',
       'mcp',
       'custom-tools',
       'byok',
@@ -77,6 +76,7 @@ describe('unified settings navigation', () => {
       'workflow-mcp-servers',
       'apikeys',
       'sandboxes',
+      'credential-groups',
       'recently-deleted',
     ])
     expect(idsForSection('organization')).toEqual([

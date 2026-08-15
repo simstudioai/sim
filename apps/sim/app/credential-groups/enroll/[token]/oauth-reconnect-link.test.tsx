@@ -12,7 +12,7 @@ vi.mock('@sim/emcn', () => ({
 import { OAuthConnectLink } from '@/app/credential-groups/enroll/[token]/oauth-reconnect-link'
 
 describe('OAuthConnectLink', () => {
-  it('presents enrollment authorization as Connect', () => {
+  it('presents an unconnected authorization as Connect', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     const container = document.createElement('div')
     const root = createRoot(container)
@@ -21,6 +21,19 @@ describe('OAuthConnectLink', () => {
 
     const link = container.querySelector('a')
     expect(link?.textContent).toBe('Connect')
+    expect(link?.getAttribute('href')).toBe('/oauth/start')
+    act(() => root.unmount())
+  })
+
+  it('presents a connected authorization as Reconnect', () => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    const root = createRoot(container)
+
+    act(() => root.render(<OAuthConnectLink href='/oauth/start' reconnect />))
+
+    const link = container.querySelector('a')
+    expect(link?.textContent).toBe('Reconnect')
     expect(link?.getAttribute('href')).toBe('/oauth/start')
     act(() => root.unmount())
   })

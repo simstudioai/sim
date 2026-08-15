@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { adapter } = vi.hoisted(() => ({
@@ -31,6 +32,7 @@ vi.mock('@/lib/credential-groups/provider-registry', () => ({
 
 import {
   completeCredentialGroupEnrollment,
+  deleteCredentialGroupEnrollment,
   listCredentialGroupEnrollments,
   resendCredentialGroupEnrollment,
 } from '@/lib/credential-groups/enrollments'
@@ -132,6 +134,52 @@ describe('listCredentialGroupEnrollments', () => {
     )
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
+
+  it('continues pagination when the cursor enrollment was deleted between pages', async () => {
+    const remainingEnrollment = {
+      ...ENROLLMENT,
+      id: 'enrollment-2',
+      invitedAt: new Date('2026-08-10T12:00:00.000Z'),
+    }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ options: [] }])
+      .mockResolvedValueOnce([{ enrollment: ENROLLMENT }, { enrollment: remainingEnrollment }])
+      .mockResolvedValueOnce([{ options: [] }])
+      .mockResolvedValueOnce([{ enrollment: remainingEnrollment }])
+
+    const firstPage = await listCredentialGroupEnrollments('workspace-1', 'group-1', 1, undefined, {
+      statuses: ['invited', 'in_progress', 'completed', 'delivery_failed'],
+    })
+    if (!firstPage.nextCursor) throw new Error('Expected a next enrollment cursor')
+    const result = await listCredentialGroupEnrollments(
+      'workspace-1',
+      'group-1',
+      50,
+      firstPage.nextCursor,
+      { statuses: ['invited', 'in_progress', 'completed', 'delivery_failed'] }
+    )
+
+    expect(firstPage.nextCursor).toEqual(expect.any(String))
+    expect(result.enrollments).toHaveLength(1)
+    expect(result.enrollments[0]?.id).toBe(remainingEnrollment.id)
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(4)
+    expect(inArray).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.status, [
+      'invited',
+      'in_progress',
+      'completed',
+      'delivery_failed',
+    ])
+  })
+
+  it('rejects a malformed enrollment cursor', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ options: [] }])
+
+    await expect(
+      listCredentialGroupEnrollments('workspace-1', 'group-1', 50, 'not-a-cursor')
+    ).rejects.toMatchObject({ message: 'Enrollment cursor is invalid', status: 400 })
+
+    expect(dbChainMockFns.limit).toHaveBeenCalledOnce()
+  })
 })
 
 describe('resendCredentialGroupEnrollment', () => {
@@ -202,18 +250,29 @@ describe('resendCredentialGroupEnrollment', () => {
   })
 })
 
+describe('deleteCredentialGroupEnrollment', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('deletes the enrollment and lets its foreign-key cascade remove managed credentials', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ email: ENROLLMENT.email }])
+    dbChainMockFns.returning.mockResolvedValueOnce([ENROLLMENT])
+
+    const result = await deleteCredentialGroupEnrollment('workspace-1', 'group-1', ENROLLMENT.id)
+
+    expect(result.id).toBe(ENROLLMENT.id)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment)
+  })
+})
+
 describe('completeCredentialGroupEnrollment', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    adapter.getPolicy.mockResolvedValue({
-      provider: 'gmail',
-      providerId: 'google-email',
-      authorizationAppId: 'google:client',
-      requiredScopes: ['scope'],
-      scopeVersion: 1,
-    })
-    adapter.hasRequiredScopes.mockReturnValue(true)
   })
 
   it('returns unavailable when revocation wins before completion acquires the lifecycle lock', async () => {
@@ -238,18 +297,6 @@ describe('completeCredentialGroupEnrollment', () => {
         inviterName: 'Inviter',
       },
     ])
-    queueTableRows(schemaMock.credential, [
-      {
-        optionId: 'option-1',
-        status: 'active',
-        scopeVersion: 1,
-        authorizationAppId: 'google:client',
-        grantedScopes: ['scope'],
-        displayName: 'alex@example.com',
-        metadata: { email: 'alex@example.com' },
-        grantedAt: new Date('2026-08-11T12:05:00.000Z'),
-      },
-    ])
     queueTableRows(schemaMock.credentialGroupEnrollment, [
       {
         status: 'revoked',
@@ -264,10 +311,10 @@ describe('completeCredentialGroupEnrollment', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
-  it('refuses completion when a connection needs reauthorization under the row locks', async () => {
+  it('completes when the recipient skips every optional account', async () => {
     queueTableRows(schemaMock.credentialGroupEnrollment, [
       {
-        enrollment: { ...ENROLLMENT, status: 'in_progress' },
+        enrollment: { ...ENROLLMENT, status: 'invited' },
         groupId: 'group-1',
         groupName: 'Group',
         groupStatus: 'active',
@@ -288,7 +335,7 @@ describe('completeCredentialGroupEnrollment', () => {
     ])
     queueTableRows(schemaMock.credentialGroupEnrollment, [
       {
-        status: 'in_progress',
+        status: 'invited',
         invitationTokenHash: ENROLLMENT.invitationTokenHash,
         invitationExpiresAt: ENROLLMENT.invitationExpiresAt,
       },
@@ -307,20 +354,12 @@ describe('completeCredentialGroupEnrollment', () => {
         ],
       },
     ])
-    queueTableRows(schemaMock.credential, [
-      {
-        optionId: 'option-1',
-        status: 'needs_reauth',
-        scopeVersion: 1,
-        authorizationAppId: 'google:client',
-        grantedScopes: ['scope'],
-        grantedAt: new Date('2026-08-11T12:05:00.000Z'),
-      },
-    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: ENROLLMENT.id }])
 
-    await expect(completeCredentialGroupEnrollment('invitation-token')).resolves.toBe(false)
+    await expect(completeCredentialGroupEnrollment('invitation-token')).resolves.toBe(true)
 
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment)
+    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.credential)
     expect(adapter.getPolicy).not.toHaveBeenCalled()
   })
 })

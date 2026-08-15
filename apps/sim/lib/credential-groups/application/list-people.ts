@@ -69,7 +69,11 @@ export const listCredentialGroupPeople = defineAuthorizedWorkspaceUseCase({
     } catch (error) {
       if (error instanceof CredentialGroupEnrollmentError) {
         throw new OrchestrationError(
-          error.status === 404 ? 'validation' : error.status === 409 ? 'conflict' : 'internal',
+          error.status === 400 || error.status === 404
+            ? 'validation'
+            : error.status === 409
+              ? 'conflict'
+              : 'internal',
           error.message
         )
       }

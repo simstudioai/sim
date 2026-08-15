@@ -48,7 +48,7 @@ function toOptionUpdateInput(
   const common = {
     id: option.id,
     label: getCredentialGroupProviderService(option.provider).name,
-    required: true,
+    required: false,
   }
   if (option.provider !== 'slack') return { ...common, provider: option.provider }
   return {
@@ -101,7 +101,7 @@ export function CredentialGroupDetails({
     const nextOption: NonNullable<UpdateCredentialGroupBody['options']>[number] = {
       provider,
       label: service.name,
-      required: true,
+      required: false,
     }
     return updateOptions([...existing, nextOption], `${service.name} added`)
   }

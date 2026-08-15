@@ -9,10 +9,10 @@ import { credentialGroupOperations } from '@/lib/credential-groups/application/o
 import { validateCredentialGroupInvitationEmails } from '@/lib/credential-groups/application/validation'
 import {
   CredentialGroupEnrollmentError,
+  deleteCredentialGroupEnrollment,
   inviteCredentialGroupEnrollments,
   loadCredentialGroupInviterIdentity,
   resendCredentialGroupEnrollment,
-  revokeCredentialGroupEnrollment,
 } from '@/lib/credential-groups/enrollments'
 
 interface CredentialGroupEnrollmentSettingsInput {
@@ -109,20 +109,20 @@ export const resendCredentialGroupEnrollmentSettings = defineAuthorizedWorkspace
   }),
 })
 
-export interface RevokeCredentialGroupEnrollmentSettingsInput
+export interface DeleteCredentialGroupEnrollmentSettingsInput
   extends CredentialGroupEnrollmentSettingsInput {
   enrollmentId: string
 }
 
-export const revokeCredentialGroupEnrollmentSettings = defineAuthorizedWorkspaceUseCase({
-  operation: credentialGroupOperations.revokeEnrollment,
-  resolveContext: ({ input }: { input: RevokeCredentialGroupEnrollmentSettingsInput }) =>
+export const deleteCredentialGroupEnrollmentSettings = defineAuthorizedWorkspaceUseCase({
+  operation: credentialGroupOperations.deleteEnrollment,
+  resolveContext: ({ input }: { input: DeleteCredentialGroupEnrollmentSettingsInput }) =>
     resolveCredentialGroupSettingsContext(input.credentialGroupId, input.assertedWorkspaceId),
   authorizationOptions: {},
   async execute({ input, context }) {
     await requireCredentialGroupSettingsAvailable(context.workspaceId)
     try {
-      const credentialGroupEnrollment = await revokeCredentialGroupEnrollment(
+      const credentialGroupEnrollment = await deleteCredentialGroupEnrollment(
         context.workspaceId,
         context.credentialGroupId,
         input.enrollmentId
@@ -137,7 +137,7 @@ export const revokeCredentialGroupEnrollmentSettings = defineAuthorizedWorkspace
     resourceType: AuditResourceType.CREDENTIAL_GROUP,
     resourceId: context.credentialGroupId,
     resourceName: context.name,
-    description: `Revoked Credential Group access for ${result.credentialGroupEnrollment.email}`,
+    description: `Deleted ${result.credentialGroupEnrollment.email} from the Credential Group`,
     metadata: { enrollmentId: result.credentialGroupEnrollment.id },
   }),
 })

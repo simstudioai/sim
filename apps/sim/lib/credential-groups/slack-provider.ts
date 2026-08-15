@@ -11,7 +11,10 @@ import {
 } from '@/lib/credential-groups/provider-adapter'
 import { getSlackCredentialGroupConfiguration } from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
-import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
+import {
+  SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH,
+  SLACK_MANAGED_USER_SCOPES,
+} from '@/lib/credential-groups/slack-managed-user-scopes'
 import {
   exchangeSlackUserAuthorization,
   getSlackCustomBotCredential,
@@ -128,7 +131,7 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
         409
       )
     }
-    const redirectUri = `${getBaseUrl()}/api/credential-groups/oauth/${PROVIDER}/callback`
+    const redirectUri = `${getBaseUrl()}${SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH}`
     return {
       redirectUri,
       buildAuthorizationUrl: ({ state }) => {
@@ -148,7 +151,7 @@ export const slackCredentialGroupProviderAdapter: CredentialGroupProviderAdapter
       credentialGroupId: context.credentialGroupId,
       slackBotCredentialId: context.option.slackBotCredentialId,
     })
-    const redirectUri = `${getBaseUrl()}/api/credential-groups/oauth/${PROVIDER}/callback`
+    const redirectUri = `${getBaseUrl()}${SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH}`
     if (
       currentPolicy.authorizationAppId !== policy.authorizationAppId ||
       attempt.redirectUri !== redirectUri
