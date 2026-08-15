@@ -34,10 +34,11 @@ import {
 import { forkRefKey } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
 import { DependentFieldSelector } from '@/ee/workspace-forking/components/fork-sync/dependent-field-selector'
 import {
+  type DependentConfigurationState,
   dependentKey,
   effectiveCopyDependentValue,
   effectiveDependentValue,
-  isDependentConfigurationActionable,
+  getActionableDependentFields,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
 import type {
   ForkKindSummary,
@@ -106,7 +107,8 @@ interface WorkflowDependents {
 function groupDependentsByWorkflow(
   workflows: ForkResourceUsage['workflows'],
   dependents: ForkDependentReconfig[],
-  configurableDependents: ReadonlySet<ForkDependentReconfig>
+  reconfig: Record<string, string>,
+  state: DependentConfigurationState
 ): WorkflowDependents[] {
   const byWorkflow = new Map<string, ForkDependentReconfig[]>()
   for (const dependent of dependents) {
@@ -128,12 +130,15 @@ function groupDependentsByWorkflow(
         byBlock.set(field.targetBlockId, block)
       }
       block.fields.push(field)
-      if (configurableDependents.has(field)) block.configurableFields.push(field)
     }
     return {
       workflowId: workflow.workflowId,
       workflowName: workflow.workflowName,
       blocks: Array.from(byBlock.values())
+        .map((block) => ({
+          ...block,
+          configurableFields: getActionableDependentFields(block.fields, reconfig, state),
+        }))
         .filter((block) => block.configurableFields.length > 0)
         .sort((a, b) => a.blockName.localeCompare(b.blockName)),
     }
@@ -368,18 +373,15 @@ function MappingEntry({ controller, group, entry }: MappingEntryProps) {
 
   const usages = controller.usagesForEntry(entry)
   const dependents = controller.dependentsForEntry(entry)
-  const workflows = useMemo(() => {
-    const configurableDependents = new Set(
-      dependents.filter((field) =>
-        isDependentConfigurationActionable(field, controller.reconfig, {
-          parentResolved: target !== '' || copying,
-          parentChanged,
-          copying,
-        })
-      )
-    )
-    return groupDependentsByWorkflow(usages, dependents, configurableDependents)
-  }, [usages, dependents, controller.reconfig, target, parentChanged, copying])
+  const workflows = useMemo(
+    () =>
+      groupDependentsByWorkflow(usages, dependents, controller.reconfig, {
+        parentResolved: target !== '' || copying,
+        parentChanged,
+        copying,
+      }),
+    [usages, dependents, controller.reconfig, target, parentChanged, copying]
+  )
   const configurable = workflows.filter((workflow) => workflow.blocks.length > 0)
   const usedOnly = workflows.filter((workflow) => workflow.blocks.length === 0)
 

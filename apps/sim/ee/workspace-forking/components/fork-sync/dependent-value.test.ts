@@ -7,6 +7,7 @@ import {
   dependentKey,
   effectiveCopyDependentValue,
   effectiveDependentValue,
+  getActionableDependentFields,
   isDependentConfigurationActionable,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
 
@@ -182,5 +183,93 @@ describe('isDependentConfigurationActionable', () => {
         }
       )
     ).toBe(false)
+  })
+})
+
+describe('getActionableDependentFields', () => {
+  const unchangedMappedParent = {
+    parentResolved: true,
+    parentChanged: false,
+    copying: false,
+  }
+
+  it('includes the context provider for a required missing child', () => {
+    const spreadsheet = field({
+      subBlockKey: 'spreadsheetId',
+      title: 'Spreadsheet',
+      currentValue: '',
+      providesContextKey: 'spreadsheetId',
+    })
+    const sheet = field({
+      subBlockKey: 'sheetName',
+      title: 'Sheet',
+      currentValue: '',
+      required: true,
+      consumesContextKeys: ['spreadsheetId'],
+    })
+
+    expect(
+      getActionableDependentFields([spreadsheet, sheet], {}, unchangedMappedParent).map(
+        (dependent) => dependent.subBlockKey
+      )
+    ).toEqual(['spreadsheetId', 'sheetName'])
+  })
+
+  it('keeps a saved context provider visible while its child needs configuration', () => {
+    const spreadsheet = field({
+      subBlockKey: 'spreadsheetId',
+      title: 'Spreadsheet',
+      currentValue: 'spreadsheet-target',
+      providesContextKey: 'spreadsheetId',
+    })
+    const sheet = field({
+      subBlockKey: 'sheetName',
+      title: 'Sheet',
+      currentValue: '',
+      required: true,
+      consumesContextKeys: ['spreadsheetId'],
+    })
+
+    expect(
+      getActionableDependentFields([spreadsheet, sheet], {}, unchangedMappedParent).map(
+        (dependent) => dependent.subBlockKey
+      )
+    ).toEqual(['spreadsheetId', 'sheetName'])
+  })
+
+  it('walks transitive providers and leaves unrelated optional fields hidden', () => {
+    const unrelated = field({
+      subBlockKey: 'optionalLabel',
+      title: 'Optional label',
+      currentValue: '',
+    })
+    const site = field({
+      subBlockKey: 'siteId',
+      title: 'Site',
+      currentValue: '',
+      providesContextKey: 'siteId',
+    })
+    const drive = field({
+      subBlockKey: 'driveId',
+      title: 'Drive',
+      currentValue: '',
+      providesContextKey: 'driveId',
+      consumesContextKeys: ['siteId'],
+    })
+    const spreadsheet = field({
+      subBlockKey: 'spreadsheetId',
+      title: 'Spreadsheet',
+      currentValue: '',
+      required: true,
+      consumesContextKeys: ['driveId'],
+    })
+
+    expect(
+      getActionableDependentFields(
+        [unrelated, site, drive, spreadsheet],
+        {},
+        unchangedMappedParent
+      ).map((dependent) => dependent.subBlockKey)
+    ).toEqual(['siteId', 'driveId', 'spreadsheetId'])
   })
 })

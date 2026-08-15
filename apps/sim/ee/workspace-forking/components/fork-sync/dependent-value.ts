@@ -38,7 +38,7 @@ export function effectiveCopyDependentValue(
   return field.currentValue || field.sourceValue
 }
 
-interface DependentConfigurationState {
+export interface DependentConfigurationState {
   parentResolved: boolean
   parentChanged: boolean
   copying: boolean
@@ -57,4 +57,37 @@ export function isDependentConfigurationActionable(
   if (!state.parentResolved) return false
   if (state.parentChanged || state.copying) return true
   return field.required && effectiveDependentValue(field, reconfig, false) === ''
+}
+
+/**
+ * Actionable fields plus the transitive in-block providers that scope them. A provider belongs
+ * in the configuration UI whenever one of its descendants needs action, even if its saved value
+ * is present, so the user can see and change the context in which the child is selected.
+ */
+export function getActionableDependentFields(
+  fields: ForkDependentReconfig[],
+  reconfig: Record<string, string>,
+  state: DependentConfigurationState
+): ForkDependentReconfig[] {
+  const actionable = new Set(
+    fields.filter((field) => isDependentConfigurationActionable(field, reconfig, state))
+  )
+  const providersByContextKey = new Map<string, ForkDependentReconfig>()
+  for (const field of fields) {
+    if (field.providesContextKey) providersByContextKey.set(field.providesContextKey, field)
+  }
+
+  const pending = Array.from(actionable)
+  for (let index = 0; index < pending.length; index += 1) {
+    const field = pending[index]
+    if (!field) continue
+    for (const contextKey of field.consumesContextKeys) {
+      const provider = providersByContextKey.get(contextKey)
+      if (!provider || actionable.has(provider)) continue
+      actionable.add(provider)
+      pending.push(provider)
+    }
+  }
+
+  return fields.filter((field) => actionable.has(field))
 }
