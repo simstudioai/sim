@@ -291,6 +291,10 @@ export const fileExportParamsSchema = z.object({
   id: workspaceFileIdSchema,
 })
 
+export const fileExportQuerySchema = z.object({
+  format: z.literal('pdf').optional(),
+})
+
 export const boxUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/box/upload',
@@ -478,6 +482,7 @@ export const fileExportContract = defineRouteContract({
   method: 'GET',
   path: '/api/files/export/[id]',
   params: fileExportParamsSchema,
+  query: fileExportQuerySchema,
   response: { mode: 'binary' },
 })
 

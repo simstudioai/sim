@@ -17,7 +17,7 @@ import {
   toast,
   Upload,
 } from '@sim/emcn'
-import { Download, Send } from '@sim/emcn/icons'
+import { Download, FileText, Send } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
@@ -377,6 +377,8 @@ export function Files() {
   )
 
   const [creatingFile, setCreatingFile] = useState(false)
+  const [pdfDownloadPending, setPdfDownloadPending] = useState(false)
+  const pdfDownloadPendingRef = useRef(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
@@ -1160,9 +1162,15 @@ export function Files() {
   }
 
   const handleDownload = useCallback(
-    async (file: WorkspaceFileRecord) => {
+    async (file: WorkspaceFileRecord, format?: 'pdf') => {
+      const isPdf = format === 'pdf'
+      if (isPdf) {
+        if (pdfDownloadPendingRef.current) return
+        pdfDownloadPendingRef.current = true
+        setPdfDownloadPending(true)
+      }
       try {
-        await triggerFileDownload(file)
+        await triggerFileDownload(file, format ? { format } : undefined)
         captureEvent(posthogRef.current, 'file_downloaded', {
           workspace_id: workspaceId,
           is_bulk: false,
@@ -1171,6 +1179,11 @@ export function Files() {
       } catch (err) {
         logger.error('Failed to download file:', err)
         toast.error(getErrorMessage(err, `Failed to download "${file.name}"`))
+      } finally {
+        if (isPdf) {
+          pdfDownloadPendingRef.current = false
+          setPdfDownloadPending(false)
+        }
       }
     },
     [workspaceId]
@@ -1257,6 +1270,11 @@ export function Files() {
   const handleDownloadSelected = useCallback(() => {
     const file = selectedFileRef.current
     if (file) handleDownload(file)
+  }, [handleDownload])
+
+  const handleDownloadPdfSelected = useCallback(() => {
+    const file = selectedFileRef.current
+    if (file) handleDownload(file, 'pdf')
   }, [handleDownload])
 
   const handleDeleteSelected = useCallback(() => {
@@ -1680,6 +1698,16 @@ export function Files() {
         icon: Download,
         onSelect: handleDownloadSelected,
       },
+      ...(isInlineMarkdown
+        ? [
+            {
+              text: 'Download PDF',
+              icon: FileText,
+              onSelect: handleDownloadPdfSelected,
+              disabled: pdfDownloadPending,
+            },
+          ]
+        : []),
       ...(canEdit
         ? [
             {
@@ -1703,8 +1731,10 @@ export function Files() {
     handleCyclePreviewMode,
     handleTogglePreview,
     handleDownloadSelected,
+    handleDownloadPdfSelected,
     handleShareSelected,
     handleDeleteSelected,
+    pdfDownloadPending,
   ])
 
   const listRenameRef = useRef(listRename)

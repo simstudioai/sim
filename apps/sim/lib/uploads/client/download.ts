@@ -1,4 +1,5 @@
 import { requestRaw } from '@/lib/api/client/request'
+import { fileExportContract } from '@/lib/api/contracts/storage-transfer'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 
@@ -30,11 +31,26 @@ function fileNameFromDisposition(response: Response, fallback: string): string {
   return disposition.match(/filename="([^"]+)"/)?.[1] ?? fallback
 }
 
-export async function triggerFileDownload(record: WorkspaceFileRecord): Promise<void> {
+export async function triggerFileDownload(
+  record: WorkspaceFileRecord,
+  options?: { format?: 'pdf' }
+): Promise<void> {
   const isMarkdown =
     record.type === 'text/markdown' ||
     record.type === 'text/x-markdown' ||
     /\.(?:md|markdown)$/i.test(record.name)
+
+  if (options?.format === 'pdf') {
+    if (!isMarkdown) throw new Error('PDF export is only available for Markdown files')
+    const response = await requestRaw(
+      fileExportContract,
+      { params: { id: record.id }, query: { format: 'pdf' } },
+      { cache: 'no-store' }
+    )
+    const fallbackName = `${record.name.replace(/\.[^.]+$/, '')}.pdf`
+    saveBlob(await response.blob(), fileNameFromDisposition(response, fallbackName))
+    return
+  }
 
   const url = isMarkdown
     ? `/api/files/export/${encodeURIComponent(record.id)}`
