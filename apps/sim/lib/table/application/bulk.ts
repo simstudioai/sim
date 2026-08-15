@@ -227,6 +227,13 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
      * selected folders plus their descendants, so this rejects both "into itself" and "into its
      * own child" before anything is written. Without it the tables move, the folders then fail
      * their cycle check, and the caller is left with a half-applied selection.
+     *
+     * This is a fast-fail optimization, not the enforcement point. It reads a snapshot taken
+     * outside the folder mutation lock, so a concurrent reparent can invalidate it between the
+     * check and the write. The invariant itself is enforced where it must be — `updateFolder`
+     * re-checks `wouldCreateFolderCycle` inside `acquireFolderMutationLock`, so a cycle is never
+     * created. Losing that race costs a reported per-folder `failed` alongside resources that
+     * did move, which is the batch's documented `sequential_best_effort` outcome, not corruption.
      */
     if (input.targetFolderId !== null && plan.covered.has(input.targetFolderId)) {
       throw new OrchestrationError(

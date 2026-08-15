@@ -1147,6 +1147,12 @@ export function Files() {
   const handleDrop = async (e: React.DragEvent) => {
     if (!hasExternalFiles(e.dataTransfer)) return
     e.preventDefault()
+    /**
+     * The upload lands in the folder currently open, so the view must stay there. Without this
+     * the window-level teardown treats the drag as unconsumed and returns to the folder it
+     * began in — pulling the user out of the folder they just spring-opened to receive it.
+     */
+    springNav.markDropHandled()
     dragCounterRef.current = 0
     setIsDraggingOver(false)
     const dropped = Array.from(e.dataTransfer.files)
