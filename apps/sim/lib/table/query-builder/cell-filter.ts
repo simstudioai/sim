@@ -50,6 +50,16 @@ export function cellValueFilterConditions(
     return supports('isEmpty') ? [{ field, op: 'isEmpty' }] : []
   }
 
+  // A `json` column has no same-value filter to offer, whatever the cell holds.
+  // It must be checked BEFORE the shape branches below: `json.coerce` accepts
+  // anything, so a json cell holds arrays and scalars alike, and letting a
+  // string array through the multi-select branch would emit `contains` — which
+  // the server accepts on json and compiles to ILIKE substring matching, so
+  // unrelated rows would match. `eq` there is refused outright by `validateLeaf`
+  // in `query-builder/validate.ts`, and a refused predicate would stay in state
+  // and 400 every later refetch. Only the emptiness check above survives.
+  if (column.type === 'json') return []
+
   // A multi-select cell holds several option ids, so "the same as this cell"
   // is one membership test per id — equality against the whole array can never
   // be true. Every id must be filterable, or the row the user clicked would
@@ -60,13 +70,8 @@ export function cellValueFilterConditions(
     return value.map((id) => ({ field, op: 'contains', value: id }) satisfies Predicate)
   }
 
-  // No equality to offer: `validateLeaf` in `query-builder/validate.ts` rejects
-  // the containment operators on a `json` column outright, and a rejected
-  // predicate would stay in state and 400 every later refetch. `json.coerce`
-  // accepts anything, so its cells hold scalars too — the type, not the value
-  // shape, is what decides. The `typeof` guard covers a structured value
-  // reaching any other type.
-  if (column.type === 'json' || typeof value === 'object') return []
+  // A structured value on any other column type has no meaningful equality.
+  if (typeof value === 'object') return []
   if (!supports('eq')) return []
   return [{ field, op: 'eq', value: value as JsonValue }]
 }

@@ -97,6 +97,13 @@ describe('cellValueFilterConditions', () => {
     expect(cellValueFilterConditions(column({ type: 'json' }), [1, 2])).toEqual([])
   })
 
+  // A json cell holding a STRING array is shaped exactly like a multi-select
+  // cell. The server accepts `contains` on json and compiles it to an ILIKE
+  // substring match, so letting it through would quietly match unrelated rows.
+  it('refuses a json cell holding a string array', () => {
+    expect(cellValueFilterConditions(column({ type: 'json' }), ['a', 'b'])).toEqual([])
+  })
+
   // `json.coerce` accepts anything, so a json cell legitimately holds a scalar.
   // The server rejects eq/ne/in/nin on a json column, and the rejected filter
   // would stick in state and 400 every later refetch.
