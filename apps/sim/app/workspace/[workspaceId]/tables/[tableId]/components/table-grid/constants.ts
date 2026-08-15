@@ -1,6 +1,15 @@
 /** Tailwind class applied to selected rows / columns / cells. */
 export const SELECTION_TINT_BG = 'bg-[rgba(37,99,235,0.06)]'
 
+/**
+ * Fill marking every cell matching the active find query. Reuses the app's
+ * search-highlight token (the knowledge-base search highlight paints with the
+ * same one) rather than inventing a third match colour, so the two stay
+ * theme-tuned together. The ACTIVE match is told apart by the selection
+ * outline drawn over it, not by a different fill.
+ */
+export const FIND_MATCH_TINT_BG = 'bg-[var(--highlight-match-bg)]'
+
 /** Default column width in pixels. Used as a fallback when a column hasn't
  *  been measured yet and as the initial width for newly-added columns. */
 export const COL_WIDTH = 160
@@ -23,5 +32,7 @@ export const CELL_HEADER_CHECKBOX =
 /** Fixed height (not min-) so a Badge-rendered status pill doesn't make the row grow vs a plain-text neighbor. */
 export const CELL_CONTENT =
   'relative flex h-[22px] min-w-0 items-center overflow-clip text-ellipsis whitespace-nowrap text-small'
-export const SELECTION_OVERLAY =
-  'pointer-events-none absolute -top-px -right-px -bottom-px z-[5] border-[2px] border-[var(--selection)]'
+/** Inset shared by every full-cell overlay, so the tints and the selection
+ *  outline can't drift apart on a border-geometry change. */
+export const CELL_OVERLAY_INSET = 'pointer-events-none absolute -top-px -right-px -bottom-px'
+export const SELECTION_OVERLAY = `${CELL_OVERLAY_INSET} z-[5] border-[2px] border-[var(--selection)]`
