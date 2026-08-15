@@ -172,17 +172,19 @@ export default async function CredentialGroupEnrollmentPage({
             })}
           </div>
         </SettingsSection>
-        {(allConnected || enrollment.status === 'completed') && (
-          <form
-            action={`/api/credential-groups/enroll/${token}/complete`}
-            method='post'
-            className='mt-6 flex justify-end'
+        <form
+          action={`/api/credential-groups/enroll/${token}/complete`}
+          method='post'
+          className='mt-6 flex justify-end'
+        >
+          <Chip
+            type='submit'
+            variant='primary'
+            disabled={!allConnected || enrollment.status === 'completed'}
           >
-            <Chip type='submit' variant='primary' disabled={enrollment.status === 'completed'}>
-              {enrollment.status === 'completed' ? 'Submitted' : 'Submit'}
-            </Chip>
-          </form>
-        )}
+            {enrollment.status === 'completed' ? 'Submitted' : 'Submit'}
+          </Chip>
+        </form>
       </div>
     </PageShell>
   )
