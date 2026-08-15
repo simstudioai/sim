@@ -84,6 +84,8 @@ import {
   ModelNotAllowedError,
   ProviderNotAllowedError,
   PublicFileSharingNotAllowedError,
+  resolveUserAccessControlContext,
+  resolveVerifiedUserAccessControlContext,
   SkillsNotAllowedError,
   ToolNotAllowedError,
   validateBlockType,
@@ -226,6 +228,126 @@ describe('getUserPermissionConfig (org + entitlement gating)', () => {
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
 
     expect(config).toBeNull()
+  })
+})
+
+describe('resolveUserAccessControlContext', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
+  })
+
+  it('describes a personal workspace without changing the config-only result', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({ organizationId: null })
+
+    await expect(resolveUserAccessControlContext('user-123', 'workspace-1')).resolves.toEqual({
+      organizationId: null,
+      entitled: false,
+      permissionGroup: null,
+      config: null,
+    })
+    await expect(getUserPermissionConfig('user-123', 'workspace-1')).resolves.toBeNull()
+  })
+
+  it('returns the explicit governing group and its effective config', async () => {
+    setEnterpriseOrgWorkspace()
+    queueGroupResolution([
+      {
+        id: 'group-explicit',
+        name: 'Engineering',
+        config: { disableMcpTools: true },
+        isMember: true,
+        hasMembers: true,
+      },
+    ])
+
+    await expect(resolveUserAccessControlContext('user-123', 'workspace-1')).resolves.toEqual({
+      organizationId: 'org-1',
+      entitled: true,
+      permissionGroup: {
+        id: 'group-explicit',
+        name: 'Engineering',
+        resolution: 'explicit-member',
+      },
+      config: expect.objectContaining({ disableMcpTools: true }),
+    })
+  })
+
+  it('identifies an all-members governing group', async () => {
+    setEnterpriseOrgWorkspace()
+    queueGroupResolution([
+      {
+        id: 'group-all-members',
+        name: 'All workspace members',
+        config: { disableCustomTools: true },
+        isMember: false,
+        hasMembers: false,
+      },
+    ])
+
+    const context = await resolveUserAccessControlContext('user-123', 'workspace-1')
+
+    expect(context.permissionGroup).toEqual({
+      id: 'group-all-members',
+      name: 'All workspace members',
+      resolution: 'all-members',
+    })
+  })
+
+  it('uses a verified workspace organization without loading the workspace again', async () => {
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
+    queueGroupResolution([
+      {
+        id: 'group-verified',
+        name: 'Verified group',
+        config: { disableSkills: true },
+        isMember: true,
+        hasMembers: true,
+      },
+    ])
+
+    const context = await resolveVerifiedUserAccessControlContext(
+      'user-123',
+      'workspace-1',
+      'org-verified'
+    )
+
+    expect(mockGetWorkspaceWithOwner).not.toHaveBeenCalled()
+    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith('org-verified')
+    expect(context).toMatchObject({
+      organizationId: 'org-verified',
+      entitled: true,
+      permissionGroup: {
+        id: 'group-verified',
+        resolution: 'explicit-member',
+      },
+      config: { disableSkills: true },
+    })
+  })
+
+  it('identifies the default group and preserves the environment allowlist', async () => {
+    setEnterpriseOrgWorkspace()
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack'])
+    queueGroupResolution(
+      [],
+      [
+        {
+          id: 'group-default',
+          name: 'Organization default',
+          config: { allowedIntegrations: ['slack', 'github'] },
+        },
+      ]
+    )
+
+    const context = await resolveUserAccessControlContext('user-123', 'workspace-1')
+
+    expect(context.permissionGroup).toEqual({
+      id: 'group-default',
+      name: 'Organization default',
+      resolution: 'default',
+    })
+    expect(context.config?.allowedIntegrations).toEqual(['slack'])
   })
 })
 

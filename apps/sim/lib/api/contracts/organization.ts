@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  organizationRoleSchema,
   type PiiRedactionSettings,
   piiRedactionSettingsSchema,
   retentionOverridesSchema,
@@ -15,9 +16,6 @@ const numericResponseSchema = z.preprocess((value) => {
   return Number.isFinite(parsed) ? parsed : value
 }, z.number())
 
-export const organizationRoleSchema = z.enum(['owner', 'admin', 'member'], {
-  error: 'Invalid role',
-})
 export const organizationParamsSchema = z.object({
   id: z.string().min(1),
 })

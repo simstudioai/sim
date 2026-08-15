@@ -97,6 +97,10 @@ function describeReadTarget(path: string | undefined): string | undefined {
 
   if (segments.length === 0) return undefined
 
+  if (segments[0] === 'docs') {
+    return describeDocsReadTarget(segments)
+  }
+
   const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
   if (!resourceType) {
     return humanizeDisplayIdentifier(stripExtension(segments[segments.length - 1]), 'sentence')
@@ -166,6 +170,19 @@ function describeFileReadTarget(segments: string[]): string {
   // Show just the file name, not the folder path — these are glanceable status
   // lines, and the other resource types already render the leaf only.
   return lastSegment
+}
+
+/**
+ * Labels a docs/ corpus read as `<section>/<page>` (e.g. `workflows/agent` for
+ * docs/workflows/blocks/agent.mdx). Top-level pages show just their name (e.g.
+ * `getting-started` for docs/getting-started.mdx).
+ */
+function describeDocsReadTarget(segments: string[]): string {
+  const rest = segments.slice(1)
+  if (rest.length === 0) return 'docs'
+  const leaf = stripExtension(rest[rest.length - 1])
+  if (rest.length === 1) return leaf
+  return `${rest[0]}/${leaf}`
 }
 
 function getLeafResourceSegment(segments: string[]): string {

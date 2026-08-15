@@ -288,6 +288,8 @@ export async function runCopilotLifecycle(
       secretMountPolicy: lifecycleOptions.secretMountPolicy,
       secretActorUserId: lifecycleOptions.secretActorUserId,
     }))
+  execContext.copilotInteractionMode =
+    lifecycleOptions.interactive === true ? 'interactive' : 'headless'
   if (goRoute && MOTHERSHIP_CODE_TOOL_ROUTES.has(goRoute)) {
     execContext.sandboxProfile = 'mothership'
   } else {

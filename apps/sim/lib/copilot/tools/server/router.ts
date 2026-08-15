@@ -25,7 +25,7 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
-import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
+import { searchDocsServerTool } from '@/lib/copilot/tools/server/docs/search-docs'
 import { enrichmentRunServerTool } from '@/lib/copilot/tools/server/enrichment/enrichment-run'
 import { createFileServerTool } from '@/lib/copilot/tools/server/files/create-file'
 import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
@@ -170,7 +170,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [getTriggerBlocksServerTool.name]: getTriggerBlocksServerTool,
   [editWorkflowServerTool.name]: editWorkflowServerTool,
   [queryLogsServerTool.name]: queryLogsServerTool,
-  [searchDocumentationServerTool.name]: searchDocumentationServerTool,
+  [searchDocsServerTool.name]: searchDocsServerTool,
   [searchOnlineServerTool.name]: searchOnlineServerTool,
   [setEnvironmentVariablesServerTool.name]: setEnvironmentVariablesServerTool,
   [getCredentialsServerTool.name]: getCredentialsServerTool,

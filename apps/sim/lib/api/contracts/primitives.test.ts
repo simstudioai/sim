@@ -8,6 +8,7 @@ import {
   isCanonicalBase64,
   MAX_ID_LENGTH,
   organizationIdSchema,
+  organizationRoleSchema,
   piiStagePolicySchema,
   piiStagesSchema,
   privateSecretProvenanceBundleSchema,
@@ -18,6 +19,16 @@ import {
   workspaceFileNameSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
+
+describe('organizationRoleSchema', () => {
+  it.each(['owner', 'admin', 'member'] as const)('accepts canonical role %s', (role) => {
+    expect(organizationRoleSchema.parse(role)).toBe(role)
+  })
+
+  it.each(['billing-owner', 'viewer', '', null, undefined])('rejects invalid role %j', (role) => {
+    expect(organizationRoleSchema.safeParse(role).success).toBe(false)
+  })
+})
 
 describe('workspaceFileNameSchema', () => {
   it('trims and accepts one bounded file name', () => {

@@ -191,6 +191,7 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   custom_tool: 'Custom Tool Agent',
   scout: 'Scout Agent',
   search: 'Search Agent',
+  platform: 'Platform Agent',
   superagent: 'Superagent',
   run: 'Run Agent',
   // The extensions subagent's wire/scope AgentID stays `agent` (pre-rename);

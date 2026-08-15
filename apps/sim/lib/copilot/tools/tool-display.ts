@@ -1,5 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
-import { stripVersionSuffix } from '@sim/utils/string'
+import { stripVersionSuffix, truncate } from '@sim/utils/string'
 
 /**
  * Single source of truth for copilot tool-call display titles.
@@ -513,11 +513,12 @@ const TOOL_TITLES: Record<string, string> = {
   download_file: 'Downloading file',
   run_function: 'Running code',
   generate_api_key: 'Generating API key',
+  get_account_billing: 'Checking plan and usage',
   get_block_outputs: 'Reading block outputs',
   get_block_upstream_references: 'Tracing block inputs',
   get_deployed_workflow_state: 'Reading the deployed version',
+  get_enterprise_context: 'Checking enterprise access',
   list_deployment_versions: 'Listing deployment versions',
-  get_ui_reference: 'Reading UI reference',
   get_workflow_data: 'Reading workflow',
   get_workflow_run_options: 'Checking run settings',
   list_file_folders: 'Listing folders',
@@ -540,7 +541,7 @@ const TOOL_TITLES: Record<string, string> = {
   rename_workflow: 'Renaming workflow',
   restore_resource: 'Restoring resource',
   run_block: 'Running block',
-  search_sim_docs: 'Searching Sim docs',
+  search_docs: 'Searching Sim docs',
   set_block_enabled: 'Toggling block',
   set_environment_variables: 'Setting environment variables',
   set_global_workflow_variables: 'Setting workflow variables',
@@ -574,6 +575,7 @@ const TOOL_TITLES: Record<string, string> = {
   research: 'Research Agent',
   scout: 'Scout Agent',
   search: 'Search Agent',
+  platform: 'Platform Agent',
   file: 'File Agent',
   media: 'Media Agent',
   browser: 'Browser Agent',
@@ -863,6 +865,10 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'web_search': {
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `Searching online for ${target}` : 'Searching online'
+    }
+    case 'search_docs': {
+      const target = firstStringArg(args, 'toolTitle', 'title', 'query')
+      return target ? `Searching Sim docs for "${truncate(target, 60)}"` : 'Searching Sim docs'
     }
     case 'grep': {
       const target = firstStringArg(args, 'toolTitle', 'title')

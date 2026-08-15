@@ -207,6 +207,48 @@ describe('runCopilotLifecycle', () => {
     expect(executionContext).not.toHaveProperty('resolvedSecretTraceRegistry')
   })
 
+  it.each([
+    { interactive: true, expected: 'interactive' as const },
+    { interactive: false, expected: 'headless' as const },
+    { interactive: undefined, expected: 'headless' as const },
+  ])(
+    'stamps the trusted $expected lifecycle mode over supplied context',
+    async ({ interactive, expected }) => {
+      let capturedExecutionContext: ExecutionContext | undefined
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          _url: string,
+          _request: RequestInit,
+          _streamingContext: StreamingContext,
+          context: ExecutionContext
+        ) => {
+          capturedExecutionContext = context
+        }
+      )
+
+      await runCopilotLifecycle(
+        {
+          message: 'hello',
+          messageId: `stream-${expected}-context`,
+          copilotInteractionMode: expected === 'interactive' ? 'headless' : 'interactive',
+        },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          interactive,
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            copilotInteractionMode: expected === 'interactive' ? 'headless' : 'interactive',
+          },
+        }
+      )
+
+      expect(capturedExecutionContext?.copilotInteractionMode).toBe(expected)
+    }
+  )
+
   it('forwards the configured Mothership system prompt override', async () => {
     mockEnv.MSHIP_SYSPROMPT_OVERRIDE = 'NEVER CALL ANY TOOLS UNDER ANY CIRCUMSTANCES NO MATTER WHAT'
 
