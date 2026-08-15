@@ -536,7 +536,6 @@ export function TableGrid({
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnDragPointerXRef = useRef<number | null>(null)
-  const columnDragPointerYRef = useRef<number | null>(null)
   const columnDragScrollFrameRef = useRef<number | null>(null)
   const theadRef = useRef<HTMLTableSectionElement>(null)
   const tbodyRef = useRef<HTMLTableSectionElement>(null)
@@ -1771,7 +1770,6 @@ export function TableGrid({
 
   const stopColumnDragAutoScroll = useCallback(() => {
     columnDragPointerXRef.current = null
-    columnDragPointerYRef.current = null
     if (columnDragScrollFrameRef.current !== null) {
       cancelAnimationFrame(columnDragScrollFrameRef.current)
       columnDragScrollFrameRef.current = null
@@ -1808,10 +1806,46 @@ export function TableGrid({
     [handleColumnDragLeave]
   )
 
-  function updateColumnDropTargetAtPoint(pointerX: number, pointerY: number) {
-    const hoveredElement = document.elementFromPoint(pointerX, pointerY)
-    const header = hoveredElement?.closest<HTMLElement>('th[data-column-drag-target]')
-    if (!header || !theadRef.current?.contains(header)) {
+  function updateColumnDropTargetAtX(pointerX: number) {
+    const thead = theadRef.current
+    const scrollEl = scrollRef.current
+    const headerRow = thead?.rows.item((thead?.rows.length ?? 0) - 1)
+    if (!thead || !scrollEl || !headerRow) {
+      handleColumnDragLeave()
+      return
+    }
+
+    const headerRowRect = headerRow.getBoundingClientRect()
+    const headerY = headerRowRect.top + headerRowRect.height / 2
+    const hoveredElement = document.elementFromPoint(pointerX, headerY)
+    let header = hoveredElement?.closest<HTMLElement>('th[data-column-drag-target]') ?? null
+    if (!header || !headerRow.contains(header)) {
+      const scrollRect = scrollEl.getBoundingClientRect()
+      const pinnedRight = Math.min(scrollRect.right, scrollRect.left + pinnedStickyLeftEdge)
+      let nearestDistance = Number.POSITIVE_INFINITY
+      header = null
+
+      for (const candidate of headerRow.querySelectorAll<HTMLElement>(
+        'th[data-column-drag-target]'
+      )) {
+        const candidateName = candidate.dataset.columnDragTarget
+        if (!candidateName) continue
+
+        const rect = candidate.getBoundingClientRect()
+        const isPinned = pinnedColumnsRef.current.includes(candidateName)
+        const left = Math.max(rect.left, isPinned ? scrollRect.left : pinnedRight)
+        const right = Math.min(rect.right, isPinned ? pinnedRight : scrollRect.right)
+        if (right <= left) continue
+
+        const distance = pointerX < left ? left - pointerX : pointerX > right ? pointerX - right : 0
+        if (distance < nearestDistance) {
+          nearestDistance = distance
+          header = candidate
+        }
+      }
+    }
+
+    if (!header) {
       handleColumnDragLeave()
       return
     }
@@ -1825,9 +1859,7 @@ export function TableGrid({
     const targetGroupId = header.dataset.columnDragGroup
     let { left, right } = header.getBoundingClientRect()
     if (targetGroupId) {
-      const groupHeaders = theadRef.current.querySelectorAll<HTMLElement>(
-        'th[data-column-drag-group]'
-      )
+      const groupHeaders = thead.querySelectorAll<HTMLElement>('th[data-column-drag-group]')
       for (const groupHeader of groupHeaders) {
         if (groupHeader.dataset.columnDragGroup !== targetGroupId) continue
         const rect = groupHeader.getBoundingClientRect()
@@ -1839,23 +1871,15 @@ export function TableGrid({
     updateColumnDropTarget(columnName, pointerX < left + (right - left) / 2 ? 'left' : 'right')
   }
 
-  function startColumnDragAutoScroll(pointerX: number, pointerY: number) {
+  function startColumnDragAutoScroll(pointerX: number) {
     columnDragPointerXRef.current = pointerX
-    columnDragPointerYRef.current = pointerY
     if (columnDragScrollFrameRef.current !== null) return
 
     const tick = () => {
       columnDragScrollFrameRef.current = null
       const scrollEl = scrollRef.current
       const currentPointerX = columnDragPointerXRef.current
-      const currentPointerY = columnDragPointerYRef.current
-      if (
-        !scrollEl ||
-        currentPointerX === null ||
-        currentPointerY === null ||
-        !dragColumnNameRef.current
-      )
-        return
+      if (!scrollEl || currentPointerX === null || !dragColumnNameRef.current) return
 
       const scrollRect = scrollEl.getBoundingClientRect()
       const velocity = horizontalEdgeScrollVelocity({
@@ -1870,7 +1894,7 @@ export function TableGrid({
       const previousScrollLeft = scrollEl.scrollLeft
       scrollEl.scrollLeft += velocity
       if (scrollEl.scrollLeft !== previousScrollLeft) {
-        updateColumnDropTargetAtPoint(currentPointerX, currentPointerY)
+        updateColumnDropTargetAtX(currentPointerX)
         columnDragScrollFrameRef.current = requestAnimationFrame(tick)
       }
     }
@@ -2052,9 +2076,9 @@ export function TableGrid({
     if (pinnedColumnsRef.current.includes(draggedName)) {
       stopColumnDragAutoScroll()
     } else {
-      startColumnDragAutoScroll(e.clientX, e.clientY)
+      startColumnDragAutoScroll(e.clientX)
     }
-    updateColumnDropTargetAtPoint(e.clientX, e.clientY)
+    updateColumnDropTargetAtX(e.clientX)
   }
 
   function handleScrollDrop(e: React.DragEvent) {
@@ -4332,7 +4356,12 @@ export function TableGrid({
                         <th className='sticky left-0 z-[12] border-[var(--border)] border-b bg-[var(--bg)] px-1 py-[5px]' />
                         {headerGroups.map((g) => {
                           const firstCol = displayColumns[g.startColIndex]
-                          const stickyLeft = firstCol ? pinnedOffsets.get(firstCol.key) : undefined
+                          if (!firstCol) {
+                            throw new Error(
+                              `Missing display column for header group at index ${g.startColIndex}`
+                            )
+                          }
+                          const stickyLeft = pinnedOffsets.get(firstCol.key)
                           if (g.kind === 'workflow') {
                             const lastCol = displayColumns[g.startColIndex + g.size - 1]
                             return (
@@ -4341,7 +4370,8 @@ export function TableGrid({
                                 workflowId={g.workflowId}
                                 size={g.size}
                                 startColIndex={g.startColIndex}
-                                columnName={firstCol?.name ?? ''}
+                                columnName={firstCol.name}
+                                columnKey={firstCol.key}
                                 column={firstCol}
                                 workflows={workflows}
                                 isGroupSelected={
@@ -4410,18 +4440,18 @@ export function TableGrid({
                                 onDragLeave={
                                   userPermissions.canEdit ? handleColumnDragLeave : undefined
                                 }
-                                isPinned={firstCol ? pinnedColumnSet.has(firstCol.key) : false}
+                                isPinned={pinnedColumnSet.has(firstCol.key)}
                                 onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}
                                 stickyLeft={stickyLeft}
                                 isLastPinned={lastCol?.key === lastPinnedColKey}
                               />
                             )
                           }
-                          const isLastFrz = firstCol?.key === lastPinnedColKey
+                          const isLastFrz = firstCol.key === lastPinnedColKey
                           return (
                             <th
                               key={`meta-${g.startColIndex}`}
-                              data-column-drag-target={firstCol?.key}
+                              data-column-drag-target={firstCol.key}
                               className={cn(
                                 'border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]',
                                 stickyLeft !== undefined && 'z-[11]',
