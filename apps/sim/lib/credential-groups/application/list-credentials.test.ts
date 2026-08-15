@@ -6,11 +6,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getWorkspaceOwnerSubscriptionAccess: vi.fn(),
-  isCredentialGroupsAvailable: vi.fn(),
-  isCredentialGroupsEnterprisePlanRequired: vi.fn(),
   listCredentials: vi.fn(),
   loadGroup: vi.fn(),
   loadWorkspace: vi.fn(),
+  resolveCredentialGroupsAvailability: vi.fn(),
   resolvePermission: vi.fn(),
 }))
 
@@ -19,8 +18,7 @@ vi.mock('@/lib/billing/core/workspace-access', () => ({
 }))
 
 vi.mock('@/lib/credential-groups/availability', () => ({
-  isCredentialGroupsAvailable: mocks.isCredentialGroupsAvailable,
-  isCredentialGroupsEnterprisePlanRequired: mocks.isCredentialGroupsEnterprisePlanRequired,
+  resolveCredentialGroupsAvailability: mocks.resolveCredentialGroupsAvailability,
 }))
 
 vi.mock('@/lib/credential-groups/credentials', () => ({
@@ -106,8 +104,7 @@ describe('listCredentialGroupCredentials', () => {
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: true })
-    mocks.isCredentialGroupsAvailable.mockResolvedValue(true)
-    mocks.isCredentialGroupsEnterprisePlanRequired.mockReturnValue(false)
+    mocks.resolveCredentialGroupsAvailability.mockResolvedValue({ available: true })
     mocks.listCredentials.mockResolvedValue({
       credentials: [
         {
@@ -225,18 +222,26 @@ describe('listCredentialGroupCredentials', () => {
   })
 
   it('fails before listing when Credential Groups are unavailable', async () => {
-    mocks.isCredentialGroupsAvailable.mockResolvedValue(false)
+    mocks.resolveCredentialGroupsAvailability.mockResolvedValue({
+      available: false,
+      reason: 'feature_disabled',
+    })
 
     await expect(
       listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
-    ).rejects.toMatchObject({ code: 'forbidden' })
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: 'Credential Groups are not available',
+    })
     expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 
   it('identifies the Enterprise requirement for unavailable hosted workspaces', async () => {
     mocks.getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: false })
-    mocks.isCredentialGroupsAvailable.mockResolvedValue(false)
-    mocks.isCredentialGroupsEnterprisePlanRequired.mockReturnValue(true)
+    mocks.resolveCredentialGroupsAvailability.mockResolvedValue({
+      available: false,
+      reason: 'enterprise_plan_required',
+    })
 
     await expect(
       listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
