@@ -2,6 +2,11 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { pollCliAuthContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
+import {
+  performCreatePersonalApiKey,
+  performCreateWorkspaceApiKey,
+} from '@/lib/api-key/orchestration'
+import type { ApprovalGrant } from '@/lib/cli-auth/approval-store'
 import { completeApproval, pollApproval, releaseMint } from '@/lib/cli-auth/approval-store'
 import { CopilotApiKeyError, generateCopilotApiKey } from '@/lib/copilot/server/api-keys'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
@@ -23,9 +28,64 @@ const POLL_RATE_LIMIT: TokenBucketConfig = {
   refillIntervalMs: 60_000,
 }
 
-/** Keys are named for the day they were issued, matching what the CLI prints. */
+/**
+ * Names a minted key for the instant it was issued, e.g. `CLI (2026-07-30
+ * 15:42:07Z)`.
+ *
+ * Second precision, not day: key names are unique per owner, so a date-only
+ * name made the second login of the day fail outright with "a key named …
+ * already exists" — after the user had already approved in the browser. UTC so
+ * the name is unambiguous in a shared workspace list and sorts chronologically.
+ */
 function cliKeyName(): string {
-  return `CLI (${new Date().toISOString().slice(0, 10)})`
+  return `CLI (${new Date().toISOString().slice(0, 19).replace('T', ' ')}Z)`
+}
+
+/**
+ * Mints from the key space the approval recorded.
+ *
+ * A name collision is still surfaced rather than retried under a suffixed name:
+ * with second precision it means something genuinely unexpected, and silently
+ * accumulating near-identical rows would hide it.
+ */
+async function mintForGrant(
+  grant: ApprovalGrant
+): Promise<
+  { ok: true; key: { id: string; apiKey: string } } | { ok: false; status: number; message: string }
+> {
+  const name = cliKeyName()
+
+  if (grant.scope === 'copilot') {
+    try {
+      const key = await generateCopilotApiKey(grant.userId, name)
+      return { ok: true, key }
+    } catch (error) {
+      const status = error instanceof CopilotApiKeyError ? error.upstreamStatus : undefined
+      return { ok: false, status: status ?? 500, message: 'Failed to generate copilot API key' }
+    }
+  }
+
+  // `workspaceId` alone only names the terminal's default workspace; binding the
+  // key to it is a separate, admin-gated decision made at approval.
+  const result =
+    grant.workspaceBound && grant.workspaceId
+      ? await performCreateWorkspaceApiKey({
+          workspaceId: grant.workspaceId,
+          userId: grant.userId,
+          name,
+          source: 'cli',
+        })
+      : await performCreatePersonalApiKey({ userId: grant.userId, name, source: 'cli' })
+
+  if (!result.success || !result.key) {
+    return {
+      ok: false,
+      status: result.errorCode === 'conflict' ? 409 : 500,
+      message: result.error ?? 'Failed to generate API key',
+    }
+  }
+
+  return { ok: true, key: { id: result.key.id, apiKey: result.key.key } }
 }
 
 /**
@@ -49,17 +109,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ status: 'pending' })
   }
 
-  let key: Awaited<ReturnType<typeof generateCopilotApiKey>>
-  try {
-    key = await generateCopilotApiKey(result.userId, cliKeyName())
-  } catch (error) {
+  const minted = await mintForGrant(result)
+  if (!minted.ok) {
     // Mint failed — release the reservation so a later poll can retry.
     await releaseMint(requestId)
-    const status = error instanceof CopilotApiKeyError ? error.upstreamStatus : undefined
-    return NextResponse.json(
-      { error: 'Failed to generate copilot API key' },
-      { status: status ?? 500 }
-    )
+    return NextResponse.json({ error: minted.message }, { status: minted.status })
   }
 
   // Mint succeeded — the key exists. Consuming the approval is best-effort: a
@@ -71,6 +125,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId: result.userId,
     })
   })
-  logger.info('Minted CLI key on approved poll', { userId: result.userId })
-  return NextResponse.json({ status: 'complete', key })
+  logger.info('Minted CLI key on approved poll', {
+    userId: result.userId,
+    scope: result.scope,
+    workspaceId: result.workspaceId,
+    workspaceBound: result.workspaceBound,
+  })
+  return NextResponse.json({
+    status: 'complete',
+    key: minted.key,
+    scope: result.scope,
+    workspaceId: result.workspaceId,
+    workspaceBound: result.workspaceBound,
+  })
 })

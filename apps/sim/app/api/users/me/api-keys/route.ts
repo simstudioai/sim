@@ -1,14 +1,12 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createPersonalApiKeyContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
-import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
-import { hashApiKey } from '@/lib/api-key/crypto'
+import { getApiKeyDisplayFormat } from '@/lib/api-key/auth'
+import { performCreatePersonalApiKey } from '@/lib/api-key/orchestration'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -73,70 +71,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const { name } = parsed.data.body
 
-    const existingKey = await db
-      .select()
-      .from(apiKey)
-      .where(and(eq(apiKey.userId, userId), eq(apiKey.name, name), eq(apiKey.type, 'personal')))
-      .limit(1)
-
-    if (existingKey.length > 0) {
-      return NextResponse.json(
-        {
-          error: `A personal API key named "${name}" already exists. Please choose a different name.`,
-        },
-        { status: 409 }
-      )
-    }
-
-    const { key: plainKey, encryptedKey } = await createApiKey(true)
-
-    if (!encryptedKey) {
-      throw new Error('Failed to encrypt API key for storage')
-    }
-
-    const [newKey] = await db
-      .insert(apiKey)
-      .values({
-        id: generateShortId(),
-        userId,
-        workspaceId: null,
-        name,
-        key: encryptedKey,
-        keyHash: hashApiKey(plainKey),
-        type: 'personal',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .returning({
-        id: apiKey.id,
-        name: apiKey.name,
-        createdAt: apiKey.createdAt,
-      })
-
-    recordAudit({
-      workspaceId: null,
-      actorId: userId,
-      action: AuditAction.PERSONAL_API_KEY_CREATED,
-      resourceType: AuditResourceType.API_KEY,
-      resourceId: newKey.id,
-      actorName: session.user.name ?? undefined,
-      actorEmail: session.user.email ?? undefined,
-      resourceName: name,
-      description: `Created personal API key: ${name}`,
+    const result = await performCreatePersonalApiKey({
+      userId,
+      name,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
       request,
     })
+    if (!result.success || !result.key) {
+      const status = result.errorCode === 'conflict' ? 409 : 500
+      return NextResponse.json({ error: result.error }, { status })
+    }
 
     captureServerEvent(userId, 'api_key_created', {
       key_name: name,
       scope: 'personal',
     })
 
-    return NextResponse.json({
-      key: {
-        ...newKey,
-        key: plainKey,
-      },
-    })
+    return NextResponse.json({ key: result.key })
   } catch (error) {
     logger.error('Failed to create API key', { error })
     return NextResponse.json({ error: 'Failed to create API key' }, { status: 500 })

@@ -150,6 +150,7 @@ export const SSHBlock: BlockConfig<SSHResponse> = {
       id: 'privateKey',
       title: 'Private Key',
       type: 'code',
+      password: true,
       placeholder: '-----BEGIN OPENSSH PRIVATE KEY-----\n...',
       condition: { field: 'authMethod', value: 'privateKey' },
       dependsOn: ['authMethod'],
