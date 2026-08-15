@@ -54,14 +54,36 @@ describe('glob', () => {
     expect(hits).toContain('files/a/meta.json')
   })
 
-  it('treats braces literally when nobrace is set (matches old builder)', () => {
+  it('expands brace alternatives across path segments', () => {
     const files = vfsFromEntries([
-      ['weird{brace}/x', ''],
-      ['weirdA/x', ''],
+      ['workflows/Elder/state.json', '{}'],
+      ['workflows/Utils/state.json', '{}'],
+      ['workflows/Other/state.json', '{}'],
     ])
-    const hits = glob(files, 'weird{brace}/*')
-    expect(hits).toContain('weird{brace}/x')
-    expect(hits).not.toContain('weirdA/x')
+    const hits = glob(files, 'workflows/{Elder,Utils}/state.json')
+    expect(hits.sort()).toEqual(['workflows/Elder/state.json', 'workflows/Utils/state.json'])
+  })
+
+  it('expands extension braces', () => {
+    const files = vfsFromEntries([
+      ['files/a.png', ''],
+      ['files/b.md', ''],
+      ['files/c.txt', ''],
+    ])
+    const hits = glob(files, 'files/*.{png,md}')
+    expect(hits.sort()).toEqual(['files/a.png', 'files/b.md'])
+  })
+
+  it('expands braces in decoded-form patterns against encoded keys', () => {
+    const files = vfsFromEntries([
+      ['workflows/Elder%20v1/state.json', '{}'],
+      ['workflows/Elder%20v2/state.json', '{}'],
+    ])
+    const hits = glob(files, 'workflows/{Elder v1,Elder v2}/state.json')
+    expect(hits.sort()).toEqual([
+      'workflows/Elder%20v1/state.json',
+      'workflows/Elder%20v2/state.json',
+    ])
   })
 })
 

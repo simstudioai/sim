@@ -640,7 +640,10 @@ export const slackConnector: ConnectorConfig = {
               VALIDATE_RETRY_OPTIONS
             )
           } catch {
-            return { valid: false, error: `Channel not found: ${input}` }
+            return {
+              valid: false,
+              error: `Channel not found: ${input}. The selected credential cannot see it — it may belong to a different Slack workspace, or the channel is private and the connected user/bot is not a member.`,
+            }
           }
         } else {
           nameLookups.push(trimmed)
@@ -684,7 +687,10 @@ export const slackConnector: ConnectorConfig = {
       } while (cursor)
 
       const missing = Array.from(remaining)
-      return { valid: false, error: `Channel(s) not found: ${missing.join(', ')}` }
+      return {
+        valid: false,
+        error: `Channel(s) not found: ${missing.join(', ')}. The selected credential cannot see them — they may belong to a different Slack workspace, or they are private channels the connected user/bot is not a member of.`,
+      }
     } catch (error) {
       const message = toError(error).message || 'Failed to validate configuration'
       return { valid: false, error: message }
