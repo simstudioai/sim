@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { createInterface } from 'node:readline/promises'
 import chalk from 'chalk'
 import { Command } from 'commander'
 import {
@@ -50,71 +51,108 @@ function maskKey(key: string): string {
   return key.length <= 10 ? '•'.repeat(key.length) : `${key.slice(0, 6)}…${key.slice(-4)}`
 }
 
+async function confirmProfileOverwrite(profileName: string): Promise<boolean> {
+  if (!process.stdin.isTTY) {
+    throw new SimApiError(
+      `Profile "${profileName}" already exists. Re-run with --yes to overwrite it.`,
+      0
+    )
+  }
+
+  const prompt = createInterface({ input: process.stdin, output: process.stderr })
+  try {
+    const answer = await prompt.question(
+      `Profile "${profileName}" already exists. Replace its API key and login defaults? (y/N) `
+    )
+    return answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes'
+  } finally {
+    prompt.close()
+  }
+}
+
 export function loginCommand(): Command {
   return new Command('login')
     .description('Authorize this terminal and store an API key for the profile')
     .option('--scope <scope>', 'Key space to mint from: platform or copilot', 'platform')
     .option('--no-browser', 'Print the URL instead of opening a browser')
-    .action(async (options: { scope: string; browser: boolean }, command: Command) => {
-      const profile = profileFrom(command)
+    .option('-y, --yes', 'Overwrite an existing profile without prompting')
+    .action(
+      async (options: { scope: string; browser: boolean; yes?: boolean }, command: Command) => {
+        const profile = profileFrom(command)
 
-      if (options.scope !== 'platform' && options.scope !== 'copilot') {
-        throw new SimApiError(`Unknown scope "${options.scope}". Use platform or copilot.`, 0)
-      }
-      const scope = options.scope as CliAuthScope
+        if (options.scope !== 'platform' && options.scope !== 'copilot') {
+          throw new SimApiError(`Unknown scope "${options.scope}". Use platform or copilot.`, 0)
+        }
+        const scope = options.scope as CliAuthScope
 
-      const auth = createAuthRequest()
-      const url = buildApprovalUrl(profile.endpoint, auth, scope, profile.workspaceId ?? undefined)
+        if (listProfiles().includes(profile.name) && !options.yes) {
+          const confirmed = await confirmProfileOverwrite(profile.name)
+          if (!confirmed) {
+            console.log(chalk.dim('Login cancelled; the existing profile was not changed.'))
+            return
+          }
+        }
 
-      console.log(
-        `Signing in to ${chalk.bold(profile.endpoint)} as profile ${chalk.bold(profile.name)}`
-      )
-      console.log(`\nPairing code: ${chalk.bold(auth.pairing)}`)
-      console.log(chalk.dim('Confirm this code matches what the browser shows before approving.\n'))
-      console.log(url)
-
-      if (options.browser) openBrowser(url)
-      console.log(chalk.dim('\nWaiting for approval…'))
-
-      const key = await pollForKey(profile.endpoint, auth)
-
-      if (key.scope !== scope) {
-        // The approval, not the request, decides the scope. Storing a copilot
-        // key where a platform key belongs would fail every later call with an
-        // unexplained 401, so refuse now with the reason.
-        throw new SimApiError(
-          `Server issued a ${key.scope} key but this profile needs a ${scope} key. Update the Sim deployment, or run: sim login --scope ${key.scope}`,
-          0
+        const auth = createAuthRequest()
+        const url = buildApprovalUrl(
+          profile.endpoint,
+          auth,
+          scope,
+          profile.workspaceId ?? undefined
         )
-      }
 
-      writeCredentialsProfile(profile.name, key.apiKey)
-
-      // The workspace picked in the browser becomes the profile's default,
-      // whether or not the key is scoped to it. The user chose it by name —
-      // making them look up its id afterwards would waste the one moment the
-      // answer was already on screen.
-      const settings: Record<string, string> = { endpoint: profile.endpoint }
-      if (key.workspaceId) settings.workspace = key.workspaceId
-      writeConfigProfile(profile.name, settings)
-
-      console.log(chalk.green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
-      if (key.workspaceBound && key.workspaceId) {
-        console.log(chalk.dim(`  Workspace-scoped key — it can only reach ${key.workspaceId}.`))
-      } else if (key.workspaceId) {
         console.log(
-          chalk.dim(
-            `  Personal key, defaulting to ${key.workspaceId}. Override per command with --workspace.`
-          )
+          `Signing in to ${chalk.bold(profile.endpoint)} as profile ${chalk.bold(profile.name)}`
         )
-      } else if (!profile.workspaceId) {
+        console.log(`\nPairing code: ${chalk.bold(auth.pairing)}`)
         console.log(
-          chalk.dim(
-            '  Personal key with no default workspace. Set one with: sim configure --set-workspace <id>'
-          )
+          chalk.dim('Confirm this code matches what the browser shows before approving.\n')
         )
+        console.log(url)
+
+        if (options.browser) openBrowser(url)
+        console.log(chalk.dim('\nWaiting for approval…'))
+
+        const key = await pollForKey(profile.endpoint, auth)
+
+        if (key.scope !== scope) {
+          // The approval, not the request, decides the scope. Storing a copilot
+          // key where a platform key belongs would fail every later call with an
+          // unexplained 401, so refuse now with the reason.
+          throw new SimApiError(
+            `Server issued a ${key.scope} key but this profile needs a ${scope} key. Update the Sim deployment, or run: sim login --scope ${key.scope}`,
+            0
+          )
+        }
+
+        writeCredentialsProfile(profile.name, key.apiKey)
+
+        // The workspace picked in the browser becomes the profile's default,
+        // whether or not the key is scoped to it. The user chose it by name —
+        // making them look up its id afterwards would waste the one moment the
+        // answer was already on screen.
+        const settings: Record<string, string> = { endpoint: profile.endpoint }
+        if (key.workspaceId) settings.workspace = key.workspaceId
+        writeConfigProfile(profile.name, settings)
+
+        console.log(chalk.green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
+        if (key.workspaceBound && key.workspaceId) {
+          console.log(chalk.dim(`  Workspace-scoped key — it can only reach ${key.workspaceId}.`))
+        } else if (key.workspaceId) {
+          console.log(
+            chalk.dim(
+              `  Personal key, defaulting to ${key.workspaceId}. Override per command with --workspace.`
+            )
+          )
+        } else if (!profile.workspaceId) {
+          console.log(
+            chalk.dim(
+              '  Personal key with no default workspace. Set one with: sim configure --set-workspace <id>'
+            )
+          )
+        }
       }
-    })
+    )
 }
 
 export function logoutCommand(): Command {
