@@ -1340,15 +1340,28 @@ export function TableGrid({
    * silently step over the very match the user pressed Enter to reach, and it
    * would only come back around after wrapping the whole list.
    */
+  /**
+   * The index the next step counts from, clamped into the CURRENT match set.
+   *
+   * A row write or SSE update can shrink or reorder the matches for a term the
+   * user is still navigating; the term latch deliberately leaves the cursor
+   * alone in that case, so the stored index can now point past the end. Stepping
+   * from it would wrap off a stale base and land somewhere unrelated to the
+   * match on screen. Clamping here rather than in the two callers keeps the
+   * stepping base and the displayed index in agreement.
+   */
+  const stepBaseIndex = () =>
+    Math.min(currentMatchIndexRef.current, Math.max(0, findMatchesRef.current.length - 1))
+
   const handleFindNext = useCallback(() => {
     if (!findResultsAreCurrentRef.current) return
-    const index = currentMatchIndexRef.current
+    const index = stepBaseIndex()
     goToMatch(cursorIsOnMatchRef.current ? index + 1 : index)
   }, [goToMatch])
 
   const handleFindPrev = useCallback(() => {
     if (!findResultsAreCurrentRef.current) return
-    const index = currentMatchIndexRef.current
+    const index = stepBaseIndex()
     goToMatch(cursorIsOnMatchRef.current ? index - 1 : index)
   }, [goToMatch])
 
