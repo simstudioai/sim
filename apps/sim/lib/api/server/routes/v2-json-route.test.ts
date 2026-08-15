@@ -496,6 +496,123 @@ describe('defineV2JsonRoute', () => {
 })
 
 /**
+ * A body that cannot be read as JSON has two very different causes, and the
+ * single `400 "Request body must be valid JSON"` describes only one of them: a
+ * caller who sent a form-encoded body is told to go hunting for a syntax error
+ * in a body that has none.
+ *
+ * These pin the split to the *classification* of an already-failing read. The
+ * final two are the regression guard that keeps it from becoming a media-type
+ * gate: a body that parses as JSON still succeeds no matter what the caller
+ * declared, which is what keeps `curl -d '{…}'` (form-urlencoded by default)
+ * and a headerless browser `fetch` (`text/plain`) working.
+ */
+describe('defineV2JsonRoute unreadable body classification', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
+    v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
+  })
+
+  /**
+   * A `string` body makes undici *derive* `content-type: text/plain;charset=UTF-8`,
+   * so omitting the header from `headers` is not enough to produce the
+   * absent-media-type request — the `null` case has to send pre-encoded bytes.
+   * The assertion is the guard that keeps that from silently drifting back:
+   * without it the two `contentType === null` cases secretly re-test `text/plain`
+   * and the `if (!header) return false` branch never runs.
+   */
+  function bodyRequest(contentType: string | null, body: string): NextRequest {
+    const request = new NextRequest('http://localhost/api/v2/widgets', {
+      method: 'POST',
+      headers: {
+        'x-api-key': 'secret',
+        ...(contentType === null ? {} : { 'content-type': contentType }),
+      },
+      body: contentType === null ? new TextEncoder().encode(body) : body,
+    })
+    if (contentType === null) expect(request.headers.get('content-type')).toBeNull()
+    return request
+  }
+
+  it('answers 415 when an unreadable body declared a non-JSON media type', async () => {
+    const response = await createHandler()(
+      bodyRequest('application/x-www-form-urlencoded', 'value=ok')
+    )
+
+    expect(response.status).toBe(415)
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'UNSUPPORTED_MEDIA_TYPE',
+        message: 'Request body must be sent as application/json',
+      },
+    })
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+  })
+
+  it('keeps 400 for a truncated JSON body, whose media type was right', async () => {
+    const response = await createHandler()(bodyRequest('application/json', '{"value":'))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'BAD_REQUEST', message: 'Request body must be valid JSON' },
+    })
+  })
+
+  it('keeps 400 when the media type is absent rather than wrong', async () => {
+    const response = await createHandler()(bodyRequest(null, '{"value":'))
+
+    expect(response.status).toBe(400)
+  })
+
+  it('keeps 400 for text/plain, the default of a headerless browser fetch', async () => {
+    const response = await createHandler()(bodyRequest('text/plain;charset=UTF-8', '{"value":'))
+
+    expect(response.status).toBe(400)
+  })
+
+  it('accepts a JSON body sent under a non-JSON media type, as it does today', async () => {
+    const response = await createHandler()(
+      bodyRequest('application/x-www-form-urlencoded', JSON.stringify({ value: 'ok' }))
+    )
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toEqual({ data: { value: 'ok' } })
+  })
+
+  it('accepts a JSON body sent with no media type at all', async () => {
+    const response = await createHandler()(bodyRequest(null, JSON.stringify({ value: 'ok' })))
+
+    expect(response.status).toBe(201)
+  })
+
+  it('keeps 400 for a structured JSON suffix media type', async () => {
+    const response = await createHandler()(bodyRequest('application/merge-patch+json', '{"value":'))
+
+    expect(response.status).toBe(400)
+  })
+
+  it('lets a route override the classification entirely', async () => {
+    const response = await createHandler({
+      parseOptions: {
+        invalidJsonResponse: () =>
+          NextResponse.json(
+            { error: { code: 'BAD_REQUEST', message: 'Import archive is not JSON' } },
+            { status: 400 }
+          ),
+      },
+    })(bodyRequest('application/x-www-form-urlencoded', 'value=ok'))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'BAD_REQUEST', message: 'Import archive is not JSON' },
+    })
+  })
+})
+
+/**
  * A `HEAD` on a route whose `GET` is not safe must answer the question the `GET`
  * would answer, minus the effect — not merely the question admission can answer.
  *

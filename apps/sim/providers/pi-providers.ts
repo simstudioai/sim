@@ -6,14 +6,6 @@ import {
 } from '@/providers/pi-provider-configs'
 import type { BYOKProviderId } from '@/tools/types'
 
-/**
- * Shared provider and model bridge for the Pi model picker, executor, host SDK,
- * and E2B CLI.
- */
-export const PI_SUPPORTED_PROVIDER_IDS: readonly PiSupportedProvider[] = PI_PROVIDER_CONFIGS.map(
-  ({ id }) => id
-)
-
 const PI_PROVIDER_CONFIG_BY_ID = new Map<string, PiProviderConfig>(
   PI_PROVIDER_CONFIGS.map((config) => [config.id, config])
 )

@@ -1271,17 +1271,6 @@ interface BoundedFetchResult {
 }
 
 /**
- * Belt-and-braces bound on drain iterations.
- *
- * Unreachable only because every iteration either consumes at least one row or cuts, and a bounded
- * page's `limit` is capped at {@link TABLE_LIMITS.MAX_QUERY_LIMIT} — so the limit cut always fires
- * first. That makes the two constants exactly tight: raising `MAX_QUERY_LIMIT` above this bound
- * would let the loop exit with rows still unread and `hasMore: false`, which clients now trust as
- * end-of-table (they terminate on `nextCursor`, which this decides). Raise both together.
- */
-const MAX_QUERY_BATCHES = 1000
-
-/**
  * Drains rows in adaptively-sized bounded batches until the caller's `limit`
  * or the byte ceiling ends the page. Never issues an unbounded SELECT: the
  * first batch is capped so its worst-case bytes stay within ~4× the budget at
@@ -1364,7 +1353,7 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
     return withReadGuards(async (trx) => buildQuery(trx), { seqscanOff: sorted })
   }
 
-  for (let iteration = 0; iteration < MAX_QUERY_BATCHES; iteration++) {
+  while (true) {
     const limitRemaining = limit === undefined ? Number.POSITIVE_INFINITY : limit - rows.length
     const target = Math.min(nextBatchRows(), limitRemaining)
     const ask = target + 1 // +1 = witness row proving more data exists past a cut

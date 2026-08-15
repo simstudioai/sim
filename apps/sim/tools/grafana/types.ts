@@ -29,7 +29,11 @@ export const ALERT_RULE_OUTPUT_FIELDS: Record<string, OutputProperty> = {
   folderUID: { type: 'string', description: 'Parent folder UID' },
   ruleGroup: { type: 'string', description: 'Rule group name' },
   orgID: { type: 'number', description: 'Organization ID' },
-  provenance: { type: 'string', description: 'Provisioning source (empty if API-managed)' },
+  provenance: {
+    type: 'string',
+    description:
+      'Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI',
+  },
   notification_settings: {
     type: 'json',
     description: 'Per-rule notification settings (overrides)',
@@ -65,7 +69,8 @@ export interface GrafanaDataSourceHealthParams extends GrafanaBaseParams {
 export interface GrafanaDataSourceHealthResponse extends ToolResponse {
   output: {
     status: string
-    message: string
+    message: string | null
+    details?: unknown
   }
 }
 
@@ -371,8 +376,9 @@ export interface GrafanaUpdateAnnotationParams extends GrafanaBaseParams {
 
 export interface GrafanaUpdateAnnotationResponse extends ToolResponse {
   output: {
-    id: number
-    message: string
+    /** Echoed from the request — Grafana's patch response carries no id. */
+    annotationId: number | null
+    message: string | null
   }
 }
 
@@ -493,8 +499,11 @@ export interface GrafanaDeleteFolderParams extends GrafanaBaseParams {
 
 export interface GrafanaDeleteFolderResponse extends ToolResponse {
   output: {
-    uid: string
-    message: string
+    /** Numeric id Grafana returns for the deleted folder. */
+    id: number | null
+    /** Echoed from the request. */
+    uid: string | null
+    message: string | null
   }
 }
 
@@ -562,3 +571,76 @@ export type GrafanaResponse =
   | GrafanaDeleteFolderResponse
   | GrafanaListContactPointsResponse
   | GrafanaCreateContactPointResponse
+
+export interface GrafanaUpdateContactPointParams extends GrafanaBaseParams {
+  contactPointUid: string
+  name: string
+  type: string
+  settings: string
+  disableResolveMessage?: boolean
+  disableProvenance?: boolean
+}
+
+export interface GrafanaUpdateContactPointResponse extends ToolResponse {
+  output: {
+    /** Echoed from the request — the update answers with only a message. */
+    uid: string | null
+    message: string | null
+  }
+}
+
+export interface GrafanaDeleteContactPointParams extends GrafanaBaseParams {
+  contactPointUid: string
+}
+
+export interface GrafanaDeleteContactPointResponse extends ToolResponse {
+  output: {
+    /** Echoed from the request. */
+    uid: string | null
+    message: string | null
+  }
+}
+
+export interface GrafanaMoveFolderParams extends GrafanaBaseParams {
+  folderUid: string
+  parentUid?: string
+}
+
+export interface GrafanaMoveFolderResponse extends ToolResponse {
+  output: GrafanaFolder
+}
+
+export interface GrafanaGetAlertRuleGroupParams extends GrafanaBaseParams {
+  folderUid: string
+  ruleGroup: string
+}
+
+export interface GrafanaGetAlertRuleGroupResponse extends ToolResponse {
+  output: {
+    title: string | null
+    folderUid: string | null
+    /** Evaluation interval in seconds. */
+    interval: number | null
+    rules: ReturnType<typeof import('@/tools/grafana/utils').mapAlertRule>[]
+  }
+}
+
+export interface GrafanaQueryDataSourceParams extends GrafanaBaseParams {
+  queries: string
+  from?: string
+  to?: string
+}
+
+export interface GrafanaQuerySeries {
+  refId: string
+  fields: { name: string; type: string | null }[]
+  rowCount: number
+  rows: Record<string, unknown>[]
+}
+
+export interface GrafanaQueryDataSourceResponse extends ToolResponse {
+  output: {
+    results: Record<string, unknown>
+    series: GrafanaQuerySeries[]
+  }
+}

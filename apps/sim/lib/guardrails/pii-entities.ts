@@ -55,13 +55,6 @@ export const SUPPORTED_PII_ENTITIES = {
 
 export type PIIEntityType = keyof typeof SUPPORTED_PII_ENTITIES
 
-/** Flat `{ value, label }` options for entity-type pickers, in catalog order. */
-export const PII_ENTITY_OPTIONS: ReadonlyArray<{ value: PIIEntityType; label: string }> =
-  Object.entries(SUPPORTED_PII_ENTITIES).map(([value, label]) => ({
-    value: value as PIIEntityType,
-    label,
-  }))
-
 /** Entity types grouped by region, for a grouped checkbox picker. */
 export const PII_ENTITY_GROUPS: ReadonlyArray<{
   label: string
@@ -324,13 +317,6 @@ export const PII_STAGE_META: ReadonlyArray<{
       'Mask every block output before the next block reads it. Data is redacted during runtime and may affect workflow output and execution performance.',
   },
 ]
-
-/** Recognizers that over-redact (loose, no checksum); surfaced as UI guidance. */
-export const RISKY_PII_ENTITIES: ReadonlySet<PIIEntityType> = new Set<PIIEntityType>([
-  'US_SSN',
-  'US_BANK_NUMBER',
-  'DATE_TIME',
-])
 
 /** A fully-disabled stage policy for new drafts. */
 export function emptyStagePolicy(): PiiStagePolicy {

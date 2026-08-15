@@ -9,7 +9,7 @@ import {
   hasUsableSubscriptionAccess,
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
-import { Decimal, toDecimal, toFixedString, toNumber } from '@/lib/billing/utils/decimal'
+import { toDecimal, toFixedString, toNumber } from '@/lib/billing/utils/decimal'
 import type { DbClient } from '@/lib/db/types'
 
 const logger = createLogger('CreditBalance')
@@ -92,28 +92,6 @@ export async function addCredits(
   }
 }
 
-async function removeCredits(
-  entityType: 'user' | 'organization',
-  entityId: string,
-  amount: number
-): Promise<void> {
-  if (entityType === 'organization') {
-    await db
-      .update(organization)
-      .set({ creditBalance: sql`GREATEST(0, ${organization.creditBalance} - ${amount})` })
-      .where(eq(organization.id, entityId))
-
-    logger.info('Removed credits from organization', { organizationId: entityId, amount })
-  } else {
-    await db
-      .update(userStats)
-      .set({ creditBalance: sql`GREATEST(0, ${userStats.creditBalance} - ${amount})` })
-      .where(eq(userStats.userId, entityId))
-
-    logger.info('Removed credits from user', { userId: entityId, amount })
-  }
-}
-
 interface DeductResult {
   creditsUsed: number
   overflow: number
@@ -171,36 +149,6 @@ async function atomicDeductOrgCredits(orgId: string, cost: number): Promise<numb
 
   const oldBalance = toDecimal(rows[0].old_balance)
   return toNumber(oldBalance.lessThan(costDecimal) ? oldBalance : costDecimal)
-}
-
-async function deductFromCredits(userId: string, cost: number): Promise<DeductResult> {
-  if (cost <= 0) {
-    return { creditsUsed: 0, overflow: 0 }
-  }
-
-  const subscription = await getHighestPrioritySubscription(userId)
-  const orgScoped = isOrgScopedSubscription(subscription, userId)
-
-  let creditsUsed: number
-
-  if (orgScoped && subscription?.referenceId) {
-    creditsUsed = await atomicDeductOrgCredits(subscription.referenceId, cost)
-  } else {
-    creditsUsed = await atomicDeductUserCredits(userId, cost)
-  }
-
-  const overflow = toNumber(Decimal.max(0, toDecimal(cost).minus(creditsUsed)))
-
-  if (creditsUsed > 0) {
-    logger.info('Deducted credits atomically', {
-      userId,
-      creditsUsed,
-      overflow,
-      entityType: orgScoped ? 'organization' : 'user',
-    })
-  }
-
-  return { creditsUsed, overflow }
 }
 
 export async function canPurchaseCredits(userId: string): Promise<boolean> {

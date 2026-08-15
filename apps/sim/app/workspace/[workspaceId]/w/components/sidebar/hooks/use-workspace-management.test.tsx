@@ -20,6 +20,7 @@ const {
 }))
 
 vi.mock('next/navigation', () => ({
+  usePathname: () => '/workspace/workspace-denied',
   useRouter: () => ({ push: mockPush }),
 }))
 
@@ -49,7 +50,52 @@ vi.mock('@/stores/workflows/registry/store', () => ({
   ) => selector({ switchToWorkspace: mockSwitchToWorkspace }),
 }))
 
-import { useWorkspaceManagement } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-workspace-management'
+import {
+  resolveWorkspaceSwitchHref,
+  useWorkspaceManagement,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-workspace-management'
+
+describe('resolveWorkspaceSwitchHref', () => {
+  it('preserves the active settings section', () => {
+    expect(
+      resolveWorkspaceSwitchHref({
+        pathname: '/workspace/workspace-a/settings/mcp',
+        currentWorkspaceId: 'workspace-a',
+        targetWorkspaceId: 'workspace-b',
+      })
+    ).toBe('/workspace/workspace-b/settings/mcp')
+  })
+
+  it('drops workspace-scoped settings detail segments', () => {
+    expect(
+      resolveWorkspaceSwitchHref({
+        pathname: '/workspace/workspace-a/settings/secrets/credential-a',
+        currentWorkspaceId: 'workspace-a',
+        targetWorkspaceId: 'workspace-b',
+      })
+    ).toBe('/workspace/workspace-b/settings/secrets')
+  })
+
+  it('navigates to the workspace root outside settings', () => {
+    expect(
+      resolveWorkspaceSwitchHref({
+        pathname: '/workspace/workspace-a/w/workflow-a',
+        currentWorkspaceId: 'workspace-a',
+        targetWorkspaceId: 'workspace-b',
+      })
+    ).toBe('/workspace/workspace-b')
+  })
+
+  it('fails fast when a settings pathname has no section', () => {
+    expect(() =>
+      resolveWorkspaceSwitchHref({
+        pathname: '/workspace/workspace-a/settings/',
+        currentWorkspaceId: 'workspace-a',
+        targetWorkspaceId: 'workspace-b',
+      })
+    ).toThrow('Settings pathname is missing a section')
+  })
+})
 
 function Harness() {
   useWorkspaceManagement({ workspaceId: 'workspace-denied', sessionUserId: 'user-1' })

@@ -103,3 +103,11 @@ export function getRequestConfirmationSubject(userSubject: string, requestType?:
 export function getOtpSubject(resourceLabel: string): string {
   return `Verification code for ${resourceLabel}`
 }
+
+/** Names both the inviter and workspace so an external recipient can identify the request. */
+export function getCredentialGroupInvitationSubject(
+  inviterName: string,
+  workspaceName: string
+): string {
+  return `${inviterName} invited you to connect accounts for ${workspaceName} on ${getBrandConfig().name}`
+}

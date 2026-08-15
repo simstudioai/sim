@@ -124,6 +124,7 @@ export const AuditAction = {
   CREDENTIAL_MEMBER_ADDED: 'credential_member.added',
   CREDENTIAL_MEMBER_REMOVED: 'credential_member.removed',
   CREDENTIAL_MEMBER_ROLE_CHANGED: 'credential_member.role_changed',
+  CREDENTIAL_GROUP_UPDATED: 'credential_group.updated',
 
   // Password
   PASSWORD_RESET_REQUESTED: 'password.reset_requested',
@@ -225,6 +226,7 @@ export const AuditResourceType = {
   CHAT: 'chat',
   CONNECTOR: 'connector',
   CREDENTIAL: 'credential',
+  CREDENTIAL_GROUP: 'credential_group',
   CUSTOM_BLOCK: 'custom_block',
   CUSTOM_TOOL: 'custom_tool',
   DATA_DRAIN: 'data_drain',

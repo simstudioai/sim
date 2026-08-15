@@ -1,6 +1,7 @@
 import { backgroundWorkStatus, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import {
   and,
   desc,
@@ -192,9 +193,7 @@ export async function finishBackgroundWork(
 
 /** Coerce an unknown jsonb metadata value to a plain record for safe merging. */
 function toMetadataRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+  return isRecordLike(value) ? (value as Record<string, unknown>) : {}
 }
 
 /**

@@ -1,5 +1,4 @@
 import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { ToolCallDescriptor } from './types'
 
 export type ToolRouteTarget = ToolCatalogEntry['route']
 
@@ -27,10 +26,6 @@ export function isSimExecuted(toolId: string): boolean {
   return getToolEntry(toolId)?.route === 'sim'
 }
 
-export function isGoExecuted(toolId: string): boolean {
-  return getToolEntry(toolId)?.route === 'go'
-}
-
 export function isClientExecuted(toolId: string): boolean {
   return getToolEntry(toolId)?.route === 'client'
 }
@@ -42,27 +37,4 @@ export function isKnownTool(toolId: string): boolean {
 /** Declared in the mothership tool catalog; Go carries the flag but never enforces it. */
 export function toolRequiresApproval(toolId: string): boolean {
   return getToolEntry(toolId)?.requiresApproval === true
-}
-
-interface PartitionedBatch {
-  sim: ToolCallDescriptor[]
-  go: ToolCallDescriptor[]
-  subagent: ToolCallDescriptor[]
-  client: ToolCallDescriptor[]
-  unknown: ToolCallDescriptor[]
-}
-
-export function partitionToolBatch(toolCalls: ToolCallDescriptor[]): PartitionedBatch {
-  const result: PartitionedBatch = { sim: [], go: [], subagent: [], client: [], unknown: [] }
-
-  for (const tc of toolCalls) {
-    const route = routeToolCall(tc.toolId)
-    if (!route) {
-      result.unknown.push(tc)
-      continue
-    }
-    result[route.route].push(tc)
-  }
-
-  return result
 }

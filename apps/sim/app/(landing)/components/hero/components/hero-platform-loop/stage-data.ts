@@ -1,4 +1,5 @@
-import { AgentIcon, CodeIcon, SlackIcon, StartIcon, TableIcon } from '@/components/icons'
+import { Table as TableIcon } from '@sim/emcn/icons'
+import { AgentIcon, CodeIcon, SlackIcon, StartIcon } from '@/components/icons'
 import type { BlockDef } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 import { BLOCK_WIDTH } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 

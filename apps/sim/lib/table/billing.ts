@@ -253,26 +253,6 @@ export async function assertRowCapacity(params: {
 }
 
 /**
- * Checks if a workspace can create more tables based on its plan limits.
- *
- * @param workspaceId - The workspace ID to check
- * @param currentTableCount - The current number of tables in the workspace
- * @returns Object with canCreate boolean and limit info
- */
-async function canCreateTable(
-  workspaceId: string,
-  currentTableCount: number
-): Promise<{ canCreate: boolean; maxTables: number; currentCount: number }> {
-  const limits = await getWorkspaceTableLimits(workspaceId)
-
-  return {
-    canCreate: currentTableCount < limits.maxTables,
-    maxTables: limits.maxTables,
-    currentCount: currentTableCount,
-  }
-}
-
-/**
  * Gets the maximum rows allowed per table for a workspace based on its plan.
  *
  * @param workspaceId - The workspace ID

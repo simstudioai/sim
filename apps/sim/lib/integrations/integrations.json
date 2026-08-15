@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-13",
+  "updatedAt": "2026-08-14",
   "integrations": [
     {
       "type": "onepassword",
@@ -1093,7 +1093,7 @@
       "slug": "ashby",
       "name": "Ashby",
       "description": "Manage candidates, jobs, and applications in Ashby",
-      "longDescription": "Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag), applications (list, get, create, change stage), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).",
+      "longDescription": "Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag, anonymize), applications (list, get, create, delete, change stage, change source), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), custom field values (set one or many), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).",
       "bgColor": "#5D4ED6",
       "iconName": "AshbyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/ashby",
@@ -1147,12 +1147,24 @@
           "description": "Creates a new application for a candidate on a job. Optionally specify interview plan, stage, source, and credited user."
         },
         {
+          "name": "Delete Application",
+          "description": "Permanently deletes an application in Ashby. Requires the candidatesDelete permission, which is a separate module permission from candidatesWrite - a read and write key returns 403 here. There is no equivalent endpoint for deleting a candidate; candidate deletion is UI-only."
+        },
+        {
           "name": "List Offers",
           "description": "Lists all offers with their latest version in an Ashby organization."
         },
         {
           "name": "Change Application Stage",
           "description": "Moves an application to a different interview stage. Requires an archive reason when moving to an Archived stage."
+        },
+        {
+          "name": "Change Application Source",
+          "description": "Changes the source attributed to an existing application, so programmatically created applications report correctly on the recruiting side. Requires the candidatesWrite permission."
+        },
+        {
+          "name": "Anonymize Candidate",
+          "description": "Strips personally identifiable information from a candidate in Ashby. This does not delete the candidate - the record and its applications remain, with the PII removed. Ashby exposes no candidate deletion endpoint; true deletion is UI-only, restricted by role, and limited to a 10-day window. Requires the candidatesWrite permission."
         },
         {
           "name": "Add Candidate Tag",
@@ -1183,6 +1195,14 @@
           "description": "Lists all custom field definitions configured in Ashby."
         },
         {
+          "name": "Set Custom Field Value",
+          "description": "Sets the value of a single custom field on an Ashby Application, Candidate, Job, or Opening. Custom fields are the only way to annotate a job or req, since Ashby has no job notes and no job tags. Requires the candidatesWrite permission."
+        },
+        {
+          "name": "Set Custom Field Values",
+          "description": "Sets several custom field values on one Ashby Application, Candidate, Job, or Opening in a single call. Prefer this over repeated single-field writes to the same object - Ashby recommends it because concurrent single-field calls can race and overwrite each other. Requires the candidatesWrite permission."
+        },
+        {
           "name": "List Departments",
           "description": "Lists all departments in Ashby."
         },
@@ -1211,7 +1231,7 @@
           "description": "Lists interview schedules in Ashby, optionally filtered by application or interview stage."
         }
       ],
-      "operationCount": 28,
+      "operationCount": 33,
       "triggers": [
         {
           "id": "ashby_application_submit",
@@ -2216,6 +2236,81 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity", "microsoft-365"]
+    },
+    {
+      "type": "azure_data_explorer",
+      "slug": "azure-data-explorer",
+      "name": "Azure Data Explorer",
+      "description": "Query and manage Azure Data Explorer (Kusto) clusters with KQL",
+      "longDescription": "Run Kusto Query Language queries against Azure Data Explorer and Fabric Eventhouse clusters, discover databases, tables, and schemas, push small batches of rows inline, and run management commands. Authenticates with a Microsoft Entra service principal using client credentials, so no interactive sign-in is needed.",
+      "bgColor": "#FFFFFF",
+      "iconName": "AzureDataExplorerIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/azure_data_explorer",
+      "operations": [
+        {
+          "name": "Run Query",
+          "description": "Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table."
+        },
+        {
+          "name": "List Databases",
+          "description": "List the databases on an Azure Data Explorer cluster that the service principal can access."
+        },
+        {
+          "name": "List Tables",
+          "description": "List the tables in an Azure Data Explorer database, with their folder and docstring."
+        },
+        {
+          "name": "Show Table Schema",
+          "description": "Read the column schema of an Azure Data Explorer table in CSL form (e.g., \"Timestamp:datetime,Level:string\"). Use this before writing a KQL query against an unfamiliar table."
+        },
+        {
+          "name": "Show Database Schema",
+          "description": "Read the full schema of an Azure Data Explorer database as a flat list of every table and column, so an agent can discover the data model in one call."
+        },
+        {
+          "name": "Show Table Details",
+          "description": "Read size, row count, hot-cache footprint, and effective policies for a table — or for every table in the database when no table is given. Use it to see how much data a table actually holds before querying it."
+        },
+        {
+          "name": "List Functions",
+          "description": "List the stored functions in an Azure Data Explorer database, with their parameters and bodies, so an agent can reuse existing logic instead of rewriting it."
+        },
+        {
+          "name": "Ingest Rows Inline",
+          "description": "Push rows directly into an Azure Data Explorer table with .ingest inline. Data is parsed as CSV against the table schema unless an ingestion property says otherwise. Intended for small batches — use queued or streaming ingestion for production volumes."
+        },
+        {
+          "name": "Ingest From Query",
+          "description": "Materialize the result of a KQL query into a table with .set, .append, .set-or-append, or .set-or-replace. Use this to build rollup or summary tables instead of pushing rows from a workflow. Kusto matches the query result to the target table by column type and position, NOT by column name, so project the columns in exactly the table's order or the data lands in the wrong columns."
+        },
+        {
+          "name": "Create Table",
+          "description": "Create a table in an Azure Data Explorer database from a CSL column schema. Succeeds without changing anything if a table of the same name already exists."
+        },
+        {
+          "name": "Drop Table",
+          "description": "Drop a table from an Azure Data Explorer database. This permanently deletes the table and its data, and returns the tables that remain."
+        },
+        {
+          "name": "Show Ingestion Failures",
+          "description": "List ingestion failures recorded for a database, with the failing table, error code, root cause detail, and whether the failure is permanent or transient. Failures are retained for 14 days."
+        },
+        {
+          "name": "Show Operations",
+          "description": "Check the state of administrative operations on a cluster, such as an async ingestion. Given an operation ID it returns that operation latest update; with no ID it returns the operations from the last two weeks."
+        },
+        {
+          "name": "Management Command (advanced)",
+          "description": "Run an Azure Data Explorer management command (a control command starting with \".\") such as .show, .create, .alter, or .drop. Write commands change cluster state permanently; use the Query operation for reads."
+        }
+      ],
+      "operationCount": 14,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["data-analytics", "data-warehouse", "cloud", "monitoring"]
     },
     {
       "type": "azure_devops",
@@ -8932,6 +9027,10 @@
           "description": "Get a specific alert rule by its UID"
         },
         {
+          "name": "Get Alert Rule Group",
+          "description": "Read an alert rule group: its evaluation interval and every rule in it. The interval is the group-level knob that decides how often those rules are evaluated, which the individual alert rule operations do not expose."
+        },
+        {
           "name": "Create Alert Rule",
           "description": "Create a new alert rule"
         },
@@ -8950,6 +9049,14 @@
         {
           "name": "Create Contact Point",
           "description": "Create a notification contact point (e.g., Slack, email, PagerDuty)"
+        },
+        {
+          "name": "Update Contact Point",
+          "description": "Replace a contact point by its UID. Grafana has no partial update for contact points, so every field is rewritten — resend the name, type, and full settings, or the omitted ones are reset."
+        },
+        {
+          "name": "Delete Contact Point",
+          "description": "Permanently delete a contact point by its UID. Grafana refuses the delete while the contact point is still referenced by the notification policy tree or by an alert rule."
         },
         {
           "name": "Create Annotation",
@@ -8976,6 +9083,10 @@
           "description": "Get a data source by its ID or UID"
         },
         {
+          "name": "Query Data Source",
+          "description": "Run one or more queries against a Grafana data source that has a backend implementation, and read the values back. This is how you get actual metric numbers out of Grafana rather than dashboard or alert configuration."
+        },
+        {
           "name": "Check Data Source Health",
           "description": "Test connectivity to a data source by its UID"
         },
@@ -9000,11 +9111,15 @@
           "description": "Delete a folder by its UID"
         },
         {
+          "name": "Move Folder",
+          "description": "Move a folder under a different parent folder, or to the root by leaving the parent empty. Returns the folder with its new ancestry."
+        },
+        {
           "name": "Get Health",
           "description": "Check the health of the Grafana instance (version, database status)"
         }
       ],
-      "operationCount": 25,
+      "operationCount": 30,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -15202,6 +15317,125 @@
       "category": "tools",
       "integrationType": "ai",
       "tags": ["image-generation"]
+    },
+    {
+      "type": "rabbitmq",
+      "slug": "rabbitmq",
+      "name": "RabbitMQ",
+      "description": "Publish and read messages and manage queues in RabbitMQ",
+      "longDescription": "Connect agents to a RabbitMQ broker through its Management HTTP API. Publish messages to exchanges, read messages off queues, declare queues, exchanges, bindings, and policies, and inspect broker health, queue depth, consumers, connections, and cluster nodes. Works with self-hosted brokers and managed offerings such as CloudAMQP as long as the management plugin is reachable.",
+      "bgColor": "#FFFFFF",
+      "iconName": "RabbitmqIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/rabbitmq",
+      "operations": [
+        {
+          "name": "Publish Message",
+          "description": "Publish a message to a RabbitMQ exchange with a routing key. Reports whether the message was routed to at least one queue."
+        },
+        {
+          "name": "Get Messages",
+          "description": "Retrieve messages from a RabbitMQ queue. Defaults to requeueing the messages so they stay available to real consumers."
+        },
+        {
+          "name": "List Queues",
+          "description": "List queues in a RabbitMQ virtual host with their depth, consumer count, and configuration."
+        },
+        {
+          "name": "Get Queue",
+          "description": "Read a single RabbitMQ queue, including its depth, consumer count, and declaration settings."
+        },
+        {
+          "name": "Create Queue",
+          "description": "Declare a RabbitMQ queue. Declaring a queue that already exists with the same settings succeeds without changing it."
+        },
+        {
+          "name": "Delete Queue",
+          "description": "Delete a RabbitMQ queue and every message still in it. Can be guarded so the delete only happens when the queue is unused or empty."
+        },
+        {
+          "name": "Purge Queue",
+          "description": "Discard every ready message in a RabbitMQ queue while leaving the queue itself in place."
+        },
+        {
+          "name": "List Exchanges",
+          "description": "List exchanges in a RabbitMQ virtual host with their type and declaration settings."
+        },
+        {
+          "name": "Get Exchange",
+          "description": "Read a single RabbitMQ exchange and the settings it was declared with."
+        },
+        {
+          "name": "Create Exchange",
+          "description": "Declare a RabbitMQ exchange. Declaring an exchange that already exists with the same settings succeeds without changing it."
+        },
+        {
+          "name": "Delete Exchange",
+          "description": "Delete a RabbitMQ exchange and every binding attached to it. Publishers targeting it will fail afterwards."
+        },
+        {
+          "name": "List Queue Bindings",
+          "description": "List the bindings that route messages into a RabbitMQ queue, including the implicit default-exchange binding."
+        },
+        {
+          "name": "List Exchange Bindings",
+          "description": "List everything an exchange routes to, so you can see which routing keys reach which queues."
+        },
+        {
+          "name": "Create Binding",
+          "description": "Bind a queue or another exchange to a RabbitMQ exchange so messages matching a routing key are routed to it."
+        },
+        {
+          "name": "Delete Binding",
+          "description": "Remove a binding so an exchange stops routing its matching messages to that destination."
+        },
+        {
+          "name": "Get Overview",
+          "description": "Read broker-wide RabbitMQ status: version, cluster name, object totals, queue depth totals, and message rates."
+        },
+        {
+          "name": "Health Check",
+          "description": "Run one of the broker health checks and report whether it passed. A failing check is a normal result, not a tool error."
+        },
+        {
+          "name": "List Nodes",
+          "description": "List the cluster nodes with memory, disk, file-descriptor, and alarm state. A fired alarm blocks publishers broker-wide."
+        },
+        {
+          "name": "List Virtual Hosts",
+          "description": "List the virtual hosts on the broker with their message totals, so you can discover which scopes exist."
+        },
+        {
+          "name": "List Connections",
+          "description": "List client connections to the broker with their user, state, and channel count. Connections are cluster-wide, not scoped to one virtual host."
+        },
+        {
+          "name": "List Channels",
+          "description": "List open channels with their prefetch limit and unacknowledged message count, which is where stalled consumers show up. Channels are cluster-wide, not scoped to one virtual host."
+        },
+        {
+          "name": "List Consumers",
+          "description": "List the consumers subscribed in a virtual host. An empty result for a queue with a backlog means nothing is processing it."
+        },
+        {
+          "name": "List Policies",
+          "description": "List the policies in a virtual host. Policies are how dead-lettering, TTLs, and length limits get applied to matching queues and exchanges."
+        },
+        {
+          "name": "Create Policy",
+          "description": "Create or replace a RabbitMQ policy, applying settings such as dead-lettering, TTLs, or length limits to every queue or exchange whose name matches a pattern."
+        },
+        {
+          "name": "Delete Policy",
+          "description": "Delete a RabbitMQ policy. Every queue and exchange it matched immediately loses the settings it applied."
+        }
+      ],
+      "operationCount": 25,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["messaging", "automation"]
     },
     {
       "type": "railway",

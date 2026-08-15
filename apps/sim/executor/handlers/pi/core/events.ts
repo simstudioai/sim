@@ -6,6 +6,8 @@
  * run totals (final text, token usage, tool calls) the handler reports.
  */
 
+import { toRecordOrNull } from '@sim/utils/object'
+
 /** A single normalized event emitted during a Pi run. */
 export type PiEvent =
   | { type: 'text'; text: string }
@@ -71,10 +73,6 @@ export function streamTextForEvent(event: PiEvent): string | null {
   return event.type === 'text' ? event.text : null
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
-}
-
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
@@ -86,7 +84,7 @@ function asNumber(value: unknown): number {
 function extractAssistantText(message: Record<string, unknown>): string {
   if (!Array.isArray(message.content)) return ''
   return message.content
-    .map((block) => asRecord(block))
+    .map((block) => toRecordOrNull(block))
     .filter((block): block is Record<string, unknown> => block !== null)
     .filter((block) => asString(block.type) === 'text')
     .map((block) => asString(block.text))
@@ -104,11 +102,11 @@ function extractUsage(
   ev: Record<string, unknown>
 ): { inputTokens: number; outputTokens: number } | null {
   const candidates: Array<Record<string, unknown>> = []
-  const direct = asRecord(ev.usage)
+  const direct = toRecordOrNull(ev.usage)
   if (direct) candidates.push(direct)
-  const message = asRecord(ev.message)
+  const message = toRecordOrNull(ev.message)
   if (message) {
-    const messageUsage = asRecord(message.usage)
+    const messageUsage = toRecordOrNull(message.usage)
     if (messageUsage) candidates.push(messageUsage)
   }
 
@@ -133,12 +131,12 @@ function extractUsage(
  * arrives only on the local and review paths and the cloud ones silently lose it.
  */
 export function normalizePiEvent(raw: unknown): PiEvent | null {
-  const ev = asRecord(raw)
+  const ev = toRecordOrNull(raw)
   if (!ev) return null
 
   switch (asString(ev.type)) {
     case 'message_update': {
-      const assistantEvent = asRecord(ev.assistantMessageEvent)
+      const assistantEvent = toRecordOrNull(ev.assistantMessageEvent)
       const deltaType = assistantEvent ? asString(assistantEvent.type) : ''
       const delta = assistantEvent ? asString(assistantEvent.delta) : ''
       if (deltaType === 'text_delta') return { type: 'text', text: delta }
@@ -157,7 +155,7 @@ export function normalizePiEvent(raw: unknown): PiEvent | null {
       if (ev.willRetry === true) return { type: 'other' }
       const messages = Array.isArray(ev.messages) ? ev.messages : []
       for (let index = messages.length - 1; index >= 0; index -= 1) {
-        const message = asRecord(messages[index])
+        const message = toRecordOrNull(messages[index])
         if (!message || asString(message.role) !== 'assistant') continue
         const stopReason = asString(message.stopReason)
         if (stopReason === 'error' || stopReason === 'aborted') {

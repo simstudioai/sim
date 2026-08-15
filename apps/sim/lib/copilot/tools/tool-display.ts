@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { stripVersionSuffix } from '@sim/utils/string'
 
 /**
@@ -45,9 +46,7 @@ function nestedStringArg(args: ToolArgs, parentKey: string, ...keys: string[]): 
 
 function recordArg(args: ToolArgs, key: string): Record<string, unknown> | undefined {
   const value = args?.[key]
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
+  return isRecordLike(value) ? (value as Record<string, unknown>) : undefined
 }
 
 function stringOrNumberArg(args: ToolArgs, key: string): string {
@@ -369,9 +368,8 @@ function setGlobalWorkflowVariablesTitle(args: ToolArgs): string {
   const operations = args?.operations
   if (!Array.isArray(operations) || operations.length === 0) return 'Setting workflow variables'
 
-  const parsed = operations.filter(
-    (operation): operation is Record<string, unknown> =>
-      Boolean(operation) && typeof operation === 'object' && !Array.isArray(operation)
+  const parsed = operations.filter((operation): operation is Record<string, unknown> =>
+    isRecordLike(operation)
   )
   const operationNames = parsed.map((operation) => stringArg(operation, 'operation'))
   const firstOperation = operationNames[0]
@@ -645,10 +643,7 @@ const TERMINAL_OPERATION_TITLES: Record<string, string> = {
 function terminalTitle(args: ToolArgs): string {
   const operation = stringArg(args, 'operation')
   const nested = args?.args
-  const inner: ToolArgs =
-    nested && typeof nested === 'object' && !Array.isArray(nested)
-      ? (nested as Record<string, unknown>)
-      : undefined
+  const inner: ToolArgs = isRecordLike(nested) ? (nested as Record<string, unknown>) : undefined
   if (operation === 'run') return runningCommandTitle(stringArg(inner, 'command'))
   if (operation === 'handoff') {
     // Matches the browser takeover row: the reason is the whole point of the

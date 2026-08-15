@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const mcpOauthMetadataQuerySchema = z.record(z.string(), z.string())
 export type McpOauthMetadataQuery = z.input<typeof mcpOauthMetadataQuerySchema>
@@ -33,23 +32,3 @@ const mcpProtectedResourceMetadataSchema = z.object({
   x_sim_auth: xSimAuthSchema,
 })
 export type McpProtectedResourceMetadata = z.output<typeof mcpProtectedResourceMetadataSchema>
-
-export const mcpOauthAuthorizationServerMetadataContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/mcp/copilot/.well-known/oauth-authorization-server',
-  query: mcpOauthMetadataQuerySchema,
-  response: {
-    mode: 'json',
-    schema: mcpAuthorizationServerMetadataSchema,
-  },
-})
-
-export const mcpOauthProtectedResourceMetadataContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/mcp/copilot/.well-known/oauth-protected-resource',
-  query: mcpOauthMetadataQuerySchema,
-  response: {
-    mode: 'json',
-    schema: mcpProtectedResourceMetadataSchema,
-  },
-})

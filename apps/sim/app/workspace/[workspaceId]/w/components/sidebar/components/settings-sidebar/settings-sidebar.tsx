@@ -141,6 +141,12 @@ export function SettingsSidebar({
       if (item.id === 'forks' && !(forkingAvailable && canAdminWorkspace)) {
         return false
       }
+      if (
+        item.id === 'credential-groups' &&
+        (!hostContext.features?.credentialGroups || !canAdminWorkspace)
+      ) {
+        return false
+      }
 
       if (item.selfHostedOverride && !isHosted) {
         /**

@@ -3,7 +3,7 @@
 // Maps block types to their icon component references for the integrations page
 
 import type { ComponentType, SVGProps } from 'react'
-import { Library, Rocket } from '@sim/emcn/icons'
+import { Library, Rocket, Table } from '@sim/emcn/icons'
 import {
   A2AIcon,
   AgentMailIcon,
@@ -22,6 +22,7 @@ import {
   AshbyIcon,
   AthenaIcon,
   AttioIcon,
+  AzureDataExplorerIcon,
   AzureIcon,
   BoxCompanyIcon,
   BrainIcon,
@@ -180,6 +181,7 @@ import {
   QdrantIcon,
   QuartrIcon,
   QuiverIcon,
+  RabbitmqIcon,
   RailwayIcon,
   RB2BIcon,
   RDSIcon,
@@ -221,7 +223,6 @@ import {
   StagehandIcon,
   StripeIcon,
   SupabaseIcon,
-  TableIcon,
   TailscaleIcon,
   TavilyIcon,
   TelegramIcon,
@@ -277,6 +278,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   ashby: AshbyIcon,
   athena: AthenaIcon,
   attio: AttioIcon,
+  azure_data_explorer: AzureDataExplorerIcon,
   azure_devops: AzureIcon,
   box: BoxCompanyIcon,
   brandfetch: BrandfetchIcon,
@@ -451,6 +453,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   qdrant: QdrantIcon,
   quartr: QuartrIcon,
   quiver: QuiverIcon,
+  rabbitmq: RabbitmqIcon,
   railway: RailwayIcon,
   rb2b: RB2BIcon,
   rds: RDSIcon,
@@ -493,7 +496,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   sts: STSIcon,
   stt_v2: STTIcon,
   supabase: SupabaseIcon,
-  table: TableIcon,
+  table: Table,
   tailscale: TailscaleIcon,
   tavily: TavilyIcon,
   telegram: TelegramIcon,

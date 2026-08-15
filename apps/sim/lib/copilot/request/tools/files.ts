@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { FunctionExecute, UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import { CopilotOutputFileOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -84,7 +85,7 @@ export function extractTabularData(output: unknown): Record<string, unknown>[] |
   const obj = output as Record<string, unknown>
 
   // user_table query_rows shape: { data: { rows: [{ data: {...} }], totalCount } }
-  if (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data)) {
+  if (isRecordLike(obj.data)) {
     const data = obj.data as Record<string, unknown>
     if (Array.isArray(data.rows) && data.rows.length > 0) {
       const rows = data.rows as Record<string, unknown>[]
@@ -105,10 +106,6 @@ export function escapeCsvValue(value: unknown): string {
     return `"${str.replace(/"/g, '""')}"`
   }
   return str
-}
-
-export function convertRowsToCsv(rows: Record<string, unknown>[]): string {
-  return convertRowsToCsvWithProvenance(rows).content
 }
 
 export function normalizeOutputWorkspaceFileName(outputPath: string): string {
@@ -356,10 +353,9 @@ export async function maybeWriteOutputToFile(
   }
   const { userId, workspaceId } = context
 
-  const outputObject =
-    result.output && typeof result.output === 'object' && !Array.isArray(result.output)
-      ? (result.output as Record<string, unknown>)
-      : undefined
+  const outputObject = isRecordLike(result.output)
+    ? (result.output as Record<string, unknown>)
+    : undefined
   const resultObject =
     outputObject?.result &&
     typeof outputObject.result === 'object' &&

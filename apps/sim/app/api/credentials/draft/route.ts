@@ -35,7 +35,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     if (credentialId) {
       const access = await getCredentialActorContext(credentialId, userId, { workspaceAccess })
-      if (!access.credential || access.credential.workspaceId !== workspaceId || !access.isAdmin) {
+      if (
+        !access.credential ||
+        access.credential.type === 'managed_oauth' ||
+        access.credential.workspaceId !== workspaceId ||
+        !access.isAdmin
+      ) {
         return NextResponse.json(
           { error: 'Admin access required on the target credential' },
           { status: 403 }

@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import {
   GITHUB_GRAPHQL_MAX_PAGE_SIZE,
   GITHUB_GRAPHQL_URL,
@@ -6,7 +7,6 @@ import {
   readGraphQlData,
 } from '@/tools/github/graphql'
 import {
-  isRecord,
   nullableNumber,
   nullableString,
   requiredBoolean,
@@ -74,7 +74,7 @@ const ROLLUP_QUERY = `
 
 function parseRollupContext(value: unknown, index: number): StatusCheckRollupContext {
   const context = `${CONTEXT}.contexts[${index}]`
-  if (!isRecord(value)) throw new Error(`${context} must be an object`)
+  if (!isRecordLike(value)) throw new Error(`${context} must be an object`)
 
   const typename = requiredString(value, '__typename', context)
   if (typename === 'CheckRun') {
@@ -215,12 +215,12 @@ export const statusCheckRollupTool: ToolConfig<StatusCheckRollupParams, StatusCh
       const data = await readGraphQlData(response, CONTEXT)
 
       const repository = data.repository
-      if (!isRecord(repository)) throw new Error(`${CONTEXT}.repository was not found`)
+      if (!isRecordLike(repository)) throw new Error(`${CONTEXT}.repository was not found`)
 
       // A SHA GitHub does not know is not "no checks" — reporting it as an empty
       // rollup is exactly how a caller would produce a false green.
       const object = repository.object
-      if (!isRecord(object)) {
+      if (!isRecordLike(object)) {
         throw new Error(`Commit ${params?.sha ?? '(unknown)'} was not found in the repository`)
       }
       if (object.__typename !== 'Commit') {
@@ -234,11 +234,11 @@ export const statusCheckRollupTool: ToolConfig<StatusCheckRollupParams, StatusCh
           output: { state: null, totalCount: 0, hasNextPage: false, endCursor: null, contexts: [] },
         }
       }
-      if (!isRecord(rollup))
+      if (!isRecordLike(rollup))
         throw new Error(`${CONTEXT}.statusCheckRollup must be an object or null`)
 
       const contexts = rollup.contexts
-      if (!isRecord(contexts)) throw new Error(`${CONTEXT}.contexts must be an object`)
+      if (!isRecordLike(contexts)) throw new Error(`${CONTEXT}.contexts must be an object`)
       const nodes = contexts.nodes
       if (!Array.isArray(nodes)) throw new Error(`${CONTEXT}.contexts.nodes must be an array`)
 

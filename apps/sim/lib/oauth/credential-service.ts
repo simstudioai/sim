@@ -114,6 +114,17 @@ export async function resolveOAuthAccountId(
       }
     }
 
+    if (credentialRow.type === 'managed_oauth') {
+      return {
+        accountId: '',
+        credentialId: credentialRow.id,
+        credentialType: 'managed_oauth',
+        workspaceId: credentialRow.workspaceId,
+        providerId: credentialRow.providerId ?? undefined,
+        usedCredentialTable: true,
+      }
+    }
+
     if (credentialRow.type !== 'oauth' || !credentialRow.accountId) {
       return null
     }
