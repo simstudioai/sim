@@ -36,7 +36,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         ],
         create_dns_record: [
           { text: 'Add DNS record', field: 'name', core: true },
-          { text: 'of type', field: 'type' },
+          { text: 'of type', field: 'recordType' },
           { text: ', pointing at', field: 'content' },
         ],
         update_dns_record: [
@@ -50,7 +50,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         ],
         list_certificates: [
           { text: 'List certificate packs for zone', field: 'zoneId', core: true },
-          { text: ', with status', field: 'status' },
+          { text: ', with status', field: 'certificateStatus' },
         ],
         get_zone_settings: [{ text: 'Read all settings of zone', field: 'zoneId', core: true }],
         update_zone_setting: [
@@ -543,7 +543,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       condition: { field: 'operation', value: 'create_dns_record' },
     },
     {
-      id: 'type',
+      id: 'recordType',
       title: 'Record Type',
       type: 'dropdown',
       options: [
@@ -583,7 +583,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'proxied',
+      id: 'recordProxied',
       title: 'Proxied',
       type: 'dropdown',
       options: [
@@ -744,7 +744,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       condition: { field: 'operation', value: 'list_certificates' },
     },
     {
-      id: 'status',
+      id: 'certificateStatus',
       title: 'Status Filter',
       type: 'dropdown',
       options: [
@@ -1228,7 +1228,7 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       },
     },
     {
-      id: 'action',
+      id: 'rateLimitAction',
       title: 'Action',
       type: 'dropdown',
       options: [
@@ -1529,7 +1529,7 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
       },
     },
     {
-      id: 'type',
+      id: 'appType',
       title: 'Application Type',
       type: 'dropdown',
       options: [
@@ -2241,7 +2241,36 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     config: {
       tool: (params) => `cloudflare_${params.operation}`,
       params: (params) => {
-        const result = { ...params }
+        const { recordType, recordProxied, certificateStatus, appType, rateLimitAction, ...rest } =
+          params
+        const result: Record<string, unknown> = rest
+
+        /**
+         * SubBlock defaults are seeded into block state keyed by subBlock id, so
+         * two controls sharing an id leave one stored value and the last
+         * definition silently wins. Controls that map to the same tool param but
+         * need their own default therefore get their own id, and are routed back
+         * here — before any coercion below reads them.
+         */
+        if (result.operation === 'create_dns_record') {
+          result.type = recordType
+          result.proxied = recordProxied
+        }
+        if (result.operation === 'list_certificates') {
+          result.status = certificateStatus
+        }
+        if (
+          result.operation === 'create_access_application' ||
+          result.operation === 'update_access_application'
+        ) {
+          result.type = appType
+        }
+        if (
+          result.operation === 'create_rate_limit_rule' ||
+          result.operation === 'update_rate_limit_rule'
+        ) {
+          result.action = rateLimitAction
+        }
 
         if (result.ttl) result.ttl = Number(result.ttl)
         if (result.priority) result.priority = Number(result.priority)
@@ -2334,6 +2363,17 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     recordId: { type: 'string', description: 'DNS record ID' },
     name: { type: 'string', description: 'Domain or record name' },
     type: { type: 'string', description: 'DNS record type' },
+    recordType: { type: 'string', description: 'DNS record type for record creation' },
+    recordProxied: {
+      type: 'string',
+      description: 'Whether the created DNS record is proxied through Cloudflare',
+    },
+    certificateStatus: { type: 'string', description: 'Certificate pack status filter' },
+    appType: { type: 'string', description: 'Access application type' },
+    rateLimitAction: {
+      type: 'string',
+      description: 'Action applied once a rate limit is exceeded',
+    },
     content: { type: 'string', description: 'DNS record content' },
     ttl: { type: 'number', description: 'Time to live in seconds' },
     proxied: { type: 'boolean', description: 'Whether Cloudflare proxy is enabled' },
