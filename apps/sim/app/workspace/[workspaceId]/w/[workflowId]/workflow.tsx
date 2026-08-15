@@ -896,13 +896,19 @@ const WorkflowContent = React.memo(
         if (extent) blockData.extent = extent
 
         const operationGate = resolveOperationGate(getBlock(type))
-        const seedGate = operationGate
-          ? (subBlockId: string, value: string) => {
-              if (subBlockId === OPERATION_SUBBLOCK_ID) return operationGate(value)
-              if (subBlockId === MODEL_SUBBLOCK_ID) return isModelUsable(value)
-              return true
-            }
-          : undefined
+
+        /**
+         * Creation is one-shot, so an unknown permission config cannot be
+         * answered by waiting the way the editor's pickers do — a value written
+         * here is never revisited. The restricted fields therefore seed empty
+         * until the config resolves, and the pickers fill them the moment it
+         * does. Seeding the declared default instead would persist it unchecked.
+         */
+        const seedGate = (subBlockId: string, value: string) => {
+          if (subBlockId !== OPERATION_SUBBLOCK_ID && subBlockId !== MODEL_SUBBLOCK_ID) return true
+          if (!operationGate) return false
+          return subBlockId === OPERATION_SUBBLOCK_ID ? operationGate(value) : isModelUsable(value)
+        }
 
         const block = prepareBlockState({
           id,
@@ -934,8 +940,9 @@ const WorkflowContent = React.memo(
           /* Search and the connection picker already drop denied operations, so
              this only catches one arriving by another route — a recent pick that
              outlived a permission change. Dropping the key rather than the whole
-             preset leaves the permission-corrected default from
-             `prepareBlockState` in place. */
+             preset leaves whatever `prepareBlockState` seeded in place. Unlike a
+             declared default, a preset is the user's explicit pick, so an
+             unknown config honours it and leaves the server to gate the run. */
           const presetOperation = presetSubBlockValues[OPERATION_SUBBLOCK_ID]
           const presetOperationDenied =
             operationGate && typeof presetOperation === 'string' && !operationGate(presetOperation)

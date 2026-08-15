@@ -1126,6 +1126,18 @@ describe('prepareBlockState — permission-group seed veto', () => {
     expect(values.operation).toBe('send')
   })
 
+  it('seeds nothing restricted when the gate answers no for an unknown config', () => {
+    /* Creation is one-shot: the caller vetoes both restricted fields while the
+       permission config is loading, since a value written here is never
+       revisited. Unrestricted fields still seed. */
+    const values = seededValues(
+      (subBlockId) => subBlockId !== 'operation' && subBlockId !== 'model'
+    )
+    expect(values.operation).toBeNull()
+    expect(values.model).toBeNull()
+    expect(values.channel).toBe('#general')
+  })
+
   it('passes the seeded value to the gate, not just the field id', () => {
     const seen: Array<[string, string]> = []
     seededValues((subBlockId, value) => {
