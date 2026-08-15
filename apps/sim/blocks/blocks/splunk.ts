@@ -3,6 +3,19 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { SplunkResponse } from '@/tools/splunk/types'
 
+/**
+ * Normalize a Splunk toggle. A dropdown supplies the strings `'true'`/`'false'`,
+ * while a workflow variable, an agent tool call, or a block created over the API
+ * supplies a real boolean — so both forms must survive. An untouched subBlock
+ * resolves to `null`, which stays `undefined` here so the field is omitted from
+ * the request and Splunk applies its own documented default.
+ */
+function toSplunkToggle(value: unknown): boolean | undefined {
+  if (value == null || value === '') return undefined
+  if (typeof value === 'boolean') return value
+  return value !== 'false' && value !== '0'
+}
+
 export const SplunkBlock: BlockConfig<SplunkResponse> = {
   type: 'splunk',
   name: 'Splunk',
@@ -461,8 +474,8 @@ Examples:
           case 'splunk_create_search_job':
             if (params.autoCancel) result.autoCancel = Number(params.autoCancel)
             if (params.maxCount) result.maxCount = Number(params.maxCount)
-            result.enableLookups = params.enableLookups !== 'false'
-            result.allowPartialResults = params.allowPartialResults !== 'false'
+            result.enableLookups = toSplunkToggle(params.enableLookups)
+            result.allowPartialResults = toSplunkToggle(params.allowPartialResults)
             break
           case 'splunk_list_saved_searches':
             result.search = params.savedSearchFilter ?? ''
