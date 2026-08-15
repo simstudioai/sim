@@ -75,7 +75,7 @@ export const MSSQLBlock: BlockConfig<MSSQLResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/mssql',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  bgColor: '#A4373A',
+  bgColor: '#FFFFFF',
   icon: MicrosoftSqlIcon,
   canvasPresentation: {
     defaultTitle: 'Microsoft SQL Server',
