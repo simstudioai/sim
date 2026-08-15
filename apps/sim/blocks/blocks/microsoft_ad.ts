@@ -4,12 +4,60 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { MicrosoftAdResponse } from '@/tools/microsoft_ad/types'
 
+/** Operations that act on a single user and therefore require the User ID field. */
+const USER_ID_OPERATIONS = [
+  'get_user',
+  'update_user',
+  'delete_user',
+  'assign_license',
+  'list_user_licenses',
+  'revoke_sign_in_sessions',
+  'set_password',
+  'reset_password',
+  'list_authentication_methods',
+  'list_user_app_role_assignments',
+  'add_user_app_role_assignment',
+  'remove_user_app_role_assignment',
+  'list_user_devices',
+]
+
+/** Collection operations that accept a page size and an @odata.nextLink continuation URL. */
+const PAGED_OPERATIONS = [
+  'list_users',
+  'list_groups',
+  'list_group_members',
+  'list_sign_ins',
+  'list_directory_audits',
+  'list_user_app_role_assignments',
+  'list_service_principals',
+  'list_devices',
+  'list_user_devices',
+  'list_conditional_access_policies',
+]
+
+/**
+ * Operations that return an `@odata.nextLink` continuation URL. This is a superset of
+ * `PAGED_OPERATIONS`: `appRoleAssignedTo` pages through `@odata.nextLink` but the tool does not
+ * expose a `$top` page size.
+ */
+const NEXT_LINK_OPERATIONS = [...PAGED_OPERATIONS, 'list_service_principal_app_role_assignments']
+
+/** Operations that act on a single device object. */
+const DEVICE_ID_OPERATIONS = ['get_device']
+
+/** Operations that act on a single directory role. */
+const DIRECTORY_ROLE_OPERATIONS = [
+  'list_directory_role_members',
+  'add_directory_role_member',
+  'remove_directory_role_member',
+]
+
 export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
   type: 'microsoft_ad',
   name: 'Azure AD',
-  description: 'Manage users and groups in Azure AD (Microsoft Entra ID)',
+  description: 'Manage identities, licenses, roles, and access in Azure AD (Microsoft Entra ID)',
   longDescription:
-    'Integrate Azure Active Directory into your workflows. List, create, update, and delete users and groups. Manage group memberships programmatically.',
+    'Integrate Azure Active Directory into your workflows. Create, update, and delete users and groups, manage group memberships, assign and remove licenses, reset passwords, revoke sign-in sessions, read sign-in and directory audit logs, grant and revoke app and directory roles, and read registered devices and conditional access policies. Device writes are not supported.',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_ad',
   category: 'tools',
   integrationType: IntegrationType.Security,
@@ -58,6 +106,63 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
           { text: 'Remove member', field: 'memberId', core: true },
           { text: 'from group', field: 'groupId', core: true },
         ],
+        assign_license: [
+          { text: 'Change licenses for', field: 'userId', core: true },
+          { text: ', adding', field: 'addSkuIds' },
+          { text: ', removing', field: 'removeSkuIds' },
+        ],
+        list_user_licenses: [{ text: 'List licenses for user', field: 'userId', core: true }],
+        list_subscribed_skus: ['List tenant subscription SKUs'],
+        revoke_sign_in_sessions: [
+          { text: 'Revoke sign-in sessions for', field: 'userId', core: true },
+        ],
+        set_password: [{ text: 'Set the password for user', field: 'userId', core: true }],
+        reset_password: [{ text: 'Reset the password for user', field: 'userId', core: true }],
+        list_authentication_methods: [
+          { text: 'List authentication methods for user', field: 'userId', core: true },
+        ],
+        list_sign_ins: ['List sign-ins', { text: ', where', field: 'signInFilter' }],
+        list_directory_audits: ['List directory audits', { text: ', where', field: 'auditFilter' }],
+        list_user_app_role_assignments: [
+          { text: 'List app role assignments for user', field: 'userId', core: true },
+        ],
+        add_user_app_role_assignment: [
+          { text: 'Grant app role', field: 'appRoleId', core: true },
+          { text: 'to user', field: 'userId', core: true },
+        ],
+        remove_user_app_role_assignment: [
+          { text: 'Revoke app role assignment', field: 'appRoleAssignmentId', core: true },
+          { text: 'from user', field: 'userId', core: true },
+        ],
+        list_service_principals: [
+          'List service principals',
+          { text: ', matching', field: 'servicePrincipalSearch' },
+        ],
+        list_service_principal_app_role_assignments: [
+          { text: 'List assignments for application', field: 'servicePrincipalId', core: true },
+        ],
+        list_directory_roles: ['List directory roles'],
+        list_directory_role_members: [
+          { text: 'List members of directory role', field: 'directoryRoleId', core: true },
+        ],
+        add_directory_role_member: [
+          { text: 'Grant directory role', field: 'directoryRoleId', core: true },
+          { text: 'to', field: 'memberId', core: true },
+        ],
+        remove_directory_role_member: [
+          { text: 'Revoke directory role', field: 'directoryRoleId', core: true },
+          { text: 'from', field: 'memberId', core: true },
+        ],
+        list_devices: ['List devices', { text: ', matching', field: 'deviceSearch' }],
+        get_device: [{ text: 'Fetch device', field: 'deviceObjectId', core: true }],
+        list_user_devices: [
+          { text: 'List devices for user', field: 'userId', core: true },
+          { text: ', linked as', field: 'deviceRelationship' },
+        ],
+        list_conditional_access_policies: ['List conditional access policies'],
+        get_conditional_access_policy: [
+          { text: 'Fetch conditional access policy', field: 'policyId', core: true },
+        ],
       },
     },
   },
@@ -81,6 +186,35 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
         { label: 'List Group Members', id: 'list_group_members' },
         { label: 'Add Group Member', id: 'add_group_member' },
         { label: 'Remove Group Member', id: 'remove_group_member' },
+        { label: 'Assign License', id: 'assign_license' },
+        { label: 'List User Licenses', id: 'list_user_licenses' },
+        { label: 'List Subscribed SKUs', id: 'list_subscribed_skus' },
+        { label: 'Revoke Sign-In Sessions', id: 'revoke_sign_in_sessions' },
+        { label: 'Set Password', id: 'set_password' },
+        { label: 'Reset Password', id: 'reset_password' },
+        { label: 'List Authentication Methods', id: 'list_authentication_methods' },
+        { label: 'List Sign-Ins', id: 'list_sign_ins' },
+        { label: 'List Directory Audits', id: 'list_directory_audits' },
+        { label: 'List User App Role Assignments', id: 'list_user_app_role_assignments' },
+        { label: 'Grant App Role To User', id: 'add_user_app_role_assignment' },
+        { label: 'Revoke App Role From User', id: 'remove_user_app_role_assignment' },
+        { label: 'List Service Principals', id: 'list_service_principals' },
+        {
+          label: 'List Application Assignments',
+          id: 'list_service_principal_app_role_assignments',
+        },
+        { label: 'List Directory Roles', id: 'list_directory_roles' },
+        { label: 'List Directory Role Members', id: 'list_directory_role_members' },
+        { label: 'Add Directory Role Member', id: 'add_directory_role_member' },
+        { label: 'Remove Directory Role Member', id: 'remove_directory_role_member' },
+        { label: 'List Devices', id: 'list_devices' },
+        { label: 'Get Device', id: 'get_device' },
+        { label: 'List User Devices', id: 'list_user_devices' },
+        {
+          label: 'List Conditional Access Policies',
+          id: 'list_conditional_access_policies',
+        },
+        { label: 'Get Conditional Access Policy', id: 'get_conditional_access_policy' },
       ],
       value: () => 'list_users',
     },
@@ -98,8 +232,8 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       title: 'User ID',
       type: 'short-input',
       placeholder: 'User ID or user principal name (e.g., user@example.com)',
-      condition: { field: 'operation', value: ['get_user', 'update_user', 'delete_user'] },
-      required: { field: 'operation', value: ['get_user', 'update_user', 'delete_user'] },
+      condition: { field: 'operation', value: USER_ID_OPERATIONS },
+      required: { field: 'operation', value: USER_ID_OPERATIONS },
     },
     // Create user fields
     {
@@ -131,8 +265,8 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       title: 'Password',
       type: 'short-input',
       placeholder: 'Initial password',
-      condition: { field: 'operation', value: 'create_user' },
-      required: { field: 'operation', value: 'create_user' },
+      condition: { field: 'operation', value: ['create_user', 'set_password'] },
+      required: { field: 'operation', value: ['create_user', 'set_password'] },
       password: true,
     },
     {
@@ -213,10 +347,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       title: 'Max Results',
       type: 'short-input',
       placeholder: 'e.g., 100 (max 999)',
-      condition: {
-        field: 'operation',
-        value: ['list_users', 'list_groups', 'list_group_members'],
-      },
+      condition: { field: 'operation', value: PAGED_OPERATIONS },
       mode: 'advanced',
     },
     {
@@ -240,10 +371,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       title: 'Next Page',
       type: 'short-input',
       placeholder: "Paste the previous response's nextLink to fetch the next page",
-      condition: {
-        field: 'operation',
-        value: ['list_users', 'list_groups', 'list_group_members'],
-      },
+      condition: { field: 'operation', value: NEXT_LINK_OPERATIONS },
       mode: 'advanced',
     },
     // Group ID field
@@ -364,8 +492,224 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       title: 'Member ID',
       type: 'short-input',
       placeholder: 'User ID to add or remove',
-      condition: { field: 'operation', value: ['add_group_member', 'remove_group_member'] },
-      required: { field: 'operation', value: ['add_group_member', 'remove_group_member'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'add_group_member',
+          'remove_group_member',
+          'add_directory_role_member',
+          'remove_directory_role_member',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'add_group_member',
+          'remove_group_member',
+          'add_directory_role_member',
+          'remove_directory_role_member',
+        ],
+      },
+    },
+    {
+      id: 'addSkuIds',
+      title: 'Licenses To Add',
+      type: 'short-input',
+      placeholder: 'Comma-separated SKU IDs (GUIDs)',
+      condition: { field: 'operation', value: 'assign_license' },
+    },
+    {
+      id: 'removeSkuIds',
+      title: 'Licenses To Remove',
+      type: 'short-input',
+      placeholder: 'Comma-separated SKU IDs (GUIDs)',
+      condition: { field: 'operation', value: 'assign_license' },
+    },
+    {
+      id: 'disabledPlanIds',
+      title: 'Disabled Service Plans',
+      type: 'short-input',
+      placeholder: 'Comma-separated service plan IDs to disable on the added licenses',
+      condition: { field: 'operation', value: 'assign_license' },
+      mode: 'advanced',
+    },
+    {
+      id: 'forceChangePasswordNextSignIn',
+      title: 'Force Password Change At Next Sign-In',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
+      condition: { field: 'operation', value: 'set_password' },
+    },
+    {
+      id: 'forceChangePasswordNextSignInWithMfa',
+      title: 'Require MFA Before Password Change',
+      type: 'dropdown',
+      options: [
+        { label: 'No Change', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'set_password' },
+      mode: 'advanced',
+    },
+    {
+      id: 'newPassword',
+      title: 'New Password',
+      type: 'short-input',
+      placeholder: 'Leave empty to have Microsoft generate and return one',
+      condition: { field: 'operation', value: 'reset_password' },
+      password: true,
+    },
+    {
+      id: 'signInFilter',
+      title: 'Filter',
+      type: 'short-input',
+      placeholder: 'e.g., createdDateTime ge 2024-01-01T00:00:00Z and status/errorCode ne 0',
+      condition: { field: 'operation', value: 'list_sign_ins' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Microsoft Graph OData $filter expression for the auditLogs/signIns endpoint. Filterable fields include userPrincipalName, userId, appId, appDisplayName, ipAddress, createdDateTime, conditionalAccessStatus, riskState and status/errorCode. Return ONLY the filter expression.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'auditFilter',
+      title: 'Filter',
+      type: 'short-input',
+      placeholder: 'e.g., activityDateTime ge 2024-01-01T00:00:00Z',
+      condition: { field: 'operation', value: 'list_directory_audits' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Microsoft Graph OData $filter expression for the auditLogs/directoryAudits endpoint. Filterable fields include activityDateTime, activityDisplayName, correlationId, loggedByService, initiatedBy and targetResources. Return ONLY the filter expression.',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'appRoleFilter',
+      title: 'Filter',
+      type: 'short-input',
+      placeholder: "e.g., resourceId eq '8e881353-1735-45af-af21-ee1344582a4d'",
+      condition: {
+        field: 'operation',
+        value: ['list_user_app_role_assignments', 'list_service_principal_app_role_assignments'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'resourceId',
+      title: 'Service Principal ID',
+      type: 'short-input',
+      placeholder: 'Object ID of the service principal that defines the app role',
+      condition: { field: 'operation', value: 'add_user_app_role_assignment' },
+      required: { field: 'operation', value: 'add_user_app_role_assignment' },
+    },
+    {
+      id: 'appRoleId',
+      title: 'App Role ID',
+      type: 'short-input',
+      placeholder: 'App role GUID, or 00000000-0000-0000-0000-000000000000 for no specific role',
+      condition: { field: 'operation', value: 'add_user_app_role_assignment' },
+      required: { field: 'operation', value: 'add_user_app_role_assignment' },
+    },
+    {
+      id: 'appRoleAssignmentId',
+      title: 'App Role Assignment ID',
+      type: 'short-input',
+      placeholder: 'ID of the assignment to revoke',
+      condition: { field: 'operation', value: 'remove_user_app_role_assignment' },
+      required: { field: 'operation', value: 'remove_user_app_role_assignment' },
+    },
+    {
+      id: 'servicePrincipalId',
+      title: 'Service Principal ID',
+      type: 'short-input',
+      placeholder: 'Object ID of the service principal',
+      condition: {
+        field: 'operation',
+        value: 'list_service_principal_app_role_assignments',
+      },
+    },
+    {
+      id: 'servicePrincipalSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search by application name',
+      condition: { field: 'operation', value: 'list_service_principals' },
+      mode: 'advanced',
+    },
+    {
+      id: 'servicePrincipalFilter',
+      title: 'Filter',
+      type: 'short-input',
+      placeholder: "e.g., servicePrincipalType eq 'Application'",
+      condition: { field: 'operation', value: 'list_service_principals' },
+      mode: 'advanced',
+    },
+    {
+      id: 'directoryRoleId',
+      title: 'Directory Role ID',
+      type: 'short-input',
+      placeholder: 'Object ID of the directory role',
+      condition: { field: 'operation', value: DIRECTORY_ROLE_OPERATIONS },
+      required: { field: 'operation', value: DIRECTORY_ROLE_OPERATIONS },
+    },
+    {
+      id: 'deviceObjectId',
+      title: 'Device Object ID',
+      type: 'short-input',
+      placeholder: 'Device object ID (not the deviceId registration identifier)',
+      condition: { field: 'operation', value: DEVICE_ID_OPERATIONS },
+      required: { field: 'operation', value: DEVICE_ID_OPERATIONS },
+    },
+    {
+      id: 'deviceSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search by device name',
+      condition: { field: 'operation', value: 'list_devices' },
+      mode: 'advanced',
+    },
+    {
+      id: 'deviceFilter',
+      title: 'Filter',
+      type: 'short-input',
+      placeholder: 'e.g., accountEnabled eq false',
+      condition: { field: 'operation', value: 'list_devices' },
+      mode: 'advanced',
+    },
+    {
+      id: 'deviceRelationship',
+      title: 'Device Link',
+      type: 'dropdown',
+      options: [
+        { label: 'Registered By User', id: 'registered' },
+        { label: 'Owned By User', id: 'owned' },
+      ],
+      value: () => 'registered',
+      condition: { field: 'operation', value: 'list_user_devices' },
+    },
+    {
+      id: 'policyId',
+      title: 'Policy ID',
+      type: 'short-input',
+      placeholder: 'Conditional access policy ID',
+      condition: { field: 'operation', value: 'get_conditional_access_policy' },
+      required: { field: 'operation', value: 'get_conditional_access_policy' },
+    },
+    {
+      id: 'policyFilter',
+      title: 'Filter',
+      type: 'short-input',
+      placeholder: "e.g., state eq 'enabled'",
+      condition: { field: 'operation', value: 'list_conditional_access_policies' },
+      mode: 'advanced',
     },
   ],
   tools: {
@@ -383,6 +727,29 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       'microsoft_ad_list_group_members',
       'microsoft_ad_add_group_member',
       'microsoft_ad_remove_group_member',
+      'microsoft_ad_assign_license',
+      'microsoft_ad_list_user_licenses',
+      'microsoft_ad_list_subscribed_skus',
+      'microsoft_ad_revoke_sign_in_sessions',
+      'microsoft_ad_set_password',
+      'microsoft_ad_reset_password',
+      'microsoft_ad_list_authentication_methods',
+      'microsoft_ad_list_sign_ins',
+      'microsoft_ad_list_directory_audits',
+      'microsoft_ad_list_user_app_role_assignments',
+      'microsoft_ad_add_user_app_role_assignment',
+      'microsoft_ad_remove_user_app_role_assignment',
+      'microsoft_ad_list_service_principals',
+      'microsoft_ad_list_service_principal_app_role_assignments',
+      'microsoft_ad_list_directory_roles',
+      'microsoft_ad_list_directory_role_members',
+      'microsoft_ad_add_directory_role_member',
+      'microsoft_ad_remove_directory_role_member',
+      'microsoft_ad_list_devices',
+      'microsoft_ad_get_device',
+      'microsoft_ad_list_user_devices',
+      'microsoft_ad_list_conditional_access_policies',
+      'microsoft_ad_get_conditional_access_policy',
     ],
     config: {
       tool: (params) => `microsoft_ad_${params.operation}`,
@@ -392,6 +759,20 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
         if (params.filter) result.filter = params.filter
         if (params.search) result.search = params.search
         if (params.nextLink) result.nextLink = params.nextLink
+        if (params.signInFilter) result.filter = params.signInFilter
+        if (params.auditFilter) result.filter = params.auditFilter
+        if (params.appRoleFilter) result.filter = params.appRoleFilter
+        if (params.servicePrincipalFilter) result.filter = params.servicePrincipalFilter
+        if (params.servicePrincipalSearch) result.search = params.servicePrincipalSearch
+        if (params.deviceFilter) result.filter = params.deviceFilter
+        if (params.deviceSearch) result.search = params.deviceSearch
+        if (params.policyFilter) result.filter = params.policyFilter
+        if (params.operation === 'set_password') {
+          result.forceChangePasswordNextSignIn = params.forceChangePasswordNextSignIn !== 'false'
+          if (params.forceChangePasswordNextSignInWithMfa)
+            result.forceChangePasswordNextSignInWithMfa =
+              params.forceChangePasswordNextSignInWithMfa === 'true'
+        }
         if (params.operation === 'update_user') {
           if (params.accountEnabled) result.accountEnabled = params.accountEnabled === 'true'
         } else if (params.operation === 'create_user') {
@@ -444,12 +825,34 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
     visibility: { type: 'string' },
     visibilityCreate: { type: 'string' },
     memberId: { type: 'string' },
+    addSkuIds: { type: 'string' },
+    removeSkuIds: { type: 'string' },
+    disabledPlanIds: { type: 'string' },
+    forceChangePasswordNextSignIn: { type: 'string' },
+    forceChangePasswordNextSignInWithMfa: { type: 'string' },
+    newPassword: { type: 'string' },
+    signInFilter: { type: 'string' },
+    auditFilter: { type: 'string' },
+    appRoleFilter: { type: 'string' },
+    resourceId: { type: 'string' },
+    appRoleId: { type: 'string' },
+    appRoleAssignmentId: { type: 'string' },
+    servicePrincipalId: { type: 'string' },
+    servicePrincipalSearch: { type: 'string' },
+    servicePrincipalFilter: { type: 'string' },
+    directoryRoleId: { type: 'string' },
+    deviceObjectId: { type: 'string' },
+    deviceSearch: { type: 'string' },
+    deviceFilter: { type: 'string' },
+    deviceRelationship: { type: 'string' },
+    policyId: { type: 'string' },
+    policyFilter: { type: 'string' },
   },
   outputs: {
     response: {
       type: 'json',
       description:
-        'Azure AD operation response. User operations return id, displayName, userPrincipalName, mail, jobTitle, department. Group operations return id, displayName, description, mailEnabled, securityEnabled, groupTypes. Member operations return id, displayName, mail, odataType. List operations also return nextLink for fetching additional pages.',
+        'Microsoft Entra ID operation response. User operations return id, displayName, userPrincipalName, mail, jobTitle, department. Group operations return id, displayName, description, mailEnabled, securityEnabled, groupTypes. Member operations return id, displayName, mail, odataType. Licensing operations return skuId, skuPartNumber, consumedUnits, prepaidUnits, and servicePlans. Sign-in and audit operations return the event id, timestamp, actor, target, and result. App role and directory role operations return assignment and role ids with their principals. Device operations return id, deviceId, displayName, operatingSystem, accountEnabled, isCompliant, isManaged, and trustType. Conditional access operations return id, displayName, state, conditions, grantControls, and sessionControls. List operations also return nextLink for fetching additional pages.',
     },
   },
 }

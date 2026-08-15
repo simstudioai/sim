@@ -2169,8 +2169,8 @@
       "type": "microsoft_ad",
       "slug": "azure-ad",
       "name": "Azure AD",
-      "description": "Manage users and groups in Azure AD (Microsoft Entra ID)",
-      "longDescription": "Integrate Azure Active Directory into your workflows. List, create, update, and delete users and groups. Manage group memberships programmatically.",
+      "description": "Manage identities, licenses, roles, and access in Azure AD (Microsoft Entra ID)",
+      "longDescription": "Integrate Azure Active Directory into your workflows. Create, update, and delete users and groups, manage group memberships, assign and remove licenses, reset passwords, revoke sign-in sessions, read sign-in and directory audit logs, grant and revoke app and directory roles, and read registered devices and conditional access policies. Device writes are not supported.",
       "bgColor": "#0078D4",
       "iconName": "AzureIcon",
       "docsUrl": "https://docs.sim.ai/integrations/microsoft_ad",
@@ -2226,9 +2226,101 @@
         {
           "name": "Remove Group Member",
           "description": "Remove a member from a group in Azure AD (Microsoft Entra ID)"
+        },
+        {
+          "name": "Assign License",
+          "description": "Add or remove subscription licenses (SKUs) on a user in Microsoft Entra ID. Removing a license immediately revokes the access it granted to the associated services."
+        },
+        {
+          "name": "List User Licenses",
+          "description": "List the subscription licenses assigned to a user in Microsoft Entra ID"
+        },
+        {
+          "name": "List Subscribed SKUs",
+          "description": "List the subscription SKUs the tenant owns, including how many license units are prepaid and how many are consumed"
+        },
+        {
+          "name": "Revoke Sign-In Sessions",
+          "description": "Invalidate every refresh token and session cookie issued to a user, forcing them to sign in again on all applications and devices. Revocation can take a few minutes to take effect and does not apply to external users."
+        },
+        {
+          "name": "Set Password",
+          "description": "Set a specific password on a user by updating their password profile. Cannot be used for federated users. Requires an administrator role in Microsoft Entra ID."
+        },
+        {
+          "name": "Reset Password",
+          "description": "Reset another user's password through their password authentication method. Leave the new password empty to have Microsoft generate one and return it. The user is prompted to change the password at their next sign-in. Cannot be run against your own account."
+        },
+        {
+          "name": "List Authentication Methods",
+          "description": "List the authentication methods a user has registered, such as passwords, phone numbers, FIDO2 keys, and authenticator apps"
+        },
+        {
+          "name": "List Sign-Ins",
+          "description": "List sign-in events from the Microsoft Entra ID sign-in logs, newest first. Requires a Microsoft Entra ID P1 or P2 license. Apply a date filter to keep large queries from timing out."
+        },
+        {
+          "name": "List Directory Audits",
+          "description": "List directory audit records showing who changed what in Microsoft Entra ID, such as user creation, group membership changes, and role assignments"
+        },
+        {
+          "name": "List User App Role Assignments",
+          "description": "List the application role assignments granted to a user, including assignments the user inherits from groups they are a direct member of"
+        },
+        {
+          "name": "Grant App Role To User",
+          "description": "Grant a user an application role on a service principal, giving them access to that application"
+        },
+        {
+          "name": "Revoke App Role From User",
+          "description": "Revoke an application role assignment from a user, removing their access to that application. Takes the assignment's own ID, not the app role ID."
+        },
+        {
+          "name": "List Service Principals",
+          "description": "List the enterprise applications and service principals in the tenant, including the app roles each one exposes"
+        },
+        {
+          "name": "List Application Assignments",
+          "description": "List every user, group, and service principal assigned to an application, by reading the app role assignments on its service principal. Recently granted or removed assignments can take time to appear."
+        },
+        {
+          "name": "List Directory Roles",
+          "description": "List the administrator roles that are activated in the tenant, such as Global Administrator and User Administrator. Roles that have never been activated are not returned."
+        },
+        {
+          "name": "List Directory Role Members",
+          "description": "List the principals holding an administrator role. Returns up to 1000 members; this endpoint does not support paging."
+        },
+        {
+          "name": "Add Directory Role Member",
+          "description": "Grant a user an administrator role in Microsoft Entra ID. This is a privileged change that expands what the user can do across the tenant."
+        },
+        {
+          "name": "Remove Directory Role Member",
+          "description": "Revoke an administrator role from a user in Microsoft Entra ID. Removes only the role membership; the user account itself is not deleted."
+        },
+        {
+          "name": "List Devices",
+          "description": "List the devices registered in Microsoft Entra ID"
+        },
+        {
+          "name": "Get Device",
+          "description": "Get a registered device by its object ID from Microsoft Entra ID"
+        },
+        {
+          "name": "List User Devices",
+          "description": "List the devices a user has registered or owns. Devices the caller cannot read are returned with only their ID and the remaining fields null."
+        },
+        {
+          "name": "List Conditional Access Policies",
+          "description": "List the conditional access policies configured in the tenant, including their state and the conditions and controls they enforce. Read-only."
+        },
+        {
+          "name": "Get Conditional Access Policy",
+          "description": "Get a single conditional access policy by ID, including the conditions it matches and the controls it enforces. Read-only."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 36,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
