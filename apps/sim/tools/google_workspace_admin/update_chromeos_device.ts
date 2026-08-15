@@ -81,7 +81,7 @@ export const updateChromeOsDeviceTool: ToolConfig<
       const customer = params.customerId || DEFAULT_CUSTOMER
       return `${DIRECTORY_API_BASE}/customer/${encodeURIComponent(customer)}/devices/chromeos/${encodeURIComponent(params.deviceId)}`
     },
-    method: 'PUT',
+    method: 'PATCH',
     headers: adminHeaders,
     body: (params) => {
       const body: Record<string, unknown> = {}

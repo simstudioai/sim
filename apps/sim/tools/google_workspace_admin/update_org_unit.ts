@@ -71,7 +71,7 @@ export const updateOrgUnitTool: ToolConfig<
       const customer = params.customerId || DEFAULT_CUSTOMER
       return `${DIRECTORY_API_BASE}/customer/${encodeURIComponent(customer)}/orgunits/${encodeOrgUnitPath(params.orgUnitPath)}`
     },
-    method: 'PUT',
+    method: 'PATCH',
     headers: adminHeaders,
     body: (params) => {
       const body: Record<string, unknown> = {}
