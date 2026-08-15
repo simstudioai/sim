@@ -13,6 +13,7 @@ import {
   deleteProfile,
   listProfiles,
   readCredentialsProfile,
+  type SettingSource,
   writeConfigProfile,
   writeCredentialsProfile,
 } from '../config/index'
@@ -45,6 +46,25 @@ function openBrowser(url: string): void {
     child.on('error', () => {})
     child.unref()
   } catch {}
+}
+
+function presentAuthentication(source: SettingSource): {
+  authenticated: boolean
+  source: SettingSource
+} {
+  switch (source) {
+    case 'flag':
+      return { authenticated: true, source: 'flag' }
+    case 'env':
+      return { authenticated: true, source: 'env' }
+    case 'credentials':
+      return { authenticated: true, source: 'credentials' }
+    case 'unset':
+      return { authenticated: false, source: 'unset' }
+    case 'config':
+    case 'default':
+      throw new SimApiError(`Unexpected API key source "${source}".`, 0)
+  }
 }
 
 async function confirmProfileOverwrite(profileName: string): Promise<boolean> {
@@ -189,7 +209,7 @@ export function whoamiCommand(): Command {
     .action((_options: unknown, command: Command) => {
       const profile = profileFrom(command)
       const { sources } = profile
-      const authenticated = sources.apiKey !== 'unset'
+      const authentication = presentAuthentication(sources.apiKey)
 
       const annotate = (value: string, source: string) =>
         source === 'unset' ? chalk.dim('not set') : `${value} ${chalk.dim(`(${source})`)}`
@@ -201,7 +221,9 @@ export function whoamiCommand(): Command {
           ['Endpoint', annotate(profile.endpoint, sources.endpoint)],
           [
             'API key',
-            authenticated ? annotate('configured', sources.apiKey) : chalk.yellow('not logged in'),
+            authentication.authenticated
+              ? annotate('configured', authentication.source)
+              : chalk.yellow('not logged in'),
           ],
           ['Workspace', annotate(profile.workspaceId ?? '', sources.workspaceId)],
           ['Output', annotate(profile.output, sources.output)],
@@ -211,8 +233,13 @@ export function whoamiCommand(): Command {
           endpoint: profile.endpoint,
           workspaceId: profile.workspaceId,
           output: profile.output,
-          authenticated,
-          sources,
+          authenticated: authentication.authenticated,
+          sources: {
+            endpoint: sources.endpoint,
+            apiKey: authentication.source,
+            workspaceId: sources.workspaceId,
+            output: sources.output,
+          },
         }
       )
     })
