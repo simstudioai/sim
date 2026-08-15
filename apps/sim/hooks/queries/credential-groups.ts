@@ -104,12 +104,18 @@ export function useUpdateCredentialGroup() {
         params: { id: workspaceId, groupId },
         body,
       }),
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: credentialGroupKeys.list(variables.workspaceId) })
-      queryClient.invalidateQueries({
-        queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
-      })
-    },
+    // Returned so `mutateAsync` resolves only once the refetch has landed. Callers
+    // clear their edit buffer on success, which would otherwise fall back onto the
+    // pre-save cache and flash the old values.
+    onSettled: (_data, _error, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: credentialGroupKeys.list(variables.workspaceId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
+        }),
+      ]),
   })
 }
 
