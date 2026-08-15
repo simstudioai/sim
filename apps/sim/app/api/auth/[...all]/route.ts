@@ -38,6 +38,12 @@ function isBlockedOrganizationMutationPath(path: string): boolean {
  * into their account. `sso/delete-provider` likewise lets an owner drop a login
  * path outside the application's flow.
  *
+ * `trustEmailVerified: false` independently defuses that claim, so these two
+ * guards are layered, not redundant: this one keeps provider configuration
+ * owned by the register route (which alone proves domain ownership) and is what
+ * stops the mapping rewrite from becoming live again if that option is ever
+ * reconsidered.
+ *
  * Deny-by-default rather than a blocklist so a future plugin version cannot
  * introduce another unshadowed provider mutation.
  */
