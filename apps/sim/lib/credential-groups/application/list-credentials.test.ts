@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getWorkspaceOwnerSubscriptionAccess: vi.fn(),
   isCredentialGroupsAvailable: vi.fn(),
+  isCredentialGroupsEnterprisePlanRequired: vi.fn(),
   listCredentials: vi.fn(),
   loadGroup: vi.fn(),
   loadWorkspace: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock('@/lib/billing/core/workspace-access', () => ({
 
 vi.mock('@/lib/credential-groups/availability', () => ({
   isCredentialGroupsAvailable: mocks.isCredentialGroupsAvailable,
+  isCredentialGroupsEnterprisePlanRequired: mocks.isCredentialGroupsEnterprisePlanRequired,
 }))
 
 vi.mock('@/lib/credential-groups/credentials', () => ({
@@ -105,6 +107,7 @@ describe('listCredentialGroupCredentials', () => {
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: true })
     mocks.isCredentialGroupsAvailable.mockResolvedValue(true)
+    mocks.isCredentialGroupsEnterprisePlanRequired.mockReturnValue(false)
     mocks.listCredentials.mockResolvedValue({
       credentials: [
         {
@@ -227,6 +230,20 @@ describe('listCredentialGroupCredentials', () => {
     await expect(
       listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
     ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.listCredentials).not.toHaveBeenCalled()
+  })
+
+  it('identifies the Enterprise requirement for unavailable hosted workspaces', async () => {
+    mocks.getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: false })
+    mocks.isCredentialGroupsAvailable.mockResolvedValue(false)
+    mocks.isCredentialGroupsEnterprisePlanRequired.mockReturnValue(true)
+
+    await expect(
+      listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: 'Credential Groups are not available. Enterprise plan required.',
+    })
     expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 

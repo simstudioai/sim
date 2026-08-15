@@ -2,14 +2,14 @@
 
 import { chipVariants } from '@sim/emcn'
 
-interface OAuthReconnectLinkProps {
+interface OAuthConnectLinkProps {
   href: string
 }
 
-export function OAuthReconnectLink({ href }: OAuthReconnectLinkProps) {
+export function OAuthConnectLink({ href }: OAuthConnectLinkProps) {
   return (
     <a href={href} className={chipVariants()}>
-      Reconnect
+      Connect
     </a>
   )
 }

@@ -1,14 +1,20 @@
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { CredentialGroupApplicationContext } from '@/lib/credential-groups/application/authorization'
-import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
+import {
+  isCredentialGroupsAvailable,
+  isCredentialGroupsEnterprisePlanRequired,
+} from '@/lib/credential-groups/availability'
 import { loadCredentialGroupCredentialListContext } from '@/lib/credential-groups/credentials'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
 export async function requireCredentialGroupsAvailable(workspaceId: string): Promise<void> {
   const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(workspaceId)
   if (!(await isCredentialGroupsAvailable(ownerBilling))) {
-    throw new OrchestrationError('forbidden', 'Credential Groups are not available')
+    const message = isCredentialGroupsEnterprisePlanRequired(ownerBilling)
+      ? 'Credential Groups are not available. Enterprise plan required.'
+      : 'Credential Groups are not available'
+    throw new OrchestrationError('forbidden', message)
   }
 }
 

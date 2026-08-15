@@ -9,7 +9,7 @@ import { getCredentialGroupProviderService } from '@/lib/credential-groups/provi
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
 import { SupportFooter } from '@/app/(auth)/components'
 import { LogoShell } from '@/app/(landing)/components'
-import { OAuthReconnectLink } from '@/app/credential-groups/enroll/[token]/oauth-reconnect-link'
+import { OAuthConnectLink } from '@/app/credential-groups/enroll/[token]/oauth-reconnect-link'
 import { CredentialGroupOAuthToast } from '@/app/credential-groups/enroll/[token]/oauth-toast'
 import {
   RESOURCE_LIST_STACK,
@@ -164,7 +164,7 @@ export default async function CredentialGroupEnrollmentPage({
                   title={option.label}
                   description={connection?.email ?? 'Not connected'}
                   trailing={
-                    <OAuthReconnectLink
+                    <OAuthConnectLink
                       href={`/api/credential-groups/enroll/${token}/oauth/${option.id}`}
                     />
                   }
