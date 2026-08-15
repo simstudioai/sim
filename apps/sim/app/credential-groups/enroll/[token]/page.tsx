@@ -68,7 +68,6 @@ const OAUTH_MESSAGES = {
   permissions_required: 'All requested permissions are required to connect this account.',
   configuration_changed: 'This credential option changed. Reload the page and try again.',
   rate_limited: 'Too many authorization attempts. Wait a few minutes and try again.',
-  incomplete: 'Connect every account before submitting.',
   unavailable: 'Account authorization is temporarily unavailable. Please try again.',
   failed: 'Account authorization did not complete. Please try again.',
 } as const
@@ -125,12 +124,6 @@ export default async function CredentialGroupEnrollmentPage({
     : oauthMessage
       ? { message: oauthMessage, variant: 'error' as const }
       : null
-  const allConnected =
-    activeOptions.length > 0 &&
-    activeOptions.every(
-      (option) => option.connections.length === 1 && option.connections[0]?.status === 'connected'
-    )
-
   return (
     <PageShell>
       {notification && (
@@ -177,11 +170,7 @@ export default async function CredentialGroupEnrollmentPage({
           method='post'
           className='mt-6 flex justify-end'
         >
-          <Chip
-            type='submit'
-            variant='primary'
-            disabled={!allConnected || enrollment.status === 'completed'}
-          >
+          <Chip type='submit' variant='primary' disabled={enrollment.status === 'completed'}>
             {enrollment.status === 'completed' ? 'Submitted' : 'Submit'}
           </Chip>
         </form>

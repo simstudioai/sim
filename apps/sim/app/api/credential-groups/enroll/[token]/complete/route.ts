@@ -39,7 +39,6 @@ export const POST = withRouteHandler(
     if (completed === null) {
       return createCredentialGroupEnrollmentRedirect(token, { oauth: 'unavailable' })
     }
-    if (completed) return createCredentialGroupCompletionRedirect()
-    return createCredentialGroupEnrollmentRedirect(token, { oauth: 'incomplete' })
+    return createCredentialGroupCompletionRedirect()
   }
 )

@@ -229,14 +229,6 @@ describe('completeCredentialGroupEnrollment', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    adapter.getPolicy.mockResolvedValue({
-      provider: 'gmail',
-      providerId: 'google-email',
-      authorizationAppId: 'google:client',
-      requiredScopes: ['scope'],
-      scopeVersion: 1,
-    })
-    adapter.hasRequiredScopes.mockReturnValue(true)
   })
 
   it('returns unavailable when revocation wins before completion acquires the lifecycle lock', async () => {
@@ -261,18 +253,6 @@ describe('completeCredentialGroupEnrollment', () => {
         inviterName: 'Inviter',
       },
     ])
-    queueTableRows(schemaMock.credential, [
-      {
-        optionId: 'option-1',
-        status: 'active',
-        scopeVersion: 1,
-        authorizationAppId: 'google:client',
-        grantedScopes: ['scope'],
-        displayName: 'alex@example.com',
-        metadata: { email: 'alex@example.com' },
-        grantedAt: new Date('2026-08-11T12:05:00.000Z'),
-      },
-    ])
     queueTableRows(schemaMock.credentialGroupEnrollment, [
       {
         status: 'revoked',
@@ -287,10 +267,10 @@ describe('completeCredentialGroupEnrollment', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
-  it('refuses completion when a connection needs reauthorization under the row locks', async () => {
+  it('completes when the recipient skips every optional account', async () => {
     queueTableRows(schemaMock.credentialGroupEnrollment, [
       {
-        enrollment: { ...ENROLLMENT, status: 'in_progress' },
+        enrollment: { ...ENROLLMENT, status: 'invited' },
         groupId: 'group-1',
         groupName: 'Group',
         groupStatus: 'active',
@@ -311,7 +291,7 @@ describe('completeCredentialGroupEnrollment', () => {
     ])
     queueTableRows(schemaMock.credentialGroupEnrollment, [
       {
-        status: 'in_progress',
+        status: 'invited',
         invitationTokenHash: ENROLLMENT.invitationTokenHash,
         invitationExpiresAt: ENROLLMENT.invitationExpiresAt,
       },
@@ -330,20 +310,12 @@ describe('completeCredentialGroupEnrollment', () => {
         ],
       },
     ])
-    queueTableRows(schemaMock.credential, [
-      {
-        optionId: 'option-1',
-        status: 'needs_reauth',
-        scopeVersion: 1,
-        authorizationAppId: 'google:client',
-        grantedScopes: ['scope'],
-        grantedAt: new Date('2026-08-11T12:05:00.000Z'),
-      },
-    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: ENROLLMENT.id }])
 
-    await expect(completeCredentialGroupEnrollment('invitation-token')).resolves.toBe(false)
+    await expect(completeCredentialGroupEnrollment('invitation-token')).resolves.toBe(true)
 
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment)
+    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.credential)
     expect(adapter.getPolicy).not.toHaveBeenCalled()
   })
 })

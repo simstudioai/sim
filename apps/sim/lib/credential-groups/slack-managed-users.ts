@@ -671,7 +671,7 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
       authorizationAppId,
       requiredScopes: [...SLACK_MANAGED_USER_SCOPES],
       scopeVersion,
-      required: existingOption?.required ?? true,
+      required: false,
       status: existingOption?.status ?? ('active' as const),
     }
     const options = existingOption
