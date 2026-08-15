@@ -15,9 +15,6 @@ import type { RowDragDropConfig } from '@/app/workspace/[workspaceId]/components
 /** The foldered-list drag MIME — see {@link writeRowDragPayload} for why each surface owns one. */
 const DRAG_ROW_MIME = 'application/x-sim-foldered-row'
 
-/** Stands in for an absent spring-open callback, so the timer hook needs no null handling. */
-function noop() {}
-
 /** Shared empty set so an idle drag state keeps a stable identity across renders. */
 const EMPTY_ROW_IDS = new Set<string>()
 
@@ -62,7 +59,7 @@ export interface UseFolderRowDragDropOptions {
   /**
    * Opens a folder the drag has rested on, so the user can file into a nested folder without
    * dropping first. Forward `options` to the folder-navigation setter so one drag leaves one
-   * back-stack entry. Omit to disable spring-loading. See {@link useSpringLoadedFolder}.
+   * back-stack entry. Omit to disable spring-loading. See {@link useSpringNavigation}.
    */
   onSpringOpenFolder?: (folderId: string | null, options: SpringOpenOptions) => void
   /**
@@ -343,11 +340,12 @@ export function useFolderRowDragDrop({
           /**
            * Recomputed on every event rather than latched, because a spring-open changes the
            * destination mid-drag: the folder just entered may not accept this drag, and an
-           * early return would leave the outline showing from the previous folder. Setting the
-           * same value repeatedly is free — React bails on an unchanged state write.
+           * early return would leave the body overlay showing from the previous folder. Setting
+           * the same value repeatedly is free — React bails on an unchanged state write.
            */
           const canDrop =
-            sourceRowIds.length > 0 && resolveMoveToFolder(currentFolderId, sourceRowIds) !== null
+            sourceRowIds.length > 0 &&
+            resolveMoveToFolder(currentFolderIdRef.current, sourceRowIds) !== null
           setIsBodyDropActive(canDrop)
           if (!canDrop) return
           e.preventDefault()
@@ -363,20 +361,30 @@ export function useFolderRowDragDrop({
           const sourceRowIds =
             readRowDragPayload(e.dataTransfer, DRAG_ROW_MIME) ?? draggedRowIdsRef.current
           e.stopPropagation()
+          /**
+           * Read from the ref, not the closure. This config is memoized, and during a drag the
+           * only dep that routinely changes is the hovered row — so after a spring-open into an
+           * empty folder, which has no rows to hover, a captured `currentFolderId` would still
+           * name the folder the drag came FROM and file the rows back into it.
+           */
+          const targetFolderId = currentFolderIdRef.current
           const move =
-            sourceRowIds.length > 0 ? resolveMoveToFolder(currentFolderId, sourceRowIds) : null
+            sourceRowIds.length > 0 ? resolveMoveToFolder(targetFolderId, sourceRowIds) : null
           if (move) springNav.markDropHandled()
           endDrag()
-          if (move) optionsRef.current.onMoveRows(move, currentFolderId)
+          if (move) optionsRef.current.onMoveRows(move, targetFolderId)
         },
       },
     }),
     [
       activeDropTargetId,
+      isBodyDropActive,
+      activeBreadcrumbIndex,
       draggedRowIds,
       canEdit,
       editingRowId,
       resolveMove,
+      resolveMoveToFolder,
       springNav,
       endDrag,
       dragGhost,

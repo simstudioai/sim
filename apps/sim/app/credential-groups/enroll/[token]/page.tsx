@@ -68,7 +68,6 @@ const OAUTH_MESSAGES = {
   permissions_required: 'All requested permissions are required to connect this account.',
   configuration_changed: 'This credential option changed. Reload the page and try again.',
   rate_limited: 'Too many authorization attempts. Wait a few minutes and try again.',
-  incomplete: 'Connect every account before submitting.',
   unavailable: 'Account authorization is temporarily unavailable. Please try again.',
   failed: 'Account authorization did not complete. Please try again.',
 } as const
@@ -109,7 +108,6 @@ export default async function CredentialGroupEnrollmentPage({
   const resolvedSearchParams = await searchParams
   const oauthStatus = getSearchParam(resolvedSearchParams, 'oauth')
   const connectedOptionId = getSearchParam(resolvedSearchParams, 'connected')
-  const submitted = getSearchParam(resolvedSearchParams, 'submitted')
   const oauthMessage =
     oauthStatus && oauthStatus in OAUTH_MESSAGES
       ? OAUTH_MESSAGES[oauthStatus as keyof typeof OAUTH_MESSAGES]
@@ -118,22 +116,14 @@ export default async function CredentialGroupEnrollmentPage({
   const connectedOption = connectedOptionId
     ? activeOptions.find((option) => option.id === connectedOptionId)
     : undefined
-  const notification = submitted
-    ? { message: 'Accounts submitted successfully.', variant: 'success' as const }
-    : connectedOptionId
-      ? {
-          message: `${connectedOption ? getCredentialGroupProviderService(connectedOption.provider).name : 'Account'} connected successfully.`,
-          variant: 'success' as const,
-        }
-      : oauthMessage
-        ? { message: oauthMessage, variant: 'error' as const }
-        : null
-  const allConnected =
-    activeOptions.length > 0 &&
-    activeOptions.every(
-      (option) => option.connections.length === 1 && option.connections[0]?.status === 'connected'
-    )
-
+  const notification = connectedOptionId
+    ? {
+        message: `${connectedOption ? getCredentialGroupProviderService(connectedOption.provider).name : 'Account'} connected successfully.`,
+        variant: 'success' as const,
+      }
+    : oauthMessage
+      ? { message: oauthMessage, variant: 'error' as const }
+      : null
   return (
     <PageShell>
       {notification && (
@@ -167,6 +157,7 @@ export default async function CredentialGroupEnrollmentPage({
                   trailing={
                     <OAuthConnectLink
                       href={`/api/credential-groups/enroll/${token}/oauth/${option.id}`}
+                      reconnect={Boolean(connection)}
                     />
                   }
                 />
@@ -174,17 +165,15 @@ export default async function CredentialGroupEnrollmentPage({
             })}
           </div>
         </SettingsSection>
-        {(allConnected || enrollment.status === 'completed') && (
-          <form
-            action={`/api/credential-groups/enroll/${token}/complete`}
-            method='post'
-            className='mt-6 flex justify-end'
-          >
-            <Chip type='submit' variant='primary' disabled={enrollment.status === 'completed'}>
-              {enrollment.status === 'completed' ? 'Submitted' : 'Submit'}
-            </Chip>
-          </form>
-        )}
+        <form
+          action={`/api/credential-groups/enroll/${token}/complete`}
+          method='post'
+          className='mt-6 flex justify-end'
+        >
+          <Chip type='submit' variant='primary' disabled={enrollment.status === 'completed'}>
+            {enrollment.status === 'completed' ? 'Submitted' : 'Submit'}
+          </Chip>
+        </form>
       </div>
     </PageShell>
   )

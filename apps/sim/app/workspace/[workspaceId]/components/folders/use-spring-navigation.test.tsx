@@ -22,7 +22,7 @@ function renderSpringNavigation(startFolderId: string | null) {
   const root = createRoot(document.createElement('div'))
   mountedRoots.push(root)
 
-  const navigate = vi.fn<(folderId: string | null) => void>()
+  const navigate = vi.fn<(folderId: string | null, history: 'push' | 'replace') => void>()
   let currentFolderId = startFolderId
   let result: SpringNavigation | undefined
 
@@ -30,9 +30,8 @@ function renderSpringNavigation(startFolderId: string | null) {
     result = useSpringNavigation({
       currentFolderId: folderId,
       onNavigate: (nextFolderId, options) => {
-        navigate(nextFolderId)
+        navigate(nextFolderId, options.history)
         currentFolderId = nextFolderId
-        options.history satisfies 'push' | 'replace'
       },
     })
     return null
@@ -88,7 +87,7 @@ describe('useSpringNavigation', () => {
     act(() => nav.get().arm('folder-a'))
     rest(nav)
 
-    expect(nav.navigate).toHaveBeenCalledExactlyOnceWith('folder-a')
+    expect(nav.navigate).toHaveBeenCalledExactlyOnceWith('folder-a', 'push')
   })
 
   it('returns to the origin when the drag ends without a drop', () => {
@@ -101,7 +100,7 @@ describe('useSpringNavigation', () => {
     rest(nav)
     act(() => nav.get().end())
 
-    expect(nav.navigate).toHaveBeenLastCalledWith(null)
+    expect(nav.navigate).toHaveBeenLastCalledWith(null, 'replace')
     expect(nav.currentFolderId()).toBeNull()
   })
 
@@ -114,7 +113,7 @@ describe('useSpringNavigation', () => {
     act(() => nav.get().markDropHandled())
     act(() => nav.get().end())
 
-    expect(nav.navigate).toHaveBeenCalledExactlyOnceWith('folder-a')
+    expect(nav.navigate).toHaveBeenCalledExactlyOnceWith('folder-a', 'push')
     expect(nav.currentFolderId()).toBe('folder-a')
   })
 
@@ -128,7 +127,11 @@ describe('useSpringNavigation', () => {
     rest(nav)
     act(() => nav.get().end())
 
-    expect(nav.navigate.mock.calls).toEqual([['folder-a'], ['folder-b'], [null]])
+    expect(nav.navigate.mock.calls).toEqual([
+      ['folder-a', 'push'],
+      ['folder-b', 'replace'],
+      [null, 'replace'],
+    ])
     expect(nav.currentFolderId()).toBeNull()
   })
 
@@ -168,6 +171,9 @@ describe('useSpringNavigation', () => {
     rest(nav)
     act(() => nav.get().end())
 
-    expect(nav.navigate.mock.calls).toEqual([['folder-b'], ['folder-a']])
+    expect(nav.navigate.mock.calls).toEqual([
+      ['folder-b', 'push'],
+      ['folder-a', 'replace'],
+    ])
   })
 })

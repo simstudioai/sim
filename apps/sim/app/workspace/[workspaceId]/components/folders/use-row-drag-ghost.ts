@@ -1,7 +1,7 @@
 'use client'
 
 import type { DragEvent } from 'react'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 /**
  * Inline chrome for the drag image. It is set on a detached DOM node handed to `setDragImage`,
@@ -54,5 +54,13 @@ export function useRowDragGhost(): RowDragGhost {
     ghostRef.current = ghost
   }, [])
 
-  return { attach, remove }
+  /**
+   * Stable identity, not a fresh object per render — the same requirement
+   * {@link useSpringLoadedFolder} documents. Consumers list this handle in the deps of the
+   * `endDrag` callback that `useDragTeardown` binds and that the drag-config memo depends on,
+   * so a new object each render makes `endDrag` unstable and rebuilds the whole drag config
+   * every render, re-rendering every memoized row. The inner callbacks are already stable, so
+   * this memo never invalidates.
+   */
+  return useMemo(() => ({ attach, remove }), [attach, remove])
 }

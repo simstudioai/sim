@@ -41,6 +41,8 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       id: 'variables',
       title: 'Variables (Secrets)',
       type: 'table',
+      password: true,
+      required: false,
       columns: ['Key', 'Value'],
     },
     {

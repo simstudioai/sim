@@ -7,8 +7,6 @@ import {
   cn,
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Folder,
   Tooltip,
@@ -16,7 +14,7 @@ import {
 } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
-import { renderMoveOption } from '@/app/workspace/[workspaceId]/components/folders'
+import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders'
 
 /** Shared chrome for every action button, so the bar reads as one control strip. */
 const ACTION_BUTTON_CLASS = cn(
@@ -146,14 +144,7 @@ export function ResourceActionBar({
                 align='center'
                 className='max-h-[240px] overflow-y-auto'
               >
-                {moveOptions.length > 0 && (
-                  <DropdownMenuItem onSelect={() => onMove(moveOptions[0].value)}>
-                    <Folder />
-                    {moveOptions[0].label}
-                  </DropdownMenuItem>
-                )}
-                {moveOptions.length > 1 && <DropdownMenuSeparator />}
-                {moveOptions.slice(1).map((option) => renderMoveOption(option, onMove))}
+                {renderMoveOptions(moveOptions, onMove)}
               </DropdownMenuContent>
             </DropdownMenu>
           )}

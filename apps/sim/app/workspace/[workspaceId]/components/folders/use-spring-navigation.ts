@@ -39,8 +39,7 @@ export interface SpringNavigation {
  * it started. The workflow sidebar collapses its own spring-opened folders for the same reason.
  *
  * Shared by every foldered list. Files keeps its own drag configuration for OS file drops, but
- * this lifecycle is identical everywhere, and each surface that re-derived a piece of it drifted
- * — the return path in particular went missing on Files while the other two lists had it.
+ * this lifecycle is identical everywhere.
  */
 export function useSpringNavigation({
   currentFolderId,
@@ -53,6 +52,8 @@ export function useSpringNavigation({
   onNavigateRef.current = onNavigate
 
   const originFolderIdRef = useRef<string | null>(null)
+  /** Whether this drag has an origin yet. A drag of OS files fires no `dragstart` of ours. */
+  const hasOriginRef = useRef(false)
   const didSpringOpenRef = useRef(false)
   const dropHandledRef = useRef(false)
 
@@ -65,7 +66,24 @@ export function useSpringNavigation({
 
   const rememberOrigin = useCallback(() => {
     originFolderIdRef.current = currentFolderIdRef.current
+    hasOriginRef.current = true
   }, [])
+
+  /**
+   * Seeds the origin for a drag that never reached {@link SpringNavigation.rememberOrigin} — a
+   * drag of OS files starts outside the page, so there is no `dragstart` of ours to record it.
+   * Without this the return lands on whatever folder the PREVIOUS drag began in.
+   */
+  const arm = useCallback(
+    (folderId: string | null) => {
+      if (!hasOriginRef.current) {
+        originFolderIdRef.current = currentFolderIdRef.current
+        hasOriginRef.current = true
+      }
+      springLoad.arm(folderId)
+    },
+    [springLoad.arm]
+  )
 
   const markDropHandled = useCallback(() => {
     dropHandledRef.current = true
@@ -85,17 +103,18 @@ export function useSpringNavigation({
     }
     didSpringOpenRef.current = false
     dropHandledRef.current = false
+    hasOriginRef.current = false
     springLoad.reset()
   }, [springLoad])
 
   return useMemo(
     () => ({
       rememberOrigin,
-      arm: springLoad.arm,
+      arm,
       disarm: springLoad.disarm,
       markDropHandled,
       end,
     }),
-    [rememberOrigin, springLoad.arm, springLoad.disarm, markDropHandled, end]
+    [rememberOrigin, arm, springLoad.disarm, markDropHandled, end]
   )
 }

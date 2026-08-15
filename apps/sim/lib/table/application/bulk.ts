@@ -235,13 +235,6 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
       )
     }
 
-    /**
-     * The target must not be inside the subtree that is moving. `plan.covered` is exactly the
-     * selected folders plus their descendants, so this rejects both "into itself" and "into its
-     * own child" before anything is written. Without it the tables move, the folders then fail
-     * their cycle check, and the caller is left with a half-applied selection.
-     */
-
     const moved: BulkTableItem[] = []
     const outcome: BulkTablesOutcome = { skipped: [], notFound: [], failed: [] }
     foldFolderPlan(plan, outcome)

@@ -315,6 +315,18 @@ export function Files() {
   const justCreatedFileIdRef = useRef<string | null>(null)
   const filesRef = useRef(files)
   filesRef.current = files
+  /**
+   * Indexed once. `isInvalidFolderTarget` resolves each dragged row's placement inside
+   * `dragover`, which fires continuously — a linear scan there is O(selection x resources)
+   * per event.
+   */
+  const fileById = useMemo(() => {
+    const byId = new Map<string, WorkspaceFileRecord>()
+    for (const file of files) byId.set(file.id, file)
+    return byId
+  }, [files])
+  const fileByIdRef = useRef(fileById)
+  fileByIdRef.current = fileById
   const foldersRef = useRef(folders)
   foldersRef.current = folders
 
@@ -459,6 +471,8 @@ export function Files() {
   ) : null
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
+  const folderByIdRef = useRef(folderById)
+  folderByIdRef.current = folderById
 
   const folderSizeMap = useMemo(() => {
     const directSize = new Map<string, number>()
@@ -746,39 +760,25 @@ export function Files() {
             (filesRef.current.find((f) => f.id === source.id)?.folderId ?? null) === targetFolderId
           )
         }
-        return (
-          (foldersRef.current.find((f) => f.id === source.id)?.parentId ?? null) === targetFolderId
-        )
+        return (folderByIdRef.current.get(source.id)?.parentId ?? null) === targetFolderId
       })
       return allAlreadyInTarget
     },
     [descendantFolderIdsByFolderId]
   )
 
+  /**
+   * Row-targeted drop: only a folder row can receive one. Delegates so the cycle and
+   * already-there rules live in exactly one place — the two had already drifted on whether a
+   * file's `folderId` was normalised with `?? null` before comparing.
+   */
   const isInvalidDropTarget = useCallback(
     (targetRowId: string, sourceRowIds: string[]) => {
       const target = parseRowId(targetRowId)
       if (target.kind !== 'folder') return true
-
-      for (const sourceRowId of sourceRowIds) {
-        const source = parseRowId(sourceRowId)
-        if (source.kind !== 'folder') continue
-        if (source.id === target.id) return true
-        if (descendantFolderIdsByFolderId.get(source.id)?.has(target.id)) return true
-      }
-
-      const allAlreadyInTarget = sourceRowIds.every((sourceRowId) => {
-        const source = parseRowId(sourceRowId)
-        if (source.kind === 'file') {
-          return filesRef.current.find((f) => f.id === source.id)?.folderId === target.id
-        }
-        return (foldersRef.current.find((f) => f.id === source.id)?.parentId ?? null) === target.id
-      })
-      if (allAlreadyInTarget) return true
-
-      return false
+      return isInvalidFolderTarget(target.id, sourceRowIds)
     },
-    [descendantFolderIdsByFolderId]
+    [isInvalidFolderTarget]
   )
 
   const uploadFiles = useCallback(
@@ -944,6 +944,20 @@ export function Files() {
         const sourceRowIds =
           readRowDragPayload(e.dataTransfer, FILE_ROW_DRAG_MIME) ?? draggedRowIdsRef.current
 
+        const isFolderDrop = target.kind === 'folder'
+        const canUpload = isFolderDrop && droppedFiles.length > 0
+        const canMove =
+          isFolderDrop && droppedFiles.length === 0 && !isInvalidDropTarget(rowId, sourceRowIds)
+
+        /**
+         * Marked BEFORE `endDrag`, which is what consumes it. Ending the drag first runs the
+         * return navigation, bouncing the list out of the folder the drop just landed in — and
+         * because `end` clears the flag, setting it afterwards leaves it armed for the NEXT
+         * drag, whose return then never happens. The upload branch marks it too: a file dropped
+         * into a spring-opened folder must leave the view in that folder, not snap away from it.
+         */
+        if (canUpload || canMove) springNav.markDropHandled()
+
         /**
          * Ends the drag before dispatching, but only after the payload has been read off the
          * event and the source ref. This handler stops propagation, so the window-level
@@ -952,15 +966,12 @@ export function Files() {
          */
         endDrag()
 
-        if (target.kind !== 'folder') return
-
-        if (droppedFiles.length > 0) {
+        if (canUpload) {
           void uploadFiles(droppedFiles, target.id)
           return
         }
 
-        if (isInvalidDropTarget(rowId, sourceRowIds)) return
-        springNav.markDropHandled()
+        if (!canMove) return
 
         const fileIds = sourceRowIds
           .map(parseRowId)
@@ -2168,14 +2179,9 @@ export function Files() {
                 }
               />
               {isDraggingOver ? (
-                <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--surface-4)] transition-colors'>
+                <div className='pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--bg)]/80 transition-colors'>
                   <Upload className='size-5 text-[var(--brand-secondary)]' />
-                  <div className='flex flex-col gap-0.5 text-center'>
-                    <p className='text-[var(--brand-secondary)] text-sm'>Drop to upload</p>
-                    <p className='text-[var(--text-tertiary)] text-xs'>
-                      Release files here to add them to this workspace
-                    </p>
-                  </div>
+                  <p className='text-[var(--brand-secondary)] text-sm'>Drop to upload</p>
                 </div>
               ) : null}
             </>

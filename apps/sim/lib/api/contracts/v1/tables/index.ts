@@ -18,6 +18,7 @@ import {
   upsertTableRowBodySchema,
 } from '@/lib/api/contracts/tables'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import type { Filter, Sort } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 
@@ -61,7 +62,7 @@ export const v1CreateTableBodySchema = createTableBodySchema.omit({
  * new rows at the tail; ordering by index is an in-app affordance only.
  */
 export const v1InsertTableRowBodySchema = insertTableRowBodyBaseSchema
-  .omit({ position: true })
+  .omit({ position: true, [PRIVATE_SECRET_PROVENANCE_FIELD]: true })
   .refine(...rowAnchorMutexRefine)
 
 /**
@@ -82,6 +83,18 @@ export const v1CreateTableRowsBodySchema = z.union([
   v1BatchInsertTableRowsBodySchema,
   v1InsertTableRowBodySchema,
 ])
+
+export const v1UpdateRowsByFilterBodySchema = updateRowsByFilterBodySchema.omit({
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: true,
+})
+
+export const v1UpdateTableRowBodySchema = updateTableRowBodySchema.omit({
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: true,
+})
+
+export const v1UpsertTableRowBodySchema = upsertTableRowBodySchema.omit({
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: true,
+})
 
 export type V1ListTablesQuery = z.output<typeof v1ListTablesQuerySchema>
 export type V1TableRowsQuery = z.output<typeof v1TableRowsQuerySchema>
@@ -209,7 +222,7 @@ export const v1UpdateRowsByFilterContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v1/tables/[tableId]/rows',
   params: tableIdParamsSchema,
-  body: updateRowsByFilterBodySchema,
+  body: v1UpdateRowsByFilterBodySchema,
   response: {
     mode: 'json',
     schema: v1TableApiResponseSchema,
@@ -242,7 +255,7 @@ export const v1UpdateTableRowContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v1/tables/[tableId]/rows/[rowId]',
   params: tableRowParamsSchema,
-  body: updateTableRowBodySchema,
+  body: v1UpdateTableRowBodySchema,
   response: {
     mode: 'json',
     schema: v1TableApiResponseSchema,
@@ -264,7 +277,7 @@ export const v1UpsertTableRowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/tables/[tableId]/rows/upsert',
   params: tableIdParamsSchema,
-  body: upsertTableRowBodySchema,
+  body: v1UpsertTableRowBodySchema,
   response: {
     mode: 'json',
     schema: v1TableApiResponseSchema,

@@ -24,6 +24,7 @@ export {
   chipContentGap,
   chipContentIconClass,
   chipContentLabelClass,
+  chipDropTargetSurfaceClass,
   chipFieldSurfaceClass,
   chipFieldTextClass,
   chipFilledFillTokens,

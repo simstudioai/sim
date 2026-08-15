@@ -15,6 +15,7 @@ import {
   Chip,
   ChipChevronDown,
   chipContentIconClass,
+  chipDropTargetSurfaceClass,
   chipGeometryClass,
   chipVariants,
   cn,
@@ -302,13 +303,6 @@ function getBreadcrumbSegmentClassName(
   return 'min-w-0 flex-[0_1_auto] max-w-[min(32rem,55vw)]'
 }
 
-/**
- * A crumb receiving a drag. Same neutral tint and hairline the list rows use, so "release
- * here" reads identically whether the destination is a row, the list body, or a crumb.
- */
-const BREADCRUMB_DROP_CLASS =
-  'bg-[var(--surface-4)] outline outline-1 outline-[var(--text-subtle)] outline-offset-[-1px]'
-
 interface BreadcrumbSegmentProps {
   icon?: React.ElementType
   label: string
@@ -375,7 +369,11 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
           <DropdownMenuTrigger asChild>
             <button
               type='button'
-              className={cn(triggerClassName, className, drag?.isActive && BREADCRUMB_DROP_CLASS)}
+              className={cn(
+                triggerClassName,
+                className,
+                drag?.isActive && chipDropTargetSurfaceClass
+              )}
               onDragOver={drag?.onDragOver}
               onDragLeave={drag?.onDragLeave}
               onDrop={drag?.onDrop}
@@ -407,7 +405,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
         <FloatingTooltip label={label} state={tooltipState} />
         <button
           type='button'
-          className={cn(triggerClassName, className, drag?.isActive && BREADCRUMB_DROP_CLASS)}
+          className={cn(triggerClassName, className, drag?.isActive && chipDropTargetSurfaceClass)}
           onClick={onClick}
           onDragOver={drag?.onDragOver}
           onDragLeave={drag?.onDragLeave}
@@ -428,7 +426,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
           chipGeometryClass,
           'group inline-flex min-w-0 max-w-full cursor-default justify-start',
           className,
-          drag?.isActive && BREADCRUMB_DROP_CLASS
+          drag?.isActive && chipDropTargetSurfaceClass
         )}
         onDragOver={drag?.onDragOver}
         onDragLeave={drag?.onDragLeave}
@@ -535,7 +533,7 @@ function BreadcrumbLocationPopover({
               'max-w-none gap-1.5 px-2 transition-colors',
               open && 'relative z-[var(--z-popover)]',
               className,
-              drag?.isActive && BREADCRUMB_DROP_CLASS
+              drag?.isActive && chipDropTargetSurfaceClass
             )}
           >
             <span className='relative inline-grid size-[16px] shrink-0 place-items-center'>

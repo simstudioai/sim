@@ -208,13 +208,6 @@ export const bulkMoveKnowledgeItems = defineAuthorizedKnowledgeUseCase({
       )
     }
 
-    /**
-     * The target must not be inside the subtree that is moving. `plan.covered` is exactly the
-     * selected folders plus their descendants, so this rejects both "into itself" and "into its
-     * own child" before anything is written. Without it the resources move, the folders then
-     * fail their cycle check, and the caller is left with a half-applied selection.
-     */
-
     const moved: BulkKnowledgeItem[] = []
     const outcome: BulkKnowledgeOutcome = { skipped: [], notFound: [], failed: [] }
     foldFolderPlan(plan, outcome)

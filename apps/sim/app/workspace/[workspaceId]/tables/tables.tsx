@@ -254,6 +254,20 @@ export function Tables() {
   const uploading = uploadProgress.total > 0
   const csvInputRef = useRef<HTMLInputElement>(null)
 
+  /**
+   * Indexed once. These resolve a dragged row's current placement and run per dragged row inside
+   * `dragover`, which fires continuously — a linear scan there is O(selection x resources) per
+   * event, and the worst case (hesitating over the folder the selection already lives in) does
+   * not short-circuit.
+   */
+  const tableById = useMemo(() => {
+    const byId = new Map<string, TableDefinition>()
+    for (const table of tables) byId.set(table.id, table)
+    return byId
+  }, [tables])
+  const tableByIdRef = useRef(tableById)
+  tableByIdRef.current = tableById
+
   const tablesRef = useRef(tables)
   tablesRef.current = tables
 
@@ -775,7 +789,7 @@ export function Tables() {
     [resolveRowItem, handleRowCtxMenu, canEdit, selectedRowIds, replaceSelection]
   )
 
-  /** A multi-row selection retargets the row context menu's move and delete entries. */
+  /** Move targets for a table: every folder, since a table has no subtree. */
   const tableMoveOptions: MoveOptionNode[] = useMemo(
     () => buildMoveOptions({ folders, rootLabel: ROOT_LABEL }),
     [folders]
@@ -974,13 +988,12 @@ export function Tables() {
     editingRowId: listRename.editingId,
     descendantsByFolderId: descendantFolderIds,
     getFolderParentId: (folderId) => folderById.get(folderId)?.parentId ?? null,
-    getResourceFolderId: (tableId) =>
-      tablesRef.current.find((table) => table.id === tableId)?.folderId ?? null,
+    getResourceFolderId: (tableId) => tableByIdRef.current.get(tableId)?.folderId ?? null,
     getRowLabel: (rowId) => {
       const parsed = parseFolderedRowId(rowId)
       return parsed.kind === 'folder'
         ? (folderById.get(parsed.id)?.name ?? 'Folder')
-        : (tablesRef.current.find((table) => table.id === parsed.id)?.name ?? 'Table')
+        : (tableByIdRef.current.get(parsed.id)?.name ?? 'Table')
     },
     onMoveRows: ({ folderIds, resourceIds }, targetFolderId) =>
       moveRowsTo({ folderIds, tableIds: resourceIds }, targetFolderId),

@@ -23,6 +23,12 @@ interface DeleteCredentialParams {
   request?: NextRequest
 }
 
+export interface DeleteConnectionCredentialParams {
+  credentialId: string
+  workspaceId: string
+  reason: CredentialDeleteReason
+}
+
 /**
  * Clears all stored references to the credential, deletes the row, and
  * records an audit entry. Idempotent when the row no longer exists.
@@ -69,6 +75,30 @@ export async function deleteCredential(params: DeleteCredentialParams): Promise<
   })
 
   logger.info('Deleted credential', { credentialId, workspaceId: row.workspaceId, reason })
+}
+
+/** Clears references and deletes one connection without surface audit attribution. */
+export async function deleteConnectionCredential(
+  params: DeleteConnectionCredentialParams
+): Promise<boolean> {
+  const { credentialId, workspaceId } = params
+  await clearCredentialRefs(credentialId, workspaceId)
+  const deleted = await db
+    .delete(schema.credential)
+    .where(
+      and(eq(schema.credential.id, credentialId), eq(schema.credential.workspaceId, workspaceId))
+    )
+    .returning({ id: schema.credential.id })
+  if (deleted.length > 1) throw new Error('Credential deletion affected multiple rows')
+
+  if (deleted.length === 1) {
+    logger.info('Deleted credential', {
+      credentialId,
+      workspaceId,
+      reason: params.reason,
+    })
+  }
+  return deleted.length === 1
 }
 
 /**

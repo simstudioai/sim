@@ -30,6 +30,8 @@
     "check:api-validation": "bun run scripts/check-api-validation-contracts.ts --check",
     "generate:openapi": "bun run scripts/generate-openapi.ts",
     "check:openapi": "bun run scripts/check-openapi.ts",
+    "generate:cli-api": "bun run scripts/generate-v2-cli-api.ts",
+    "check:cli-api": "bun run scripts/generate-v2-cli-api.ts --check",
     "check:cron-parity": "bun run scripts/check-cron-parity.ts",
     "check:api-validation:strict": "bun run scripts/check-api-validation-contracts.ts --check --enforce-boundary-baseline",
     "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",

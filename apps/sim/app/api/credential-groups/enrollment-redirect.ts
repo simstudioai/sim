@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 
+const NO_STORE_REDIRECT_HEADERS = {
+  'Cache-Control': 'no-store',
+  'Referrer-Policy': 'no-referrer',
+} as const
+
 export function createCredentialGroupEnrollmentRedirect(
   token: string,
   params: Record<string, string>
@@ -10,8 +15,17 @@ export function createCredentialGroupEnrollmentRedirect(
     status: 307,
     headers: {
       Location: location,
-      'Cache-Control': 'no-store',
-      'Referrer-Policy': 'no-referrer',
+      ...NO_STORE_REDIRECT_HEADERS,
+    },
+  })
+}
+
+export function createCredentialGroupCompletionRedirect(): NextResponse {
+  return new NextResponse(null, {
+    status: 303,
+    headers: {
+      Location: '/credential-groups/complete',
+      ...NO_STORE_REDIRECT_HEADERS,
     },
   })
 }

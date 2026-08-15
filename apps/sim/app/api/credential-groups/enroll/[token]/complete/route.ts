@@ -6,7 +6,10 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { authenticateCredentialGroupEnrollment } from '@/lib/credential-groups/application/enrollment-auth'
 import { completePublicCredentialGroupEnrollment } from '@/lib/credential-groups/application/public-enrollment'
 import { enforcePublicCredentialGroupIpRateLimit } from '@/lib/credential-groups/rate-limit'
-import { createCredentialGroupEnrollmentRedirect } from '@/app/api/credential-groups/enrollment-redirect'
+import {
+  createCredentialGroupCompletionRedirect,
+  createCredentialGroupEnrollmentRedirect,
+} from '@/app/api/credential-groups/enrollment-redirect'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -36,9 +39,6 @@ export const POST = withRouteHandler(
     if (completed === null) {
       return createCredentialGroupEnrollmentRedirect(token, { oauth: 'unavailable' })
     }
-    return createCredentialGroupEnrollmentRedirect(
-      token,
-      completed ? { submitted: '1' } : { oauth: 'incomplete' }
-    )
+    return createCredentialGroupCompletionRedirect()
   }
 )

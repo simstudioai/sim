@@ -49,15 +49,14 @@ describe('credential group enrollment completion route', () => {
     mocks.complete.mockResolvedValue({ completed: true })
   })
 
-  it('submits a fully connected enrollment through its invitation principal', async () => {
+  it('submits optional account selections through its invitation principal', async () => {
     const enrollmentRequest = request()
     const response = await POST(enrollmentRequest, context)
 
-    expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toBe(
-      '/credential-groups/enroll/invitation-token?submitted=1'
-    )
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/credential-groups/complete')
     expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer')
     expect(mocks.complete).toHaveBeenCalledWith({
       principal,
       input: {},
@@ -65,13 +64,13 @@ describe('credential group enrollment completion route', () => {
     })
   })
 
-  it('redirects an incomplete enrollment without marking it complete', async () => {
-    mocks.complete.mockResolvedValue({ completed: false })
+  it('returns to an unavailable enrollment when completion loses authorization', async () => {
+    mocks.complete.mockResolvedValue({ completed: null })
 
     const response = await POST(request(), context)
 
     expect(response.headers.get('location')).toBe(
-      '/credential-groups/enroll/invitation-token?oauth=incomplete'
+      '/credential-groups/enroll/invitation-token?oauth=unavailable'
     )
   })
 

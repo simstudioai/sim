@@ -327,6 +327,22 @@ export function Knowledge() {
   const activeFolderRef = useRef(activeFolder)
   activeFolderRef.current = activeFolder
 
+  /**
+   * Indexed once. These resolve a dragged row's current placement and run per dragged row inside
+   * `dragover`, which fires continuously — a linear scan there is O(selection x resources) per
+   * event, and the worst case (hesitating over the folder the selection already lives in) does
+   * not short-circuit.
+   */
+  const knowledgeBaseById = useMemo(() => {
+    const byId = new Map<string, KnowledgeBaseWithDocCount>()
+    for (const base of knowledgeBases) byId.set(base.id, base as KnowledgeBaseWithDocCount)
+    return byId
+  }, [knowledgeBases])
+  const knowledgeBaseByIdRef = useRef(knowledgeBaseById)
+  knowledgeBaseByIdRef.current = knowledgeBaseById
+  const folderByIdRef = useRef(folderById)
+  folderByIdRef.current = folderById
+
   const foldersRef = useRef(folders)
   foldersRef.current = folders
 
@@ -1065,14 +1081,14 @@ export function Knowledge() {
     canEdit,
     editingRowId: listRename.editingId,
     descendantsByFolderId,
-    getFolderParentId: (folderId) => foldersRef.current.find((f) => f.id === folderId)?.parentId,
+    getFolderParentId: (folderId) => folderByIdRef.current.get(folderId)?.parentId ?? null,
     getResourceFolderId: (knowledgeBaseId) =>
-      knowledgeBasesRef.current.find((kb) => kb.id === knowledgeBaseId)?.folderId ?? null,
+      knowledgeBaseByIdRef.current.get(knowledgeBaseId)?.folderId ?? null,
     getRowLabel: (rowId) => {
       const parsed = parseFolderedRowId(rowId)
       return parsed.kind === 'folder'
-        ? (foldersRef.current.find((f) => f.id === parsed.id)?.name ?? 'Folder')
-        : (knowledgeBasesRef.current.find((kb) => kb.id === parsed.id)?.name ?? 'Knowledge base')
+        ? (folderByIdRef.current.get(parsed.id)?.name ?? 'Folder')
+        : (knowledgeBaseByIdRef.current.get(parsed.id)?.name ?? 'Knowledge base')
     },
     onMoveRows: ({ folderIds, resourceIds }, targetFolderId) =>
       moveRowsTo({ folderIds, knowledgeBaseIds: resourceIds }, targetFolderId),

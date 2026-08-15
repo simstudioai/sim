@@ -43,8 +43,8 @@ export const credentialGroupOperations = {
     workspaceApiKey: 'deny',
     principalKinds: ['session'],
   }),
-  revokeEnrollment: defineWorkspaceOperation({
-    id: 'credential_groups.enrollments.revoke',
+  deleteEnrollment: defineWorkspaceOperation({
+    id: 'credential_groups.enrollments.delete',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     principalKinds: ['session'],

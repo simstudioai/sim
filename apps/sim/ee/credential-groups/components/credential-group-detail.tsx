@@ -1,18 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipModalTabs, ChipTag, toast } from '@sim/emcn'
-import { ArrowLeft, KeySquare, Plus } from '@sim/emcn/icons'
+import { Chip, ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
+import { ArrowLeft, Plus, User } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type {
   CredentialGroupEnrollment,
   CredentialGroupEnrollmentConnection,
-  CredentialGroupEnrollmentDetail,
 } from '@/lib/api/contracts/credential-groups'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
+import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
   credentialGroupTabParam,
   credentialGroupTabUrlKeys,
@@ -26,12 +27,15 @@ import {
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { CredentialGroupDetails } from '@/ee/credential-groups/components/credential-group-details'
 import { CredentialGroupInviteModal } from '@/ee/credential-groups/components/credential-group-invite-modal'
 import {
   useCredentialGroupDetail,
+  useDeleteCredentialGroup,
+  useDeleteCredentialGroupEnrollment,
   useResendCredentialGroupEnrollment,
-  useRevokeCredentialGroupEnrollment,
+  useUpdateCredentialGroup,
 } from '@/hooks/queries/credential-groups'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 
@@ -47,35 +51,6 @@ const CREDENTIAL_GROUP_TABS = [
   { value: 'details', label: 'Details' },
   { value: 'people', label: 'People' },
 ] as const
-
-export function getEnrollmentStatus(
-  enrollment: CredentialGroupEnrollmentDetail,
-  activeProviders: CredentialGroupProvider[]
-) {
-  if (enrollment.status === 'revoked') return { label: 'Revoked', invalid: false }
-  if (enrollment.status === 'delivery_failed') return { label: 'Delivery failed', invalid: true }
-  if (enrollment.status !== 'completed' && enrollment.expired) {
-    return { label: 'Expired', invalid: true }
-  }
-  const needsReauthorization = enrollment.connections.some(
-    (connection) => connection.status === 'needs_reauth'
-  )
-  if (needsReauthorization) return { label: 'Reconnect needed', invalid: false }
-  const connectedProviders = new Set(
-    enrollment.connections
-      .filter((connection) => connection.status === 'active')
-      .map((connection) => connection.provider)
-  )
-  const allProvidersConnected =
-    activeProviders.length > 0 &&
-    activeProviders.every((provider) => connectedProviders.has(provider))
-  if (enrollment.status === 'completed' && allProvidersConnected) {
-    return { label: 'Connected', invalid: false }
-  }
-  if (enrollment.status === 'completed') return { label: 'In progress', invalid: false }
-  if (enrollment.status === 'in_progress') return { label: 'In progress', invalid: false }
-  return { label: 'Invited', invalid: false }
-}
 
 interface EnrollmentConnectionsProps {
   connections: CredentialGroupEnrollmentConnection[]
@@ -119,22 +94,23 @@ export function CredentialGroupDetail({
     providerId: SLACK_CUSTOM_BOT_PROVIDER_ID,
   })
   const resend = useResendCredentialGroupEnrollment()
-  const revoke = useRevokeCredentialGroupEnrollment()
+  const deleteEnrollment = useDeleteCredentialGroupEnrollment()
+  const updateGroup = useUpdateCredentialGroup()
+  const deleteGroup = useDeleteCredentialGroup()
   const [activeTab, setActiveTab] = useQueryState(credentialGroupTabParam.key, {
     ...credentialGroupTabParam.parser,
     ...credentialGroupTabUrlKeys,
   })
   const [showInvite, setShowInvite] = useState(false)
-  const [revokingEnrollmentId, setRevokingEnrollmentId] = useState<string | null>(null)
+  const [showDelete, setShowDelete] = useState(false)
+  const [deletingEnrollmentId, setDeletingEnrollmentId] = useState<string | null>(null)
+  const [draftName, setDraftName] = useState<string | null>(null)
+  const [draftDescription, setDraftDescription] = useState<string | null>(null)
   const credentialGroup = detail.data?.pages[0]?.credentialGroup
   const enrollments = detail.data?.pages.flatMap((page) => page.enrollments) ?? []
-  const revokingEnrollment = revokingEnrollmentId
-    ? (enrollments.find((enrollment) => enrollment.id === revokingEnrollmentId) ?? null)
+  const deletingEnrollment = deletingEnrollmentId
+    ? (enrollments.find((enrollment) => enrollment.id === deletingEnrollmentId) ?? null)
     : null
-  const activeProviders =
-    credentialGroup?.options
-      .filter((option) => option.status === 'active')
-      .map((option) => option.provider) ?? []
   const configurationReady =
     Boolean(credentialGroup?.options.length) &&
     credentialGroup?.options.every(
@@ -144,14 +120,65 @@ export function CredentialGroupDetail({
           slackBots.data?.some((bot) => bot.id === option.slackBotCredentialId))
     )
 
+  const name = draftName ?? credentialGroup?.name ?? ''
+  const description = draftDescription ?? credentialGroup?.description ?? ''
+  const normalizedDescription = description.trim() || null
+  const detailsDirty = Boolean(
+    credentialGroup &&
+      (name.trim() !== credentialGroup.name ||
+        normalizedDescription !== credentialGroup.description)
+  )
+  const guard = useSettingsUnsavedGuard({ isDirty: detailsDirty })
+
+  const discardDetails = () => {
+    setDraftName(null)
+    setDraftDescription(null)
+  }
+
+  const handleSaveDetails = async () => {
+    if (!credentialGroup || !name.trim()) return
+    try {
+      await updateGroup.mutateAsync({
+        workspaceId,
+        groupId: credentialGroup.id,
+        body: { name: name.trim(), description: normalizedDescription },
+      })
+      discardDetails()
+      toast.success('Details saved')
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Could not save details'))
+    }
+  }
+
+  /**
+   * Each tab owns its own primary action: Details commits the edited name and
+   * description, People invites more users. Delete is available from both.
+   */
   const actions: SettingsAction[] = credentialGroup
     ? [
+        ...(activeTab === 'details'
+          ? saveDiscardActions({
+              dirty: detailsDirty,
+              saving: updateGroup.isPending,
+              onSave: () => void handleSaveDetails(),
+              onDiscard: discardDetails,
+              saveDisabled: !name.trim(),
+              saveTooltip: name.trim() ? undefined : 'Name is required',
+            })
+          : [
+              {
+                text: 'Invite users',
+                icon: Plus,
+                variant: 'primary' as const,
+                onSelect: () => setShowInvite(true),
+                disabled: credentialGroup.status !== 'active' || !configurationReady,
+              },
+            ]),
         {
-          text: 'Invite users',
-          icon: Plus,
-          variant: 'primary',
-          onSelect: () => setShowInvite(true),
-          disabled: credentialGroup.status !== 'active' || !configurationReady,
+          id: 'delete',
+          text: deleteGroup.isPending ? 'Deleting...' : 'Delete',
+          onSelect: () => setShowDelete(true),
+          disabled: deleteGroup.isPending,
         },
       ]
     : []
@@ -165,30 +192,40 @@ export function CredentialGroupDetail({
     }
   }
 
-  const handleRevoke = async () => {
-    if (!revokingEnrollment) return
+  const handleDeleteEnrollment = async () => {
+    if (!deletingEnrollment) return
     try {
-      await revoke.mutateAsync({
+      await deleteEnrollment.mutateAsync({
         workspaceId,
         groupId,
-        enrollmentId: revokingEnrollment.id,
+        enrollmentId: deletingEnrollment.id,
       })
-      toast.success(`Invitation revoked for ${revokingEnrollment.email}`)
-      setRevokingEnrollmentId(null)
+      toast.success(`${deletingEnrollment.email} deleted`)
+      setDeletingEnrollmentId(null)
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to revoke invitation'))
+      toast.error(getErrorMessage(error, 'Failed to delete person'))
     }
   }
 
-  const handleBack = () => {
-    void setActiveTab(null, { history: 'replace' })
-    onBack()
+  const handleDelete = async () => {
+    if (!credentialGroup) return
+    try {
+      await deleteGroup.mutateAsync({ workspaceId, groupId })
+      setShowDelete(false)
+      onBack()
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Could not delete credential group'))
+    }
   }
 
   return (
     <>
       <SettingsPanel
-        back={{ text: 'Credential groups', icon: ArrowLeft, onSelect: handleBack }}
+        back={{
+          text: 'Credential groups',
+          icon: ArrowLeft,
+          onSelect: () => guard.guardBack(onBack),
+        }}
         title={credentialGroup?.name ?? 'Credential group'}
         description={credentialGroup?.description ?? undefined}
         actions={actions}
@@ -198,7 +235,7 @@ export function CredentialGroupDetail({
             {getErrorMessage(detail.error, "Couldn't load credential group")}
           </SettingsEmptyState>
         ) : detail.isPending || !credentialGroup ? null : (
-          <div className='flex flex-col gap-7'>
+          <>
             <ChipModalTabs
               tabs={CREDENTIAL_GROUP_TABS}
               value={activeTab}
@@ -207,7 +244,14 @@ export function CredentialGroupDetail({
             />
 
             {activeTab === 'details' && (
-              <CredentialGroupDetails workspaceId={workspaceId} credentialGroup={credentialGroup} />
+              <CredentialGroupDetails
+                workspaceId={workspaceId}
+                credentialGroup={credentialGroup}
+                name={name}
+                onNameChange={setDraftName}
+                description={description}
+                onDescriptionChange={setDraftDescription}
+              />
             )}
 
             {activeTab === 'people' && (
@@ -229,41 +273,31 @@ export function CredentialGroupDetail({
                 ) : (
                   <div className={RESOURCE_LIST_STACK}>
                     {enrollments.map((enrollment) => {
-                      const status = getEnrollmentStatus(enrollment, activeProviders)
                       return (
                         <SettingsResourceRow
                           key={enrollment.id}
-                          icon={<KeySquare />}
+                          icon={<User className='text-[var(--text-icon)]' />}
+                          iconFilled
                           title={enrollment.email}
                           description={
                             <EnrollmentConnections connections={enrollment.connections} />
                           }
-                          badge={
-                            <ChipTag
-                              variant={status.invalid ? 'invite' : 'gray'}
-                              invalid={status.invalid}
-                            >
-                              {status.label}
-                            </ChipTag>
-                          }
                           trailing={
-                            enrollment.status === 'revoked' ? undefined : (
-                              <RowActionsMenu
-                                label={`${enrollment.email} actions`}
-                                actions={[
-                                  {
-                                    label: 'Resend',
-                                    onSelect: () => void handleResend(enrollment),
-                                    disabled: resend.isPending,
-                                  },
-                                  {
-                                    label: 'Revoke',
-                                    destructive: true,
-                                    onSelect: () => setRevokingEnrollmentId(enrollment.id),
-                                  },
-                                ]}
-                              />
-                            )
+                            <RowActionsMenu
+                              label={`${enrollment.email} actions`}
+                              actions={[
+                                {
+                                  label: 'Resend',
+                                  onSelect: () => void handleResend(enrollment),
+                                  disabled: resend.isPending,
+                                },
+                                {
+                                  label: 'Delete',
+                                  destructive: true,
+                                  onSelect: () => setDeletingEnrollmentId(enrollment.id),
+                                },
+                              ]}
+                            />
                           }
                         />
                       )
@@ -272,7 +306,7 @@ export function CredentialGroupDetail({
                 )}
               </SettingsSection>
             )}
-          </div>
+          </>
         )}
       </SettingsPanel>
       {credentialGroup && (
@@ -284,17 +318,46 @@ export function CredentialGroupDetail({
         />
       )}
       <ChipConfirmModal
-        open={Boolean(revokingEnrollment)}
-        onOpenChange={(open) => !open && !revoke.isPending && setRevokingEnrollmentId(null)}
-        srTitle='Revoke invitation'
-        title='Revoke invitation?'
-        text={`Revoke the invitation for ${revokingEnrollment?.email ?? 'this user'}? Their private link will stop working immediately.`}
+        open={Boolean(deletingEnrollment)}
+        onOpenChange={(open) =>
+          !open && !deleteEnrollment.isPending && setDeletingEnrollmentId(null)
+        }
+        srTitle='Delete person'
+        title='Delete person'
+        text={[
+          `Delete ${deletingEnrollment?.email ?? 'this person'}?`,
+          {
+            text: ' Their private link will stop working and all accounts they connected to this Credential Group will be removed.',
+            error: true,
+          },
+        ]}
         dismissLabel='Cancel'
         confirm={{
-          label: revoke.isPending ? 'Revoking...' : 'Revoke',
-          onClick: handleRevoke,
-          disabled: revoke.isPending,
+          label: deleteEnrollment.isPending ? 'Deleting...' : 'Delete',
+          onClick: handleDeleteEnrollment,
+          disabled: deleteEnrollment.isPending,
         }}
+      />
+      <ChipConfirmModal
+        open={showDelete}
+        onOpenChange={(open) => !open && !deleteGroup.isPending && setShowDelete(false)}
+        srTitle='Delete credential group'
+        title='Delete credential group'
+        text={[
+          `Delete ${credentialGroup?.name ?? 'this credential group'}?`,
+          { text: ' This cannot be undone.', error: true },
+        ]}
+        dismissLabel='Cancel'
+        confirm={{
+          label: deleteGroup.isPending ? 'Deleting...' : 'Delete',
+          onClick: handleDelete,
+          disabled: deleteGroup.isPending,
+        }}
+      />
+      <UnsavedChangesModal
+        open={guard.showUnsavedModal}
+        onOpenChange={guard.setShowUnsavedModal}
+        onDiscard={guard.confirmDiscard}
       />
     </>
   )

@@ -19,6 +19,7 @@ import {
   chipActiveSurfaceClass,
   chipContentGap,
   chipContentLabelClass,
+  chipDropTargetSurfaceClass,
   chipHoverSurfaceClass,
   cn,
   Loader,
@@ -718,8 +719,7 @@ const DataRow = memo(function DataRow({
          * here" with hue rather than weight. Drawn inside the row's own box
          * (`outline-offset-[-1px]`) so the ring never overlaps the rows above and below.
          */
-        isActiveDropTarget &&
-          'bg-[var(--surface-4)] outline outline-1 outline-[var(--text-subtle)] outline-offset-[-1px]',
+        isActiveDropTarget && chipDropTargetSurfaceClass,
         (isDragging || (isAnyDragActive && isSelected && !isActiveDropTarget)) && 'opacity-50'
       )}
       style={rowStyle}
