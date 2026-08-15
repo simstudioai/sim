@@ -15,7 +15,7 @@ export const crowdstrikeGetCaseDetailsTool: ToolConfig<
   id: 'crowdstrike_get_case_details',
   name: 'CrowdStrike Get Case Details',
   description:
-    'Get CrowdStrike Falcon Case Management case records for one or more case IDs (POST /cases/entities/cases/v2). Requires the "Cases: Read" API scope.',
+    'Get CrowdStrike Falcon Case Management case records for one or more case IDs (POST /cases/entities/cases/v2). Requires the case-templates:read API scope, shown as "Cases: Read" in the Falcon API client UI.',
   version: '1.0.0',
 
   params: {

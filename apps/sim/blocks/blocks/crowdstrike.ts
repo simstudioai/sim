@@ -389,6 +389,14 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'removeTagsByPrefix',
+      title: 'Remove Tags By Prefix',
+      type: 'short-input',
+      placeholder: 'auto-',
+      condition: { field: 'operation', value: 'crowdstrike_update_alerts' },
+      mode: 'advanced',
+    },
+    {
       id: 'showInUi',
       title: 'Show In Falcon Console',
       type: 'switch',
@@ -400,7 +408,7 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
       title: 'Additional Action Parameters',
       type: 'code',
       language: 'json',
-      placeholder: '[{ "name": "remove_tags_by_prefix", "value": "auto-" }]',
+      placeholder: '[{ "name": "action_name", "value": "action_value" }]',
       condition: { field: 'operation', value: 'crowdstrike_update_alerts' },
       mode: 'advanced',
     },
@@ -586,7 +594,6 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
         { label: 'cat', id: 'cat' },
         { label: 'cd', id: 'cd' },
         { label: 'clear', id: 'clear' },
-        { label: 'csrutil (macOS)', id: 'csrutil' },
         { label: 'env', id: 'env' },
         { label: 'eventlog (Windows)', id: 'eventlog' },
         { label: 'filehash', id: 'filehash' },
@@ -598,7 +605,7 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
         { label: 'mount', id: 'mount' },
         { label: 'netstat', id: 'netstat' },
         { label: 'ps', id: 'ps' },
-        { label: 'reg (Windows)', id: 'reg' },
+        { label: 'reg query (Windows)', id: 'reg query' },
       ],
       value: () => 'ls',
       condition: { field: 'operation', value: 'crowdstrike_execute_rtr_command' },
@@ -768,6 +775,7 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
             setString('appendComment', params.appendComment)
             setString('addTag', params.addTag)
             setString('removeTag', params.removeTag)
+            setString('removeTagsByPrefix', params.removeTagsByPrefix)
             setBoolean('unassign', params.unassign)
             setBoolean('showInUi', params.showInUi)
             setBoolean('includeHidden', params.includeHidden)
@@ -797,6 +805,7 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
             break
           case 'crowdstrike_delete_indicators':
             setJson('indicatorIds', params.indicatorIds, 'indicator IDs')
+            setString('filter', params.filter)
             setString('comment', params.comment)
             break
           case 'crowdstrike_get_vulnerability_details':
@@ -857,6 +866,10 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
     appendComment: { type: 'string', description: 'Comment to append to the alert' },
     addTag: { type: 'string', description: 'Tag to add to the alert' },
     removeTag: { type: 'string', description: 'Tag to remove from the alert' },
+    removeTagsByPrefix: {
+      type: 'string',
+      description: 'Remove every alert tag starting with this prefix',
+    },
     showInUi: { type: 'boolean', description: 'Whether the alert shows in the Falcon console' },
     actionParameters: {
       type: 'json',

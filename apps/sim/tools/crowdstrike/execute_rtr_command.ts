@@ -12,7 +12,7 @@ export const crowdstrikeExecuteRtrCommandTool: ToolConfig<
   id: 'crowdstrike_execute_rtr_command',
   name: 'CrowdStrike Execute RTR Command',
   description:
-    'Run a read-only Real Time Response command inside an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). Documented read-only base commands: cat, cd, clear, csrutil (macOS), env, eventlog (Windows), filehash, getsid (Windows and macOS), help, history, ipconfig (Windows), ls, mount, netstat, ps, and reg (Windows). Commands that write to or modify the host require the Active Responder or Admin RTR endpoints, which this tool does not expose. Returns a cloud request ID; poll Get RTR Command Status for output. Requires the "Real time response: Read" API scope.',
+    'Run a read-only Real Time Response command inside an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). Documented read-only base commands: cat, cd, clear, env, eventlog, filehash, getsid, help, history, ipconfig, ls, mount, netstat, ps, and "reg query". Commands that write to or modify the host require the Active Responder or Admin RTR endpoints, which this tool does not expose. Returns a cloud request ID; poll Get RTR Command Status for output. Requires the "Real time response: Read" API scope.',
   version: '1.0.0',
 
   params: {
@@ -45,7 +45,7 @@ export const crowdstrikeExecuteRtrCommandTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Read-only RTR base command: cat, cd, clear, csrutil, env, eventlog, filehash, getsid, help, history, ipconfig, ls, mount, netstat, ps, or reg',
+        'Read-only RTR base command: cat, cd, clear, env, eventlog, filehash, getsid, help, history, ipconfig, ls, mount, netstat, ps, or "reg query"',
     },
     commandString: {
       type: 'string',

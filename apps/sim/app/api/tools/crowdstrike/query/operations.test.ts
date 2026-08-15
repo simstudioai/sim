@@ -225,9 +225,62 @@ describe('CrowdStrike extended operations', () => {
     )
     const data = await response.json()
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(404)
     expect(data.success).toBe(false)
     expect(data.error).toBe('Indicator not found')
+  })
+
+  it('falls back to 502 when a 200 carries errors without a usable code', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ resources: [], errors: [{ message: 'Upstream unavailable' }] })
+    )
+
+    const response = await POST(
+      requestFor({ operation: 'crowdstrike_get_indicator_details', indicatorIds: ['ioc-1'] })
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(502)
+    expect(data.success).toBe(false)
+    expect(data.error).toBe('Upstream unavailable')
+  })
+
+  it('fails an alert update when the meta-only envelope reports any error', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ meta: {}, errors: [{ code: 403, message: 'Alert is read only' }] })
+    )
+
+    const response = await POST(
+      requestFor({
+        operation: 'crowdstrike_update_alerts',
+        compositeIds: ['cid:aid:alert-1'],
+        updateStatus: 'closed',
+      })
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(data.success).toBe(false)
+    expect(data.error).toBe('Alert is read only')
+  })
+
+  it('sends remove_tags_by_prefix using the documented action parameter name', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ meta: {}, errors: [] }))
+
+    const response = await POST(
+      requestFor({
+        operation: 'crowdstrike_update_alerts',
+        compositeIds: ['cid:aid:alert-1'],
+        removeTagsByPrefix: 'auto-',
+      })
+    )
+
+    expect(response.status).toBe(200)
+
+    const [, updateCall] = fetchMock.mock.calls
+    expect(JSON.parse(updateCall[1].body).action_parameters).toEqual([
+      { name: 'remove_tags_by_prefix', value: 'auto-' },
+    ])
   })
 
   it('surfaces envelope errors alongside partial indicator results', async () => {
@@ -248,9 +301,7 @@ describe('CrowdStrike extended operations', () => {
 
     expect(data.success).toBe(true)
     expect(data.output.count).toBe(1)
-    expect(data.output.errors).toEqual([
-      { code: 404, id: 'ioc-2', message: 'Indicator not found' },
-    ])
+    expect(data.output.errors).toEqual([{ code: 404, id: 'ioc-2', message: 'Indicator not found' }])
   })
 
   it('drops the ids list when deleting indicators by filter', async () => {
@@ -375,7 +426,11 @@ describe('CrowdStrike extended operations', () => {
     )
     const initData = await initResponse.json()
 
-    expect(initData.output).toMatchObject({ sessionId: 'session-1', deviceId: 'aid-1', pwd: 'C:\\' })
+    expect(initData.output).toMatchObject({
+      sessionId: 'session-1',
+      deviceId: 'aid-1',
+      pwd: 'C:\\',
+    })
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ device_id: 'aid-1' })
 
     fetchMock.mockResolvedValueOnce(jsonResponse({ access_token: 'token-123' }))

@@ -46,10 +46,28 @@ export interface OperationSuccess {
 
 export type OperationResult = OperationSuccess | OperationFailure
 
+/**
+ * CrowdStrike can answer 200 while the envelope carries only errors. Reporting
+ * that as HTTP 200 would read as a success, so fall back to the per-item error
+ * code the envelope supplies, and to 502 when it supplies none.
+ */
+function failureStatus(result: CrowdStrikeCallResult): number {
+  if (!result.ok) {
+    return result.status
+  }
+
+  const envelopeCode = getEnvelopeErrors(result.data)[0]?.code
+  if (envelopeCode != null && envelopeCode >= 400 && envelopeCode <= 599) {
+    return envelopeCode
+  }
+
+  return 502
+}
+
 function fail(result: CrowdStrikeCallResult, fallback: string): OperationFailure {
   return {
     ok: false,
-    status: result.status,
+    status: failureStatus(result),
     error: getErrorMessage(result.data, fallback),
   }
 }
@@ -80,6 +98,7 @@ function buildAlertActionParameters(
   push('append_comment', body.appendComment)
   push('add_tag', body.addTag)
   push('remove_tag', body.removeTag)
+  push('remove_tags_by_prefix', body.removeTagsByPrefix)
 
   if (body.unassign === true) {
     parameters.push({ name: 'unassign', value: '' })

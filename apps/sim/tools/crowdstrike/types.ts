@@ -171,6 +171,7 @@ export interface CrowdStrikeUpdateAlertsParams extends CrowdStrikeBaseParams {
   appendComment?: string
   addTag?: string
   removeTag?: string
+  removeTagsByPrefix?: string
   showInUi?: boolean
   actionParameters?: CrowdStrikeActionParameter[]
   includeHidden?: boolean

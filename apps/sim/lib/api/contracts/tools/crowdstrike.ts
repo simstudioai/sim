@@ -583,6 +583,7 @@ const updateAlertsSchema = baseRequestSchema
     appendComment: z.string().trim().min(1, 'appendComment cannot be empty').optional(),
     addTag: z.string().trim().min(1, 'addTag cannot be empty').optional(),
     removeTag: z.string().trim().min(1, 'removeTag cannot be empty').optional(),
+    removeTagsByPrefix: z.string().trim().min(1, 'removeTagsByPrefix cannot be empty').optional(),
     showInUi: z.boolean().optional(),
     actionParameters: z
       .array(
@@ -605,6 +606,7 @@ const updateAlertsSchema = baseRequestSchema
       value.appendComment !== undefined ||
       value.addTag !== undefined ||
       value.removeTag !== undefined ||
+      value.removeTagsByPrefix !== undefined ||
       value.showInUi !== undefined ||
       (value.actionParameters?.length ?? 0) > 0
 
@@ -613,7 +615,7 @@ const updateAlertsSchema = baseRequestSchema
         code: 'custom',
         path: ['actionParameters'],
         message:
-          'Supply at least one alert update: updateStatus, assignToUuid, assignToUserId, assignToName, unassign, appendComment, addTag, removeTag, showInUi, or actionParameters',
+          'Supply at least one alert update: updateStatus, assignToUuid, assignToUserId, assignToName, unassign, appendComment, addTag, removeTag, removeTagsByPrefix, showInUi, or actionParameters',
       })
     }
   })

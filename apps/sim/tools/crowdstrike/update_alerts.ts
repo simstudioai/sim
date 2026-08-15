@@ -88,6 +88,12 @@ export const crowdstrikeUpdateAlertsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Tag to remove from the alert',
     },
+    removeTagsByPrefix: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Remove every tag on the alert that starts with this prefix',
+    },
     showInUi: {
       type: 'boolean',
       required: false,
@@ -129,6 +135,7 @@ export const crowdstrikeUpdateAlertsTool: ToolConfig<
       includeHidden: params.includeHidden,
       operation: 'crowdstrike_update_alerts',
       removeTag: params.removeTag,
+      removeTagsByPrefix: params.removeTagsByPrefix,
       showInUi: params.showInUi,
       unassign: params.unassign,
       updateStatus: params.updateStatus,

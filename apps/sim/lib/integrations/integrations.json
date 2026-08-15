@@ -4617,11 +4617,11 @@
         },
         {
           "name": "Query Vulnerabilities",
-          "description": "Search CrowdStrike Falcon Spotlight vulnerabilities with a required Falcon Query Language filter and return their IDs (GET /spotlight/queries/vulnerabilities/v1). Requires the \"Vulnerabilities: Read\" API scope."
+          "description": "Search CrowdStrike Falcon Spotlight vulnerabilities with a required Falcon Query Language filter and return their IDs (GET /spotlight/queries/vulnerabilities/v1). Requires the spotlight-vulnerabilities:read API scope, shown as \"Vulnerabilities: Read\" in the Falcon API client UI."
         },
         {
           "name": "Get Vulnerability Details",
-          "description": "Get CrowdStrike Falcon Spotlight vulnerability records for one or more vulnerability IDs, including CVE, affected host, application, and remediation details (GET /spotlight/entities/vulnerabilities/v2). Requires the \"Vulnerabilities: Read\" API scope."
+          "description": "Get CrowdStrike Falcon Spotlight vulnerability records for one or more vulnerability IDs, including CVE, affected host, application, and remediation details (GET /spotlight/entities/vulnerabilities/v2). Requires the spotlight-vulnerabilities:read API scope, shown as \"Vulnerabilities: Read\" in the Falcon API client UI."
         },
         {
           "name": "Init RTR Session",
@@ -4641,11 +4641,11 @@
         },
         {
           "name": "Query Cases",
-          "description": "Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management replaced the CrowdScore Incidents API, which CrowdStrike decommissioned. Requires the \"Cases: Read\" API scope."
+          "description": "Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management replaced the CrowdScore Incidents API, which CrowdStrike decommissioned. Requires the case-templates:read API scope, shown as \"Cases: Read\" in the Falcon API client UI."
         },
         {
           "name": "Get Case Details",
-          "description": "Get CrowdStrike Falcon Case Management case records for one or more case IDs (POST /cases/entities/cases/v2). Requires the \"Cases: Read\" API scope."
+          "description": "Get CrowdStrike Falcon Case Management case records for one or more case IDs (POST /cases/entities/cases/v2). Requires the case-templates:read API scope, shown as \"Cases: Read\" in the Falcon API client UI."
         },
         {
           "name": "Query Sensors",
