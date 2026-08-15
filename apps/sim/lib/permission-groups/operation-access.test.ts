@@ -7,7 +7,6 @@ import {
   isOperationAllowed,
   type OperationGateBlock,
   pickDefaultOperation,
-  resolveOperationToolId,
 } from '@/lib/permission-groups/operation-access'
 
 /** A block that resolves its tool from the operation, like most integrations. */
@@ -45,27 +44,27 @@ const deny = (...toolIds: string[]) => {
   return (toolId: string) => !denied.has(toolId)
 }
 
-describe('resolveOperationToolId', () => {
+describe('operation-to-tool resolution', () => {
   it('resolves through the block tool selector', () => {
-    expect(resolveOperationToolId(selectorBlock, 'canvas')).toBe('slack_canvas')
+    expect(isOperationAllowed(selectorBlock, 'canvas', deny('slack_canvas'))).toBe(false)
+    expect(isOperationAllowed(selectorBlock, 'canvas', deny('slack_message'))).toBe(true)
   })
 
-  it('returns the only tool when the block has no selection to make', () => {
-    expect(resolveOperationToolId(singleToolBlock, 'anything')).toBe('dropcontact_enrich_contact')
+  it('gates on the only tool when the block has no selection to make', () => {
+    expect(
+      isOperationAllowed(singleToolBlock, 'anything', deny('dropcontact_enrich_contact'))
+    ).toBe(false)
   })
 
   it('treats an operation id as a tool id when the block has no selector', () => {
-    expect(resolveOperationToolId(bareBlock, 'sqs_receive')).toBe('sqs_receive')
+    expect(isOperationAllowed(bareBlock, 'sqs_receive', deny('sqs_receive'))).toBe(false)
+    expect(isOperationAllowed(bareBlock, 'sqs_receive', deny('sqs_send'))).toBe(true)
   })
 
-  it('returns null rather than guessing when the selector throws', () => {
-    expect(resolveOperationToolId(selectorBlock, 'not-an-operation')).toBeNull()
-  })
-
-  it('returns null for a block with no tools', () => {
-    expect(resolveOperationToolId({ tools: { access: [] } }, 'send')).toBeNull()
-    expect(resolveOperationToolId(null, 'send')).toBeNull()
-    expect(resolveOperationToolId(undefined, 'send')).toBeNull()
+  it('allows rather than guessing when a block has no tools at all', () => {
+    expect(isOperationAllowed({ tools: { access: [] } }, 'send', denyAll)).toBe(true)
+    expect(isOperationAllowed(null, 'send', denyAll)).toBe(true)
+    expect(isOperationAllowed(undefined, 'send', denyAll)).toBe(true)
   })
 })
 

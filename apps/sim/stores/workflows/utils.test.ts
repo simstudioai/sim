@@ -1076,6 +1076,8 @@ describe('prepareBlockState — permission-group seed veto', () => {
       { id: 'operation', type: 'dropdown', defaultValue: 'send' },
       { id: 'model', type: 'combobox', defaultValue: 'claude-sonnet-5' },
       { id: 'channel', type: 'short-input', defaultValue: '#general' },
+      { id: 'blank', type: 'short-input', defaultValue: '' },
+      { id: 'headers', type: 'table', defaultValue: [] },
     ],
   }
 
@@ -1102,6 +1104,8 @@ describe('prepareBlockState — permission-group seed veto', () => {
       operation: 'send',
       model: 'claude-sonnet-5',
       channel: '#general',
+      blank: '',
+      headers: [],
     })
   })
 
@@ -1110,7 +1114,27 @@ describe('prepareBlockState — permission-group seed veto', () => {
       operation: 'send',
       model: 'claude-sonnet-5',
       channel: '#general',
+      blank: '',
+      headers: [],
     })
+  })
+
+  it('never consults the gate for an empty or non-string default', () => {
+    /* Both are "nothing was declared" rather than a value to authorize, and a
+       gate that saw them would veto every unfilled field. */
+    const seen: string[] = []
+    seededValues((subBlockId) => {
+      seen.push(subBlockId)
+      return true
+    })
+    expect(seen).not.toContain('blank')
+    expect(seen).not.toContain('headers')
+  })
+
+  it('keeps an empty or non-string default even when the gate rejects everything', () => {
+    const values = seededValues(() => false)
+    expect(values.blank).toBe('')
+    expect(values.headers).toEqual([])
   })
 
   it('leaves a denied operation unseeded rather than substituting one', () => {
@@ -1124,18 +1148,6 @@ describe('prepareBlockState — permission-group seed veto', () => {
     const values = seededValues((subBlockId) => subBlockId !== 'model')
     expect(values.model).toBeNull()
     expect(values.operation).toBe('send')
-  })
-
-  it('seeds nothing restricted when the gate answers no for an unknown config', () => {
-    /* Creation is one-shot: the caller vetoes both restricted fields while the
-       permission config is loading, since a value written here is never
-       revisited. Unrestricted fields still seed. */
-    const values = seededValues(
-      (subBlockId) => subBlockId !== 'operation' && subBlockId !== 'model'
-    )
-    expect(values.operation).toBeNull()
-    expect(values.model).toBeNull()
-    expect(values.channel).toBe('#general')
   })
 
   it('passes the seeded value to the gate, not just the field id', () => {

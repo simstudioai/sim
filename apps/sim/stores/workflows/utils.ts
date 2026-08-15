@@ -2,6 +2,7 @@ import { generateId } from '@sim/utils/id'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { filterUniqueWorkflowEdges } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
+import type { SeedValueGate } from '@/lib/permission-groups/operation-access'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
@@ -112,10 +113,12 @@ export interface PrepareBlockStateOptions {
    * that knows how to make it. Substituting here instead would also drift from
    * `getDefaultBlockName`, which names the block after its *declared* default.
    *
-   * Omitted where the acting user's config is unknown or does not apply, in
-   * which case declared defaults are seeded unchanged.
+   * Omit it entirely only where permission gating does not apply, in which case
+   * declared defaults are seeded unchanged. A caller that cannot yet answer —
+   * config still loading — vetoes rather than omitting, since a value written
+   * here is never revisited.
    */
-  isSeededValueAllowed?: (subBlockId: string, value: string) => boolean
+  isSeededValueAllowed?: SeedValueGate
 }
 
 /**

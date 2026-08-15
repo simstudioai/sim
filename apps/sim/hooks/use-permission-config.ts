@@ -33,12 +33,10 @@ export interface PermissionConfigResult {
   filterBlocks: <T extends { type: string }>(blocks: T[]) => T[]
   filterProviders: (providerIds: string[]) => string[]
   isBlockAllowed: (blockType: string) => boolean
-  isProviderAllowed: (providerId: string) => boolean
-  isModelAllowed: (model: string) => boolean
   /**
-   * Whether a model is usable at all: allowed by the model denylist *and* by the
-   * provider allowlist. Both gates apply to every model field, so prefer this
-   * over calling `isModelAllowed` and `isProviderAllowed` separately.
+   * Whether a model is usable at all: allowed by the model denylist *and* by
+   * the provider allowlist. Both gates apply to every model field, so this is
+   * the only model predicate the interface exposes.
    */
   isModelUsable: (model: string) => boolean
   isToolAllowed: (toolId: string) => boolean
@@ -193,8 +191,6 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterBlocks,
       filterProviders,
       isBlockAllowed,
-      isProviderAllowed,
-      isModelAllowed,
       isModelUsable,
       isToolAllowed,
       isInvitationsDisabled,
@@ -208,8 +204,6 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterBlocks,
       filterProviders,
       isBlockAllowed,
-      isProviderAllowed,
-      isModelAllowed,
       isModelUsable,
       isToolAllowed,
       isInvitationsDisabled,

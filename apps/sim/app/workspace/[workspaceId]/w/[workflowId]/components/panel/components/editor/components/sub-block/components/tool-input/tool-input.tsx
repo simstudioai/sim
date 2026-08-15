@@ -665,7 +665,11 @@ export const ToolInput = memo(function ToolInput({
   const provider = model ? getProviderFromModel(model) : ''
   const supportsToolControl = provider ? supportsToolUsageControl(provider) : false
 
-  const { filterBlocks, config: permissionConfig } = usePermissionConfig()
+  const {
+    filterBlocks,
+    config: permissionConfig,
+    isLoading: isPermissionLoading,
+  } = usePermissionConfig()
   const { getDeniedOperations } = useOperationAccess()
 
   /**
@@ -1704,7 +1708,11 @@ export const ToolInput = memo(function ToolInput({
         options={[]}
         groups={toolGroups}
         placeholder='Add tool...'
-        disabled={disabled}
+        /* Every list this picker offers — blocks, operations, MCP and custom
+           tools — reads as unrestricted until the permission config resolves,
+           and adding a tool is a one-shot write that nothing revisits. Closed
+           rather than optimistic for that beat. */
+        disabled={disabled || isPermissionLoading}
         searchable
         searchPlaceholder='Search tools...'
         maxHeight={240}
@@ -2115,7 +2123,9 @@ export const ToolInput = memo(function ToolInput({
                           }
                           onChange={(value) => handleOperationChange(toolIndex, value)}
                           placeholder='Select operation'
-                          disabled={disabled}
+                          /* Denied operations only drop out once the config
+                             resolves, and picking one rewrites the stored tool. */
+                          disabled={disabled || isPermissionLoading}
                         />
                       </div>
                     )

@@ -22,6 +22,13 @@ export type OperationGateBlock = Pick<BlockConfig, 'tools'>
 export type IsToolAllowed = (toolId: string) => boolean
 
 /**
+ * Vetoes a subblock's declared default when the caller's permission group does
+ * not allow it — or when the group config is not known yet, since a default
+ * written during block creation is never revisited.
+ */
+export type SeedValueGate = (subBlockId: string, value: string) => boolean
+
+/**
  * The tool id a block operation maps to, or `null` when it cannot be resolved
  * from the operation alone.
  *
@@ -38,7 +45,7 @@ export type IsToolAllowed = (toolId: string) => boolean
  * way, so a `null` only ever costs a denied option staying visible, never a
  * permitted option disappearing.
  */
-export function resolveOperationToolId(
+function resolveOperationToolId(
   block: OperationGateBlock | null | undefined,
   operationId: string
 ): string | null {

@@ -4,13 +4,22 @@ import { useMemo } from 'react'
 import {
   collectDeniedOperationIds,
   isOperationAllowed,
+  MODEL_SUBBLOCK_ID,
   NO_DENIED_OPERATIONS,
+  OPERATION_SUBBLOCK_ID,
   type OperationGateBlock,
   pickDefaultOperation,
+  type SeedValueGate,
 } from '@/lib/permission-groups/operation-access'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 export interface OperationAccess {
+  /**
+   * Whether the permission config is still loading. Every list this module
+   * filters reads as unrestricted until it resolves, so a surface that
+   * *persists* a pick from one must not accept input while this is true.
+   */
+  isPermissionLoading: boolean
   /**
    * The operation ids of `block` the caller may not run. Empty while the
    * config loads, so pickers show everything rather than flashing a short list.
@@ -41,6 +50,16 @@ export interface OperationAccess {
   resolveOperationGate: (
     block: OperationGateBlock | null | undefined
   ) => ((operationId: string) => boolean) | undefined
+  /**
+   * The veto `prepareBlockState` applies to a new block's declared defaults.
+   *
+   * Creation is one-shot, so unlike the pickers it cannot answer "unknown" by
+   * waiting — a value written there is never revisited. This gate therefore
+   * rejects both restricted fields until the config resolves, leaving them
+   * empty for the pickers to fill, and owns that rule so no caller re-derives
+   * it. Every other field passes through untouched.
+   */
+  resolveSeedGate: (block: OperationGateBlock | null | undefined) => SeedValueGate
 }
 
 /**
@@ -52,11 +71,12 @@ export interface OperationAccess {
  * canvas search, block creation — agrees.
  */
 export function useOperationAccess(): OperationAccess {
-  const { isToolAllowed, isLoading } = usePermissionConfig()
+  const { isToolAllowed, isModelUsable, isLoading } = usePermissionConfig()
 
   return useMemo(() => {
     const isReady = !isLoading
     return {
+      isPermissionLoading: isLoading,
       getDeniedOperations: (block, operationIds) =>
         isReady
           ? collectDeniedOperationIds(block, operationIds, isToolAllowed)
@@ -67,6 +87,13 @@ export function useOperationAccess(): OperationAccess {
         isReady
           ? (operationId: string) => isOperationAllowed(block, operationId, isToolAllowed)
           : undefined,
+      resolveSeedGate: (block) => (subBlockId, value) => {
+        if (subBlockId !== OPERATION_SUBBLOCK_ID && subBlockId !== MODEL_SUBBLOCK_ID) return true
+        if (!isReady) return false
+        return subBlockId === OPERATION_SUBBLOCK_ID
+          ? isOperationAllowed(block, value, isToolAllowed)
+          : isModelUsable(value)
+      },
     }
-  }, [isToolAllowed, isLoading])
+  }, [isToolAllowed, isModelUsable, isLoading])
 }

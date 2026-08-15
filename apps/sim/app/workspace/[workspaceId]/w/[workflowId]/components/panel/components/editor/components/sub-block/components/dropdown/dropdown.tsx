@@ -101,7 +101,7 @@ export const Dropdown = memo(function Dropdown({
   preserveLabelCase = false,
 }: DropdownProps) {
   const activeSearchTarget = useActiveSearchTarget()
-  const { getDeniedOperations, resolveDefaultOperation } = useOperationAccess()
+  const { getDeniedOperations, resolveDefaultOperation, isPermissionLoading } = useOperationAccess()
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
     (value: string | string[]) => void,
@@ -437,7 +437,9 @@ export const Dropdown = memo(function Dropdown({
       onChange={handleChange}
       onMultiSelectChange={handleMultiSelectChange}
       placeholder={placeholder}
-      disabled={disabled}
+      /* The operation list only drops denied entries once the config resolves,
+         and a pick here persists — matching the agent tool selector. */
+      disabled={disabled || (subBlockId === OPERATION_SUBBLOCK_ID && isPermissionLoading)}
       editable={false}
       onOpenChange={handleOpenChange}
       overlayContent={multiSelectOverlay ?? singleSelectOverlay}

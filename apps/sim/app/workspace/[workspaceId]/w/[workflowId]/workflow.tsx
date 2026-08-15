@@ -41,7 +41,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-tool'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
-import { MODEL_SUBBLOCK_ID, OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
+import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import { getDefaultBlockName } from '@/lib/workflows/blocks/canvas-presentation'
 import { requestNoteImage, requestNoteRename } from '@/lib/workflows/notes/canvas-requests'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
@@ -129,7 +129,6 @@ import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOAuthReturnForWorkflow } from '@/hooks/use-oauth-return'
 import { useOperationAccess } from '@/hooks/use-operation-access'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
 import {
@@ -871,8 +870,7 @@ const WorkflowContent = React.memo(
      */
     const pendingFocusBlockIdRef = useRef<string | null>(null)
 
-    const { resolveOperationGate } = useOperationAccess()
-    const { isModelUsable } = usePermissionConfig()
+    const { resolveSeedGate } = useOperationAccess()
 
     const addBlock = useCallback(
       (
@@ -895,20 +893,7 @@ const WorkflowContent = React.memo(
         if (parentId) blockData.parentId = parentId
         if (extent) blockData.extent = extent
 
-        const operationGate = resolveOperationGate(getBlock(type))
-
-        /**
-         * Creation is one-shot, so an unknown permission config cannot be
-         * answered by waiting the way the editor's pickers do — a value written
-         * here is never revisited. The restricted fields therefore seed empty
-         * until the config resolves, and the pickers fill them the moment it
-         * does. Seeding the declared default instead would persist it unchecked.
-         */
-        const seedGate = (subBlockId: string, value: string) => {
-          if (subBlockId !== OPERATION_SUBBLOCK_ID && subBlockId !== MODEL_SUBBLOCK_ID) return true
-          if (!operationGate) return false
-          return subBlockId === OPERATION_SUBBLOCK_ID ? operationGate(value) : isModelUsable(value)
-        }
+        const seedGate = resolveSeedGate(getBlock(type))
 
         const block = prepareBlockState({
           id,
@@ -937,15 +922,14 @@ const WorkflowContent = React.memo(
           if (!subBlockValues[id]) {
             subBlockValues[id] = {}
           }
-          /* Search and the connection picker already drop denied operations, so
-             this only catches one arriving by another route — a recent pick that
-             outlived a permission change. Dropping the key rather than the whole
-             preset leaves whatever `prepareBlockState` seeded in place. Unlike a
-             declared default, a preset is the user's explicit pick, so an
-             unknown config honours it and leaves the server to gate the run. */
+          /* The same gate as the declared default, deliberately: a preset is
+             offered by search and the connection picker, whose index reads as
+             unrestricted until the config resolves — so it is not the informed
+             pick it looks like, and honouring it would persist an operation
+             from an unfiltered list. */
           const presetOperation = presetSubBlockValues[OPERATION_SUBBLOCK_ID]
           const presetOperationDenied =
-            operationGate && typeof presetOperation === 'string' && !operationGate(presetOperation)
+            typeof presetOperation === 'string' && !seedGate(OPERATION_SUBBLOCK_ID, presetOperation)
 
           Object.assign(
             subBlockValues[id],
@@ -964,13 +948,7 @@ const WorkflowContent = React.memo(
         )
         usePanelEditorStore.getState().setCurrentBlockId(id)
       },
-      [
-        collaborativeBatchAddBlocks,
-        setSelectedEdges,
-        setPendingSelection,
-        resolveOperationGate,
-        isModelUsable,
-      ]
+      [collaborativeBatchAddBlocks, setSelectedEdges, setPendingSelection, resolveSeedGate]
     )
 
     const { activeBlockIds, pendingBlocks, isDebugging, isExecuting } = useExecutionStore(
