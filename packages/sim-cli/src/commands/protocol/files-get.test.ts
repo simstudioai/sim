@@ -181,6 +181,18 @@ describe('saveToFile', () => {
     expect(readFileSync(link, 'utf8')).toBe('new')
     expect(lstatSync(link).isSymbolicLink()).toBe(true)
   })
+
+  it('preserves a dangling forced symlink and creates its target', async () => {
+    const target = join(dir, 'missing.txt')
+    const link = join(dir, 'link.txt')
+    symlinkSync('missing.txt', link)
+
+    await saveToFile(bodyOf(['new']), link, true)
+
+    expect(readFileSync(target, 'utf8')).toBe('new')
+    expect(readFileSync(link, 'utf8')).toBe('new')
+    expect(lstatSync(link).isSymbolicLink()).toBe(true)
+  })
 })
 
 describe('isTerminalSafeContentType', () => {

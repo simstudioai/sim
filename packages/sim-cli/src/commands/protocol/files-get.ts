@@ -1,7 +1,7 @@
 import { once } from 'node:events'
 import { createWriteStream, type WriteStream } from 'node:fs'
-import { lstat, mkdtemp, open, realpath, rename, rm } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { lstat, mkdtemp, open, readlink, rename, rm } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
 import { Readable, type Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { Command } from 'commander'
@@ -22,15 +22,27 @@ function writeFailure(path: WriteStream['path'], error: unknown): SimApiError {
 }
 
 async function forcedPublicationTarget(target: string): Promise<string> {
-  let metadata
-  try {
-    metadata = await lstat(target)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return target
-    throw error
-  }
+  let candidate = target
+  const visited = new Set<string>()
 
-  return metadata.isSymbolicLink() ? realpath(target) : target
+  while (true) {
+    const absoluteCandidate = resolve(candidate)
+    if (visited.has(absoluteCandidate)) {
+      throw Object.assign(new Error(`Symbolic link loop at ${target}`), { code: 'ELOOP' })
+    }
+    visited.add(absoluteCandidate)
+
+    let metadata
+    try {
+      metadata = await lstat(candidate)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return candidate
+      throw error
+    }
+
+    if (!metadata.isSymbolicLink()) return candidate
+    candidate = resolve(dirname(candidate), await readlink(candidate))
+  }
 }
 
 function normalizedWriteFailure(target: string, error: unknown): SimApiError {
