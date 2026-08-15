@@ -10,6 +10,7 @@ import {
 } from '@/lib/api/server/routes'
 import {
   credentialValidationParseOptions,
+  internalCredentialDetailErrorPolicy,
   internalCredentialErrorPolicy,
 } from '@/lib/credentials/api/route-policies'
 import {
@@ -27,7 +28,7 @@ export const GET = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: credentialOperations.read,
   rateLimit,
-  errorPolicy: internalCredentialErrorPolicy,
+  errorPolicy: internalCredentialDetailErrorPolicy,
   parseOptions: credentialValidationParseOptions,
   mapInput: ({ params }) => ({ credentialId: params.id }),
   useCase: getWorkspaceCredentialUseCase,
