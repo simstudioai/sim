@@ -105,7 +105,7 @@ export async function handleCreateCredentialFromDraft(params: {
  * the dead flag. Callers treat that timestamp as proof the reconnect landed.
  */
 export async function handleReconnectCredential(params: {
-  draft: { credentialId: string | null; workspaceId: string; displayName: string }
+  draft: { credentialId: string | null }
   newAccountId: string
   workspaceId: string
   userId: string
@@ -115,19 +115,21 @@ export async function handleReconnectCredential(params: {
   if (!draft.credentialId) return
 
   const [existingCredential] = await db
-    .select({ id: schema.credential.id, accountId: schema.credential.accountId })
+    .select({
+      id: schema.credential.id,
+      accountId: schema.credential.accountId,
+      displayName: schema.credential.displayName,
+    })
     .from(schema.credential)
     .where(eq(schema.credential.id, draft.credentialId))
     .limit(1)
 
   if (!existingCredential) {
-    logger.warn('Credential not found for reconnect, skipping', {
-      credentialId: draft.credentialId,
-    })
-    return
+    throw new Error(`Cannot reconnect missing credential ${draft.credentialId}`)
   }
 
   const oldAccountId = existingCredential.accountId
+  const displayName = existingCredential.displayName
   const accountChanged = oldAccountId !== newAccountId
 
   if (accountChanged) {
@@ -144,12 +146,9 @@ export async function handleReconnectCredential(params: {
       .limit(1)
 
     if (conflicting) {
-      logger.warn('New account already used by another credential, skipping reconnect', {
-        credentialId: draft.credentialId,
-        newAccountId,
-        conflictingCredentialId: conflicting.id,
-      })
-      return
+      throw new Error(
+        `Cannot reconnect credential ${draft.credentialId}: account ${newAccountId} is already used by credential ${conflicting.id}`
+      )
     }
   }
 
@@ -177,10 +176,10 @@ export async function handleReconnectCredential(params: {
     action: AuditAction.CREDENTIAL_RECONNECTED,
     resourceType: AuditResourceType.CREDENTIAL,
     resourceId: draft.credentialId,
-    resourceName: draft.displayName,
+    resourceName: displayName,
     description: accountChanged
-      ? `Reconnected OAuth credential "${draft.displayName}" to a new account`
-      : `Reconnected OAuth credential "${draft.displayName}"`,
+      ? `Reconnected OAuth credential "${displayName}" to a new account`
+      : `Reconnected OAuth credential "${displayName}"`,
     metadata: { oldAccountId, newAccountId },
   })
 

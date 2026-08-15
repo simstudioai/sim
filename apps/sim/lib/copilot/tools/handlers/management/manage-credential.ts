@@ -1,84 +1,82 @@
-import { toError } from '@sim/utils/errors'
+import { messageForCopilotApplicationError } from '@/lib/copilot/application/error'
+import { executeCopilotCredentialUseCase } from '@/lib/copilot/application/execute-credential-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { performDeleteCredential, performUpdateCredential } from '@/lib/credentials/orchestration'
+import { updateWorkspaceCredentialUseCase } from '@/lib/credentials/application/credential-crud'
+import { deleteManyCredentialsUseCase } from '@/lib/credentials/application/delete-many-credentials'
 
-export function executeManageCredential(
+export async function executeManageCredential(
   rawParams: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
-  const params = rawParams as {
-    operation: string
-    credentialId?: string
-    credentialIds?: string[]
-    displayName?: string
+  const operation = typeof rawParams.operation === 'string' ? rawParams.operation : ''
+  const credentialId =
+    typeof rawParams.credentialId === 'string' ? rawParams.credentialId : undefined
+  const displayName = typeof rawParams.displayName === 'string' ? rawParams.displayName : undefined
+  const rawCredentialIds = rawParams.credentialIds
+  if (
+    rawCredentialIds !== undefined &&
+    (!Array.isArray(rawCredentialIds) || rawCredentialIds.some((id) => typeof id !== 'string'))
+  ) {
+    return { success: false, error: 'credentialIds must be an array of strings' }
   }
-  const { operation, displayName } = params
-  return (async () => {
-    try {
-      if (!context?.userId) {
-        return { success: false, error: 'Authentication required' }
-      }
+  const credentialIds = rawCredentialIds as string[] | undefined
+  const workspaceId = context.workspaceId
+  if (!workspaceId) return { success: false, error: 'workspaceId is required' }
 
-      switch (operation) {
-        case 'rename': {
-          const credentialId = params.credentialId
-          if (!credentialId) return { success: false, error: 'credentialId is required for rename' }
-          if (!displayName) return { success: false, error: 'displayName is required for rename' }
-
-          const result = await performUpdateCredential({
+  try {
+    switch (operation) {
+      case 'rename': {
+        if (!credentialId) {
+          return { success: false, error: 'credentialId is required for rename' }
+        }
+        if (!displayName) {
+          return { success: false, error: 'displayName is required for rename' }
+        }
+        const result = await executeCopilotCredentialUseCase(
+          context,
+          updateWorkspaceCredentialUseCase,
+          {
             credentialId,
-            userId: context.userId,
             displayName,
-            allowedTypes: ['oauth'],
-          })
-          if (!result.success) {
-            return { success: false, error: result.error || 'Failed to rename credential' }
           }
-          return {
-            success: true,
-            output: {
-              credentialId,
-              previousDisplayName: result.previousDisplayName,
-              displayName,
-            },
-          }
+        )
+        return {
+          success: true,
+          output: {
+            credentialId: result.credential.id,
+            previousDisplayName: result.previousDisplayName,
+            displayName: result.credential.displayName,
+          },
         }
-        case 'delete': {
-          const ids: string[] =
-            params.credentialIds ?? (params.credentialId ? [params.credentialId] : [])
-          if (ids.length === 0)
-            return { success: false, error: 'credentialId or credentialIds is required for delete' }
-
-          const deleted: string[] = []
-          const failed: string[] = []
-
-          for (const id of ids) {
-            const result = await performDeleteCredential({
-              credentialId: id,
-              userId: context.userId,
-              allowedTypes: ['oauth'],
-              reason: 'copilot_delete',
-            })
-            if (!result.success) {
-              failed.push(id)
-              continue
-            }
-            deleted.push(id)
-          }
-
-          return {
-            success: deleted.length > 0,
-            output: { deleted, failed },
-          }
-        }
-        default:
+      }
+      case 'delete': {
+        const ids = credentialIds ?? (credentialId ? [credentialId] : [])
+        if (ids.length === 0) {
           return {
             success: false,
-            error: `Unknown operation: ${operation}. Use "rename" or "delete".`,
+            error: 'credentialId or credentialIds is required for delete',
           }
+        }
+        const result = await executeCopilotCredentialUseCase(
+          context,
+          deleteManyCredentialsUseCase,
+          { workspaceId, credentialIds: ids }
+        )
+        return {
+          success: result.deleted.length > 0,
+          output: { deleted: result.deleted, failed: result.failed },
+        }
       }
-    } catch (error) {
-      return { success: false, error: toError(error).message }
+      default:
+        return {
+          success: false,
+          error: `Unknown operation: ${operation}. Use "rename" or "delete".`,
+        }
     }
-  })()
+  } catch (error) {
+    return {
+      success: false,
+      error: messageForCopilotApplicationError(error, 'Failed to manage credential'),
+    }
+  }
 }
