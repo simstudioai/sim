@@ -8,6 +8,8 @@ import {
   buildServiceNowHeaders,
   normalizeInstanceUrl,
   parseServiceNowResponse,
+  readNestedNumber,
+  toRecordObject,
   withQueryString,
 } from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -97,7 +99,7 @@ export const searchKnowledgeTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await parseServiceNowResponse(response)
-    const result = data.result ?? {}
+    const result = toRecordObject(data.result)
     const articles: ServiceNowKnowledgeArticleSummary[] = Array.isArray(result.articles)
       ? result.articles
       : []
@@ -108,7 +110,7 @@ export const searchKnowledgeTool: ToolConfig<
         articles,
         metadata: {
           recordCount: articles.length,
-          totalCount: typeof result.meta?.count === 'number' ? result.meta.count : null,
+          totalCount: readNestedNumber(result, 'meta', 'count'),
         },
       },
     }

@@ -7,6 +7,8 @@ import {
   buildServiceNowHeaders,
   normalizeInstanceUrl,
   parseServiceNowResponse,
+  readString,
+  toRecordObject,
 } from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -85,16 +87,16 @@ export const orderCatalogItemTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await parseServiceNowResponse(response)
-    const result = data.result ?? {}
+    const result = toRecordObject(data.result)
 
     return {
       success: true,
       output: {
-        sysId: result.sys_id ?? null,
-        number: result.number ?? null,
-        requestNumber: result.request_number ?? null,
-        requestId: result.request_id ?? null,
-        table: result.table ?? null,
+        sysId: readString(result, 'sys_id'),
+        number: readString(result, 'number'),
+        requestNumber: readString(result, 'request_number'),
+        requestId: readString(result, 'request_id'),
+        table: readString(result, 'table'),
       },
     }
   },

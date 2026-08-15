@@ -7,6 +7,8 @@ import {
   buildServiceNowHeaders,
   normalizeInstanceUrl,
   parseServiceNowResponse,
+  readString,
+  toRecordObject,
   withQueryString,
 } from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -78,15 +80,15 @@ export const getKnowledgeArticleTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await parseServiceNowResponse(response)
-    const result = data.result ?? {}
+    const result = toRecordObject(data.result)
 
     return {
       success: true,
       output: {
-        sysId: result.sys_id ?? null,
-        number: result.number ?? null,
-        title: result.short_description ?? null,
-        content: result.content ?? null,
+        sysId: readString(result, 'sys_id'),
+        number: readString(result, 'number'),
+        title: readString(result, 'short_description'),
+        content: readString(result, 'content'),
         fields: result.fields ?? null,
         attachments: Array.isArray(result.attachments) ? result.attachments : [],
       },

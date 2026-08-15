@@ -2,6 +2,7 @@ import { filterUndefined } from '@sim/utils/object'
 import { DEFAULT_DISPLAY_VALUE } from '@/tools/servicenow/constants'
 import type {
   ServiceNowAuthParams,
+  ServiceNowEnvelope,
   ServiceNowReadOptions,
   ServiceNowRecord,
   ServiceNowWriteOptions,
@@ -132,15 +133,53 @@ export function withQueryString(url: string, searchParams: URLSearchParams): str
  * Parses a ServiceNow JSON response, raising the instance's own error message
  * when the request failed. ServiceNow error bodies are `{ error: { message, detail } }`.
  */
-export async function parseServiceNowResponse(response: Response): Promise<any> {
-  const data = await response.json()
+export async function parseServiceNowResponse(response: Response): Promise<ServiceNowEnvelope> {
+  const data = (await response.json()) as ServiceNowEnvelope
 
   if (!response.ok) {
-    const error = data?.error || data
-    throw new Error(typeof error === 'string' ? error : error?.message || JSON.stringify(error))
+    const error = data?.error ?? data
+    const message =
+      typeof error === 'string'
+        ? error
+        : ((error as { message?: string })?.message ?? JSON.stringify(error))
+    throw new Error(message)
   }
 
   return data
+}
+
+/**
+ * Narrows an envelope `result` to a keyed record. Single-record endpoints reply
+ * with an object; anything else (a collection, a scalar, `null`) becomes `{}` so
+ * callers can read fields without an unchecked cast.
+ */
+export function toRecordObject(result: unknown): ServiceNowRecord {
+  return result && typeof result === 'object' && !Array.isArray(result)
+    ? (result as ServiceNowRecord)
+    : {}
+}
+
+/**
+ * Reads a string field off a ServiceNow record. Returns `null` when the field is
+ * absent or is not a string, so a tool declaring a `string | null` output cannot
+ * silently emit an object because the instance returned a different shape.
+ */
+export function readString(record: ServiceNowRecord, key: string): string | null {
+  const value = record[key]
+  return typeof value === 'string' ? value : null
+}
+
+/**
+ * Reads a number field off a nested object on a ServiceNow record, for example
+ * the `meta.count` the Knowledge search API returns alongside its results.
+ */
+export function readNestedNumber(
+  record: ServiceNowRecord,
+  key: string,
+  nestedKey: string
+): number | null {
+  const nested = toRecordObject(record[key])[nestedKey]
+  return typeof nested === 'number' ? nested : null
 }
 
 /**

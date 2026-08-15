@@ -9,7 +9,18 @@ import type { ToolResponse } from '@/tools/types'
 export interface ServiceNowRecord {
   sys_id?: unknown
   number?: unknown
-  [key: string]: any
+  [key: string]: unknown
+}
+
+/**
+ * The envelope every ServiceNow REST endpoint replies with. Success bodies
+ * carry `result` — an object for single-record endpoints, an array for
+ * collections; failures carry `error`. `result` stays `unknown` so each tool
+ * narrows it deliberately rather than inheriting an unchecked shape.
+ */
+export interface ServiceNowEnvelope {
+  result?: unknown
+  error?: { message?: string; detail?: string } | string
 }
 
 /** Credentials shared by every ServiceNow tool. */
@@ -273,7 +284,7 @@ export interface ServiceNowCatalogItem {
   picture?: string
   icon?: string
   order?: number
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export interface ServiceNowListCatalogItemsResponse extends ToolResponse {
@@ -521,7 +532,7 @@ export interface ServiceNowAttachment {
   table_name?: string
   table_sys_id?: string
   download_link?: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export interface ServiceNowListAttachmentsParams {

@@ -8,6 +8,7 @@ import {
   buildServiceNowHeaders,
   normalizeInstanceUrl,
   parseServiceNowResponse,
+  toRecordObject,
 } from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -47,13 +48,15 @@ export const getChangeNextStatesTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await parseServiceNowResponse(response)
-    const result = data.result ?? {}
+    const result = toRecordObject(data.result)
 
     const availableStates: string[] = Array.isArray(result.available_states)
       ? result.available_states.map((state: unknown) => String(state))
       : []
-    const stateLabels: Record<string, string> =
-      result.state_label && typeof result.state_label === 'object' ? result.state_label : {}
+    const stateLabels: Record<string, string> = {}
+    for (const [state, label] of Object.entries(toRecordObject(result.state_label))) {
+      if (typeof label === 'string') stateLabels[state] = label
+    }
 
     /**
      * ServiceNow groups `state_transitions` by target state, so it arrives as an

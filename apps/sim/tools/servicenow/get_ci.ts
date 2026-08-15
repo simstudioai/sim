@@ -4,6 +4,7 @@ import {
   buildServiceNowHeaders,
   normalizeInstanceUrl,
   parseServiceNowResponse,
+  toRecordObject,
 } from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -46,7 +47,7 @@ export const getCiTool: ToolConfig<ServiceNowGetCiParams, ServiceNowGetCiRespons
 
   transformResponse: async (response: Response) => {
     const data = await parseServiceNowResponse(response)
-    const result = data.result ?? {}
+    const result = toRecordObject(data.result)
     const inboundRelations = Array.isArray(result.inbound_relations) ? result.inbound_relations : []
     const outboundRelations = Array.isArray(result.outbound_relations)
       ? result.outbound_relations
