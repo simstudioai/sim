@@ -115,7 +115,20 @@ jobs:
           tar -xzf "$PACKAGE_PATH" -C "$SMOKE_DIR"
           "$SMOKE_DIR/package/dist/index.js" --version
 
+      - name: Check if version already exists
+        id: version_check
+        working-directory: packages/sim-cli
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if bun pm view "@sim/cli@$VERSION" version > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to npm
+        if: steps.version_check.outputs.exists == 'false'
         working-directory: packages/sim-cli
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -123,7 +136,14 @@ jobs:
         run: bun publish --access public --tag "$NPM_TAG" --no-save
 
       - name: Summarize release
+        if: steps.version_check.outputs.exists == 'false'
         env:
           VERSION: ${{ steps.release.outputs.version }}
           NPM_TAG: ${{ steps.release.outputs.tag }}
         run: echo "Published @sim/cli@$VERSION with the '$NPM_TAG' tag."
+
+      - name: Summarize skipped release
+        if: steps.version_check.outputs.exists == 'true'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: echo "Skipped @sim/cli@$VERSION because that version is already published."
