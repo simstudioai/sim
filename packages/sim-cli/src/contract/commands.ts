@@ -120,10 +120,7 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows undeploy',
     describe: 'Take a workflow out of deployment',
   },
-  setSecret: {
-    command: 'secrets set',
-    describe: 'Create or replace a named secret',
-  },
+  setSecret: { hidden: true },
 
   // ─── Destructive single-resource operations ───────────────────────────────
   deleteTable: { confirm: 'This deletes the table and all of its rows.' },

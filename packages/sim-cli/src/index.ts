@@ -7,6 +7,7 @@ import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './c
 import { configureCommand } from './commands/configure'
 import { attachCredentialCommands } from './commands/credentials'
 import { attachProtocolCommands } from './commands/protocol/index'
+import { attachSecretCommands } from './commands/secrets'
 import { OUTPUT_FORMATS, ProfileConfigError } from './config/index'
 import { formatApiErrorDetails, SimApiError } from './http/client'
 import { sanitize } from './output/render'
@@ -52,6 +53,7 @@ for (const command of buildGeneratedCommands()) {
 
 attachCredentialCommands(program)
 attachProtocolCommands(program)
+attachSecretCommands(program)
 
 program.addHelpText(
   'after',

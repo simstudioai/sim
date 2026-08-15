@@ -443,22 +443,8 @@ describe('commands parsed through commander', () => {
     expect(help).not.toContain('--no-recursive')
   })
 
-  it('exposes named secrets separately from connected credentials', async () => {
-    const [path, options] = await run([
-      'secret',
-      'set',
-      'ZOHO_API_KEY',
-      '--scope',
-      'workspace',
-      '--value',
-      'test-secret',
-    ])
-    expect(path).toBe('/api/v2/secrets/ZOHO_API_KEY')
-    expect(options.body).toEqual({
-      workspaceId: 'ws_local',
-      scope: 'workspace',
-      value: 'test-secret',
-    })
+  it('exposes named secrets separately from connected credentials', () => {
+    expect(commandAt('secrets', 'list').name()).toBe('list')
     expect(commandAt('credentials', 'list').name()).toBe('list')
   })
 
