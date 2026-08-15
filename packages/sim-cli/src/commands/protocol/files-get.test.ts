@@ -1,9 +1,11 @@
 import {
   createWriteStream,
   existsSync,
+  lstatSync,
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -147,6 +149,17 @@ describe('saveToFile', () => {
     expect(existsSync(target)).toBe(false)
   })
 
+  it('preserves an existing destination without --force', async () => {
+    const target = join(dir, 'out.txt')
+    writeFileSync(target, 'precious')
+
+    await expect(saveToFile(bodyOf(['new']), target, false)).rejects.toThrow(
+      /already exists.*--force/s
+    )
+
+    expect(readFileSync(target, 'utf8')).toBe('precious')
+  })
+
   it('publishes a completed forced download over the original', async () => {
     const target = join(dir, 'out.txt')
     writeFileSync(target, 'old')
@@ -154,6 +167,19 @@ describe('saveToFile', () => {
     await saveToFile(bodyOf(['new']), target, true)
 
     expect(readFileSync(target, 'utf8')).toBe('new')
+  })
+
+  it('preserves a forced symlink destination and replaces its target', async () => {
+    const target = join(dir, 'target.txt')
+    const link = join(dir, 'link.txt')
+    writeFileSync(target, 'old')
+    symlinkSync(target, link)
+
+    await saveToFile(bodyOf(['new']), link, true)
+
+    expect(readFileSync(target, 'utf8')).toBe('new')
+    expect(readFileSync(link, 'utf8')).toBe('new')
+    expect(lstatSync(link).isSymbolicLink()).toBe(true)
   })
 })
 

@@ -291,15 +291,17 @@ export function printRecord(format: OutputFormat, fields: Array<[string, string]
     return
   }
 
+  const safeFields = fields.map<[string, string]>(([label, value]) => [safeOneLine(label), value])
+
   if (format === 'text') {
-    for (const [label, value] of fields) {
+    for (const [label, value] of safeFields) {
       console.log(`${label}\t${oneLine(stripAnsi(value))}`)
     }
     return
   }
 
-  const width = Math.max(...fields.map(([label]) => label.length))
-  for (const [label, value] of fields) {
+  const width = Math.max(...safeFields.map(([label]) => visibleWidth(label)))
+  for (const [label, value] of safeFields) {
     console.log(`${chalk.dim(pad(`${label}:`, width + 1))}  ${oneLine(value)}`)
   }
 }

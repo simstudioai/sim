@@ -179,6 +179,15 @@ describe('printRecord', () => {
     expect(logged[0]).toContain('abc')
     expect(logged[1]).toContain('alpha')
   })
+
+  it.each(['text', 'table'] as const)('sanitizes API-controlled labels in %s output', (format) => {
+    printRecord(format, [[`${ESC}]0;pwned${BEL}safe\nlabel`, 'value']], {})
+
+    expect(logged.join('\n')).not.toContain(ESC)
+    expect(logged.join('\n')).not.toContain(BEL)
+    expect(logged).toHaveLength(1)
+    expect(logged[0]).toContain('safe label')
+  })
 })
 
 describe('formatters', () => {

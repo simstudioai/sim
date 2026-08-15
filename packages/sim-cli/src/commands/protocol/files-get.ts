@@ -1,6 +1,6 @@
 import { once } from 'node:events'
 import { createWriteStream, type WriteStream } from 'node:fs'
-import { link, mkdtemp, rename, rm } from 'node:fs/promises'
+import { lstat, mkdtemp, open, realpath, rename, rm } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { Readable, type Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -21,6 +21,33 @@ function writeFailure(path: WriteStream['path'], error: unknown): SimApiError {
   return new SimApiError(`Could not write ${path}: ${(error as Error).message}`, 0)
 }
 
+async function forcedPublicationTarget(target: string): Promise<string> {
+  let metadata
+  try {
+    metadata = await lstat(target)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return target
+    throw error
+  }
+
+  return metadata.isSymbolicLink() ? realpath(target) : target
+}
+
+function normalizedWriteFailure(target: string, error: unknown): SimApiError {
+  return error instanceof SimApiError ? error : writeFailure(target, error)
+}
+
+function combinedCleanupFailure(
+  failure: SimApiError,
+  temporaryPath: string,
+  cleanupError: unknown
+): SimApiError {
+  return new SimApiError(
+    `${failure.message} Cleanup also failed for ${temporaryPath}: ${(cleanupError as Error).message}`,
+    0
+  )
+}
+
 /** Streams a fetch body to disk while honoring write-stream backpressure. */
 export async function streamToFile(
   body: ReadableStream<Uint8Array>,
@@ -34,27 +61,63 @@ export async function streamToFile(
   }
 }
 
-/** Stages a complete download beside its destination before publishing it. */
+async function saveNewFile(body: ReadableStream<Uint8Array>, target: string): Promise<void> {
+  let created = false
+
+  try {
+    const file = await open(target, 'wx')
+    created = true
+    await streamToFile(body, file.createWriteStream(), target)
+  } catch (error) {
+    const failure = normalizedWriteFailure(target, error)
+    if (!created) throw failure
+
+    try {
+      await rm(target, { force: true })
+    } catch (cleanupError) {
+      throw combinedCleanupFailure(failure, target, cleanupError)
+    }
+    throw failure
+  }
+}
+
+async function saveForcedFile(body: ReadableStream<Uint8Array>, target: string): Promise<void> {
+  let temporaryDirectory: string | null = null
+  let failure: SimApiError | null = null
+
+  try {
+    const publicationTarget = await forcedPublicationTarget(target)
+    temporaryDirectory = await mkdtemp(join(dirname(publicationTarget), '.sim-download-'))
+    const temporaryPath = join(temporaryDirectory, 'payload')
+    await streamToFile(body, createWriteStream(temporaryPath, { flags: 'wx' }), target)
+    await rename(temporaryPath, publicationTarget)
+  } catch (error) {
+    failure = normalizedWriteFailure(target, error)
+  }
+
+  if (temporaryDirectory) {
+    try {
+      await rm(temporaryDirectory, { recursive: true, force: true })
+    } catch (cleanupError) {
+      if (failure) throw combinedCleanupFailure(failure, temporaryDirectory, cleanupError)
+      throw new SimApiError(
+        `Saved ${target}, but could not remove temporary directory ${temporaryDirectory}: ${(cleanupError as Error).message}`,
+        0
+      )
+    }
+  }
+
+  if (failure) throw failure
+}
+
+/** Saves without overwriting by default; forced writes publish only after the body is complete. */
 export async function saveToFile(
   body: ReadableStream<Uint8Array>,
   target: string,
   force: boolean
 ): Promise<void> {
-  let temporaryDirectory: string | null = null
-
-  try {
-    temporaryDirectory = await mkdtemp(join(dirname(target), '.sim-download-'))
-    const temporaryPath = join(temporaryDirectory, 'payload')
-    await streamToFile(body, createWriteStream(temporaryPath, { flags: 'wx' }), target)
-
-    if (force) await rename(temporaryPath, target)
-    else await link(temporaryPath, target)
-  } catch (error) {
-    if (error instanceof SimApiError) throw error
-    throw writeFailure(target, error)
-  } finally {
-    if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true })
-  }
+  if (force) return saveForcedFile(body, target)
+  return saveNewFile(body, target)
 }
 
 /** Streams a fetch body to stdout without closing the process-wide stream. */
