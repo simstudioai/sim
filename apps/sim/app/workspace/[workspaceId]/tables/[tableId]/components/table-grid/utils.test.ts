@@ -47,8 +47,8 @@ describe('horizontalEdgeScrollVelocity', () => {
     expect(getVelocity(500)).toBe(0)
   })
 
-  it('fails fast for invalid geometry', () => {
-    expect(() =>
+  it('stays still when pinned columns consume the visible viewport', () => {
+    expect(
       horizontalEdgeScrollVelocity({
         pointerX: 100,
         visibleLeft: 200,
@@ -56,7 +56,22 @@ describe('horizontalEdgeScrollVelocity', () => {
         hotZone: 48,
         maxVelocity: 14,
       })
-    ).toThrow('visibleRight must be greater than visibleLeft')
+    ).toBe(0)
+  })
+
+  it('uses the nearest edge when a narrow viewport would overlap both hot zones', () => {
+    const narrowVelocity = (pointerX: number) =>
+      horizontalEdgeScrollVelocity({
+        pointerX,
+        visibleLeft: 100,
+        visibleRight: 140,
+        hotZone: 48,
+        maxVelocity: 14,
+      })
+
+    expect(narrowVelocity(105)).toBe(-11)
+    expect(narrowVelocity(120)).toBe(0)
+    expect(narrowVelocity(135)).toBe(11)
   })
 })
 

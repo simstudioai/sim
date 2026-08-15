@@ -457,6 +457,8 @@ export function WorkflowGroupMetaCell({
   return (
     <th
       colSpan={size}
+      data-column-drag-target={columnName}
+      data-column-drag-group={groupId}
       onClick={selectGroupAndOpenConfig}
       onContextMenu={handleContextMenu}
       draggable={isDraggable}

@@ -536,6 +536,7 @@ export function TableGrid({
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnDragPointerXRef = useRef<number | null>(null)
+  const columnDragPointerYRef = useRef<number | null>(null)
   const columnDragScrollFrameRef = useRef<number | null>(null)
   const theadRef = useRef<HTMLTableSectionElement>(null)
   const tbodyRef = useRef<HTMLTableSectionElement>(null)
@@ -1770,21 +1771,91 @@ export function TableGrid({
 
   const stopColumnDragAutoScroll = useCallback(() => {
     columnDragPointerXRef.current = null
+    columnDragPointerYRef.current = null
     if (columnDragScrollFrameRef.current !== null) {
       cancelAnimationFrame(columnDragScrollFrameRef.current)
       columnDragScrollFrameRef.current = null
     }
   }, [])
 
-  function startColumnDragAutoScroll(pointerX: number) {
+  const handleColumnDragLeave = useCallback(() => {
+    dropTargetColumnNameRef.current = null
+    setDropTargetColumnName(null)
+  }, [])
+
+  const updateColumnDropTarget = useCallback(
+    (columnName: string, side: 'left' | 'right') => {
+      const dragged = dragColumnNameRef.current
+      if (!dragged) return
+
+      const cols = schemaColumnsRef.current
+      const draggedGid = cols.find((c) => getColumnId(c) === dragged)?.workflowGroupId
+      const targetGid = cols.find((c) => getColumnId(c) === columnName)?.workflowGroupId
+      if (
+        (draggedGid && draggedGid === targetGid) ||
+        pinnedColumnsRef.current.includes(dragged) !== pinnedColumnsRef.current.includes(columnName)
+      ) {
+        handleColumnDragLeave()
+        return
+      }
+
+      if (columnName === dropTargetColumnNameRef.current && side === dropSideRef.current) return
+      dropTargetColumnNameRef.current = columnName
+      dropSideRef.current = side
+      setDropTargetColumnName(columnName)
+      setDropSide(side)
+    },
+    [handleColumnDragLeave]
+  )
+
+  function updateColumnDropTargetAtPoint(pointerX: number, pointerY: number) {
+    const hoveredElement = document.elementFromPoint(pointerX, pointerY)
+    const header = hoveredElement?.closest<HTMLElement>('th[data-column-drag-target]')
+    if (!header || !theadRef.current?.contains(header)) {
+      handleColumnDragLeave()
+      return
+    }
+
+    const columnName = header.dataset.columnDragTarget
+    if (!columnName) {
+      handleColumnDragLeave()
+      return
+    }
+
+    const targetGroupId = header.dataset.columnDragGroup
+    let { left, right } = header.getBoundingClientRect()
+    if (targetGroupId) {
+      const groupHeaders = theadRef.current.querySelectorAll<HTMLElement>(
+        'th[data-column-drag-group]'
+      )
+      for (const groupHeader of groupHeaders) {
+        if (groupHeader.dataset.columnDragGroup !== targetGroupId) continue
+        const rect = groupHeader.getBoundingClientRect()
+        left = Math.min(left, rect.left)
+        right = Math.max(right, rect.right)
+      }
+    }
+
+    updateColumnDropTarget(columnName, pointerX < left + (right - left) / 2 ? 'left' : 'right')
+  }
+
+  function startColumnDragAutoScroll(pointerX: number, pointerY: number) {
     columnDragPointerXRef.current = pointerX
+    columnDragPointerYRef.current = pointerY
     if (columnDragScrollFrameRef.current !== null) return
 
     const tick = () => {
       columnDragScrollFrameRef.current = null
       const scrollEl = scrollRef.current
       const currentPointerX = columnDragPointerXRef.current
-      if (!scrollEl || currentPointerX === null || !dragColumnNameRef.current) return
+      const currentPointerY = columnDragPointerYRef.current
+      if (
+        !scrollEl ||
+        currentPointerX === null ||
+        currentPointerY === null ||
+        !dragColumnNameRef.current
+      )
+        return
 
       const scrollRect = scrollEl.getBoundingClientRect()
       const velocity = horizontalEdgeScrollVelocity({
@@ -1799,6 +1870,7 @@ export function TableGrid({
       const previousScrollLeft = scrollEl.scrollLeft
       scrollEl.scrollLeft += velocity
       if (scrollEl.scrollLeft !== previousScrollLeft) {
+        updateColumnDropTargetAtPoint(currentPointerX, currentPointerY)
         columnDragScrollFrameRef.current = requestAnimationFrame(tick)
       }
     }
@@ -1821,44 +1893,15 @@ export function TableGrid({
     [stopColumnDragAutoScroll]
   )
 
-  const handleColumnDragOver = useCallback((columnName: string, side: 'left' | 'right') => {
-    const dragged = dragColumnNameRef.current
-    const cols = schemaColumnsRef.current
-    const targetCol = cols.find((c) => getColumnId(c) === columnName)
-    const targetGid = targetCol?.workflowGroupId
-
-    // Suppress drop targeting while hovering siblings of the dragged column's
-    // own group: reordering inside a group is meaningless (the group renders
-    // as a unit) and the chasing indicator just flickers.
-    if (dragged) {
-      const draggedGid = cols.find((c) => getColumnId(c) === dragged)?.workflowGroupId
-      if (draggedGid && draggedGid === targetGid) {
-        if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
-        return
-      }
-    }
-
-    // Reorder is restricted to within a single zone so a cross-zone drop
-    // indicator never appears for an insertion the grid would refuse.
-    if (dragged) {
-      const pinned = pinnedColumnsRef.current
-      if (pinned.includes(dragged) !== pinned.includes(columnName)) {
-        if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
-        return
-      }
-    }
-
-    // Workflow groups: skip per-`<th>` writes and let `handleScrollDragOver`
-    // do the bookkeeping. The scroll handler computes side from the group's
-    // full bounds, so it stays stable across sibling cursor moves; the per-th
-    // events would otherwise oscillate name + side as the cursor crosses each
-    // sibling's midpoint.
-    if (targetGid) return
-
-    if (columnName === dropTargetColumnNameRef.current && side === dropSideRef.current) return
-    setDropTargetColumnName(columnName)
-    setDropSide(side)
-  }, [])
+  const handleColumnDragOver = useCallback(
+    (columnName: string, side: 'left' | 'right') => {
+      const cols = schemaColumnsRef.current
+      const targetCol = cols.find((c) => getColumnId(c) === columnName)
+      if (targetCol?.workflowGroupId) return
+      updateColumnDropTarget(columnName, side)
+    },
+    [updateColumnDropTarget]
+  )
 
   const handleColumnDragEnd = useCallback(() => {
     stopColumnDragAutoScroll()
@@ -1998,11 +2041,6 @@ export function TableGrid({
     setDropSide('left')
   }, [stopColumnDragAutoScroll])
 
-  const handleColumnDragLeave = useCallback(() => {
-    dropTargetColumnNameRef.current = null
-    setDropTargetColumnName(null)
-  }, [])
-
   function handleScrollDragOver(e: React.DragEvent) {
     const draggedName = dragColumnNameRef.current
     if (!draggedName) return
@@ -2014,48 +2052,9 @@ export function TableGrid({
     if (pinnedColumnsRef.current.includes(draggedName)) {
       stopColumnDragAutoScroll()
     } else {
-      startColumnDragAutoScroll(e.clientX)
+      startColumnDragAutoScroll(e.clientX, e.clientY)
     }
-    const scrollRect = scrollEl.getBoundingClientRect()
-    const cursorX = e.clientX - scrollRect.left + scrollEl.scrollLeft
-
-    const cols = columnsRef.current
-    const draggedGid = cols.find((c) => c.key === dragColumnNameRef.current)?.workflowGroupId
-    let left = checkboxColWidth
-    let i = 0
-    while (i < cols.length) {
-      const col = cols[i]
-      // Treat fanned-out groups as monolithic drop targets; accumulate across siblings.
-      // Clamp `groupSize` to remaining columns: dragover fires constantly and can
-      // race a column removal where the cached `groupSize` outpaces `cols.length`.
-      const groupSize = Math.min(col.groupSize, cols.length - i)
-      let groupWidth = 0
-      for (let j = 0; j < groupSize; j++) {
-        groupWidth += columnWidthsRef.current[cols[i + j].key] ?? COL_WIDTH
-      }
-      if (cursorX < left + groupWidth) {
-        // Inside the dragged column's own group → no-op drop, no indicator.
-        if (draggedGid && col.workflowGroupId === draggedGid) {
-          if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
-          return
-        }
-        const pinned = pinnedColumnsRef.current
-        const draggedName = dragColumnNameRef.current
-        if (draggedName && pinned.includes(draggedName) !== pinned.includes(col.key)) {
-          if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
-          return
-        }
-        const midX = left + groupWidth / 2
-        const side = cursorX < midX ? 'left' : 'right'
-        if (col.key !== dropTargetColumnNameRef.current || side !== dropSideRef.current) {
-          setDropTargetColumnName(col.key)
-          setDropSide(side)
-        }
-        return
-      }
-      left += groupWidth
-      i += groupSize
-    }
+    updateColumnDropTargetAtPoint(e.clientX, e.clientY)
   }
 
   function handleScrollDrop(e: React.DragEvent) {
@@ -4422,6 +4421,7 @@ export function TableGrid({
                           return (
                             <th
                               key={`meta-${g.startColIndex}`}
+                              data-column-drag-target={firstCol?.key}
                               className={cn(
                                 'border-[var(--border)] border-b bg-[var(--bg)] px-2 py-[5px]',
                                 stickyLeft !== undefined && 'z-[11]',

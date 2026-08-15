@@ -48,17 +48,20 @@ export function horizontalEdgeScrollVelocity({
 }: HorizontalEdgeScrollVelocityInput): number {
   if (hotZone <= 0) throw new Error('hotZone must be greater than zero')
   if (maxVelocity <= 0) throw new Error('maxVelocity must be greater than zero')
-  if (visibleRight <= visibleLeft) throw new Error('visibleRight must be greater than visibleLeft')
+  const visibleWidth = visibleRight - visibleLeft
+  if (visibleWidth <= 0) return 0
+
+  const edgeZone = Math.min(hotZone, visibleWidth / 2)
 
   const distanceFromLeft = pointerX - visibleLeft
-  if (distanceFromLeft < hotZone) {
-    const intensity = 1 - Math.max(0, distanceFromLeft) / hotZone
+  if (distanceFromLeft < edgeZone) {
+    const intensity = 1 - Math.max(0, distanceFromLeft) / edgeZone
     return -Math.ceil(intensity * maxVelocity)
   }
 
   const distanceFromRight = visibleRight - pointerX
-  if (distanceFromRight < hotZone) {
-    const intensity = 1 - Math.max(0, distanceFromRight) / hotZone
+  if (distanceFromRight < edgeZone) {
+    const intensity = 1 - Math.max(0, distanceFromRight) / edgeZone
     return Math.ceil(intensity * maxVelocity)
   }
 
