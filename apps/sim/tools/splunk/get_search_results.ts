@@ -8,9 +8,16 @@ import {
   mapSearchResultsPayload,
   SEARCH_RESULTS_OUTPUTS,
   SPLUNK_CONNECTION_PARAMS,
+  splunkPathSegment,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Reads transformed results from `search/v2/jobs/{sid}/results`. The v1 instance of
+ * this endpoint is deprecated and turned off by default from Splunk Enterprise 9.0.1
+ * and Splunk Cloud 9.0.2208 onward; both versions return the same JSON envelope
+ * (`init_offset`, `messages`, `preview`, `results`).
+ */
 export const getSearchResultsTool: ToolConfig<
   SplunkGetSearchResultsParams,
   SplunkSearchResultsResponse
@@ -33,7 +40,8 @@ export const getSearchResultsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of result rows to return (e.g. 100). 0 returns all rows.',
+      description:
+        'Maximum number of result rows to return. Defaults to 100. 0 returns every available row.',
     },
     offset: {
       type: 'number',
@@ -58,17 +66,20 @@ export const getSearchResultsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = buildSplunkUrl(params, `/search/jobs/${encodeURIComponent(params.sid)}/results`, {
-        count: params.count,
-        offset: params.offset,
-        add_summary_to_metadata: params.addSummaryToMetadata,
-      })
+      const url = buildSplunkUrl(
+        params,
+        `/search/v2/jobs/${splunkPathSegment(params.sid)}/results`,
+        {
+          count: params.count,
+          offset: params.offset,
+          add_summary_to_metadata: params.addSummaryToMetadata,
+        }
+      )
       const fields = params.fields
         ?.split(',')
         .map((field) => field.trim())
         .filter(Boolean)
       if (!fields?.length) return url
-      // `f` is repeatable — one occurrence per requested field.
       return `${url}&${fields.map((field) => `f=${encodeURIComponent(field)}`).join('&')}`
     },
     method: 'GET',

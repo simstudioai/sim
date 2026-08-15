@@ -56,6 +56,13 @@ export const runSearchTool: ToolConfig<SplunkRunSearchParams, SplunkSearchResult
       description:
         'Cancel the search after this many seconds of inactivity (e.g. 60). 0 never auto-cancels.',
     },
+    maxCount: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Maximum number of results the search stores and returns. Defaults to 10000. Lower it to bound large oneshot responses.',
+    },
   },
 
   request: {
@@ -71,6 +78,7 @@ export const runSearchTool: ToolConfig<SplunkRunSearchParams, SplunkSearchResult
         latest_time: params.latestTime,
         adhoc_search_level: params.adhocSearchLevel,
         auto_cancel: params.autoCancel,
+        max_count: params.maxCount,
       }),
   },
 

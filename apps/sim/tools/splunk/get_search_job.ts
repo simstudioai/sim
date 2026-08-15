@@ -8,6 +8,7 @@ import {
   getEntryContent,
   getSplunkEntries,
   SPLUNK_CONNECTION_PARAMS,
+  splunkPathSegment,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -29,7 +30,7 @@ export const getSearchJobTool: ToolConfig<SplunkGetSearchJobParams, SplunkGetSea
   },
 
   request: {
-    url: (params) => buildSplunkUrl(params, `/search/jobs/${encodeURIComponent(params.sid)}`),
+    url: (params) => buildSplunkUrl(params, `/search/jobs/${splunkPathSegment(params.sid)}`),
     method: 'GET',
     headers: (params) => buildSplunkHeaders(params),
   },

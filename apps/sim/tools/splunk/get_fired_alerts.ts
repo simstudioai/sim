@@ -8,6 +8,7 @@ import {
   getEntryName,
   getSplunkEntries,
   SPLUNK_CONNECTION_PARAMS,
+  splunkPathSegment,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -28,7 +29,8 @@ export const getFiredAlertsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Name of the alerting saved search (e.g. Errors in the last 24 hours)',
+      description:
+        'Name of the alerting saved search (e.g. Errors in the last 24 hours). Use - to return the fired alerts of every saved search.',
     },
     count: {
       type: 'number',
@@ -46,7 +48,7 @@ export const getFiredAlertsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildSplunkUrl(params, `/alerts/fired_alerts/${encodeURIComponent(params.name)}`, {
+      buildSplunkUrl(params, `/alerts/fired_alerts/${splunkPathSegment(params.name)}`, {
         count: params.count,
         offset: params.offset,
       }),
@@ -70,6 +72,9 @@ export const getFiredAlertsTool: ToolConfig<
             severity: asNumber(content.severity),
             sid: asString(content.sid),
             triggerTime: asNumber(content.trigger_time),
+            triggerTimeRendered: asString(content.trigger_time_rendered),
+            expirationTimeRendered: asString(content.expiration_time_rendered),
+            triggeredAlerts: asNumber(content.triggered_alerts),
             actions: asString(content.actions),
           }
         }),
@@ -98,6 +103,21 @@ export const getFiredAlertsTool: ToolConfig<
           severity: { type: 'number', description: 'Severity level of the alert' },
           sid: { type: 'string', description: 'Search ID of the search that triggered the alert' },
           triggerTime: { type: 'number', description: 'Time the alert was triggered' },
+          triggerTimeRendered: {
+            type: 'string',
+            description: 'Human-readable time the alert was triggered',
+            optional: true,
+          },
+          expirationTimeRendered: {
+            type: 'string',
+            description: 'Human-readable time this triggered alert record expires',
+            optional: true,
+          },
+          triggeredAlerts: {
+            type: 'number',
+            description: 'Number of alerts included in this triggered instance',
+            optional: true,
+          },
           actions: {
             type: 'string',
             description: 'Additional alert actions triggered by this alert',

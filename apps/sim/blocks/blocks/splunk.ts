@@ -62,6 +62,7 @@ export const SplunkBlock: BlockConfig<SplunkResponse> = {
           { text: ', of type', field: 'datatype' },
           { text: ', returning at most', field: 'count' },
         ],
+        splunk_list_apps: ['List apps', { text: ', returning at most', field: 'count' }],
       },
     },
   },
@@ -82,6 +83,7 @@ export const SplunkBlock: BlockConfig<SplunkResponse> = {
         { label: 'List Fired Alerts', id: 'splunk_list_fired_alerts' },
         { label: 'Get Fired Alerts', id: 'splunk_get_fired_alerts' },
         { label: 'List Indexes', id: 'splunk_list_indexes' },
+        { label: 'List Apps', id: 'splunk_list_apps' },
       ],
       value: () => 'splunk_run_search',
     },
@@ -202,6 +204,17 @@ Examples:
       },
     },
     {
+      id: 'maxCount',
+      title: 'Max Stored Results',
+      type: 'short-input',
+      placeholder: '10000',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['splunk_run_search', 'splunk_create_search_job'],
+      },
+    },
+    {
       id: 'execMode',
       title: 'Execution Mode',
       type: 'dropdown',
@@ -239,14 +252,24 @@ Examples:
     {
       id: 'enableLookups',
       title: 'Enable Lookups',
-      type: 'switch',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
       mode: 'advanced',
       condition: { field: 'operation', value: 'splunk_create_search_job' },
     },
     {
       id: 'allowPartialResults',
       title: 'Allow Partial Results',
-      type: 'switch',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
       mode: 'advanced',
       condition: { field: 'operation', value: 'splunk_create_search_job' },
     },
@@ -342,6 +365,14 @@ Examples:
     },
 
     {
+      id: 'forceDispatch',
+      title: 'Force Dispatch',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'splunk_dispatch_saved_search' },
+    },
+
+    {
       id: 'alertName',
       title: 'Alerting Saved Search',
       type: 'short-input',
@@ -358,6 +389,7 @@ Examples:
         { label: 'Event', id: 'event' },
         { label: 'Metric', id: 'metric' },
       ],
+      value: () => 'all',
       condition: { field: 'operation', value: 'splunk_list_indexes' },
     },
 
@@ -374,6 +406,7 @@ Examples:
           'splunk_list_fired_alerts',
           'splunk_get_fired_alerts',
           'splunk_list_indexes',
+          'splunk_list_apps',
         ],
       },
     },
@@ -391,6 +424,7 @@ Examples:
           'splunk_list_fired_alerts',
           'splunk_get_fired_alerts',
           'splunk_list_indexes',
+          'splunk_list_apps',
         ],
       },
     },
@@ -409,6 +443,7 @@ Examples:
       'splunk_list_fired_alerts',
       'splunk_get_fired_alerts',
       'splunk_list_indexes',
+      'splunk_list_apps',
     ],
     config: {
       tool: (params) => params.operation,
@@ -422,8 +457,14 @@ Examples:
 
         switch (params.operation) {
           case 'splunk_run_search':
+            if (params.autoCancel) result.autoCancel = Number(params.autoCancel)
+            if (params.maxCount) result.maxCount = Number(params.maxCount)
+            break
           case 'splunk_create_search_job':
             if (params.autoCancel) result.autoCancel = Number(params.autoCancel)
+            if (params.maxCount) result.maxCount = Number(params.maxCount)
+            result.enableLookups = params.enableLookups !== 'false'
+            result.allowPartialResults = params.allowPartialResults !== 'false'
             break
           case 'splunk_list_saved_searches':
             result.search = params.savedSearchFilter ?? ''
@@ -467,6 +508,10 @@ Examples:
       type: 'boolean',
       description: 'Whether partial results are allowed when a search peer fails',
     },
+    maxCount: {
+      type: 'number',
+      description: 'Maximum number of results the search stores and returns',
+    },
     sid: { type: 'string', description: 'Search ID of an existing job' },
     fields: { type: 'string', description: 'Comma-separated fields to return per result row' },
     addSummaryToMetadata: {
@@ -489,17 +534,24 @@ Examples:
     dispatchMaxCount: { type: 'number', description: 'Maximum results before finalizing' },
     dispatchMaxTime: { type: 'number', description: 'Maximum run time in seconds' },
     dispatchTtl: { type: 'number', description: 'Time to live for the search artifacts' },
+    forceDispatch: {
+      type: 'boolean',
+      description: 'Whether to dispatch even when the saved search is already running',
+    },
     datatype: { type: 'string', description: 'Index type filter: all, event, or metric' },
     count: { type: 'number', description: 'Maximum number of entries to return' },
     offset: { type: 'number', description: 'Index of the first entry to return' },
   },
 
   outputs: {
-    results: { type: 'json', description: 'Search result rows' },
+    results: {
+      type: 'json',
+      description: 'Search result rows, each holding the fields the search produced',
+    },
     resultCount: { type: 'number', description: 'Number of result rows returned' },
     preview: { type: 'boolean', description: 'Whether the results are previews' },
     initOffset: { type: 'number', description: 'Offset of the first returned row' },
-    messages: { type: 'json', description: 'Messages returned with the response' },
+    messages: { type: 'json', description: 'Messages returned with the response ([{type, text}])' },
     sid: { type: 'string', description: 'Search ID of the job' },
     label: { type: 'string', description: 'Custom name of the search job' },
     dispatchState: { type: 'string', description: 'Current state of the search job' },
@@ -529,7 +581,11 @@ Examples:
       type: 'string',
       description: 'Latest time as specified in the search command',
     },
-    savedSearches: { type: 'json', description: 'List of saved searches' },
+    savedSearches: {
+      type: 'json',
+      description:
+        'Saved searches ([{name, id, author, updated, search, description, disabled, isScheduled, cronSchedule, alertType}])',
+    },
     name: { type: 'string', description: 'Saved search name' },
     id: { type: 'string', description: 'Fully qualified REST URI of the resource' },
     author: { type: 'string', description: 'Owner of the saved search' },
@@ -545,9 +601,25 @@ Examples:
     alertType: { type: 'string', description: 'Alert condition type' },
     dispatchEarliestTime: { type: 'string', description: 'Earliest time used when dispatching' },
     dispatchLatestTime: { type: 'string', description: 'Latest time used when dispatching' },
-    alerts: { type: 'json', description: 'Saved searches with currently triggered alerts' },
-    firedAlerts: { type: 'json', description: 'Triggered instances of an alert' },
-    indexes: { type: 'json', description: 'Indexes configured on the instance' },
+    alerts: {
+      type: 'json',
+      description:
+        'Saved searches with currently triggered alerts ([{name, id, updated, triggeredAlertCount}])',
+    },
+    firedAlerts: {
+      type: 'json',
+      description:
+        'Triggered instances of an alert ([{name, savedSearchName, alertType, severity, sid, triggerTime}])',
+    },
+    indexes: {
+      type: 'json',
+      description:
+        'Indexes configured on the instance ([{name, datatype, disabled, totalEventCount, currentDBSizeMB, maxTotalDataSizeMB, minTime, maxTime}])',
+    },
+    apps: {
+      type: 'json',
+      description: 'Apps installed on the instance (name, label, version, author, disabled)',
+    },
   },
 }
 

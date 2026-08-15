@@ -9,6 +9,7 @@ import {
   mapSplunkMessages,
   SPLUNK_CONNECTION_PARAMS,
   SPLUNK_MESSAGES_OUTPUT,
+  splunkPathSegment,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -34,7 +35,7 @@ export const cancelSearchJobTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildSplunkUrl(params, `/search/jobs/${encodeURIComponent(params.sid)}/control`),
+      buildSplunkUrl(params, `/search/jobs/${splunkPathSegment(params.sid)}/control`),
     method: 'POST',
     headers: (params) => buildSplunkFormHeaders(params),
     body: () => buildSplunkFormBody({ action: 'cancel', output_mode: 'json' }),

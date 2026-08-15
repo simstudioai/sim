@@ -5,6 +5,7 @@ import { getFiredAlertsTool } from '@/tools/splunk/get_fired_alerts'
 import { getSavedSearchTool } from '@/tools/splunk/get_saved_search'
 import { getSearchJobTool } from '@/tools/splunk/get_search_job'
 import { getSearchResultsTool } from '@/tools/splunk/get_search_results'
+import { listAppsTool } from '@/tools/splunk/list_apps'
 import { listFiredAlertsTool } from '@/tools/splunk/list_fired_alerts'
 import { listIndexesTool } from '@/tools/splunk/list_indexes'
 import { listSavedSearchesTool } from '@/tools/splunk/list_saved_searches'
@@ -23,3 +24,4 @@ export const splunkDispatchSavedSearchTool = dispatchSavedSearchTool
 export const splunkListFiredAlertsTool = listFiredAlertsTool
 export const splunkGetFiredAlertsTool = getFiredAlertsTool
 export const splunkListIndexesTool = listIndexesTool
+export const splunkListAppsTool = listAppsTool

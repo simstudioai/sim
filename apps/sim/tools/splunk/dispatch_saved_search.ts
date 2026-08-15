@@ -10,13 +10,16 @@ import {
   getEntryName,
   getSplunkEntries,
   SPLUNK_CONNECTION_PARAMS,
+  splunkPathSegment,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /**
  * Runs a saved search immediately. Like any dispatched search this is asynchronous:
  * the endpoint returns the new job's search ID, which Get Search Job and Get Search
- * Results then consume.
+ * Results then consume. The REST reference documents the response as
+ * `<response><sid>...</sid></response>`, which `output_mode=json` renders as a flat
+ * `{ "sid": "..." }` — the same envelope `POST search/jobs` returns.
  */
 export const dispatchSavedSearchTool: ToolConfig<
   SplunkDispatchSavedSearchParams,
@@ -75,17 +78,25 @@ export const dispatchSavedSearchTool: ToolConfig<
       description:
         'Time to live in seconds for the search artifacts when no actions are triggered (e.g. 600)',
     },
+    forceDispatch: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Start a new search even when another instance of this saved search is already running',
+    },
   },
 
   request: {
     url: (params) =>
-      buildSplunkUrl(params, `/saved/searches/${encodeURIComponent(params.name)}/dispatch`),
+      buildSplunkUrl(params, `/saved/searches/${splunkPathSegment(params.name)}/dispatch`),
     method: 'POST',
     headers: (params) => buildSplunkFormHeaders(params),
     body: (params) =>
       buildSplunkFormBody({
         output_mode: 'json',
         trigger_actions: params.triggerActions,
+        force_dispatch: params.forceDispatch,
         'dispatch.earliest_time': params.dispatchEarliestTime,
         'dispatch.latest_time': params.dispatchLatestTime,
         'dispatch.max_count': params.dispatchMaxCount,

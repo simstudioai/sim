@@ -19039,7 +19039,7 @@
       "name": "Splunk",
       "description": "Run SPL searches and manage saved searches and alerts in Splunk",
       "longDescription": "Integrate Splunk Enterprise or Splunk Cloud into workflows. Run SPL searches synchronously or as asynchronous jobs, fetch results, dispatch saved searches, and inspect fired alerts and indexes.",
-      "bgColor": "#000000",
+      "bgColor": "#FFFFFF",
       "iconName": "SplunkIcon",
       "docsUrl": "https://docs.sim.ai/integrations/splunk",
       "operations": [
@@ -19086,9 +19086,13 @@
         {
           "name": "List Indexes",
           "description": "List the indexes configured on the Splunk instance with their size, event count, and retention settings."
+        },
+        {
+          "name": "List Apps",
+          "description": "List the apps installed on the Splunk instance with their label, version, author, and enabled state."
         }
       ],
-      "operationCount": 11,
+      "operationCount": 12,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

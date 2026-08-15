@@ -100,6 +100,13 @@ export const createSearchJobTool: ToolConfig<
       description:
         'Cancel the job after this many seconds of inactivity (e.g. 300). 0 never auto-cancels.',
     },
+    maxCount: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Maximum number of results the job stores in transforming mode. Defaults to 10000.',
+    },
   },
 
   request: {
@@ -120,6 +127,7 @@ export const createSearchJobTool: ToolConfig<
         enable_lookups: params.enableLookups,
         allow_partial_results: params.allowPartialResults,
         auto_cancel: params.autoCancel,
+        max_count: params.maxCount,
       }),
   },
 

@@ -28,6 +28,7 @@ export interface SplunkRunSearchParams extends SplunkBaseParams {
   latestTime?: string
   adhocSearchLevel?: string
   autoCancel?: number
+  maxCount?: number
 }
 
 /**
@@ -56,6 +57,7 @@ export interface SplunkCreateSearchJobParams extends SplunkBaseParams {
   enableLookups?: boolean
   allowPartialResults?: boolean
   autoCancel?: number
+  maxCount?: number
 }
 
 export interface SplunkCreateSearchJobResponse extends ToolResponse {
@@ -163,6 +165,7 @@ export interface SplunkDispatchSavedSearchParams extends SplunkBaseParams {
   dispatchMaxCount?: number
   dispatchMaxTime?: number
   dispatchTtl?: number
+  forceDispatch?: boolean
 }
 
 export interface SplunkDispatchSavedSearchResponse extends ToolResponse {
@@ -204,6 +207,9 @@ export interface SplunkGetFiredAlertsResponse extends ToolResponse {
       severity: number | null
       sid: string | null
       triggerTime: number | null
+      triggerTimeRendered: string | null
+      expirationTimeRendered: string | null
+      triggeredAlerts: number | null
       actions: string | null
     }[]
   }
@@ -237,6 +243,31 @@ export interface SplunkListIndexesResponse extends ToolResponse {
   }
 }
 
+export interface SplunkListAppsParams extends SplunkBaseParams {
+  count?: number
+  offset?: number
+}
+
+export interface SplunkListAppsResponse extends ToolResponse {
+  output: {
+    apps: {
+      name: string | null
+      id: string | null
+      updated: string | null
+      label: string | null
+      version: string | null
+      author: string | null
+      description: string | null
+      details: string | null
+      disabled: boolean | null
+      visible: boolean | null
+      configured: boolean | null
+      checkForUpdates: boolean | null
+      stateChangeRequiresRestart: boolean | null
+    }[]
+  }
+}
+
 /** Union of every Splunk tool response, used by the block's generic output typing. */
 export type SplunkResponse =
   | SplunkSearchResultsResponse
@@ -249,6 +280,7 @@ export type SplunkResponse =
   | SplunkListFiredAlertsResponse
   | SplunkGetFiredAlertsResponse
   | SplunkListIndexesResponse
+  | SplunkListAppsResponse
 
 /** Output schema shared by the two tools that project a saved search. */
 export const SAVED_SEARCH_OUTPUT_FIELDS: Record<string, OutputProperty> = {

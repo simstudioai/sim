@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="splunk"
-  color="#000000"
+  color="#FFFFFF"
 />
 
 ## Usage Instructions
@@ -31,16 +31,17 @@ Run an SPL search synchronously and return its results in a single call (oneshot
 | `latestTime` | string | No | Latest \(exclusive\) time bound — relative \(e.g. now\) or absolute time |
 | `adhocSearchLevel` | string | No | Search mode: verbose, fast, or smart. Defaults to fast. |
 | `autoCancel` | number | No | Cancel the search after this many seconds of inactivity \(e.g. 60\). 0 never auto-cancels. |
+| `maxCount` | number | No | Maximum number of results the search stores and returns. Defaults to 10000. Lower it to bound large oneshot responses. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | json | Search result rows |
+| `results` | json | Search result rows, each holding the fields the search produced |
 | `resultCount` | number | Number of result rows returned |
 | `preview` | boolean | Whether the results are previews |
 | `initOffset` | number | Offset of the first returned row |
-| `messages` | json | Messages returned with the response |
+| `messages` | json | Messages returned with the response \(\[\{type, text\}\]\) |
 | `sid` | string | Search ID of the job |
 | `label` | string | Custom name of the search job |
 | `dispatchState` | string | Current state of the search job |
@@ -64,7 +65,7 @@ Run an SPL search synchronously and return its results in a single call (oneshot
 | `latestTime` | string | Latest time bound of the job |
 | `searchEarliestTime` | string | Earliest time as specified in the search command |
 | `searchLatestTime` | string | Latest time as specified in the search command |
-| `savedSearches` | json | List of saved searches |
+| `savedSearches` | json | Saved searches \(\[\{name, id, author, updated, search, description, disabled, isScheduled, cronSchedule, alertType\}\]\) |
 | `name` | string | Saved search name |
 | `id` | string | Fully qualified REST URI of the resource |
 | `author` | string | Owner of the saved search |
@@ -80,9 +81,10 @@ Run an SPL search synchronously and return its results in a single call (oneshot
 | `alertType` | string | Alert condition type |
 | `dispatchEarliestTime` | string | Earliest time used when dispatching |
 | `dispatchLatestTime` | string | Latest time used when dispatching |
-| `alerts` | json | Saved searches with currently triggered alerts |
-| `firedAlerts` | json | Triggered instances of an alert |
-| `indexes` | json | Indexes configured on the instance |
+| `alerts` | json | Saved searches with currently triggered alerts \(\[\{name, id, updated, triggeredAlertCount\}\]\) |
+| `firedAlerts` | json | Triggered instances of an alert \(\[\{name, savedSearchName, alertType, severity, sid, triggerTime\}\]\) |
+| `indexes` | json | Indexes configured on the instance \(\[\{name, datatype, disabled, totalEventCount, currentDBSizeMB, maxTotalDataSizeMB, minTime, maxTime\}\]\) |
+| `apps` | json | Apps installed on the instance \(name, label, version, author, disabled\) |
 
 ### Splunk Create Search Job
 
@@ -103,6 +105,7 @@ Start a Splunk search job and return its search ID (sid). The search runs asynch
 | `enableLookups` | boolean | No | Whether lookups are applied to events. Defaults to true. |
 | `allowPartialResults` | boolean | No | Whether the job may return partial results when a search peer fails. Defaults to true. |
 | `autoCancel` | number | No | Cancel the job after this many seconds of inactivity \(e.g. 300\). 0 never auto-cancels. |
+| `maxCount` | number | No | Maximum number of results the job stores in transforming mode. Defaults to 10000. |
 
 #### Output
 
@@ -159,7 +162,7 @@ Fetch the transformed results of a completed Splunk search job by search ID, wit
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `sid` | string | Yes | Search ID of the job whose results to fetch \(e.g. 1457683115.100\) |
-| `count` | number | No | Maximum number of result rows to return \(e.g. 100\). 0 returns all rows. |
+| `count` | number | No | Maximum number of result rows to return. Defaults to 100. 0 returns every available row. |
 | `offset` | number | No | First result row \(0-indexed\) from which to begin returning data |
 | `fields` | string | No | Comma-separated list of fields to return for each row \(e.g. _time,host,source\). Returns all fields when omitted. |
 | `addSummaryToMetadata` | boolean | No | Include field summary statistics in the response |
@@ -168,11 +171,11 @@ Fetch the transformed results of a completed Splunk search job by search ID, wit
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | json | Search result rows |
+| `results` | json | Search result rows, each holding the fields the search produced |
 | `resultCount` | number | Number of result rows returned |
 | `preview` | boolean | Whether the results are previews |
 | `initOffset` | number | Offset of the first returned row |
-| `messages` | json | Messages returned with the response |
+| `messages` | json | Messages returned with the response \(\[\{type, text\}\]\) |
 | `sid` | string | Search ID of the job |
 | `label` | string | Custom name of the search job |
 | `dispatchState` | string | Current state of the search job |
@@ -196,7 +199,7 @@ Fetch the transformed results of a completed Splunk search job by search ID, wit
 | `latestTime` | string | Latest time bound of the job |
 | `searchEarliestTime` | string | Earliest time as specified in the search command |
 | `searchLatestTime` | string | Latest time as specified in the search command |
-| `savedSearches` | json | List of saved searches |
+| `savedSearches` | json | Saved searches \(\[\{name, id, author, updated, search, description, disabled, isScheduled, cronSchedule, alertType\}\]\) |
 | `name` | string | Saved search name |
 | `id` | string | Fully qualified REST URI of the resource |
 | `author` | string | Owner of the saved search |
@@ -212,9 +215,10 @@ Fetch the transformed results of a completed Splunk search job by search ID, wit
 | `alertType` | string | Alert condition type |
 | `dispatchEarliestTime` | string | Earliest time used when dispatching |
 | `dispatchLatestTime` | string | Latest time used when dispatching |
-| `alerts` | json | Saved searches with currently triggered alerts |
-| `firedAlerts` | json | Triggered instances of an alert |
-| `indexes` | json | Indexes configured on the instance |
+| `alerts` | json | Saved searches with currently triggered alerts \(\[\{name, id, updated, triggeredAlertCount\}\]\) |
+| `firedAlerts` | json | Triggered instances of an alert \(\[\{name, savedSearchName, alertType, severity, sid, triggerTime\}\]\) |
+| `indexes` | json | Indexes configured on the instance \(\[\{name, datatype, disabled, totalEventCount, currentDBSizeMB, maxTotalDataSizeMB, minTime, maxTime\}\]\) |
+| `apps` | json | Apps installed on the instance \(name, label, version, author, disabled\) |
 
 ### Splunk Cancel Search Job
 
@@ -310,6 +314,7 @@ Run a Splunk saved search immediately and return the search ID (sid) of the disp
 | `dispatchMaxCount` | number | No | Maximum number of results before the search is finalized \(e.g. 10000\) |
 | `dispatchMaxTime` | number | No | Maximum number of seconds before the search is finalized \(e.g. 300\) |
 | `dispatchTtl` | number | No | Time to live in seconds for the search artifacts when no actions are triggered \(e.g. 600\) |
+| `forceDispatch` | boolean | No | Start a new search even when another instance of this saved search is already running |
 
 #### Output
 
@@ -346,7 +351,7 @@ List the unexpired triggered instances of a Splunk alert by saved search name, i
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `name` | string | Yes | Name of the alerting saved search \(e.g. Errors in the last 24 hours\) |
+| `name` | string | Yes | Name of the alerting saved search \(e.g. Errors in the last 24 hours\). Use - to return the fired alerts of every saved search. |
 | `count` | number | No | Maximum number of fired alert instances to return \(e.g. 50\). 0 returns all. |
 | `offset` | number | No | Index of the first instance to return, for pagination |
 
@@ -363,6 +368,9 @@ List the unexpired triggered instances of a Splunk alert by saved search name, i
 |   ↳ `severity` | number | Severity level of the alert |
 |   ↳ `sid` | string | Search ID of the search that triggered the alert |
 |   ↳ `triggerTime` | number | Time the alert was triggered |
+|   ↳ `triggerTimeRendered` | string | Human-readable time the alert was triggered |
+|   ↳ `expirationTimeRendered` | string | Human-readable time this triggered alert record expires |
+|   ↳ `triggeredAlerts` | number | Number of alerts included in this triggered instance |
 |   ↳ `actions` | string | Additional alert actions triggered by this alert |
 
 ### Splunk List Indexes
@@ -373,7 +381,7 @@ List the indexes configured on the Splunk instance with their size, event count,
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `datatype` | string | No | Filter indexes by type: all, event, or metric |
+| `datatype` | string | No | Filter indexes by type: all, event, or metric. Splunk defaults to event, so pass all to include metric indexes. |
 | `count` | number | No | Maximum number of indexes to return \(e.g. 50\). 0 returns all. |
 | `offset` | number | No | Index of the first entry to return, for pagination |
 
@@ -397,5 +405,35 @@ List the indexes configured on the Splunk instance with their size, event count,
 |   ↳ `homePath` | string | Path to the hot and warm buckets |
 |   ↳ `coldPath` | string | Path to the cold buckets |
 |   ↳ `thawedPath` | string | Path to the thawed buckets |
+
+### Splunk List Apps
+
+List the apps installed on the Splunk instance with their label, version, author, and enabled state.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `count` | number | No | Maximum number of apps to return \(e.g. 50\). 0 returns all. |
+| `offset` | number | No | Index of the first app to return, for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `apps` | array | Apps installed on the Splunk instance |
+|   ↳ `name` | string | App directory name, usable as the app namespace |
+|   ↳ `id` | string | Fully qualified REST URI of the app |
+|   ↳ `updated` | string | Last update timestamp |
+|   ↳ `label` | string | Display name of the app |
+|   ↳ `version` | string | App version |
+|   ↳ `author` | string | App author |
+|   ↳ `description` | string | App description |
+|   ↳ `details` | string | URL with detailed information about the app |
+|   ↳ `disabled` | boolean | Whether the app is disabled |
+|   ↳ `visible` | boolean | Whether the app is visible and navigable from Splunk Web |
+|   ↳ `configured` | boolean | Whether the custom app setup has been completed |
+|   ↳ `checkForUpdates` | boolean | Whether Splunkbase is checked for app updates |
+|   ↳ `stateChangeRequiresRestart` | boolean | Whether changing the app state requires a restart |
 
 

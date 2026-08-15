@@ -25,7 +25,8 @@ export const listIndexesTool: ToolConfig<SplunkListIndexesParams, SplunkListInde
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter indexes by type: all, event, or metric',
+      description:
+        'Filter indexes by type: all, event, or metric. Splunk defaults to event, so pass all to include metric indexes.',
     },
     count: {
       type: 'number',

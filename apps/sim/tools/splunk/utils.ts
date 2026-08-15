@@ -79,12 +79,18 @@ export function buildSplunkUrl(
   path: string,
   query?: Record<string, string | number | boolean | undefined>
 ): string {
-  const search = new URLSearchParams({ output_mode: SPLUNK_JSON_OUTPUT_MODE })
+  const search = new URLSearchParams()
   for (const [key, value] of Object.entries(query ?? {})) {
-    if (value === undefined || value === '') continue
+    if (key === 'output_mode' || value === undefined || value === '') continue
     search.set(key, String(value))
   }
+  search.set('output_mode', SPLUNK_JSON_OUTPUT_MODE)
   return `${normalizeBaseUrl(params.baseUrl)}${namespacePrefix(params)}${path}?${search.toString()}`
+}
+
+/** Encode a user-supplied value for use as a REST path segment. */
+export function splunkPathSegment(value: string): string {
+  return encodeURIComponent(value.trim())
 }
 
 /**
