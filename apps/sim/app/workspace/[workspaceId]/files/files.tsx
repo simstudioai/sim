@@ -57,9 +57,13 @@ import type {
 } from '@/app/workspace/[workspaceId]/components'
 import {
   EMPTY_CELL_PLACEHOLDER,
+  FILTER_SECTION_LABEL_CLASS,
+  OwnerAvatar,
   ownerCell,
   Resource,
+  selectionLabel,
   timeCell,
+  useResourceRowSelection,
 } from '@/app/workspace/[workspaceId]/components'
 import type {
   MoveOptionNode,
@@ -67,14 +71,20 @@ import type {
 } from '@/app/workspace/[workspaceId]/components/folders'
 import {
   breadcrumbFolderChain,
+  buildDescendantIndex,
+  buildMoveOptionsExcludingSubtrees,
   FOLDERED_RESOURCE_HEADERS,
   folderBreadcrumbItems,
   folderedResourceListHref,
   parseMoveOptionValue,
-  ROOT_MOVE_OPTION_VALUE,
+  readRowDragPayload,
   sortResources,
+  useDragTeardown,
+  useRowDragGhost,
+  useSpringNavigation,
+  writeRowDragPayload,
 } from '@/app/workspace/[workspaceId]/components/folders'
-import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
+import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -140,6 +150,15 @@ type FileListEntry =
   | { kind: 'file'; file: WorkspaceFileRecord }
 
 const logger = createLogger('Files')
+
+/**
+ * Private drag payload for file rows, kept distinct from the foldered-list MIME so a drag
+ * started on Tables or Knowledge is never mistaken for one of these rows.
+ */
+const FILE_ROW_DRAG_MIME = 'application/x-sim-workspace-file-rows'
+
+/** Shared empty set so an idle drag state keeps a stable identity across renders. */
+const EMPTY_DRAGGED_ROW_IDS = new Set<string>()
 
 const FILES_HEADER = FOLDERED_RESOURCE_HEADERS.file
 
@@ -296,15 +315,28 @@ export function Files() {
   const justCreatedFileIdRef = useRef<string | null>(null)
   const filesRef = useRef(files)
   filesRef.current = files
+  /**
+   * Indexed once. `isInvalidFolderTarget` resolves each dragged row's placement inside
+   * `dragover`, which fires continuously — a linear scan there is O(selection x resources)
+   * per event.
+   */
+  const fileById = useMemo(() => {
+    const byId = new Map<string, WorkspaceFileRecord>()
+    for (const file of files) byId.set(file.id, file)
+    return byId
+  }, [files])
+  const fileByIdRef = useRef(fileById)
+  fileByIdRef.current = fileById
   const foldersRef = useRef(folders)
   foldersRef.current = folders
 
-  const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({
     completed: 0,
     total: 0,
     currentPercent: 0,
   })
+  /** An upload batch is in flight exactly while a total is set — matches the Tables page. */
+  const uploading = uploadProgress.total > 0
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const dragCounterRef = useRef(0)
   const [
@@ -347,9 +379,10 @@ export function Files() {
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set())
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
-  const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => new Set())
+  const [isBodyDropActive, setIsBodyDropActive] = useState(false)
+  const [activeBreadcrumbIndex, setActiveBreadcrumbIndex] = useState<number | null>(null)
+  const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => EMPTY_DRAGGED_ROW_IDS)
   const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
     if (isNewFile) return 'editor'
     if (fileIdFromRoute) {
@@ -362,9 +395,7 @@ export function Files() {
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const contextMenuItemRef = useRef<FileResourceItem | null>(null)
-  const lastSelectedIndexRef = useRef<number>(-1)
   const draggedRowIdsRef = useRef<string[]>([])
-  const dragGhostRef = useRef<HTMLElement | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{
     fileIds: string[]
     folderIds: string[]
@@ -440,6 +471,8 @@ export function Files() {
   ) : null
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
+  const folderByIdRef = useRef(folderById)
+  folderByIdRef.current = folderById
 
   const folderSizeMap = useMemo(() => {
     const directSize = new Map<string, number>()
@@ -676,21 +709,17 @@ export function Files() {
 
   const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
 
-  const prevVisibleRowIdsRef = useRef(visibleRowIds)
-  useEffect(() => {
-    if (prevVisibleRowIdsRef.current === visibleRowIds) return
-    prevVisibleRowIdsRef.current = visibleRowIds
-    lastSelectedIndexRef.current = -1
-    const visible = new Set(visibleRowIds)
-    setSelectedRowIds((prev) => {
-      if (prev.size === 0) return prev
-      const next = new Set(Array.from(prev).filter((id) => visible.has(id)))
-      return next.size === prev.size ? prev : next
-    })
-  }, [visibleRowIds])
+  const {
+    selectedRowIds,
+    selectable: selectableConfig,
+    replaceSelection,
+    clearSelection,
+  } = useResourceRowSelection({
+    visibleRowIds,
+    isKeyboardBlocked: () => Boolean(fileIdFromRoute) || listRename.editingId !== null,
+    onDeleteSelected: () => handleBulkDelete(),
+  })
 
-  const isAllSelected =
-    visibleRowIds.length > 0 && visibleRowIds.every((id) => selectedRowIds.has(id))
   const { selectedFileIds, selectedFolderIds } = useMemo(() => {
     const fileIds: string[] = []
     const folderIds: string[] = []
@@ -702,108 +731,54 @@ export function Files() {
     return { selectedFileIds: fileIds, selectedFolderIds: folderIds }
   }, [selectedRowIds])
 
-  const selectableConfig = useMemo(
-    () => ({
-      selectedIds: selectedRowIds,
-      isAllSelected,
-      onSelectRow: (rowId: string, checked: boolean, shiftKey?: boolean) => {
-        const currentIndex = visibleRowIds.indexOf(rowId)
-        if (shiftKey && lastSelectedIndexRef.current !== -1 && currentIndex !== -1) {
-          const start = Math.min(lastSelectedIndexRef.current, currentIndex)
-          const end = Math.max(lastSelectedIndexRef.current, currentIndex)
-          setSelectedRowIds((prev) => {
-            const next = new Set(prev)
-            for (let i = start; i <= end; i++) next.add(visibleRowIds[i])
-            return next
-          })
-          lastSelectedIndexRef.current = currentIndex
-        } else {
-          setSelectedRowIds((prev) => {
-            const next = new Set(prev)
-            if (checked) next.add(rowId)
-            else next.delete(rowId)
-            return next
-          })
-          if (checked) lastSelectedIndexRef.current = currentIndex
-          else lastSelectedIndexRef.current = -1
+  const descendantFolderIdsByFolderId = useMemo(() => buildDescendantIndex(folders), [folders])
+
+  /**
+   * Whether dropping `sourceRowIds` into `targetFolderId` would move anything.
+   *
+   * Takes a folder id rather than a row id because the destination is not always a row: the
+   * list body files into the folder currently open, which has no row of its own, and a drag
+   * that spring-opened into an empty folder has nothing else to land on.
+   */
+  const isInvalidFolderTarget = useCallback(
+    (targetFolderId: string | null, sourceRowIds: string[]) => {
+      for (const sourceRowId of sourceRowIds) {
+        const source = parseRowId(sourceRowId)
+        if (source.kind !== 'folder') continue
+        if (source.id === targetFolderId) return true
+        if (
+          targetFolderId !== null &&
+          descendantFolderIdsByFolderId.get(source.id)?.has(targetFolderId)
+        )
+          return true
+      }
+
+      const allAlreadyInTarget = sourceRowIds.every((sourceRowId) => {
+        const source = parseRowId(sourceRowId)
+        if (source.kind === 'file') {
+          return (
+            (filesRef.current.find((f) => f.id === source.id)?.folderId ?? null) === targetFolderId
+          )
         }
-      },
-      onSelectAll: (checked: boolean) => {
-        lastSelectedIndexRef.current = -1
-        setSelectedRowIds((prev) => {
-          const next = new Set(prev)
-          for (const rowId of visibleRowIds) {
-            if (checked) next.add(rowId)
-            else next.delete(rowId)
-          }
-          return next
-        })
-      },
-      disabled: false,
-    }),
-    [selectedRowIds, isAllSelected, visibleRowIds]
+        return (folderByIdRef.current.get(source.id)?.parentId ?? null) === targetFolderId
+      })
+      return allAlreadyInTarget
+    },
+    [descendantFolderIdsByFolderId]
   )
 
-  const descendantFolderIdsByFolderId = useMemo(() => {
-    const childrenByParent = new Map<string, string[]>()
-    for (const folder of folders) {
-      if (!folder.parentId) continue
-      const children = childrenByParent.get(folder.parentId) ?? []
-      children.push(folder.id)
-      childrenByParent.set(folder.parentId, children)
-    }
-
-    const result = new Map<string, Set<string>>()
-    const collect = (folderId: string, seen = new Set<string>()): Set<string> => {
-      const cached = result.get(folderId)
-      if (cached) return cached
-      if (seen.has(folderId)) return new Set<string>()
-
-      const nextSeen = new Set(seen)
-      nextSeen.add(folderId)
-      const descendants = new Set<string>()
-      for (const childId of childrenByParent.get(folderId) ?? []) {
-        if (nextSeen.has(childId)) continue
-        descendants.add(childId)
-        for (const nestedId of collect(childId, nextSeen)) {
-          descendants.add(nestedId)
-        }
-      }
-      result.set(folderId, descendants)
-      return descendants
-    }
-
-    for (const folder of folders) {
-      collect(folder.id)
-    }
-    return result
-  }, [folders])
-
+  /**
+   * Row-targeted drop: only a folder row can receive one. Delegates so the cycle and
+   * already-there rules live in exactly one place — the two had already drifted on whether a
+   * file's `folderId` was normalised with `?? null` before comparing.
+   */
   const isInvalidDropTarget = useCallback(
     (targetRowId: string, sourceRowIds: string[]) => {
       const target = parseRowId(targetRowId)
       if (target.kind !== 'folder') return true
-
-      for (const sourceRowId of sourceRowIds) {
-        const source = parseRowId(sourceRowId)
-        if (source.kind !== 'folder') continue
-        if (source.id === target.id) return true
-        if (descendantFolderIdsByFolderId.get(source.id)?.has(target.id)) return true
-      }
-
-      // Reject drop if every dragged item is already a direct child of the target
-      const allAlreadyInTarget = sourceRowIds.every((sourceRowId) => {
-        const source = parseRowId(sourceRowId)
-        if (source.kind === 'file') {
-          return filesRef.current.find((f) => f.id === source.id)?.folderId === target.id
-        }
-        return (foldersRef.current.find((f) => f.id === source.id)?.parentId ?? null) === target.id
-      })
-      if (allAlreadyInTarget) return true
-
-      return false
+      return isInvalidFolderTarget(target.id, sourceRowIds)
     },
-    [descendantFolderIdsByFolderId]
+    [isInvalidFolderTarget]
   )
 
   const uploadFiles = useCallback(
@@ -841,7 +816,6 @@ export function Files() {
       if (allowedFiles.length === 0) return
 
       try {
-        setUploading(true)
         setUploadProgress({ completed: 0, total: allowedFiles.length, currentPercent: 0 })
 
         for (let i = 0; i < allowedFiles.length; i++) {
@@ -872,12 +846,35 @@ export function Files() {
       } catch (err) {
         logger.error('Error uploading file:', err)
       } finally {
-        setUploading(false)
         setUploadProgress({ completed: 0, total: 0, currentPercent: 0 })
       }
     },
     [workspaceId, canEdit, currentFolderId, notifyLimit]
   )
+
+  const dragGhost = useRowDragGhost()
+
+  const springNav = useSpringNavigation({
+    currentFolderId,
+    onNavigate: (folderId, options) => {
+      void setFilesParams({ folderId, new: null }, options)
+    },
+  })
+
+  /** Returns the list to its resting state once a drag is over, however it ended. */
+  const endDrag = useCallback(() => {
+    springNav.end()
+    dragGhost.remove()
+    dragCounterRef.current = 0
+    draggedRowIdsRef.current = []
+    setDraggedRowIds(EMPTY_DRAGGED_ROW_IDS)
+    setIsDraggingOver(false)
+    setActiveDropTargetId(null)
+    setIsBodyDropActive(false)
+    setActiveBreadcrumbIndex(null)
+  }, [dragGhost, springNav])
+
+  useDragTeardown(endDrag)
 
   const rowDragDropConfig = useMemo<RowDragDropConfig>(
     () => ({
@@ -892,6 +889,7 @@ export function Files() {
           return
         }
 
+        springNav.rememberOrigin()
         const sourceRowIds = selectedRowIds.has(rowId)
           ? visibleRowIds.filter((visibleRowId) => selectedRowIds.has(visibleRowId))
           : [rowId]
@@ -899,35 +897,18 @@ export function Files() {
         draggedRowIdsRef.current = sourceRowIds
         setDraggedRowIds(new Set(sourceRowIds))
         if (!selectedRowIds.has(rowId)) {
-          setSelectedRowIds(new Set([rowId]))
+          replaceSelection([rowId])
         }
 
         e.dataTransfer.effectAllowed = 'move'
-        e.dataTransfer.setData(
-          'application/x-sim-workspace-file-rows',
-          JSON.stringify(sourceRowIds)
-        )
-        e.dataTransfer.setData('text/plain', sourceRowIds.join(','))
+        writeRowDragPayload(e.dataTransfer, FILE_ROW_DRAG_MIME, sourceRowIds)
 
-        const count = sourceRowIds.length
         const firstParsed = parseRowId(sourceRowIds[0])
         const firstName =
           firstParsed.kind === 'file'
             ? filesRef.current.find((f) => f.id === firstParsed.id)?.name
             : foldersRef.current.find((f) => f.id === firstParsed.id)?.name
-        const ghostLabel =
-          count > 1 ? `${firstName ?? 'Items'} +${count - 1} more` : (firstName ?? 'Item')
-        const ghost = document.createElement('div')
-        ghost.style.cssText =
-          'position:fixed;top:-500px;left:0;display:inline-flex;align-items:center;padding:4px 10px;background:var(--surface-active);border:1px solid var(--border);border-radius:8px;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:var(--text-body);white-space:nowrap;pointer-events:none;box-shadow:var(--shadow-medium);z-index:var(--z-toast)'
-        const text = document.createElement('span')
-        text.style.cssText = 'max-width:200px;overflow:hidden;text-overflow:ellipsis'
-        text.textContent = ghostLabel
-        ghost.appendChild(text)
-        document.body.appendChild(ghost)
-        void ghost.offsetHeight
-        e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
-        dragGhostRef.current = ghost
+        dragGhost.attach(e, firstName ?? 'Item', sourceRowIds.length)
       },
       onDragOver: (e: DragEvent<HTMLDivElement>, rowId) => {
         const sourceRowIds = draggedRowIdsRef.current
@@ -938,43 +919,59 @@ export function Files() {
         e.stopPropagation()
         e.dataTransfer.dropEffect = isExternalFileDrag ? 'copy' : 'move'
         setActiveDropTargetId(rowId)
+        // The row sits inside the scroll container, whose `dragleave` ignores contained
+        // targets — clear it here so the row and the body never both read as the target.
+        setIsBodyDropActive(false)
+        setActiveBreadcrumbIndex(null)
+        /**
+         * Armed for OS file drags too: dropping an upload into a nested folder is the same
+         * gesture, and `onDragOver` only fires on folder rows.
+         */
+        springNav.arm(parseRowId(rowId).id)
       },
       onDragLeave: (e: DragEvent<HTMLDivElement>, rowId) => {
         const relatedTarget = e.relatedTarget
         if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
+        springNav.disarm()
         setActiveDropTargetId((current) => (current === rowId ? null : current))
       },
       onDrop: (e: DragEvent<HTMLDivElement>, rowId) => {
         e.preventDefault()
         e.stopPropagation()
-        dragCounterRef.current = 0
-        setIsDraggingOver(false)
-        setActiveDropTargetId(null)
-        const target = parseRowId(rowId)
-        if (target.kind !== 'folder') return
 
+        const target = parseRowId(rowId)
         const droppedFiles = Array.from(e.dataTransfer.files ?? [])
-        if (droppedFiles.length > 0) {
+        const sourceRowIds =
+          readRowDragPayload(e.dataTransfer, FILE_ROW_DRAG_MIME) ?? draggedRowIdsRef.current
+
+        const isFolderDrop = target.kind === 'folder'
+        const canUpload = isFolderDrop && droppedFiles.length > 0
+        const canMove =
+          isFolderDrop && droppedFiles.length === 0 && !isInvalidDropTarget(rowId, sourceRowIds)
+
+        /**
+         * Marked BEFORE `endDrag`, which is what consumes it. Ending the drag first runs the
+         * return navigation, bouncing the list out of the folder the drop just landed in — and
+         * because `end` clears the flag, setting it afterwards leaves it armed for the NEXT
+         * drag, whose return then never happens. The upload branch marks it too: a file dropped
+         * into a spring-opened folder must leave the view in that folder, not snap away from it.
+         */
+        if (canUpload || canMove) springNav.markDropHandled()
+
+        /**
+         * Ends the drag before dispatching, but only after the payload has been read off the
+         * event and the source ref. This handler stops propagation, so the window-level
+         * backstop never sees this drop, and the source row may already have unmounted — after
+         * a spring-open it always has.
+         */
+        endDrag()
+
+        if (canUpload) {
           void uploadFiles(droppedFiles, target.id)
           return
         }
 
-        let sourceRowIds = draggedRowIdsRef.current
-        const rawSource = e.dataTransfer.getData('application/x-sim-workspace-file-rows')
-        if (rawSource) {
-          try {
-            const parsedSource = JSON.parse(rawSource)
-            if (Array.isArray(parsedSource)) {
-              sourceRowIds = parsedSource.filter(
-                (source): source is string => typeof source === 'string' && source.length > 0
-              )
-            }
-          } catch {
-            sourceRowIds = draggedRowIdsRef.current
-          }
-        }
-
-        if (isInvalidDropTarget(rowId, sourceRowIds)) return
+        if (!canMove) return
 
         const fileIds = sourceRowIds
           .map(parseRowId)
@@ -995,22 +992,112 @@ export function Files() {
             targetFolderId: target.id,
           })
           .then(() => {
-            setSelectedRowIds(new Set())
+            clearSelection()
           })
           .catch((error) => {
             logger.error('Failed to move items via drag and drop:', error)
           })
       },
-      onDragEnd: () => {
-        if (dragGhostRef.current) {
-          dragGhostRef.current.remove()
-          dragGhostRef.current = null
-        }
-        dragCounterRef.current = 0
-        draggedRowIdsRef.current = []
-        setDraggedRowIds(new Set())
-        setIsDraggingOver(false)
-        setActiveDropTargetId(null)
+      onDragEnd: endDrag,
+      /**
+       * The breadcrumb is how a drag walks back UP; spring-loading only ever goes deeper.
+       * Hovering a crumb navigates to it on the same timer a folder row uses, and releasing on
+       * one files the drag there directly.
+       */
+      breadcrumb: {
+        activeIndex: activeBreadcrumbIndex,
+        onDragOver: (e: DragEvent<HTMLElement>, folderId: string | null, index: number) => {
+          if (hasExternalFiles(e.dataTransfer)) return
+          const sourceRowIds = draggedRowIdsRef.current
+          if (sourceRowIds.length === 0) return
+          /** Armed even for a no-op drop: walking back to where the drag started is the point. */
+          if (folderId !== currentFolderId) springNav.arm(folderId)
+          const canDrop = !isInvalidFolderTarget(folderId, sourceRowIds)
+          setActiveBreadcrumbIndex(canDrop ? index : null)
+          setIsBodyDropActive(false)
+          if (!canDrop) return
+          e.preventDefault()
+          e.stopPropagation()
+          e.dataTransfer.dropEffect = 'move'
+        },
+        onDragLeave: (_e: DragEvent<HTMLElement>, index: number) => {
+          springNav.disarm()
+          setActiveBreadcrumbIndex((current) => (current === index ? null : current))
+        },
+        onDrop: (e: DragEvent<HTMLElement>, folderId: string | null) => {
+          if (hasExternalFiles(e.dataTransfer)) return
+          e.preventDefault()
+          e.stopPropagation()
+          const sourceRowIds =
+            readRowDragPayload(e.dataTransfer, FILE_ROW_DRAG_MIME) ?? draggedRowIdsRef.current
+          const canMove = sourceRowIds.length > 0 && !isInvalidFolderTarget(folderId, sourceRowIds)
+          if (canMove) springNav.markDropHandled()
+          endDrag()
+          if (!canMove) return
+
+          const fileIds: string[] = []
+          const folderIds: string[] = []
+          for (const sourceRowId of sourceRowIds) {
+            const source = parseRowId(sourceRowId)
+            if (source.kind === 'file') fileIds.push(source.id)
+            else folderIds.push(source.id)
+          }
+          void moveItems
+            .mutateAsync({ workspaceId, fileIds, folderIds, targetFolderId: folderId })
+            .then(() => clearSelection())
+            .catch((error) => logger.error('Failed to move items via the breadcrumb:', error))
+        },
+      },
+      body: {
+        isActive: isBodyDropActive,
+        onDragOver: (e: DragEvent<HTMLDivElement>) => {
+          /**
+           * Internal row drags only. An OS file drag is already owned by the page-level
+           * handler, which paints the full "Drop to upload" overlay and uploads into this same
+           * folder — claiming it here would double the affordance and, without stopping
+           * propagation, upload every dropped file twice.
+           */
+          if (hasExternalFiles(e.dataTransfer)) return
+          const sourceRowIds = draggedRowIdsRef.current
+          // Recomputed every event: a spring-open changes the destination mid-drag.
+          const canDrop =
+            sourceRowIds.length > 0 && !isInvalidFolderTarget(currentFolderId, sourceRowIds)
+          setIsBodyDropActive(canDrop)
+          if (!canDrop) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+        },
+        onDragLeave: (e: DragEvent<HTMLDivElement>) => {
+          const relatedTarget = e.relatedTarget
+          if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
+          setIsBodyDropActive(false)
+        },
+        onDrop: (e: DragEvent<HTMLDivElement>) => {
+          // Left to the page-level handler, which uploads into this folder already.
+          if (hasExternalFiles(e.dataTransfer)) return
+          e.preventDefault()
+          e.stopPropagation()
+          const sourceRowIds =
+            readRowDragPayload(e.dataTransfer, FILE_ROW_DRAG_MIME) ?? draggedRowIdsRef.current
+          const canMove =
+            sourceRowIds.length > 0 && !isInvalidFolderTarget(currentFolderId, sourceRowIds)
+
+          if (canMove) springNav.markDropHandled()
+          endDrag()
+          if (!canMove) return
+
+          const fileIds: string[] = []
+          const folderIds: string[] = []
+          for (const sourceRowId of sourceRowIds) {
+            const source = parseRowId(sourceRowId)
+            if (source.kind === 'file') fileIds.push(source.id)
+            else folderIds.push(source.id)
+          }
+          void moveItems
+            .mutateAsync({ workspaceId, fileIds, folderIds, targetFolderId: currentFolderId })
+            .then(() => clearSelection())
+            .catch((error) => logger.error('Failed to move items into the open folder:', error))
+        },
       },
     }),
     [
@@ -1021,6 +1108,11 @@ export function Files() {
       selectedRowIds,
       visibleRowIds,
       isInvalidDropTarget,
+      isInvalidFolderTarget,
+      isBodyDropActive,
+      activeBreadcrumbIndex,
+      currentFolderId,
+      clearSelection,
       uploadFiles,
       workspaceId,
     ]
@@ -1055,6 +1147,12 @@ export function Files() {
   const handleDrop = async (e: React.DragEvent) => {
     if (!hasExternalFiles(e.dataTransfer)) return
     e.preventDefault()
+    /**
+     * The upload lands in the folder currently open, so the view must stay there. Without this
+     * the window-level teardown treats the drag as unconsumed and returns to the folder it
+     * began in — pulling the user out of the folder they just spring-opened to receive it.
+     */
+    springNav.markDropHandled()
     dragCounterRef.current = 0
     setIsDraggingOver(false)
     const dropped = Array.from(e.dataTransfer.files)
@@ -1106,7 +1204,7 @@ export function Files() {
       }
       setShowDeleteConfirm(false)
       setDeleteTarget(null)
-      setSelectedRowIds(new Set())
+      clearSelection()
       if (target.fileIds.includes(fileIdFromRouteRef.current ?? '')) {
         setIsDirty(false)
         setSaveStatus('idle')
@@ -1179,12 +1277,11 @@ export function Files() {
     setDeleteTarget({
       fileIds: selectedFileIds,
       folderIds: selectedFolderIds,
-      name:
-        selectedFileIds.length + selectedFolderIds.length === 1
-          ? (files.find((file) => file.id === selectedFileIds[0])?.name ??
-            folders.find((folder) => folder.id === selectedFolderIds[0])?.name ??
-            'selected item')
-          : `${selectedFileIds.length + selectedFolderIds.length} selected items`,
+      name: selectionLabel(
+        selectedFileIds.length + selectedFolderIds.length,
+        files.find((file) => file.id === selectedFileIds[0])?.name ??
+          folders.find((folder) => folder.id === selectedFolderIds[0])?.name
+      ),
     })
     setShowDeleteConfirm(true)
   }, [selectedFileIds, selectedFolderIds, files, folders])
@@ -1363,12 +1460,11 @@ export function Files() {
           ? { kind: 'folder', id: parsed.id, folder: item as WorkspaceFileFolderApi }
           : { kind: 'file', id: parsed.id, file: item as WorkspaceFileRecord }
       if (!selectedRowIds.has(rowId)) {
-        lastSelectedIndexRef.current = visibleRowIds.indexOf(rowId)
-        setSelectedRowIds(new Set([rowId]))
+        replaceSelection([rowId])
       }
       openContextMenu(e)
     },
-    [folders, openContextMenu, selectedRowIds, visibleRowIds]
+    [folders, openContextMenu, selectedRowIds]
   )
 
   const handleContextMenuOpen = useCallback(() => {
@@ -1459,7 +1555,7 @@ export function Files() {
           folderIds: selectedFolderIds,
           targetFolderId,
         })
-        setSelectedRowIds(new Set())
+        clearSelection()
         closeContextMenu()
       } catch (error) {
         logger.error('Failed to move items:', error)
@@ -1531,49 +1627,6 @@ export function Files() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleSave])
-
-  const selectedRowIdsRef = useRef(selectedRowIds)
-  selectedRowIdsRef.current = selectedRowIds
-  const visibleRowIdsRef = useRef(visibleRowIds)
-  visibleRowIdsRef.current = visibleRowIds
-  const listRenameActiveRef = useRef(listRename.editingId)
-  listRenameActiveRef.current = listRename.editingId
-  const handleBulkDeleteRef = useRef(handleBulkDelete)
-  handleBulkDeleteRef.current = handleBulkDelete
-
-  useEffect(() => {
-    const handleListKeyDown = (e: KeyboardEvent) => {
-      if (fileIdFromRouteRef.current) return
-      const active = document.activeElement
-      if (
-        active &&
-        (active.tagName === 'INPUT' ||
-          active.tagName === 'TEXTAREA' ||
-          (active as HTMLElement).isContentEditable)
-      )
-        return
-      if (listRenameActiveRef.current) return
-
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedRowIdsRef.current.size > 0) {
-        e.preventDefault()
-        handleBulkDeleteRef.current()
-        return
-      }
-
-      if (e.key === 'Escape' && selectedRowIdsRef.current.size > 0) {
-        e.preventDefault()
-        setSelectedRowIds(new Set())
-        return
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.key === 'a' && visibleRowIdsRef.current.length > 0) {
-        e.preventDefault()
-        setSelectedRowIds(new Set(visibleRowIdsRef.current))
-      }
-    }
-    window.addEventListener('keydown', handleListKeyDown)
-    return () => window.removeEventListener('keydown', handleListKeyDown)
-  }, [])
 
   const handleCyclePreviewMode = useCallback(() => {
     setPreviewMode((prev) => {
@@ -1692,21 +1745,21 @@ export function Files() {
     { id: 'file-delete', handler: () => handleDeleteSelected() },
   ])
 
-  const searchConfig: SearchConfig = {
-    value: urlSearchTerm,
-    onChange: setSearchTerm,
-    onClearAll: () => setSearchTerm(''),
-    placeholder: 'Search files...',
-  }
+  const searchConfig: SearchConfig = useMemo(
+    () => ({
+      value: urlSearchTerm,
+      onChange: setSearchTerm,
+      onClearAll: () => setSearchTerm(''),
+      placeholder: 'Search files...',
+    }),
+    [urlSearchTerm, setSearchTerm]
+  )
 
-  const uploadButtonLabel =
-    uploading && uploadProgress.total > 0
-      ? uploadProgress.currentPercent > 0 && uploadProgress.currentPercent < 100
-        ? `${uploadProgress.completed}/${uploadProgress.total} · ${uploadProgress.currentPercent}%`
-        : `${uploadProgress.completed}/${uploadProgress.total}`
-      : uploading
-        ? 'Uploading...'
-        : 'Upload'
+  const uploadButtonLabel = uploading
+    ? uploadProgress.currentPercent > 0 && uploadProgress.currentPercent < 100
+      ? `${uploadProgress.completed}/${uploadProgress.total} · ${uploadProgress.currentPercent}%`
+      : `${uploadProgress.completed}/${uploadProgress.total}`
+    : 'Upload'
 
   const headerActionsConfig = useMemo<ResourceAction[]>(
     () => [
@@ -1827,45 +1880,21 @@ export function Files() {
       (members ?? []).map((m) => ({
         value: m.userId,
         label: m.name,
-        iconElement: m.image ? (
-          <img
-            src={m.image}
-            alt={m.name}
-            referrerPolicy='no-referrer'
-            className='size-[14px] rounded-full border border-[var(--border)] object-cover'
-          />
-        ) : (
-          <span className='flex size-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
-            {m.name.charAt(0).toUpperCase()}
-          </span>
-        ),
+        iconElement: <OwnerAvatar name={m.name} image={m.image} />,
       })),
     [members]
   )
 
-  const contextMenuMoveOptions = useMemo((): MoveOptionNode[] => {
-    // Index children by parent ONCE (the same pattern used for folder sizes + descendant maps above),
-    // so building the tree is O(N) instead of a full `folders.filter` scan at every node (O(N²)).
-    const childrenByParent = new Map<string | null, typeof folders>()
-    for (const f of folders) {
-      const key = f.parentId ?? null
-      const arr = childrenByParent.get(key)
-      if (arr) arr.push(f)
-      else childrenByParent.set(key, [f])
-    }
-    const buildSubtree = (parentId: string | null): MoveOptionNode[] =>
-      (childrenByParent.get(parentId) ?? [])
-        .filter((f) => {
-          if (selectedFolderIds.includes(f.id)) return false
-          return selectedFolderIds.every(
-            (sid) => !descendantFolderIdsByFolderId.get(sid)?.has(f.id)
-          )
-        })
-        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
-        .map((f) => ({ value: f.id, label: f.name, children: buildSubtree(f.id) }))
-
-    return [{ value: ROOT_MOVE_OPTION_VALUE, label: 'Files', children: [] }, ...buildSubtree(null)]
-  }, [folders, selectedFolderIds, descendantFolderIdsByFolderId])
+  const contextMenuMoveOptions = useMemo<MoveOptionNode[]>(
+    () =>
+      buildMoveOptionsExcludingSubtrees({
+        folders,
+        rootLabel: 'Files',
+        excludeFolderIds: selectedFolderIds,
+        descendantsByFolderId: descendantFolderIdsByFolderId,
+      }),
+    [folders, selectedFolderIds, descendantFolderIdsByFolderId]
+  )
 
   const sortConfig: SortConfig = useMemo(
     () => ({
@@ -1921,7 +1950,7 @@ export function Files() {
     return (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='text-[var(--text-secondary)] text-caption'>File Type</span>
+          <span className={FILTER_SECTION_LABEL_CLASS}>File Type</span>
           <ChipCombobox
             options={[
               { value: 'document', label: 'Documents' },
@@ -1941,7 +1970,7 @@ export function Files() {
           />
         </div>
         <div className='flex flex-col gap-1.5'>
-          <span className='text-[var(--text-secondary)] text-caption'>Size</span>
+          <span className={FILTER_SECTION_LABEL_CLASS}>Size</span>
           <ChipCombobox
             options={[
               { value: 'small', label: 'Small (< 1 MB)' },
@@ -1961,7 +1990,7 @@ export function Files() {
         </div>
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
-            <span className='text-[var(--text-secondary)] text-caption'>Uploaded By</span>
+            <span className={FILTER_SECTION_LABEL_CLASS}>Uploaded By</span>
             <ChipCombobox
               options={memberOptions}
               multiSelect
@@ -1996,6 +2025,9 @@ export function Files() {
       </div>
     )
   }, [typeFilter, sizeFilter, uploadedByFilter, memberOptions, membersById, hasActiveFilters])
+
+  /** Stable identity so the memoized `Resource.Options` can bail; an inline object cannot. */
+  const filterConfig = useMemo(() => ({ content: filterContent }), [filterContent])
 
   const filterTags: FilterTag[] = useMemo(() => {
     const tags: FilterTag[] = []
@@ -2124,13 +2156,14 @@ export function Files() {
           icon={FILES_HEADER.rootIcon}
           title={FILES_HEADER.rootLabel}
           breadcrumbs={listBreadcrumbs}
+          breadcrumbDrop={rowDragDropConfig.breadcrumb}
           actions={headerActionsConfig}
         />
         <Resource.Options
           search={searchConfig}
           sort={sortConfig}
           filterTags={filterTags}
-          filter={filterContent ? { content: filterContent } : undefined}
+          filter={filterConfig}
         />
         <Resource.Table
           columns={COLUMNS}
@@ -2141,7 +2174,7 @@ export function Files() {
           onRowContextMenu={handleRowContextMenu}
           overlay={
             <>
-              <FilesActionBar
+              <ResourceActionBar
                 selectedCount={selectedRowIds.size}
                 onDownload={handleBulkDownload}
                 onMove={canEdit ? handleContextMenuMove : undefined}
@@ -2152,14 +2185,9 @@ export function Files() {
                 }
               />
               {isDraggingOver ? (
-                <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--surface-4)] transition-colors'>
+                <div className='pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--bg)]/80 transition-colors'>
                   <Upload className='size-5 text-[var(--brand-secondary)]' />
-                  <div className='flex flex-col gap-0.5 text-center'>
-                    <p className='text-[14px] text-[var(--brand-secondary)]'>Drop to upload</p>
-                    <p className='text-[11px] text-[var(--text-tertiary)]'>
-                      Release files here to add them to this workspace
-                    </p>
-                  </div>
+                  <p className='text-[var(--brand-secondary)] text-sm'>Drop to upload</p>
                 </div>
               ) : null}
             </>

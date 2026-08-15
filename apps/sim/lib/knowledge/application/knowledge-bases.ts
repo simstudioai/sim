@@ -11,7 +11,8 @@ import {
   PrincipalKindAuthorizationError,
   type WorkspaceOperation,
 } from '@/lib/core/application'
-import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
+import { classifyBulkItemError } from '@/lib/core/application/bulk-items'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
@@ -553,24 +554,20 @@ export const bulkDeleteKnowledgeBases = defineAuthorizedKnowledgeUseCase({
         if (input.cancellationSignal?.aborted) break
         deleted.push(await executeDeleteKnowledgeBase({ context: canonical }))
       } catch (error) {
-        const classified = asOrchestrationError(error)
-        if (
-          classified?.code === 'not_found' ||
-          classified?.code === 'forbidden' ||
-          classified?.code === 'unauthorized'
-        ) {
+        const disposition = classifyBulkItemError(error)
+        if (disposition.kind === 'notFound') {
           notFound.push(knowledgeBaseId)
           continue
         }
-        if (classified && classified.code !== 'internal') {
+        if (disposition.kind === 'failed') {
           failed.push({
             id: knowledgeBaseId,
             name: knowledgeBaseName,
-            reason: classified.message,
+            reason: disposition.reason,
           })
           continue
         }
-        terminalFailure = { error }
+        terminalFailure = { error: disposition.error }
         break
       }
     }

@@ -20,7 +20,12 @@ export interface UseFolderNavigationOptions {
 export interface FolderNavigation extends FolderAncestors {
   /** The open folder, or `null` at the workspace root. */
   currentFolderId: string | null
-  setCurrentFolderId: (folderId: string | null) => void
+  /**
+   * Opens a folder. Defaults to the param group's `history: 'push'` — a folder the user chose
+   * to open is a destination. Pass `{ history: 'replace' }` for a write that is not a chosen
+   * navigation, such as the second and later spring-opens within a single drag.
+   */
+  setCurrentFolderId: (folderId: string | null, options?: { history?: 'push' | 'replace' }) => void
 }
 
 /**
@@ -49,8 +54,8 @@ export function useFolderNavigation({
   const { folderById, foldersResolved } = ancestry
 
   const setCurrentFolderId = useCallback(
-    (folderId: string | null) => {
-      void setFolderParams({ folderId })
+    (folderId: string | null, options?: { history?: 'push' | 'replace' }) => {
+      void setFolderParams({ folderId }, options)
     },
     [setFolderParams]
   )
