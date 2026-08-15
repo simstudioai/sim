@@ -3,7 +3,7 @@ import type {
   ServiceNowDownloadAttachmentParams,
   ServiceNowDownloadAttachmentResponse,
 } from '@/tools/servicenow/types'
-import { createBasicAuthHeader } from '@/tools/servicenow/utils'
+import { buildServiceNowHeaders, normalizeInstanceUrl } from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowDownloadAttachmentTool')
@@ -46,22 +46,14 @@ export const downloadAttachmentTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = params.instanceUrl.trim().replace(/\/$/, '')
-      if (!baseUrl) {
-        throw new Error('ServiceNow instance URL is required')
-      }
+      const baseUrl = normalizeInstanceUrl(params.instanceUrl)
       return `${baseUrl}/api/now/attachment/${params.attachmentSysId.trim()}/file`
     },
     method: 'GET',
-    headers: (params) => {
-      if (!params.username || !params.password) {
-        throw new Error('ServiceNow username and password are required')
-      }
-      return {
-        Authorization: createBasicAuthHeader(params.username, params.password),
-        Accept: '*/*',
-      }
-    },
+    headers: (params) => ({
+      ...buildServiceNowHeaders(params),
+      Accept: '*/*',
+    }),
   },
 
   transformResponse: async (response: Response) => {

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ServiceNowReadParams, ServiceNowReadResponse } from '@/tools/servicenow/types'
-import { createBasicAuthHeader } from '@/tools/servicenow/utils'
+import { buildServiceNowHeaders, normalizeInstanceUrl } from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowReadRecordTool')
@@ -84,10 +84,7 @@ export const readRecordTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResp
 
   request: {
     url: (params) => {
-      const baseUrl = params.instanceUrl.trim().replace(/\/$/, '')
-      if (!baseUrl) {
-        throw new Error('ServiceNow instance URL is required')
-      }
+      const baseUrl = normalizeInstanceUrl(params.instanceUrl)
       let url = `${baseUrl}/api/now/table/${params.tableName.trim()}`
 
       const queryParams = new URLSearchParams()
@@ -125,15 +122,7 @@ export const readRecordTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResp
       return queryString ? `${url}?${queryString}` : url
     },
     method: 'GET',
-    headers: (params) => {
-      if (!params.username || !params.password) {
-        throw new Error('ServiceNow username and password are required')
-      }
-      return {
-        Authorization: createBasicAuthHeader(params.username, params.password),
-        Accept: 'application/json',
-      }
-    },
+    headers: (params) => buildServiceNowHeaders(params),
   },
 
   transformResponse: async (response: Response) => {

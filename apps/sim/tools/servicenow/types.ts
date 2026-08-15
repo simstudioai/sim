@@ -1,16 +1,404 @@
 import type { ToolResponse } from '@/tools/types'
 
-interface ServiceNowRecord {
-  sys_id: string
-  number?: string
+/**
+ * A ServiceNow record as returned by the Table API. With
+ * `sysparm_display_value=all` every field is `{ value, display_value }`; with
+ * `false` (ServiceNow's default) reference fields are `{ value, link }` and
+ * everything else is a raw string.
+ */
+export interface ServiceNowRecord {
+  sys_id?: unknown
+  number?: unknown
   [key: string]: any
 }
 
-interface ServiceNowBaseParams {
+/** Credentials shared by every ServiceNow tool. */
+export interface ServiceNowAuthParams {
   instanceUrl: string
   username: string
   password: string
+}
+
+interface ServiceNowBaseParams extends ServiceNowAuthParams {
   tableName: string
+}
+
+/** Table API read parameters shared by every semantic list/get tool. */
+export interface ServiceNowReadOptions {
+  query?: string
+  limit?: number
+  offset?: number
+  fields?: string
+  displayValue?: string
+}
+
+/** Table API write parameters shared by every semantic create/update tool. */
+export interface ServiceNowWriteOptions {
+  fields?: string
+  displayValue?: string
+  inputDisplayValue?: boolean | string
+}
+
+/** Standard list-shaped output for the semantic tools. */
+export interface ServiceNowRecordListResponse extends ToolResponse {
+  output: {
+    records: ServiceNowRecord[]
+    metadata: {
+      recordCount: number
+    }
+  }
+}
+
+/** Standard single-record output for the semantic tools. */
+export interface ServiceNowSingleRecordResponse extends ToolResponse {
+  output: {
+    record: ServiceNowRecord | null
+    metadata: {
+      recordCount: number
+    }
+  }
+}
+
+export interface ServiceNowCreateIncidentParams
+  extends ServiceNowAuthParams,
+    ServiceNowWriteOptions {
+  shortDescription: string
+  description?: string
+  callerId?: string
+  category?: string
+  subcategory?: string
+  impact?: string
+  urgency?: string
+  priority?: string
+  state?: string
+  assignmentGroup?: string
+  assignedTo?: string
+  cmdbCi?: string
+  businessService?: string
+  contactType?: string
+  workNotes?: string
+  comments?: string
+  additionalFields?: Record<string, unknown> | string
+}
+
+export interface ServiceNowGetIncidentParams extends ServiceNowAuthParams {
+  sysId?: string
+  number?: string
+  fields?: string
+  displayValue?: string
+}
+
+export interface ServiceNowListIncidentsParams extends ServiceNowAuthParams, ServiceNowReadOptions {
+  state?: string
+  priority?: string
+  assignmentGroup?: string
+  assignedTo?: string
+  callerId?: string
+  active?: string
+  searchText?: string
+}
+
+export interface ServiceNowUpdateIncidentParams
+  extends ServiceNowAuthParams,
+    ServiceNowWriteOptions {
+  sysId?: string
+  number?: string
+  shortDescription?: string
+  description?: string
+  state?: string
+  impact?: string
+  urgency?: string
+  priority?: string
+  category?: string
+  subcategory?: string
+  assignmentGroup?: string
+  assignedTo?: string
+  cmdbCi?: string
+  workNotes?: string
+  comments?: string
+  additionalFields?: Record<string, unknown> | string
+}
+
+export interface ServiceNowResolveIncidentParams
+  extends ServiceNowAuthParams,
+    ServiceNowWriteOptions {
+  sysId?: string
+  number?: string
+  closeCode: string
+  closeNotes: string
+  workNotes?: string
+  additionalFields?: Record<string, unknown> | string
+}
+
+export interface ServiceNowAddCommentParams extends ServiceNowAuthParams, ServiceNowWriteOptions {
+  sysId?: string
+  number?: string
+  commentField?: string
+  comment: string
+}
+
+export interface ServiceNowCreateChangeParams extends ServiceNowAuthParams, ServiceNowWriteOptions {
+  shortDescription: string
+  description?: string
+  type?: string
+  category?: string
+  risk?: string
+  impact?: string
+  priority?: string
+  assignmentGroup?: string
+  assignedTo?: string
+  requestedBy?: string
+  cmdbCi?: string
+  startDate?: string
+  endDate?: string
+  justification?: string
+  implementationPlan?: string
+  backoutPlan?: string
+  testPlan?: string
+  additionalFields?: Record<string, unknown> | string
+}
+
+export interface ServiceNowGetChangeParams extends ServiceNowAuthParams {
+  sysId?: string
+  number?: string
+  fields?: string
+  displayValue?: string
+}
+
+export interface ServiceNowListChangesParams extends ServiceNowAuthParams, ServiceNowReadOptions {
+  state?: string
+  type?: string
+  risk?: string
+  assignmentGroup?: string
+  assignedTo?: string
+  active?: string
+  searchText?: string
+}
+
+export interface ServiceNowUpdateChangeParams extends ServiceNowAuthParams, ServiceNowWriteOptions {
+  sysId?: string
+  number?: string
+  shortDescription?: string
+  description?: string
+  state?: string
+  risk?: string
+  impact?: string
+  priority?: string
+  assignmentGroup?: string
+  assignedTo?: string
+  startDate?: string
+  endDate?: string
+  closeCode?: string
+  closeNotes?: string
+  workNotes?: string
+  additionalFields?: Record<string, unknown> | string
+}
+
+export interface ServiceNowChangeStateParams extends ServiceNowAuthParams, ServiceNowWriteOptions {
+  sysId?: string
+  number?: string
+  state: string
+  closeCode?: string
+  closeNotes?: string
+  workNotes?: string
+}
+
+export interface ServiceNowListChangeTasksParams extends ServiceNowAuthParams {
+  changeSysId: string
+  query?: string
+  limit?: number
+  offset?: number
+  order?: string
+}
+
+export interface ServiceNowChangeTaskListResponse extends ToolResponse {
+  output: {
+    tasks: ServiceNowRecord[]
+    metadata: {
+      recordCount: number
+    }
+  }
+}
+
+export interface ServiceNowListCatalogItemsParams extends ServiceNowAuthParams {
+  searchText?: string
+  catalogSysId?: string
+  categorySysId?: string
+  limit?: number
+  offset?: number
+}
+
+export interface ServiceNowCatalogItem {
+  sys_id?: string
+  name?: string
+  short_description?: string | null
+  description?: string
+  type?: string
+  sys_class_name?: string
+  category?: { sys_id?: string; title?: string } | null
+  catalogs?: Array<{ sys_id?: string; title?: string }>
+  price?: string
+  show_price?: boolean
+  picture?: string
+  icon?: string
+  order?: number
+  [key: string]: any
+}
+
+export interface ServiceNowListCatalogItemsResponse extends ToolResponse {
+  output: {
+    items: ServiceNowCatalogItem[]
+    metadata: {
+      recordCount: number
+    }
+  }
+}
+
+export interface ServiceNowOrderCatalogItemParams extends ServiceNowAuthParams {
+  catalogItemSysId: string
+  quantity?: number
+  requestedFor?: string
+  variables?: Record<string, unknown> | string
+}
+
+export interface ServiceNowOrderCatalogItemResponse extends ToolResponse {
+  output: {
+    sysId: string | null
+    number: string | null
+    requestNumber: string | null
+    requestId: string | null
+    table: string | null
+    parentId: string | null
+    parentTable: string | null
+  }
+}
+
+export interface ServiceNowListRequestedItemsParams
+  extends ServiceNowAuthParams,
+    ServiceNowReadOptions {
+  requestSysId?: string
+  catalogItemSysId?: string
+  active?: string
+}
+
+export interface ServiceNowGetRequestedItemParams extends ServiceNowAuthParams {
+  sysId?: string
+  number?: string
+  fields?: string
+  displayValue?: string
+}
+
+export interface ServiceNowListApprovalsParams extends ServiceNowAuthParams, ServiceNowReadOptions {
+  approverSysId?: string
+  state?: string
+  approvalFor?: string
+}
+
+export interface ServiceNowUpdateApprovalParams
+  extends ServiceNowAuthParams,
+    ServiceNowWriteOptions {
+  approvalSysId: string
+  decision: string
+  comments?: string
+}
+
+export interface ServiceNowSearchCisParams extends ServiceNowAuthParams, ServiceNowReadOptions {
+  ciClass?: string
+  name?: string
+  operationalStatus?: string
+}
+
+export interface ServiceNowGetCiParams extends ServiceNowAuthParams {
+  ciClass: string
+  sysId: string
+}
+
+export interface ServiceNowCiRelation {
+  sys_id?: string
+  target?: { display_value?: string; link?: string; value?: string }
+  type?: { display_value?: string; link?: string; value?: string }
+}
+
+export interface ServiceNowGetCiResponse extends ToolResponse {
+  output: {
+    attributes: Record<string, any> | null
+    inboundRelations: ServiceNowCiRelation[]
+    outboundRelations: ServiceNowCiRelation[]
+    metadata: {
+      inboundCount: number
+      outboundCount: number
+    }
+  }
+}
+
+export interface ServiceNowListCiRelationshipsParams
+  extends ServiceNowAuthParams,
+    ServiceNowReadOptions {
+  ciSysId: string
+  direction?: string
+}
+
+export interface ServiceNowSearchKnowledgeParams extends ServiceNowAuthParams {
+  query?: string
+  filter?: string
+  knowledgeBaseSysIds?: string
+  language?: string
+  fields?: string
+  limit?: number
+  offset?: number
+}
+
+export interface ServiceNowKnowledgeArticleSummary {
+  id?: string
+  number?: string
+  title?: string
+  snippet?: string
+  link?: string
+  score?: string | number
+  rank?: number
+  fields?: Record<string, any>
+}
+
+export interface ServiceNowSearchKnowledgeResponse extends ToolResponse {
+  output: {
+    articles: ServiceNowKnowledgeArticleSummary[]
+    metadata: {
+      recordCount: number
+      totalCount: number | null
+    }
+  }
+}
+
+export interface ServiceNowGetKnowledgeArticleParams extends ServiceNowAuthParams {
+  articleId: string
+  fields?: string
+  language?: string
+  updateView?: boolean | string
+}
+
+export interface ServiceNowGetKnowledgeArticleResponse extends ToolResponse {
+  output: {
+    sysId: string | null
+    number: string | null
+    title: string | null
+    content: string | null
+    fields: Record<string, any> | null
+    attachments: Array<Record<string, any>>
+  }
+}
+
+export interface ServiceNowFindUserParams extends ServiceNowAuthParams, ServiceNowReadOptions {
+  email?: string
+  userName?: string
+  name?: string
+  active?: string
+}
+
+export interface ServiceNowListGroupMembersParams
+  extends ServiceNowAuthParams,
+    ServiceNowReadOptions {
+  groupSysId?: string
+  groupName?: string
 }
 
 export interface ServiceNowCreateParams extends ServiceNowBaseParams {
@@ -172,3 +560,11 @@ export type ServiceNowResponse =
   | ServiceNowListAttachmentsResponse
   | ServiceNowDownloadAttachmentResponse
   | ServiceNowUploadAttachmentResponse
+  | ServiceNowRecordListResponse
+  | ServiceNowSingleRecordResponse
+  | ServiceNowChangeTaskListResponse
+  | ServiceNowListCatalogItemsResponse
+  | ServiceNowOrderCatalogItemResponse
+  | ServiceNowGetCiResponse
+  | ServiceNowSearchKnowledgeResponse
+  | ServiceNowGetKnowledgeArticleResponse

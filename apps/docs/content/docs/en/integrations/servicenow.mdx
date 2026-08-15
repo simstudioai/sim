@@ -223,6 +223,1060 @@ Attach a file to a ServiceNow record
 | `attachment` | json | Created attachment metadata \(sys_id, file_name, content_type, download_link\) |
 | `metadata` | json | Operation metadata |
 
+### Create ServiceNow Incident
+
+Create an incident in ServiceNow. Reference fields (caller, assignment group, assigned to, configuration item) take sys_ids unless input display value is enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shortDescription` | string | Yes | Short description — the one-line summary of the incident. |
+| `description` | string | No | Detailed description of the incident. |
+| `callerId` | string | No | Caller \(caller_id\) — sys_id of the sys_user who reported the incident. Use Find ServiceNow User to resolve an email address to a sys_id. |
+| `category` | string | No | Category \(e.g., inquiry, software, hardware, network, database\). |
+| `subcategory` | string | No | Subcategory, valid for the selected category. |
+| `impact` | string | No | Impact: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
+| `urgency` | string | No | Urgency: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
+| `priority` | string | No | Priority 1-5 \(1 Critical … 5 Planning\). Normally derived from impact and urgency, so prefer setting those. |
+| `state` | string | No | Incident state coded value. Base system: $\{INCIDENT_STATE.NEW\}=New, $\{INCIDENT_STATE.IN_PROGRESS\}=In Progress, $\{INCIDENT_STATE.ON_HOLD\}=On Hold, $\{INCIDENT_STATE.RESOLVED\}=Resolved, $\{INCIDENT_STATE.CLOSED\}=Closed, $\{INCIDENT_STATE.CANCELED\}=Canceled. Defaults to New. |
+| `assignmentGroup` | string | No | Assignment group \(assignment_group\) — sys_id of the sys_user_group. |
+| `assignedTo` | string | No | Assigned to \(assigned_to\) — sys_id of the sys_user. |
+| `cmdbCi` | string | No | Configuration item \(cmdb_ci\) — sys_id of the affected CI. |
+| `businessService` | string | No | Service \(business_service\) — sys_id of the affected business service. |
+| `contactType` | string | No | Channel \(contact_type\), e.g., email, phone, self-service, chat. |
+| `workNotes` | string | No | Internal work note to record on creation. |
+| `comments` | string | No | Customer-visible additional comment to record on creation. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Get ServiceNow Incident
+
+Retrieve a single ServiceNow incident by number (e.g., INC0010001) or sys_id. Reference fields are returned with both their sys_id and their label by default.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### List ServiceNow Incidents
+
+Search ServiceNow incidents by state, priority, assignment, caller, or text. All filters are ANDed together.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `searchText` | string | No | Text to match against the incident short description \(LIKE, case-sensitive\). |
+| `state` | string | No | Incident state coded value. Base system: $\{INCIDENT_STATE.NEW\}=New, $\{INCIDENT_STATE.IN_PROGRESS\}=In Progress, $\{INCIDENT_STATE.ON_HOLD\}=On Hold, $\{INCIDENT_STATE.RESOLVED\}=Resolved, $\{INCIDENT_STATE.CLOSED\}=Closed, $\{INCIDENT_STATE.CANCELED\}=Canceled. |
+| `priority` | string | No | Priority coded value 1-5 \(1 Critical … 5 Planning\). |
+| `assignmentGroup` | string | No | sys_id of the assignment group. |
+| `assignedTo` | string | No | sys_id of the assigned user. |
+| `callerId` | string | No | sys_id of the caller. |
+| `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) incidents. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Update ServiceNow Incident
+
+Update fields on an existing ServiceNow incident. Only the fields you supply are changed. Reference fields take sys_ids unless input display value is enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shortDescription` | string | No | New short description. |
+| `description` | string | No | New detailed description. |
+| `state` | string | No | Incident state coded value. Base system: $\{INCIDENT_STATE.NEW\}=New, $\{INCIDENT_STATE.IN_PROGRESS\}=In Progress, $\{INCIDENT_STATE.ON_HOLD\}=On Hold, $\{INCIDENT_STATE.RESOLVED\}=Resolved, $\{INCIDENT_STATE.CLOSED\}=Closed, $\{INCIDENT_STATE.CANCELED\}=Canceled. Use Resolve or Close ServiceNow Incident for those transitions so the resolution fields are populated. |
+| `impact` | string | No | Impact: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
+| `urgency` | string | No | Urgency: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
+| `priority` | string | No | Priority coded value 1-5 \(1 Critical … 5 Planning\). |
+| `category` | string | No | Category. |
+| `subcategory` | string | No | Subcategory. |
+| `assignmentGroup` | string | No | Assignment group \(assignment_group\) — sys_id of the sys_user_group. |
+| `assignedTo` | string | No | Assigned to \(assigned_to\) — sys_id of the sys_user. |
+| `cmdbCi` | string | No | Configuration item \(cmdb_ci\) — sys_id of the affected CI. |
+| `workNotes` | string | No | Internal work note to append. |
+| `comments` | string | No | Customer-visible additional comment to append. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Resolve ServiceNow Incident
+
+Move a ServiceNow incident to Resolved (state $\{INCIDENT_STATE.RESOLVED\}) with a resolution code and resolution notes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `closeCode` | string | Yes | Resolution code \(close_code\). This is a choice field whose values are configured per instance — read the choice list on your incident table and pass one of its values. |
+| `closeNotes` | string | Yes | Resolution notes \(close_notes\) documenting how the incident was resolved. |
+| `workNotes` | string | No | Additional internal work note to append. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Close ServiceNow Incident
+
+Move a ServiceNow incident to Closed (state $\{INCIDENT_STATE.CLOSED\}) with a resolution code and resolution notes. Closing normally requires the itil_admin or admin role.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `closeCode` | string | Yes | Resolution code \(close_code\). This is a choice field whose values are configured per instance — read the choice list on your incident table and pass one of its values. |
+| `closeNotes` | string | Yes | Resolution notes \(close_notes\) documenting how the incident was resolved. |
+| `workNotes` | string | No | Additional internal work note to append. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Add ServiceNow Incident Comment
+
+Append an internal work note or a customer-visible additional comment to a ServiceNow incident. Both are journal fields, so the text is appended rather than replacing earlier entries.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `comment` | string | Yes | Text to append to the journal field. |
+| `commentField` | string | No | Which journal field to write to: "work_notes" for an internal note \(default\) or "comments" for a customer-visible additional comment. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Create ServiceNow Change Request
+
+Create a change request in ServiceNow. Reference fields (assignment group, assigned to, requested by, configuration item) take sys_ids unless input display value is enabled.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shortDescription` | string | Yes | Short description — the one-line summary of the change. |
+| `description` | string | No | Detailed description of the change. |
+| `type` | string | No | Change type: "normal", "standard", or "emergency". |
+| `category` | string | No | Change category. |
+| `risk` | string | No | Risk coded value. The choice list is configured per instance. |
+| `impact` | string | No | Impact: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
+| `priority` | string | No | Priority coded value 1-5 \(1 Critical … 5 Planning\). |
+| `assignmentGroup` | string | No | Assignment group \(assignment_group\) — sys_id of the sys_user_group. |
+| `assignedTo` | string | No | Assigned to \(assigned_to\) — sys_id of the sys_user. |
+| `requestedBy` | string | No | Requested by \(requested_by\) — sys_id of the sys_user. |
+| `cmdbCi` | string | No | Configuration item \(cmdb_ci\) — sys_id of the CI being changed. |
+| `startDate` | string | No | Planned start date \(start_date\) as "YYYY-MM-DD HH:mm:ss" in UTC. |
+| `endDate` | string | No | Planned end date \(end_date\) as "YYYY-MM-DD HH:mm:ss" in UTC. |
+| `justification` | string | No | Justification for making the change. |
+| `implementationPlan` | string | No | Implementation plan. |
+| `backoutPlan` | string | No | Backout plan. |
+| `testPlan` | string | No | Test plan. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Get ServiceNow Change Request
+
+Retrieve a single ServiceNow change request by number (e.g., CHG0030001) or sys_id. Reference fields are returned with both their sys_id and their label by default.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### List ServiceNow Change Requests
+
+Search ServiceNow change requests by state, type, risk, assignment, or text. All filters are ANDed together.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `searchText` | string | No | Text to match against the change short description \(LIKE, case-sensitive\). |
+| `state` | string | No | Change state coded value. Base system: $\{CHANGE_STATE.NEW\}=New, $\{CHANGE_STATE.ASSESS\}=Assess, $\{CHANGE_STATE.AUTHORIZE\}=Authorize, $\{CHANGE_STATE.SCHEDULED\}=Scheduled, $\{CHANGE_STATE.IMPLEMENT\}=Implement, $\{CHANGE_STATE.REVIEW\}=Review, $\{CHANGE_STATE.CLOSED\}=Closed, $\{CHANGE_STATE.CANCELED\}=Canceled. |
+| `type` | string | No | Change type: "normal", "standard", or "emergency". |
+| `risk` | string | No | Risk coded value. The choice list is configured per instance. |
+| `assignmentGroup` | string | No | sys_id of the assignment group. |
+| `assignedTo` | string | No | sys_id of the assigned user. |
+| `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) change requests. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Update ServiceNow Change Request
+
+Update fields on an existing ServiceNow change request. Only the fields you supply are changed. Use Move ServiceNow Change State for state transitions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `shortDescription` | string | No | New short description. |
+| `description` | string | No | New detailed description. |
+| `state` | string | No | Change state coded value. Base system: $\{CHANGE_STATE.NEW\}=New, $\{CHANGE_STATE.ASSESS\}=Assess, $\{CHANGE_STATE.AUTHORIZE\}=Authorize, $\{CHANGE_STATE.SCHEDULED\}=Scheduled, $\{CHANGE_STATE.IMPLEMENT\}=Implement, $\{CHANGE_STATE.REVIEW\}=Review, $\{CHANGE_STATE.CLOSED\}=Closed, $\{CHANGE_STATE.CANCELED\}=Canceled. |
+| `risk` | string | No | Risk coded value. The choice list is configured per instance. |
+| `impact` | string | No | Impact: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
+| `priority` | string | No | Priority coded value 1-5 \(1 Critical … 5 Planning\). |
+| `assignmentGroup` | string | No | Assignment group \(assignment_group\) — sys_id of the sys_user_group. |
+| `assignedTo` | string | No | Assigned to \(assigned_to\) — sys_id of the sys_user. |
+| `startDate` | string | No | Planned start date \(start_date\) as "YYYY-MM-DD HH:mm:ss" in UTC. |
+| `endDate` | string | No | Planned end date \(end_date\) as "YYYY-MM-DD HH:mm:ss" in UTC. |
+| `closeCode` | string | No | Close code: "successful", "successful_issues", or "unsuccessful". Required when closing a change. |
+| `closeNotes` | string | No | Close notes describing the outcome of the change. |
+| `workNotes` | string | No | Internal work note to append. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Move ServiceNow Change State
+
+Move a ServiceNow change request to another state. Base-system change model states are $\{CHANGE_STATE.NEW\}=New, $\{CHANGE_STATE.ASSESS\}=Assess, $\{CHANGE_STATE.AUTHORIZE\}=Authorize, $\{CHANGE_STATE.SCHEDULED\}=Scheduled, $\{CHANGE_STATE.IMPLEMENT\}=Implement, $\{CHANGE_STATE.REVIEW\}=Review, $\{CHANGE_STATE.CLOSED\}=Closed, $\{CHANGE_STATE.CANCELED\}=Canceled. The state machine rejects transitions whose conditions are not met.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `state` | string | Yes | Target state coded value: $\{CHANGE_STATE.NEW\} \(New\), $\{CHANGE_STATE.ASSESS\} \(Assess\), $\{CHANGE_STATE.AUTHORIZE\} \(Authorize\), $\{CHANGE_STATE.SCHEDULED\} \(Scheduled\), $\{CHANGE_STATE.IMPLEMENT\} \(Implement\), $\{CHANGE_STATE.REVIEW\} \(Review\), $\{CHANGE_STATE.CLOSED\} \(Closed\), or $\{CHANGE_STATE.CANCELED\} \(Canceled\). |
+| `closeCode` | string | No | Close code, required when moving to Closed \($\{CHANGE_STATE.CLOSED\}\): "successful", "successful_issues", or "unsuccessful". |
+| `closeNotes` | string | No | Close notes describing the outcome of the change. |
+| `workNotes` | string | No | Internal work note explaining the transition. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### List ServiceNow Change Tasks
+
+List the change tasks belonging to a ServiceNow change request, via the Change Management API. Every field is returned as \{value, display_value\}, so a reference field carries both its sys_id and its label.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `changeSysId` | string | Yes | sys_id of the change request whose tasks should be listed. |
+| `query` | string | No | ServiceNow encoded query used to filter the tasks \(e.g., "active=true^ORDERBYnumber"\). |
+| `order` | string | No | Field to sort the returned tasks by. |
+| `limit` | number | No | Maximum number of tasks to return \(sysparm_limit\). ServiceNow defaults to 500. |
+| `offset` | number | No | Number of tasks to skip for pagination \(sysparm_offset\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tasks` | array | Change tasks. Each field is an object of the form \{value, display_value\}; `parent` holds the owning change request. |
+| `metadata` | json | Operation metadata |
+|   ↳ `recordCount` | number | Number of change tasks returned |
+
+### List ServiceNow Catalog Items
+
+Browse or search the ServiceNow service catalog. Returns each item with its sys_id, name, description, type, category, and catalogs, which is what Order ServiceNow Catalog Item needs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `searchText` | string | No | Text to search for in the catalog items \(e.g., "iPhone"\). |
+| `catalogSysId` | string | No | Restrict results to a specific catalog, by catalog sys_id. |
+| `categorySysId` | string | No | Restrict results to a specific category, by category sys_id. |
+| `limit` | number | No | Maximum number of items to return \(sysparm_limit\). |
+| `offset` | number | No | Number of items to skip for pagination \(sysparm_offset\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | Catalog items |
+|   ↳ `sys_id` | string | Catalog item sys_id, used to order the item |
+|   ↳ `name` | string | Catalog item name |
+|   ↳ `short_description` | string | Short description |
+|   ↳ `description` | string | HTML description |
+|   ↳ `type` | string | Item type, e.g., record_producer or catalog_item |
+|   ↳ `sys_class_name` | string | Item table |
+|   ↳ `category` | json | Category \{sys_id, title\} |
+|   ↳ `catalogs` | json | Catalogs the item belongs to, each \{sys_id, title\} |
+|   ↳ `picture` | string | Item picture reference |
+|   ↳ `icon` | string | Item icon reference |
+|   ↳ `order` | number | Display order |
+| `metadata` | json | Operation metadata |
+|   ↳ `recordCount` | number | Number of catalog items returned |
+
+### Order ServiceNow Catalog Item
+
+Submit a service catalog request for a catalog item using the Service Catalog API order_now endpoint. Returns the generated request number and sys_id.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `catalogItemSysId` | string | Yes | sys_id of the catalog item to order. Use List ServiceNow Catalog Items to find it. |
+| `quantity` | number | No | Quantity to order. Must not be negative. Defaults to 1. |
+| `requestedFor` | string | No | sys_id of the sys_user the item is ordered for. Ordering on behalf of another user is governed by the glide.sc.req_for.roles instance properties. |
+| `variables` | json | No | Name-value pairs for the catalog item variables, as a JSON object \(e.g., \{"data_plan": "500MB"\}\). All variables the item marks mandatory must be supplied. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Sys_id of the order |
+| `number` | string | Number of the generated request |
+| `requestNumber` | string | Request number |
+| `requestId` | string | Sys_id of the order request |
+| `table` | string | Table name of the request |
+| `parentId` | string | Sys_id of the parent record the request was created from, when available |
+| `parentTable` | string | Name of the parent table the request was created from, when available |
+
+### List ServiceNow Requested Items
+
+List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] table, optionally scoped to a request, a requester, or a catalog item.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `requestSysId` | string | No | sys_id of the parent request \(sc_request\) whose items should be listed. |
+| `catalogItemSysId` | string | No | sys_id of the catalog item \(cat_item\) to filter by. |
+| `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) requested items. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Get ServiceNow Requested Item
+
+Retrieve a single ServiceNow requested item (RITM) by number (e.g., RITM0010001) or sys_id from the Requested Item [sc_req_item] table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### List ServiceNow Approvals
+
+List approval records from the ServiceNow Approval [sysapproval_approver] table. Defaults to the "$\{APPROVAL_STATE.REQUESTED\}" state, which is what a user's pending approvals look like.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `approverSysId` | string | No | sys_id of the approver \(sys_user\) whose approvals should be listed. Use Find ServiceNow User to resolve an email address to a sys_id. |
+| `state` | string | No | Approval state: "$\{APPROVAL_STATE.REQUESTED\}" \(pending, the default\), "$\{APPROVAL_STATE.APPROVED\}", or "$\{APPROVAL_STATE.REJECTED\}". Pass an empty string with a custom query to list every state. |
+| `approvalFor` | string | No | sys_id of the record being approved, matched against the sysapproval reference field. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Approve or Reject ServiceNow Approval
+
+Approve or reject a ServiceNow approval record by setting its state on the Approval [sysapproval_approver] table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `approvalSysId` | string | Yes | sys_id of the approval record on the sysapproval_approver table. Use List ServiceNow Approvals to find it. |
+| `decision` | string | Yes | Decision to record: "$\{APPROVAL_STATE.APPROVED\}" or "$\{APPROVAL_STATE.REJECTED\}". |
+| `comments` | string | No | Comment to record alongside the decision. This is a journal field. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Search ServiceNow Configuration Items
+
+Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci table, which returns CIs of every class; pass a CI class to scope the search to a subclass such as cmdb_ci_linux_server.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ciClass` | string | No | CMDB class \(table\) to search, e.g., cmdb_ci_linux_server or cmdb_ci_app_server. Defaults to $\{SERVICENOW_TABLES.CI\}, which covers every CI class. |
+| `name` | string | No | Text to match against the CI name \(LIKE, case-sensitive\). |
+| `operationalStatus` | string | No | Operational status coded value \(operational_status\). The choice list is configured per instance. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Get ServiceNow Configuration Item
+
+Retrieve a configuration item and its CMDB relationships through the CMDB Instance API. Returns the CI attributes plus its inbound and outbound relations, each carrying the related CI and the relationship type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ciClass` | string | Yes | CMDB class \(table\) the CI belongs to, e.g., cmdb_ci_linux_server. Read it from the sys_class_name field returned by Search ServiceNow Configuration Items. |
+| `sysId` | string | Yes | sys_id of the configuration item to retrieve. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attributes` | json | Data attributes on the CI record. The available attributes depend on the class. |
+| `inboundRelations` | array | Inbound CI relationships |
+|   ↳ `sys_id` | string | Sys_id of the relationship record on cmdb_rel_ci |
+|   ↳ `target` | json | Related CI as \{value \(sys_id\), display_value, link\} |
+|   ↳ `type` | json | Relationship type as \{value \(sys_id\), display_value, link\} |
+| `outboundRelations` | array | Outbound CI relationships |
+|   ↳ `sys_id` | string | Sys_id of the relationship record on cmdb_rel_ci |
+|   ↳ `target` | json | Related CI as \{value \(sys_id\), display_value, link\} |
+|   ↳ `type` | json | Relationship type as \{value \(sys_id\), display_value, link\} |
+| `metadata` | json | Operation metadata |
+|   ↳ `inboundCount` | number | Number of inbound relations |
+|   ↳ `outboundCount` | number | Number of outbound relations |
+
+### List ServiceNow CI Relationships
+
+List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item. Each row carries the parent CI, the child CI, and the relationship type.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ciSysId` | string | Yes | sys_id of the configuration item whose relationships should be listed. |
+| `direction` | string | No | Which side of the relationship the CI sits on: "parent", "child", or "both" \(default\). "both" matches rows where the CI is either the parent or the child. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### Search ServiceNow Knowledge
+
+Search ServiceNow knowledge base articles through the Knowledge Management API. Returns ranked results with a snippet, the article number, and the sys_id needed to fetch the full article.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | No | Text to search for across knowledge articles. |
+| `filter` | string | No | Encoded query used to filter the results, against the Knowledge \[kb_knowledge\] table \(e.g., "workflow_state=published"\). |
+| `knowledgeBaseSysIds` | string | No | Comma-separated knowledge base sys_ids \(from kb_knowledge_base\) to restrict results to. |
+| `language` | string | No | Comma-separated ISO 639-1 language codes to restrict results to, or "all". Defaults to the session language. |
+| `fields` | string | No | Comma-separated kb_knowledge fields to include in each result \(e.g., workflow_state,kb_category\). |
+| `limit` | number | No | Maximum number of articles to return. ServiceNow defaults to 30. |
+| `offset` | number | No | Number of articles to skip for pagination. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `articles` | array | Matching knowledge articles, sorted in descending order by relevance score |
+|   ↳ `id` | string | Article sys_id on the kb_knowledge table |
+|   ↳ `number` | string | Knowledge article number |
+|   ↳ `title` | string | Article title \(short description\) |
+|   ↳ `snippet` | string | Small excerpt of the article text |
+|   ↳ `link` | string | Link to the article |
+|   ↳ `score` | string | Relevancy score |
+|   ↳ `rank` | number | Search rank of the article for this search |
+|   ↳ `fields` | json | Requested kb_knowledge fields, each \{name, label, type, value, display_value\} |
+| `metadata` | json | Operation metadata |
+|   ↳ `recordCount` | number | Number of articles returned |
+|   ↳ `totalCount` | number | Total number of available articles reported by ServiceNow |
+
+### Get ServiceNow Knowledge Article
+
+Retrieve the full content of a ServiceNow knowledge article by sys_id or KB number through the Knowledge Management API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `articleId` | string | Yes | sys_id or KB number of the knowledge article \(e.g., KB0000011\). |
+| `fields` | string | No | Comma-separated kb_knowledge fields to include alongside the article content \(e.g., workflow_state,author\). |
+| `language` | string | No | Two-letter ISO 639-1 language code. Only applies when the article is addressed by KB number and a translation exists. |
+| `updateView` | boolean | No | Set to true to increment the article view count and record an entry in the Knowledge Use \[kb_use\] table. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sysId` | string | Article sys_id on kb_knowledge |
+| `number` | string | Knowledge article number |
+| `title` | string | Article title \(short description\) |
+| `content` | string | Full HTML content of the article |
+| `fields` | json | Requested kb_knowledge fields, each \{name, label, type, value, display_value\} |
+| `attachments` | array | Article attachments, returned only when display_attachments is active on the article |
+|   ↳ `sys_id` | string | Attachment sys_id |
+|   ↳ `file_name` | string | Attachment file name |
+|   ↳ `size_bytes` | string | Attachment size in bytes |
+|   ↳ `state` | string | Attachment state: available, available_conditionally, not_available, or pending |
+
+### Find ServiceNow User
+
+Look up ServiceNow users by email, user name, or display name. Use this to resolve the sys_id needed by reference fields such as caller_id, assigned_to, and approver.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | No | Exact email address to match. |
+| `userName` | string | No | Exact user name \(user_name\) to match. |
+| `name` | string | No | Text to match against the display name \(LIKE, case-sensitive\). |
+| `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) users. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
+### List ServiceNow Group Members
+
+List the members of a ServiceNow group from the Group Member [sys_user_grmember] table. Each row links a user to a group, so use it to find who can be assigned work for an assignment group.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `groupSysId` | string | No | sys_id of the sys_user_group whose members should be listed. |
+| `groupName` | string | No | Exact group name, resolved against the referenced group record. Provide this or the group sys_id. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `record` | json | Single ServiceNow record |
+| `records` | json | Array of ServiceNow records |
+| `success` | boolean | Operation success status |
+| `metadata` | json | Operation metadata |
+| `result` | json | Aggregate result \(stats or grouped array\) |
+| `count` | number | Aggregate matching record count |
+| `attachments` | json | Attachment metadata list — record attachments \(sys_id, file_name, content_type, download_link\) or knowledge article attachments \(sys_id, file_name, size_bytes, state\) |
+| `file` | file | Downloaded attachment file |
+| `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
+| `attachment` | json | Uploaded attachment metadata |
+| `tasks` | json | Change tasks belonging to a change request |
+| `items` | json | Service catalog items |
+| `articles` | json | Knowledge article search results |
+| `attributes` | json | Configuration item attributes |
+| `inboundRelations` | json | Inbound CI relationships |
+| `outboundRelations` | json | Outbound CI relationships |
+| `sysId` | string | sys_id returned by the operation |
+| `number` | string | Record number returned by the operation |
+| `requestNumber` | string | Catalog request number |
+| `requestId` | string | sys_id of the catalog request |
+| `table` | string | Table the catalog request was created on |
+| `parentId` | string | sys_id of the parent record of a catalog request |
+| `parentTable` | string | Parent table of a catalog request |
+| `title` | string | Knowledge article title |
+| `fields` | json | Requested knowledge article field values |
+
 
 
 ## Triggers

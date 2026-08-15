@@ -3,7 +3,7 @@ import type {
   ServiceNowAggregateParams,
   ServiceNowAggregateResponse,
 } from '@/tools/servicenow/types'
-import { createBasicAuthHeader } from '@/tools/servicenow/utils'
+import { buildServiceNowHeaders, normalizeInstanceUrl } from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowAggregateTool')
@@ -99,10 +99,7 @@ export const aggregateTool: ToolConfig<ServiceNowAggregateParams, ServiceNowAggr
 
   request: {
     url: (params) => {
-      const baseUrl = params.instanceUrl.trim().replace(/\/$/, '')
-      if (!baseUrl) {
-        throw new Error('ServiceNow instance URL is required')
-      }
+      const baseUrl = normalizeInstanceUrl(params.instanceUrl)
       const url = `${baseUrl}/api/now/stats/${params.tableName.trim()}`
 
       const queryParams = new URLSearchParams()
@@ -139,15 +136,7 @@ export const aggregateTool: ToolConfig<ServiceNowAggregateParams, ServiceNowAggr
       return queryString ? `${url}?${queryString}` : url
     },
     method: 'GET',
-    headers: (params) => {
-      if (!params.username || !params.password) {
-        throw new Error('ServiceNow username and password are required')
-      }
-      return {
-        Authorization: createBasicAuthHeader(params.username, params.password),
-        Accept: 'application/json',
-      }
-    },
+    headers: (params) => buildServiceNowHeaders(params),
   },
 
   transformResponse: async (response: Response) => {

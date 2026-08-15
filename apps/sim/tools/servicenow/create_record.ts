@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ServiceNowCreateParams, ServiceNowCreateResponse } from '@/tools/servicenow/types'
-import { createBasicAuthHeader } from '@/tools/servicenow/utils'
+import { buildServiceNowHeaders, normalizeInstanceUrl } from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowCreateRecordTool')
@@ -47,23 +47,11 @@ export const createRecordTool: ToolConfig<ServiceNowCreateParams, ServiceNowCrea
 
   request: {
     url: (params) => {
-      const baseUrl = params.instanceUrl.trim().replace(/\/$/, '')
-      if (!baseUrl) {
-        throw new Error('ServiceNow instance URL is required')
-      }
+      const baseUrl = normalizeInstanceUrl(params.instanceUrl)
       return `${baseUrl}/api/now/table/${params.tableName.trim()}`
     },
     method: 'POST',
-    headers: (params) => {
-      if (!params.username || !params.password) {
-        throw new Error('ServiceNow username and password are required')
-      }
-      return {
-        Authorization: createBasicAuthHeader(params.username, params.password),
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      }
-    },
+    headers: (params) => buildServiceNowHeaders(params, { json: true }),
     body: (params) => {
       if (!params.fields || typeof params.fields !== 'object') {
         throw new Error('Fields must be a JSON object')
