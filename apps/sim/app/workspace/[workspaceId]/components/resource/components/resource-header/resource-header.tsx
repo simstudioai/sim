@@ -373,7 +373,14 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
         <DropdownMenu>
           <FloatingTooltip label={label} state={tooltipState} />
           <DropdownMenuTrigger asChild>
-            <button type='button' className={cn(triggerClassName, className)} {...tooltipHandlers}>
+            <button
+              type='button'
+              className={cn(triggerClassName, className, drag?.isActive && BREADCRUMB_DROP_CLASS)}
+              onDragOver={drag?.onDragOver}
+              onDragLeave={drag?.onDragLeave}
+              onDrop={drag?.onDrop}
+              {...tooltipHandlers}
+            >
               {content}
               <ChipChevronDown className='ml-auto' />
             </button>
