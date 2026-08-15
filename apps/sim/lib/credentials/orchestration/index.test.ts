@@ -17,6 +17,7 @@ const {
   mockVerifyAndBuildServiceAccountSecret,
   mockIsClientCredentialAccountProviderId,
   mockGetClientCredentialAccountDescriptor,
+  mockDeleteConnectionCredential,
 } = vi.hoisted(() => ({
   mockRecordAudit: vi.fn(),
   mockGetCredentialActorContext: vi.fn(),
@@ -26,6 +27,7 @@ const {
   // Only a descriptor carrying `defaultAuthMethod` is multi-grant; single-grant
   // providers must not trigger the stored-blob read for authMethod/username.
   mockGetClientCredentialAccountDescriptor: vi.fn(() => undefined),
+  mockDeleteConnectionCredential: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -47,7 +49,9 @@ vi.mock('@/lib/credentials/client-credential-accounts/descriptors', () => ({
   isClientCredentialAccountProviderId: mockIsClientCredentialAccountProviderId,
   getClientCredentialAccountDescriptor: mockGetClientCredentialAccountDescriptor,
 }))
-vi.mock('@/lib/credentials/deletion', () => ({ deleteCredential: vi.fn() }))
+vi.mock('@/lib/credentials/deletion', () => ({
+  deleteConnectionCredential: mockDeleteConnectionCredential,
+}))
 vi.mock('@/lib/credentials/environment', () => ({
   deleteWorkspaceEnvCredentials: vi.fn(),
   syncPersonalEnvCredentialsForUser: vi.fn(),
@@ -60,7 +64,7 @@ vi.mock('@/lib/credentials/token-service-accounts/errors', () => ({
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
-import { performUpdateCredential } from '@/lib/credentials/orchestration'
+import { deleteCredentialRecord, performUpdateCredential } from '@/lib/credentials/orchestration'
 
 const OLD_EMAIL = 'old-sa@old-project.iam.gserviceaccount.com'
 const NEW_EMAIL = 'new-sa@new-project.iam.gserviceaccount.com'
@@ -414,5 +418,45 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(result).toMatchObject({ success: false, errorCode: 'validation' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
+  it('conceals managed OAuth credentials from the ordinary update path', async () => {
+    mockCredential({ type: 'managed_oauth' })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      description: 'should not update',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'not_found' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('deleteCredentialRecord', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('rejects deleting a custom Slack bot used by an active Credential Group', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'group-1' }])
+
+    await expect(
+      deleteCredentialRecord({
+        credential: {
+          id: 'cred-1',
+          workspaceId: 'ws-1',
+          type: 'service_account',
+          providerId: 'slack-custom-bot',
+        } as never,
+        reason: 'user_delete',
+      })
+    ).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'Remove this custom Slack bot from its Credential Groups before deleting it.',
+    })
+    expect(mockDeleteConnectionCredential).not.toHaveBeenCalled()
   })
 })

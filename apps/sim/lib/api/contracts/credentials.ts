@@ -17,9 +17,14 @@ export const workspaceCredentialTypeSchema = z.enum([
   'env_personal',
   'service_account',
 ])
+const creatableWorkspaceCredentialTypeSchema = z.enum([
+  'oauth',
+  'env_workspace',
+  'env_personal',
+  'service_account',
+])
 export const workspaceCredentialRoleSchema = z.enum(['admin', 'member'])
 export const workspaceCredentialMemberStatusSchema = z.enum(['active', 'pending', 'revoked'])
-
 export const workspaceCredentialSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
@@ -119,7 +124,7 @@ export const serviceAccountJsonSchema = z
 export const createCredentialBodySchema = z
   .object({
     workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
-    type: workspaceCredentialTypeSchema,
+    type: creatableWorkspaceCredentialTypeSchema,
     displayName: z.string().trim().min(1).max(255).optional(),
     description: z.string().trim().max(500).optional(),
     providerId: z.string().trim().min(1).optional(),

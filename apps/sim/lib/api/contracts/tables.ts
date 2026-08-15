@@ -820,10 +820,20 @@ export const tableRowsQueryBaseSchema = z.object({
     .default(true),
 })
 
-export const tableRowsQuerySchema = tableRowsQueryBaseSchema.refine(
-  (data) => !(data.after && data.sort),
-  { message: 'after cursor cannot be combined with sort — cursors paginate the default order' }
+const unboundedTableRowsLimitSchema = z.preprocess(
+  (value) => (value === null || value === undefined || value === '' ? undefined : Number(value)),
+  z
+    .number({ error: 'Limit must be a number' })
+    .int('Limit must be an integer')
+    .min(1, 'Limit must be at least 1')
+    .optional()
 )
+
+export const tableRowsQuerySchema = tableRowsQueryBaseSchema
+  .extend({ limit: unboundedTableRowsLimitSchema })
+  .refine((data) => !(data.after && data.sort), {
+    message: 'after cursor cannot be combined with sort — cursors paginate the default order',
+  })
 
 export const updateRowsByFilterBodySchema = z.object({
   workspaceId: workspaceIdSchema,
@@ -1063,14 +1073,7 @@ export const rowQueryBodySchema = z.object({
   // Omitted limit returns the ENTIRE matching result, failing fast (400) when
   // it exceeds the response byte budget. An explicit limit caps the page row
   // count; the byte budget may still end a page early with nextCursor set.
-  limit: z.preprocess(
-    (value) => (value === null || value === undefined || value === '' ? undefined : Number(value)),
-    z
-      .number({ error: 'Limit must be a number' })
-      .int('Limit must be an integer')
-      .min(1, 'Limit must be at least 1')
-      .optional()
-  ),
+  limit: unboundedTableRowsLimitSchema,
   cursor: z.string().min(1, 'cursor must be a non-empty token').optional(),
 })
 

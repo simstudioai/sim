@@ -56,6 +56,10 @@ vi.mock('@/lib/credentials/access', () => ({
     access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin),
   getCredentialActorContext: mockGetCredentialActorContext,
   isSharedCredentialType: (type: string) => type !== 'env_personal',
+  requireOrdinaryCredentialType: (type: string) => {
+    if (type === 'managed_oauth') throw new Error('Managed OAuth credential reached test surface')
+    return type
+  },
   SHARED_CREDENTIAL_TYPES: ['oauth', 'env_workspace', 'service_account'],
 }))
 

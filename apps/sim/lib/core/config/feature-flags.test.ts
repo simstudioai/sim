@@ -14,6 +14,8 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
     FORKING_ENABLED: undefined as boolean | undefined,
     DEPLOY_AS_BLOCK: undefined as boolean | undefined,
     TABLES_V2_API: undefined as boolean | undefined,
+    TABLE_VIEWS: undefined as boolean | undefined,
+    CREDENTIAL_GROUPS: undefined as boolean | undefined,
   },
 }))
 
@@ -122,6 +124,8 @@ describe('isFeatureEnabled', () => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.FORKING_ENABLED = undefined
     envRef.DEPLOY_AS_BLOCK = undefined
+    envRef.CREDENTIAL_GROUPS = undefined
+    envRef.TABLE_VIEWS = undefined
   })
 
   describe('workspace-forking flag', () => {
@@ -157,6 +161,20 @@ describe('isFeatureEnabled', () => {
       withAppConfig({ 'deploy-as-block': { orgIds: ['o1'] } })
       expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o1' })).toBe(true)
       expect(await isFeatureEnabled('deploy-as-block', { orgId: 'o2' })).toBe(false)
+    })
+  })
+
+  describe('credential-groups flag', () => {
+    it('uses a global fallback switch off AppConfig', async () => {
+      expect(await isFeatureEnabled('credential-groups')).toBe(false)
+
+      envRef.CREDENTIAL_GROUPS = true
+      expect(await isFeatureEnabled('credential-groups')).toBe(true)
+    })
+
+    it('uses only the global AppConfig clause', async () => {
+      withAppConfig({ 'credential-groups': { enabled: true } })
+      expect(await isFeatureEnabled('credential-groups')).toBe(true)
     })
   })
 

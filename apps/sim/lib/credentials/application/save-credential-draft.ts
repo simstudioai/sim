@@ -42,6 +42,7 @@ export const saveCredentialDraft = defineAuthorizedWorkspaceUseCase({
     )
     if (
       !context.credentialAccess?.credential ||
+      context.credentialAccess.credential.type === 'managed_oauth' ||
       context.credentialAccess.credential.workspaceId !== context.workspaceId ||
       !context.credentialAccess.isAdmin
     ) {

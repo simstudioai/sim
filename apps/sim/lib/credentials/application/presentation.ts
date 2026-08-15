@@ -1,6 +1,9 @@
 import type { WorkspaceCredential } from '@/lib/api/contracts/credentials'
 import type { V2Credential } from '@/lib/api/contracts/v2/credentials'
-import type { CredentialActorContext } from '@/lib/credentials/access'
+import {
+  type CredentialActorContext,
+  requireOrdinaryCredentialType,
+} from '@/lib/credentials/access'
 import type { CredentialRow, VisibleWorkspaceCredential } from '@/lib/credentials/queries'
 
 type PublicCredentialSource =
@@ -32,6 +35,7 @@ export function toWorkspaceCredential(
   row: CredentialRow | VisibleWorkspaceCredential,
   access?: CredentialActorContext
 ): WorkspaceCredential {
+  const type = requireOrdinaryCredentialType(row.type)
   const role = access?.isAdmin
     ? 'admin'
     : (access?.member?.role ?? ('role' in row ? row.role : undefined))
@@ -39,7 +43,7 @@ export function toWorkspaceCredential(
   return {
     id: row.id,
     workspaceId: row.workspaceId,
-    type: row.type,
+    type,
     displayName: row.displayName,
     description: row.description,
     providerId: row.providerId,

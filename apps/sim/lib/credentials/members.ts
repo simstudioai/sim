@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { isSharedCredentialType } from '@/lib/credentials/access'
+import { isSharedCredentialType, requireOrdinaryCredentialType } from '@/lib/credentials/access'
 import type { CredentialRow } from '@/lib/credentials/queries'
 import {
   getUserEntityPermissions,
@@ -204,7 +204,7 @@ export async function removeCredentialMember(params: {
 }
 
 export async function listCredentialMembershipsForUser(userId: string) {
-  return db
+  const rows = await db
     .select({
       membershipId: credentialMember.id,
       credentialId: credential.id,
@@ -218,7 +218,8 @@ export async function listCredentialMembershipsForUser(userId: string) {
     })
     .from(credentialMember)
     .innerJoin(credential, eq(credentialMember.credentialId, credential.id))
-    .where(eq(credentialMember.userId, userId))
+    .where(and(eq(credentialMember.userId, userId), ne(credential.type, 'managed_oauth')))
+  return rows.map((row) => ({ ...row, type: requireOrdinaryCredentialType(row.type) }))
 }
 
 export async function leaveCredentialMembership(params: {

@@ -31,6 +31,7 @@ describe('unified settings navigation', () => {
       { id: 'teammates', label: 'Teammates', section: 'workspace' },
       { id: 'organization', label: 'Members', section: 'organization' },
       { id: 'secrets', label: 'Secrets', section: 'workspace' },
+      { id: 'credential-groups', label: 'Credential groups', section: 'workspace' },
       { id: 'custom-tools', label: 'Custom tools', section: 'workspace' },
       { id: 'mcp', label: 'MCP tools', section: 'workspace' },
       { id: 'apikeys', label: 'Sim API keys', section: 'workspace' },
@@ -68,6 +69,7 @@ describe('unified settings navigation', () => {
     expect(idsForSection('workspace')).toEqual([
       'teammates',
       'secrets',
+      'credential-groups',
       'mcp',
       'custom-tools',
       'byok',
