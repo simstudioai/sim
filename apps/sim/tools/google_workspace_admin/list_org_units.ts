@@ -7,6 +7,8 @@ import {
   appendQueryParams,
   DEFAULT_CUSTOMER,
   DIRECTORY_API_BASE,
+  normalizeEnumValue,
+  ORG_UNIT_LIST_TYPE,
   readAdminJson,
 } from '@/tools/google_workspace_admin/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -53,7 +55,7 @@ export const listOrgUnitsTool: ToolConfig<
       required: false,
       visibility: 'user-only',
       description:
-        'Which org units to return: CHILDREN (immediate children, the default), ALL (all descendants), or ALL_INCLUDING_PARENT',
+        'Which org units to return: children (immediate children, the default), all (all descendants), or allIncludingParent',
     },
   },
 
@@ -63,7 +65,7 @@ export const listOrgUnitsTool: ToolConfig<
       const url = new URL(`${DIRECTORY_API_BASE}/customer/${encodeURIComponent(customer)}/orgunits`)
       appendQueryParams(url, {
         orgUnitPath: params.orgUnitPath,
-        type: params.type,
+        type: normalizeEnumValue('type', params.type, ORG_UNIT_LIST_TYPE),
       })
       return url.toString()
     },

@@ -5,9 +5,13 @@ import type {
 import {
   adminHeaders,
   appendQueryParams,
+  CHROMEOS_ORDER_BY,
   DEFAULT_CUSTOMER,
+  DEVICE_PROJECTION,
   DIRECTORY_API_BASE,
+  normalizeEnumValue,
   readAdminJson,
+  SORT_ORDER,
 } from '@/tools/google_workspace_admin/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -72,7 +76,7 @@ export const listChromeOsDevicesTool: ToolConfig<
       required: false,
       visibility: 'user-only',
       description:
-        'Field to sort by: ANNOTATED_LOCATION, ANNOTATED_USER, LAST_SYNC, NOTES, SERIAL_NUMBER, or STATUS',
+        'Field to sort by: annotatedLocation, annotatedUser, lastSync, notes, serialNumber, or status',
     },
     sortOrder: {
       type: 'string',
@@ -105,9 +109,9 @@ export const listChromeOsDevicesTool: ToolConfig<
         query: params.query,
         maxResults: params.maxResults,
         pageToken: params.pageToken,
-        orderBy: params.orderBy,
-        sortOrder: params.sortOrder,
-        projection: params.projection,
+        orderBy: normalizeEnumValue('orderBy', params.orderBy, CHROMEOS_ORDER_BY),
+        sortOrder: normalizeEnumValue('sortOrder', params.sortOrder, SORT_ORDER),
+        projection: normalizeEnumValue('projection', params.projection, DEVICE_PROJECTION),
       })
       if (params.includeChildOrgunits !== undefined) {
         url.searchParams.set('includeChildOrgunits', String(params.includeChildOrgunits))

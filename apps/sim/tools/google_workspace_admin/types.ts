@@ -1,4 +1,24 @@
+import type {
+  CHROMEOS_ORDER_BY,
+  DEVICE_PROJECTION,
+  MOBILE_ORDER_BY,
+  ORG_UNIT_LIST_TYPE,
+  SORT_ORDER,
+  USER_ORDER_BY,
+  USER_PROJECTION,
+  USER_VIEW_TYPE,
+} from '@/tools/google_workspace_admin/utils'
 import type { ToolResponse } from '@/tools/types'
+
+/** Enum unions derived from the Directory API discovery document. */
+type UserOrderBy = (typeof USER_ORDER_BY)[number]
+type UserProjection = (typeof USER_PROJECTION)[number]
+type UserViewType = (typeof USER_VIEW_TYPE)[number]
+type OrgUnitListType = (typeof ORG_UNIT_LIST_TYPE)[number]
+type ChromeOsOrderBy = (typeof CHROMEOS_ORDER_BY)[number]
+type MobileOrderBy = (typeof MOBILE_ORDER_BY)[number]
+type DeviceProjection = (typeof DEVICE_PROJECTION)[number]
+type SortOrder = (typeof SORT_ORDER)[number]
 
 /**
  * Shared parameters for every Google Workspace Admin SDK call.
@@ -14,18 +34,18 @@ export interface GoogleWorkspaceAdminListUsersParams extends GoogleWorkspaceAdmi
   query?: string
   maxResults?: number
   pageToken?: string
-  orderBy?: 'EMAIL' | 'FAMILY_NAME' | 'GIVEN_NAME'
-  sortOrder?: 'ASCENDING' | 'DESCENDING'
-  projection?: 'BASIC' | 'CUSTOM' | 'FULL'
+  orderBy?: UserOrderBy
+  sortOrder?: SortOrder
+  projection?: UserProjection
   showDeleted?: boolean
-  viewType?: 'admin_view' | 'domain_public'
+  viewType?: UserViewType
 }
 
 /** Parameters for `users.get`. */
 export interface GoogleWorkspaceAdminGetUserParams extends GoogleWorkspaceAdminCommonParams {
   userKey: string
-  projection?: 'BASIC' | 'CUSTOM' | 'FULL'
-  viewType?: 'admin_view' | 'domain_public'
+  projection?: UserProjection
+  viewType?: UserViewType
 }
 
 /** Parameters for `users.insert`. */
@@ -122,7 +142,7 @@ export interface GoogleWorkspaceAdminRevokeUserTokenParams
 export interface GoogleWorkspaceAdminListOrgUnitsParams extends GoogleWorkspaceAdminCommonParams {
   customerId?: string
   orgUnitPath?: string
-  type?: 'ALL' | 'CHILDREN' | 'ALL_INCLUDING_PARENT'
+  type?: OrgUnitListType
 }
 
 /** Parameters for `orgunits.get` and `orgunits.delete`. */
@@ -196,9 +216,9 @@ export interface GoogleWorkspaceAdminListMobileDevicesParams
   query?: string
   maxResults?: number
   pageToken?: string
-  orderBy?: 'DEVICE_ID' | 'EMAIL' | 'LAST_SYNC' | 'MODEL' | 'NAME' | 'OS' | 'STATUS' | 'TYPE'
-  sortOrder?: 'ASCENDING' | 'DESCENDING'
-  projection?: 'BASIC' | 'FULL'
+  orderBy?: MobileOrderBy
+  sortOrder?: SortOrder
+  projection?: DeviceProjection
 }
 
 /** Parameters for `mobiledevices.get`. */
@@ -206,7 +226,7 @@ export interface GoogleWorkspaceAdminGetMobileDeviceParams
   extends GoogleWorkspaceAdminCommonParams {
   customerId?: string
   resourceId: string
-  projection?: 'BASIC' | 'FULL'
+  projection?: DeviceProjection
 }
 
 /** Parameters for `mobiledevices.action`. */
@@ -231,15 +251,9 @@ export interface GoogleWorkspaceAdminListChromeOsDevicesParams
   query?: string
   maxResults?: number
   pageToken?: string
-  orderBy?:
-    | 'ANNOTATED_LOCATION'
-    | 'ANNOTATED_USER'
-    | 'LAST_SYNC'
-    | 'NOTES'
-    | 'SERIAL_NUMBER'
-    | 'STATUS'
-  sortOrder?: 'ASCENDING' | 'DESCENDING'
-  projection?: 'BASIC' | 'FULL'
+  orderBy?: ChromeOsOrderBy
+  sortOrder?: SortOrder
+  projection?: DeviceProjection
   includeChildOrgunits?: boolean
 }
 
@@ -248,7 +262,7 @@ export interface GoogleWorkspaceAdminGetChromeOsDeviceParams
   extends GoogleWorkspaceAdminCommonParams {
   customerId?: string
   deviceId: string
-  projection?: 'BASIC' | 'FULL'
+  projection?: DeviceProjection
 }
 
 /** Parameters for `chromeosdevices.update`. */

@@ -6,8 +6,12 @@ import {
   adminHeaders,
   appendQueryParams,
   DEFAULT_CUSTOMER,
+  DEVICE_PROJECTION,
   DIRECTORY_API_BASE,
+  MOBILE_ORDER_BY,
+  normalizeEnumValue,
   readAdminJson,
+  SORT_ORDER,
 } from '@/tools/google_workspace_admin/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -65,8 +69,7 @@ export const listMobileDevicesTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description:
-        'Field to sort by: DEVICE_ID, EMAIL, LAST_SYNC, MODEL, NAME, OS, STATUS, or TYPE',
+      description: 'Field to sort by: deviceId, email, lastSync, model, name, os, status, or type',
     },
     sortOrder: {
       type: 'string',
@@ -92,9 +95,9 @@ export const listMobileDevicesTool: ToolConfig<
         query: params.query,
         maxResults: params.maxResults,
         pageToken: params.pageToken,
-        orderBy: params.orderBy,
-        sortOrder: params.sortOrder,
-        projection: params.projection,
+        orderBy: normalizeEnumValue('orderBy', params.orderBy, MOBILE_ORDER_BY),
+        sortOrder: normalizeEnumValue('sortOrder', params.sortOrder, SORT_ORDER),
+        projection: normalizeEnumValue('projection', params.projection, DEVICE_PROJECTION),
       })
       return url.toString()
     },

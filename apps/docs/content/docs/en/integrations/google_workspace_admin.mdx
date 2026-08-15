@@ -31,9 +31,9 @@ List Google Workspace directory users for a customer or domain
 | `query` | string | No | Directory search query filtering the results \(e.g. "orgUnitPath=/Sales" or "email:jane*"\) |
 | `maxResults` | number | No | Maximum number of users to return \(1-500\). Example: 100 |
 | `pageToken` | string | No | Token for fetching the next page of results |
-| `orderBy` | string | No | Field to sort by: EMAIL, FAMILY_NAME, or GIVEN_NAME |
+| `orderBy` | string | No | Field to sort by: email, familyName, or givenName |
 | `sortOrder` | string | No | Sort direction: ASCENDING or DESCENDING |
-| `projection` | string | No | Fields to include for each user: BASIC, CUSTOM, or FULL |
+| `projection` | string | No | Fields to include for each user: basic, custom, or full |
 | `showDeleted` | boolean | No | Return recently deleted users instead of active ones |
 | `viewType` | string | No | Whether to read the admin_view or the domain_public view of each user |
 
@@ -383,7 +383,7 @@ List the organizational units in a Google Workspace account
 | --------- | ---- | -------- | ----------- |
 | `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
 | `orgUnitPath` | string | No | Org unit path to list from \(e.g. /Sales\). Defaults to the top-level org unit |
-| `type` | string | No | Which org units to return: CHILDREN \(immediate children, the default\), ALL \(all descendants\), or ALL_INCLUDING_PARENT |
+| `type` | string | No | Which org units to return: children \(immediate children, the default\), all \(all descendants\), or allIncludingParent |
 
 #### Output
 
@@ -617,7 +617,7 @@ List the mobile devices enrolled in a Google Workspace account
 | `query` | string | No | Device search query \(e.g. "email:jane@example.com" or "model:Pixel"\) |
 | `maxResults` | number | No | Maximum number of devices to return \(max 100\). Example: 50 |
 | `pageToken` | string | No | Token for fetching the next page of results |
-| `orderBy` | string | No | Field to sort by: DEVICE_ID, EMAIL, LAST_SYNC, MODEL, NAME, OS, STATUS, or TYPE |
+| `orderBy` | string | No | Field to sort by: deviceId, email, lastSync, model, name, os, status, or type |
 | `sortOrder` | string | No | Sort direction: ASCENDING or DESCENDING |
 | `projection` | string | No | Fields to include for each device: BASIC or FULL |
 
@@ -693,7 +693,7 @@ List the ChromeOS devices enrolled in a Google Workspace account
 | `query` | string | No | Device search query \(e.g. "user:jane@example.com" or "status:provisioned"\) |
 | `maxResults` | number | No | Maximum number of devices to return \(should not exceed 300\). Example: 100 |
 | `pageToken` | string | No | Token for fetching the next page of results |
-| `orderBy` | string | No | Field to sort by: ANNOTATED_LOCATION, ANNOTATED_USER, LAST_SYNC, NOTES, SERIAL_NUMBER, or STATUS |
+| `orderBy` | string | No | Field to sort by: annotatedLocation, annotatedUser, lastSync, notes, serialNumber, or status |
 | `sortOrder` | string | No | Sort direction: ASCENDING or DESCENDING |
 | `projection` | string | No | Fields to include for each device: BASIC or FULL |
 | `includeChildOrgunits` | boolean | No | Also return devices in org units nested under the requested org unit path |

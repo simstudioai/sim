@@ -77,7 +77,7 @@ export const updateOrgUnitTool: ToolConfig<
       const body: Record<string, unknown> = {}
       if (params.name) body.name = params.name
       if (params.parentOrgUnitPath) body.parentOrgUnitPath = params.parentOrgUnitPath
-      if (params.description !== undefined) body.description = params.description
+      if (params.description) body.description = params.description
       return JSON.stringify(body)
     },
   },

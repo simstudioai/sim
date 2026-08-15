@@ -6,7 +6,9 @@ import {
   adminHeaders,
   appendQueryParams,
   DEFAULT_CUSTOMER,
+  DEVICE_PROJECTION,
   DIRECTORY_API_BASE,
+  normalizeEnumValue,
   readAdminJson,
 } from '@/tools/google_workspace_admin/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -58,7 +60,9 @@ export const getMobileDeviceTool: ToolConfig<
       const url = new URL(
         `${DIRECTORY_API_BASE}/customer/${encodeURIComponent(customer)}/devices/mobile/${encodeURIComponent(params.resourceId)}`
       )
-      appendQueryParams(url, { projection: params.projection })
+      appendQueryParams(url, {
+        projection: normalizeEnumValue('projection', params.projection, DEVICE_PROJECTION),
+      })
       return url.toString()
     },
     method: 'GET',

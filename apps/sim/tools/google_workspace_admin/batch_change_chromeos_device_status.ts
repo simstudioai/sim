@@ -15,6 +15,13 @@ interface BatchChangeChromeOsDeviceStatusApiResponse {
   changeChromeOsDeviceStatusResults?: unknown[]
 }
 
+/**
+ * The only action the Admin SDK pairs with a deprovision reason. The reason is
+ * required for it and rejected for the other two actions, so the body builder
+ * gates on this value rather than on whether a reason happens to be set.
+ */
+const DEPROVISION_ACTION = 'CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DEPROVISION'
+
 export const batchChangeChromeOsDeviceStatusTool: ToolConfig<
   GoogleWorkspaceAdminBatchChangeChromeOsDeviceStatusParams,
   GoogleWorkspaceAdminResponse
@@ -74,11 +81,17 @@ export const batchChangeChromeOsDeviceStatusTool: ToolConfig<
     method: 'POST',
     headers: adminHeaders,
     body: (params) => {
+      const action = params.changeChromeOsDeviceStatusAction
       const body: Record<string, unknown> = {
         deviceIds: parseDeviceIds(params.deviceIds),
-        changeChromeOsDeviceStatusAction: params.changeChromeOsDeviceStatusAction,
+        changeChromeOsDeviceStatusAction: action,
       }
-      if (params.deprovisionReason) body.deprovisionReason = params.deprovisionReason
+      if (action === DEPROVISION_ACTION) {
+        if (!params.deprovisionReason) {
+          throw new Error('deprovisionReason is required when the action is DEPROVISION')
+        }
+        body.deprovisionReason = params.deprovisionReason
+      }
       return JSON.stringify(body)
     },
   },

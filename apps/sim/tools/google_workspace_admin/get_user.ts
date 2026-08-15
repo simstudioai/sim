@@ -6,7 +6,10 @@ import {
   adminHeaders,
   appendQueryParams,
   DIRECTORY_API_BASE,
+  normalizeEnumValue,
   readAdminJson,
+  USER_PROJECTION,
+  USER_VIEW_TYPE,
 } from '@/tools/google_workspace_admin/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -55,8 +58,8 @@ export const getUserTool: ToolConfig<
     url: (params) => {
       const url = new URL(`${DIRECTORY_API_BASE}/users/${encodeURIComponent(params.userKey)}`)
       appendQueryParams(url, {
-        projection: params.projection,
-        viewType: params.viewType,
+        projection: normalizeEnumValue('projection', params.projection, USER_PROJECTION),
+        viewType: normalizeEnumValue('viewType', params.viewType, USER_VIEW_TYPE),
       })
       return url.toString()
     },

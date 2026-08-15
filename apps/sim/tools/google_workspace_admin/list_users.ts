@@ -7,7 +7,12 @@ import {
   appendQueryParams,
   DEFAULT_CUSTOMER,
   DIRECTORY_API_BASE,
+  normalizeEnumValue,
   readAdminJson,
+  SORT_ORDER,
+  USER_ORDER_BY,
+  USER_PROJECTION,
+  USER_VIEW_TYPE,
 } from '@/tools/google_workspace_admin/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -72,7 +77,7 @@ export const listUsersTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Field to sort by: EMAIL, FAMILY_NAME, or GIVEN_NAME',
+      description: 'Field to sort by: email, familyName, or givenName',
     },
     sortOrder: {
       type: 'string',
@@ -84,7 +89,7 @@ export const listUsersTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Fields to include for each user: BASIC, CUSTOM, or FULL',
+      description: 'Fields to include for each user: basic, custom, or full',
     },
     showDeleted: {
       type: 'boolean',
@@ -115,10 +120,10 @@ export const listUsersTool: ToolConfig<
         query: params.query,
         maxResults: params.maxResults,
         pageToken: params.pageToken,
-        orderBy: params.orderBy,
-        sortOrder: params.sortOrder,
-        projection: params.projection,
-        viewType: params.viewType,
+        orderBy: normalizeEnumValue('orderBy', params.orderBy, USER_ORDER_BY),
+        sortOrder: normalizeEnumValue('sortOrder', params.sortOrder, SORT_ORDER),
+        projection: normalizeEnumValue('projection', params.projection, USER_PROJECTION),
+        viewType: normalizeEnumValue('viewType', params.viewType, USER_VIEW_TYPE),
       })
 
       if (params.showDeleted) {

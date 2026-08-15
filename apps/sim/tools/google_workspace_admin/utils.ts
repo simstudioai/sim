@@ -75,6 +75,63 @@ export function parseDeviceIds(deviceIds: string): string[] {
   return ids
 }
 
+/**
+ * Enum values the Directory API discovery document declares, spelled exactly as
+ * each endpoint expects. The casing is not consistent across resources — the
+ * `users` collection is camelCase and lowercase while the device collections
+ * are SCREAMING_SNAKE — so each set is kept separate rather than shared.
+ */
+export const USER_ORDER_BY = ['email', 'familyName', 'givenName'] as const
+export const USER_PROJECTION = ['basic', 'custom', 'full'] as const
+export const USER_VIEW_TYPE = ['admin_view', 'domain_public'] as const
+export const ORG_UNIT_LIST_TYPE = ['all', 'children', 'allIncludingParent'] as const
+export const CHROMEOS_ORDER_BY = [
+  'annotatedLocation',
+  'annotatedUser',
+  'lastSync',
+  'notes',
+  'serialNumber',
+  'status',
+] as const
+export const MOBILE_ORDER_BY = [
+  'deviceId',
+  'email',
+  'lastSync',
+  'model',
+  'name',
+  'os',
+  'status',
+  'type',
+] as const
+export const DEVICE_PROJECTION = ['BASIC', 'FULL'] as const
+export const SORT_ORDER = ['ASCENDING', 'DESCENDING'] as const
+
+/**
+ * Resolves a caller-supplied enum value to the exact spelling the Admin SDK
+ * declares for that parameter.
+ *
+ * Google mixes conventions across the Directory API: `users.list` accepts
+ * `familyName` and `basic`, while `chromeosdevices.list` accepts `SERIAL_NUMBER`
+ * and `BASIC`. Matching case-insensitively and ignoring underscores lets a
+ * caller write either style and still reach the API with the spelling that
+ * endpoint requires, instead of a 400 `Invalid Value`. An unrecognized value is
+ * rejected here so the caller sees the allowed set rather than a generic error.
+ */
+export function normalizeEnumValue<T extends string>(
+  paramName: string,
+  value: string | undefined,
+  allowed: readonly T[]
+): T | undefined {
+  if (value === undefined || value === '') return undefined
+  const compact = (input: string) => input.replace(/_/g, '').toLowerCase()
+  const target = compact(value)
+  const match = allowed.find((option) => compact(option) === target)
+  if (!match) {
+    throw new Error(`${paramName} must be one of ${allowed.join(', ')} — received "${value}"`)
+  }
+  return match
+}
+
 /** Extracts the Admin SDK's `error.message` from an error payload. */
 function extractAdminError(data: unknown): string | undefined {
   if (typeof data !== 'object' || data === null) return undefined

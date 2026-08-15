@@ -85,10 +85,10 @@ export const updateChromeOsDeviceTool: ToolConfig<
     headers: adminHeaders,
     body: (params) => {
       const body: Record<string, unknown> = {}
-      if (params.annotatedUser !== undefined) body.annotatedUser = params.annotatedUser
-      if (params.annotatedLocation !== undefined) body.annotatedLocation = params.annotatedLocation
-      if (params.annotatedAssetId !== undefined) body.annotatedAssetId = params.annotatedAssetId
-      if (params.notes !== undefined) body.notes = params.notes
+      if (params.annotatedUser) body.annotatedUser = params.annotatedUser
+      if (params.annotatedLocation) body.annotatedLocation = params.annotatedLocation
+      if (params.annotatedAssetId) body.annotatedAssetId = params.annotatedAssetId
+      if (params.notes) body.notes = params.notes
       if (params.orgUnitPath) body.orgUnitPath = params.orgUnitPath
       return JSON.stringify(body)
     },
