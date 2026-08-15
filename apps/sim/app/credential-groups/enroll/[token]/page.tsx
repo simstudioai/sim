@@ -167,6 +167,7 @@ export default async function CredentialGroupEnrollmentPage({
                   trailing={
                     <OAuthConnectLink
                       href={`/api/credential-groups/enroll/${token}/oauth/${option.id}`}
+                      reconnect={Boolean(connection)}
                     />
                   }
                 />
